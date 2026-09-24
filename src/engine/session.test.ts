@@ -4,6 +4,7 @@ import {
   reduce,
   currentSlide,
   canGoBack,
+  canPassSolved,
   canReveal,
   canRetry,
   scorePercent,
@@ -229,6 +230,53 @@ describe('advancing', () => {
     const s = start();
     expect(currentSlide(s)!.slide.kind).toBe('teach');
     expect(reduce(s, { type: 'continue' }).index).toBe(1);
+  });
+
+  it('lets a solved slide be passed again after stepping back onto it', () => {
+    let s = pastTeach(start());
+    const answer = (currentSlide(s)!.slide as { answer: string }).answer;
+    s = run(s, [{ type: 'submit', answer }, { type: 'continue' }, { type: 'back' }]);
+
+    // Back on the solved slide, idle: reviewing it must not mean solving it again.
+    expect(s.index).toBe(1);
+    expect(s.feedback.kind).toBe('idle');
+    expect(canPassSolved(s)).toBe(true);
+    expect(reduce(s, { type: 'continue' }).index).toBe(2);
+  });
+
+  it('still asks for an answer on a slide stepped back onto but never solved', () => {
+    // Revealed, not solved: stepping back onto it gives no free pass.
+    let s = pastTeach(start());
+    s = run(s, [
+      { type: 'submit', answer: '999i' },
+      { type: 'reveal' },
+      { type: 'continue' },
+      { type: 'back' },
+    ]);
+    expect(s.index).toBe(1);
+    expect(canPassSolved(s)).toBe(false);
+    expect(reduce(s, { type: 'continue' })).toBe(s);
+  });
+
+  it('gives no free pass in the skill check, even on a solved question', () => {
+    // Guided slides answered, then the first skill-check question solved and
+    // put back to idle: the pass is for review, and review is guided only.
+    let s = pastTeach(start());
+    s = run(s, [
+      { type: 'submit', answer: (currentSlide(s)!.slide as { answer: string }).answer },
+      { type: 'continue' },
+      { type: 'submit', answer: 'no' },
+      { type: 'continue' },
+    ]);
+    expect(s.phase).toBe('skillCheck');
+    s = run(s, [
+      { type: 'submit', answer: (currentSlide(s)!.slide as { answer: string }).answer },
+      { type: 'tryAgain' },
+    ]);
+    expect(s.states[currentSlide(s)!.id].solved).toBe(true);
+    expect(s.feedback.kind).toBe('idle');
+    expect(canPassSolved(s)).toBe(false);
+    expect(reduce(s, { type: 'continue' })).toBe(s);
   });
 });
 

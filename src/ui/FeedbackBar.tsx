@@ -27,6 +27,12 @@ interface Props {
    * onwards — there is deliberately no Try again and no Show me to hunt for.
    */
   assessment: boolean;
+  /**
+   * A guided slide already solved, stepped back onto for review: Continue is
+   * offered beside Check, so reviewing it does not mean answering it again.
+   * Read from `canPassSolved`, the same gate the reducer applies.
+   */
+  canPass: boolean;
   onSubmit: () => void;
   onTryAgain: () => void;
   onReveal: () => void;
@@ -120,6 +126,7 @@ export function FeedbackBar({
   canSubmit,
   isLastQuestion,
   assessment,
+  canPass,
   onSubmit,
   onTryAgain,
   onReveal,
@@ -141,6 +148,13 @@ export function FeedbackBar({
     case 'idle':
       return (
         <div className="footer">
+          {canPass && (
+            <div className="footer-head">
+              <button type="button" className="ghost-button" onClick={onContinue}>
+                {advanceLabel}
+              </button>
+            </div>
+          )}
           <button
             type="button"
             className="primary-button"

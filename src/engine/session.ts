@@ -239,6 +239,24 @@ export function canGoBack(session: Session): boolean {
   return session.phase === 'guided' && session.index > 0;
 }
 
+/**
+ * Whether the current slide may be passed without answering it again: a guided
+ * slide already solved, stepped back onto for review and still idle.
+ *
+ * Without this, reviewing slide 3 from slide 8 meant solving 3 to 7 again. It
+ * is for review only, so it holds in the guided phase alone: the skill check
+ * and a level check are unaffected.
+ */
+export function canPassSolved(session: Session): boolean {
+  const slide = currentSlide(session);
+  return (
+    session.phase === 'guided' &&
+    slide !== undefined &&
+    session.states[slide.id]?.solved === true &&
+    session.feedback.kind === 'idle'
+  );
+}
+
 /** Whether the reveal affordance should be offered right now. */
 export function canReveal(session: Session): boolean {
   // An assessment never shows working, so there is nothing to reveal.
@@ -557,12 +575,14 @@ export function reduce(session: Session, action: Action): Session {
       const isTeach = slide.slide.kind === 'teach';
       // A wrong answer does not let you move on: try again, or ask to see it.
       // In an assessment there is no second attempt, so a wrong answer is a
-      // finished question and the deck advances past it.
+      // finished question and the deck advances past it. A guided slide
+      // already solved and stepped back onto may be passed as it stands.
       const mayAdvance =
         isTeach ||
         kind === 'correct' ||
         kind === 'revealed' ||
-        (session.assessment && kind === 'incorrect');
+        (session.assessment && kind === 'incorrect') ||
+        canPassSolved(session);
       if (!mayAdvance) return session;
 
       const deck = currentDeck(session);

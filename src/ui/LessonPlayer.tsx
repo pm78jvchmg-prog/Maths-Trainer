@@ -14,6 +14,7 @@ import {
   currentSlide,
   currentDeck,
   canGoBack,
+  canPassSolved,
   canRetry,
   skillCheckScore,
   scorePercent,
@@ -195,7 +196,7 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
         {/* Only when stepping *back* onto a solved slide. While the verdict for
             this answer is still on screen, saying it was already solved reads
             as a comment on the answer just given rather than on the history. */}
-        {session.states[slide.id]?.solved && session.feedback.kind === 'idle' && (
+        {canPassSolved(session) && (
           <p className="lesson-meta">Already solved — answer again or continue.</p>
         )}
         <SlideView
@@ -214,6 +215,7 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
         canSubmit={hasAnswer(slide.slide, answer)}
         isLastQuestion={isLastQuestion}
         assessment={session.assessment}
+        canPass={canPassSolved(session)}
         onSubmit={() => act({ type: 'submit', answer })}
         onTryAgain={() => act({ type: 'tryAgain' })}
         onReveal={() => act({ type: 'reveal' })}

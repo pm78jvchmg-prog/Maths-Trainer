@@ -37,7 +37,13 @@ function tab(id: CategoryId, title: string, blurb: string, all: Course[]): Categ
 
 // Some levels are shown in a different course from the file they are written
 // in; see placement.ts.
-const discovered = place(discoverCourses());
+/**
+ * The courses as their files write them, before placement. Tools that count
+ * what each course file holds compare against this, not the placed list.
+ */
+export const writtenCourses: Course[] = discoverCourses();
+
+const discovered = place(writtenCourses);
 
 /**
  * Courses grouped into the tabs on the home screen.

@@ -21,7 +21,9 @@ import { loadFacts } from './countsTree';
 // file is collected, which is untimed, rather than inside a test's 5 s budget.
 // Once they are loaded, loadFacts() re-imports the same modules from vitest's
 // cache in tens of milliseconds, so nothing is walked any less.
-import { courses, lessonCount } from '../../src/content/courses/index';
+// The courses as their files write them: placement.ts shows some levels in
+// other courses, but this tool counts files.
+import { writtenCourses as courses, lessonCount } from '../../src/content/courses/index';
 import { registry } from '../../src/content/registry';
 
 const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');

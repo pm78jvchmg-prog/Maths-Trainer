@@ -7,7 +7,10 @@
  * N = N0 r^t for t is Logarithms level 3, linearising a model is Logarithms
  * level 6, and d/dx of e^x is Differentiation level 4. What this owns is the
  * model itself: what A and k say, b^t written as e^(kt), doubling time and
- * half-life as (ln 2)/k, models bounded by a level, and the rate as ky.
+ * half-life as (ln 2)/k, models bounded by a level, and the rate as ky. Level
+ * 7 sets the model against the data it was fitted to: residuals, where it
+ * stops fitting, choosing between two fits, and how far past the data it can
+ * be trusted.
  *
  * Every value a learner computes is whole. The trick that makes that possible
  * is keeping k a whole multiple of ln 2 or ln 3 over a whole time, so e^(kt)
@@ -19,6 +22,7 @@ import type { Block, ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } f
 import { bin, num, pow, type Expr } from '../expr';
 import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
+import { canonicalSet } from '../numberLine';
 import { EXP_KEYS } from './calculus';
 // Where a slider's handle rests before it is touched, so no answer sits there.
 import { defaultSliderValue } from '../../ui/sliderValue';
@@ -2635,9 +2639,10 @@ interface TableParams {
   dt: number;
 }
 
-function tableTex({ values, dt }: TableParams): string {
+/** The table, a `t` row over a row named `label`: `y`, or a story's own letter. */
+function tableTex({ values, dt }: TableParams, label = 'y'): string {
   const times = values.map((_, i) => `${i * dt}`).join(' & ');
-  return `\\begin{array}{c|${'c'.repeat(values.length)}} t & ${times} \\\\ \\hline y & ${values.map(texNum).join(' & ')} \\end{array}`;
+  return `\\begin{array}{c|${'c'.repeat(values.length)}} t & ${times} \\\\ \\hline ${label} & ${values.map(texNum).join(' & ')} \\end{array}`;
 }
 
 function sampleTable(rng: Rng, difficulty: number, kind: TableKind): TableParams {
@@ -8608,6 +8613,1384 @@ const expmEffectiveTiles: Generator<MatchParams> = {
   },
 };
 
+/* ---------- Level 7: the limits of a model ---------- */
+
+/*
+ * A model against the data it was fitted to. Every table is built outward
+ * from its answer: the model is drawn first, and each column of the table
+ * sits at a whole number of the model's own steps, so every prediction is A
+ * times a whole power of 2 or 3, or A divided by one. Then the residuals are
+ * drawn whole and added on to make the measurements. So every residual,
+ * largest residual, sum of squares and time is whole, and what a learner
+ * works out is a power, a subtraction and a square.
+ *
+ * Nothing here is a derivative or an integral, so no slide declares `source`,
+ * `integrand` or `limits`: the oracles in generators.test.ts have nothing to
+ * check. exponentialModels.test.ts reads the model and the table back out of
+ * every prompt instead and works each answer out again.
+ */
+
+/** A fair fit scatters small residuals; a drift is one sign, growing; a leave fits, then does not. */
+type DataShape = 'fair' | 'drift' | 'leave';
+
+interface DataParams extends Rate {
+  a: number;
+  /** Columns sit this many steps of h apart: 1, or 2 to leave a whole time between them. */
+  gap: number;
+  /** Observed minus predicted, one per column of the table. */
+  res: number[];
+  /** The first column where the data leaves the model; 0 when it never does. */
+  from: number;
+  /** How far the data may stray before it counts as leaving; 0 when unused. */
+  margin: number;
+  ctx: number;
+}
+
+/** The model's value at t = m h: a whole power of b times A, or A over one. */
+function predictAt({ a, b, down }: DataParams, m: number): number {
+  return down ? a / b ** m : a * b ** m;
+}
+
+function dataPredicted(params: DataParams): number[] {
+  return params.res.map((_, i) => predictAt(params, i * params.gap));
+}
+
+function dataObserved(params: DataParams): number[] {
+  return dataPredicted(params).map((value, i) => value + params.res[i]);
+}
+
+function dataTimes({ res, gap, h }: DataParams): number[] {
+  return res.map((_, i) => i * gap * h);
+}
+
+function lastTime(params: DataParams): number {
+  return (params.res.length - 1) * params.gap * params.h;
+}
+
+/** "every hour", "every 5 hours". */
+function everyUnit(step: number, unit: string): string {
+  return step === 1 ? `every ${unit}` : `every ${step} ${unit}s`;
+}
+
+/** kt at a number t, as it sits in the power: 3\ln 2, \frac{\ln 2}{5} \times 15. */
+function kAtTex({ b, h, down }: Rate, t: number): string {
+  const size = h === 1 ? mLnTex(t, b) : `\\frac{\\ln ${b}}{${h}} \\times ${t}`;
+  return down ? `-${size}` : size;
+}
+
+/** m\ln b, with 1\ln b written \ln b. */
+function mLnTex(m: number, b: number): string {
+  return m === 1 ? `\\ln ${b}` : `${m}\\ln ${b}`;
+}
+
+/** kt at t = m h, worked down to a whole multiple of ln b: \frac{\ln 2}{5} \times 15 = 3\ln 2. */
+function kWorkedTex(rate: Rate, m: number): string {
+  const t = m * rate.h;
+  const whole = `${rate.down ? '-' : ''}${mLnTex(m, rate.b)}`;
+  return rate.h === 1 ? whole : `${kAtTex(rate, t)} = ${whole}`;
+}
+
+/** e^{kt} at t = m h: b^m, or 1 over it for a decay. */
+function factorTex({ b, down }: Rate, m: number): string {
+  return down ? `\\frac{1}{${b ** m}}` : String(b ** m);
+}
+
+function dataStory(params: DataParams): Story {
+  return storyOf(params.down, params.ctx);
+}
+
+/**
+ * How wide a table of measurements may run across a 393 px screen, counted
+ * as the digits in its cells plus two for each column's spacing: five columns
+ * of 3, 2, 2, 3 and 3 digits fit, and 3, 3, 3, 3 and 2 already touch the
+ * edge. A wider table is turned on its side, `t` and the model's letter
+ * heading two columns, rather than scrolling its last values away.
+ */
+const ACROSS_WIDTH = 22;
+
+/** A table of measurements, the model's letter labelling the values. */
+function measuredTex(values: number[], dt: number, label: string): string {
+  const times = values.map((_, i) => i * dt);
+  const digits = values.reduce((sum, v, i) => sum + Math.max(String(v).length, String(times[i]).length), 0);
+  if (digits + 2 * values.length <= ACROSS_WIDTH) return tableTex({ kind: 'exponential', values, dt }, label);
+  const rows = values.map((v, i) => `${times[i]} & ${texNum(v)}`).join(' \\\\ ');
+  return `\\begin{array}{c|c} t & ${label} \\\\ \\hline ${rows} \\end{array}`;
+}
+
+/** The table of measurements, the model's letter on the second row. */
+function dataTable(params: DataParams): string {
+  return measuredTex(dataObserved(params), params.gap * params.h, dataStory(params).sym);
+}
+
+function dataOpening(params: DataParams): string {
+  const story = dataStory(params);
+  return `${story.subject} was measured ${everyUnit(params.gap * params.h, story.unit)}. The model $${story.sym} = ${modelTex(params.a, params)}$ was fitted to the measurements, with $t$ in ${story.unit}s.`;
+}
+
+/** The story, the table on a line of its own, then the question. */
+function dataPrompt(params: DataParams, ask: string, ...after: Block[]): Block[] {
+  return [
+    { kind: 'prose', text: dataOpening(params) },
+    { kind: 'display', tex: dataTable(params) },
+    { kind: 'prose', text: ask },
+    ...after,
+  ];
+}
+
+/**
+ * Residuals written out: the quoted ones a prompt reads from. Four fit on one
+ * line of a phone; more are broken three to a line.
+ */
+function residualLine(res: number[]): string {
+  if (res.length <= 4) return `\\text{residuals: } ${res.join(',\\ ')}`;
+  const lines = [res.slice(0, 3), res.slice(3)].map((part) => part.join(',\\ '));
+  return `\\begin{gathered} \\text{residuals: } ${lines.join(', \\\\ ')} \\end{gathered}`;
+}
+
+/** Predictions stay three digits wide at most. */
+const FIT_TOP = 1000;
+
+function sampleModel(
+  rng: Rng,
+  difficulty: number,
+  count: number,
+  { gap = 1, hs, top = FIT_TOP, grow = false }: DataOptions,
+): Omit<DataParams, 'res' | 'from' | 'margin'> {
+  const steps = (count - 1) * gap;
+  const b = difficulty > 1 && 8 * 3 ** steps <= top ? rng.pick([2, 2, 3]) : 2;
+  const h = rng.pick(hs ?? (difficulty > 1 ? [1, 2, 5] : [1]));
+  const down = !grow && difficulty > 1 && rng.chance(0.5);
+  const span = b ** steps;
+  const least = down ? 4 : 8;
+  const q = rng.int(least, Math.max(least, Math.floor(top / span)));
+  return { a: down ? q * span : q, b, h, down, gap, ctx: rng.int(0, 3) };
+}
+
+interface DataOptions {
+  /** How many columns; by default 4, or 5 at difficulty 2, one more for a leave. */
+  count?: number;
+  gap?: number;
+  /** The step lengths h to draw from. */
+  hs?: number[];
+  top?: number;
+  /** Growth only, never a decay. */
+  grow?: boolean;
+}
+
+/**
+ * Small whole residuals of both signs, each within about an eighth of its
+ * prediction, with one clearly the largest in size.
+ */
+function fairResiduals(rng: Rng, predicted: number[], wide: boolean): number[] {
+  const cap = wide ? 9 : 5;
+  for (;;) {
+    const res = predicted.map((value) => {
+      const size = rng.int(1, Math.min(cap, Math.max(1, Math.floor(value / 8))));
+      return rng.chance(0.5) ? size : -size;
+    });
+    const sizes = res.map(Math.abs);
+    const top = Math.max(...sizes);
+    const mixed = res.some((r) => r > 0) && res.some((r) => r < 0);
+    if (mixed && sizes.filter((size) => size === top).length === 1) return res;
+  }
+}
+
+/** Is each value past the first on the same side of the one before, strictly? */
+function monotone(values: number[], down: boolean): boolean {
+  return values.every((value, i) => i === 0 || (down ? value < values[i - 1] : value > values[i - 1]));
+}
+
+/** Is each size from `from` on strictly bigger than the one before? */
+function growing(res: number[], from: number): boolean {
+  return res.every((r, i) => i <= from || Math.abs(r) > Math.abs(res[i - 1]));
+}
+
+const TRIANGLE = [1, 3, 6, 10, 15, 21];
+
+/** A run of one sign growing along the table: the data curving away from the model from the start. */
+function driftResiduals(rng: Rng, predicted: number[], down: boolean): number[] | undefined {
+  const sign = rng.chance(0.5) ? 1 : -1;
+  const c = rng.int(1, 3);
+  const res = predicted.map((_, i) => sign * c * TRIANGLE[i]);
+  const observed = predicted.map((value, i) => value + res[i]);
+  const plausible = res.every((r, i) => Math.abs(r) * 2 < predicted[i]);
+  return plausible && monotone(observed, down) ? res : undefined;
+}
+
+/**
+ * Small residuals up to column `from`, then the data levels off: the step into
+ * column `from` is half the step before it (a sixth or a quarter for a decay,
+ * which was already slowing), and each step after is half the one before. So
+ * the residuals take one sign and grow, and a growth table is an S: speeding
+ * up while it follows the model, slowing once it leaves.
+ */
+function leaveResiduals(rng: Rng, predicted: number[], from: number, { b, down }: Rate): number[] | undefined {
+  const res = predicted.slice(0, from).map(() => (rng.chance(0.5) ? 1 : -1) * rng.int(1, 2));
+  const observed = predicted.slice(0, from).map((value, i) => value + res[i]);
+  const early = observed.slice(1).map((value, i) => value - observed[i]);
+  if (!down && !early.every((step, i) => i === 0 || step > early[i - 1])) return undefined;
+  let step = Math.trunc(early[early.length - 1] / (down ? 2 * b : 2));
+  for (let i = from; i < predicted.length; i += 1) {
+    if (step === 0) return undefined;
+    observed.push(observed[i - 1] + step);
+    res.push(observed[i] - predicted[i]);
+    step = Math.trunc(step / 2);
+  }
+  return monotone(observed, down) && growing(res, from) ? res : undefined;
+}
+
+/** Margins a question may name: the data "more than D away". */
+const MARGINS = [3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50];
+
+function sampleData(rng: Rng, difficulty: number, shape: DataShape, options: DataOptions = {}): DataParams {
+  const count = options.count ?? (shape === 'leave' ? 4 : 3) + (difficulty > 1 ? 2 : 1);
+  for (;;) {
+    const model = sampleModel(rng, difficulty, count, options);
+    const predicted = dataPredicted({ ...model, res: Array<number>(count).fill(0), from: 0, margin: 0 });
+    if (shape === 'fair') {
+      return { ...model, res: fairResiduals(rng, predicted, difficulty > 1), from: 0, margin: 0 };
+    }
+    if (shape === 'drift') {
+      const res = driftResiduals(rng, predicted, model.down);
+      if (res) return { ...model, res, from: 1, margin: 0 };
+      continue;
+    }
+    // Growth needs two steps on the model first, to be seen speeding up.
+    const from = rng.int(model.down ? 2 : 3, count - 2);
+    const res = leaveResiduals(rng, predicted, from, model);
+    if (!res) continue;
+    const early = Math.max(...res.slice(0, from).map(Math.abs));
+    const margins = MARGINS.filter((d) => d > early && d < Math.abs(res[from]));
+    if (margins.length > 0) return { ...model, res, from, margin: rng.pick(margins) };
+  }
+}
+
+/** The model worked at column i, then the residual there. */
+function residualSteps(params: DataParams, i: number): SolutionStep[] {
+  const { a, down } = params;
+  const m = i * params.gap;
+  const t = m * params.h;
+  const { sym } = dataStory(params);
+  const predicted = predictAt(params, m);
+  const observed = predicted + params.res[i];
+  const r = params.res[i];
+  return [
+    { text: `At $t = ${t}$ the power is $${kWorkedTex(params, m)}$, so $e^{kt} = ${factorTex(params, m)}$ and the model gives` },
+    { tex: `${sym} = ${texNum(a)} ${down ? '\\div' : '\\times'} ${params.b ** m} = ${texNum(predicted)}` },
+    { text: `The residual is the measurement minus the model: $${texNum(observed)} - ${texNum(predicted)} = ${r}$.` },
+    { text: r > 0 ? 'It is positive: the data sits above the model there.' : 'It is negative: the data sits below the model there.' },
+  ];
+}
+
+/* ---------- Level 7, lesson 1: residuals ---------- */
+
+type AtParams = DataParams & { i: number };
+
+function sampleAt(rng: Rng, difficulty: number): AtParams {
+  const fit = sampleData(rng, difficulty, rng.chance(0.3) ? 'drift' : 'fair');
+  return { ...fit, i: rng.int(1, fit.res.length - 1) };
+}
+
+function atTime({ i, gap, h }: AtParams): number {
+  return i * gap * h;
+}
+
+/** Type the residual at one time. */
+const expmResidual: Generator<AtParams> = {
+  id: 'expm-residual',
+  sample: sampleAt,
+  choices: (params) => {
+    const r = params.res[params.i];
+    const predicted = dataPredicted(params)[params.i];
+    return wholeOptions(r, [-r, predicted + r, predicted, r + (r > 0 ? 1 : -1)]);
+  },
+  render: (params): Slide => {
+    const t = atTime(params);
+    const ask =
+      params.res.length <= 4
+        ? `What is the residual at $t = ${t}$: the measurement minus the model's value there?`
+        : `What is the residual at $t = ${t}$?`;
+    return {
+      kind: 'expression',
+      prompt: dataPrompt(params, ask),
+      lead: '\\text{residual} =',
+      keypad: [],
+      answer: String(params.res[params.i]),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => residualSteps(params, params.i),
+};
+
+/** The residual as a tree: e^(kt) at that time, the model's value, then the residual. */
+const expmPredictTree: Generator<AtParams> = {
+  id: 'expm-predict-tree',
+  sample: sampleAt,
+  render: (params): Slide => {
+    const { a, b, down, i } = params;
+    const t = atTime(params);
+    const m = i * params.gap;
+    const predicted = predictAt(params, m);
+    const observed = predicted + params.res[i];
+    const r = params.res[i];
+    const answer = [factorTex(params, m), String(predicted), String(r)];
+    return {
+      kind: 'tree',
+      prompt: dataPrompt(
+        params,
+        `Find the residual at $t = ${t}$. Fill in $e^{kt}$ there, the model's value, then the measurement minus the model.`,
+      ),
+      expression: `${texNum(observed)} - ${texNum(a)}e^{${kAtTex(params, t)}}`,
+      nodes: [
+        { id: 'factor', from: [] },
+        { id: 'model', from: ['factor'] },
+        { id: 'residual', from: ['model'] },
+      ],
+      bank: treeBank(answer, [
+        factorTex(params, m + 1),
+        down ? String(b ** m) : `\\frac{1}{${b ** m}}`,
+        String(b * m),
+        String(predictAt(params, m + 1)),
+        String(-r),
+        String(observed + predicted),
+      ]),
+      answer,
+    };
+  },
+  solution: (params) => residualSteps(params, params.i),
+};
+
+/** Build the residual: the measurement, minus the model, and what that comes to. */
+const expmResidualTiles: Generator<AtParams> = {
+  id: 'expm-residual-tiles',
+  sample: sampleAt,
+  render: (params): Slide => {
+    const { a, b, down, i } = params;
+    const t = atTime(params);
+    const m = i * params.gap;
+    const predicted = predictAt(params, m);
+    const observed = predicted + params.res[i];
+    const r = params.res[i];
+    // Difficulty 2 has five columns, and works the model out on the line too.
+    const worked = params.res.length > 4;
+    const answer = worked ? [String(observed), String(a), String(b ** m), String(r)] : [String(observed), String(predicted), String(r)];
+    const distractors = [String(-r), String(predictAt(params, m + 1)), String(predictAt(params, m - 1))];
+    if (worked) distractors.push(String(b ** (m + 1)), String(b * m));
+    return {
+      kind: 'tiles',
+      prompt: dataPrompt(
+        params,
+        worked
+          ? `Build the residual at $t = ${t}$, where $e^{kt} = ${factorTex(params, m)}$.`
+          : `Build the residual at $t = ${t}$.`,
+      ),
+      template: worked ? `r = {0} - {1} ${down ? '\\div' : '\\times'} {2} = {3}` : 'r = {0} - {1} = {2}',
+      bank: fillBank(answer, distractors),
+      answer,
+    };
+  },
+  solution: (params) => residualSteps(params, params.i),
+};
+
+/** Fill in the model's column and the residuals in a table. */
+const expmResidColumn: Generator<DataParams> = {
+  id: 'expm-resid-column',
+  sample: (rng, difficulty) => sampleData(rng, difficulty, rng.chance(0.3) ? 'drift' : 'fair'),
+  render: (params): Slide => {
+    const story = dataStory(params);
+    const times = dataTimes(params);
+    const predicted = dataPredicted(params);
+    const observed = dataObserved(params);
+    // Difficulty 2 has five columns: the first two rows are done, the rest
+    // need the model worked as well.
+    const worked = params.res.length > 4;
+    const answer: string[] = [];
+    const rows = times.map((t, i) => {
+      const hideModel = worked && i >= 2;
+      const hideResidual = !worked || i >= 2;
+      if (hideModel) answer.push(String(predicted[i]));
+      if (hideResidual) answer.push(String(params.res[i]));
+      return [
+        String(t),
+        texNum(observed[i]),
+        hideModel ? null : texNum(predicted[i]),
+        hideResidual ? null : String(params.res[i]),
+      ];
+    });
+    const distractors = [
+      ...params.res.map((r) => String(-r)),
+      ...(worked ? [String(predictAt(params, params.res.length * params.gap)), String(predicted[2] + predicted[1])] : []),
+    ];
+    return {
+      kind: 'table',
+      prompt: [
+        { kind: 'prose', text: dataOpening(params) },
+        {
+          kind: 'prose',
+          text: worked
+            ? `Fill in the model's value where it is missing, then each residual, the measurement minus the model.`
+            : `The model's values are worked out. Fill in each residual, the measurement minus the model.`,
+        },
+      ],
+      columns: ['t', story.sym, '\\text{model}', '\\text{residual}'],
+      rows,
+      bank: treeBank(answer, distractors),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const predicted = dataPredicted(params);
+    const observed = dataObserved(params);
+    const lines = dataTimes(params).map((t, i) => `t = ${t}: &\\; ${texNum(observed[i])} - ${texNum(predicted[i])} = ${params.res[i]}`);
+    return [
+      { text: `The model multiplies by $${params.down ? `\\frac{1}{${params.b ** params.gap}}` : params.b ** params.gap}$ from one column to the next, since $e^{kt}$ is a power of $${params.b}$ there.` },
+      { tex: chain(...lines) },
+      { text: 'A positive residual is data above the model, a negative one data below it.' },
+    ];
+  },
+};
+
+/* ---------- Level 7, lesson 2: reading the residuals ---------- */
+
+/** The column whose residual is furthest from zero. There is only ever one. */
+function furthest(res: number[]): number {
+  const sizes = res.map(Math.abs);
+  return sizes.indexOf(Math.max(...sizes));
+}
+
+function furthestSolution(params: DataParams): SolutionStep[] {
+  const i = furthest(params.res);
+  const t = dataTimes(params)[i];
+  return [
+    { text: 'Work out every residual, the measurement minus the model:' },
+    { tex: residualLine(params.res) },
+    { text: `The one furthest from $0$, whatever its sign, is $${params.res[i]}$ at $t = ${t}$. That is where the model misses the data most.` },
+  ];
+}
+
+/**
+ * The residual furthest from zero, with its sign; at difficulty 2 the time at
+ * which it happens.
+ */
+const expmResidLargest: Generator<DataParams> = {
+  id: 'expm-resid-largest',
+  sample: (rng, difficulty) => sampleData(rng, difficulty, 'fair'),
+  choices: (params) => {
+    const i = furthest(params.res);
+    if (params.res.length <= 4) {
+      const r = params.res[i];
+      const next = params.res.filter((_, j) => j !== i).sort((x, y) => Math.abs(y) - Math.abs(x));
+      return wholeOptions(r, [-r, next[0], Math.max(...params.res) === r ? Math.min(...params.res) : Math.max(...params.res)]);
+    }
+    const times = dataTimes(params);
+    const order = times.map((_, j) => j).filter((j) => j !== i).sort((x, y) => Math.abs(params.res[y]) - Math.abs(params.res[x]));
+    return options(
+      { tex: `t = ${times[i]}`, answer: String(times[i]) },
+      ...order.slice(0, 3).map((j) => ({ tex: `t = ${times[j]}`, answer: String(times[j]) })),
+    );
+  },
+  render: (params): Slide => {
+    const small = params.res.length <= 4;
+    return {
+      kind: 'expression',
+      prompt: dataPrompt(
+        params,
+        small
+          ? 'Work out every residual. Which one is furthest from $0$? Give it with its sign.'
+          : 'Work out every residual. At what time is the model furthest from the data?',
+      ),
+      lead: small ? '\\text{residual} =' : 't =',
+      keypad: [],
+      answer: String(small ? params.res[furthest(params.res)] : dataTimes(params)[furthest(params.res)]),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: furthestSolution,
+};
+
+/** Every residual in a tree, then the one furthest from zero. */
+const expmFurthestTree: Generator<DataParams> = {
+  id: 'expm-furthest-tree',
+  sample: (rng, difficulty) => sampleData(rng, difficulty, 'fair'),
+  render: (params): Slide => {
+    const times = dataTimes(params);
+    const top = params.res[furthest(params.res)];
+    const answer = [...params.res.map(String), String(top)];
+    return {
+      kind: 'tree',
+      prompt: dataPrompt(params, 'Fill in the residual at each time, then the one furthest from $0$, with its sign.'),
+      expression: '\\text{the residual furthest from } 0',
+      nodes: [
+        ...times.map((t) => ({ id: `r${t}`, from: [] })),
+        { id: 'largest', from: times.map((t) => `r${t}`) },
+      ],
+      bank: treeBank(answer, [String(-top), ...params.res.map((r) => String(-r))]),
+      answer,
+    };
+  },
+  solution: furthestSolution,
+};
+
+const FAIR_FIT = 'A fair fit';
+const WRONG_SHAPE = 'The wrong shape';
+
+/** Read a line of residuals: do they change sign, are they small, do they grow, and so what. */
+const expmPatternFlow: Generator<DataParams> = {
+  id: 'expm-pattern-flow',
+  sample: (rng, difficulty) => sampleData(rng, difficulty, rng.chance(0.5) ? 'fair' : 'drift'),
+  render: (params): Slide => {
+    const story = dataStory(params);
+    const fair = params.from === 0;
+    const verdict = (id: string, good: boolean) => ({
+      id,
+      ask: 'So what do the residuals say about the model?',
+      branches: [
+        {
+          label: FAIR_FIT,
+          outcome: good
+            ? 'Small residuals scattered either side of $0$ are what measurement error looks like. The model fits.'
+            : 'A fair fit scatters its residuals either side of $0$. One sign, growing, means the data is curving away.',
+        },
+        {
+          label: WRONG_SHAPE,
+          outcome: good
+            ? 'A wrong shape shows as a run of one sign that grows. These change sign and stay small.'
+            : 'A run of residuals of one sign, growing, means the model is the wrong shape for this data.',
+        },
+      ],
+    });
+    return {
+      kind: 'flow',
+      prompt: dataPrompt(params, 'Its residuals are below. Read them one question at a time.', {
+        kind: 'display',
+        tex: residualLine(params.res),
+      }),
+      subject: `${story.sym} = ${modelTex(params.a, params)}`,
+      steps: [
+        {
+          id: 'sign',
+          ask: 'Do the residuals change sign?',
+          branches: [
+            { label: 'Yes', to: 'size' },
+            { label: 'No', to: 'grow' },
+          ],
+        },
+        {
+          id: 'size',
+          ask: 'Are they all small next to the measurements?',
+          branches: [
+            { label: 'Yes', to: 'fair' },
+            { label: 'No', outcome: 'Each is a few units on measurements in the tens or hundreds, which is small.' },
+          ],
+        },
+        {
+          id: 'grow',
+          ask: 'Do they grow in size along the table?',
+          branches: [
+            { label: 'Yes', to: 'shape' },
+            { label: 'No', outcome: 'Each one is bigger than the one before it.' },
+          ],
+        },
+        verdict('fair', true),
+        verdict('shape', false),
+      ],
+      answer: fair ? ['Yes', 'Yes', FAIR_FIT] : ['No', 'Yes', WRONG_SHAPE],
+    };
+  },
+  solution: (params) => {
+    const fair = params.from === 0;
+    return [
+      { tex: residualLine(params.res) },
+      {
+        text: fair
+          ? 'They change sign and all stay small, so they look like measurement error: a fair fit.'
+          : `They are all ${params.res[0] > 0 ? 'positive' : 'negative'} and grow along the table, so the data curves away from the model: it is the wrong shape.`,
+      },
+    ];
+  },
+};
+
+const PATTERN_FAIR = 'A fair fit: small residuals either side of zero';
+const PATTERN_LOW = 'The model is too low, by more each time';
+const PATTERN_HIGH = 'The model is too high, by more each time';
+
+/** What the residuals say, from the table itself: a fair fit, or a model too low or too high. */
+const expmPatternChoice: Generator<DataParams> = {
+  id: 'expm-pattern-choice',
+  sample: (rng, difficulty) => sampleData(rng, difficulty, rng.chance(0.4) ? 'fair' : 'drift'),
+  render: (params): Slide => {
+    const right = params.from === 0 ? PATTERN_FAIR : params.res[0] > 0 ? PATTERN_LOW : PATTERN_HIGH;
+    const labels = turned([PATTERN_FAIR, PATTERN_LOW, PATTERN_HIGH], `${params.a}-${params.res.join(',')}`);
+    return {
+      kind: 'choice',
+      prompt: dataPrompt(params, 'Work out the residuals. What do they say about the model?'),
+      options: labels.map((label, idx) => ({ id: `opt${idx}`, label })),
+      correctId: `opt${labels.indexOf(right)}`,
+    };
+  },
+  solution: (params) => {
+    const fair = params.from === 0;
+    const above = params.res[0] > 0;
+    return [
+      { tex: residualLine(params.res) },
+      {
+        text: fair
+          ? 'They change sign and stay small: a fair fit.'
+          : `They are all ${above ? 'positive' : 'negative'} and growing: the data is ${above ? 'above' : 'below'} the model by more each time, so the model is too ${above ? 'low' : 'high'}.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Level 7, lesson 3: when a model stops fitting ---------- */
+
+function sampleLeave(rng: Rng, difficulty: number): DataParams {
+  return sampleData(rng, difficulty, 'leave');
+}
+
+function leaveSolution(params: DataParams): SolutionStep[] {
+  const t = dataTimes(params)[params.from];
+  const levelling = params.down ? 'settles above zero' : 'levels off';
+  return [
+    { tex: residualLine(params.res) },
+    {
+      text: `Up to $t = ${dataTimes(params)[params.from - 1]}$ every residual is within $${params.margin}$ of $0$. At $t = ${t}$ it is $${params.res[params.from]}$, more than $${params.margin}$ away, and it grows from there.`,
+    },
+    {
+      text: `The data ${levelling}, but $e^{${params.down ? '-' : ''}kt}$ never does, so the model stops fitting from $t = ${t}$.`,
+    },
+  ];
+}
+
+/** The model's curve with the measurements as dots, for a slider to run along. */
+function dataFigure(params: DataParams, xMax: number): string {
+  const observed = dataObserved(params);
+  const k = ((params.down ? -1 : 1) * Math.log(params.b)) / params.h;
+  const top = params.down ? params.a * 1.15 : Math.max(...observed) * 1.6;
+  return plotSvg({
+    xMin: 0,
+    xMax,
+    yMin: 0,
+    yMax: top,
+    curves: [{ f: (t) => Math.min(params.a * Math.exp(k * t), top * 2) }],
+    marks: dataTimes(params).map((t, i) => ({ x: t, y: observed[i] })),
+    label: `Measurements as dots and a ${params.down ? 'falling' : 'rising'} model curve`,
+  });
+}
+
+/** Slide to the first time the data is more than a margin away from the model. */
+const expmLeavesSlider: Generator<DataParams> = {
+  id: 'expm-leaves-slider',
+  sample: sampleLeave,
+  render: (params): Slide => {
+    const answer = dataTimes(params)[params.from];
+    const step = params.h;
+    let max = lastTime(params);
+    while (defaultSliderValue(0, max, step) === answer) max += step;
+    return {
+      kind: 'slider',
+      prompt: dataPrompt(
+        params,
+        `Slide to the first time the measurement is more than $${params.margin}$ away from the model.`,
+      ),
+      min: 0,
+      max,
+      step,
+      answer,
+      readout: 't = {v}',
+      figure: { svg: dataFigure(params, max), ...markerWindow(0, max) },
+    };
+  },
+  solution: leaveSolution,
+};
+
+/** How far apart the model and the data are at the last measurement. */
+const expmOvershoot: Generator<DataParams> = {
+  id: 'expm-overshoot',
+  sample: sampleLeave,
+  choices: (params) => {
+    const last = params.res.length - 1;
+    const gap = Math.abs(params.res[last]);
+    return numberOptions(gap, [Math.abs(params.res[last - 1]), dataObserved(params)[last], dataPredicted(params)[last], gap + params.margin]);
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: dataPrompt(params, `How far apart are the model and the measurement at $t = ${lastTime(params)}$?`),
+    lead: '\\text{gap} =',
+    keypad: [],
+    answer: String(Math.abs(params.res[params.res.length - 1])),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const last = params.res.length - 1;
+    const steps = residualSteps(params, last);
+    return [
+      ...steps.slice(0, 3),
+      {
+        text: `So they are $${Math.abs(params.res[last])}$ apart, with the model ${params.res[last] < 0 ? 'above' : 'below'} the data: the data has ${params.down ? 'stopped falling' : 'stopped growing'} as fast as the model.`,
+      },
+    ];
+  },
+};
+
+const LEVEL_FIXES = ['Logistic', 'Bounded', 'A bigger k'];
+
+/** Where the data goes once the model stops fitting, what it is doing, and what model fits instead. */
+const expmLevelFlow: Generator<DataParams> = {
+  id: 'expm-level-flow',
+  sample: sampleLeave,
+  render: (params): Slide => {
+    const story = dataStory(params);
+    const t = dataTimes(params)[params.from];
+    const { down } = params;
+    const fixOutcome: Record<string, string> = {
+      Logistic: down
+        ? 'A logistic model rises to a ceiling. This data falls and settles above zero, which is $L + Be^{-kt}$.'
+        : 'Right: it grew like an exponential, then levelled off. That S-shape is a logistic model, $\\frac{L}{1 + Ae^{-kt}}$.',
+      Bounded: down
+        ? 'Right: it falls and settles at a level above zero. That is a bounded model, $L + Be^{-kt}$.'
+        : '$L - Be^{-kt}$ climbs fastest at the start. This data first sped up like an exponential, then levelled: logistic.',
+      'A bigger k': down
+        ? 'A bigger $k$ falls to zero even faster. The data is settling above zero instead.'
+        : 'A bigger $k$ climbs even faster, further away from data that is levelling off.',
+    };
+    return {
+      kind: 'flow',
+      prompt: dataPrompt(params, `The model stops fitting at $t = ${t}$. Its residuals are below.`, {
+        kind: 'display',
+        tex: residualLine(params.res),
+      }),
+      subject: `${story.sym} = ${modelTex(params.a, params)}`,
+      steps: [
+        {
+          id: 'where',
+          ask: `From $t = ${t}$ on, where are the measurements?`,
+          branches: [
+            { label: 'Above the model', to: down ? 'doing' : 'wrong-side' },
+            { label: 'Below the model', to: down ? 'wrong-side' : 'doing' },
+          ],
+        },
+        {
+          id: 'wrong-side',
+          ask: 'Which sign are those residuals, then?',
+          branches: [
+            { label: 'Positive', outcome: 'A positive residual is a measurement above the model.' },
+            { label: 'Negative', outcome: 'A negative residual is a measurement below the model.' },
+          ],
+        },
+        {
+          id: 'doing',
+          ask: 'So what are the measurements doing that the model does not?',
+          branches: [
+            { label: 'Levelling off', to: 'fix' },
+            { label: down ? 'Falling faster' : 'Growing faster', outcome: down ? 'Data falling faster would sit below the model, with negative residuals.' : 'Data growing faster would sit above the model, with positive residuals.' },
+          ],
+        },
+        {
+          id: 'fix',
+          ask: 'Which kind of model could follow the whole table?',
+          branches: turned(LEVEL_FIXES, `${params.a}-${params.res.join(',')}`).map((label) => ({ label, outcome: fixOutcome[label] })),
+        },
+      ],
+      answer: [down ? 'Above the model' : 'Below the model', 'Levelling off', down ? 'Bounded' : 'Logistic'],
+    };
+  },
+  solution: (params) => [
+    ...leaveSolution(params),
+    {
+      text: params.down
+        ? 'A fall that settles at a level is a bounded model, $L + Be^{-kt}$, from level 2.'
+        : 'Growth that speeds up and then levels off is logistic, $\\frac{L}{1 + Ae^{-kt}}$, from level 5.',
+    },
+  ],
+};
+
+const FIX_FORMS: Record<string, string> = {
+  logistic: 'y = \\frac{L}{1 + Ae^{-kt}}',
+  fall: 'y = L + Be^{-kt}',
+  rise: 'y = L - Be^{-kt}',
+  linear: 'y = a + bt',
+};
+
+/** Which model could fit the whole table, once an exponential stops fitting. */
+const expmFixChoice: Generator<DataParams> = {
+  id: 'expm-fix-choice',
+  sample: sampleLeave,
+  render: (params): Slide => {
+    const right = FIX_FORMS[params.down ? 'fall' : 'logistic'];
+    const labels = turned(Object.values(FIX_FORMS), `${params.a}-${params.res.join(',')}`);
+    const t = dataTimes(params)[params.from];
+    const ask =
+      params.res.length > 5
+        ? 'The exponential stops fitting part way along. Which of these could fit the whole table? $L$, $A$, $B$ and $k$ are positive.'
+        : `The exponential fits up to $t = ${dataTimes(params)[params.from - 1]}$ and not from $t = ${t}$. Which of these could fit the whole table? $L$, $A$, $B$ and $k$ are positive.`;
+    return {
+      kind: 'choice',
+      prompt: dataPrompt(params, ask),
+      options: labels.map((label, idx) => ({ id: `opt${idx}`, label, tex: true })),
+      correctId: `opt${labels.indexOf(right)}`,
+    };
+  },
+  solution: (params) => [
+    ...leaveSolution(params).slice(0, 2),
+    {
+      text: params.down
+        ? 'The measurements fall and settle at a level above zero, so the model needs that level: $y = L + Be^{-kt}$.'
+        : 'The measurements speed up like an exponential at first, then level off: an S-shape, which is logistic, $y = \\frac{L}{1 + Ae^{-kt}}$.',
+    },
+  ],
+};
+
+/* ---------- Level 7, lesson 4: choosing between two fits ---------- */
+
+interface PairParams {
+  fit: DataParams;
+  /** The second model: another start for the same k, or a line with this slope. */
+  other: { kind: 'exp'; a: number } | { kind: 'line'; slope: number };
+  /** Whether the data follows the second model rather than the exponential. */
+  second: boolean;
+  /** Whether the exponential is labelled B rather than A. */
+  swap: boolean;
+  /** Which model a question asks about: 0 for A, 1 for B. */
+  ask: number;
+}
+
+function otherPredicted({ fit, other }: PairParams): number[] {
+  return dataTimes(fit).map((t, i) =>
+    other.kind === 'line' ? fit.a + other.slope * t : predictAt({ ...fit, a: other.a }, i * fit.gap),
+  );
+}
+
+/** The measurements: the data follows whichever model it was drawn from. */
+function pairObserved(params: PairParams): number[] {
+  const truth = params.second ? otherPredicted(params) : dataPredicted(params.fit);
+  return truth.map((value, i) => value + params.fit.res[i]);
+}
+
+/** Each model's predictions, as labelled: A first. */
+function pairPredictions(params: PairParams): [number[], number[]] {
+  const exp = dataPredicted(params.fit);
+  const other = otherPredicted(params);
+  return params.swap ? [other, exp] : [exp, other];
+}
+
+function pairResiduals(params: PairParams): [number[], number[]] {
+  const observed = pairObserved(params);
+  const [pa, pb] = pairPredictions(params);
+  return [observed.map((y, i) => y - pa[i]), observed.map((y, i) => y - pb[i])];
+}
+
+function squares(res: number[]): number {
+  return res.reduce((sum, r) => sum + r * r, 0);
+}
+
+function largestSize(res: number[]): number {
+  return Math.max(...res.map(Math.abs));
+}
+
+function samplePair(rng: Rng, difficulty: number): PairParams {
+  for (;;) {
+    // Small starts, so the model that misses does so by tens, not hundreds.
+    const fit = sampleData(rng, difficulty, 'fair', { count: 4, top: 200, hs: difficulty > 1 ? [1, 2] : [1] });
+    const predicted = dataPredicted(fit);
+    let other: PairParams['other'];
+    if (difficulty > 1) {
+      const raw = (predicted[3] - predicted[0]) / (3 * fit.h);
+      other = { kind: 'line', slope: Math.round(raw) };
+    } else {
+      other = { kind: 'exp', a: fit.a + rng.pick([-2, -1, 1, 2]) };
+    }
+    const second = rng.chance(0.5);
+    const swap = rng.chance(0.5);
+    // Difficulty 1 asks about the better fit, whose residuals are the small ones.
+    const ask = difficulty > 1 ? rng.int(0, 1) : second === swap ? 0 : 1;
+    const params: PairParams = { fit, other, second, swap, ask };
+    const observed = pairObserved(params);
+    const [ra, rb] = pairResiduals(params);
+    const truthIsA = params.second === params.swap;
+    const [good, bad] = truthIsA ? [ra, rb] : [rb, ra];
+    const clear = squares(good) < squares(bad) && largestSize(good) < largestSize(bad);
+    const readable = squares(bad) <= 3000 && observed.every((y) => y > 0) && otherPredicted(params).every((y) => y > 0);
+    if (clear && readable) return params;
+  }
+}
+
+/** Which label the better fit carries. */
+function betterLabel(params: PairParams): 'A' | 'B' {
+  return params.second === params.swap ? 'A' : 'B';
+}
+
+function lineTex(start: number, slope: number): string {
+  if (slope === 0) return texNum(start);
+  return `${texNum(start)} ${slope < 0 ? '-' : '+'} ${Math.abs(slope) === 1 ? '' : Math.abs(slope)}t`;
+}
+
+function pairPrompt(params: PairParams, ask: string): Block[] {
+  const { fit, other } = params;
+  const story = dataStory(fit);
+  const exp = modelTex(fit.a, fit);
+  const second = other.kind === 'line' ? lineTex(fit.a, other.slope) : modelTex(other.a, fit);
+  const [ma, mb] = params.swap ? [second, exp] : [exp, second];
+  return [
+    {
+      kind: 'prose',
+      text: `${story.subject} was measured ${everyUnit(fit.gap * fit.h, story.unit)}, and two models were fitted to the measurements, with $t$ in ${story.unit}s.`,
+    },
+    { kind: 'display', tex: `\\begin{aligned} \\text{A:} \\;\\; ${story.sym} &= ${ma} \\\\ \\text{B:} \\;\\; ${story.sym} &= ${mb} \\end{aligned}` },
+    {
+      kind: 'display',
+      tex: measuredTex(pairObserved(params), fit.gap * fit.h, story.sym),
+    },
+    { kind: 'prose', text: ask },
+  ];
+}
+
+function pairSolution(params: PairParams): SolutionStep[] {
+  const [ra, rb] = pairResiduals(params);
+  const [pa, pb] = pairPredictions(params);
+  const better = betterLabel(params);
+  return [
+    { text: `Model A gives $${pa.map(texNum).join(',\\ ')}$ and model B gives $${pb.map(texNum).join(',\\ ')}$, so the residuals are` },
+    { tex: chain(`\\text{A} &: \\; ${ra.join(',\\ ')}`, `\\text{B} &: \\; ${rb.join(',\\ ')}`) },
+    { text: 'Square each residual and add, so a miss counts the same above or below:' },
+    { tex: chain(`S_A &= ${ra.map((r) => `${r < 0 ? `(${r})` : r}^2`).join(' + ')} = ${squares(ra)}`, `S_B &= ${rb.map((r) => `${r < 0 ? `(${r})` : r}^2`).join(' + ')} = ${squares(rb)}`) },
+    { text: `The smaller sum is the better fit: model ${better}.` },
+  ];
+}
+
+const LABELS = ['A', 'B'] as const;
+
+/** One model's residuals in a tree, then the sum of their squares. */
+const expmSquaresTree: Generator<PairParams> = {
+  id: 'expm-squares-tree',
+  sample: samplePair,
+  render: (params): Slide => {
+    const res = pairResiduals(params)[params.ask];
+    const times = dataTimes(params.fit);
+    const answer = [...res.map(String), String(squares(res))];
+    const total = res.reduce((sum, r) => sum + r, 0);
+    return {
+      kind: 'tree',
+      prompt: pairPrompt(
+        params,
+        `Fill in model ${LABELS[params.ask]}'s residual at each time, then the sum of their squares, $S_${LABELS[params.ask]}$.`,
+      ),
+      expression: `S_${LABELS[params.ask]} = \\sum r^2`,
+      nodes: [...times.map((t) => ({ id: `r${t}`, from: [] })), { id: 'sum', from: times.map((t) => `r${t}`) }],
+      bank: treeBank(answer, [
+        String(res.reduce((sum, r) => sum + Math.abs(r), 0)),
+        String(total * total),
+        String(squares(pairResiduals(params)[1 - params.ask])),
+        ...res.map((r) => String(-r)),
+      ]),
+      answer,
+    };
+  },
+  solution: pairSolution,
+};
+
+/** Type the sum of squared residuals for one model. */
+const expmSsr: Generator<PairParams> = {
+  id: 'expm-ssr',
+  sample: samplePair,
+  choices: (params) => {
+    const res = pairResiduals(params)[params.ask];
+    const total = res.reduce((sum, r) => sum + r, 0);
+    return numberOptions(squares(res), [
+      res.reduce((sum, r) => sum + Math.abs(r), 0),
+      total * total,
+      squares(res) - res[0] * res[0],
+      squares(pairResiduals(params)[1 - params.ask]),
+    ]);
+  },
+  render: (params): Slide => {
+    const label = LABELS[params.ask];
+    return {
+      kind: 'expression',
+      prompt: pairPrompt(params, `What is $S_${label}$, the sum of the squares of model ${label}'s residuals?`),
+      lead: `S_${label} =`,
+      keypad: [],
+      answer: String(squares(pairResiduals(params)[params.ask])),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: pairSolution,
+};
+
+/** Both sums of squares, then the better fit. */
+const expmBetterTiles: Generator<PairParams> = {
+  id: 'expm-better-tiles',
+  sample: samplePair,
+  render: (params): Slide => {
+    const [ra, rb] = pairResiduals(params);
+    const answer = [String(squares(ra)), String(squares(rb)), `\\text{${betterLabel(params)}}`];
+    const absA = ra.reduce((sum, r) => sum + Math.abs(r), 0);
+    const absB = rb.reduce((sum, r) => sum + Math.abs(r), 0);
+    return {
+      kind: 'tiles',
+      prompt: pairPrompt(params, 'Work out the sum of squared residuals for each model, then say which fits better.'),
+      template: 'S_A = {0}, \\; S_B = {1}, \\; \\text{better: } {2}',
+      bank: fillBank(answer, ['\\text{A}', '\\text{B}', String(absA), String(absB)]),
+      answer,
+    };
+  },
+  solution: pairSolution,
+};
+
+/** Judged by the largest residual: each model's, then which is better. */
+const expmLargestFlow: Generator<PairParams> = {
+  id: 'expm-largest-flow',
+  sample: samplePair,
+  render: (params): Slide => {
+    const pair = pairResiduals(params);
+    const better = betterLabel(params);
+    const fork = (idx: number, next: string) => {
+      const res = pair[idx];
+      const size = largestSize(res);
+      const sorted = [...new Set(res.map(Math.abs))].sort((x, y) => y - x);
+      const slips = [
+        { value: sorted[1], why: 'That one is not the furthest from zero. Look along every residual, ignoring sign.' },
+        { value: res.reduce((sum, r) => sum + Math.abs(r), 0), why: 'That adds every residual up. The largest residual is just the single biggest miss.' },
+        { value: size + 1, why: 'Not quite: work the residuals out again, measurement minus model.' },
+      ].filter((slip) => slip.value !== undefined && slip.value !== size);
+      const seen = new Set([size]);
+      const branches = [{ label: `$${size}$`, to: next } as { label: string; to?: string; outcome?: string }];
+      for (const slip of slips) {
+        if (seen.has(slip.value) || branches.length === 3) continue;
+        seen.add(slip.value);
+        branches.push({ label: `$${slip.value}$`, outcome: slip.why });
+      }
+      return {
+        id: `m${idx}`,
+        ask: `What is model ${LABELS[idx]}'s largest residual, ignoring its sign?`,
+        branches: turned(branches, `${res.join(',')}-${idx}`),
+      };
+    };
+    return {
+      kind: 'flow',
+      prompt: pairPrompt(params, 'Judge the two models by their largest residuals, one question at a time.'),
+      subject: '\\text{A against B}',
+      steps: [
+        fork(0, 'm1'),
+        fork(1, 'which'),
+        {
+          id: 'which',
+          ask: 'Judged by its largest residual, which model fits better?',
+          branches: [
+            {
+              label: 'Model A',
+              outcome: better === 'A' ? 'Right: its worst miss is smaller.' : 'Model A misses by more at its worst.',
+            },
+            {
+              label: 'Model B',
+              outcome: better === 'B' ? 'Right: its worst miss is smaller.' : 'Model B misses by more at its worst.',
+            },
+          ],
+        },
+      ],
+      answer: [`$${largestSize(pair[0])}$`, `$${largestSize(pair[1])}$`, `Model ${better}`],
+    };
+  },
+  solution: (params) => {
+    const [ra, rb] = pairResiduals(params);
+    return [
+      { tex: chain(`\\text{A} &: \\; ${ra.join(',\\ ')}`, `\\text{B} &: \\; ${rb.join(',\\ ')}`) },
+      { text: `Model A's largest residual in size is $${largestSize(ra)}$ and model B's is $${largestSize(rb)}$.` },
+      { text: `The smaller worst miss is the better fit: model ${betterLabel(params)}. Here the sum of squares agrees.` },
+    ];
+  },
+};
+
+/* ---------- Level 7, lesson 5: beyond the data ---------- */
+
+type InterpParams = DataParams & { j: number };
+
+/** Measurements every two steps, so a whole time falls between each pair. */
+function sampleInterp(rng: Rng, difficulty: number): InterpParams {
+  const fit = sampleData(rng, difficulty, 'fair', { count: 4, gap: 2 });
+  return { ...fit, j: rng.int(0, 2) };
+}
+
+/** The model's prediction between two measurements. */
+const expmInterpValue: Generator<InterpParams> = {
+  id: 'expm-interp-value',
+  sample: sampleInterp,
+  choices: (params) => {
+    const m = 2 * params.j + 1;
+    const observed = dataObserved(params);
+    const middle = (observed[params.j] + observed[params.j + 1]) / 2;
+    return numberOptions(predictAt(params, m), [middle, predictAt(params, m - 1), predictAt(params, m + 1), observed[params.j + 1]]);
+  },
+  render: (params): Slide => {
+    const t = (2 * params.j + 1) * params.h;
+    const { sym } = dataStory(params);
+    return {
+      kind: 'expression',
+      prompt: dataPrompt(params, `There is no measurement at $t = ${t}$. What does the model predict there?`),
+      lead: `${sym} =`,
+      keypad: [],
+      answer: String(predictAt(params, 2 * params.j + 1)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const m = 2 * params.j + 1;
+    const t = m * params.h;
+    const { sym } = dataStory(params);
+    return [
+      { text: `$t = ${t}$ lies between the measurements at $t = ${2 * params.j * params.h}$ and $t = ${(2 * params.j + 2) * params.h}$, so this is interpolation.` },
+      { tex: chain(`kt &= ${kWorkedTex(params, m)}`, `e^{kt} &= ${factorTex(params, m)}`, `${sym} &= ${texNum(params.a)} ${params.down ? '\\div' : '\\times'} ${params.b ** m} = ${texNum(predictAt(params, m))}`) },
+      { text: 'The model fits the data well, so a value between two measurements can be trusted.' },
+    ];
+  },
+};
+
+/** Tables whose last time fits a number line: at most 10. */
+const LINE_TABLES: { count: number; gap: number; h: number }[] = [
+  { count: 4, gap: 1, h: 1 },
+  { count: 5, gap: 1, h: 1 },
+  { count: 4, gap: 2, h: 1 },
+  { count: 4, gap: 1, h: 2 },
+  { count: 5, gap: 1, h: 2 },
+  { count: 6, gap: 1, h: 2 },
+  { count: 3, gap: 1, h: 5 },
+  { count: 3, gap: 2, h: 2 },
+];
+
+
+type LineParams = DataParams & { outside: boolean };
+
+/** Shade the times where a prediction is interpolation; at difficulty 2 where it is extrapolation. */
+const expmValidLine: Generator<LineParams> = {
+  id: 'expm-valid-line',
+  sample: (rng, difficulty) => {
+    const shape = rng.pick(LINE_TABLES);
+    const fit = sampleData(rng, difficulty, 'fair', { count: shape.count, gap: shape.gap, hs: [shape.h] });
+    return { ...fit, outside: difficulty > 1 };
+  },
+  render: (params): Slide => {
+    const last = lastTime(params);
+    return {
+      kind: 'numberLine',
+      prompt: dataPrompt(
+        params,
+        params.outside
+          ? 'Shade every time at which a prediction from the model would be extrapolation, before the first measurement or after the last.'
+          : 'Shade every time at which a prediction from the model is interpolation.',
+      ),
+      min: -1,
+      max: 11,
+      step: 1,
+      answer: canonicalSet(params.outside ? `(-inf,0)|(${last},inf)` : `[0,${last}]`) ?? '',
+    };
+  },
+  solution: (params) => {
+    const last = lastTime(params);
+    return [
+      { text: `The measurements run from $t = 0$ to $t = ${last}$.` },
+      { text: 'A prediction inside that range, ends included, is interpolation: the data is on both sides of it.' },
+      {
+        text: params.outside
+          ? `Anywhere before $0$ or after $${last}$ is extrapolation, so both ends are open: $0$ and $${last}$ themselves are measured.`
+          : `So shade from $0$ to $${last}$ with both ends filled. Beyond them is extrapolation.`,
+      },
+    ];
+  },
+};
+
+/** Stories for a prediction far past the data, each with a size it cannot pass. */
+interface FarStory extends Story {
+  cap: (limit: string) => string;
+}
+
+const FAR_STORIES: FarStory[] = [
+  { sym: 'N', subject: 'The number of bacteria in a dish', unit: 'hour', of: 'bacteria', cap: (c) => `The dish has room for at most $${c}$ bacteria.` },
+  { sym: 'R', subject: 'The number of rabbits on an island', unit: 'month', of: 'rabbits', cap: (c) => `The island can feed at most $${c}$ rabbits.` },
+  { sym: 'H', subject: 'The number of pupils who have heard a rumour', unit: 'hour', of: 'pupils', cap: (c) => `The school has $${c}$ pupils.` },
+  { sym: 'W', subject: 'The area of a pond covered by weed, in square metres,', unit: 'week', of: 'square metres', cap: (c) => `The pond is $${c}$ square metres in area.` },
+];
+
+type FarCase = 'inside' | 'over' | 'under';
+
+interface FarParams {
+  fit: DataParams;
+  /** The time asked about, in steps of h. */
+  m: number;
+  /** The most the story allows. */
+  cap: number;
+  where: FarCase;
+  story: number;
+}
+
+/** Round numbers a story's limit is drawn from. */
+const CAPS = [2, 3, 4, 5, 6, 8].flatMap((lead) => [100, 1000, 10000, 100000].map((scale) => lead * scale)).sort((x, y) => x - y);
+
+function sampleFar(rng: Rng, difficulty: number): FarParams {
+  for (;;) {
+    const fit = sampleData(rng, difficulty, 'fair', { count: 4, gap: 2, grow: true });
+    const where: FarCase = rng.pick(difficulty > 1 ? ['inside', 'over', 'under', 'under'] : ['inside', 'over', 'over']);
+    const m = where === 'inside' ? rng.pick([1, 3, 5]) : 6 + rng.int(2, 6);
+    const predicted = predictAt(fit, m);
+    const highest = Math.max(...dataObserved(fit));
+    const caps =
+      where === 'over'
+        ? CAPS.filter((c) => c > highest * 1.2 && c < predicted)
+        : CAPS.filter((c) => c >= Math.max(predicted, highest) * 1.2).slice(0, 3);
+    if (caps.length > 0) return { fit, m, cap: rng.pick(caps), where, story: rng.int(0, FAR_STORIES.length - 1) };
+  }
+}
+
+function farOpening({ fit, story }: FarParams): string {
+  const s = FAR_STORIES[story];
+  return `${s.subject} was measured ${everyUnit(fit.gap * fit.h, s.unit)}. The model $${s.sym} = ${modelTex(fit.a, fit)}$ was fitted to the measurements, with $t$ in ${s.unit}s.`;
+}
+
+const FAR_VERDICTS = ['It cannot happen', 'Only with caution', 'It can be trusted'];
+
+/** Is a prediction inside the data, and if not, does it pass what the story allows? */
+const expmFarFlow: Generator<FarParams> = {
+  id: 'expm-far-flow',
+  sample: sampleFar,
+  render: (params): Slide => {
+    const { fit, m, cap, where } = params;
+    const s = FAR_STORIES[params.story];
+    const t = m * fit.h;
+    const last = lastTime(fit);
+    const predicted = predictAt(fit, m);
+    // Each step is reached by what the learner has said so far, which may be
+    // wrong, so an outcome states the rule rather than this question's numbers.
+    const verdicts = (over: boolean) =>
+      FAR_VERDICTS.map((label) => ({
+        label,
+        outcome:
+          label === 'It cannot happen'
+            ? over
+              ? 'More than is possible cannot happen: the growth must slow long before then.'
+              : 'Within what is possible it could happen, if the growth carried on unchecked.'
+            : label === 'Only with caution'
+              ? over
+                ? 'Caution is for a prediction that could happen. More than is possible cannot happen at all.'
+                : 'It could happen, but only if the growth carries on unchecked past the data: a rough guess at best.'
+              : 'Past the data nothing checks the model. A prediction there is never simply trusted.',
+      }));
+    return {
+      kind: 'flow',
+      prompt: [
+        { kind: 'prose', text: farOpening(params) },
+        { kind: 'display', tex: measuredTex(dataObserved(fit), fit.gap * fit.h, s.sym) },
+        { kind: 'prose', text: `${s.cap(texNum(cap))} Is the model's prediction at $t = ${t}$ sensible? Decide one question at a time.` },
+      ],
+      subject: `${s.sym} = ${modelTex(fit.a, fit)}`,
+      steps: [
+        {
+          id: 'range',
+          ask: `Is $t = ${t}$ inside the times the data covers, $t = 0$ to $t = ${last}$?`,
+          branches: [
+            { label: 'Yes', to: 'inside' },
+            { label: 'No', to: 'cap' },
+          ],
+        },
+        {
+          id: 'inside',
+          ask: 'So is a prediction there interpolation or extrapolation?',
+          branches: [
+            { label: 'Interpolation', outcome: 'Between measurements, with a model that fits them, a prediction can be trusted.' },
+            { label: 'Extrapolation', outcome: 'Extrapolation is predicting outside the data. A time between measurements is interpolation.' },
+          ],
+        },
+        {
+          id: 'cap',
+          ask: `The model gives $${s.sym} = ${texNum(predicted)}$ at $t = ${t}$. Is that more than $${texNum(cap)}$?`,
+          branches: [
+            { label: 'Yes', to: 'over' },
+            { label: 'No', to: 'under' },
+          ],
+        },
+        { id: 'over', ask: 'So is the prediction sensible?', branches: verdicts(true) },
+        { id: 'under', ask: 'So is the prediction sensible?', branches: verdicts(false) },
+      ],
+      answer:
+        where === 'inside'
+          ? ['Yes', 'Interpolation']
+          : where === 'over'
+            ? ['No', 'Yes', 'It cannot happen']
+            : ['No', 'No', 'Only with caution'],
+    };
+  },
+  solution: (params) => {
+    const { fit, m, cap, where } = params;
+    const t = m * fit.h;
+    const last = lastTime(fit);
+    const predicted = predictAt(fit, m);
+    if (where === 'inside') {
+      return [
+        { text: `$t = ${t}$ lies between measurements, inside $0$ to $${last}$: interpolation.` },
+        { text: `The model fits the data closely, so its value there, $${texNum(predicted)}$, can be trusted.` },
+      ];
+    }
+    return [
+      { text: `$t = ${t}$ is past the last measurement at $t = ${last}$: extrapolation.` },
+      { tex: `${texNum(fit.a)} \\times ${fit.b}^{${m}} = ${texNum(predicted)}` },
+      {
+        text:
+          where === 'over'
+            ? `That is more than the $${texNum(cap)}$ possible, so it cannot happen: the growth has to level off first.`
+            : `That is within the $${texNum(cap)}$ possible, but nothing in the data shows the growth carrying on that long. Use it only with caution.`,
+      },
+    ];
+  },
+};
+
+type TrustParams = DataParams & { times: [number, number, number, number] };
+
+/**
+ * Four times to predict at: between measurements while the model fits, between
+ * them after it has stopped, one step past the data, and far past it. The
+ * first is the one to trust.
+ */
+function sampleTrust(rng: Rng, difficulty: number): TrustParams {
+  const fit = sampleData(rng, difficulty, 'leave', { hs: difficulty > 1 ? [2, 4] : [2] });
+  const half = fit.h / 2;
+  const last = lastTime(fit);
+  const good = (2 * rng.int(0, fit.from - 2) + 1) * half;
+  const after = (2 * rng.int(fit.from, fit.res.length - 2) + 1) * half;
+  return { ...fit, times: [good, after, last + fit.h, last + rng.int(4, 6) * fit.h] };
+}
+
+const expmTrustChoice: Generator<TrustParams> = {
+  id: 'expm-trust-choice',
+  sample: sampleTrust,
+  render: (params): Slide => {
+    const fromT = dataTimes(params)[params.from];
+    const labels = turned(params.times.map((t) => `t = ${t}`), `${params.a}-${params.res.join(',')}`);
+    const ask =
+      params.res.length > 5
+        ? `The model stays within $${params.margin}$ of the measurements only up to a point. At which time can its prediction be trusted most?`
+        : `The measurements are more than $${params.margin}$ from the model from $t = ${fromT}$ on. At which time can its prediction be trusted most?`;
+    return {
+      kind: 'choice',
+      prompt: dataPrompt(params, ask),
+      options: labels.map((label, idx) => ({ id: `opt${idx}`, label, tex: true })),
+      correctId: `opt${labels.indexOf(`t = ${params.times[0]}`)}`,
+    };
+  },
+  solution: (params) => {
+    const [good, after, near, far] = params.times;
+    const fromT = dataTimes(params)[params.from];
+    return [
+      { tex: residualLine(params.res) },
+      { text: `The model fits up to $t = ${dataTimes(params)[params.from - 1]}$ and leaves the data from $t = ${fromT}$.` },
+      { text: `$t = ${good}$ is between measurements where the model fits: interpolation, and trustworthy.` },
+      { text: `$t = ${after}$ is inside the data but where the model has stopped fitting. $t = ${near}$ and $t = ${far}$ are past the data altogether, and the further out, the less the model can be trusted.` },
+    ];
+  },
+};
+
 /* ---------- registry ---------- */
 
 export const exponentialModelGenerators = [
@@ -8727,4 +10110,24 @@ export const exponentialModelGenerators = [
   expmEffectiveBest,
   expmEffectiveFlow,
   expmEffectiveTiles,
+  expmResidual,
+  expmPredictTree,
+  expmResidualTiles,
+  expmResidColumn,
+  expmResidLargest,
+  expmFurthestTree,
+  expmPatternFlow,
+  expmPatternChoice,
+  expmLeavesSlider,
+  expmOvershoot,
+  expmLevelFlow,
+  expmFixChoice,
+  expmSquaresTree,
+  expmSsr,
+  expmBetterTiles,
+  expmLargestFlow,
+  expmInterpValue,
+  expmValidLine,
+  expmFarFlow,
+  expmTrustChoice,
 ];

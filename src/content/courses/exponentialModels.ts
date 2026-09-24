@@ -17,27 +17,23 @@
  * times, half the ceiling as the steepest point, the rate kP(1 - P/L), and the
  * time to reach a value. Level 6 is continuous compounding: a nominal rate
  * paid in steps as A(1 + r/n)^(nt), e as the limit of (1 + 1/n)^n, the limit
- * Ae^(rt), and the effective annual rate, e^k - 1 for a continuous k.
+ * Ae^(rt), and the effective annual rate, e^k - 1 for a continuous k. Level 7
+ * is the limits of a model: residuals as measured minus model, reading them
+ * for a fair fit or the wrong shape, where a model stops fitting and what
+ * fits instead, two fits compared by the sum of squared residuals and the
+ * largest residual, and interpolation against extrapolation.
  *
  * Whole-step growth without e, solving N = N0 r^t by logarithms, linearising
  * and differentiating e^x all belong to other courses and are used here, not
  * taught again. Each level closes with a level check: questions only, no
  * teaching slides, one attempt each.
  */
-import type { Course, SlideRef } from '../types';
+import type { Block, Course, SlideRef } from '../types';
+import { plotSvg } from '../figures';
 
-const teach = (
-  ...blocks: { kind: 'prose' | 'display'; text?: string; tex?: string }[]
-): SlideRef => ({
+const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
-  slide: {
-    kind: 'teach',
-    body: blocks.map((b) =>
-      b.kind === 'prose'
-        ? ({ kind: 'prose', text: b.text ?? '' } as const)
-        : ({ kind: 'display', tex: b.tex ?? '' } as const),
-    ),
-  },
+  slide: { kind: 'teach', body: blocks },
 });
 
 const ask = (generatorId: string, difficulty = 1): SlideRef => ({
@@ -46,8 +42,9 @@ const ask = (generatorId: string, difficulty = 1): SlideRef => ({
   difficulty,
 });
 
-const prose = (text: string) => ({ kind: 'prose' as const, text });
-const maths = (tex: string) => ({ kind: 'display' as const, tex });
+const prose = (text: string): Block => ({ kind: 'prose', text });
+const maths = (tex: string): Block => ({ kind: 'display', tex });
+const figure = (options: Parameters<typeof plotSvg>[0]): Block => ({ kind: 'diagram', svg: plotSvg(options) });
 
 /**
  * Lines of working stacked in one display and aligned on their `&`. A chain
@@ -1208,6 +1205,227 @@ export const exponentialModels: Course = {
         ask('expm-effective-tiles', 2),
         ask('expm-often-gain-tree', 2),
         ask('expm-step-calc', 2),
+      ],
+    },
+    {
+      id: 'em-l7',
+      title: 'The Limits of a Model',
+      lessons: [
+        {
+          id: 'em-l7-residuals',
+          title: 'Residuals',
+          slides: [
+            teach(
+              prose(
+                'A model is only as good as its fit to the data it came from. At each measurement, the **residual** is what was measured minus what the model says:',
+              ),
+              maths('\\text{residual} = \\text{measured} - \\text{model}'),
+              figure({
+                xMin: 0,
+                xMax: 3,
+                yMin: 0,
+                yMax: 180,
+                curves: [{ f: (t: number) => 20 * 2 ** t }],
+                marks: [21, 43, 78, 162].map((y, t) => ({ x: t, y })),
+                label: 'Four measurements as dots, close to the rising curve N = 20 times 2 to the t',
+              }),
+              prose(
+                'Against $N = 20e^{t\\ln 2}$, which is $20 \\times 2^{t}$, measurements of 21, 43, 78 and 162 at $t = 0$ to $3$ leave residuals $1$, $3$, $-2$ and $2$.',
+              ),
+            ),
+            ask('expm-residual'),
+            ask('expm-predict-tree'),
+            ask('expm-residual-tiles'),
+            teach(
+              prose('A positive residual means the measurement sits above the model; a negative one, below it.'),
+              prose('When $k$ is a fraction, work out $e^{kt}$ first. With $k = \\frac{\\ln 2}{5}$ at $t = 15$:'),
+              working('kt &= \\frac{\\ln 2}{5} \\times 15 = 3\\ln 2', 'e^{kt} &= e^{3\\ln 2} = 2^{3} = 8'),
+            ),
+            ask('expm-resid-column'),
+            ask('expm-residual+choice', 2),
+            ask('expm-predict-tree', 2),
+            teach(
+              prose('A falling model divides instead. $N = 400e^{-t\\ln 2}$ at $t = 3$ is:'),
+              working('N &= 400e^{-3\\ln 2}', '&= \\frac{400}{2^{3}} = 50'),
+              prose('A measurement of 53 there has residual $53 - 50 = 3$.'),
+            ),
+            ask('expm-residual-tiles', 2),
+            ask('expm-resid-column', 2),
+          ],
+          skillCheck: [ask('expm-residual', 2), ask('expm-predict-tree', 2), ask('expm-resid-column', 2)],
+        },
+        {
+          id: 'em-l7-reading',
+          title: 'Reading the Residuals',
+          slides: [
+            teach(
+              prose(
+                "The residual furthest from zero is the model's worst point. Compare sizes and ignore the signs: of $2$, $-5$ and $3$, the furthest is $-5$.",
+              ),
+              prose('Where the worst point sits matters as much as how big it is.'),
+            ),
+            ask('expm-resid-largest'),
+            ask('expm-pattern-flow'),
+            ask('expm-furthest-tree'),
+            teach(
+              prose('A fair fit scatters its residuals: some above, some below, no pattern.'),
+              prose(
+                'Residuals of one sign that grow each time say the model is the wrong shape. $2$, $5$, $9$, $14$ means the data is pulling away above it: the model is too low, by more each time.',
+              ),
+            ),
+            ask('expm-pattern-choice'),
+            ask('expm-resid-largest', 2),
+            ask('expm-pattern-flow', 2),
+            teach(
+              prose(
+                'A good fit does not mean zero residuals. Measurements always carry some noise, so small residuals of mixed sign are what a right model looks like.',
+              ),
+              prose('Only a pattern is evidence against the model.'),
+            ),
+            ask('expm-furthest-tree', 2),
+            ask('expm-pattern-choice', 2),
+          ],
+          skillCheck: [ask('expm-resid-largest', 2), ask('expm-pattern-choice', 2), ask('expm-furthest-tree', 2)],
+        },
+        {
+          id: 'em-l7-stops',
+          title: 'When a Model Stops Fitting',
+          slides: [
+            teach(
+              prose(
+                'A model can fit the early data and then fail. Here $N = 10e^{t\\ln 2}$ tracks the first measurements, then the data levels off:',
+              ),
+              figure({
+                xMin: 0,
+                xMax: 5,
+                yMin: 0,
+                yMax: 100,
+                curves: [{ f: (t: number) => Math.min(10 * 2 ** t, 200) }],
+                marks: [11, 19, 42, 53, 58, 60].map((y, t) => ({ x: t, y })),
+                label: 'Measurements as dots following a rising curve at first, then levelling off below it',
+              }),
+              prose(
+                'The model leaves the data at the first residual too big to be noise, here $53 - 80 = -27$ at $t = 3$. From there the gap only grows.',
+              ),
+            ),
+            ask('expm-leaves-slider'),
+            ask('expm-overshoot'),
+            ask('expm-level-flow'),
+            teach(
+              prose('Data that rises and then levels off wants a ceiling: a logistic model, $y = \\frac{L}{1 + Ae^{-kt}}$.'),
+              prose(
+                'Data that falls and then levels off above zero wants a bounded model, $y = L + Be^{-kt}$, which settles at $L$ rather than at zero.',
+              ),
+              prose('Both come from earlier levels. The job here is to spot which one the data is asking for.'),
+            ),
+            ask('expm-fix-choice'),
+            ask('expm-leaves-slider', 2),
+            ask('expm-overshoot+choice', 2),
+            teach(
+              prose(
+                'Past the point where it leaves, the plain model overshoots: rising data ends up below it, and falling data above it.',
+              ),
+              prose('A bigger $k$ only makes a growing model pull away faster. The fix is a different shape, not a different rate.'),
+            ),
+            ask('expm-level-flow', 2),
+            ask('expm-fix-choice', 2),
+          ],
+          skillCheck: [ask('expm-leaves-slider', 2), ask('expm-level-flow', 2), ask('expm-fix-choice', 2)],
+        },
+        {
+          id: 'em-l7-two',
+          title: 'Choosing Between Two Fits',
+          slides: [
+            teach(
+              prose(
+                'Two models, one table: which fits better? Square every residual and add them up. The **sum of squared residuals**, $S$, is smaller for the better fit.',
+              ),
+              working('r &= 2,\\ -1,\\ 3', 'S &= 4 + 1 + 9 = 14'),
+              prose('Squaring stops positive and negative residuals cancelling, and it weighs a big miss heavily.'),
+            ),
+            ask('expm-squares-tree'),
+            ask('expm-ssr'),
+            ask('expm-better-tiles'),
+            teach(
+              prose(
+                'A second test is the **largest residual**, ignoring its sign. A model that is never far off beats one that is usually close but sometimes badly wrong.',
+              ),
+              prose('When both tests pick the same model, the choice is clear.'),
+            ),
+            ask('expm-largest-flow'),
+            ask('expm-squares-tree', 2),
+            ask('expm-ssr+choice', 2),
+            teach(
+              prose(
+                'Work out each model at every measured time, not just the first and last. Two models can agree at the ends and still part company in between.',
+              ),
+            ),
+            ask('expm-better-tiles', 2),
+            ask('expm-largest-flow', 2),
+          ],
+          skillCheck: [ask('expm-ssr', 2), ask('expm-better-tiles', 2), ask('expm-largest-flow', 2)],
+        },
+        {
+          id: 'em-l7-beyond',
+          title: 'Beyond the Data',
+          slides: [
+            teach(
+              prose(
+                'Inside the range of the data, a model is **interpolating**: measurements on both sides hold it in check.',
+              ),
+              figure({
+                xMin: 0,
+                xMax: 9,
+                yMin: 0,
+                yMax: 240,
+                curves: [{ f: (t: number) => 10 * 2 ** (t / 2) }],
+                marks: [11, 19, 42, 78].map((y, i) => ({ x: 2 * i, y })),
+                verticals: [{ x: 6, dashed: true }],
+                label: 'Four measurements up to t = 6 on a rising curve, which carries on past a dashed line at t = 6',
+              }),
+              prose(
+                'Past the last measurement it is **extrapolating**, and nothing checks it. The dashed line marks the end of the data.',
+              ),
+            ),
+            ask('expm-interp-value'),
+            ask('expm-valid-line'),
+            ask('expm-trust-choice'),
+            teach(
+              prose(
+                'Interpolation can be trusted. A short way past the data calls for caution. Far past it, or anywhere the model breaks a real limit, it cannot be trusted.',
+              ),
+              prose('Before the first measurement counts as extrapolation too.'),
+            ),
+            ask('expm-far-flow'),
+            ask('expm-interp-value+choice', 2),
+            ask('expm-valid-line', 2),
+            teach(
+              prose('Why the caution? $N = 10e^{t\\ln 2}$ fits a dish of bacteria for a few hours. At $t = 20$ it says:'),
+              working('N &= 10e^{20\\ln 2} = 10 \\times 2^{20}', '&= 10\\,485\\,760'),
+              prose('Over ten million, far more than a dish can hold. The model has run past what the world allows.'),
+            ),
+            ask('expm-trust-choice', 2),
+            ask('expm-far-flow', 2),
+          ],
+          skillCheck: [ask('expm-interp-value', 2), ask('expm-valid-line', 2), ask('expm-far-flow', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('expm-residual', 2),
+        ask('expm-resid-column', 2),
+        ask('expm-predict-tree', 2),
+        ask('expm-resid-largest', 2),
+        ask('expm-pattern-flow', 2),
+        ask('expm-pattern-choice', 2),
+        ask('expm-leaves-slider', 2),
+        ask('expm-fix-choice', 2),
+        ask('expm-overshoot', 2),
+        ask('expm-ssr', 2),
+        ask('expm-better-tiles', 2),
+        ask('expm-largest-flow', 2),
+        ask('expm-interp-value', 2),
+        ask('expm-valid-line', 2),
+        ask('expm-far-flow', 2),
       ],
     },
   ],

@@ -14,6 +14,7 @@ import { describe, it, expect } from 'vitest';
 import { makeRng } from '../../engine/rng';
 import { reduce, startSession } from '../../engine/session';
 import type { Answer } from '../../engine/session';
+import { math } from '../../engine/expression';
 import { registry } from '../registry';
 import type { Generator, Slide } from '../types';
 
@@ -519,6 +520,308 @@ describe('two stages and catching up', () => {
       const second = (time: number) => (kind === 'head' ? stepped(0, w2, time).s : w2 * time);
       expect(Math.abs(first(t) - second(t)), `seed ${seed}`).toBeLessThan(1e-6);
       expect(first(t * 0.9) - second(t * 0.9), `seed ${seed}`).toBeGreaterThan(0);
+    }
+  });
+});
+
+/* ---------- level 4 ---------- */
+
+/** The prose of a slide's prompt, joined. */
+function proseOf(slide: Slide): string {
+  if (slide.kind === 'teach') throw new Error('a teach slide has no prompt');
+  return slide.prompt.map((block) => (block.kind === 'prose' ? block.text : '')).join(' ');
+}
+
+/** The function of t the learner reads as `$v = ...$`, parsed by mathjs rather than taken from the params. */
+function shown(text: string, letter: string): { tex: string; at: (t: number) => number } {
+  const tex = text.match(new RegExp(`\\$${letter} = ([^$]+)\\$`))?.[1];
+  if (!tex) throw new Error(`no ${letter} in ${text}`);
+  // `t(t - 3)` is a product on paper; mathjs would call t.
+  const code = math.parse(tex.replace(/t\(/g, 't*(')).compile();
+  return { tex, at: (t) => code.evaluate({ t }) as number };
+}
+
+/** Its derivative by mathjs, in t. */
+function rate(tex: string): (t: number) => number {
+  const code = math.derivative(tex, 't').compile();
+  return (t) => code.evaluate({ t }) as number;
+}
+
+/** The velocity a prompt gives at t = 0; "from rest" or none is 0. */
+const startVelocity = (text: string): number => Number(text.match(/velocity(?: at \$t = 0\$)?(?: is)? \$(-?[\d.]+)\$/)?.[1] ?? 0);
+
+/** The position a prompt starts from; at O is 0. */
+const startPosition = (text: string): number => Number(text.match(/at \$s = (-?[\d.]+)\$/)?.[1] ?? 0);
+
+/** Simpson's rule with n strips, n even: exact on cubics whatever n is. */
+function simpsonN(f: (t: number) => number, a: number, b: number, n = 20): number {
+  const h = (b - a) / n;
+  let total = 0;
+  for (let i = 0; i <= n; i += 1) total += (i === 0 || i === n ? 1 : i % 2 === 1 ? 4 : 2) * f(a + i * h);
+  return (total * h) / 3;
+}
+
+function bisect(f: (t: number) => number, lo: number, hi: number): number {
+  let [a, b] = [lo, hi];
+  const left = Math.sign(f(a));
+  for (let i = 0; i < 60; i += 1) {
+    const mid = (a + b) / 2;
+    if (Math.sign(f(mid)) === left) a = mid;
+    else b = mid;
+  }
+  return (a + b) / 2;
+}
+
+/** Every time in (a, b) where f changes sign, found by a scan kept off the whole and half numbers, then bisection. */
+function signChanges(f: (t: number) => number, a: number, b: number): number[] {
+  const n = 600;
+  const xs = Array.from({ length: n }, (_, i) => a + ((b - a) * (i + 0.37)) / n);
+  const out: number[] = [];
+  for (let i = 1; i < n; i += 1) if (Math.sign(f(xs[i - 1])) !== Math.sign(f(xs[i]))) out.push(bisect(f, xs[i - 1], xs[i]));
+  return out;
+}
+
+const near = (a: number, b: number) => Math.abs(a - b) < 1e-6;
+
+/** The interval a prompt names, `$0 \le t \le 5$`. */
+function intervalOf(text: string): [number, number] {
+  const found = text.match(/\$(\d+) \\le t \\le (\d+)\$/);
+  if (!found) throw new Error(`no interval in ${text}`);
+  return [Number(found[1]), Number(found[2])];
+}
+
+/** The velocity a slide is about: shown, differentiated from s, or integrated from a and the start. */
+function velocityOf(text: string): (t: number) => number {
+  if (/\$v = /.test(text)) return shown(text, 'v').at;
+  if (/\$s = [^$\d-]/.test(text) || /\$s = -?\d*t/.test(text)) return rate(shown(text, 's').tex);
+  const a = shown(text, 'a').at;
+  const u = startVelocity(text);
+  return (t) => u + simpsonN(a, 0, t, 2);
+}
+
+describe('kin-rest-times', () => {
+  it('fills in the times v changes sign, differentiating s by mathjs where s is given', () => {
+    for (const { slide, seed } of draws<unknown>('kin-rest-times')) {
+      if (slide.kind !== 'tiles') throw new Error('not a tiles slide');
+      const roots = signChanges(velocityOf(proseOf(slide)), 0.01, 10);
+      expect(roots.length, `seed ${seed}`).toBe(2);
+      const given = slide.answer.map(Number).sort((a, b) => a - b);
+      expect(given.every((t, k) => near(t, roots[k])), `seed ${seed}: ${given} against ${roots}`).toBe(true);
+    }
+  });
+});
+
+describe('kin-turn-position', () => {
+  it('is where s is when v changes sign, or the distance between the two', () => {
+    for (const { params, slide, seed } of draws<{ ask: string }>('kin-turn-position')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const s = shown(proseOf(slide), 's');
+      const turns = signChanges(rate(s.tex), 0.01, 10);
+      expect(turns.length, `seed ${seed}`).toBe(2);
+      const [first, second] = turns.map(s.at);
+      const expected = { first, second, between: Math.abs(second - first) }[params.ask]!;
+      expect(near(Number(slide.answer), expected), `seed ${seed}`).toBe(true);
+    }
+  });
+});
+
+describe('kin-turn-flow', () => {
+  it('says zero only when v is, and turning only when v changes sign there', () => {
+    for (const { params, slide, seed } of draws<{ r: number }>('kin-turn-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const v = shown(proseOf(slide), 'v').at;
+      const { r } = params;
+      const expected = Math.abs(v(r)) > 1e-9 ? ['Not zero'] : ['Zero', Math.sign(v(r - 0.01)) !== Math.sign(v(r + 0.01)) ? 'Yes' : 'No'];
+      expect(slide.answer, `seed ${seed}`).toEqual(expected);
+    }
+  });
+});
+
+describe('kin-origin-slider', () => {
+  it('stops where s crosses zero, counted from the start', () => {
+    for (const { params, slide, seed } of draws<{ roots: number[]; ask: number }>('kin-origin-slider')) {
+      if (slide.kind !== 'slider') throw new Error('not a slider slide');
+      const zeros = signChanges(shown(proseOf(slide), 's').at, 0.01, slide.max);
+      const expected = params.roots.length > 2 ? zeros[params.ask] : zeros[0];
+      expect(near(slide.answer, expected), `seed ${seed}`).toBe(true);
+      expect(slide.answer).toBeLessThanOrEqual(slide.max);
+    }
+  });
+});
+
+describe('kin-peak-tree and kin-max-velocity', () => {
+  it('find where a = 0 by bisection, and v is greatest there', () => {
+    for (const id of ['kin-peak-tree', 'kin-max-velocity']) {
+      for (const { slide, seed } of draws<unknown>(id)) {
+        if (slide.kind !== 'tree' && slide.kind !== 'expression') throw new Error('not a tree or expression slide');
+        const v = velocityOf(proseOf(slide));
+        const tops = signChanges((t) => (v(t + 1e-4) - v(t - 1e-4)) / 2e-4, 0.01, 10);
+        expect(tops.length, `${id} seed ${seed}`).toBe(1);
+        const [top] = tops;
+        expect(v(top - 0.1) < v(top) && v(top + 0.1) < v(top), `${id} seed ${seed}: not a greatest value`).toBe(true);
+        const answers = slide.kind === 'tree' ? slide.answer.map(Number) : [Number(slide.answer)];
+        if (slide.kind === 'tree') expect(Math.abs(answers[0] - top), `${id} seed ${seed}`).toBeLessThan(1e-4);
+        expect(Math.abs(answers[answers.length - 1] - v(top)), `${id} seed ${seed}`).toBeLessThan(1e-4);
+      }
+    }
+  });
+});
+
+describe('kin-speed-table and kin-interval-speed', () => {
+  it('take the greatest |v| over the ends and every a = 0 inside, and no grid point beats it', () => {
+    for (const id of ['kin-speed-table', 'kin-interval-speed']) {
+      for (const { slide, seed } of draws<unknown>(id)) {
+        if (slide.kind !== 'table' && slide.kind !== 'expression') throw new Error('not a table or expression slide');
+        const text = proseOf(slide);
+        const v = velocityOf(text);
+        const [t1, t2] = intervalOf(text);
+        const inside = signChanges((t) => (v(t + 1e-4) - v(t - 1e-4)) / 2e-4, t1, t2);
+        const best = Math.max(...[t1, ...inside, t2].map((t) => Math.abs(v(t))));
+        const grid = Math.max(...Array.from({ length: 501 }, (_, i) => Math.abs(v(t1 + ((t2 - t1) * i) / 500))));
+        expect(grid, `${id} seed ${seed}`).toBeLessThanOrEqual(best + 1e-6);
+        if (slide.kind === 'expression') expect(Math.abs(Number(slide.answer) - best), `${id} seed ${seed}`).toBeLessThan(1e-4);
+        else {
+          const [v0, s0, h, vh, sh, vT, sT] = slide.answer.map(Number);
+          expect(inside.length, `${id} seed ${seed}`).toBe(1);
+          expect(Math.abs(h - inside[0]), `${id} seed ${seed}`).toBeLessThan(1e-4);
+          expect([near(v0, v(t1)), near(vh, v(h)), near(vT, v(t2))], `${id} seed ${seed}`).toEqual([true, true, true]);
+          expect([near(s0, Math.abs(v0)), near(sh, Math.abs(vh)), near(sT, Math.abs(vT))], `${id} seed ${seed}`).toEqual([true, true, true]);
+        }
+      }
+    }
+  });
+});
+
+describe('distance against displacement', () => {
+  it('splits at the one sign change, found by bisection, and sums the pieces by Simpson', () => {
+    for (const id of ['kin-disp-integral', 'kin-pieces-tree', 'kin-dist-total']) {
+      for (const { params, slide, seed } of draws<{ T: number }>(id)) {
+        if (slide.kind !== 'tree' && slide.kind !== 'expression') throw new Error('not a tree or expression slide');
+        const v = shown(proseOf(slide), 'v').at;
+        const roots = signChanges(v, 0, params.T);
+        expect(roots.length, `${id} seed ${seed}: v must change sign once`).toBe(1);
+        const r = Math.round(roots[0]);
+        expect(near(r, roots[0]), `${id} seed ${seed}`).toBe(true);
+        const [A1, A2] = [simpson(v, 0, r), simpson(v, r, params.T)];
+        if (id === 'kin-disp-integral') expect(near(Number(slide.answer), simpson(v, 0, params.T)), `${id} seed ${seed}`).toBe(true);
+        if (id === 'kin-dist-total') expect(near(Number(slide.answer), Math.abs(A1) + Math.abs(A2)), `${id} seed ${seed}`).toBe(true);
+        if (slide.kind === 'tree') {
+          const expected = [r, A1, A2, Math.abs(A1) + Math.abs(A2)];
+          expect(slide.answer.map(Number).every((value, k) => near(value, expected[k])), `${id} seed ${seed}`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('marks the calculation that makes the negative piece positive', () => {
+    for (const { params, slide, seed } of draws<{ r: number; T: number }>('kin-dist-choice')) {
+      if (slide.kind !== 'choice') throw new Error('not a choice slide');
+      const v = shown(proseOf(slide), 'v').at;
+      const right = slide.options.find((o) => o.id === slide.correctId)!.label;
+      // The piece before the turn is subtracted exactly when v is negative there.
+      const [before, after] = right.split(/ [+-] (?=\\int)/);
+      expect(before.startsWith('-'), `seed ${seed}: ${right}`).toBe(v(params.r / 2) < 0);
+      expect(right.includes(' - \\int'), `seed ${seed}: ${right}`).toBe(v((params.r + params.T) / 2) < 0);
+      expect(after, `seed ${seed}`).toContain(`_{${params.r}}^{${params.T}}`);
+    }
+  });
+
+  it('splits the flow only where v changes sign inside the interval', () => {
+    for (const { params, slide, seed } of draws<{ a: number; b: number }>('kin-split-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const crossings = signChanges(shown(proseOf(slide), 'v').at, params.a, params.b);
+      const expected = crossings.length === 1 ? ['Yes', `$t = ${Math.round(crossings[0])}$`] : ['No'];
+      expect(crossings.length, `seed ${seed}`).toBeLessThanOrEqual(1);
+      expect(slide.answer, `seed ${seed}`).toEqual(expected);
+    }
+  });
+});
+
+describe('curved motion graphs', () => {
+  it('give the gradient mathjs finds at the marked time', () => {
+    for (const { params, slide, seed } of draws<{ t0: number }>('kin-curve-gradient')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      expect(near(Number(slide.answer), rate(shown(proseOf(slide), 's').tex)(params.t0)), `seed ${seed}`).toBe(true);
+    }
+  });
+
+  it('slide to where the graph is flat', () => {
+    for (const [id, letter] of [
+      ['kin-flat-slider', 's'],
+      ['kin-azero-slider', 'v'],
+    ] as const) {
+      for (const { params, slide, seed } of draws<{ roots: number[]; ask: number }>(id)) {
+        if (slide.kind !== 'slider') throw new Error('not a slider slide');
+        const flats = signChanges(rate(shown(proseOf(slide), letter).tex), 0, slide.max);
+        expect(flats.length, `${id} seed ${seed}`).toBe(params.roots.length);
+        expect(near(slide.answer, flats[params.ask]), `${id} seed ${seed}`).toBe(true);
+      }
+    }
+  });
+
+  it('shade an area Simpson agrees with, over a curve that stays above the axis', () => {
+    for (const { params, slide, seed } of draws<{ T: number }>('kin-curve-area')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const v = shown(proseOf(slide), 'v').at;
+      expect(Math.min(...Array.from({ length: 201 }, (_, i) => v((params.T * i) / 200))), `seed ${seed}`).toBeGreaterThan(0);
+      expect(near(Number(slide.answer), simpson(v, 0, params.T)), `seed ${seed}`).toBe(true);
+    }
+  });
+
+  it('mark the one moment that answers the question, read from the graph worked out', () => {
+    for (const { params, slide, seed } of draws<{ ask: string }>('kin-graph-choice')) {
+      if (slide.kind !== 'choice') throw new Error('not a choice slide');
+      // The graph carries no equation; the worked solution names the curve drawn.
+      const g = registry['kin-graph-choice'] as unknown as Generator<unknown>;
+      const said = g.solution(params).map((step) => step.text ?? '').join(' ');
+      const v = rate(shown(said, 's').tex);
+      const times = slide.options.map((o) => Number(o.label.replace('t = ', '')));
+      const speeds = times.map((t) => Math.abs(v(t)));
+      const wanted = {
+        rest: (k: number) => Math.abs(v(times[k])) < 1e-9,
+        back: (k: number) => v(times[k]) < -1e-9,
+        forward: (k: number) => v(times[k]) > 1e-9,
+        fastest: (k: number) => speeds[k] === Math.max(...speeds),
+      }[params.ask]!;
+      const right = slide.options.findIndex((o) => o.id === slide.correctId);
+      expect(times.map((_, k) => k).filter(wanted), `seed ${seed}`).toEqual([right]);
+    }
+  });
+});
+
+describe('putting it together', () => {
+  it('integrates a from the start the prompt gives, by Simpson', () => {
+    for (const { params, slide, seed } of draws<{ T: number; toS: boolean }>('kin-chain-velocity')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const v = velocityOf(proseOf(slide));
+      const expected = params.toS ? simpsonN(v, 0, params.T) : v(params.T);
+      expect(near(Number(slide.answer), expected), `seed ${seed}`).toBe(true);
+    }
+  });
+
+  it('fills tiles that differentiate back to what was given and start where the prompt says', () => {
+    for (const { slide, seed } of draws<unknown>('kin-integrate-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('not a tiles slide');
+      const text = proseOf(slide);
+      const built = slide.template.replace(/\{(\d)\}/g, (_, k) => slide.answer[Number(k)]).split(' = ')[1];
+      const toS = slide.template.startsWith('s');
+      const given = shown(text, toS ? 'v' : 'a').at;
+      const d = rate(built);
+      for (const t of [0.3, 1.7, 2.9]) expect(near(d(t), given(t)), `seed ${seed}: ${built}`).toBe(true);
+      const start = toS ? startPosition(text) : startVelocity(text);
+      expect(near(math.evaluate(built, { t: 0 }) as number, start), `seed ${seed}: ${built}`).toBe(true);
+    }
+  });
+
+  it('stops where the integrated velocity first reaches zero, having gone the Simpson distance', () => {
+    for (const { slide, seed } of draws<unknown>('kin-stop-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const text = proseOf(slide);
+      const v = velocityOf(text);
+      const [T] = signChanges(v, 0.01, 20);
+      const S = simpsonN(v, 0, T);
+      const expected = [T, S, startPosition(text) + S];
+      expect(slide.answer.map(Number).every((value, k) => Math.abs(value - expected[k]) < 1e-4), `seed ${seed}`).toBe(true);
     }
   });
 });

@@ -8,13 +8,19 @@
  * as the distance travelled. Level 2 is constant acceleration: the suvat
  * equations, choosing one from what is given with a sign convention, vertical
  * motion under gravity with g = 9.8, and journeys in two stages or with one
- * particle catching another.
+ * particle catching another. Level 4 is variable acceleration: when a
+ * particle is at rest or turns round, its greatest velocity and greatest
+ * speed on an interval, distance against displacement when v changes sign,
+ * reading curved displacement-time and velocity-time graphs, and chaining
+ * from s, v or a with a starting value to the time, position or speed asked.
  *
  * Gradients, areas, rearranging and the quadratic formula are used here, not
  * taught again: a lesson points back to Coordinate Geometry, Integration,
- * Linear Equations or Quadratics instead. Calculus with v = ds/dt is a later
- * level of this course, quoted once and never depended on. Each level closes
- * with a level check: questions only, no teaching slides, one attempt each.
+ * Linear Equations or Quadratics instead. Levels 1 and 2 quote v = ds/dt once
+ * and never depend on it; level 4 states v = ds/dt and a = dv/dt in its first
+ * slide and points to Differentiation and Integration for the techniques, so
+ * it stands whether or not level 3 comes first. Each level closes with a
+ * level check: questions only, no teaching slides, one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
 import { plotSvg } from '../figures';
@@ -455,6 +461,228 @@ export const kinematics: Course = {
         ask('kin-solve-mixed+choice', 2),
         ask('kin-grav-slider', 2),
         ask('kin-catch-time+choice', 2),
+      ],
+    },
+    {
+      id: 'kn-l4',
+      title: 'Variable Acceleration',
+      lessons: [
+        {
+          id: 'kn-l4-at-rest',
+          title: 'At Rest and Turning Round',
+          slides: [
+            teach(
+              prose(
+                'When the acceleration changes, the constant-acceleration equations no longer hold. Instead the velocity is the rate of change of the displacement, and the acceleration the rate of change of the velocity (Differentiation, "Sums and Constants"):',
+              ),
+              display('v = \\frac{ds}{dt}, \\qquad a = \\frac{dv}{dt}'),
+              prose('A particle is **at rest** when $v = 0$. With $s = t^3 - 6t^2 + 9t$, $v = 3t^2 - 12t + 9 = 3(t - 1)(t - 3)$, so it is at rest at $t = 1$ and at $t = 3$.'),
+            ),
+            ask('kin-rest-times'),
+            ask('kin-turn-position'),
+            ask('kin-rest-times', 2),
+            teach(
+              prose('At rest is not always **turning round**. It turns round only if $v$ changes sign there: positive on one side, negative on the other.'),
+              prose(
+                'A factor that appears once, like $(t - 1)$, changes sign as $t$ passes 1, and $v$ changes with it. A squared factor never goes negative: $v = 3(t - 2)^2$ is zero at $t = 2$, but the particle only pauses there and carries on the same way.',
+              ),
+            ),
+            ask('kin-turn-flow'),
+            ask('kin-turn-position+choice', 2),
+            ask('kin-turn-flow', 2),
+            teach(
+              prose('The particle is **at $O$** when $s = 0$: where its displacement-time graph meets the $t$-axis.'),
+              figure({
+                xMin: 0,
+                xMax: 5,
+                yMin: -6,
+                yMax: 5,
+                grid: true,
+                height: 170,
+                curves: [{ f: (t) => 4 * t - t * t }],
+                marks: [
+                  { x: 0, y: 0 },
+                  { x: 4, y: 0 },
+                ],
+                label: 'A displacement-time graph rising from zero to a peak and falling back through zero',
+              }),
+              prose('Here $s = 4t - t^2 = t(4 - t)$: it leaves $O$ at $t = 0$ and is back at $t = 4$. On the way it turns round at $t = 2$, where the graph is flat.'),
+            ),
+            ask('kin-origin-slider'),
+            ask('kin-origin-slider', 2),
+          ],
+          skillCheck: [ask('kin-rest-times', 2), ask('kin-turn-flow', 2), ask('kin-origin-slider', 2)],
+        },
+        {
+          id: 'kn-l4-max-speed',
+          title: 'Maximum Speed',
+          slides: [
+            teach(
+              prose('The velocity is greatest, or least, where it stops rising or falling: where its rate of change, the **acceleration**, is zero (Differentiation, "Finding Stationary Points").'),
+              prose('With $v = 3 + 8t - 2t^2$, $a = 8 - 4t$, which is zero at $t = 2$. Before then $a > 0$ and $v$ rises; after, it falls. So the greatest velocity is'),
+              working('v(2) &= 3 + 16 - 8', '&= 11'),
+            ),
+            ask('kin-peak-tree'),
+            ask('kin-max-velocity'),
+            ask('kin-peak-tree', 2),
+            teach(
+              prose('**Speed** is the size of the velocity, $|v|$. A velocity of $-12$ m/s is a speed of 12 m/s: faster than 9 m/s the other way.'),
+              prose(
+                'Over a time interval the greatest speed can only be at an **end** of the interval, or at a time inside it where $a = 0$. Work out $v$ at each, drop the signs, and take the largest.',
+              ),
+            ),
+            ask('kin-speed-table'),
+            ask('kin-interval-speed'),
+            ask('kin-max-velocity+choice', 2),
+            teach(
+              prose('If $a = 0$ falls **outside** the interval, it does not count: only the ends do.'),
+              prose('With $v = t^2 - 6t + 5$ for $0 \\le t \\le 2$: $a = 2t - 6$ is zero at $t = 3$, outside. $v(0) = 5$ and $v(2) = -3$, so the greatest speed is 5 m/s, at the start.'),
+            ),
+            ask('kin-speed-table', 2),
+            ask('kin-interval-speed+choice', 2),
+          ],
+          skillCheck: [ask('kin-peak-tree', 2), ask('kin-speed-table', 2), ask('kin-interval-speed', 2)],
+        },
+        {
+          id: 'kn-l4-distance',
+          title: 'Distance and Displacement',
+          slides: [
+            teach(
+              prose('The **displacement** over a time interval is the integral of the velocity (Integration, "The Definite Integral"):'),
+              display('s(b) - s(a) = \\int_{a}^{b} v\\,dt'),
+              prose(
+                'If $v$ changes sign inside the interval, the particle turns round, and the forward and backward parts cancel in that integral. The **distance** does not cancel: split the integral where $v$ changes sign and add the sizes of the pieces.',
+              ),
+            ),
+            ask('kin-disp-integral'),
+            ask('kin-split-flow'),
+            ask('kin-dist-choice'),
+            teach(
+              prose('Take $v = 3t^2 - 6t$ from $t = 0$ to $t = 3$. It factorises as $3t(t - 2)$, so it changes sign at $t = 2$:'),
+              working('\\int_{0}^{2} v\\,dt &= \\Big[ t^3 - 3t^2 \\Big]_{0}^{2} = -4', '\\int_{2}^{3} v\\,dt &= \\Big[ t^3 - 3t^2 \\Big]_{2}^{3} = 4'),
+              prose('The displacement is $-4 + 4 = 0$: it ends where it started. The distance is $4 + 4 = 8$ m.'),
+            ),
+            ask('kin-pieces-tree'),
+            ask('kin-dist-total'),
+            ask('kin-split-flow', 2),
+            teach(
+              prose(
+                'Find where $v = 0$ first, and keep only the times **strictly inside** the interval where $v$ changes sign. A root outside it, or a squared factor that only touches zero, needs no split.',
+              ),
+              prose('A check: the distance is never less than the size of the displacement, and equals it only when the particle never turns round.'),
+            ),
+            ask('kin-dist-total+choice', 2),
+            ask('kin-pieces-tree', 2),
+          ],
+          skillCheck: [ask('kin-pieces-tree', 2), ask('kin-dist-total', 2), ask('kin-split-flow', 2)],
+        },
+        {
+          id: 'kn-l4-curved-graphs',
+          title: 'Reading Curved Motion Graphs',
+          slides: [
+            teach(
+              prose(
+                'A curved **displacement-time** graph has a different gradient at every point. The gradient at a point is the gradient of the **tangent** there, and it is the velocity at that moment, $v = \\frac{ds}{dt}$.',
+              ),
+              figure({
+                xMin: 0,
+                xMax: 4,
+                yMin: -1,
+                yMax: 6,
+                grid: true,
+                height: 170,
+                curves: [{ f: (t) => t ** 3 - 6 * t * t + 9 * t }, { f: (t) => 2 - 3 * (t - 2), dashed: true }],
+                marks: [
+                  { x: 1, y: 4 },
+                  { x: 2, y: 2 },
+                  { x: 3, y: 0 },
+                ],
+                label: 'A curved displacement-time graph with a dashed tangent where it falls, and two flat points',
+              }),
+              prose(
+                'For $s = t^3 - 6t^2 + 9t$, $v = 3t^2 - 12t + 9$. The dashed tangent at $t = 2$ has gradient $v(2) = -3$: moving the negative way at 3 m/s. Where the graph is **flat**, at $t = 1$ and $t = 3$, the particle is at rest.',
+              ),
+            ),
+            ask('kin-curve-gradient'),
+            ask('kin-flat-slider'),
+            ask('kin-graph-choice'),
+            teach(
+              prose(
+                'A curved **velocity-time** graph works the same way one step down: its gradient is the acceleration, $a = \\frac{dv}{dt}$, so $a = 0$ where it is flat. The **area** under it is still the distance, now found by integrating. For $v = 3 + 2t - t^2$, flat at $t = 1$:',
+              ),
+              figure({
+                xMin: 0,
+                xMax: 3.5,
+                yMin: -1,
+                yMax: 5,
+                grid: true,
+                height: 170,
+                curves: [{ f: (t) => 3 + 2 * t - t * t }],
+                shade: { f: (t) => 3 + 2 * t - t * t, from: 0, to: 3 },
+                marks: [{ x: 1, y: 4 }],
+                label: 'A curved velocity-time graph peaking at t = 1, with the area under it shaded to t = 3',
+              }),
+              working('\\int_{0}^{3} v\\,dt &= \\Big[ 3t + t^2 - \\tfrac{1}{3}t^3 \\Big]_{0}^{3}', '&= 9 + 9 - 9 = 9'),
+            ),
+            ask('kin-curve-area'),
+            ask('kin-azero-slider'),
+            ask('kin-curve-gradient+choice', 2),
+            teach(
+              prose('Steeper means faster. On a displacement-time graph the speed is the size of the gradient: sloping up is moving the positive way, sloping down the negative way.'),
+              prose('Where the graph is flat the particle is at rest for an instant. It turns round there only if the graph comes back the way it went.'),
+            ),
+            ask('kin-graph-choice', 2),
+            ask('kin-flat-slider', 2),
+          ],
+          skillCheck: [ask('kin-curve-gradient', 2), ask('kin-curve-area', 2), ask('kin-azero-slider', 2)],
+        },
+        {
+          id: 'kn-l4-together',
+          title: 'Putting It Together',
+          slides: [
+            teach(
+              prose('The three quantities are linked both ways: differentiate to go from $s$ to $v$ to $a$, and integrate to come back, using a starting value for the constant each time.'),
+              working('v &= \\frac{ds}{dt}, & a &= \\frac{dv}{dt}', 'v &= \\int a\\,dt, & s &= \\int v\\,dt'),
+              prose('With $a = 6t - 4$ and $v = 2$ when $t = 0$: $v = 3t^2 - 4t + c$, and $t = 0$ gives $c = 2$, so $v = 3t^2 - 4t + 2$.'),
+            ),
+            ask('kin-integrate-tiles'),
+            ask('kin-chain-velocity'),
+            ask('kin-stop-tree'),
+            teach(
+              prose('A particle has $a = 6 - 6t$ and starts from rest at $O$. Then $v = 6t - 3t^2 = 3t(2 - t)$, so it next comes to rest at $t = 2$.'),
+              prose('Up to then $v > 0$, so it moves one way only, and the distance is the displacement:'),
+              working('\\int_{0}^{2} (6t - 3t^2)\\,dt &= \\Big[ 3t^2 - t^3 \\Big]_{0}^{2}', '&= 12 - 8 = 4'),
+            ),
+            ask('kin-integrate-tiles', 2),
+            ask('kin-chain-velocity+choice', 2),
+            ask('kin-turn-position', 2),
+            teach(
+              prose(
+                'Before starting, name what is asked. A **time** usually comes from $v = 0$ or $a = 0$; a **position** from $s$ with its starting value; a **speed** from $|v|$; a **distance** from integrating $v$, split wherever it changes sign.',
+              ),
+            ),
+            ask('kin-stop-tree', 2),
+            ask('kin-dist-total', 2),
+          ],
+          skillCheck: [ask('kin-stop-tree', 2), ask('kin-chain-velocity', 2), ask('kin-integrate-tiles', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('kin-rest-times', 2),
+        ask('kin-peak-tree', 2),
+        ask('kin-dist-total', 2),
+        ask('kin-curve-gradient', 2),
+        ask('kin-chain-velocity', 2),
+        ask('kin-turn-flow', 2),
+        ask('kin-interval-speed', 2),
+        ask('kin-pieces-tree', 2),
+        ask('kin-azero-slider', 2),
+        ask('kin-stop-tree', 2),
+        ask('kin-origin-slider', 2),
+        ask('kin-speed-table', 2),
+        ask('kin-split-flow', 2),
+        ask('kin-graph-choice', 2),
+        ask('kin-max-velocity+choice', 2),
       ],
     },
   ],

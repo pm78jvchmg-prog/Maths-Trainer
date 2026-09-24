@@ -480,6 +480,289 @@ describe('inequalities with fractions, from what the learner is shown', () => {
   });
 });
 
+describe('graphs of rational functions, from what the learner is shown', () => {
+  /** A shown rule compiled once, so a sweep of whole points costs no re-parsing. */
+  function compiled(tex: string): (x: number) => number {
+    const code = math.compile(toMath(tex));
+    return (x) => code.evaluate({ x }) as number;
+  }
+
+  /** The rule without its `y = `. */
+  const ruleOf = (tex: string): string => tex.replace(/^y = /, '');
+
+  /** The prompt's prose, joined. */
+  const proseOf = (slide: Slide): string =>
+    'prompt' in slide ? slide.prompt.map((b) => ('text' in b ? b.text : '')).join(' ') : '';
+
+  /** The rule a slide's prose quotes as $y = ...$. */
+  const quoted = (slide: Slide): string => /\$y = ([^$]*)\$/.exec(proseOf(slide))![1];
+
+  const WHOLE = Array.from({ length: 31 }, (_, i) => i - 15);
+
+  /**
+   * Every feature, found from the rule alone: the poles by evaluating the
+   * bottom, holes as the places the top is zero too (the factor cancels), the
+   * level by evaluating far out, and the intercepts by evaluation.
+   */
+  function featuresOf(tex: string) {
+    const rule = ruleOf(tex);
+    const m = /^\\frac\{((?:[^{}]|\{[^{}]*\})*)\}\{((?:[^{}]|\{[^{}]*\})*)\}$/.exec(rule);
+    if (!m) throw new Error(`not one fraction: ${rule}`);
+    const [top, bottom, f] = [compiled(m[1]), compiled(m[2]), compiled(rule)];
+    const poles: number[] = [];
+    const holes: number[] = [];
+    const zeros: number[] = [];
+    for (const x of WHOLE) {
+      const [t, b] = [top(x), bottom(x)];
+      if (Math.abs(b) < 1e-9) (Math.abs(t) < 1e-9 ? holes : poles).push(x);
+      else if (Math.abs(t) < 1e-9) zeros.push(x);
+    }
+    const far = [1e7, -1e7].map(f);
+    const level = far.every((v) => Math.abs(v) < 1e3) ? far[0] : null;
+    if (level !== null) expect(Math.abs(level - Math.round(level)), `${rule} settles off a whole number`).toBeLessThan(1e-4);
+    return {
+      f,
+      top,
+      bottom,
+      poles,
+      holes,
+      zeros,
+      level: level === null ? null : Math.round(level) || 0,
+      /** The curve's height beside x, which is the height of a hole. */
+      near: (x: number) => (f(x + 1e-7) + f(x - 1e-7)) / 2,
+    };
+  }
+
+  /** Whole numbers quoted as x = n in a label, or none for a word. */
+  const valuesIn = (label: string): number[] => [...label.matchAll(/[xy] = (-?\d+)/g)].map((g) => Number(g[1])).sort((a, b) => a - b);
+
+  it('names the vertical asymptotes and which way each arm goes', () => {
+    for (const { slide, seed, difficulty } of slides('frac-va-which')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const { poles } = featuresOf(display(slide));
+      for (const option of slide.options) {
+        const same = JSON.stringify(valuesIn(option.label)) === JSON.stringify(poles);
+        expect(same, `seed ${seed} d${difficulty}: ${option.label}`).toBe(option.id === slide.correctId);
+      }
+    }
+    for (const { slide, seed, difficulty } of slides('frac-va-slider')) {
+      if (slide.kind !== 'slider') throw new Error('expected slider');
+      const { f, poles } = featuresOf(quoted(slide));
+      const up = proseOf(slide).includes('shoots up just to its right');
+      const fits = poles.filter((p) => f(p + 1e-6) > 0 === up && f(p - 1e-6) < 0 === up);
+      expect(fits, `seed ${seed} d${difficulty}`).toEqual([slide.answer]);
+    }
+    for (const { slide, seed, difficulty } of slides('frac-va-side-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const { f, poles } = featuresOf(slide.subject);
+      const p = Number(/asymptote \$x = (-?\d+)\$/.exec(proseOf(slide))![1]);
+      const right = proseOf(slide).includes('to the right');
+      expect(poles, `seed ${seed} d${difficulty}`).toContain(p);
+      const heads = f(right ? p + 1e-6 : p - 1e-6) > 0;
+      expect(slide.answer[2].includes('+\\infty'), `seed ${seed} d${difficulty}`).toBe(heads);
+    }
+    for (const { slide, seed, difficulty } of slides('frac-va-arms-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const { f, poles } = featuresOf(display(slide));
+      const p = Number(/asymptote at \$x = (-?\d+)\$/.exec(proseOf(slide))![1]);
+      expect(poles, `seed ${seed} d${difficulty}`).toContain(p);
+      const ends = [f(p - 1e-6), f(p + 1e-6)].map((y) => (y > 0 ? '\\infty' : '-\\infty'));
+      expect(slide.answer, `seed ${seed} d${difficulty}`).toEqual(ends);
+    }
+  });
+
+  it('settles on the horizontal asymptote it quotes', () => {
+    for (const { slide, seed, difficulty } of slides('frac-ha-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const { level } = featuresOf(slide.subject);
+      const said = slide.answer[1];
+      expect(level === null ? said.includes('no level') : valuesIn(said)[0] === level, `seed ${seed} d${difficulty}: ${said}`).toBe(true);
+    }
+    for (const { slide, seed, difficulty } of slides('frac-ha-slider')) {
+      if (slide.kind !== 'slider') throw new Error('expected slider');
+      expect(featuresOf(quoted(slide)).level, `seed ${seed} d${difficulty}`).toBe(slide.answer);
+    }
+    for (const { slide, seed, difficulty } of slides('frac-ha-value')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      expect(featuresOf(display(slide)).level, `seed ${seed} d${difficulty}`).toBe(Number(slide.answer));
+    }
+    for (const { slide, seed, difficulty } of slides('frac-ha-which')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const c = valuesIn(proseOf(slide))[0];
+      for (const option of slide.options) {
+        expect(featuresOf(option.label).level === c, `seed ${seed} d${difficulty}: ${option.label}`).toBe(option.id === slide.correctId);
+      }
+    }
+  });
+
+  it('puts every hole where a factor cancels, at the height the curve has beside it', () => {
+    for (const { slide, seed, difficulty } of slides('frac-hole-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const { holes, near } = featuresOf(slide.expression);
+      const [h, top, bottom, y] = slide.answer.map(Number);
+      expect(holes, `seed ${seed} d${difficulty}`).toEqual([h]);
+      expect(top / bottom, `seed ${seed} d${difficulty}`).toBe(y);
+      expect(near(h), `seed ${seed} d${difficulty}`).toBeCloseTo(y, 4);
+    }
+    for (const { slide, seed, difficulty } of slides('frac-hole-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const { holes, poles } = featuresOf(slide.subject);
+      const asked = slide.steps.map((step) => Number(/x = (-?\d+)/.exec(step.ask)![1]));
+      expect([...asked].sort((a, b) => a - b), `seed ${seed} d${difficulty}`).toEqual([...holes, ...poles].sort((a, b) => a - b));
+      asked.forEach((x, i) => expect(slide.answer[i].includes('hole'), `seed ${seed} d${difficulty} at ${x}`).toBe(holes.includes(x)));
+    }
+    for (const { slide, seed, difficulty } of slides('frac-hole-slider')) {
+      if (slide.kind !== 'slider') throw new Error('expected slider');
+      expect(featuresOf(quoted(slide)).holes, `seed ${seed} d${difficulty}`).toEqual([slide.answer]);
+    }
+    for (const { slide, seed, difficulty } of slides('frac-hole-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const [simplified, h] = slide.answer;
+      expect(featuresOf(display(slide)).holes, `seed ${seed} d${difficulty}`).toEqual([Number(h)]);
+      expectSame(simplified, ruleOf(display(slide)), `seed ${seed} d${difficulty}`);
+    }
+  });
+
+  it('crosses each axis where it says', () => {
+    for (const { slide, seed, difficulty } of slides('frac-x-int-which')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const { zeros } = featuresOf(display(slide));
+      for (const option of slide.options) {
+        const same = JSON.stringify(valuesIn(option.label)) === JSON.stringify(zeros);
+        expect(same, `seed ${seed} d${difficulty}: ${option.label}`).toBe(option.id === slide.correctId);
+      }
+    }
+    for (const { slide, seed, difficulty } of slides('frac-y-int-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const { f, top, bottom } = featuresOf(slide.expression);
+      expect(slide.answer.map(Number), `seed ${seed} d${difficulty}`).toEqual([top(0), bottom(0), f(0)]);
+    }
+    for (const { slide, seed, difficulty } of slides('frac-y-int-slider')) {
+      if (slide.kind !== 'slider') throw new Error('expected slider');
+      expect(featuresOf(quoted(slide)).f(0), `seed ${seed} d${difficulty}`).toBe(slide.answer);
+    }
+    for (const { slide, seed, difficulty } of slides('frac-intercepts-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const { f, bottom, zeros } = featuresOf(slide.subject);
+      const onAxis = Math.abs(bottom(0)) < 1e-9;
+      expect(slide.answer[0].startsWith('Yes'), `seed ${seed} d${difficulty}`).toBe(onAxis);
+      if (!onAxis) expect(valuesIn(slide.answer[1]), `seed ${seed} d${difficulty}`).toEqual([f(0)]);
+      expect(slide.answer[slide.answer.length - 1], `seed ${seed} d${difficulty}`).toBe(['Never', 'Once', 'Twice'][zeros.length]);
+    }
+  });
+
+  it('fills the feature table with the features of the curve shown', () => {
+    for (const { slide, seed, difficulty } of slides('frac-features-table')) {
+      if (slide.kind !== 'table') throw new Error('expected table');
+      const { f, poles, holes, zeros, level, near } = featuresOf(display(slide));
+      const expected: Record<string, number | null> = {
+        'Asymptote } x': poles[0],
+        'Asymptote } y': level,
+        'Hole } x': holes[0],
+        'Hole } y': holes.length ? Math.round(near(holes[0]) * 1e6) / 1e6 : null,
+        'Meets } x\\text{-axis}': zeros[0],
+        'Meets } y\\text{-axis}': f(0),
+      };
+      expect(poles.length + zeros.length, `seed ${seed} d${difficulty}`).toBe(2);
+      slide.rows.forEach(([name], i) => {
+        const key = Object.keys(expected).find((k) => (name as string).endsWith(k))!;
+        expect(Number(slide.answer[i]), `seed ${seed} d${difficulty}: ${name}`).toBe(expected[key]);
+      });
+    }
+  });
+
+  /**
+   * The sketch read the way the learner reads it: grid lines a unit apart, the
+   * axes at zero, and the drawn curve's points turned back into coordinates.
+   */
+  function drawnCurve(svg: string): { x: number; y: number; dx: number }[] {
+    const lines = [...svg.matchAll(/<line x1="([\d.]+)" y1="([\d.]+)" x2="([\d.]+)" y2="([\d.]+)"[^>]*opacity="([\d.]+)"/g)].map((g) => ({
+      x1: Number(g[1]),
+      y1: Number(g[2]),
+      x2: Number(g[3]),
+      y2: Number(g[4]),
+      opacity: g[5],
+    }));
+    const across = (o: string) => lines.filter((l) => l.y1 === l.y2 && l.opacity === o).map((l) => l.y1).sort((a, b) => a - b);
+    const down = (o: string) => lines.filter((l) => l.x1 === l.x2 && l.opacity === o).map((l) => l.x1).sort((a, b) => a - b);
+    // Grid lines sit at every whole number and the axis at zero, so together
+    // they run a unit apart: the average gap is the unit, free of the rounding
+    // in any one line.
+    const unit = (v: number[]) => (Math.max(...v) - Math.min(...v)) / (v.length - 1);
+    const [ux, uy] = [unit([...down('0.18'), ...down('0.55')]), unit([...across('0.18'), ...across('0.55')])];
+    const [x0] = down('0.55');
+    const [y0] = across('0.55');
+    const top = Math.min(...across('0.18'));
+    const bottom = Math.max(...across('0.18'));
+    const d = /<path class="plot-accent"[^>]* d="([^"]*)"/.exec(svg)![1];
+    return [...d.matchAll(/(-?[\d.]+),(-?[\d.]+)/g)]
+      .map((g) => ({ px: Number(g[1]), py: Number(g[2]) }))
+      .filter(({ py }) => py > top && py < bottom)
+      // Each coordinate, the axis's included, is written to a tenth of a
+      // pixel, so x is known only to within about that.
+      .map(({ px, py }) => ({ x: (px - x0) / ux, y: (y0 - py) / uy, dx: 0.12 / ux }));
+  }
+
+  it('matches exactly one rule to the sketch drawn', () => {
+    for (const { slide, seed, difficulty } of slides('frac-sketch-which')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const figure = slide.prompt.find((b) => b.kind === 'diagram') as { svg: string };
+      const points = drawnCurve(figure.svg);
+      expect(points.length, `seed ${seed} d${difficulty}`).toBeGreaterThan(40);
+      for (const option of slide.options) {
+        const f = compiled(ruleOf(option.label));
+        // Beside a pole the curve is steep, so the rounding in x moves y a lot:
+        // a point fits when the rule passes through its height somewhere in
+        // the sliver of x it could have come from.
+        const fits = ({ x, y, dx }: { x: number; y: number; dx: number }) =>
+          Math.abs(f(x) - y) < 0.1 || (f(x - dx) - y) * (f(x + dx) - y) <= 0;
+        const share = points.filter(fits).length / points.length;
+        expect(share > 0.99, `seed ${seed} d${difficulty}: ${option.label} fits ${share}`).toBe(option.id === slide.correctId);
+      }
+    }
+  });
+
+  /**
+   * Whether the curve ever takes the value `level`: where top - level * bottom,
+   * a polynomial with no poles, is zero and the bottom is not. Sampled at
+   * every whole number near the roots and far out either side, so a sign
+   * change anywhere is caught.
+   */
+  function crosses(tex: string, level: number): boolean {
+    const { top, bottom } = featuresOf(tex);
+    const g = (x: number) => top(x) - level * bottom(x);
+    const xs = [-1e6, -1e3, ...Array.from({ length: 201 }, (_, i) => i - 100), 1e3, 1e6];
+    return xs.some((x, i) => {
+      if (Math.abs(g(x)) < 1e-9) return Math.abs(bottom(x)) > 1e-9;
+      return i > 0 && Math.abs(g(xs[i - 1])) > 1e-9 && g(x) * g(xs[i - 1]) < 0;
+    });
+  }
+
+  it('crosses its horizontal asymptote where, and only when, it says', () => {
+    for (const { slide, seed, difficulty } of slides('frac-cross-ha')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const { f, level, poles } = featuresOf(display(slide));
+      const x = Number(slide.answer);
+      expect(level, `seed ${seed} d${difficulty}`).toBe(valuesIn(proseOf(slide))[0]);
+      expect(poles, `seed ${seed} d${difficulty}`).not.toContain(x);
+      expect(f(x), `seed ${seed} d${difficulty}`).toBeCloseTo(level!, 9);
+    }
+    for (const { slide, seed, difficulty } of slides('frac-sketch-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const { poles, level } = featuresOf(slide.subject);
+      const [vertical, flat, cross] = slide.answer;
+      expect(valuesIn(vertical), `seed ${seed} d${difficulty}`).toEqual(poles);
+      if (level === null) {
+        expect(flat, `seed ${seed} d${difficulty}`).toBe('None');
+        expect(cross).toBeUndefined();
+      } else {
+        expect(valuesIn(flat), `seed ${seed} d${difficulty}`).toEqual([level]);
+        expect(cross.startsWith('Yes'), `seed ${seed} d${difficulty}: ${slide.subject}`).toBe(crosses(slide.subject, level));
+      }
+    }
+  });
+});
+
 describe('typed questions grade their own answer correct through a session', () => {
   const typed = algebraicFractionGenerators.filter((g) => {
     const slide = (g as Generator<unknown>).render((g as Generator<unknown>).sample(makeRng(1), 1));

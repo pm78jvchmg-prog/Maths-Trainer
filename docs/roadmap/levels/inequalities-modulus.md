@@ -9,11 +9,11 @@ y = |ax + b|, solving |ax + b| = c and = dx + e, modulus inequalities,
 transformations of modulus graphs); Modulus on Both Sides and Squaring
 (|ax + b| = |cx + d| and |f(x)| < |g(x)| by squaring, and when squaring is
 safe); Modulus of Quadratics (sketching y = |f(x)| and y = f(|x|) for
-quadratics and cubics, and solving |f(x)| = c and |f(x)| < c from the graph).
+quadratics and cubics, and solving |f(x)| = c and |f(x)| < c from the graph);
+Regions with Modulus (shading y ≥ |x − a| and y < k − |x| on the plane, and
+regions bounded by two modulus graphs).
 
-Needs: Regions with Modulus (shading y ≥ |x − a| and
-y < k − |x| on the plane, and regions bounded by two modulus graphs);
-Piecewise Functions (defining, sketching and evaluating piecewise functions,
+Needs: Piecewise Functions (defining, sketching and evaluating piecewise functions,
 writing |ax + b| piecewise, and continuity at the joins); Inequalities in
 Context (modulus bounds for tolerance and error, |x − a| < δ, and choosing an
 inequality to model a constraint). Linear inequalities for beginners stay with

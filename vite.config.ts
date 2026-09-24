@@ -26,9 +26,11 @@ export default defineConfig({
       },
       workbox: {
         // Everything is precached, KaTeX fonts included, so a lesson runs with
-        // no signal at all. mathjs pushes the bundle past the 2 MB default.
+        // no signal at all. mathjs pushes the bundle past the 2 MB default, and
+        // the content library has since passed 6 MB. A file over this cap is
+        // not merely left uncached: the build fails, so nothing deploys.
         globPatterns: ['**/*.{js,css,html,woff,woff2,ttf,png,svg}'],
-        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+        maximumFileSizeToCacheInBytes: 16 * 1024 * 1024,
       },
     }),
   ],

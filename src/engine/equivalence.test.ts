@@ -191,6 +191,61 @@ describe('calculus-shaped answers', () => {
 });
 
 /**
+ * mathjs reads a name followed by a bracket as a call, so `x(x+1)` was a call
+ * to a function named x and came back `invalid` — on keypads offering both the
+ * `x` key and `(`, a factorised answer typed exactly as printed could not be
+ * graded at all. A single letter never names a function here, so it is read as
+ * multiplying the bracket instead.
+ */
+describe('a letter before a bracket multiplies it', () => {
+  it('reads x( as x times the bracket', () => {
+    expect(check('x(x+1)', 'x^2+x')).toBe('correct');
+    expect(check('2x(3x+1)', '6x^2+2x')).toBe('correct');
+    // d/dx of x^2(x+1)^3, left in the factorised form the product rule gives.
+    expect(check('2x(x+1)^3 + 3x^2(x+1)^2', '5x^4 + 12x^3 + 9x^2 + 2x')).toBe('correct');
+  });
+
+  it('reads e( as e times the bracket', () => {
+    expect(check('e(x+1)', 'e*x + e')).toBe('correct');
+    expect(check('2e(x+1)', '2e*x + 2e')).toBe('correct');
+  });
+
+  it('reads C( as C times the bracket', () => {
+    // A general solution with its constant written in front of a factor.
+    expect(check('C(x^2+1)', 'C*x^2 + C')).toBe('correct');
+    expect(check('x^2/2 + C(1)', 'x^2/2', { mode: 'upToConstant' })).toBe('correct');
+  });
+
+  it('keeps the power on the bracket, not on the product', () => {
+    // mathjs binds a call tighter than ^, so turning the call node into a
+    // product would square x as well: x(x+1)^2 must be x(x+1)(x+1).
+    expect(check('x(x+1)^2', 'x^3 + 2x^2 + x')).toBe('correct');
+    expect(check('x(x+1)^2', 'x^4 + 2x^3 + x^2')).toBe('incorrect');
+    expect(check('-x(x+1)^2', '-(x^3 + 2x^2 + x)')).toBe('correct');
+  });
+
+  it('still grades a wrong factorisation wrong', () => {
+    expect(check('x(x+2)', 'x^2+x')).toBe('incorrect');
+  });
+
+  it('leaves real functions as functions', () => {
+    expect(check('sin(x)', 'sin(x)')).toBe('correct');
+    expect(check('2ln(x)', 'ln(x^2)', { domain: 'positive' })).toBe('correct');
+    expect(check('sqrt(x^2)', 'abs(x)')).toBe('correct');
+    expect(check('exp(x)', 'e^x')).toBe('correct');
+    expect(check('log(x)', 'ln(x)')).toBe('correct');
+    expect(check('cos(x)^2', '1 - sin(x)^2')).toBe('correct');
+  });
+
+  it('still reports an unknown name of more than one letter', () => {
+    const verdict = checkAnswer('sinn(x)', 'sin(x)', { seed: SEED });
+    expect(verdict.status).toBe('invalid');
+    if (verdict.status === 'invalid') expect(verdict.message).toMatch(/no function called sinn/);
+    expect(check('xy(x+1)', 'x^2+x')).toBe('invalid');
+  });
+});
+
+/**
  * The positive domain.
  *
  * Fractional indices are the reason it exists. `sqrt(x^3)` and `x^(3/2)` are

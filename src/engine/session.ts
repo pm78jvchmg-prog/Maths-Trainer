@@ -19,6 +19,7 @@ import { checkAnswer } from './equivalence';
 import { isSolved, valueOf, type Move } from '../content/expr';
 import { parseTransform, sameCurve } from '../content/transform';
 import { draftMatches } from '../content/numberLine';
+import { forcesMatch } from '../content/forces';
 import type {
   Lesson,
   Slide,
@@ -419,6 +420,16 @@ function grade(slide: Slide, answer: Answer, seed: number): Feedback {
     // is simply a different sequence.
     case 'order':
       return gradeSequence(answer, slide.answer);
+
+    /**
+     * `pick`: the tapped arrows against the ones that act, both sorted first,
+     * so the order they were tapped in cannot matter. Nothing chosen never
+     * matches. `fill`: one magnitude per blank in arrow order, exact tokens.
+     */
+    case 'forces':
+      if (slide.mode === 'fill') return gradeSequence(answer, slide.answer);
+      if (typeof answer !== 'string') return { kind: 'incorrect' };
+      return forcesMatch(answer, slide.answer) ? { kind: 'correct' } : { kind: 'incorrect' };
 
     /**
      * One number, held against what the expression comes to.

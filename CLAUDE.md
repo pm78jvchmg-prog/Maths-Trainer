@@ -300,10 +300,12 @@ value in these questions is whole**, banks included; a bank of halves turns an
 order question into an arithmetic-with-fractions question, and there is a test
 for it.
 
-**`numberLine`** (batch C8-widget) draws a solution set: a number places or
-removes a dot, a dot toggles filled and hollow, and a tap on the line shades
-the stretch it falls in, running off the edge as a ray beyond the outermost
-dot. The model is `src/content/numberLine.ts`, the widget
+**`numberLine`** (batch C8-widget) draws a solution set, every tap on the
+line itself: a tap at a number places a filled dot and *chooses* it, the chosen
+dot grows an arrow either side, and an arrow shades (or clears) the stretch on
+that side, running off the edge as a ray beyond the outermost dot. Tapping the
+chosen dot again makes it hollow, and once more removes it. The owner asked for
+this in place of numbers under the line for dots and the line for shading. The model is `src/content/numberLine.ts`, the widget
 `src/ui/numberLineSlide.tsx`. The draft is one string (`-1c,2o/-1:2`) so
 `Answer` did not grow; `answer` is the set written canonically
 (`(-inf,2]|[5,inf)`), and the reducer compares both after sorting and merging,
@@ -313,6 +315,12 @@ window), which is what keeps each tick's tap target 24 px wide at 393 px, and
 every end must sit on a tick strictly inside the window. `nl-linear` and
 `nl-modulus` in `generators/numberLine.ts` are demonstrations no lesson asks
 yet.
+A filled blank in any bank widget (`table`, `order`, `iterate`, `forces` fill,
+`probTree`, `venn`) can be **dragged** to another blank: `src/ui/slotDrag.ts`,
+swapping for fixed blanks and re-inserting for proof steps. A drag starts only
+after the finger moves, so a tap still empties the blank, and the click that
+ends a drag is swallowed so it can never count as the question's retry tap.
+
 **`iterate`** (batch C15-widget) runs a numerical scheme by hand: an `n | x_n`
 table with `x_0` given, one blank per iterate, and a last blank for the
 conclusion (`conclusion: 'limit'` or `'bracket'`, the bracket one token such as

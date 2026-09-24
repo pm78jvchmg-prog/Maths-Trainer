@@ -9,6 +9,7 @@
 import { Blocks, Inline } from './Math';
 import type { Slide } from '../content/types';
 import { frameClass, isLocked, type SlideProps } from './slides';
+import { moveInList, useSlotDrag } from './slotDrag';
 
 type OrderSlideData = Extract<Slide, { kind: 'order' }>;
 
@@ -41,6 +42,12 @@ function OrderBody({
     onAnswer(placed.filter((_, i) => i !== idx));
   };
 
+  // Dragging a placed step to another slot moves it there, and the steps
+  // between shift up or down to make room.
+  const { slotProps } = useSlotDrag(!locked, (from, to) => {
+    onAnswer(moveInList(placed, from, Math.min(to, placed.length - 1)));
+  });
+
   const clearAll = () => {
     onAnswer([]);
   };
@@ -51,11 +58,11 @@ function OrderBody({
         <Blocks blocks={slide.prompt} />
       </div>
 
-      <ol className={`${frameClass(feedback)} column proof-slots`}>
+      <ol className={`${frameClass(feedback)} column proof-slots`} data-slot-group="">
         {slide.answer.map((_, idx) => {
           const id = placed[idx];
           return (
-            <li key={idx} className="proof-slot-row">
+            <li key={idx} className="proof-slot-row" {...slotProps(idx, !!id)}>
               <span className="proof-slot-number" aria-hidden="true">
                 {idx + 1}
               </span>

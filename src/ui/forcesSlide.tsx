@@ -31,6 +31,7 @@ import {
   type Direction,
   type Point,
 } from '../content/forces';
+import { swapSlots, useSlotDrag } from './slotDrag';
 
 type ForcesSlideData = Extract<Slide, { kind: 'forces' }>;
 
@@ -126,6 +127,9 @@ function ForcesBody({
   const spent = new Map<string, number>();
   for (const token of filled) if (token) spent.set(token, (spent.get(token) ?? 0) + 1);
 
+  // A filled blank dragged onto another swaps the two; onto an empty one, moves.
+  const { slotProps } = useSlotDrag(!locked, (from, to) => onAnswer(swapSlots(filled, from, to)));
+
   const angleAt = angleLabelAt(slide.scene);
   const nothingDone = slide.mode === 'pick' ? draft === '' : filled.every((slot) => !slot);
 
@@ -155,7 +159,7 @@ function ForcesBody({
         </div>
 
         {slide.mode === 'fill' && (
-          <div className="force-legend">
+          <div className="force-legend" data-slot-group="">
             {slide.arrows.map((arrow) => {
               const blank = blankOf.get(arrow.id);
               return (
@@ -165,6 +169,7 @@ function ForcesBody({
                     <Tex tex={arrow.given!} />
                   ) : (
                     <button
+                      {...slotProps(blank, !!filled[blank])}
                       type="button"
                       className={`answer-slot force-slot${filled[blank] ? ' filled' : ''}${
                         !locked && blank === target ? ' focus' : ''

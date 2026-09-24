@@ -76,7 +76,7 @@ function ProbTreeBody({
   const locked = isLocked(feedback, canEdit);
   const fill = slide.mode === 'fill';
   const size = fill ? slide.answer.length : 0;
-  const bank = useBankFill(answer, size, onAnswer);
+  const bank = useBankFill(answer, size, onAnswer, locked);
   const path = !fill && Array.isArray(answer) ? answer : [];
 
   const { height, root, nodes } = layout(slide);
@@ -111,6 +111,7 @@ function ProbTreeBody({
     const value = bank.filled[index];
     return (
       <button
+        {...bank.slotProps(index, !!value)}
         type="button"
         className={`answer-slot ptree-slot${value ? ' filled' : ''}${
           !locked && index === bank.target ? ' focus' : ''
@@ -150,7 +151,7 @@ function ProbTreeBody({
         <Blocks blocks={slide.prompt} />
       </div>
 
-      <div className={`${frameClass(feedback)} ptree-frame`}>
+      <div className={`${frameClass(feedback)} ptree-frame`} data-slot-group="">
         <div className="ptree">
           <svg
             className={`ptree-lines${locked ? ' locked' : ''}`}

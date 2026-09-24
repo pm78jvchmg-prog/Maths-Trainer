@@ -206,9 +206,25 @@ function column(values: number[], blanks: number[]): (string | null)[] {
   return values.map((value, i) => (blanks.includes(i) ? null : `${value}`));
 }
 
+/**
+ * Times and brackets on every typed answer here. Putting $n = 37$ into
+ * $6n - 3$ is the skill; doing $6 \times 37$ in your head is not, so the
+ * learner may type `6 × 37 - 3` and let the checker, which grades by value,
+ * do the sum.
+ */
+const ARITHMETIC_KEYS: KeypadKey[] = [{ insert: '*', label: '×' }, { insert: '(' }, { insert: ')' }];
+
 /** A number typed on the keypad, with a lead naming what it is. */
 function typed(prompt: Block[], lead: string, answer: number | string, keypad: KeypadKey[] = []): Slide {
-  return { kind: 'expression', prompt, lead, keypad, answer: `${answer}`, domain: 'real', mode: 'exact' };
+  return {
+    kind: 'expression',
+    prompt,
+    lead,
+    keypad: [...ARITHMETIC_KEYS, ...keypad],
+    answer: `${answer}`,
+    domain: 'real',
+    mode: 'exact',
+  };
 }
 
 const FRACTION_KEYS: KeypadKey[] = [{ insert: '/' }];

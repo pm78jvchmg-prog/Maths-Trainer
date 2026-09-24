@@ -42,6 +42,7 @@ import { TransformSlide } from './transformSlide';
 import { NumberLineSlide } from './numberLineSlide';
 import { draftHasShading } from '../content/numberLine';
 import { ForcesSlide } from './forcesSlide';
+import { swapSlots, useSlotDrag } from './slotDrag';
 import { canonicalForces } from '../content/forces';
 
 export interface SlideProps {
@@ -594,6 +595,12 @@ function TableBody({
     onAnswer(next);
   };
 
+  // A filled blank dragged onto another swaps the two; onto an empty one, moves.
+  const { slotProps } = useSlotDrag(!locked, (from, to) => {
+    setChosen(null);
+    onAnswer(swapSlots(filled, from, to));
+  });
+
   // Blank numbers in reading order, so each null cell knows its answer slot.
   let counter = 0;
   const slots = slide.rows.map((row) => row.map((cell) => (cell === null ? counter++ : -1)));
@@ -605,7 +612,7 @@ function TableBody({
       </div>
 
       <div className={`${frameClass(feedback)} table-frame`}>
-        <table className="term-table">
+        <table className="term-table" data-slot-group="">
           <thead>
             <tr>
               {slide.columns.map((header, col) => (
@@ -626,7 +633,7 @@ function TableBody({
                   const token = filled[slot];
                   const focus = !locked && slot === target;
                   return (
-                    <td key={col}>
+                    <td key={col} {...slotProps(slot, !!token)}>
                       <button
                         type="button"
                         className={`answer-slot${token ? ' filled' : ''}${focus ? ' focus' : ''}`}

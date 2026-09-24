@@ -18,11 +18,13 @@ Kinematics' suvat); Moments (the moment of a force about a point and its
 sense, the resultant moment of several, a uniform rod on two supports, loads on
 a plank and an unknown position or mass from a given reaction, the point of
 tilting and the greatest load at an end, a ladder against a smooth wall with
-friction at the foot and the least coefficient of friction).
+friction at the foot and the least coefficient of friction); Momentum and
+Impulse (p = mv along a line and as an i, j vector, conservation in a
+collision along a line, particles that coalesce or push apart from rest,
+impulse as the change in momentum, a ball off a wall, equal and opposite
+impulses in a collision, Ft = mv - mu with vectors and in stages).
 
-Needs: Momentum
-and Impulse (p = mv as a vector, conservation in a collision along a line,
-impulse as the change in momentum, Ft = mv - mu); Work, Energy and Power (work
+Needs: Work, Energy and Power (work
 done by a constant force, kinetic and potential energy, the work-energy
 principle with friction, power as Fv at a top speed); Variable Forces (F = ma
 with a force depending on t or v, solved with Differential Equations' separation

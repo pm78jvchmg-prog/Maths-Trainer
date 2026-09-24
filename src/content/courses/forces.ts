@@ -1043,7 +1043,7 @@ export const forces: Course = {
               prose(
                 'In two dimensions the velocity is a vector, and so is the momentum: multiply each component by the mass. A $2\\text{ kg}$ particle moving with velocity $(3\\mathbf{i} - 5\\mathbf{j})\\text{ m s}^{-1}$ has',
               ),
-              display('\\mathbf{p} = 2(3\\mathbf{i} - 5\\mathbf{j}) = (6\\mathbf{i} - 10\\mathbf{j})\\text{ kg m s}^{-1}'),
+              working('\\mathbf{p} &= 2(3\\mathbf{i} - 5\\mathbf{j})', '&= (6\\mathbf{i} - 10\\mathbf{j})\\text{ kg m s}^{-1}'),
               prose(
                 'If you are given a speed and a direction instead, find the velocity first: scale the direction vector to that length, as for a force in Forces as Vectors.',
               ),
@@ -1073,7 +1073,7 @@ export const forces: Course = {
               prose(
                 'So the **total momentum is conserved**: the same after the collision as before. With $u$ for velocities before and $v$ for after:',
               ),
-              display('m_{A}u_{A} + m_{B}u_{B} = m_{A}v_{A} + m_{B}v_{B}'),
+              working('& m_{A}u_{A} + m_{B}u_{B}', '&= m_{A}v_{A} + m_{B}v_{B}'),
               diagram(
                 collisionSvg(
                   [
@@ -1116,7 +1116,7 @@ export const forces: Course = {
               prose(
                 'Particles that **coalesce** stick together and move on as one, with a single velocity $v$. Momentum is still conserved, so',
               ),
-              display('m_{A}u_{A} + m_{B}u_{B} = (m_{A} + m_{B})v'),
+              working('& m_{A}u_{A} + m_{B}u_{B}', '&= (m_{A} + m_{B})v'),
               diagram(
                 collisionSvg(
                   [

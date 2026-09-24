@@ -1182,3 +1182,313 @@ describe('moments', TIME, () => {
     }
   });
 });
+
+/* ---------- Level 5: every mass and velocity read off the slide ---------- */
+
+/** The prompt's prose, joined. */
+const said = (slide: Slide): string => promptText(slide);
+
+/** The masses stated, in the order they are stated: `$3\text{ kg}$`. */
+const massesIn = (slide: Slide): number[] => [...said(slide).matchAll(/\$([\d.]+)\\text\{ kg\}\$/g)].map((m) => Number(m[1]));
+
+/**
+ * The velocities along the line, in order, signed from their words: right is
+ * positive, as every question says. "are at rest" sets a scene rather than
+ * giving one body's velocity, so it is skipped.
+ */
+const velocitiesIn = (slide: Slide): number[] =>
+  [...said(slide).matchAll(/(?<!are )at rest|moving (left|right) at \$([\d.]+)\\text\{ m s\}\^\{-1\}\$/g)].map((m) =>
+    m[0].endsWith('at rest') ? 0 : (m[1] === 'left' ? -1 : 1) * Number(m[2]),
+  );
+
+/** The first number quoted with a unit, e.g. `\text{ kg m s}^{-1}`, and the direction after it if there is one. */
+function quotedWith(slide: Slide, unit: string): number {
+  const esc = unit.replace(/[\\{}^]/g, (c) => `\\${c}`);
+  const m = new RegExp(`\\$(-?[\\d.]+)${esc}\\$( to the (left|right))?`).exec(said(slide));
+  if (!m) throw new Error(`no ${unit} in: ${said(slide)}`);
+  return Number(m[1]) * (m[3] === 'left' ? -1 : 1);
+}
+
+const KG_MS = '\\text{ kg m s}^{-1}';
+const IMPULSE = '\\text{ N s}';
+const NEWTONS = '\\text{ N}';
+const SECONDS = '\\text{ s}';
+
+/** `3\mathbf{i} - 2\mathbf{j}` as its two components. */
+function ijOf(tex: string): [number, number] {
+  const s = tex.replace(/\s/g, '');
+  const part = (unit: string) => {
+    const m = new RegExp(`([+-]?)([\\d.]*)\\\\mathbf\\{${unit}\\}`).exec(s);
+    if (!m) return 0;
+    return (m[1] === '-' ? -1 : 1) * (m[2] === '' ? 1 : Number(m[2]));
+  };
+  return [part('i'), part('j')];
+}
+
+/** Every bracketed vector quoted with a unit, in order, as `[unit, [x, y]]`. */
+const vectorsIn = (slide: Slide): [string, [number, number]][] =>
+  [...said(slide).matchAll(/\$\(([^$]*)\)\\text\{ (m s\}\^\{-1\}|N s\}|N\})\$/g)].map((m) => [m[2].replace(/\}.*$/, ''), ijOf(m[1])]);
+
+/** The lead of a typed slide, which names what is asked for. */
+const leadOf = (slide: Slide): string => (slide.kind === 'expression' ? slide.lead ?? '' : '');
+
+/** A table's cells, blanks filled from the answer in reading order, as numbers (the name column dropped). */
+function filledTable(slide: Slide): number[][] {
+  if (slide.kind !== 'table') throw new Error(`expected a table, got ${slide.kind}`);
+  const answers = [...slide.answer];
+  return slide.rows.map((row) => row.slice(1).map((cell) => Number(cell ?? answers.shift())));
+}
+
+/** A tiles equation with its blanks filled and each velocity symbol replaced by a value, as its two sides. */
+function tilesSides(slide: Slide, values: Record<string, number>): [number, number] {
+  if (slide.kind !== 'tiles') throw new Error(`expected tiles, got ${slide.kind}`);
+  let text = slide.template.replace(/\{(\d)\}/g, (_m, i: string) => ` ${slide.answer[Number(i)]} `);
+  for (const [symbol, v] of Object.entries(values)) text = text.split(symbol).join(` * (${v})`);
+  const [lhs, rhs] = text.split('=');
+  return [Number(math.evaluate(lhs)), Number(math.evaluate(rhs))];
+}
+
+describe('momentum and impulse', TIME, () => {
+  it('momentum is mass times velocity, run either way', () => {
+    for (const { slide } of draws(g.momentum)) {
+      const [m] = massesIn(slide);
+      const [v] = velocitiesIn(slide);
+      const lead = leadOf(slide);
+      if (lead === 'p =') expectClose(answerOf(slide), [m * v], 'p');
+      else if (lead === 'v =') expectClose(answerOf(slide), [quotedWith(slide, KG_MS) / m], 'v');
+      else expectClose(answerOf(slide), [quotedWith(slide, KG_MS) / Math.abs(v)], 'm');
+    }
+    choicesAgree(g.momentum);
+  });
+
+  it('a momentum vector is the mass times each component of the velocity', () => {
+    for (const { slide } of draws(g.momentumTiles)) {
+      const [m] = massesIn(slide);
+      const vectors = vectorsIn(slide);
+      let v: [number, number];
+      if (vectors.length > 0) v = vectors[0][1];
+      else {
+        const speed = Number(/moves at \$([\d.]+)\\text/.exec(said(slide))![1]);
+        const dir = ijOf(/direction of \$([^$]*)\$/.exec(said(slide))![1]);
+        v = [(speed * dir[0]) / Math.hypot(...dir), (speed * dir[1]) / Math.hypot(...dir)];
+      }
+      expectClose(answerOf(slide), [m * v[0], m * v[1]], 'momentum vector');
+    }
+  });
+
+  it('every row of the momentum table has p = mv', () => {
+    for (const { slide } of draws(g.momentumTable)) {
+      const rows = filledTable(slide);
+      expect(rows).toHaveLength(3);
+      for (const [m, v, p] of rows) expect(close(m * v, p), `m ${m} v ${v} p ${p}`).toBe(true);
+    }
+  });
+
+  it('the momentum slider lands on the velocity that makes up the momentum', () => {
+    for (const { slide } of draws(g.momentumSlider)) {
+      const total = quotedWith(slide, KG_MS);
+      const masses = massesIn(slide);
+      const [v] = answerOf(slide);
+      if (masses.length === 2) {
+        const [vA] = velocitiesIn(slide);
+        expect(close(masses[0] * vA + masses[1] * v, total)).toBe(true);
+      } else {
+        expect(close(masses[0] * v, total)).toBe(true);
+      }
+    }
+  });
+
+  /** A collision read off the slide: masses, then the velocities before and the one known after. */
+  const collisionRead = (slide: Slide) => {
+    const [mA, mB] = massesIn(slide);
+    const [uA, uB, known] = velocitiesIn(slide);
+    return { mA, mB, uA, uB, known, before: mA * uA + mB * uB };
+  };
+
+  it('total momentum before equals total after, for the velocity asked', () => {
+    for (const { slide } of draws(g.collide)) {
+      const { mA, mB, uA, uB, known, before } = collisionRead(slide);
+      const findB = leadOf(slide) === 'v_{B} =';
+      const [vA, vB] = findB ? [known, (before - mA * known) / mB] : [(before - mB * known) / mA, known];
+      expectClose(answerOf(slide), [findB ? vB : vA], 'collide');
+      // A catches B, they do not pass through each other, and no energy is made.
+      expect(uA).toBeGreaterThan(uB);
+      expect(vB).toBeGreaterThanOrEqual(vA);
+      expect(mA * vA ** 2 + mB * vB ** 2).toBeLessThanOrEqual(mA * uA ** 2 + mB * uB ** 2 + 1e-9);
+    }
+    choicesAgree(g.collide);
+  });
+
+  it('the conservation tiles are true, and the left side is the momentum before', () => {
+    for (const { slide } of draws(g.collideTiles)) {
+      if (slide.kind !== 'tiles') throw new Error(slide.kind);
+      const { mA, mB, known, before } = collisionRead(slide);
+      const findB = slide.template.includes('v_{B}');
+      const v = findB ? (before - mA * known) / mB : (before - mB * known) / mA;
+      const [lhs, rhs] = tilesSides(slide, { [findB ? 'v_{B}' : 'v_{A}']: v });
+      expect(close(lhs, before), `left ${lhs}, momentum before ${before}`).toBe(true);
+      expect(close(rhs, before), `right ${rhs}, momentum before ${before}`).toBe(true);
+    }
+  });
+
+  it('the collision tree holds each momentum, the total and the velocity after', () => {
+    for (const { slide } of draws(g.collideSumTree)) {
+      const { mA, mB, uA, uB, known: vA, before } = collisionRead(slide);
+      const qB = before - mA * vA;
+      expectClose(answerOf(slide), [mA * uA, mB * uB, mA * vA, before, qB, qB / mB], 'collision tree');
+    }
+  });
+
+  it('the collision flow says which way A goes', () => {
+    for (const { slide } of draws(g.collideFlow)) {
+      const { mA, mB, known: vB, before } = collisionRead(slide);
+      const qA = before - mB * vB;
+      const way = qA > 0 ? 'Carries on to the right' : qA < 0 ? 'Bounces back to the left' : 'It stops';
+      expectPath(pathOf(slide), [before, qA, way], 'collision flow');
+      expect(Number.isInteger(qA / mA)).toBe(true);
+    }
+  });
+
+  it('coalescing particles share one velocity', () => {
+    for (const { slide } of draws(g.coalesce)) {
+      const masses = massesIn(slide);
+      const vs = velocitiesIn(slide);
+      const lead = leadOf(slide);
+      if (lead === 'v =') {
+        const [mA, mB] = masses;
+        expectClose(answerOf(slide), [(mA * vs[0] + mB * vs[1]) / (mA + mB)], 'common v');
+      } else if (lead === 'u_{B} =') {
+        const [mA, mB] = masses;
+        const [uA, v] = vs;
+        expectClose(answerOf(slide), [((mA + mB) * v - mA * uA) / mB], 'u_B');
+      } else {
+        const [mA] = masses;
+        const [uA, uB, v] = vs;
+        expectClose(answerOf(slide), [(mA * (uA - v)) / (v - uB)], 'm_B');
+      }
+    }
+    choicesAgree(g.coalesce);
+  });
+
+  it('the coalescing steps keep their value at every line and end on the common velocity', () => {
+    for (const { slide } of draws(g.jointSteps)) {
+      if (slide.kind !== 'steps') throw new Error(slide.kind);
+      const [mA, mB] = massesIn(slide);
+      const [uA, uB] = velocitiesIn(slide);
+      const v = (mA * uA + mB * uB) / (mA + mB);
+      let line = slide.start;
+      expect(close(lineValue(line), v)).toBe(true);
+      for (const step of slide.reductions) {
+        line = [...line.slice(0, step.span[0]), step.value, ...line.slice(step.span[1])];
+        expect(close(lineValue(line), v), `line ${line.join(' ')} is not ${v}`).toBe(true);
+      }
+      expect(line).toHaveLength(1);
+      expectClose(answerOf(slide), [v], 'joint steps');
+    }
+  });
+
+  it('pushed apart from rest, the momenta cancel', () => {
+    for (const { slide } of draws(g.separateTable)) {
+      const [[mA, vA, pA], [mB, vB, pB]] = filledTable(slide);
+      expect(close(mA * vA, pA)).toBe(true);
+      expect(close(mB * vB, pB)).toBe(true);
+      expect(close(pA + pB, 0)).toBe(true);
+      expect(vA).toBeLessThan(0);
+    }
+    for (const { slide } of draws(g.separateFlow)) {
+      const [m1, m2] = massesIn(slide);
+      const [v2] = velocitiesIn(slide);
+      expect(velocitiesIn(slide)).toHaveLength(1);
+      expectPath(pathOf(slide), [0, -m2 * v2, (m2 * v2) / m1], 'separate flow');
+    }
+  });
+
+  it('impulse is the change in momentum, whichever way it is asked', () => {
+    for (const { slide } of draws(g.impulse)) {
+      const [m] = massesIn(slide);
+      const vs = velocitiesIn(slide);
+      const lead = leadOf(slide);
+      if (lead === '|I| =') expectClose(answerOf(slide), [Math.abs(m * (vs[1] - vs[0]))], 'wall');
+      else if (lead === 'I =') expectClose(answerOf(slide), [m * (vs[1] - vs[0])], 'impulse');
+      else if (said(slide).includes('bounces straight back')) {
+        // Right positive: it arrives at +u and leaves at -s, and the wall pushes it left.
+        const J = -quotedWith(slide, IMPULSE);
+        const s = -(J / m + vs[0]);
+        expectClose(answerOf(slide), [s], 'rebound');
+        expect(s).toBeLessThanOrEqual(vs[0]);
+      } else expectClose(answerOf(slide), [vs[0] + quotedWith(slide, IMPULSE) / m], 'after');
+    }
+    choicesAgree(g.impulse);
+    for (const { slide } of draws(g.bounceTree)) {
+      const [m] = massesIn(slide);
+      const [u, v] = velocitiesIn(slide);
+      expectClose(answerOf(slide), [m * u, m * v, m * v - m * u], 'bounce tree');
+      expect(Math.sign(u)).toBe(-Math.sign(v));
+    }
+  });
+
+  it('the impulses in a collision are equal and opposite', () => {
+    for (const { slide } of draws(g.impulsePairTiles)) {
+      const { mA, mB, uA, uB, known: vA } = collisionRead(slide);
+      const IA = mA * vA - mA * uA;
+      const vB = uB - IA / mB;
+      expectClose(answerOf(slide), [IA, -IA, vB], 'impulse pair');
+      expect(close(mA * uA + mB * uB, mA * vA + mB * vB)).toBe(true);
+    }
+    for (const { slide } of draws(g.impulseSlider)) {
+      const [m] = massesIn(slide);
+      const [u] = velocitiesIn(slide);
+      expectClose(answerOf(slide), [u + quotedWith(slide, IMPULSE) / m], 'impulse slider');
+    }
+  });
+
+  it('Ft = mv - mu, for the velocity, the force or the time', () => {
+    for (const { slide } of draws(g.ft)) {
+      const [m] = massesIn(slide);
+      const vs = velocitiesIn(slide);
+      const lead = leadOf(slide);
+      if (lead === 'F =') expectClose(answerOf(slide), [(m * vs[1] - m * vs[0]) / quotedWith(slide, SECONDS)], 'F');
+      else if (lead === 't =') expectClose(answerOf(slide), [(m * vs[1] - m * vs[0]) / quotedWith(slide, NEWTONS)], 't');
+      else expectClose(answerOf(slide), [vs[0] + (quotedWith(slide, NEWTONS) * quotedWith(slide, SECONDS)) / m], 'v');
+    }
+    choicesAgree(g.ft);
+    for (const { slide } of draws(g.ftFlow)) {
+      const [m] = massesIn(slide);
+      const [u] = velocitiesIn(slide);
+      const I = quotedWith(slide, NEWTONS) * quotedWith(slide, SECONDS);
+      const v = u + I / m;
+      expect(I).toBeLessThan(0);
+      const way = v > 0 ? 'Still moving right, slower' : v < 0 ? 'Moving left' : 'At rest';
+      expectPath(pathOf(slide), [I, I / m, way], 'Ft flow');
+    }
+  });
+
+  it('impulse as a vector, from an impulse, a force for a time, or two velocities', () => {
+    for (const { slide } of draws(g.impulseIjTiles)) {
+      if (slide.kind !== 'tiles') throw new Error(slide.kind);
+      const [m] = massesIn(slide);
+      const vectors = vectorsIn(slide);
+      const [, u] = vectors[0];
+      const [unit, w] = vectors[1];
+      let want: [number, number];
+      if (slide.template.startsWith('\\mathbf{I}')) want = [m * w[0] - m * u[0], m * w[1] - m * u[1]];
+      else if (unit === 'N') {
+        const t = quotedWith(slide, SECONDS);
+        want = [u[0] + (w[0] * t) / m, u[1] + (w[1] * t) / m];
+      } else want = [u[0] + w[0] / m, u[1] + w[1] / m];
+      expectClose(answerOf(slide), want, 'impulse vector');
+    }
+  });
+
+  it('forces in stages: each impulse is Ft, and each stage starts where the last one left off', () => {
+    for (const { slide } of draws(g.ftTable)) {
+      const [m] = massesIn(slide);
+      let [v] = velocitiesIn(slide);
+      for (const [F, t, I, after] of filledTable(slide)) {
+        expect(close(F * t, I), `F ${F} t ${t} gives ${I}`).toBe(true);
+        v += (F * t) / m;
+        expect(close(v, after), `velocity ${after}, expected ${v}`).toBe(true);
+      }
+    }
+  });
+});

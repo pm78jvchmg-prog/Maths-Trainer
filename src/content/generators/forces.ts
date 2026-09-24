@@ -5485,7 +5485,7 @@ function conservationWorking(c: Collision, find: 'A' | 'B'): SolutionStep[] {
   const rhs = find === 'B' ? `${fmt(c.mA)} \\times ${paren(c.vA)} + ${unknown}` : `${unknown} + ${fmt(c.mB)} \\times ${paren(c.vB)}`;
   return [
     { text: 'Total momentum before equals total momentum after:' },
-    { tex: `${fmt(c.mA)} \\times ${paren(c.uA)} + ${fmt(c.mB)} \\times ${paren(c.uB)} = ${rhs}` },
+    { tex: aligned(`& ${fmt(c.mA)} \\times ${paren(c.uA)} + ${fmt(c.mB)} \\times ${paren(c.uB)}`, `&= ${rhs}`) },
     { tex: `${fmt(before)} = ${find === 'B' ? `${fmt(known)} + ${unknown}` : `${unknown} ${signed(known)}`}` },
     { tex: `v_{${find}} = \\frac{${fmt(before)} ${signed(-known)}}{${fmt(mass)}} = ${fmt(answer)}` },
     {
@@ -5606,7 +5606,8 @@ const collideSumTree: Generator<{ c: Collision }> = {
         ),
         collisionPicture(c, { A: c.vA, B: 'v' }),
       ],
-      expression: 'm_{A}u_{A} + m_{B}u_{B} = m_{A}v_{A} + m_{B}v_{B}',
+      // Two rows: on one line it runs off a phone.
+      expression: '\\begin{aligned} & m_{A}u_{A} + m_{B}u_{B} \\\\ &= m_{A}v_{A} + m_{B}v_{B} \\end{aligned}',
       nodes: [
         { id: 'pA', from: [] },
         { id: 'pB', from: [] },
@@ -5720,7 +5721,7 @@ function coalescingOf(rng: Rng, hard: boolean, ok: (c: Collision) => boolean = (
       const uB = ((mA + mB) * v - mA * uA) / mB;
       return { mA, mB, uA, uB, vA: v, vB: v };
     },
-    (c) => Number.isInteger(c.uB) && Math.abs(c.uB) <= 12 && c.uA > c.uB && c.vA !== 0 && (hard ? c.uB !== 0 : c.uB === 0 || c.uB > 0) && ok(c),
+    (c) => Number.isInteger(c.uB) && Math.abs(c.uB) <= 12 && c.uA > c.uB && c.vA !== 0 && (hard ? c.uB !== 0 : c.uB >= 0) && ok(c),
   );
 }
 
@@ -5786,7 +5787,7 @@ const coalesce: Generator<CoalesceParams> = {
     const after = `(${fmt(c.mA)} + ${find === 'mB' ? 'm' : fmt(c.mB)}) \\times ${find === 'v' ? 'v' : paren(c.vA)}`;
     const lines: SolutionStep[] = [
       { text: 'Stuck together they have one velocity, and momentum is conserved:' },
-      { tex: `${before} = ${after}` },
+      { tex: aligned(`& ${before}`, `&= ${after}`) },
     ];
     if (find === 'v') {
       lines.push({ tex: `${fmt(pBefore(c))} = ${fmt(c.mA + c.mB)}v, \\quad v = ${fmt(c.vA)}` });

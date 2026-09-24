@@ -63,7 +63,7 @@ describe('editing', () => {
     let doc = insertFraction(EMPTY_DOC);
     doc = moveRight(type(doc, '1')); // numerator typed, caret in the denominator
     doc = deleteBack(doc); // out of the empty denominator
-    expect(toAnswer(doc.nodes)).toBe('((1)/(1))');
+    expect(toAnswer(doc.nodes)).toBe('((1)/(()))');
     expect(doc.nodes).toHaveLength(1);
   });
 
@@ -296,5 +296,51 @@ describe('trig function keys', () => {
     const doc = docFromAnswer('4(sind(30))');
     expect(toTex(doc.nodes)).toBe('4(\\sin(30))');
     expect(toAnswer(doc.nodes)).toBe('4(sind(30))');
+  });
+});
+
+/**
+ * An empty slot used to be written as a neutral value — a fraction as 0/1, a
+ * denominator as 1, a root as sqrt(0), an exponent as 1 — so a template opened
+ * and left empty vanished from the graded string. Check is live as soon as
+ * anything else is typed, which made `5 + □/□` a right answer to "5". Each
+ * template now refuses an empty slot the way the function template does.
+ */
+describe('an empty slot is never graded as a value', () => {
+  it('refuses a fraction with nothing in it', () => {
+    let doc = type(EMPTY_DOC, '5+');
+    doc = insertFraction(doc);
+    expect(isFilled(doc.nodes)).toBe(true); // Check is live
+    expect(checkAnswer(toAnswer(doc.nodes), '5').status).toBe('invalid');
+  });
+
+  it('refuses a fraction with an empty denominator', () => {
+    const doc = moveRight(type(insertFraction(EMPTY_DOC), '3'));
+    expect(checkAnswer(toAnswer(doc.nodes), '3').status).toBe('invalid');
+  });
+
+  it('refuses a fraction with an empty numerator', () => {
+    const doc = type(moveRight(insertFraction(EMPTY_DOC)), '4');
+    expect(checkAnswer(toAnswer(doc.nodes), '0').status).toBe('invalid');
+  });
+
+  it('refuses a root with nothing under it', () => {
+    const doc = insertRoot(type(EMPTY_DOC, '7+'));
+    expect(checkAnswer(toAnswer(doc.nodes), '7').status).toBe('invalid');
+  });
+
+  it('refuses an exponent with nothing in it', () => {
+    const doc = insertSup(type(EMPTY_DOC, 'x'));
+    expect(checkAnswer(toAnswer(doc.nodes), 'x').status).toBe('invalid');
+  });
+
+  it('still grades each template once its slots are filled', () => {
+    let frac = type(EMPTY_DOC, '5+');
+    frac = type(moveRight(type(insertFraction(frac), '1')), '2');
+    expect(checkAnswer(toAnswer(frac.nodes), '5.5').status).toBe('correct');
+    const root = type(insertRoot(type(EMPTY_DOC, '7+')), '9');
+    expect(checkAnswer(toAnswer(root.nodes), '10').status).toBe('correct');
+    const sup = type(insertSup(type(EMPTY_DOC, 'x')), '2');
+    expect(checkAnswer(toAnswer(sup.nodes), 'x^2').status).toBe('correct');
   });
 });

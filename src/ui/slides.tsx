@@ -21,6 +21,7 @@ import {
   type Doc,
 } from './mathInput';
 import { walkFlow } from './flow';
+import { keyName, texToSpeech } from './texSpeech';
 import { EvaluateSlide, ReduceSlide, reduceComplete } from './reduceSlide';
 import type { Slide, KeypadKey } from '../content/types';
 import {
@@ -112,6 +113,9 @@ export function ChoiceSlide({ slide, feedback, answer, onAnswer, canEdit }: Slid
               type="button"
               className={`option${mark}`}
               aria-pressed={selected}
+              // KaTeX hides what it draws from assistive tech, so an option
+              // that is maths alone has no name unless it is given one.
+              aria-label={option.tex ? texToSpeech(option.label) : undefined}
               disabled={locked}
               onClick={() => onAnswer(option.id)}
             >
@@ -205,6 +209,7 @@ export function ExpressionSlide({
     // tex="\\tfrac" hands KaTeX a literal backslash-backslash followed by the
     // letters "tfrac", which it renders as a line break and five italic letters.
     // Inside braces it is a real string and the escape collapses as intended.
+    // Every branch drawn in TeX alone has a matching name in `keyName`.
     if (key.insert === '/') return <Tex tex={'\\tfrac{\\square}{\\square}'} />;
     if (key.insert === 'sqrt(') return <Tex tex={'\\sqrt{\\square}'} />;
     if (key.insert === '^') return <Tex tex={'x^{\\square}'} />;
@@ -231,6 +236,7 @@ export function ExpressionSlide({
               key={idx}
               type="button"
               className={key.fn ? 'key fn' : 'key'}
+              aria-label={keyName(key)}
               disabled={locked}
               onClick={() => apply(applyKey(doc, key))}
             >

@@ -327,24 +327,36 @@ export function fnTex(name: string): string {
  * dragged into it. A learner typing 4x^2 as a fraction times x^2 was graded
  * wrong until the outer pair went in. Since `/` is only ever reached through
  * the fraction template, bracketing here closes the hole everywhere.
+ *
+ * An empty slot is written as `()`, which mathjs refuses to read, so the answer
+ * comes back as unreadable rather than as a value. It used to be a neutral
+ * value — a fraction 0/1, a denominator 1, a root sqrt(0), an exponent 1 — and
+ * Check is live as soon as anything else is typed, so `5 + □/□` was a right
+ * answer to "5" and `x^□` a right answer to "x". A bare `sqrt()` would not do
+ * for the root: mathjs parses it as a call with no argument.
  */
 export function toAnswer(nodes: Node[]): string {
   return nodes
     .map((node) => {
       if (node.kind === 'atom') return node.ans;
-      if (node.kind === 'frac') return `((${toAnswer(node.num) || '0'})/(${toAnswer(node.den) || '1'}))`;
-      if (node.kind === 'root') return `sqrt(${toAnswer(node.arg) || '0'})`;
+      if (node.kind === 'frac') return `((${slotAnswer(node.num)})/(${slotAnswer(node.den)}))`;
+      if (node.kind === 'root') return `sqrt(${slotAnswer(node.arg)})`;
       // Bracketed whole for the same reason as a fraction, and in degree mode
-      // renamed to the degree functions in `expression.ts`. An empty slot is
-      // left as `()`, which mathjs refuses to read: grading sin() as sin(0)
-      // would mark a learner right for a question whose answer happens to be 0.
+      // renamed to the degree functions in `expression.ts`. Grading sin() as
+      // sin(0) would mark a learner right for a question whose answer happens
+      // to be 0.
       if (node.kind === 'fn') {
         const name = node.unit === 'degrees' ? `${node.name}d` : node.name;
-        return `(${name}(${toAnswer(node.arg) || '()'}))`;
+        return `(${name}(${slotAnswer(node.arg)}))`;
       }
-      return `^(${toAnswer(node.arg) || '1'})`;
+      return `^(${slotAnswer(node.arg)})`;
     })
     .join('');
+}
+
+/** A slot's contents, or `()` — which mathjs will not read — when it is empty. */
+function slotAnswer(nodes: Node[]): string {
+  return toAnswer(nodes) || '()';
 }
 
 /** True once there is something to grade. An empty slot does not count. */

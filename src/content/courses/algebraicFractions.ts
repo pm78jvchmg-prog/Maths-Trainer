@@ -16,6 +16,11 @@
  * Level 5 draws the graph of a fraction: vertical asymptotes and which way
  * each arm goes, the horizontal asymptote from the degrees, holes where a
  * factor cancels, the intercepts, and all of them together in a sketch.
+ * Level 6 is the method of differences: the split that makes a sum
+ * telescope, a number taken out in front when the brackets are further apart,
+ * three factors regrouped into two, sums from a later r and a top in r, and
+ * the sum to infinity. Sequences & Series cancels such sums with the split
+ * given; here the learner finds it.
  *
  * Each level closes with a level check: fifteen questions, no teaching
  * slides, one attempt each.
@@ -1105,6 +1110,200 @@ export const algebraicFractions: Course = {
         ask('frac-features-table', 2),
         ask('frac-sketch-which', 2),
         ask('frac-cross-ha', 2),
+      ],
+    },
+    {
+      id: 'af-l6',
+      title: 'The Method of Differences',
+      lessons: [
+        {
+          id: 'af-l6-split',
+          title: 'The Split That Telescopes',
+          slides: [
+            teach(
+              prose(
+                'The **method of differences** adds up a sum by splitting each term into two fractions that cancel along the sum. The split is found by cover-up, as in Partial Fractions.',
+              ),
+              prose('For $\\frac{1}{r(r + 1)}$, cover $r$ and put $r = 0$: $A = 1$. Cover $r + 1$ and put $r = -1$: $B = -1$.'),
+              maths('\\frac{1}{r(r + 1)} = \\frac{1}{r} - \\frac{1}{r + 1}'),
+            ),
+            ask('frac-diff-cover'),
+            ask('frac-diff-split-tiles'),
+            ask('frac-diff-which'),
+            teach(
+              prose('The numerators are equal and opposite, so each term takes away the fraction the next term adds on. Written out, the middle cancels:'),
+              working(
+                '&\\left(1 - \\tfrac{1}{2}\\right) + \\left(\\tfrac{1}{2} - \\tfrac{1}{3}\\right)',
+                '&+ \\dots + \\left(\\tfrac{1}{n} - \\tfrac{1}{n + 1}\\right)',
+                '=\\;&1 - \\frac{1}{n + 1}',
+              ),
+              prose('Sequences & Series practises this cancelling with the split given. Here the work is finding the split.'),
+            ),
+            ask('frac-diff-partial-table'),
+            ask('frac-diff-split-tiles', 2),
+            ask('frac-diff-cover', 2),
+            teach(
+              prose('The brackets need not start at $r$. Cover-up splits $\\frac{1}{(r + 2)(r + 3)}$ into $\\frac{1}{r + 2} - \\frac{1}{r + 3}$, and from $r = 1$ the fraction that survives at the front is $\\frac{1}{3}$:'),
+              working('&\\sum_{r=1}^{n} \\frac{1}{(r + 2)(r + 3)}', '=\\;&\\frac{1}{3} - \\frac{1}{n + 3}'),
+              prose('When the bottom comes multiplied out, factorise it first: $r^2 + 5r + 6 = (r + 2)(r + 3)$.'),
+            ),
+            ask('frac-diff-partial-table', 2),
+            ask('frac-diff-which', 2),
+          ],
+          skillCheck: [ask('frac-diff-split-tiles', 2), ask('frac-diff-cover', 2), ask('frac-diff-partial-table', 2)],
+        },
+        {
+          id: 'af-l6-front',
+          title: 'A Number in Front',
+          slides: [
+            teach(
+              prose('When the brackets are two apart, cover-up gives numerators of $\\frac{1}{2}$ and $-\\frac{1}{2}$:'),
+              maths('\\frac{1}{r(r + 2)} = \\frac{1}{2r} - \\frac{1}{2(r + 2)}'),
+              prose('Take the $\\frac{1}{2}$ out in front, and what is left is a difference of two plain fractions:'),
+              maths('\\frac{1}{r(r + 2)} = \\frac{1}{2}\\left(\\frac{1}{r} - \\frac{1}{r + 2}\\right)'),
+            ),
+            ask('frac-gap-cover-tree'),
+            ask('frac-gap-factor-tiles'),
+            teach(
+              prose('Now a fraction taken away comes back **two** terms later, so two survive at each end:'),
+              working(
+                '&\\sum_{r=1}^{n} \\frac{1}{r(r + 2)}',
+                '=\\;&\\frac{1}{2}\\left(1 + \\frac{1}{2}\\right)',
+                '&- \\frac{1}{2}\\left(\\frac{1}{n + 1} + \\frac{1}{n + 2}\\right)',
+              ),
+              prose('The number in front is the top over the gap between the brackets. So $\\frac{5}{(r + 1)(r + 4)}$ has $\\frac{5}{3}$ in front, and three survive at each end.'),
+            ),
+            ask('frac-gap-ends-tiles'),
+            ask('frac-gap-flow'),
+            ask('frac-gap-cover-tree', 2),
+            teach(
+              prose('Keep the number in front outside the bracket to the very end. Multiplying it into only one of the fractions is the usual slip.'),
+              working(
+                '&\\sum_{r=1}^{n} \\frac{3}{(r + 1)(r + 3)}',
+                '=\\;&\\frac{3}{2}\\left(\\frac{1}{2} + \\frac{1}{3}\\right)',
+                '&- \\frac{3}{2}\\left(\\frac{1}{n + 2} + \\frac{1}{n + 3}\\right)',
+              ),
+            ),
+            ask('frac-gap-factor-tiles', 2),
+            ask('frac-gap-ends-tiles', 2),
+            ask('frac-gap-flow', 2),
+          ],
+          skillCheck: [ask('frac-gap-factor-tiles', 2), ask('frac-gap-ends-tiles', 2), ask('frac-gap-flow', 2)],
+        },
+        {
+          id: 'af-l6-three',
+          title: 'Three Factors',
+          slides: [
+            teach(
+              prose(
+                'Three brackets in a row split three ways by cover-up. For $\\frac{2}{r(r + 1)(r + 2)}$, cover $r$ and put $r = 0$: the rest is $\\frac{2}{1 \\times 2} = 1$. The other two go the same way:',
+              ),
+              working('&\\frac{2}{r(r + 1)(r + 2)}', '=\\;&\\frac{1}{r} - \\frac{2}{r + 1} + \\frac{1}{r + 2}'),
+            ),
+            ask('frac-triple-numerator'),
+            ask('frac-triple-cover-tree'),
+            ask('frac-triple-tiles'),
+            teach(
+              prose('Three fractions cancel awkwardly. Pair the brackets instead: two neighbouring pairs differ by the term with $2$ on top.'),
+              working(
+                '&\\frac{1}{r(r + 1)} - \\frac{1}{(r + 1)(r + 2)}',
+                '=\\;&\\frac{(r + 2) - r}{r(r + 1)(r + 2)}',
+                '=\\;&\\frac{2}{r(r + 1)(r + 2)}',
+              ),
+              prose('So $\\frac{1}{r(r + 1)(r + 2)}$ is $\\frac{1}{2}$ of that difference, and it cancels like a pair one apart.'),
+            ),
+            ask('frac-triple-regroup-tiles'),
+            ask('frac-triple-sum-which'),
+            ask('frac-triple-tiles', 2),
+            teach(
+              prose('Summed from $r = 1$, one piece survives at each end:'),
+              working(
+                '&\\sum_{r=1}^{n} \\frac{1}{r(r + 1)(r + 2)}',
+                '=\\;&\\frac{1}{2}\\left(\\frac{1}{2} - \\frac{1}{(n + 1)(n + 2)}\\right)',
+              ),
+            ),
+            ask('frac-triple-regroup-tiles', 2),
+            ask('frac-triple-cover-tree', 2),
+          ],
+          skillCheck: [ask('frac-triple-tiles', 2), ask('frac-triple-regroup-tiles', 2), ask('frac-triple-sum-which', 2)],
+        },
+        {
+          id: 'af-l6-later',
+          title: 'Starting Later, and a Top in r',
+          slides: [
+            teach(
+              prose('A sum need not start at $r = 1$. From $r = 4$, the fraction that survives at the front is the term at $r = 4$:'),
+              working('&\\sum_{r=4}^{n} \\left(\\frac{1}{r} - \\frac{1}{r + 1}\\right)', '=\\;&\\frac{1}{4} - \\frac{1}{n + 1}'),
+              prose('Given the sum, the far piece gives $n$: if it comes to $\\frac{1}{4} - \\frac{1}{n + 1} = \\frac{3}{20}$, then $\\frac{1}{n + 1} = \\frac{1}{10}$ and $n = 9$.'),
+            ),
+            ask('frac-from-m-table'),
+            ask('frac-find-n'),
+            teach(
+              prose('A top with $r$ in it can still cancel. Two squares side by side differ by $(r + 1)^2 - r^2 = 2r + 1$, so:'),
+              maths('\\frac{2r + 1}{r^2(r + 1)^2} = \\frac{1}{r^2} - \\frac{1}{(r + 1)^2}'),
+              prose('Check the top is the difference of the two squares; then it cancels like a split one apart.'),
+            ),
+            ask('frac-square-split-tiles'),
+            ask('frac-square-which'),
+            ask('frac-from-m-table', 2),
+            teach(
+              prose('To find $n$ from a sum, write what survives and solve for the far piece:'),
+              working('1 - \\frac{1}{(n + 1)^2} &= \\frac{120}{121}', '(n + 1)^2 &= 121', 'n &= 10'),
+            ),
+            ask('frac-find-n', 2),
+            ask('frac-square-split-tiles', 2),
+            ask('frac-square-which', 2),
+          ],
+          skillCheck: [ask('frac-from-m-table', 2), ask('frac-find-n', 2), ask('frac-square-split-tiles', 2)],
+        },
+        {
+          id: 'af-l6-infinity',
+          title: 'The Sum to Infinity',
+          slides: [
+            teach(
+              prose(
+                'As $n$ grows, every piece with $n$ in it tends to $0$, so the sum to infinity is what survives at the front. Sequences & Series takes these limits with the split given:',
+              ),
+              working('&\\sum_{r=1}^{\\infty} \\frac{1}{r(r + 2)}', '=\\;&\\frac{1}{2}\\left(1 + \\frac{1}{2}\\right) = \\frac{3}{4}'),
+            ),
+            ask('frac-infinite-flow'),
+            ask('frac-infinite-tree'),
+            ask('frac-infinite-which'),
+            teach(
+              prose(
+                'Give the limit as one fraction: add the front pieces over a common bottom, then multiply by the number in front. With three factors, $\\sum_{r=1}^{\\infty} \\frac{1}{r(r + 1)(r + 2)} = \\frac{1}{2} \\times \\frac{1}{2} = \\frac{1}{4}$.',
+              ),
+            ),
+            ask('frac-within'),
+            ask('frac-infinite-tree', 2),
+            ask('frac-infinite-which', 2),
+            teach(
+              prose(
+                'The partial sum falls short of the limit by exactly the pieces at the far end. For $\\sum \\frac{1}{r(r + 1)}$ that gap is $\\frac{1}{n + 1}$, so being within $0.01$ needs $n + 1 > 100$: $n = 100$.',
+              ),
+            ),
+            ask('frac-within', 2),
+            ask('frac-infinite-flow', 2),
+          ],
+          skillCheck: [ask('frac-infinite-tree', 2), ask('frac-infinite-which', 2), ask('frac-within', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('frac-diff-split-tiles', 2),
+        ask('frac-diff-cover', 2),
+        ask('frac-diff-partial-table', 2),
+        ask('frac-gap-factor-tiles', 2),
+        ask('frac-gap-cover-tree', 2),
+        ask('frac-gap-flow', 2),
+        ask('frac-triple-numerator', 2),
+        ask('frac-triple-regroup-tiles', 2),
+        ask('frac-triple-sum-which', 2),
+        ask('frac-square-split-tiles', 2),
+        ask('frac-find-n', 2),
+        ask('frac-from-m-table', 2),
+        ask('frac-infinite-tree', 2),
+        ask('frac-infinite-which', 2),
+        ask('frac-within', 2),
       ],
     },
   ],

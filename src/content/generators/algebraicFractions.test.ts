@@ -43,11 +43,16 @@ function toMath(tex: string): string {
     .replace(/\)\s*\(/g, ')*(')
     .replace(/\)\s*x/g, ')*x')
     .replace(/(\d)\s*log/g, '$1*log')
-    .replace(/x\s*\(/g, 'x*(');
+    .replace(/x\s*\(/g, 'x*(')
+    // Level 6 writes in r, and its closed forms in n: r(r + 1), 2r, n(n + 1), )(n.
+    .replace(/(\d)\s*([rn])(?![a-z])/g, '$1*$2')
+    .replace(/(?<![a-z\\])([rn])\s*\(/g, '$1*(')
+    .replace(/\)\s*([rn])(?![a-z])/g, ')*$1');
 }
 
-function at(tex: string, x: number): number {
-  return math.evaluate(toMath(tex), { x }) as number;
+/** The value at x, or at r or n for level 6, whose letter is `letter`. */
+function at(tex: string, x: number, letter = 'x'): number {
+  return math.evaluate(toMath(tex), { [letter]: x }) as number;
 }
 
 function slides(id: string): { slide: Slide; params: unknown; seed: number; difficulty: number }[] {
@@ -80,9 +85,9 @@ function coefficient(token: string): number {
   return Number(bareToken);
 }
 
-function expectSame(left: string, right: string, where: string) {
+function expectSame(left: string, right: string, where: string, letter = 'x') {
   for (const x of POINTS) {
-    expect(at(left, x), `${where} at x = ${x}: ${left} vs ${right}`).toBeCloseTo(at(right, x), 8);
+    expect(at(left, x, letter), `${where} at ${letter} = ${x}: ${left} vs ${right}`).toBeCloseTo(at(right, x, letter), 8);
   }
 }
 
@@ -759,6 +764,236 @@ describe('graphs of rational functions, from what the learner is shown', () => {
         expect(valuesIn(flat), `seed ${seed} d${difficulty}`).toEqual([level]);
         expect(cross.startsWith('Yes'), `seed ${seed} d${difficulty}: ${slide.subject}`).toBe(crosses(slide.subject, level));
       }
+    }
+  });
+});
+
+describe('the method of differences, from what the learner is shown', () => {
+  /** Every $...$ in a slide's prose, joined. */
+  const proseOf = (slide: Slide): string =>
+    'prompt' in slide ? slide.prompt.map((b) => ('text' in b ? b.text : '')).join(' ') : '';
+
+  /** The start, the end and the term of the sum a display or subject shows: \sum_{r=m}^{to} term, then maybe = value. */
+  function sumOf(tex: string): { m: number; to: string; term: string; value?: string } {
+    const match = /\\sum_\{r=(\d+)\}\^\{([^}]*)\}\s*(.*)$/.exec(tex);
+    if (!match) throw new Error(`no sum in ${tex}`);
+    const [term, value] = match[3].split(' = ');
+    return { m: Number(match[1]), to: match[2], term, value };
+  }
+
+  /**
+   * A term as a plain function of r, for adding up thousands of terms. Built
+   * from the same `toMath` as everything else and held to mathjs at every
+   * probe point, so the speed costs nothing in trust.
+   */
+  function termOf(tex: string): (r: number) => number {
+    const f = new Function('r', `return ${toMath(tex).replace(/\^/g, '**')};`) as (r: number) => number;
+    for (const r of POINTS) expect(f(r), `${tex} at r = ${r}`).toBeCloseTo(at(tex, r, 'r'), 10);
+    return f;
+  }
+
+  /** u(m) + … + u(n), added one term at a time. */
+  function added(u: (r: number) => number, m: number, n: number): number {
+    let total = 0;
+    for (let r = m; r <= n; r += 1) total += u(r);
+    return total;
+  }
+
+  /**
+   * The sum to infinity from terms alone: the partial sum to N, plus the tail
+   * beyond it. The tail falls like c1/N + c2/N^2, so the sums over (N, 2N] and
+   * (2N, 4N] pin both down: tail = (2/3)(first) + (8/3)(second), with an
+   * error of order 1/N^3. Nothing here knows the split.
+   */
+  function summedToInfinity(u: (r: number) => number, m: number, N: number): number {
+    return added(u, m, N) + (2 / 3) * added(u, N + 1, 2 * N) + (8 / 3) * added(u, 2 * N + 1, 4 * N);
+  }
+
+  const valueOf = (tex: string): number => at(tex, 0);
+
+  it('a split placed as tiles adds back up to the term', () => {
+    for (const id of ['frac-diff-split-tiles', 'frac-gap-factor-tiles', 'frac-triple-tiles', 'frac-triple-regroup-tiles', 'frac-square-split-tiles']) {
+      for (const { slide, seed, difficulty } of slides(id)) {
+        expectSame(filled(slide), display(slide), `${id} seed ${seed} d${difficulty}`, 'r');
+      }
+    }
+  });
+
+  it('exactly one split picked from options is the term', () => {
+    const differs = (left: string, right: string) => POINTS.some((r) => Math.abs(at(left, r, 'r') - at(right, r, 'r')) > 1e-6);
+    for (const { slide, seed, difficulty } of slides('frac-diff-which')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      for (const option of slide.options) {
+        expect(!differs(option.label, display(slide)), `seed ${seed} d${difficulty}: ${option.label}`).toBe(option.id === slide.correctId);
+      }
+    }
+    for (const { slide, seed, difficulty } of slides('frac-square-which')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      for (const option of slide.options) {
+        expect(!differs(option.label, display(slide)), `seed ${seed} d${difficulty}: ${option.label}`).toBe(option.id === slide.correctId);
+      }
+    }
+    for (const { slide, seed, difficulty } of slides('frac-infinite-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const { term } = sumOf(slide.subject);
+      const splits = slide.steps[0].branches.map((b) => b.label.slice(1, -1));
+      for (const split of splits) {
+        expect(!differs(split, term), `seed ${seed} d${difficulty}: ${split}`).toBe(`$${split}$` === slide.answer[0]);
+      }
+    }
+  });
+
+  /** The bracket under a letter in a split the prose writes out, as its constant: \frac{B}{r + 3} is 3. */
+  function bracketUnder(prose: string, letter: string): number {
+    const match = new RegExp(`\\\\frac\\{${letter}\\}\\{r(?: ([+-]) (\\d+))?\\}`).exec(prose);
+    if (!match) throw new Error(`no ${letter} in ${prose}`);
+    return match[1] ? Number(`${match[1]}${match[2]}`) : 0;
+  }
+
+  it('each numerator is what the term comes to beside its own bracket', () => {
+    // A numerator of a split is the limit of (r + c) times the term as r
+    // tends to -c. Found numerically from the term alone, so it checks
+    // cover-up rather than repeating it.
+    const residue = (term: string, c: number) => {
+      const r = -c + 1e-7;
+      return (r + c) * at(term, r, 'r');
+    };
+    for (const id of ['frac-diff-cover', 'frac-triple-numerator']) {
+      for (const { slide, seed, difficulty } of slides(id)) {
+        if (slide.kind !== 'expression') throw new Error('expected expression');
+        const letter = slide.lead!.replace(' =', '');
+        const c = bracketUnder(proseOf(slide), letter);
+        expect(residue(display(slide), c), `${id} seed ${seed} d${difficulty}`).toBeCloseTo(Number(slide.answer), 4);
+      }
+    }
+    for (const id of ['frac-gap-cover-tree', 'frac-triple-cover-tree']) {
+      for (const { slide, seed, difficulty } of slides(id)) {
+        if (slide.kind !== 'tree') throw new Error('expected tree');
+        const letters = ['A', 'B', 'C'].filter((l) => slide.nodes.some((n) => n.id === l));
+        const values = slide.answer.slice(-letters.length);
+        const prose = proseOf(slide);
+        letters.forEach((letter, i) => {
+          const c = bracketUnder(prose, letter);
+          expect(residue(slide.expression, c), `${id} seed ${seed} d${difficulty} ${letter}`).toBeCloseTo(valueOf(values[i]), 4);
+        });
+        // The top row: each other bracket, or their product, at the root.
+        slide.answer.slice(0, letters.length).forEach((token, i) => {
+          const own = bracketUnder(prose, letters[i]);
+          const others = letters.filter((_, j) => j !== i).map((l) => bracketUnder(prose, l) - own);
+          expect(valueOf(token), `${id} seed ${seed} d${difficulty} row ${i}`).toBe(others.reduce((p, v) => p * v, 1));
+        });
+      }
+    }
+  });
+
+  it('every partial sum, closed form and n agrees with the terms added up', () => {
+    for (const id of ['frac-diff-partial-table', 'frac-from-m-table']) {
+      for (const { slide, seed, difficulty } of slides(id)) {
+        if (slide.kind !== 'table') throw new Error('expected table');
+        const { m, term } = sumOf(display(slide));
+        const u = termOf(term);
+        const answers = [...slide.answer];
+        const cells = slide.rows.map(([n, sum]) => [n, sum ?? answers.shift()!] as [string, string]);
+        for (const [n, sum] of cells) {
+          if (n === 'n') {
+            for (const k of [m + 4, m + 11, 40]) {
+              expect(at(sum, k, 'n'), `${id} seed ${seed} d${difficulty}: S_n = ${sum} at n = ${k}`).toBeCloseTo(added(u, m, k), 10);
+            }
+          } else {
+            expect(valueOf(sum), `${id} seed ${seed} d${difficulty}: S_${n}`).toBeCloseTo(added(u, m, Number(n)), 10);
+          }
+        }
+      }
+    }
+    for (const { slide, seed, difficulty } of slides('frac-gap-ends-tiles')) {
+      const { m, term } = sumOf(display(slide));
+      const u = termOf(term);
+      for (const n of [3, 8, 25]) {
+        expect(at(filled(slide), n, 'n'), `seed ${seed} d${difficulty} at n = ${n}`).toBeCloseTo(added(u, m, n), 10);
+      }
+    }
+    for (const { slide, seed, difficulty } of slides('frac-triple-sum-which')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const { m, term } = sumOf(display(slide));
+      const u = termOf(term);
+      for (const option of slide.options) {
+        const fits = [m + 2, m + 7, 30].every((n) => Math.abs(at(option.label, n, 'n') - added(u, m, n)) < 1e-10);
+        expect(fits, `seed ${seed} d${difficulty}: ${option.label}`).toBe(option.id === slide.correctId);
+      }
+    }
+    for (const { slide, seed, difficulty } of slides('frac-find-n')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const { m, term, value } = sumOf(display(slide));
+      const u = termOf(term);
+      const n = Number(slide.answer);
+      expect(n, `seed ${seed} d${difficulty}`).toBeGreaterThanOrEqual(m);
+      expect(added(u, m, n), `seed ${seed} d${difficulty}`).toBeCloseTo(valueOf(value!), 12);
+    }
+  });
+
+  it('plans a sum by the brackets the bottom really factorises into', () => {
+    const offsets = (label: string) =>
+      [...label.matchAll(/\(?r(?: ([+-]) (\d+))?\)?(\^2)?/g)].flatMap((m) => {
+        const c = m[1] ? Number(`${m[1]}${m[2]}`) : 0;
+        return m[3] ? [c, c] : [c];
+      });
+    for (const { slide, seed, difficulty } of slides('frac-gap-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const { term } = sumOf(slide.subject);
+      const [factorised, front, ends] = slide.answer.map((label) => label.replace(/^\$|\$$/g, ''));
+      const bottom = /\\frac\{\d+\}\{(.*)\}$/.exec(term)![1];
+      expectSame(factorised, bottom, `seed ${seed} d${difficulty}`, 'r');
+      const [c, d] = offsets(factorised);
+      const f = valueOf(front);
+      expectSame(`${f} * (1/(r + ${c}) - 1/(r + ${d}))`, term, `seed ${seed} d${difficulty}`, 'r');
+      expect(ends, `seed ${seed} d${difficulty}`).toBe(['One', 'Two', 'Three'][d - c - 1]);
+    }
+  });
+
+  it('every sum to infinity is where the terms added up are heading', () => {
+    const N = 300;
+    const limitCases: { id: string; slide: Slide; seed: number; difficulty: number; claimed: string; others: string[]; term: string; m: number }[] = [];
+    for (const { slide, seed, difficulty } of slides('frac-infinite-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const { m, term } = sumOf(slide.subject);
+      expect(slide.answer[1]).toBe('They tend to $0$');
+      const labels = slide.steps[2].branches.map((b) => b.label.slice(1, -1));
+      const claimed = slide.answer[2].slice(1, -1);
+      limitCases.push({ id: 'frac-infinite-flow', slide, seed, difficulty, claimed, others: labels.filter((l) => l !== claimed), term, m });
+    }
+    for (const { slide, seed, difficulty } of slides('frac-infinite-which')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const { m, term } = sumOf(display(slide));
+      const claimed = slide.options.find((o) => o.id === slide.correctId)!.label;
+      limitCases.push({ id: 'frac-infinite-which', slide, seed, difficulty, claimed, others: slide.options.filter((o) => o.id !== slide.correctId).map((o) => o.label), term, m });
+    }
+    for (const { slide, seed, difficulty } of slides('frac-infinite-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const { m, term } = sumOf(slide.expression);
+      const pieces = slide.answer.slice(0, -2).map(valueOf);
+      const [front, claimed] = slide.answer.slice(-2);
+      expect(valueOf(front), `tree seed ${seed} d${difficulty}`).toBeCloseTo(pieces.reduce((p, v) => p + v, 0), 12);
+      limitCases.push({ id: 'frac-infinite-tree', slide, seed, difficulty, claimed, others: [], term, m });
+    }
+    for (const { id, seed, difficulty, claimed, others, term, m } of limitCases) {
+      const limit = summedToInfinity(termOf(term), m, N);
+      expect(valueOf(claimed), `${id} seed ${seed} d${difficulty}: ${term}`).toBeCloseTo(limit, 4);
+      for (const other of others) {
+        expect(Math.abs(valueOf(other) - limit), `${id} seed ${seed} d${difficulty}: ${other}`).toBeGreaterThan(5e-4);
+      }
+    }
+  });
+
+  it('the fewest terms within the distance, from the terms added up', () => {
+    for (const { slide, seed, difficulty } of slides('frac-within')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const { m, term } = sumOf(display(slide));
+      const u = termOf(term);
+      const distance = Number(/within \$([\d.]+)\$/.exec(proseOf(slide))![1]);
+      const n = Number(slide.answer);
+      const limit = summedToInfinity(u, m, Math.max(2 * n, 3000));
+      expect(limit - added(u, m, n), `seed ${seed} d${difficulty}`).toBeLessThan(distance);
+      expect(limit - added(u, m, n - 1), `seed ${seed} d${difficulty}`).toBeGreaterThanOrEqual(distance);
     }
   });
 });

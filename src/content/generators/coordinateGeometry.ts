@@ -14,6 +14,9 @@
  * in a semicircle as two gradients multiplying to -1, a circle from its
  * diameter, the circle through three points, chords and tangents together,
  * and the far end of a diameter with the parallel tangents at its ends.
+ * Level 5 is coordinate proof: a quadrilateral named a parallelogram,
+ * rectangle, rhombus or square, and a triangle right-angled or isosceles,
+ * from gradients and squared lengths, then the proof put in order.
  *
  * Every given point is a lattice point, and every question is built outward
  * from its answer — a crossing point, a centre, a whole-number `c` — so the

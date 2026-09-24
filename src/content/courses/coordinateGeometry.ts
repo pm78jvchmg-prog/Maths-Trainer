@@ -12,7 +12,11 @@
  * tangents from a point outside, and chords cut off by a line. Level 4 is
  * circle theorems on axes: the angle in a semicircle, a circle from its
  * diameter, the circle through three points from two perpendicular
- * bisectors, chords and tangents together, and choosing between them.
+ * bisectors, chords and tangents together, and choosing between them. Level 5
+ * is coordinate proof: a parallelogram from parallel sides or bisecting
+ * diagonals, a rectangle from a right angle or equal diagonals, a rhombus
+ * and a square from equal sides or perpendicular diagonals, right-angled and
+ * isosceles triangles, and the proof written out in order.
  *
  * Several things this course leans on are taught elsewhere and only pointed
  * at here: solving two equations at once (Linear Equations `le-l2`),
@@ -937,6 +941,245 @@ export const coordinateGeometry: Course = {
         ask('coord-which-theorem', 2),
         ask('coord-other-end-steps', 2),
         ask('coord-parallel-tangent+choice', 2),
+      ],
+    },
+    /* ---------- Level 5: coordinate proof ----------
+     * A quadrilateral or a triangle named from its gradients and squared
+     * lengths: a parallelogram, a rectangle, a rhombus or a square, a
+     * right-angled or an isosceles triangle, and then the proof written out.
+     * Nothing here is calculus, so no slide declares `source`, `integrand` or
+     * `limits`. */
+    {
+      id: 'cg-l5',
+      title: 'Coordinate Proof',
+      lessons: [
+        {
+          id: 'cg-l5-parallel',
+          title: 'Parallel Sides',
+          slides: [
+            teach(
+              prose(
+                'A **parallelogram** is a quadrilateral whose opposite sides are parallel. On axes, parallel lines have equal gradients, so $ABCD$ is a parallelogram when $m_{AB} = m_{DC}$ **and** $m_{AD} = m_{BC}$.',
+              ),
+              grid(
+                5,
+                [segment(-3, -2, 1, -1), segment(1, -1, 3, 2), segment(3, 2, -1, 1), segment(-1, 1, -3, -2)],
+                [{ x: -3, y: -2 }, { x: 1, y: -1 }, { x: 3, y: 2 }, { x: -1, y: 1 }],
+                'The parallelogram with corners A(-3, -2), B(1, -1), C(3, 2) and D(-1, 1)',
+              ),
+              prose('For $A(-3, -2)$, $B(1, -1)$, $C(3, 2)$ and $D(-1, 1)$:'),
+              maths(
+                '\\begin{aligned} m_{AB} &= \\tfrac{1}{4}, \\quad m_{DC} = \\tfrac{1}{4} \\\\ m_{AD} &= \\tfrac{3}{2}, \\quad m_{BC} = \\tfrac{3}{2} \\end{aligned}',
+              ),
+              prose('Both pairs match. If only one pair matched, $ABCD$ would be a **trapezium**.'),
+            ),
+            ask('coord-para-flow'),
+            ask('coord-para-slider'),
+            ask('coord-parallel-k'),
+            teach(
+              prose(
+                'A second test: the diagonals of a parallelogram **bisect each other**, so $AC$ and $BD$ have the same midpoint. And a quadrilateral whose diagonals share a midpoint is a parallelogram.',
+              ),
+              maths(
+                '\\begin{aligned} M_{AC} &= \\left(\\tfrac{-3 + 3}{2}, \\tfrac{-2 + 2}{2}\\right) = (0, 0) \\\\ M_{BD} &= \\left(\\tfrac{1 + (-1)}{2}, \\tfrac{-1 + 1}{2}\\right) = (0, 0) \\end{aligned}',
+              ),
+              prose('One point, so the diagonals bisect each other. Two different points would mean it is not a parallelogram.'),
+            ),
+            ask('coord-para-diagonal-steps'),
+            ask('coord-para-flow', 2),
+            ask('coord-para-fourth-tiles'),
+            teach(
+              prose(
+                'Opposite sides are equal as well as parallel, so the step from $B$ to $A$ is the same as the step from $C$ to $D$. That finds a missing corner: $D = A + C - B$.',
+              ),
+              maths('D = (-3 + 3 - 1, \\; -2 + 2 - (-1)) = (-1, 1)'),
+              prose(
+                'The equal gradients run backwards too. If $AB \\parallel DC$ and $D$ has an unknown height $k$, write the gradient of $DC$ with $k$ in it, set it equal to $m_{AB}$, and solve.',
+              ),
+            ),
+            ask('coord-para-diagonal-steps', 2),
+            ask('coord-parallel-k+choice', 2),
+          ],
+          skillCheck: [ask('coord-para-flow', 2), ask('coord-para-diagonal-steps', 2), ask('coord-parallel-k', 2)],
+        },
+        {
+          id: 'cg-l5-right-angles',
+          title: 'Right Angles',
+          slides: [
+            teach(
+              prose(
+                'A **rectangle** is a parallelogram with a right angle. One is enough: the opposite angles of a parallelogram are equal and neighbouring ones add to $180^\\circ$, so one right angle makes four.',
+              ),
+              grid(
+                5,
+                [segment(-2, -1, 0, 0), segment(0, 0, -2, 4), segment(-2, 4, -4, 3), segment(-4, 3, -2, -1)],
+                [{ x: -2, y: -1 }, { x: 0, y: 0 }, { x: -2, y: 4 }, { x: -4, y: 3 }],
+                'The rectangle with corners A(-2, -1), B(0, 0), C(-2, 4) and D(-4, 3)',
+              ),
+              prose('For the parallelogram $A(-2, -1)$, $B(0, 0)$, $C(-2, 4)$, $D(-4, 3)$:'),
+              maths('m_{AB} \\times m_{BC} = \\tfrac{1}{2} \\times (-2) = -1'),
+              prose('So the angle at $B$ is a right angle, and $ABCD$ is a rectangle.'),
+            ),
+            ask('coord-rect-flow'),
+            ask('coord-diagonals-tree'),
+            ask('coord-rect-k'),
+            teach(
+              prose('A second test: a parallelogram is a rectangle exactly when its **diagonals are equal**. Compare the squared lengths, so nothing needs a square root:'),
+              maths('\\begin{aligned} AC^2 &= 0^2 + 5^2 = 25 \\\\ BD^2 &= (-4)^2 + 3^2 = 25 \\end{aligned}'),
+              prose(
+                'Equal diagonals prove a rectangle only for a **parallelogram**; a kite-like shape can have equal diagonals too. So show it is a parallelogram first.',
+              ),
+            ),
+            ask('coord-para-diagonal-steps'),
+            ask('coord-rect-flow', 2),
+            ask('coord-diagonals-tree', 2),
+            teach(
+              prose(
+                'The right angle can find a missing coordinate. If $ABCD$ is a rectangle with $A(-2, -1)$, $B(0, 0)$ and $C(-2, k)$, then $BC$ is perpendicular to $AB$:',
+              ),
+              maths('\\begin{aligned} m_{BC} &= -1 \\div \\tfrac{1}{2} = -2 \\\\ \\frac{k - 0}{-2 - 0} &= -2 \\\\ k &= 4 \\end{aligned}'),
+            ),
+            ask('coord-rect-k+choice', 2),
+            ask('coord-para-flow', 2),
+          ],
+          skillCheck: [ask('coord-rect-flow', 2), ask('coord-diagonals-tree', 2), ask('coord-rect-k', 2)],
+        },
+        {
+          id: 'cg-l5-equal-sides',
+          title: 'Equal Sides',
+          slides: [
+            teach(
+              prose(
+                'A **rhombus** is a parallelogram with all four sides equal. Opposite sides of a parallelogram are already equal, so two sides that meet are enough: show $AB^2 = BC^2$.',
+              ),
+              grid(
+                5,
+                [segment(-3, -1, 0, 0), segment(0, 0, 1, 3), segment(1, 3, -2, 2), segment(-2, 2, -3, -1)],
+                [{ x: -3, y: -1 }, { x: 0, y: 0 }, { x: 1, y: 3 }, { x: -2, y: 2 }],
+                'The rhombus with corners A(-3, -1), B(0, 0), C(1, 3) and D(-2, 2)',
+              ),
+              prose('For $A(-3, -1)$, $B(0, 0)$, $C(1, 3)$, $D(-2, 2)$:'),
+              maths('\\begin{aligned} AB^2 &= 3^2 + 1^2 = 10 \\\\ BC^2 &= 1^2 + 3^2 = 10 \\end{aligned}'),
+            ),
+            ask('coord-side-lengths-tiles'),
+            ask('coord-rhombus-flow'),
+            ask('coord-name-quad'),
+            teach(
+              prose('A second test: a parallelogram is a rhombus exactly when its **diagonals are perpendicular**. Here:'),
+              maths('m_{AC} \\times m_{BD} = \\frac{3 - (-1)}{1 - (-3)} \\times \\frac{2 - 0}{-2 - 0} = 1 \\times (-1) = -1'),
+              prose('The diagonals cross at a right angle, so $ABCD$ is a rhombus.'),
+            ),
+            ask('coord-square-steps'),
+            ask('coord-side-lengths-tiles', 2),
+            ask('coord-rhombus-flow', 2),
+            teach(
+              prose(
+                'A **square** is both a rectangle and a rhombus: a right angle **and** equal sides. Give a parallelogram the most exact name it earns:',
+              ),
+              prose(
+                'Neither test: a parallelogram. A right angle only: a rectangle. Equal sides only: a rhombus. Both: a square. For $A(-1, -1)$, $B(1, 0)$, $C(0, 2)$, $D(-2, 1)$, $AB^2 = BC^2 = 5$ and $m_{AB} \\times m_{BC} = \\tfrac{1}{2} \\times (-2) = -1$, so it is a square.',
+              ),
+            ),
+            ask('coord-name-quad', 2),
+            ask('coord-square-steps', 2),
+          ],
+          skillCheck: [ask('coord-square-steps', 2), ask('coord-rhombus-flow', 2), ask('coord-name-quad', 2)],
+        },
+        {
+          id: 'cg-l5-triangles',
+          title: 'Triangles',
+          slides: [
+            teach(
+              prose(
+                'A triangle is **right-angled** at a corner when the two sides meeting there are perpendicular: their gradients multiply to $-1$.',
+              ),
+              grid(
+                5,
+                [segment(-1, 0, 1, -1), segment(1, -1, 3, 3), segment(3, 3, -1, 0)],
+                [{ x: -1, y: 0 }, { x: 1, y: -1 }, { x: 3, y: 3 }],
+                'The triangle with corners P(-1, 0), Q(1, -1) and R(3, 3), right-angled at Q',
+              ),
+              prose('For $P(-1, 0)$, $Q(1, -1)$ and $R(3, 3)$:'),
+              maths('m_{QP} \\times m_{QR} = -\\tfrac{1}{2} \\times 2 = -1'),
+              prose('So the angle at $Q$ is a right angle.'),
+            ),
+            ask('coord-tri-right-tree'),
+            ask('coord-tri-vertex-choice'),
+            ask('coord-tri-right-k'),
+            teach(
+              prose(
+                'Pythagoras works backwards as well: if the two shorter squared lengths add to the longest, the angle opposite the longest side is a right angle. No gradients, and no square roots:',
+              ),
+              maths('\\begin{aligned} PQ^2 &= 5, \\quad QR^2 = 20, \\quad RP^2 = 25 \\\\ 5 + 20 &= 25 \\end{aligned}'),
+              prose('$RP$ is the longest side, so the right angle is opposite it, at $Q$.'),
+            ),
+            ask('coord-isosceles-flow'),
+            ask('coord-tri-right-tree', 2),
+            ask('coord-tri-vertex-choice', 2),
+            teach(
+              prose('A triangle is **isosceles** when two of its sides are equal. Compare all three squared lengths; the equal pair meet at the apex.'),
+              prose('For $P(0, 3)$, $Q(-1, 1)$ and $R(1, 1)$:'),
+              maths('PQ^2 = 1 + 4 = 5, \\quad QR^2 = 4, \\quad RP^2 = 1 + 4 = 5'),
+              prose('$PQ = RP$, so $PQR$ is isosceles with its apex at $P$.'),
+            ),
+            ask('coord-isosceles-flow', 2),
+            ask('coord-tri-right-k+choice', 2),
+          ],
+          skillCheck: [ask('coord-tri-right-tree', 2), ask('coord-tri-vertex-choice', 2), ask('coord-isosceles-flow', 2)],
+        },
+        {
+          id: 'cg-l5-proof',
+          title: 'Writing the Proof',
+          slides: [
+            teach(
+              prose(
+                'A proof is the facts in order, each leaning on the one before. To show $ABCD$ is a rectangle: first that it is a parallelogram, then that it has a right angle, then the name.',
+              ),
+              prose(
+                'For $A(-2, -1)$, $B(0, 0)$, $C(-2, 4)$ and $D(-4, 3)$: $m_{AB} = m_{DC} = \\tfrac{1}{2}$ and $m_{AD} = m_{BC} = -2$, so both pairs of opposite sides are parallel and $ABCD$ is a parallelogram. In it, $\\tfrac{1}{2} \\times (-2) = -1$, so the angle at $B$ is a right angle. A parallelogram with a right angle is a rectangle.',
+              ),
+            ),
+            ask('coord-proof-order'),
+            ask('coord-complete-choice'),
+            ask('coord-square-steps', 2),
+            teach(
+              prose('Which facts are **enough**? Each name needs a parallelogram and then its own tests:'),
+              prose(
+                'A rectangle: one right angle, or equal diagonals. A rhombus: two equal sides that meet, or perpendicular diagonals. A square: one test from each. A square that is missing one test is a rectangle, a rhombus, or not a parallelogram at all.',
+              ),
+            ),
+            ask('coord-fails-one-choice'),
+            ask('coord-proof-order', 2),
+            ask('coord-complete-choice', 2),
+            teach(
+              prose(
+                'To complete a named shape from three corners, every one of them is a parallelogram, so $D = A + C - B$. Then check the name: the right angle, the equal sides, or both.',
+              ),
+              prose('For the square with $A(-1, -1)$, $B(1, 0)$ and $C(0, 2)$:'),
+              maths('D = (-1 + 0 - 1, \\; -1 + 2 - 0) = (-2, 1)'),
+            ),
+            ask('coord-fails-one-choice', 2),
+            ask('coord-rhombus-flow', 2),
+          ],
+          skillCheck: [ask('coord-proof-order', 2), ask('coord-complete-choice', 2), ask('coord-fails-one-choice', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('coord-para-flow', 2),
+        ask('coord-para-diagonal-steps', 2),
+        ask('coord-para-fourth-tiles', 2),
+        ask('coord-rect-flow', 2),
+        ask('coord-diagonals-tree', 2),
+        ask('coord-rect-k', 2),
+        ask('coord-side-lengths-tiles', 2),
+        ask('coord-rhombus-flow', 2),
+        ask('coord-name-quad', 2),
+        ask('coord-tri-vertex-choice', 2),
+        ask('coord-isosceles-flow', 2),
+        ask('coord-tri-right-k', 2),
+        ask('coord-proof-order', 2),
+        ask('coord-complete-choice', 2),
+        ask('coord-fails-one-choice', 2),
       ],
     },
   ],

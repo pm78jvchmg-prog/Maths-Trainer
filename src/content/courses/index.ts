@@ -52,6 +52,7 @@ export const categories: Category[] = [
     'Derivatives, complex numbers, and the machinery behind them.',
     discovered,
   ),
+  tab('statistics', 'Statistics', 'Data, chance and the distributions that model them.', discovered),
 ];
 
 /** Every course, flattened, in the order the categories list them. */

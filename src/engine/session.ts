@@ -105,16 +105,32 @@ export type Action =
 
 const NO_SOLUTION: SolutionStep[] = [];
 
+/**
+ * A resolved slide, and what de-duplication compares it by.
+ *
+ * The signature is the question as the generator rendered it, taken before any
+ * lead-in is prepended: the same question drawn once with a lead-in and once
+ * without is still the same question, and signing the prompt after the lead-in
+ * let exactly that repeat through.
+ */
+interface Drawn {
+  resolved: ResolvedSlide;
+  signature: string;
+}
+
 function resolveRef(
   ref: SlideRef,
   id: string,
   seed: number,
   registry: GeneratorRegistry,
   salt: number,
-): ResolvedSlide {
+): Drawn {
   if (ref.type === 'literal') {
     const steps = ref.solution ?? NO_SOLUTION;
-    return { id, slide: ref.slide, solution: () => steps };
+    return {
+      resolved: { id, slide: ref.slide, solution: () => steps },
+      signature: JSON.stringify(ref.slide),
+    };
   }
 
   const generator = registry[ref.generatorId];
@@ -128,16 +144,19 @@ function resolveRef(
   const slide = generator.render(params);
 
   return {
-    id,
-    // A lead-in is prepended to the prompt rather than given a slide of its
-    // own, which is what fuses the teaching with the question it sets up. Teach
-    // slides have no prompt to prepend to, and a generator never produces one,
-    // so the guard is for the type rather than for a real case.
-    slide:
-      ref.leadIn && ref.leadIn.length > 0 && slide.kind !== 'teach'
-        ? { ...slide, prompt: [...ref.leadIn, ...slide.prompt] }
-        : slide,
-    solution: () => generator.solution(params),
+    resolved: {
+      id,
+      // A lead-in is prepended to the prompt rather than given a slide of its
+      // own, which is what fuses the teaching with the question it sets up.
+      // Teach slides have no prompt to prepend to, and a generator never
+      // produces one, so the guard is for the type rather than for a real case.
+      slide:
+        ref.leadIn && ref.leadIn.length > 0 && slide.kind !== 'teach'
+          ? { ...slide, prompt: [...ref.leadIn, ...slide.prompt] }
+          : slide,
+      solution: () => generator.solution(params),
+    },
+    signature: JSON.stringify(slide),
   };
 }
 
@@ -175,17 +194,17 @@ function resolveDeck(
   refs.forEach((ref, idx) => {
     // The id is the key for per-slide state, so it never changes with the salt.
     const id = `${lessonId}:${tag}${idx}`;
-    let resolved = resolveRef(ref, id, seed, registry, 0);
+    let drawn = resolveRef(ref, id, seed, registry, 0);
 
     if (ref.type === 'generated') {
       for (let salt = 1; salt <= REDRAW_LIMIT; salt += 1) {
-        if (!seen.has(JSON.stringify(resolved.slide))) break;
-        resolved = resolveRef(ref, id, seed, registry, salt);
+        if (!seen.has(drawn.signature)) break;
+        drawn = resolveRef(ref, id, seed, registry, salt);
       }
     }
 
-    seen.add(JSON.stringify(resolved.slide));
-    out.push(resolved);
+    seen.add(drawn.signature);
+    out.push(drawn.resolved);
   });
 
   return out;

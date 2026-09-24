@@ -1412,14 +1412,29 @@ describe('course integrity', () => {
    * Compares the rendered slide rather than the generator id, because the same
    * generator asked twice is fine when it draws different numbers and only a
    * problem when it does not.
+   *
+   * Signed as the generator rendered it, with the reference's lead-in taken
+   * back off the prompt: the same question with and without a lead-in is
+   * still the same question. Worked out here from the lesson's own references
+   * rather than read from the engine, so a de-duplicator that signs the wrong
+   * thing is caught rather than agreed with.
    */
   const renderedDecks = (lesson: (typeof lessons)[number], seed: number) => {
     const session = startSession(lesson, registry, seed);
-    const shape = (deck: typeof session.guided) =>
-      deck.map((resolved) => ({ id: resolved.id, signature: JSON.stringify(resolved.slide) }));
+    const shape = (deck: typeof session.guided, refs: SlideRef[]) =>
+      deck.map((resolved, idx) => {
+        const ref = refs[idx];
+        const lead = ref.type === 'generated' ? (ref.leadIn?.length ?? 0) : 0;
+        const { slide } = resolved;
+        const bare =
+          lead > 0 && slide.kind !== 'teach'
+            ? { ...slide, prompt: slide.prompt.slice(lead) }
+            : slide;
+        return { id: resolved.id, signature: JSON.stringify(bare) };
+      });
     // Checked separately: a skill-check question matching a guided one is the
     // assessment doing its job, where two identical guided slides are a bug.
-    return [shape(session.guided), shape(session.skillCheck)];
+    return [shape(session.guided, lesson.slides), shape(session.skillCheck, lesson.skillCheck)];
   };
 
   /**

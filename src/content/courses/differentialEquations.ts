@@ -963,7 +963,7 @@ export const differentialEquations: Course = {
               prose('So $\\lambda = 1$, then $\\mu = 0$, then $\\nu = 1$: $y = x^2 + 1$.'),
             ),
             ask('de-nh-poly-steps'),
-            ask('de-nh-poly-tree', 2),
+            ask('de-nh-constant', 2),
             ask('de-nh-poly-trial', 2),
             teach(
               prose(
@@ -971,7 +971,7 @@ export const differentialEquations: Course = {
               ),
             ),
             ask('de-nh-poly-pi', 2),
-            ask('de-nh-poly-steps', 2),
+            ask('de-nh-which-pi', 2),
           ],
           skillCheck: [ask('de-nh-poly-tree', 2), ask('de-nh-poly-pi', 2), ask('de-nh-poly-steps', 2)],
         },
@@ -1031,14 +1031,14 @@ export const differentialEquations: Course = {
             ),
             ask('de-nh-trig-steps'),
             ask('de-nh-trig-trial', 2),
-            ask('de-nh-trig-tree', 2),
+            ask('de-nh-general-flow', 2),
             teach(
               prose(
                 'Solve the pair as simultaneous equations: eliminate one letter, find the other, then substitute back. A right side with both a cosine and a sine uses the same trial and the same two equations.',
               ),
             ),
             ask('de-nh-trig-part', 2),
-            ask('de-nh-trig-steps', 2),
+            ask('de-nh-which-pi', 2),
           ],
           skillCheck: [ask('de-nh-trig-tree', 2), ask('de-nh-trig-part', 2), ask('de-nh-trig-steps', 2)],
         },

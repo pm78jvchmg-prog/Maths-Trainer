@@ -8,13 +8,16 @@
  * as the distance travelled. Level 2 is constant acceleration: the suvat
  * equations, choosing one from what is given with a sign convention, vertical
  * motion under gravity with g = 9.8, and journeys in two stages or with one
- * particle catching another.
+ * particle catching another. Level 3 is calculus: v = ds/dt and a = dv/dt for
+ * polynomial and exponential s, speeding up told from the signs of v and a,
+ * v and s back again by integrating with a known value fixing the constant,
+ * and the displacement and distance over an interval where v keeps one sign.
  *
- * Gradients, areas, rearranging and the quadratic formula are used here, not
- * taught again: a lesson points back to Coordinate Geometry, Integration,
- * Linear Equations or Quadratics instead. Calculus with v = ds/dt is a later
- * level of this course, quoted once and never depended on. Each level closes
- * with a level check: questions only, no teaching slides, one attempt each.
+ * Gradients, areas, rearranging, the quadratic formula, differentiating and
+ * integrating are used here, not taught again: a lesson points back to
+ * Coordinate Geometry, Differentiation, Integration, Linear Equations or
+ * Quadratics instead. Each level closes with a level check: questions only,
+ * no teaching slides, one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
 import { plotSvg } from '../figures';
@@ -455,6 +458,195 @@ export const kinematics: Course = {
         ask('kin-solve-mixed+choice', 2),
         ask('kin-grav-slider', 2),
         ask('kin-catch-time+choice', 2),
+      ],
+    },
+    {
+      id: 'kn-l3',
+      title: 'Calculus in Kinematics',
+      lessons: [
+        {
+          id: 'kn-l3-velocity',
+          title: 'Velocity from Displacement',
+          slides: [
+            teach(
+              prose(
+                'When $s$ is given as a formula in $t$, the velocity is its **rate of change**: the gradient of the displacement-time graph at that instant, which is the derivative (Differentiation, "Sums and Constants").',
+              ),
+              display('v = \\frac{ds}{dt}'),
+              prose('For $s = 2t^{3} - 5t + 1$, each power comes down in front and drops by one, and the constant goes:'),
+              display('v = 6t^{2} - 5'),
+            ),
+            ask('kin-ds-dt'),
+            ask('kin-ds-tiles'),
+            ask('kin-v-at'),
+            teach(
+              prose('For the velocity **at a moment**, differentiate first and put the time in second. Putting the time into $s$ gives where it is, not how fast it is going.'),
+              working('v &= 6t^{2} - 5', 'v(2) &= 6(2)^{2} - 5 = 19'),
+            ),
+            ask('kin-v-table'),
+            ask('kin-ds-dt', 2),
+            ask('kin-v-at+choice', 2),
+            teach(
+              prose('Working back, set $v$ equal to a value and solve for $t$. With $s = t^{2} + 3t$, $v = 2t + 3$, so it moves at $11$ m/s when $2t + 3 = 11$: $t = 4$.'),
+              prose('A formula can come in any order. $s = 4 + 3t - t^{3}$ is $-t^{3} + 3t + 4$, and differentiates the same way.'),
+            ),
+            ask('kin-v-slider'),
+            ask('kin-ds-tiles', 2),
+          ],
+          skillCheck: [ask('kin-ds-dt', 2), ask('kin-v-at', 2), ask('kin-v-table', 2)],
+        },
+        {
+          id: 'kn-l3-acceleration',
+          title: 'Acceleration',
+          slides: [
+            teach(
+              prose('**Acceleration** is the rate of change of velocity: the derivative of $v$, and so the second derivative of $s$.'),
+              display('a = \\frac{dv}{dt} = \\frac{d^{2}s}{dt^{2}}'),
+              prose('For $v = t^{3} - 4t^{2} + 2$, $a = 3t^{2} - 8t$.'),
+            ),
+            ask('kin-a-dt'),
+            ask('kin-a-at'),
+            ask('kin-accel-flow'),
+            teach(
+              prose('From $s$, differentiate twice:'),
+              working('s &= t^{3} + 2t^{2} - 7t', 'v &= 3t^{2} + 4t - 7', 'a &= 6t + 4'),
+              prose('Keep $v$ on the way: a question about the acceleration often asks the velocity too.'),
+            ),
+            ask('kin-a-tiles'),
+            ask('kin-va-table'),
+            ask('kin-a-at+choice', 2),
+            teach(
+              prose(
+                'The signs say whether it is **speeding up**. When $v$ and $a$ have the same sign the acceleration acts the way it is moving, so its speed grows; opposite signs, it slows down (level 1, "Velocity-Time Graphs", read the same from a graph).',
+              ),
+              prose('For $v = 10 - t^{2}$ at $t = 2$: $v = 6$ and $a = -2t = -4$. Opposite signs, so it is slowing down.'),
+            ),
+            ask('kin-accel-flow', 2),
+            ask('kin-a-dt', 2),
+          ],
+          skillCheck: [ask('kin-a-dt', 2), ask('kin-a-at', 2), ask('kin-accel-flow', 2)],
+        },
+        {
+          id: 'kn-l3-exponential',
+          title: 'Exponential Motion',
+          slides: [
+            teach(
+              prose(
+                'Some motion follows an exponential, $s = Ae^{kt}$. Differentiating $e^{kt}$ brings $k$ down in front and leaves the power as it was (Differentiation, "Exponentials and Logarithms"):',
+              ),
+              display('\\frac{d}{dt}e^{kt} = ke^{kt}'),
+              working('s &= 5e^{2t}', 'v &= 10e^{2t}', 'a &= 20e^{2t}'),
+              prose('At $t = 0$, $e^{0} = 1$, so the **starting values** are the coefficients: it starts at $s = 5$ with $v = 10$ and $a = 20$.'),
+            ),
+            ask('kin-exp-v'),
+            ask('kin-exp-start'),
+            teach(
+              prose('A constant term moves the start but differentiates to nothing: $s = 3 + 5e^{2t}$ starts at $s = 8$, with the same $v$ and $a$ as before.'),
+              prose(
+                '$e^{kt}$ is positive for every $t$. So with $k > 0$, $v$ and $a$ share a sign and it speeds up; with $k < 0$ they have opposite signs, and it slows down as it settles.',
+              ),
+            ),
+            ask('kin-exp-flow'),
+            ask('kin-exp-v', 2),
+            ask('kin-exp-start+choice', 2),
+            teach(
+              prose('Because $v = kAe^{kt}$ is $k$ times $Ae^{kt}$, the velocity is always $k$ times the displacement, and differentiating again, the acceleration is $k$ times the velocity:'),
+              display('v = ks, \\quad a = kv'),
+              prose('With a constant term $B$, it is the distance from $B$ that counts: $v = k(s - B)$.'),
+            ),
+            ask('kin-exp-tree'),
+            ask('kin-exp-flow', 2),
+            ask('kin-exp-tree', 2),
+          ],
+          skillCheck: [ask('kin-exp-v', 2), ask('kin-exp-start', 2), ask('kin-exp-tree', 2)],
+        },
+        {
+          id: 'kn-l3-integrating',
+          title: 'Back by Integrating',
+          slides: [
+            teach(
+              prose(
+                'Going back is integrating (Integration, "Integrating Powers of x"): $v$ is the integral of $a$, and $s$ the integral of $v$. Raise each power by one and divide by the new power.',
+              ),
+              working('a &= 6t - 4', 'v &= 3t^{2} - 4t + c'),
+              prose('The constant $c$ is fixed by one value you know. Starting from rest, $v = 0$ at $t = 0$, so $c = 0$.'),
+            ),
+            ask('kin-int-v'),
+            ask('kin-int-c-tree'),
+            ask('kin-int-s-tiles'),
+            teach(
+              prose('When the value you know is at a later time, put it in and solve for $c$. With $v = 3t^{2} - 4t + c$ and $v = 9$ at $t = 2$: $9 = 12 - 8 + c$, so $c = 5$.'),
+              prose('When the acceleration changes with $t$, the constant-acceleration equations do not apply: $v = u + at$ is only true for a constant $a$.'),
+            ),
+            ask('kin-int-v-at'),
+            ask('kin-int-s-table'),
+            ask('kin-int-v', 2),
+            teach(
+              prose('From $v$ to $s$ is the same step again. With $v = 6t^{2} + 2t - 1$, starting at $s = 3$:'),
+              working('s &= 2t^{3} + t^{2} - t + c', 'c &= 3'),
+            ),
+            ask('kin-int-s-tiles', 2),
+            ask('kin-int-v-at+choice', 2),
+          ],
+          skillCheck: [ask('kin-int-v', 2), ask('kin-int-s-tiles', 2), ask('kin-int-v-at', 2)],
+        },
+        {
+          id: 'kn-l3-interval',
+          title: 'Displacement over an Interval',
+          slides: [
+            teach(
+              prose(
+                'The displacement between two times is the **definite integral** of $v$: the area under the velocity-time graph, counted negative below the axis (Integration, "The Definite Integral").',
+              ),
+              display('\\text{displacement} = \\int_{t_1}^{t_2} v \\, dt'),
+              working('\\int_{1}^{3} (2t + 1) \\, dt &= \\Big[ t^{2} + t \\Big]_{1}^{3}', '&= 12 - 2 = 10'),
+            ),
+            ask('kin-disp-int'),
+            ask('kin-interval-tree'),
+            ask('kin-disp-int+choice', 2),
+            teach(
+              prose(
+                '**Distance** is never negative. While $v$ keeps one sign over the interval, the distance is the size of that integral: the integral itself when $v > 0$, and minus it when $v < 0$.',
+              ),
+              figure({
+                xMin: 0,
+                xMax: 4,
+                yMin: -11,
+                yMax: 2,
+                height: 150,
+                curves: [{ f: (t) => t * t - 6 * t - 1 }],
+                shade: { f: (t) => t * t - 6 * t - 1, from: 1, to: 3 },
+                label: 'A velocity-time graph below the axis between t = 1 and t = 3, shaded',
+              }),
+              prose('Check the sign first: $v$ at each end, and whether it reaches zero in between. Every interval in this level keeps one sign; one where it changes is the next level.'),
+            ),
+            ask('kin-dist-choice'),
+            ask('kin-dist-int'),
+            ask('kin-interval-tree', 2),
+            teach(
+              prose('Worked the other way, a distance fixes a time. With $v = 2t + 3$ from $t = 0$, it has gone $t^{2} + 3t$, which reaches $28$ m when $t = 4$.'),
+            ),
+            ask('kin-area-slider'),
+            ask('kin-dist-int', 2),
+          ],
+          skillCheck: [ask('kin-disp-int', 2), ask('kin-interval-tree', 2), ask('kin-dist-int', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('kin-ds-dt', 2),
+        ask('kin-v-table', 2),
+        ask('kin-a-at', 2),
+        ask('kin-accel-flow', 2),
+        ask('kin-exp-v+choice', 2),
+        ask('kin-exp-tree', 2),
+        ask('kin-int-v', 2),
+        ask('kin-int-s-tiles', 2),
+        ask('kin-int-c-tree', 2),
+        ask('kin-disp-int', 2),
+        ask('kin-dist-choice', 2),
+        ask('kin-area-slider', 2),
+        ask('kin-exp-start', 2),
+        ask('kin-dist-int', 2),
       ],
     },
   ],

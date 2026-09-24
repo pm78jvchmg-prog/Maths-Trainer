@@ -11,7 +11,7 @@
  * reads it but a class name — and the screens themselves are still chosen by
  * the state below rather than by a route.
  */
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { categories, lessonCount, checkCount } from './content/courses';
 import { registry } from './content/registry';
 import { LessonPlayer } from './ui/LessonPlayer';
@@ -19,7 +19,7 @@ import { useProgress } from './store/progress';
 import { MAX_CHARGES, localDay, resolveStreak, useStreak } from './store/streak';
 import { MASTERED_AT, courseMastery, libraryProgress, masteryPercent, playables } from './store/mastery';
 import { levelCheckLesson } from './content/types';
-import type { Category, Course, Lesson } from './content/types';
+import type { Course, Lesson } from './content/types';
 
 /**
  * The daily streak, on the home screen.
@@ -95,43 +95,43 @@ function LibraryLine() {
   return <p className="library-line">{text}</p>;
 }
 
+/**
+ * Where the home list was scrolled to when a course was opened, so coming back
+ * lands on the same card rather than at the top of every course there is.
+ * Module state rather than storage: it only has to outlive the course screen.
+ */
+let homeScroll = 0;
+
 function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
   const records = useProgress((state) => state.lessons);
-  const [openId, setOpenId] = useState(categories[0]?.id);
-  const category: Category | undefined =
-    categories.find((entry) => entry.id === openId) ?? categories[0];
+  const list = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (list.current) list.current.scrollTop = homeScroll;
+  }, []);
 
   return (
     <div className="app">
-      <div className="map">
+      <div
+        className="map"
+        ref={list}
+        onScroll={(event) => {
+          homeScroll = event.currentTarget.scrollTop;
+        }}
+      >
         <StreakBar />
         <LibraryLine />
 
-        {/* One tab per category. Scrolls horizontally rather than wrapping, so
-            the row stays one line tall however many categories exist. */}
-        <div className="tabs" role="tablist">
-          {categories.map((entry) => (
-            <button
-              key={entry.id}
-              type="button"
-              role="tab"
-              aria-selected={entry.id === category?.id}
-              className={`tab${entry.id === category?.id ? ' active' : ''}`}
-              onClick={() => setOpenId(entry.id)}
-            >
-              {entry.title}
-            </button>
-          ))}
-        </div>
-
-        {category && (
-          /* Keyed on the category so switching tabs remounts the pane and
-             replays its fade. Without the key the list swaps in one frame,
-             which reads as a flicker rather than a change of tab. */
-          <div className="category-pane" key={category.id}>
+        {/* Every category in one list, easiest first, each under its own
+            heading. The owner asked for this in place of a tab strip, so the
+            whole library is one scroll rather than five hidden panes. */}
+        {categories.map((category) => (
+          <section className={`category-section category-${category.id}`} key={category.id} aria-labelledby={`cat-${category.id}`}>
             <header className="category-head">
-              <h1 className="home-title">{category.title}</h1>
-              <p className="course-blurb">{category.blurb}</p>
+              <h2 className="category-title" id={`cat-${category.id}`}>
+                {category.title}
+              </h2>
+              <p className="category-blurb">{category.blurb}</p>
             </header>
 
             <div className="course-list">
@@ -146,10 +146,10 @@ function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
                     key={course.id}
                     type="button"
                     className={`course-card${done === total ? ' complete' : ''}`}
+                    aria-label={`${course.title}: ${course.blurb}`}
                     onClick={() => onOpen(course)}
                   >
                     <div className="course-card-title">{course.title}</div>
-                    <div className="course-card-blurb">{course.blurb}</div>
                     <div className="course-progress">
                       <span className="progress-pips">
                         {ids.map((id) => (
@@ -174,8 +174,8 @@ function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
                 );
               })}
             </div>
-          </div>
-        )}
+          </section>
+        ))}
       </div>
     </div>
   );

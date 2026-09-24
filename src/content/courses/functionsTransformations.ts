@@ -166,6 +166,8 @@ const zigzag = (x: number): number => {
 
 export const functionsTransformations: Course = {
   id: 'functions-transformations',
+  // Transformations of Trigonometric Graphs is shown in Trigonometric
+  // Functions; see placement.ts.
   title: 'Functions & Transformations',
   blurb: 'A function as a rule to follow, combine and undo, and then as a graph to move.',
   category: 'algebra-fundamentals',
@@ -966,7 +968,7 @@ export const functionsTransformations: Course = {
             teach(
               prose('A number in front, or added on, changes the height of a wave but not how often it repeats: $3\\sin 4x - 1$ has period $90^{\\circ}$, the same as $\\sin 4x$.'),
               prose('Backwards: if $\\sin bx$ has period $40^{\\circ}$, then $\\frac{360}{b} = 40$, so $b = 9$.'),
-              prose('Moving a wave across as well, $a\\sin(bx + c) + d$, is the next level.'),
+              prose('Moving a wave across as well, $a\\sin(bx + c) + d$, is in Trigonometric Functions.'),
             ),
             ask('fun-period-slider', 2),
             ask('fun-period-value', 2),
@@ -1038,7 +1040,7 @@ export const functionsTransformations: Course = {
           title: 'Amplitude and Midline',
           slides: [
             teach(
-              prose('Every change to $y = \\sin x$ in this level is a move from Transformations, with $x$ in degrees. A number **in front** multiplies every height, so $y = a\\sin x$ is a **stretch parallel to the $y$-axis** with scale factor $a$.'),
+              prose('Every change to $y = \\sin x$ in this level is a move from Functions & Transformations, with $x$ in degrees. A number **in front** multiplies every height, so $y = a\\sin x$ is a **stretch parallel to the $y$-axis** with scale factor $a$.'),
               graph(
                 [wave(2, 1, 0, 1)],
                 { ...DEGREES, yMin: -2, yMax: 4 },

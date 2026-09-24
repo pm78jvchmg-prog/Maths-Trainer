@@ -184,12 +184,7 @@ button {
   }
 }
 
-/* Switching tabs changes the list under a header that stays put, so the pane
-   fades and lifts rather than travelling sideways. */
-.category-pane {
-  animation: pane-in 200ms ease-out;
-}
-
+/* Fades and lifts in place rather than travelling sideways. */
 @keyframes pane-in {
   from {
     opacity: 0;
@@ -533,7 +528,6 @@ button {
   .slide.enter-back,
   .screen.enter-forward,
   .screen.enter-back,
-  .category-pane,
   .footer.correct,
   .footer.wrong,
   .solution {
@@ -1115,14 +1109,6 @@ button {
 
 /* ---------- Course list ---------- */
 
-.home-title {
-  font-size: 30px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
-  margin: 8px 0 24px;
-}
-
 /*
  * A course card.
  *
@@ -1139,8 +1125,10 @@ button {
   isolation: isolate;
   width: 100%;
   text-align: left;
-  padding: 20px;
-  margin-bottom: 14px;
+  /* Compact: title and progress only. The blurb is on the course's own
+     screen, and the owner asked for the list to be denser. */
+  padding: 10px 14px;
+  margin-bottom: 8px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
@@ -1157,7 +1145,7 @@ button {
   width: 70%;
   height: 180%;
   border-radius: 50%;
-  background: radial-gradient(closest-side, rgb(138 134 255 / 0.2), transparent);
+  background: radial-gradient(closest-side, var(--card-glow, rgb(138 134 255 / 0.2)), transparent);
   pointer-events: none;
 }
 
@@ -1170,23 +1158,19 @@ button {
 }
 
 .course-card-title {
-  font-size: 21px;
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: -0.01em;
+  line-height: 1.25;
   margin-bottom: 4px;
-}
-
-.course-card-blurb {
-  color: var(--text-dim);
-  font-size: 15px;
-  margin-bottom: 10px;
 }
 
 .course-progress {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 14px;
+  font-size: 12px;
+  line-height: 1.3;
   color: var(--text-dim);
 }
 
@@ -1251,52 +1235,105 @@ button {
   min-height: 40px;
 }
 
-/* ---------- Category tabs ---------- */
+/* ---------- Categories ---------- */
 
-/* Scrolls sideways rather than wrapping, so the strip stays one line tall
-   however many categories are added later. */
-.tabs {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  margin: 0 -20px 20px;
-  padding: 0 20px 2px;
-}
-
-.tabs::-webkit-scrollbar {
-  display: none;
-}
-
-.tab {
-  flex-shrink: 0;
-  padding: 10px 16px;
-  min-height: 44px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text-dim);
-  font-size: 15px;
-  font-weight: 600;
-  white-space: nowrap;
-  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
-}
-
-/* Filled, not tinted. The selected category is the only thing telling you what
-   the list below is, so at a glance it has to be plainly *on* rather than
-   slightly darker than its neighbours. */
-.tab.active {
-  border-color: var(--accent-strong);
-  background: var(--accent-strong);
-  color: #fff;
-}
+/* Every category in one list, each under a heading, easiest first. The
+   heading is the divider, so it carries the size and the cards stay small. */
 
 .category-head {
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
-.category-head .home-title {
-  margin-bottom: 6px;
+.category-title {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin: 0 0 4px;
+}
+
+.category-blurb {
+  color: var(--text-dim);
+  font-size: 14px;
+  margin: 0;
+}
+
+/* Each band washes the page behind it in its own colour, fading in above its
+   heading, so scrolling down the list reads as climbing in difficulty. The
+   owner asked for the maths bands to deepen in purple as they get harder, and
+   for Mechanics, which is physics rather than pure maths, to turn orange.
+   Only tokens change per band, so every rule inside reads the same variables. */
+.category-section {
+  --wash: 138 134 255;
+  --wash-strength: 0;
+  position: relative;
+  isolation: isolate;
+}
+
+.category-section::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0 -20px;
+  background: linear-gradient(
+    to bottom,
+    transparent 0,
+    rgb(var(--wash) / var(--wash-strength)) 110px,
+    rgb(var(--wash) / calc(var(--wash-strength) * 0.7)) calc(100% - 50px),
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+.category-section + .category-section {
+  margin-top: 0;
+  padding-top: 70px;
+}
+
+.category-algebra-fundamentals {
+  --wash-strength: 0.05;
+}
+
+.category-advanced-algebra {
+  --wash: 112 92 250;
+  --wash-strength: 0.12;
+  --accent: #7f72ff;
+  --card-glow: rgb(112 92 250 / 0.26);
+}
+
+.category-advanced-maths {
+  --wash: 92 50 225;
+  --wash-strength: 0.22;
+  --accent: #7458f5;
+  --accent-strong: #4a2fd0;
+  --card-glow: rgb(92 50 225 / 0.34);
+}
+
+.category-advanced-maths .course-card {
+  border-color: rgb(116 88 245 / 0.35);
+}
+
+.category-statistics {
+  --wash-strength: 0;
+}
+
+.category-mechanics {
+  --wash: 255 150 70;
+  --wash-strength: 0.2;
+  --accent: #ffa45e;
+  --accent-strong: #e8711c;
+  --card-glow: rgb(255 150 70 / 0.22);
+}
+
+.category-mechanics .category-title {
+  background: linear-gradient(90deg, #a59bff, #ffa45e 55%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.category-mechanics .course-card {
+  border-color: rgb(255 164 94 / 0.25);
 }
 
 .course-list {
@@ -2141,7 +2178,7 @@ button {
 
 /* ---------- Daily streak ---------- */
 
-/* Sits above the category tabs on the home screen, and nowhere else: a
+/* Sits above the course list on the home screen, and nowhere else: a
    counter on every screen is the one part of the reference app deliberately
    not copied. */
 .streak-bar {

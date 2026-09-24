@@ -70,7 +70,9 @@ export const vectors: Course = {
   category: 'advanced-maths',
   position: 40,
   title: 'Vectors',
-  blurb: 'Components, magnitude and the scalar product, then vector geometry, lines, planes and the angles between them.',
+  // Its first levels are shown in Vectors Basics and its mechanics level in
+  // Kinematics; see placement.ts.
+  blurb: 'The scalar product, lines in vector form, the angles between them, then planes and the cross product.',
   levels: [
     {
       id: 'vm-l1',
@@ -266,63 +268,6 @@ export const vectors: Course = {
             ask('vec-unit', 2),
           ],
         },
-        {
-          id: 'vm-l1-dot',
-          title: 'The Scalar Product',
-          slides: [
-            teach(
-              prose(
-                'There is a way to multiply two vectors that produces an ordinary number: multiply matching components and add the results. It is called the **scalar product**, or the dot product.',
-              ),
-              maths(
-                '\\begin{pmatrix} 3 \\\\ 2 \\end{pmatrix} \\cdot \\begin{pmatrix} -4 \\\\ 6 \\end{pmatrix} = \\left(3\\right)\\left(-4\\right) + \\left(2\\right)\\left(6\\right) = 0',
-              ),
-              prose(
-                'The result is one number, not a vector — which is where the name comes from. Stopping with two products is stopping halfway.',
-              ),
-              prose(
-                'That example came out zero, and zero is the interesting case. It means the two vectors are perpendicular.',
-              ),
-            ),
-            ask('vec-dot'),
-            ask('vec-dot-steps'),
-            ask('vec-method'),
-            teach(
-              prose('The sign of the scalar product describes the angle between the vectors.'),
-              maths('\\mathbf{a} \\cdot \\mathbf{b} = \\left| \\mathbf{a} \\right| \\left| \\mathbf{b} \\right| \\cos\\theta'),
-              prose(
-                'Since the two magnitudes are positive, the sign of the product is the sign of $\\cos\\theta$: positive means the vectors point broadly the same way, negative means broadly opposite, and zero means exactly perpendicular.',
-              ),
-              prose(
-                'Rearranging that formula gives the angle itself, which is the usual reason for computing a scalar product at all.',
-              ),
-            ),
-            ask('vec-angle'),
-            ask('vec-method'),
-            ask('vec-angle+choice'),
-            teach(
-              prose(
-                'So a missing component can be found by insisting the scalar product is zero.',
-              ),
-              maths(
-                '\\begin{pmatrix} 3 \\\\ 4 \\end{pmatrix} \\cdot \\begin{pmatrix} 8 \\\\ k \\end{pmatrix} = 24 + 4k = 0 \\implies k = -6',
-              ),
-              prose(
-                'Perpendicularity is the scalar product being zero, not the vectors being negatives of each other. Those are opposite directions, whose scalar product is as negative as it can get.',
-              ),
-              prose(
-                'Check the answer by substituting it back. $24 + 4\\left(-6\\right) = 0$, so the two vectors really are at right angles.',
-              ),
-            ),
-            ask('vec-perpendicular-k'),
-            ask('vec-perpendicular-k+choice'),
-          ],
-          skillCheck: [
-            ask('vec-dot', 2),
-            ask('vec-perpendicular-k', 2),
-            ask('vec-angle', 2),
-          ],
-        },
       ],
       levelCheck: [
         ask('vec-add', 2),
@@ -334,9 +279,6 @@ export const vectors: Course = {
         ask('vec-magnitude', 2),
         ask('vec-distance', 2),
         ask('vec-unit', 2),
-        ask('vec-dot', 2),
-        ask('vec-perpendicular-k', 2),
-        ask('vec-angle', 2),
       ],
     },
     {
@@ -705,7 +647,7 @@ export const vectors: Course = {
           slides: [
             teach(
               prose(
-                'Two points fix a line. Start at one of them, and take the direction from the journey between them: destination minus start, as in the last level.',
+                'Two points fix a line. Start at one of them, and take the direction from the journey between them: destination minus start, as in Vector Geometry.',
               ),
               maths('\\mathbf{r} = \\mathbf{a} + t\\left(\\mathbf{b} - \\mathbf{a}\\right)'),
               prose('For $A\\left(1, 4\\right)$ and $B\\left(3, 1\\right)$:'),
@@ -914,6 +856,289 @@ export const vectors: Course = {
         ask('lines-solve', 2),
         ask('lines-meet', 2),
         ask('lines-meet-slider', 2),
+      ],
+    },
+    {
+      id: 'vm-l12',
+      title: 'The Angle Between Two Vectors',
+      lessons: [
+        {
+          id: 'vm-l1-dot',
+          title: 'The Scalar Product',
+          slides: [
+            teach(
+              prose(
+                'There is a way to multiply two vectors that produces an ordinary number: multiply matching components and add the results. It is called the **scalar product**, or the dot product.',
+              ),
+              maths(
+                '\\begin{pmatrix} 3 \\\\ 2 \\end{pmatrix} \\cdot \\begin{pmatrix} -4 \\\\ 6 \\end{pmatrix} = \\left(3\\right)\\left(-4\\right) + \\left(2\\right)\\left(6\\right) = 0',
+              ),
+              prose(
+                'The result is one number, not a vector — which is where the name comes from. Stopping with two products is stopping halfway.',
+              ),
+              prose(
+                'That example came out zero, and zero is the interesting case. It means the two vectors are perpendicular.',
+              ),
+            ),
+            ask('vec-dot'),
+            ask('vec-dot-steps'),
+            ask('vec-method'),
+            teach(
+              prose('The sign of the scalar product describes the angle between the vectors.'),
+              maths('\\mathbf{a} \\cdot \\mathbf{b} = \\left| \\mathbf{a} \\right| \\left| \\mathbf{b} \\right| \\cos\\theta'),
+              prose(
+                'Since the two magnitudes are positive, the sign of the product is the sign of $\\cos\\theta$: positive means the vectors point broadly the same way, negative means broadly opposite, and zero means exactly perpendicular.',
+              ),
+              prose(
+                'Rearranging that formula gives the angle itself, which is the usual reason for computing a scalar product at all.',
+              ),
+            ),
+            ask('vec-angle'),
+            ask('vec-method'),
+            ask('vec-angle+choice'),
+            teach(
+              prose(
+                'So a missing component can be found by insisting the scalar product is zero.',
+              ),
+              maths(
+                '\\begin{pmatrix} 3 \\\\ 4 \\end{pmatrix} \\cdot \\begin{pmatrix} 8 \\\\ k \\end{pmatrix} = 24 + 4k = 0 \\implies k = -6',
+              ),
+              prose(
+                'Perpendicularity is the scalar product being zero, not the vectors being negatives of each other. Those are opposite directions, whose scalar product is as negative as it can get.',
+              ),
+              prose(
+                'Check the answer by substituting it back. $24 + 4\\left(-6\\right) = 0$, so the two vectors really are at right angles.',
+              ),
+            ),
+            ask('vec-perpendicular-k'),
+            ask('vec-perpendicular-k+choice'),
+          ],
+          skillCheck: [
+            ask('vec-dot', 2),
+            ask('vec-perpendicular-k', 2),
+            ask('vec-angle', 2),
+          ],
+        },
+        {
+          id: 'vm-l12-dot3d',
+          title: 'The Scalar Product in 3D',
+          slides: [
+            teach(
+              prose(
+                'The scalar product works the same way in three dimensions: multiply matching components and add. There are three products now instead of two.',
+              ),
+              maths('\\mathbf{a} \\cdot \\mathbf{b} = a_x b_x + a_y b_y + a_z b_z'),
+              maths(
+                '\\mathbf{a} = \\begin{pmatrix} 2 \\\\ -1 \\\\ 3 \\end{pmatrix}, \\quad \\mathbf{b} = \\begin{pmatrix} 4 \\\\ 5 \\\\ -2 \\end{pmatrix}',
+              ),
+              maths('\\mathbf{a} \\cdot \\mathbf{b} = 8 - 5 - 6 = -3'),
+              prose(
+                'As in two dimensions, the sign describes the angle between them: positive is acute, negative is obtuse, and zero is a right angle. These two are at an obtuse angle.',
+              ),
+            ),
+            ask('angle-dot3'),
+            ask('angle-dot3-tree'),
+            ask('angle-sign'),
+            teach(
+              prose(
+                'In $\\mathbf{i}$, $\\mathbf{j}$, $\\mathbf{k}$ form a missing term is a zero component, so its product is zero:',
+              ),
+              maths('(3\\mathbf{i} - \\mathbf{k}) \\cdot (2\\mathbf{i} + 5\\mathbf{j} + 4\\mathbf{k})'),
+              maths('= 6 + 0 - 4 = 2'),
+              prose(
+                'Working backwards, a known scalar product turns an unknown entry into an equation. If $\\left(2, k, 3\\right) \\cdot \\left(1, 4, -2\\right) = 8$:',
+              ),
+              maths('2 + 4k - 6 = 8 \\implies k = 3'),
+            ),
+            ask('angle-sign', 2),
+            ask('angle-dot-k'),
+            ask('angle-dot-k+choice'),
+            teach(
+              prose(
+                'The scalar product behaves like ordinary multiplication. Order does not matter, numbers come outside, and it shares out over a sum:',
+              ),
+              maths('\\mathbf{a} \\cdot (\\mathbf{b} + \\mathbf{c}) = \\mathbf{a} \\cdot \\mathbf{b} + \\mathbf{a} \\cdot \\mathbf{c}'),
+              prose('A vector dotted with itself is its length squared, $\\mathbf{a} \\cdot \\mathbf{a} = |\\mathbf{a}|^2$. So with $|\\mathbf{a}| = 3$, $|\\mathbf{b}| = 4$ and $\\mathbf{a} \\cdot \\mathbf{b} = 2$:'),
+              maths('|\\mathbf{a} + \\mathbf{b}|^2'),
+              maths('= |\\mathbf{a}|^2 + 2\\,\\mathbf{a} \\cdot \\mathbf{b} + |\\mathbf{b}|^2'),
+              maths('= 9 + 4 + 16 = 29'),
+            ),
+            ask('angle-dot-algebra'),
+            ask('angle-dot-algebra+choice'),
+          ],
+          skillCheck: [
+            ask('angle-dot3', 2),
+            ask('angle-sign', 2),
+            ask('angle-dot-algebra', 2),
+          ],
+        },
+        {
+          id: 'vm-l12-cos',
+          title: 'Finding the Angle',
+          slides: [
+            teach(
+              prose(
+                'Rearranging $\\mathbf{a} \\cdot \\mathbf{b} = |\\mathbf{a}||\\mathbf{b}|\\cos\\theta$ gives the angle between two vectors from their components:',
+              ),
+              maths('\\cos\\theta = \\frac{\\mathbf{a} \\cdot \\mathbf{b}}{|\\mathbf{a}| \\, |\\mathbf{b}|}'),
+              prose(
+                'Take $\\mathbf{a} = \\left(1, 2, 2\\right)$ and $\\mathbf{b} = \\left(2, 3, 6\\right)$. Both lengths are whole: ${|\\mathbf{a}| = \\sqrt{1 + 4 + 4} = 3}$ and ${|\\mathbf{b}| = \\sqrt{4 + 9 + 36} = 7}$.',
+              ),
+              maths('\\mathbf{a} \\cdot \\mathbf{b} = 2 + 6 + 12 = 20'),
+              maths('\\cos\\theta = \\frac{20}{3 \\times 7} = \\frac{20}{21}'),
+            ),
+            ask('angle-dot3+choice'),
+            ask('angle-cos'),
+            ask('angle-cos-tree'),
+            teach(
+              prose('When the cosine is one of a few exact values, the angle is a whole number of degrees:'),
+              maths('\\cos 60^\\circ = \\tfrac{1}{2}, \\quad \\cos 45^\\circ = \\tfrac{\\sqrt{2}}{2}'),
+              maths('\\cos 30^\\circ = \\tfrac{\\sqrt{3}}{2}, \\quad \\cos 90^\\circ = 0'),
+              prose(
+                'A negative cosine gives the obtuse partner, $180^\\circ$ minus the acute angle: $-\\tfrac{1}{2}$ is $120^\\circ$.',
+              ),
+              prose(
+                'For $\\left(1, 1, 0\\right)$ and $\\left(0, 1, 1\\right)$ the scalar product is $1$ and both lengths are $\\sqrt{2}$, so $\\cos\\theta = \\tfrac{1}{2}$ and $\\theta = 60^\\circ$.',
+              ),
+            ),
+            ask('angle-degrees'),
+            ask('angle-degrees+choice'),
+            teach(
+              prose(
+                'The same formula works in any direction: three of $\\mathbf{a} \\cdot \\mathbf{b}$, $|\\mathbf{a}|$, $|\\mathbf{b}|$ and $\\theta$ fix the fourth. With $|\\mathbf{a}| = 4$, $|\\mathbf{b}| = 6$ and an angle of $120^\\circ$:',
+              ),
+              maths('\\mathbf{a} \\cdot \\mathbf{b} = 4 \\times 6 \\times \\cos 120^\\circ'),
+              maths('= 24 \\times \\left(-\\tfrac{1}{2}\\right) = -12'),
+            ),
+            ask('angle-given'),
+            ask('angle-sign', 2),
+            ask('angle-given+choice'),
+          ],
+          skillCheck: [
+            ask('angle-cos', 2),
+            ask('angle-degrees', 2),
+            ask('angle-given', 2),
+          ],
+        },
+        {
+          id: 'vm-l12-perpendicular',
+          title: 'Perpendicular Vectors',
+          slides: [
+            teach(
+              prose(
+                'Two vectors are **perpendicular** exactly when their scalar product is zero, since $\\cos 90^\\circ = 0$. In three dimensions there are three products to cancel out:',
+              ),
+              maths(
+                '\\begin{pmatrix} 2 \\\\ -1 \\\\ 3 \\end{pmatrix} \\cdot \\begin{pmatrix} 1 \\\\ 5 \\\\ 1 \\end{pmatrix}',
+              ),
+              maths('= 2 - 5 + 3 = 0'),
+              prose(
+                'A vector and its negative are not perpendicular. They point opposite ways, $180^\\circ$ apart, and their scalar product is as negative as it can be.',
+              ),
+              prose(
+                'So two vectors are perpendicular, parallel (one a multiple of the other), or at an acute or obtuse angle.',
+              ),
+            ),
+            ask('angle-perp-which'),
+            ask('angle-relation-flow'),
+            ask('angle-perp-which', 2),
+            teach(
+              prose(
+                'Setting the scalar product to zero turns an unknown entry into an equation. For $\\left(3, k, -2\\right)$ and $\\left(4, 2, 5\\right)$:',
+              ),
+              maths('12 + 2k - 10 = 0'),
+              maths('2k = -2 \\implies k = -1'),
+              prose(
+                'If $k$ is in both vectors, collect its terms first. For $\\left(k, 2, 1\\right)$ and $\\left(3, k, -5\\right)$:',
+              ),
+              maths('3k + 2k - 5 = 0 \\implies k = 1'),
+            ),
+            ask('angle-perp-k'),
+            ask('angle-perp-k-tree', 2),
+            ask('angle-relation-flow', 2),
+            teach(
+              prose(
+                'A scalar product of zero simplifies anything built from perpendicular vectors. The middle term of $|\\mathbf{a} + \\mathbf{b}|^2$ disappears:',
+              ),
+              maths('|\\mathbf{a} + \\mathbf{b}|^2 = |\\mathbf{a}|^2 + |\\mathbf{b}|^2'),
+              prose(
+                'That is Pythagoras: $\\mathbf{a}$ and $\\mathbf{b}$ are the two shorter sides of a right-angled triangle, and $\\mathbf{a} + \\mathbf{b}$ is its hypotenuse.',
+              ),
+            ),
+            ask('angle-dot-algebra', 2),
+            ask('angle-dot-algebra+choice', 2),
+          ],
+          skillCheck: [
+            ask('angle-perp-k', 2),
+            ask('angle-relation-flow', 2),
+            ask('angle-perp-which', 2),
+          ],
+        },
+        {
+          id: 'vm-l12-lines',
+          title: 'The Angle Between Two Lines',
+          slides: [
+            teach(
+              prose(
+                'The angle between two lines is the angle between their **directions**. In $\\mathbf{r} = \\mathbf{a} + \\lambda\\mathbf{d}$ that is $\\mathbf{d}$, the vector multiplying the parameter; $\\mathbf{a}$ only says where the line starts.',
+              ),
+              maths('\\cos\\theta = \\frac{\\mathbf{d}_1 \\cdot \\mathbf{d}_2}{|\\mathbf{d}_1| \\, |\\mathbf{d}_2|}'),
+              prose(
+                'Written as a general point, like $\\left(1 + 2t, \\, 3 - t, \\, 4t\\right)$, the direction is the coefficients of $t$: $\\left(2, -1, 4\\right)$.',
+              ),
+              prose(
+                'Two crossing lines make two angles that add to $180^\\circ$. **The angle between them** means the acute one, so use the modulus of the scalar product.',
+              ),
+            ),
+            ask('angle-line-direction'),
+            ask('angle-setting-flow'),
+            ask('angle-lines-cos'),
+            teach(
+              prose(
+                'Take directions $\\mathbf{d}_1 = \\left(1, 2, 2\\right)$ and $\\mathbf{d}_2 = \\left(-2, 3, -6\\right)$, of lengths $3$ and $7$:',
+              ),
+              maths('\\mathbf{d}_1 \\cdot \\mathbf{d}_2 = -2 + 6 - 12 = -8'),
+              maths('\\cos\\theta = \\frac{|-8|}{3 \\times 7} = \\frac{8}{21}'),
+              prose(
+                'Without the modulus the cosine is negative, and the angle found is the obtuse one: the other angle where the lines cross.',
+              ),
+            ),
+            ask('angle-lines'),
+            ask('angle-lines+choice'),
+            ask('angle-lines-cos-tree'),
+            teach(
+              prose(
+                'A line through two points $A$ and $B$ has direction $\\overrightarrow{AB} = \\mathbf{b} - \\mathbf{a}$, end minus start.',
+              ),
+              prose(
+                'For $A\\left(1, 2, 0\\right)$ and $B\\left(3, 1, 4\\right)$ that is $\\left(2, -1, 4\\right)$. Going from $B$ to $A$ instead reverses it, which changes no angle.',
+              ),
+            ),
+            ask('angle-line-direction', 2),
+            ask('angle-setting-flow'),
+          ],
+          skillCheck: [
+            ask('angle-lines', 2),
+            ask('angle-lines-cos-tree', 2),
+            ask('angle-line-direction', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('vec-dot', 2),
+        ask('vec-perpendicular-k', 2),
+        ask('vec-angle', 2),
+        ask('angle-dot3', 2),
+        ask('angle-sign', 2),
+        ask('angle-dot-algebra', 2),
+        ask('angle-cos-tree', 2),
+        ask('angle-degrees', 2),
+        ask('angle-relation-flow', 2),
+        ask('angle-given', 2),
+        ask('angle-perp-which', 2),
+        ask('angle-perp-k', 2),
+        ask('angle-lines-cos-tree', 2),
+        ask('angle-lines', 2),
       ],
     },
     {
@@ -1165,6 +1390,54 @@ export const vectors: Course = {
             ask('line-plane-t', 2),
           ],
         },
+        {
+          id: 'vm-l12-planes',
+          title: 'Lines and Planes',
+          slides: [
+            teach(
+              prose(
+                "A plane's normal $\\mathbf{n}$ is perpendicular to the whole plane. So a line's direction $\\mathbf{b}$ dotted with $\\mathbf{n}$ gives the angle $\\phi$ between the line and the **normal**, and the line meets the plane at $\\theta = 90^\\circ - \\phi$.",
+              ),
+              prose('Since $\\cos\\phi = \\sin\\theta$, that is one step:'),
+              maths('\\sin\\theta = \\frac{|\\mathbf{b} \\cdot \\mathbf{n}|}{|\\mathbf{b}| \\, |\\mathbf{n}|}'),
+              prose(
+                'Direction $\\left(1, 1, 0\\right)$ against the plane ${y + z = 3}$, normal $\\left(0, 1, 1\\right)$, gives $\\sin\\theta = \\tfrac{1}{2}$, so $\\theta = 30^\\circ$.',
+              ),
+              prose(
+                'Two special cases: $\\mathbf{b}$ a multiple of $\\mathbf{n}$ means the line is perpendicular to the plane, and $\\mathbf{b} \\cdot \\mathbf{n} = 0$ means it is parallel.',
+              ),
+            ),
+            ask('angle-line-plane'),
+            ask('angle-line-plane-tree'),
+            ask('angle-line-plane-kind'),
+            teach(
+              prose(
+                'The angle between two planes is the angle between their normals, and like lines it is the acute one. For ${x + y = 4}$ and ${y + z = 1}$:',
+              ),
+              maths('\\cos\\theta = \\frac{(1, 1, 0) \\cdot (0, 1, 1)}{\\sqrt{2}\\sqrt{2}} = \\tfrac{1}{2}'),
+              prose(
+                'So $\\theta = 60^\\circ$. Two planes are perpendicular when their normals are, and parallel when one normal is a multiple of the other.',
+              ),
+            ),
+            ask('angle-planes'),
+            ask('angle-line-plane-kind', 2),
+            teach(
+              prose('Every angle in this level comes from the same formula; what changes is which vectors go into it.'),
+              prose(
+                '**Two lines**: their directions. **Two planes**: their normals. **A line and a plane**: the direction and the normal, then $90^\\circ$ minus the angle found.',
+              ),
+              prose('In every case the modulus of the scalar product gives the acute angle.'),
+            ),
+            ask('angle-setting-flow', 2),
+            ask('angle-planes+choice', 2),
+            ask('angle-setting-flow', 2),
+          ],
+          skillCheck: [
+            ask('angle-line-plane', 2),
+            ask('angle-planes', 2),
+            ask('angle-line-plane-kind', 2),
+          ],
+        },
       ],
       levelCheck: [
         ask('cross-product', 2),
@@ -1181,6 +1454,7 @@ export const vectors: Course = {
         ask('plane-three-equation', 2),
         ask('line-plane-point', 2),
         ask('line-plane-relation', 2),
+        ask('angle-line-plane', 2),
       ],
     },
     {
@@ -1431,280 +1705,6 @@ export const vectors: Course = {
         ask('mech-fma', 2),
         ask('mech-meet-time', 2),
         ask('mech-apart-tree', 2),
-      ],
-    },
-    {
-      id: 'vm-l12',
-      title: 'The Angle Between Two Vectors',
-      lessons: [
-        {
-          id: 'vm-l12-dot3d',
-          title: 'The Scalar Product in 3D',
-          slides: [
-            teach(
-              prose(
-                'The scalar product works the same way in three dimensions: multiply matching components and add. There are three products now instead of two.',
-              ),
-              maths('\\mathbf{a} \\cdot \\mathbf{b} = a_x b_x + a_y b_y + a_z b_z'),
-              maths(
-                '\\mathbf{a} = \\begin{pmatrix} 2 \\\\ -1 \\\\ 3 \\end{pmatrix}, \\quad \\mathbf{b} = \\begin{pmatrix} 4 \\\\ 5 \\\\ -2 \\end{pmatrix}',
-              ),
-              maths('\\mathbf{a} \\cdot \\mathbf{b} = 8 - 5 - 6 = -3'),
-              prose(
-                'As in two dimensions, the sign describes the angle between them: positive is acute, negative is obtuse, and zero is a right angle. These two are at an obtuse angle.',
-              ),
-            ),
-            ask('angle-dot3'),
-            ask('angle-dot3-tree'),
-            ask('angle-sign'),
-            teach(
-              prose(
-                'In $\\mathbf{i}$, $\\mathbf{j}$, $\\mathbf{k}$ form a missing term is a zero component, so its product is zero:',
-              ),
-              maths('(3\\mathbf{i} - \\mathbf{k}) \\cdot (2\\mathbf{i} + 5\\mathbf{j} + 4\\mathbf{k})'),
-              maths('= 6 + 0 - 4 = 2'),
-              prose(
-                'Working backwards, a known scalar product turns an unknown entry into an equation. If $\\left(2, k, 3\\right) \\cdot \\left(1, 4, -2\\right) = 8$:',
-              ),
-              maths('2 + 4k - 6 = 8 \\implies k = 3'),
-            ),
-            ask('angle-sign', 2),
-            ask('angle-dot-k'),
-            ask('angle-dot-k+choice'),
-            teach(
-              prose(
-                'The scalar product behaves like ordinary multiplication. Order does not matter, numbers come outside, and it shares out over a sum:',
-              ),
-              maths('\\mathbf{a} \\cdot (\\mathbf{b} + \\mathbf{c}) = \\mathbf{a} \\cdot \\mathbf{b} + \\mathbf{a} \\cdot \\mathbf{c}'),
-              prose('A vector dotted with itself is its length squared, $\\mathbf{a} \\cdot \\mathbf{a} = |\\mathbf{a}|^2$. So with $|\\mathbf{a}| = 3$, $|\\mathbf{b}| = 4$ and $\\mathbf{a} \\cdot \\mathbf{b} = 2$:'),
-              maths('|\\mathbf{a} + \\mathbf{b}|^2'),
-              maths('= |\\mathbf{a}|^2 + 2\\,\\mathbf{a} \\cdot \\mathbf{b} + |\\mathbf{b}|^2'),
-              maths('= 9 + 4 + 16 = 29'),
-            ),
-            ask('angle-dot-algebra'),
-            ask('angle-dot-algebra+choice'),
-          ],
-          skillCheck: [
-            ask('angle-dot3', 2),
-            ask('angle-sign', 2),
-            ask('angle-dot-algebra', 2),
-          ],
-        },
-        {
-          id: 'vm-l12-cos',
-          title: 'Finding the Angle',
-          slides: [
-            teach(
-              prose(
-                'Rearranging $\\mathbf{a} \\cdot \\mathbf{b} = |\\mathbf{a}||\\mathbf{b}|\\cos\\theta$ gives the angle between two vectors from their components:',
-              ),
-              maths('\\cos\\theta = \\frac{\\mathbf{a} \\cdot \\mathbf{b}}{|\\mathbf{a}| \\, |\\mathbf{b}|}'),
-              prose(
-                'Take $\\mathbf{a} = \\left(1, 2, 2\\right)$ and $\\mathbf{b} = \\left(2, 3, 6\\right)$. Both lengths are whole: ${|\\mathbf{a}| = \\sqrt{1 + 4 + 4} = 3}$ and ${|\\mathbf{b}| = \\sqrt{4 + 9 + 36} = 7}$.',
-              ),
-              maths('\\mathbf{a} \\cdot \\mathbf{b} = 2 + 6 + 12 = 20'),
-              maths('\\cos\\theta = \\frac{20}{3 \\times 7} = \\frac{20}{21}'),
-            ),
-            ask('angle-dot3+choice'),
-            ask('angle-cos'),
-            ask('angle-cos-tree'),
-            teach(
-              prose('When the cosine is one of a few exact values, the angle is a whole number of degrees:'),
-              maths('\\cos 60^\\circ = \\tfrac{1}{2}, \\quad \\cos 45^\\circ = \\tfrac{\\sqrt{2}}{2}'),
-              maths('\\cos 30^\\circ = \\tfrac{\\sqrt{3}}{2}, \\quad \\cos 90^\\circ = 0'),
-              prose(
-                'A negative cosine gives the obtuse partner, $180^\\circ$ minus the acute angle: $-\\tfrac{1}{2}$ is $120^\\circ$.',
-              ),
-              prose(
-                'For $\\left(1, 1, 0\\right)$ and $\\left(0, 1, 1\\right)$ the scalar product is $1$ and both lengths are $\\sqrt{2}$, so $\\cos\\theta = \\tfrac{1}{2}$ and $\\theta = 60^\\circ$.',
-              ),
-            ),
-            ask('angle-degrees'),
-            ask('angle-degrees+choice'),
-            teach(
-              prose(
-                'The same formula works in any direction: three of $\\mathbf{a} \\cdot \\mathbf{b}$, $|\\mathbf{a}|$, $|\\mathbf{b}|$ and $\\theta$ fix the fourth. With $|\\mathbf{a}| = 4$, $|\\mathbf{b}| = 6$ and an angle of $120^\\circ$:',
-              ),
-              maths('\\mathbf{a} \\cdot \\mathbf{b} = 4 \\times 6 \\times \\cos 120^\\circ'),
-              maths('= 24 \\times \\left(-\\tfrac{1}{2}\\right) = -12'),
-            ),
-            ask('angle-given'),
-            ask('angle-sign', 2),
-            ask('angle-given+choice'),
-          ],
-          skillCheck: [
-            ask('angle-cos', 2),
-            ask('angle-degrees', 2),
-            ask('angle-given', 2),
-          ],
-        },
-        {
-          id: 'vm-l12-perpendicular',
-          title: 'Perpendicular Vectors',
-          slides: [
-            teach(
-              prose(
-                'Two vectors are **perpendicular** exactly when their scalar product is zero, since $\\cos 90^\\circ = 0$. In three dimensions there are three products to cancel out:',
-              ),
-              maths(
-                '\\begin{pmatrix} 2 \\\\ -1 \\\\ 3 \\end{pmatrix} \\cdot \\begin{pmatrix} 1 \\\\ 5 \\\\ 1 \\end{pmatrix}',
-              ),
-              maths('= 2 - 5 + 3 = 0'),
-              prose(
-                'A vector and its negative are not perpendicular. They point opposite ways, $180^\\circ$ apart, and their scalar product is as negative as it can be.',
-              ),
-              prose(
-                'So two vectors are perpendicular, parallel (one a multiple of the other), or at an acute or obtuse angle.',
-              ),
-            ),
-            ask('angle-perp-which'),
-            ask('angle-relation-flow'),
-            ask('angle-perp-which', 2),
-            teach(
-              prose(
-                'Setting the scalar product to zero turns an unknown entry into an equation. For $\\left(3, k, -2\\right)$ and $\\left(4, 2, 5\\right)$:',
-              ),
-              maths('12 + 2k - 10 = 0'),
-              maths('2k = -2 \\implies k = -1'),
-              prose(
-                'If $k$ is in both vectors, collect its terms first. For $\\left(k, 2, 1\\right)$ and $\\left(3, k, -5\\right)$:',
-              ),
-              maths('3k + 2k - 5 = 0 \\implies k = 1'),
-            ),
-            ask('angle-perp-k'),
-            ask('angle-perp-k-tree', 2),
-            ask('angle-relation-flow', 2),
-            teach(
-              prose(
-                'A scalar product of zero simplifies anything built from perpendicular vectors. The middle term of $|\\mathbf{a} + \\mathbf{b}|^2$ disappears:',
-              ),
-              maths('|\\mathbf{a} + \\mathbf{b}|^2 = |\\mathbf{a}|^2 + |\\mathbf{b}|^2'),
-              prose(
-                'That is Pythagoras: $\\mathbf{a}$ and $\\mathbf{b}$ are the two shorter sides of a right-angled triangle, and $\\mathbf{a} + \\mathbf{b}$ is its hypotenuse.',
-              ),
-            ),
-            ask('angle-dot-algebra', 2),
-            ask('angle-dot-algebra+choice', 2),
-          ],
-          skillCheck: [
-            ask('angle-perp-k', 2),
-            ask('angle-relation-flow', 2),
-            ask('angle-perp-which', 2),
-          ],
-        },
-        {
-          id: 'vm-l12-lines',
-          title: 'The Angle Between Two Lines',
-          slides: [
-            teach(
-              prose(
-                'The angle between two lines is the angle between their **directions**. In $\\mathbf{r} = \\mathbf{a} + \\lambda\\mathbf{d}$ that is $\\mathbf{d}$, the vector multiplying the parameter; $\\mathbf{a}$ only says where the line starts.',
-              ),
-              maths('\\cos\\theta = \\frac{\\mathbf{d}_1 \\cdot \\mathbf{d}_2}{|\\mathbf{d}_1| \\, |\\mathbf{d}_2|}'),
-              prose(
-                'Written as a general point, like $\\left(1 + 2t, \\, 3 - t, \\, 4t\\right)$, the direction is the coefficients of $t$: $\\left(2, -1, 4\\right)$.',
-              ),
-              prose(
-                'Two crossing lines make two angles that add to $180^\\circ$. **The angle between them** means the acute one, so use the modulus of the scalar product.',
-              ),
-            ),
-            ask('angle-line-direction'),
-            ask('angle-setting-flow'),
-            ask('angle-lines-cos'),
-            teach(
-              prose(
-                'Take directions $\\mathbf{d}_1 = \\left(1, 2, 2\\right)$ and $\\mathbf{d}_2 = \\left(-2, 3, -6\\right)$, of lengths $3$ and $7$:',
-              ),
-              maths('\\mathbf{d}_1 \\cdot \\mathbf{d}_2 = -2 + 6 - 12 = -8'),
-              maths('\\cos\\theta = \\frac{|-8|}{3 \\times 7} = \\frac{8}{21}'),
-              prose(
-                'Without the modulus the cosine is negative, and the angle found is the obtuse one: the other angle where the lines cross.',
-              ),
-            ),
-            ask('angle-lines'),
-            ask('angle-lines+choice'),
-            ask('angle-lines-cos-tree'),
-            teach(
-              prose(
-                'A line through two points $A$ and $B$ has direction $\\overrightarrow{AB} = \\mathbf{b} - \\mathbf{a}$, end minus start.',
-              ),
-              prose(
-                'For $A\\left(1, 2, 0\\right)$ and $B\\left(3, 1, 4\\right)$ that is $\\left(2, -1, 4\\right)$. Going from $B$ to $A$ instead reverses it, which changes no angle.',
-              ),
-            ),
-            ask('angle-line-direction', 2),
-            ask('angle-setting-flow'),
-          ],
-          skillCheck: [
-            ask('angle-lines', 2),
-            ask('angle-lines-cos-tree', 2),
-            ask('angle-line-direction', 2),
-          ],
-        },
-        {
-          id: 'vm-l12-planes',
-          title: 'Lines and Planes',
-          slides: [
-            teach(
-              prose(
-                "A plane's normal $\\mathbf{n}$ is perpendicular to the whole plane. So a line's direction $\\mathbf{b}$ dotted with $\\mathbf{n}$ gives the angle $\\phi$ between the line and the **normal**, and the line meets the plane at $\\theta = 90^\\circ - \\phi$.",
-              ),
-              prose('Since $\\cos\\phi = \\sin\\theta$, that is one step:'),
-              maths('\\sin\\theta = \\frac{|\\mathbf{b} \\cdot \\mathbf{n}|}{|\\mathbf{b}| \\, |\\mathbf{n}|}'),
-              prose(
-                'Direction $\\left(1, 1, 0\\right)$ against the plane ${y + z = 3}$, normal $\\left(0, 1, 1\\right)$, gives $\\sin\\theta = \\tfrac{1}{2}$, so $\\theta = 30^\\circ$.',
-              ),
-              prose(
-                'Two special cases: $\\mathbf{b}$ a multiple of $\\mathbf{n}$ means the line is perpendicular to the plane, and $\\mathbf{b} \\cdot \\mathbf{n} = 0$ means it is parallel.',
-              ),
-            ),
-            ask('angle-line-plane'),
-            ask('angle-line-plane-tree'),
-            ask('angle-line-plane-kind'),
-            teach(
-              prose(
-                'The angle between two planes is the angle between their normals, and like lines it is the acute one. For ${x + y = 4}$ and ${y + z = 1}$:',
-              ),
-              maths('\\cos\\theta = \\frac{(1, 1, 0) \\cdot (0, 1, 1)}{\\sqrt{2}\\sqrt{2}} = \\tfrac{1}{2}'),
-              prose(
-                'So $\\theta = 60^\\circ$. Two planes are perpendicular when their normals are, and parallel when one normal is a multiple of the other.',
-              ),
-            ),
-            ask('angle-planes'),
-            ask('angle-line-plane-kind', 2),
-            teach(
-              prose('Every angle in this level comes from the same formula; what changes is which vectors go into it.'),
-              prose(
-                '**Two lines**: their directions. **Two planes**: their normals. **A line and a plane**: the direction and the normal, then $90^\\circ$ minus the angle found.',
-              ),
-              prose('In every case the modulus of the scalar product gives the acute angle.'),
-            ),
-            ask('angle-setting-flow', 2),
-            ask('angle-planes+choice', 2),
-            ask('angle-setting-flow', 2),
-          ],
-          skillCheck: [
-            ask('angle-line-plane', 2),
-            ask('angle-planes', 2),
-            ask('angle-line-plane-kind', 2),
-          ],
-        },
-      ],
-      levelCheck: [
-        ask('angle-dot3', 2),
-        ask('angle-sign', 2),
-        ask('angle-dot-algebra', 2),
-        ask('angle-cos-tree', 2),
-        ask('angle-degrees', 2),
-        ask('angle-relation-flow', 2),
-        ask('angle-given', 2),
-        ask('angle-perp-which', 2),
-        ask('angle-perp-k', 2),
-        ask('angle-lines-cos-tree', 2),
-        ask('angle-lines', 2),
-        ask('angle-line-plane-kind', 2),
-        ask('angle-line-plane', 2),
-        ask('angle-planes', 2),
       ],
     },
   ],

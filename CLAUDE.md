@@ -182,7 +182,8 @@ Category[] → Course[] → Level[] → Lesson[] → { slides: SlideRef[~10], sk
                                   └─ levelCheck?: SlideRef[]
 ```
 
-`Category` is the difficulty banding and the tab strip on the home screen. A
+`Category` is the difficulty banding and a heading in the home screen's one
+list (the owner replaced the tab strip with a single scroll, easiest band first). A
 topic met at both A level and degree level is **one course with more levels**,
 not two courses fighting over the same name.
 
@@ -441,6 +442,16 @@ proposed replacement was rejected precisely because it turned out not to fire.
    whose `category` names its home-screen tab and whose `position` places it in
    that tab (smallest first, spaced in tens, a tie broken by id).
 3. Run `npm test` — the property tests pick it up with no wiring.
+
+A level can be *shown* in a different course from the file it is written in:
+`src/content/placement.ts` lists those moves and the courses made only of moved
+levels, applied by `courses/index.ts`. It exists because a course review moved
+23 levels between difficulty bands, and cutting them out of their files would
+have separated each from the helpers and figures it was drawn with. Level and
+lesson ids never change in a move, which is what keeps recorded progress, and
+`place` throws on an id it cannot find. A teaching line that points elsewhere
+names the course and level by title ("Numerical Methods Basics, The Change of
+Sign"), never by number, since numbers shift when a level moves.
 
 Neither list is written out by hand on purpose. With several content branches
 open at once, each adding an import and an entry to the same two lists, every

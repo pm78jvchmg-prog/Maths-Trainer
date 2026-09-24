@@ -61,7 +61,7 @@ const lunchTable = maths(
 export const probability: Course = {
   id: 'probability',
   category: 'statistics',
-  position: 10,
+  position: 20,
   title: 'Probability',
   blurb: 'How likely things are: counting outcomes, the 0 to 1 scale, and combining events with tables, Venn diagrams and trees.',
   levels: [

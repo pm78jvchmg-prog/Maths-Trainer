@@ -62,8 +62,217 @@ export const numberProof: Course = {
   category: 'algebra-fundamentals',
   position: 90,
   title: 'Number & Proof',
-  blurb: 'Showing a claim holds for every number, not just the ones you tried, then primes, factors and remainders.',
+  // Induction and number theory are shown in other courses; see placement.ts.
+  blurb: 'Primes, factors and remainders, then showing a claim holds for every number, not just the ones you tried.',
   levels: [
+    {
+      id: 'np-l2',
+      title: 'Divisibility & Primes',
+      lessons: [
+        {
+          id: 'np-l2-primes',
+          title: 'Primes and Prime Factors',
+          slides: [
+            teach(
+              prose('A **prime** has exactly two factors, $1$ and itself. So $1$ is not prime, and $2$ is the only even prime.'),
+              prose(
+                'To test a number, divide by the primes up to its square root. If $n = a \\times b$, one of $a$ and $b$ is at most $\\sqrt{n}$, so any factor turns up by then.',
+              ),
+              maths('\\sqrt{91} < 10, \\quad 91 = 7 \\times 13'),
+              prose('Powers of primes multiply out as usual: the powers first, then the product.'),
+            ),
+            ask('num-is-prime'),
+            ask('num-factor-reduce'),
+            ask('num-is-prime', 2),
+            teach(
+              prose(
+                'Every whole number above $1$ splits into primes in exactly one way. Divide by $2$ as often as it goes, then by $3$, then $5$, and so on:',
+              ),
+              maths('\\begin{gathered} 360 \\to 180 \\to 90 \\to 45 \\\\ \\to 15 \\to 5 \\to 1 \\end{gathered}'),
+              prose('That is three $2$s, two $3$s and one $5$. With powers, smallest prime first:'),
+              maths('360 = 2^3 \\times 3^2 \\times 5'),
+            ),
+            ask('num-factorise'),
+            ask('num-factor-reduce+choice', 2),
+            ask('num-factorise', 2),
+            teach(
+              prose(
+                'A factor of $360 = 2^3 \\times 3^2 \\times 5$ takes each prime from none of it up to all of it: $2$ appears $0$, $1$, $2$ or $3$ times, which is $4$ choices.',
+              ),
+              maths('(3 + 1)(2 + 1)(1 + 1) = 24'),
+              prose('Add one to each power and multiply: $360$ has $24$ factors.'),
+            ),
+            ask('num-factor-count'),
+            ask('num-factor-count', 2),
+          ],
+          skillCheck: [ask('num-factorise', 2), ask('num-factor-count', 2), ask('num-is-prime', 2)],
+        },
+        {
+          id: 'np-l2-hcf-lcm',
+          title: 'HCF and LCM',
+          slides: [
+            teach(
+              prose(
+                'The **HCF** (highest common factor) is the biggest number dividing both. The **LCM** (lowest common multiple) is the smallest number both divide into.',
+              ),
+              prose(
+                'From the prime factors, the HCF takes the primes they share, each at the **smaller** power. The LCM takes every prime, each at the **larger** power.',
+              ),
+              maths('\\begin{aligned} 60 &= 2^2 \\times 3 \\times 5 \\\\ 40 &= 2^3 \\times 5 \\end{aligned}'),
+              prose('So the HCF is $2^2 \\times 5 = 20$ and the LCM is $2^3 \\times 3 \\times 5 = 120$.'),
+            ),
+            ask('num-hcf-lcm-tiles'),
+            ask('num-hcf'),
+            ask('num-hcf-lcm-tiles', 2),
+            teach(
+              prose('Between them, the HCF and the LCM use every prime power of the two numbers exactly once, so'),
+              maths('\\text{HCF} \\times \\text{LCM} = a \\times b'),
+              prose('Once you know the HCF, the LCM is $a \\times b$ divided by it. For $60$ and $40$: $2400 \\div 20 = 120$.'),
+            ),
+            ask('num-lcm-tree'),
+            ask('num-lcm-tree', 2),
+            teach(
+              prose('In a word problem, first decide which one is wanted.'),
+              prose('Cutting into equal pieces, sharing into equal groups, the largest tile that fits: the **HCF**.'),
+              prose('Things lining up again, such as buses, lights or laps: the **LCM**.'),
+            ),
+            ask('num-hcf-flow'),
+            ask('num-hcf', 2),
+            ask('num-hcf-flow', 2),
+          ],
+          skillCheck: [ask('num-hcf', 2), ask('num-lcm-tree', 2), ask('num-hcf-lcm-tiles', 2)],
+        },
+        {
+          id: 'np-l2-divisibility',
+          title: 'Divisibility and Remainders',
+          slides: [
+            teach(
+              prose('Quick tests, from the digits alone:'),
+              prose('$2$: the last digit is even. $5$: it ends in $0$ or $5$. $10$: it ends in $0$.'),
+              prose('$4$: the last two digits make a multiple of $4$.'),
+              prose('$3$: the digit sum is a multiple of $3$. $9$: the digit sum is a multiple of $9$.'),
+              prose(
+                'For $6$, $12$, $15$ or $18$, split it into two numbers sharing no factor and pass both tests: $12 = 4 \\times 3$. Not $2 \\times 6$, which share a $2$: $18$ passes both of those tests and is not a multiple of $12$.',
+              ),
+            ),
+            ask('num-divisible'),
+            ask('num-divis-flow'),
+            ask('num-divisible', 2),
+            teach(
+              prose('Dividing $a$ by $d$ gives a quotient $q$ and a remainder $r$, somewhere from $0$ up to $d - 1$:'),
+              maths('a = dq + r'),
+              prose('So $117 \\div 4 = 29$ remainder $1$, because $117 = 4 \\times 29 + 1$. Rebuilding $a$ from the pieces is a quick check.'),
+            ),
+            ask('num-division-reduce'),
+            ask('num-remainder'),
+            ask('num-division-reduce+choice', 2),
+            teach(
+              prose(
+                'Remainders combine. If $a$ and $b$ leave remainders $4$ and $2$ on division by $5$, write $a = 5j + 4$ and $b = 5k + 2$. Every term with $j$ or $k$ in it is a multiple of $5$, so only the remainders matter.',
+              ),
+              prose('$ab$ leaves the same remainder as $4 \\times 2 = 8$, which is $3$. The same goes for sums and powers.'),
+            ),
+            ask('num-remainder', 2),
+            ask('num-divis-flow', 2),
+          ],
+          skillCheck: [ask('num-remainder', 2), ask('num-divisible', 2), ask('num-division-reduce', 2)],
+        },
+        {
+          id: 'np-l2-parity',
+          title: 'Odd, Even and Multiples in Algebra',
+          slides: [
+            teach(
+              prose(
+                'Of two consecutive whole numbers, one is even, so their product is even. Factorising shows when an expression is such a product:',
+              ),
+              maths('n^2 + n = n(n + 1)'),
+              prose('So $n^2 + n$ is always even, and so is $n^2 + n + 8$: an even number plus $8$.'),
+            ),
+            ask('num-factorised'),
+            ask('num-always-divides'),
+            ask('num-order-multiples'),
+            teach(
+              prose(
+                'Of three consecutive whole numbers, one is a multiple of $3$ and at least one is even, so their product is a multiple of $6$.',
+              ),
+              maths('n^3 - n = (n - 1)n(n + 1)'),
+              prose(
+                'That is why $n^3 - n$ is always a multiple of $6$. To find the largest number that always divides, factorise, then try small values of $n$: nothing bigger than their HCF can work.',
+              ),
+            ),
+            ask('num-factorised', 2),
+            ask('num-always-divides', 2),
+            ask('num-order-multiples', 2),
+            teach(
+              prose('A difference of two squares hides a multiple too. Expand both brackets, subtract, then take out the common factor:'),
+              maths('\\begin{aligned} &(n + 5)^2 - (n + 3)^2 \\\\ &= 4n + 16 \\\\ &= 4(n + 4) \\end{aligned}'),
+              prose('The bracket is a whole number, so the result is always a multiple of $4$.'),
+            ),
+            ask('num-parity-steps'),
+            ask('num-parity-steps', 2),
+          ],
+          skillCheck: [ask('num-order-multiples', 2), ask('num-factorised', 2), ask('num-parity-steps', 2)],
+        },
+        {
+          id: 'np-l2-rational',
+          title: 'Rational and Irrational Numbers',
+          slides: [
+            teach(
+              prose(
+                'A **rational** number is a fraction $\\frac{a}{b}$ of whole numbers, with $b \\ne 0$. Whole numbers count, since $-5 = \\frac{-5}{1}$, and so does every decimal that stops or repeats.',
+              ),
+              prose(
+                'An **irrational** number cannot be written that way; its decimal never stops and never repeats. $\\sqrt{3}$ and $\\pi$ are irrational, and the square root of a whole number is rational only when the number is a perfect square.',
+              ),
+              prose('A repeating decimal gets a dot over the first and the last digit of the block that repeats:'),
+              maths('\\frac{25}{37} = 0.675675\\ldots = 0.\\dot{6}7\\dot{5}'),
+            ),
+            ask('num-rational-choice'),
+            ask('num-decimal-tiles'),
+            ask('num-rational-choice', 2),
+            teach(
+              prose(
+                'Which fractions stop? Write the fraction in lowest terms and look at the denominator. If its only prime factors are $2$ and $5$, the decimal terminates; any other prime factor makes it repeat.',
+              ),
+              maths('\\frac{9}{12} = \\frac{3}{4} = 0.75, \\quad \\frac{5}{12} = 0.41\\dot{6}'),
+              prose('Cancel first: $12$ has a $3$ in it, but $\\frac{9}{12}$ loses it on the way to $\\frac{3}{4}$.'),
+            ),
+            ask('num-terminating'),
+            ask('num-decimal-tiles', 2),
+            ask('num-terminating', 2),
+            teach(
+              prose(
+                'To turn a repeating decimal into a fraction, multiply by $10$ for each digit in the block, so the repeats line up, then subtract:',
+              ),
+              maths('\\begin{aligned} 10x &= 6.\\dot{6} \\\\ x &= 0.\\dot{6} \\\\ 9x &= 6 \\end{aligned}'),
+              prose(
+                'So $x = \\frac{6}{9} = \\frac{2}{3}$. A three-digit block takes $1000x$ and leaves $999x$. A fraction is typed with the / key.',
+              ),
+            ),
+            ask('num-recurring-steps'),
+            ask('num-recurring', 2),
+          ],
+          skillCheck: [ask('num-rational-choice', 2), ask('num-terminating', 2), ask('num-recurring', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('num-is-prime', 2),
+        ask('num-factorise', 2),
+        ask('num-factor-count', 2),
+        ask('num-factor-reduce+choice', 2),
+        ask('num-hcf-lcm-tiles', 2),
+        ask('num-lcm-tree', 2),
+        ask('num-hcf', 2),
+        ask('num-divisible', 2),
+        ask('num-divis-flow', 2),
+        ask('num-remainder', 2),
+        ask('num-order-multiples', 2),
+        ask('num-always-divides', 2),
+        ask('num-parity-steps', 2),
+        ask('num-rational-choice', 2),
+        ask('num-recurring', 2),
+      ],
+    },
     {
       id: 'np-l1',
       title: 'Proof',
@@ -282,214 +491,6 @@ export const numberProof: Course = {
         ask('prf-find-flaw', 2),
         ask('prf-missing-line', 2),
         ask('prf-method-flow', 2),
-      ],
-    },
-    {
-      id: 'np-l2',
-      title: 'Divisibility & Primes',
-      lessons: [
-        {
-          id: 'np-l2-primes',
-          title: 'Primes and Prime Factors',
-          slides: [
-            teach(
-              prose('A **prime** has exactly two factors, $1$ and itself. So $1$ is not prime, and $2$ is the only even prime.'),
-              prose(
-                'To test a number, divide by the primes up to its square root. If $n = a \\times b$, one of $a$ and $b$ is at most $\\sqrt{n}$, so any factor turns up by then.',
-              ),
-              maths('\\sqrt{91} < 10, \\quad 91 = 7 \\times 13'),
-              prose('Powers of primes multiply out as usual: the powers first, then the product.'),
-            ),
-            ask('num-is-prime'),
-            ask('num-factor-reduce'),
-            ask('num-is-prime', 2),
-            teach(
-              prose(
-                'Every whole number above $1$ splits into primes in exactly one way. Divide by $2$ as often as it goes, then by $3$, then $5$, and so on:',
-              ),
-              maths('\\begin{gathered} 360 \\to 180 \\to 90 \\to 45 \\\\ \\to 15 \\to 5 \\to 1 \\end{gathered}'),
-              prose('That is three $2$s, two $3$s and one $5$. With powers, smallest prime first:'),
-              maths('360 = 2^3 \\times 3^2 \\times 5'),
-            ),
-            ask('num-factorise'),
-            ask('num-factor-reduce+choice', 2),
-            ask('num-factorise', 2),
-            teach(
-              prose(
-                'A factor of $360 = 2^3 \\times 3^2 \\times 5$ takes each prime from none of it up to all of it: $2$ appears $0$, $1$, $2$ or $3$ times, which is $4$ choices.',
-              ),
-              maths('(3 + 1)(2 + 1)(1 + 1) = 24'),
-              prose('Add one to each power and multiply: $360$ has $24$ factors.'),
-            ),
-            ask('num-factor-count'),
-            ask('num-factor-count', 2),
-          ],
-          skillCheck: [ask('num-factorise', 2), ask('num-factor-count', 2), ask('num-is-prime', 2)],
-        },
-        {
-          id: 'np-l2-hcf-lcm',
-          title: 'HCF and LCM',
-          slides: [
-            teach(
-              prose(
-                'The **HCF** (highest common factor) is the biggest number dividing both. The **LCM** (lowest common multiple) is the smallest number both divide into.',
-              ),
-              prose(
-                'From the prime factors, the HCF takes the primes they share, each at the **smaller** power. The LCM takes every prime, each at the **larger** power.',
-              ),
-              maths('\\begin{aligned} 60 &= 2^2 \\times 3 \\times 5 \\\\ 40 &= 2^3 \\times 5 \\end{aligned}'),
-              prose('So the HCF is $2^2 \\times 5 = 20$ and the LCM is $2^3 \\times 3 \\times 5 = 120$.'),
-            ),
-            ask('num-hcf-lcm-tiles'),
-            ask('num-hcf'),
-            ask('num-hcf-lcm-tiles', 2),
-            teach(
-              prose('Between them, the HCF and the LCM use every prime power of the two numbers exactly once, so'),
-              maths('\\text{HCF} \\times \\text{LCM} = a \\times b'),
-              prose('Once you know the HCF, the LCM is $a \\times b$ divided by it. For $60$ and $40$: $2400 \\div 20 = 120$.'),
-            ),
-            ask('num-lcm-tree'),
-            ask('num-lcm-tree', 2),
-            teach(
-              prose('In a word problem, first decide which one is wanted.'),
-              prose('Cutting into equal pieces, sharing into equal groups, the largest tile that fits: the **HCF**.'),
-              prose('Things lining up again, such as buses, lights or laps: the **LCM**.'),
-            ),
-            ask('num-hcf-flow'),
-            ask('num-hcf', 2),
-            ask('num-hcf-flow', 2),
-          ],
-          skillCheck: [ask('num-hcf', 2), ask('num-lcm-tree', 2), ask('num-hcf-lcm-tiles', 2)],
-        },
-        {
-          id: 'np-l2-divisibility',
-          title: 'Divisibility and Remainders',
-          slides: [
-            teach(
-              prose('Quick tests, from the digits alone:'),
-              prose('$2$: the last digit is even. $5$: it ends in $0$ or $5$. $10$: it ends in $0$.'),
-              prose('$4$: the last two digits make a multiple of $4$.'),
-              prose('$3$: the digit sum is a multiple of $3$. $9$: the digit sum is a multiple of $9$.'),
-              prose(
-                'For $6$, $12$, $15$ or $18$, split it into two numbers sharing no factor and pass both tests: $12 = 4 \\times 3$. Not $2 \\times 6$, which share a $2$: $18$ passes both of those tests and is not a multiple of $12$.',
-              ),
-            ),
-            ask('num-divisible'),
-            ask('num-divis-flow'),
-            ask('num-divisible', 2),
-            teach(
-              prose('Dividing $a$ by $d$ gives a quotient $q$ and a remainder $r$, somewhere from $0$ up to $d - 1$:'),
-              maths('a = dq + r'),
-              prose('So $117 \\div 4 = 29$ remainder $1$, because $117 = 4 \\times 29 + 1$. Rebuilding $a$ from the pieces is a quick check.'),
-            ),
-            ask('num-division-reduce'),
-            ask('num-remainder'),
-            ask('num-division-reduce+choice', 2),
-            teach(
-              prose(
-                'Remainders combine. If $a$ and $b$ leave remainders $4$ and $2$ on division by $5$, write $a = 5j + 4$ and $b = 5k + 2$. Every term with $j$ or $k$ in it is a multiple of $5$, so only the remainders matter.',
-              ),
-              prose('$ab$ leaves the same remainder as $4 \\times 2 = 8$, which is $3$. The same goes for sums and powers.'),
-            ),
-            ask('num-remainder', 2),
-            ask('num-divis-flow', 2),
-          ],
-          skillCheck: [ask('num-remainder', 2), ask('num-divisible', 2), ask('num-division-reduce', 2)],
-        },
-        {
-          id: 'np-l2-parity',
-          title: 'Odd, Even and Multiples in Algebra',
-          slides: [
-            teach(
-              prose(
-                'Of two consecutive whole numbers, one is even, so their product is even. Factorising shows when an expression is such a product:',
-              ),
-              maths('n^2 + n = n(n + 1)'),
-              prose('So $n^2 + n$ is always even, and so is $n^2 + n + 8$: an even number plus $8$.'),
-            ),
-            ask('num-factorised'),
-            ask('num-always-divides'),
-            ask('num-order-multiples'),
-            teach(
-              prose(
-                'Of three consecutive whole numbers, one is a multiple of $3$ and at least one is even, so their product is a multiple of $6$.',
-              ),
-              maths('n^3 - n = (n - 1)n(n + 1)'),
-              prose(
-                'That is why $n^3 - n$ is always a multiple of $6$. To find the largest number that always divides, factorise, then try small values of $n$: nothing bigger than their HCF can work.',
-              ),
-            ),
-            ask('num-factorised', 2),
-            ask('num-always-divides', 2),
-            ask('num-order-multiples', 2),
-            teach(
-              prose('A difference of two squares hides a multiple too. Expand both brackets, subtract, then take out the common factor:'),
-              maths('\\begin{aligned} &(n + 5)^2 - (n + 3)^2 \\\\ &= 4n + 16 \\\\ &= 4(n + 4) \\end{aligned}'),
-              prose('The bracket is a whole number, so the result is always a multiple of $4$.'),
-            ),
-            ask('num-parity-steps'),
-            ask('num-parity-steps', 2),
-          ],
-          skillCheck: [ask('num-order-multiples', 2), ask('num-factorised', 2), ask('num-parity-steps', 2)],
-        },
-        {
-          id: 'np-l2-rational',
-          title: 'Rational and Irrational Numbers',
-          slides: [
-            teach(
-              prose(
-                'A **rational** number is a fraction $\\frac{a}{b}$ of whole numbers, with $b \\ne 0$. Whole numbers count, since $-5 = \\frac{-5}{1}$, and so does every decimal that stops or repeats.',
-              ),
-              prose(
-                'An **irrational** number cannot be written that way; its decimal never stops and never repeats. $\\sqrt{3}$ and $\\pi$ are irrational, and the square root of a whole number is rational only when the number is a perfect square.',
-              ),
-              prose('A repeating decimal gets a dot over the first and the last digit of the block that repeats:'),
-              maths('\\frac{25}{37} = 0.675675\\ldots = 0.\\dot{6}7\\dot{5}'),
-            ),
-            ask('num-rational-choice'),
-            ask('num-decimal-tiles'),
-            ask('num-rational-choice', 2),
-            teach(
-              prose(
-                'Which fractions stop? Write the fraction in lowest terms and look at the denominator. If its only prime factors are $2$ and $5$, the decimal terminates; any other prime factor makes it repeat.',
-              ),
-              maths('\\frac{9}{12} = \\frac{3}{4} = 0.75, \\quad \\frac{5}{12} = 0.41\\dot{6}'),
-              prose('Cancel first: $12$ has a $3$ in it, but $\\frac{9}{12}$ loses it on the way to $\\frac{3}{4}$.'),
-            ),
-            ask('num-terminating'),
-            ask('num-decimal-tiles', 2),
-            ask('num-terminating', 2),
-            teach(
-              prose(
-                'To turn a repeating decimal into a fraction, multiply by $10$ for each digit in the block, so the repeats line up, then subtract:',
-              ),
-              maths('\\begin{aligned} 10x &= 6.\\dot{6} \\\\ x &= 0.\\dot{6} \\\\ 9x &= 6 \\end{aligned}'),
-              prose(
-                'So $x = \\frac{6}{9} = \\frac{2}{3}$. A three-digit block takes $1000x$ and leaves $999x$. A fraction is typed with the / key.',
-              ),
-            ),
-            ask('num-recurring-steps'),
-            ask('num-recurring', 2),
-          ],
-          skillCheck: [ask('num-rational-choice', 2), ask('num-terminating', 2), ask('num-recurring', 2)],
-        },
-      ],
-      levelCheck: [
-        ask('num-is-prime', 2),
-        ask('num-factorise', 2),
-        ask('num-factor-count', 2),
-        ask('num-factor-reduce+choice', 2),
-        ask('num-hcf-lcm-tiles', 2),
-        ask('num-lcm-tree', 2),
-        ask('num-hcf', 2),
-        ask('num-divisible', 2),
-        ask('num-divis-flow', 2),
-        ask('num-remainder', 2),
-        ask('num-order-multiples', 2),
-        ask('num-always-divides', 2),
-        ask('num-parity-steps', 2),
-        ask('num-rational-choice', 2),
-        ask('num-recurring', 2),
       ],
     },
     {
@@ -952,7 +953,7 @@ export const numberProof: Course = {
             ask('euc-divide', 2),
             teach(
               prose(
-                'In level 2 the HCF came from prime factors. That is quick for numbers such as $60$ and $40$, which are built from small primes.',
+                'In Number & Proof, Divisibility & Primes, the HCF came from prime factors. That is quick for numbers such as $60$ and $40$, which are built from small primes.',
               ),
               prose(
                 'For $221$ and $323$ it is slow: their smallest prime factors are $13$ and $17$, so you would try every prime up to those. Euclid needs three divisions:',
@@ -1150,7 +1151,7 @@ export const numberProof: Course = {
               ),
               maths('\\begin{gathered} 38 \\equiv 3 \\pmod{7} \\\\ \\text{since } 38 - 3 = 35 = 5 \\times 7 \\end{gathered}'),
               prose(
-                'Every whole number is congruent to exactly one of $0, 1, \\dots, n - 1$: its **residue**, the remainder you found in level 2. $38 = 5 \\times 7 + 3$, so the residue of $38$ modulo $7$ is $3$.',
+                'Every whole number is congruent to exactly one of $0, 1, \\dots, n - 1$: its **residue**, the remainder you found in Divisibility & Primes. $38 = 5 \\times 7 + 3$, so the residue of $38$ modulo $7$ is $3$.',
               ),
             ),
             ask('cong-residue'),
@@ -1185,7 +1186,7 @@ export const numberProof: Course = {
           slides: [
             teach(
               prose(
-                'In level 2 you combined remainders: if $a$ and $b$ leave $3$ and $5$ on division by $7$, then $ab$ leaves the remainder of $15$, which is $1$. In the new notation, **reduce first, then combine**. Modulo $7$:',
+                'In Divisibility & Primes you combined remainders: if $a$ and $b$ leave $3$ and $5$ on division by $7$, then $ab$ leaves the remainder of $15$, which is $1$. In the new notation, **reduce first, then combine**. Modulo $7$:',
               ),
               maths('\\begin{gathered} 346 \\equiv 3, \\quad 59 \\equiv 3 \\\\ 346 \\times 59 \\equiv 3 \\times 3 \\\\ 3 \\times 3 = 9 \\equiv 2 \\end{gathered}'),
               prose('No need to work out $346 \\times 59$ at all.'),
@@ -1263,7 +1264,7 @@ export const numberProof: Course = {
                 'The last digit of a number is its residue modulo $10$. So the last digit of a product depends only on the last digits: $347 \\times 58$ ends like $7 \\times 8 = 56$, in $6$.',
               ),
               prose(
-                "Level 2's tests for $2$, $5$ and $10$ look only at the last digit for the same reason: $10$ is a multiple of each, so everything but the last digit already is.",
+                "The tests in Divisibility & Primes for $2$, $5$ and $10$ look only at the last digit for the same reason: $10$ is a multiple of each, so everything but the last digit already is.",
               ),
             ),
             ask('cong-last-product'),
@@ -1306,7 +1307,7 @@ export const numberProof: Course = {
             ask('cong-digit-order'),
             teach(
               prose(
-                'That is why the tests from level 2 work: a number is divisible by $9$, or by $3$, exactly when its digit sum is. Level 2 stated the rule; this proves it.',
+                'That is why the tests from Divisibility & Primes work: a number is divisible by $9$, or by $3$, exactly when its digit sum is. That level stated the rule; this proves it.',
               ),
               prose(
                 'Modulo $11$, $10 \\equiv -1$ and $100 \\equiv 1$, so a number is congruent to its digits added and taken away in turn: $726 \\equiv 7 - 2 + 6 = 11 \\equiv 0$, and $726 = 66 \\times 11$.',

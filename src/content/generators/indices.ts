@@ -117,7 +117,7 @@ const multiplyPowers: Generator<PairParams> = {
   }),
   solution: ({ a, b }) => [
     {
-      text: `Multiplying powers of the same base adds the exponents, because $${powerTex(a)}$ is $a$ copies of $x$ and $${powerTex(b)}$ is $b$ more.`,
+      text: `Multiplying powers of the same base adds the exponents, because $${powerTex(a)}$ is $${a}$ copies of $x$ and $${powerTex(b)}$ is $${b}$ more.`,
     },
     { tex: `${powerTex(a)} \\times ${powerTex(b)} = x^{${a} + ${b}} = ${powerTex(a + b)}` },
     {

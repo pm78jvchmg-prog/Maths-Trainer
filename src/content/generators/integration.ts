@@ -4097,7 +4097,7 @@ const volumeFindLimit: Generator<LimitParams> = {
     const hPower = power === 1 ? 'h' : `h^{${power}}`;
     return [
       { text: `Square $y$ and integrate from $0$ to $h$, leaving $h$ as a letter.` },
-      { tex: stacked(`V = \\pi \\int_{0}^{h} ${squared} \\, dx`, `= ${piTex(coefficient)}${hPower}`) },
+      { tex: stacked(`V = \\pi \\int_{0}^{h} ${squared} \\, dx`, `= ${piTex(coefficient)} ${hPower}`) },
       {
         text: `Set that equal to $${piTex(limitVolume(params))}$ and the $\\pi$ cancels, leaving $${hPower} = ${h ** power}$, so $h = ${h}$.`,
       },

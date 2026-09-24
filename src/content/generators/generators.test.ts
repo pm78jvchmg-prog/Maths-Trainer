@@ -678,6 +678,48 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
     }
   });
 
+  it('renders every line of its worked solution', () => {
+    // The sweep above reads the question; nothing read the answer's working,
+    // which the learner sees under Show me. `int-vol-find-limit` glued \pi to
+    // the letter after it, and `25\pih` is an unknown command, so the line
+    // printed red in more than half its draws with a green suite.
+    //
+    // Thirty seeds a difficulty rather than all of `cases`: a solution is
+    // several KaTeX calls, across every generator in the registry, and a
+    // family of draws that fails at all fails well inside thirty.
+    const solutionSeeds = 30;
+    const failures: string[] = [];
+    const check = (tex: string, where: string) => {
+      try {
+        katex.renderToString(tex, { throwOnError: true, strict: false });
+      } catch (error) {
+        failures.push(`${where}: ${tex} (${(error as Error).message.split('\n')[0]})`);
+        return;
+      }
+      if (BARE_TEX_COMMAND.test(tex)) failures.push(`${where}: bare TeX command in ${tex}`);
+    };
+
+    for (const { params, difficulty, seed } of cases) {
+      if (seed >= solutionSeeds) continue;
+      const steps = (generator as Generator<unknown>).solution(params);
+      steps.forEach((step, line) => {
+        const where = `seed ${seed}, difficulty ${difficulty}, line ${line + 1}`;
+        if (step.tex) check(step.tex, where);
+        if (step.text) {
+          // Prose rendered as the app renders it: inline maths between dollars.
+          if ((step.text.match(/\$/g) ?? []).length % 2 !== 0) {
+            failures.push(`${where}: unbalanced $ in ${step.text}`);
+          }
+          step.text
+            .split(/\$([^$]+)\$/g)
+            .filter((_, idx) => idx % 2 === 1)
+            .forEach((tex) => check(tex, where));
+        }
+      });
+    }
+    expect(failures.slice(0, 5).join('\n')).toBe('');
+  });
+
   it('offers exactly one correct option, and distractors that are really wrong', () => {
     // The multiple-choice form of a generator. A distractor that is silently
     // equal to the answer makes a question with two right answers, and only the

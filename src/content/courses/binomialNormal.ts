@@ -15,7 +15,12 @@
  * N(np, np(1 - p)), the continuity correction, and the whole route to a
  * probability. Level 5 combines independent normals: aX + b, X + Y and
  * X - Y, aX + bY in general, a total of n copies against one copy times n,
- * and a probability from the combination, P(X > Y) among them.
+ * and a probability from the combination, P(X > Y) among them. Level 6 is
+ * the distribution of the sample mean: a total divided by n, Xbar ~ N(mu,
+ * sigma^2 / n) with standard deviation sigma / sqrt(n), how that spread
+ * shrinks with n, a probability for a sample mean, and working back to a
+ * value or to the smallest n. Hypothesis Testing level 2 quotes the result
+ * and tests with it; this level derives it and stops at the probability.
  *
  * nCr belongs to Binomial Expansion (`be-l2-ncr`) and is pointed at, not
  * taught again. Independence belongs to the Probability course
@@ -27,7 +32,7 @@
  * slides, one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
-import { barsSvg, normalSvg } from '../generators/binomialNormal';
+import { barsSvg, normalSvg, sampleMeanSvg } from '../generators/binomialNormal';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -53,6 +58,9 @@ const bars = (n: number, p: number, opts: Parameters<typeof barsSvg>[2]): Block 
 /** A two-column table, stacked so it never runs off a phone. */
 const table = (head: [string, string], rows: [string, string][]): Block =>
   maths(`\\begin{array}{c|c} ${head[0]} & ${head[1]} \\\\ \\hline ${rows.map(([a, b]) => `${a} & ${b}`).join(' \\\\ ')} \\end{array}`);
+
+/** One value of X dashed, and the mean of each sample size in `ns` over it. */
+const means = (mu: number, sigma: number, ns: number[], label: string): Block => ({ kind: 'diagram', svg: sampleMeanSvg(mu, sigma, ns, label) });
 
 const curve = (shade: [number, number] | undefined, verticals: number[], label: string): Block => ({
   kind: 'diagram',
@@ -908,6 +916,177 @@ export const binomialNormal: Course = {
         ask('dist-combo-prob', 2),
         ask('dist-bigger-prob', 2),
         ask('dist-diff-route-tree', 2),
+      ],
+    },
+    {
+      id: 'bn-l6',
+      title: 'The Distribution of the Sample Mean',
+      lessons: [
+        {
+          id: 'bn-l6-total',
+          title: 'A Total Divided by n',
+          slides: [
+            teach(
+              prose('Take a random sample of $n$ values of $X \\sim N(\\mu, \\sigma^2)$ and average them. The mean is the total over $n$:'),
+              maths('\\bar{X} = \\frac{X_1 + X_2 + \\dots + X_n}{n} = \\frac{T}{n}'),
+              prose('Level 5 gave the total: $\\mathrm{E}(T) = n\\mu$ and $\\mathrm{Var}(T) = n\\sigma^2$. Dividing by $n$ is $aT$ with $a = \\frac{1}{n}$, so the mean is divided by $n$ and the variance by $n^2$:'),
+              working('\\mathrm{E}(\\bar{X}) &= \\frac{n\\mu}{n} = \\mu', '\\mathrm{Var}(\\bar{X}) &= \\frac{n\\sigma^2}{n^2} = \\frac{\\sigma^2}{n}'),
+            ),
+            ask('dist-mean-moment'),
+            ask('dist-mean-from-total-tree'),
+            ask('dist-mean-table'),
+            teach(
+              prose('Bags of flour are $X \\sim N(1000, 100)$ in grams. A sample of $4$ bags has total $T \\sim N(4000, 400)$, so'),
+              working('\\mathrm{E}(\\bar{X}) &= \\frac{4000}{4} = 1000', '\\mathrm{Var}(\\bar{X}) &= \\frac{400}{4^2} = 25'),
+              prose('The mean of four bags has the same mean as one bag, and a quarter of the variance: $\\frac{100}{4} = 25$.'),
+            ),
+            ask('dist-mean-scale-flow'),
+            ask('dist-mean-moment+choice', 2),
+            ask('dist-mean-from-total-tree', 2),
+            teach(
+              prose('Why $n^2$ and not $n$? Dividing every value by $n$ shrinks every distance from the mean by $n$, and a variance is a squared distance. So the total\'s $n\\sigma^2$ is divided by $n^2$, which leaves $\\frac{\\sigma^2}{n}$.'),
+            ),
+            ask('dist-mean-table', 2),
+            ask('dist-mean-scale-flow', 2),
+          ],
+          skillCheck: [ask('dist-mean-moment', 2), ask('dist-mean-from-total-tree', 2), ask('dist-mean-scale-flow', 2)],
+        },
+        {
+          id: 'bn-l6-normal',
+          title: 'N(μ, σ²/n) and σ/√n',
+          slides: [
+            teach(
+              prose('A mean of independent normals is normal too, so'),
+              maths('\\bar{X} \\sim N\\left(\\mu, \\frac{\\sigma^2}{n}\\right)'),
+              prose('Its standard deviation is the square root of that variance:'),
+              maths('\\sigma_{\\bar{X}} = \\frac{\\sigma}{\\sqrt{n}}'),
+              prose('Hypothesis Testing level 2 quotes this result in its lesson The Sample Mean; this is where it comes from.'),
+            ),
+            ask('dist-xbar-normal'),
+            ask('dist-xbar-build'),
+            ask('dist-xbar-sd'),
+            teach(
+              prose('$X \\sim N(50, 36)$ and $n = 9$:'),
+              working('\\mathrm{Var}(\\bar{X}) &= \\frac{36}{9} = 4', '\\sigma_{\\bar{X}} &= \\frac{6}{\\sqrt{9}} = 2'),
+              prose('So $\\bar{X} \\sim N(50, 4)$. The bracket holds the variance, $4$, not the standard deviation, $2$.'),
+            ),
+            ask('dist-xbar-slip-flow'),
+            ask('dist-xbar-sd+choice', 2),
+            ask('dist-xbar-normal', 2),
+            teach(
+              prose('The usual slip is $\\frac{\\sigma}{n}$. That divides the standard deviation by $n$, which is the variance divided by $n^2$: one step too far. It is $\\frac{\\sigma}{\\sqrt{n}}$.'),
+              prose('Working back, $\\sigma = \\sigma_{\\bar{X}} \\sqrt{n}$: one value spreads $\\sqrt{n}$ times as far as the mean of $n$.'),
+            ),
+            ask('dist-xbar-build', 2),
+            ask('dist-xbar-slip-flow', 2),
+          ],
+          skillCheck: [ask('dist-xbar-normal', 2), ask('dist-xbar-build', 2), ask('dist-xbar-sd', 2)],
+        },
+        {
+          id: 'bn-l6-spread',
+          title: 'How the Spread Shrinks',
+          slides: [
+            teach(
+              prose('$\\sigma_{\\bar{X}} = \\frac{\\sigma}{\\sqrt{n}}$ falls as the sample grows, but with $\\sqrt{n}$, not with $n$. For $\\sigma = 12$:'),
+              table(['n', '\\sigma_{\\bar{X}}'], [['1', '12'], ['4', '6'], ['16', '3'], ['36', '2']]),
+              means(100, 12, [4, 16], 'One value of X dashed, with the narrower, taller curves of the mean for samples of 4 and 16'),
+              prose('The dashed curve is one value of $X$. The mean of $4$ and the mean of $16$ share its centre and are ever narrower.'),
+            ),
+            ask('dist-shrink-table'),
+            ask('dist-shrink-factor'),
+            ask('dist-shrink-n'),
+            teach(
+              prose('Four times the sample halves the spread, since $\\sqrt{4n} = 2\\sqrt{n}$. Nine times the sample cuts it to a third.'),
+              prose('To divide $\\sigma_{\\bar{X}}$ by $k$, multiply $n$ by $k^2$. Doubling $n$ divides it by only $\\sqrt{2}$.'),
+            ),
+            ask('dist-shrink-flow'),
+            ask('dist-shrink-n+choice', 2),
+            ask('dist-shrink-factor', 2),
+            teach(
+              prose('The $n$ a target needs: $\\sigma = 10$, and $\\sigma_{\\bar{X}}$ is to be at most $3$.'),
+              working('\\frac{10}{\\sqrt{n}} &\\le 3', '\\sqrt{n} &\\ge \\frac{10}{3}', 'n &\\ge \\frac{100}{9} = 11.1\\ldots'),
+              prose('A sample size is whole, so the smallest is $12$. Round up, never to the nearest.'),
+            ),
+            ask('dist-shrink-table', 2),
+            ask('dist-shrink-flow', 2),
+          ],
+          skillCheck: [ask('dist-shrink-factor', 2), ask('dist-shrink-n', 2), ask('dist-shrink-flow', 2)],
+        },
+        {
+          id: 'bn-l6-probability',
+          title: 'A Probability for a Mean',
+          slides: [
+            teach(
+              prose('A probability for $\\bar{X}$ is found as in level 2, standardising with $\\sigma_{\\bar{X}}$ in place of $\\sigma$:'),
+              maths('z = \\frac{\\bar{x} - \\mu}{\\sigma / \\sqrt{n}}'),
+              prose('$X \\sim N(50, 36)$ and $n = 9$, so $\\sigma_{\\bar{X}} = 2$. With $\\Phi(1.5) = 0.9332$:'),
+              working('z &= \\frac{53 - 50}{2} = 1.5', 'P(\\bar{X} > 53) &= 1 - 0.9332', '&= 0.0668'),
+            ),
+            ask('dist-xbar-prob'),
+            ask('dist-xbar-route-tree'),
+            ask('dist-xbar-standardise'),
+            teach(
+              prose('One value against the mean of nine, at the same $53$. For one value $z = \\frac{3}{6} = 0.5$, and with $\\Phi(0.5) = 0.6915$:'),
+              working('P(X > 53) &= 1 - 0.6915', '&= 0.3085'),
+              means(50, 6, [9], 'One value of X dashed, with the much narrower curve of the mean of 9'),
+              prose('A single value strays that far about a third of the time; the mean of nine, about once in fifteen.'),
+            ),
+            ask('dist-one-vs-mean'),
+            ask('dist-xbar-prob+choice', 2),
+            ask('dist-xbar-route-tree', 2),
+            teach(
+              prose('Check which spread went in. Standardising with $\\sigma$ rather than $\\frac{\\sigma}{\\sqrt{n}}$ gives the answer for one value, not for the mean, and it is always nearer a half.'),
+            ),
+            ask('dist-xbar-standardise', 2),
+            ask('dist-one-vs-mean', 2),
+          ],
+          skillCheck: [ask('dist-xbar-prob', 2), ask('dist-xbar-route-tree', 2), ask('dist-one-vs-mean', 2)],
+        },
+        {
+          id: 'bn-l6-back',
+          title: 'Working Back from a Mean',
+          slides: [
+            teach(
+              prose('Working back is level 2\'s percentage points with $\\sigma_{\\bar{X}}$. $\\bar{X} \\sim N(50, 4)$, so $\\sigma_{\\bar{X}} = 2$.'),
+              prose('For $P(\\bar{X} > k) = 0.05$, $k$ sits $1.645$ standard deviations above the mean:'),
+              working('k &= 50 + 1.645 \\times 2', '&= 53.29'),
+            ),
+            ask('dist-xbar-critical'),
+            ask('dist-xbar-cutoff-tree'),
+            ask('dist-min-n'),
+            teach(
+              prose('How big a sample puts $\\bar{X}$ within $d$ of $\\mu$ with probability $0.95$? Each tail holds $0.025$, so $d$ must be at least $1.96$ standard deviations of $\\bar{X}$:'),
+              working('\\frac{d}{\\sigma / \\sqrt{n}} &\\ge 1.96', '\\sqrt{n} &\\ge \\frac{1.96\\,\\sigma}{d}'),
+              prose('Square it, then round up to a whole $n$.'),
+            ),
+            ask('dist-min-n-flow'),
+            ask('dist-xbar-critical+choice', 2),
+            ask('dist-xbar-cutoff-tree', 2),
+            teach(
+              prose('This level stops at the value and the sample size. Hypothesis Testing level 2, The z Statistic, standardises a sample mean in just this way to test a claimed $\\mu$. Discrete random variables in general are the next level here.'),
+            ),
+            ask('dist-min-n', 2),
+            ask('dist-min-n-flow', 2),
+          ],
+          skillCheck: [ask('dist-xbar-critical', 2), ask('dist-min-n', 2), ask('dist-min-n-flow', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('dist-mean-moment', 2),
+        ask('dist-mean-from-total-tree', 2),
+        ask('dist-mean-scale-flow', 2),
+        ask('dist-xbar-normal', 2),
+        ask('dist-xbar-build', 2),
+        ask('dist-xbar-sd', 2),
+        ask('dist-shrink-factor', 2),
+        ask('dist-shrink-n', 2),
+        ask('dist-shrink-flow', 2),
+        ask('dist-xbar-prob', 2),
+        ask('dist-xbar-route-tree', 2),
+        ask('dist-one-vs-mean', 2),
+        ask('dist-xbar-critical', 2),
+        ask('dist-xbar-cutoff-tree', 2),
+        ask('dist-min-n', 2),
       ],
     },
   ],

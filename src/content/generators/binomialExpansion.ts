@@ -16,11 +16,14 @@
  * a surd in them into a + b√k, alone, in conjugate pairs and with a number.
  * Level 6 lets n be negative or a fraction: the series that never ends, its
  * coefficients, the range |x| < 1 it holds for, and (a + bx)^n with a^n
- * taken out.
+ * taken out. Level 7 makes estimates with the series: roots, reciprocals, a
+ * number taken out first, the size of the error and which x to use, and the
+ * series of a partial-fraction split.
  *
  * Up to level 5 every n is a whole number of at most 8 in an expansion (nCr
- * on its own goes to 12); level 6 keeps its coefficients as exact fractions.
- * Every coefficient, bank and option is exact.
+ * on its own goes to 12); levels 6 and 7 keep their coefficients as exact
+ * fractions, and level 7's decimals are written from them exactly. Every
+ * coefficient, bank and option is exact.
  *
  * Expansions are asked through tiles or one coefficient at a time, never as a
  * typed expansion: the checker compares values, so a typed `(1 + x)^4` would
@@ -7274,6 +7277,1266 @@ const frontRange: Generator<FrontSeriesParams> = {
   },
 };
 
+/*
+ * Level 7 turns the series into numbers: a root such as √1.02 from
+ * (1 + x)^{1/2} at x = 0.02, a reciprocal such as 1/0.98² from (1 - x)^{-2},
+ * a number taken out first so that √4.08 is 2(1 + 0.02)^{1/2}, how many
+ * places an estimate can be trusted to and which x to choose, and the series
+ * of a partial-fraction split. The split itself belongs to Algebraic &
+ * Partial Fractions (`af-l2-two`) and is given here.
+ *
+ * Every estimate is the sum of the terms kept, never the true power, and it
+ * is exact: x is a hundredth, every coefficient comes from seriesCoef or
+ * termCoef as a Frac, and n is chosen so the terms end as decimals (a third
+ * only with x a multiple of 0.03). They are written by qDec, which works in
+ * whole numbers and never goes through a float. Only √k from a known root
+ * does not end, since its front is 10/m; that one is rounded by qRound, to
+ * the places its error allows, and only where the estimate and the true root
+ * round the same way and sit well clear of a rounding boundary.
+ *
+ * Nothing here is calculus, so no slide declares `source` or `integrand`:
+ * binomialExpansion.test.ts reads each bracket, n and x back off the slide
+ * and checks the estimate against the terms it sums itself and against
+ * mathjs.
+ */
+
+/** Whether p/q ends as a decimal: its bottom has no prime factor but 2 and 5. */
+function ends([, q]: Frac): boolean {
+  let m = q;
+  while (m % 2 === 0) m /= 2;
+  while (m % 5 === 0) m /= 5;
+  return m === 1;
+}
+
+/** A whole number of units in the last of `places` decimal places, written out: 105 at 4 places is 0.0105. */
+function pointed(units: bigint, places: number, trim: boolean): string {
+  const negative = units < 0n;
+  const digits = (negative ? -units : units).toString().padStart(places + 1, '0');
+  const whole = digits.slice(0, digits.length - places);
+  let part = digits.slice(digits.length - places);
+  if (trim) part = part.replace(/0+$/, '');
+  const body = part === '' ? whole : `${whole}.${part}`;
+  return negative ? `-${body}` : body;
+}
+
+/** A fraction that ends as a decimal, written in full: 1/2000000 is 0.0000005, never 5e-7. */
+function qDec(x: Frac): string {
+  if (!ends(x)) throw new Error(`${x[0]}/${x[1]} does not end as a decimal`);
+  let places = 0;
+  while (10n ** BigInt(places) % BigInt(x[1]) !== 0n) places += 1;
+  return pointed((BigInt(x[0]) * 10n ** BigInt(places)) / BigInt(x[1]), places, true);
+}
+
+/** x rounded to k decimal places, a half away from 0, every place written: 1.41421. */
+function qRound(x: Frac, k: number): string {
+  const top = BigInt(Math.abs(x[0])) * 10n ** BigInt(k);
+  const bottom = BigInt(x[1]);
+  const units = top / bottom + (2n * (top % bottom) >= bottom ? 1n : 0n);
+  return pointed(x[0] < 0 ? -units : units, k, false);
+}
+
+/** How far x sits from a rounding boundary at k places, in units of the k-th place: 0.5 is as clear as it gets. */
+function clearance(x: Frac, k: number): number {
+  const top = BigInt(Math.abs(x[0])) * 10n ** BigInt(k);
+  return Math.abs(Number(top % BigInt(x[1])) / x[1] - 0.5);
+}
+
+/** The number of decimal places qDec writes. */
+function placesOf(x: Frac): number {
+  const written = qDec(x);
+  return written.includes('.') ? written.length - written.indexOf('.') - 1 : 0;
+}
+
+/** x in hundredths, as a fraction: 3 is 0.03. */
+function hundredths(d: number): Frac {
+  return reduced(d, 100);
+}
+
+/** A decimal in a line of working: bracketed when negative. */
+function decFactor(x: Frac): string {
+  return x[0] < 0 ? `(${qDec(x)})` : qDec(x);
+}
+
+/** A value to add on in a line of working: `+ 0.01` or `- 0.00005`. */
+function decSigned(x: Frac): string {
+  return x[0] < 0 ? `- ${qDec(qNeg(x))}` : `+ ${qDec(x)}`;
+}
+
+function qSum(values: Frac[]): Frac {
+  return values.reduce(qAdd, [0, 1]);
+}
+
+interface EstimateParams {
+  /** The number estimated is front × (1 + bx)^n at this x. */
+  n: Frac;
+  b: number;
+  x: Frac;
+  front: Frac;
+}
+
+/** 1 + bx at the x put in: the number being raised to the power. */
+function baseAt({ b, x }: Pick<EstimateParams, 'b' | 'x'>): Frac {
+  return qAdd(ONE, qMul([b, 1], x));
+}
+
+/** The terms kept, each exact: 1, then the x term, then the x^2 term. */
+function keptTerms({ n, b, x }: EstimateParams, count = 3): Frac[] {
+  return Array.from({ length: count }, (_, r) => qMul(termCoef(n, [b, 1], r), qPow(x, r)));
+}
+
+/** The estimate: the terms kept, added, times the number in front. */
+function keptSum(params: EstimateParams, count = 3): Frac {
+  return qMul(params.front, qSum(keptTerms(params, count)));
+}
+
+/** The first term left out, front and all: about what the estimate is out by. */
+function leftOut(params: EstimateParams, count = 3): Frac {
+  return qMul(params.front, qMul(termCoef(params.n, [params.b, 1], count), qPow(params.x, count)));
+}
+
+/** What is being estimated, as a float. Only ever used to choose questions, never to write an answer. */
+function trueOf({ n, b, x, front }: EstimateParams): number {
+  return qValue(front) * (1 + b * qValue(x)) ** qValue(n);
+}
+
+/** base^n as the learner reads it: a root, one over a power, or a root of a power. */
+function rootPowerTex(base: string, n: Frac): string {
+  const [p, q] = n;
+  const inner = Math.abs(p) === 1 ? base : `${base}^{${Math.abs(p)}}`;
+  const root = q === 1 ? inner : q === 2 ? `\\sqrt{${inner}}` : `\\sqrt[${q}]{${inner}}`;
+  return p < 0 ? `\\frac{1}{${root}}` : root;
+}
+
+/** The number being estimated: 1 + bx at the x put in, raised to n. */
+function targetOf(params: EstimateParams): string {
+  return rootPowerTex(qDec(baseAt(params)), params.n);
+}
+
+/** A number in front, left off when it is 1. */
+function frontTex(front: Frac): string {
+  return qSame(front, ONE) ? '' : qTex(front);
+}
+
+/** target = front(1 + bx)^n, the relation every estimate is read from. */
+function relationTex(params: EstimateParams, target: string): string {
+  return `${target} = ${frontTex(params.front)}${seriesTex(1, [params.b, 1], params.n)}`;
+}
+
+/** The first three terms of (1 + bx)^n, as the learner reads them. */
+function threeTex({ n, b }: Pick<EstimateParams, 'n' | 'b'>): string {
+  return sumTex(['1', qTermTex(termCoef(n, [b, 1], 1), 1), qTermTex(termCoef(n, [b, 1], 2), 2)]);
+}
+
+/** The three terms written out, then x put into each and the results added. */
+function estimateWorking(params: EstimateParams, target: string, places?: number): SolutionStep[] {
+  const { n, b, x, front } = params;
+  const [, t1, t2] = keptTerms(params);
+  const sum = qSum([ONE, t1, t2]);
+  const inX = decFactor(x);
+  const steps: SolutionStep[] = [
+    { text: `$${relationTex(params, target)}$, with $x = ${qDec(x)}$. The first three terms of the series are` },
+    { tex: `${seriesTex(1, [b, 1], n)} = ${threeTex(params)} + \\dots` },
+    { tex: `${qFactor(termCoef(n, [b, 1], 1))} \\times ${inX} = ${qDec(t1)}` },
+    { tex: `${qFactor(termCoef(n, [b, 1], 2))} \\times ${inX}^{2} = ${qDec(t2)}` },
+    { tex: `1 ${decSigned(t1)} ${decSigned(t2)} = ${qDec(sum)}` },
+  ];
+  if (qSame(front, ONE)) return steps;
+  const estimate = qMul(front, sum);
+  if (places === undefined) return [...steps, { tex: `${qTex(front)} \\times ${qDec(sum)} = ${qDec(estimate)}` }];
+  return [
+    ...steps,
+    { tex: `${qTex(front)} \\times ${qDec(sum)} = ${ends(estimate) ? qDec(estimate) : `${qRound(estimate, places + 2)}\\dots`}` },
+    { text: `To $${places}$ decimal places that is $${qRound(estimate, places)}$.` },
+  ];
+}
+
+/** Four decimal options, the slips first, then a unit either side in the last place. */
+function decimalChoices(right: Frac, slips: Frac[], salt: number, places?: number): ChoiceOption[] {
+  const write = (value: Frac) => (places === undefined ? qDec(value) : qRound(value, places));
+  const unit: Frac = [1, 10 ** (places ?? placesOf(right))];
+  const near = [unit, qNeg(unit), qMul(unit, [2, 1])].map((step) => qAdd(right, step));
+  const option = (value: Frac): ChoiceOption => ({ tex: write(value), answer: write(value) });
+  return aimed(option(right), [...slips, ...near].map(option), salt);
+}
+
+/** The usual slips in a three-term estimate: two terms only, the x^2 term's sign turned, its r! left out, the x term's sign turned. */
+function estimateSlips(params: EstimateParams): Frac[] {
+  const [, t1, t2] = keptTerms(params);
+  return [
+    qSum([ONE, t1]),
+    qSum([ONE, t1, qNeg(t2)]),
+    qSum([ONE, t1, t2, t2]),
+    qSum([ONE, qNeg(t1), t2]),
+  ].map((sum) => qMul(params.front, sum));
+}
+
+function estimateSalt({ n, b, x, front }: EstimateParams): number {
+  return spread(n[0], n[1], b, x[0], x[1], front[0], front[1]);
+}
+
+/**
+ * A three-term estimate, typed as the decimal it comes to. The choice form
+ * offers two terms only, the x^2 term's sign turned or its r! left out, and
+ * a unit either side in the last place.
+ */
+function estimateGenerator<P extends EstimateParams>(
+  id: string,
+  sample: (rng: Rng, difficulty: number) => P,
+  target: (params: P) => string,
+  lead: (params: P) => string,
+): Generator<P> {
+  return {
+    id,
+    sample,
+    choices: (params) => decimalChoices(keptSum(params), estimateSlips(params), estimateSalt(params)),
+    render: (params): Slide => ({
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: lead(params) },
+        { kind: 'display', tex: relationTex(params, target(params)) },
+        { kind: 'prose', text: `with $x = ${qDec(params.x)}$. Use the first three terms of the series to estimate $${target(params)}$.` },
+      ],
+      lead: '\\text{estimate} =',
+      keypad: [],
+      answer: qDec(keptSum(params)),
+      domain: 'real',
+      mode: 'exact',
+    }),
+    solution: (params) => estimateWorking(params, target(params)),
+  };
+}
+
+/** A bank of decimals: the answer, repeats kept, then up to four slips, topped up with the answer's tenfold. */
+function decimalBank(answer: Frac[], slips: Frac[]): string[] {
+  const extras = freshFracs(slips.filter(ends), answer).slice(0, 4);
+  const last = answer[answer.length - 1];
+  for (let step = 10; extras.length < 2; step *= 10) extras.push(...freshFracs([qMul(last, [step, 1])], [...answer, ...extras]));
+  return [...answer, ...extras].sort((p, q) => qValue(p) - qValue(q)).map(qDec);
+}
+
+/**
+ * The x term and the x^2 term at the x given, then the estimate. The slips
+ * are each term's sign turned, x left unsquared, the r! left out, and the
+ * estimate with two terms only.
+ */
+function termsTree(id: string, sample: (rng: Rng, difficulty: number) => EstimateParams): Generator<EstimateParams> {
+  return {
+    id,
+    sample,
+    render: (params): Slide => {
+      const [, t1, t2] = keptTerms(params);
+      const sum = qSum([ONE, t1, t2]);
+      const c2 = termCoef(params.n, [params.b, 1], 2);
+      const answer = [t1, t2, sum];
+      const slips = [qNeg(t2), qNeg(t1), qMul(c2, params.x), qAdd(t2, t2), qAdd(ONE, t1), qSum([ONE, t1, qNeg(t2)])];
+      return {
+        kind: 'tree',
+        prompt: [
+          {
+            kind: 'prose',
+            text: `Estimate $${targetOf(params)}$ from $${threeTex(params)}$, the first three terms of this series, at $x = ${qDec(params.x)}$. Top row: the $x$ term and the $x^2$ term. Then the estimate.`,
+          },
+        ],
+        expression: seriesTex(1, [params.b, 1], params.n),
+        nodes: [
+          { id: 'x', from: [] },
+          { id: 'x2', from: [] },
+          { id: 'estimate', from: ['x', 'x2'] },
+        ],
+        bank: decimalBank(answer, slips),
+        answer: answer.map(qDec),
+      };
+    },
+    solution: (params) => estimateWorking(params, targetOf(params)),
+  };
+}
+
+/* --- a root from the series --- */
+
+const ROOT_N_EASY: Frac[] = [
+  [1, 2],
+  [1, 4],
+  [-1, 2],
+];
+const ROOT_N_HARD: Frac[] = [
+  [1, 2],
+  [1, 3],
+  [1, 4],
+  [-1, 2],
+  [-1, 3],
+  [2, 3],
+  [-1, 4],
+  [3, 2],
+  [-3, 2],
+];
+
+/** x in hundredths, 1 to `top` in size, a multiple of 0.03 when n is a third so every term ends. */
+function sampleX(rng: Rng, n: Frac, top: number, signed: boolean): Frac {
+  const step = n[1] === 3 ? 3 : 1;
+  const d = step * rng.int(1, Math.floor(top / step));
+  return hundredths(signed && rng.chance(0.5) ? -d : d);
+}
+
+/** A root of a number near 1: x above 1 only at difficulty 1, either side and more roots at 2. */
+function sampleRoot(rng: Rng, difficulty: number, signed = difficulty > 1): EstimateParams {
+  const n = rng.pick(difficulty > 1 ? ROOT_N_HARD : ROOT_N_EASY);
+  return { n, b: 1, x: sampleX(rng, n, 12, signed), front: ONE };
+}
+
+/**
+ * Which n and x turn the root into the series. The slips are n upside down,
+ * the whole number put in for x, x a place out, and a sign turned.
+ */
+const rootSetup: Generator<EstimateParams> = {
+  id: 'bin-root-setup',
+  sample: (rng, difficulty) => sampleRoot(rng, difficulty),
+  render: (params): Slide => {
+    const { n, x } = params;
+    const label = (m: Frac, value: Frac) => `n = ${qTex(m)}, \\enspace x = ${qDec(value)}`;
+    const labels = firstDistinct([
+      label(n, x),
+      label([n[1], n[0]], x),
+      label(n, baseAt(params)),
+      label(n, qMul(x, [10, 1])),
+      label(qNeg(n), x),
+      label(n, qNeg(x)),
+    ]);
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: `To estimate $${targetOf(params)}$ as $(1 + x)^n$ from its series, which $n$ and $x$?` }],
+      ...nativeChoice(labels, saltOf(...labels)),
+    };
+  },
+  solution: (params) => [
+    { text: `A root is a fractional power, and one over it a negative power, as in Exponents & Radicals:` },
+    { tex: `${targetOf(params)} = (${qDec(baseAt(params))})^{${nPow(params.n)}}` },
+    { text: `$${qDec(baseAt(params))} = 1 ${decSigned(params.x)}$, so it is $(1 + x)^{${nPow(params.n)}}$ with $x = ${qDec(params.x)}$, well inside $|x| < 1$.` },
+  ],
+};
+
+const rootEstimate = estimateGenerator(
+  'bin-root-estimate',
+  (rng, difficulty) => sampleRoot(rng, difficulty),
+  targetOf,
+  () => 'Write the root as a power of $1 + x$:',
+);
+
+const rootTermsTree = termsTree('bin-root-terms-tree', (rng, difficulty) => sampleRoot(rng, difficulty));
+
+/**
+ * x put into the three terms and worked a step at a time: x^2, the two
+ * products, then the two sums. x is above 1 so each term keeps the sign of
+ * its coefficient. The slips are a place out either way and doubled.
+ */
+const rootSubstituteSteps: Generator<EstimateParams> = {
+  id: 'bin-root-substitute-steps',
+  sample: (rng, difficulty) => sampleRoot(rng, difficulty, false),
+  render: (params): Slide => {
+    const { n, x } = params;
+    const c1 = termCoef(n, ONE, 1);
+    const c2 = termCoef(n, ONE, 2);
+    const [, t1, t2] = keptTerms(params);
+    const sign = (c: Frac) => (c[0] < 0 ? '-' : '+');
+    const start = ['1', sign(c1), qTex(qAbs(c1)), '\\times', qDec(x), sign(c2), qTex(qAbs(c2)), '\\times', `${qDec(x)}^{2}`];
+    const bank = (right: Frac, ...wrong: Frac[]) => decimalBank([right], [...wrong, qMul(right, [10, 1]), qMul(right, [1, 10]), qMul(right, [2, 1])]);
+    const x2 = qPow(x, 2);
+    const first = qAdd(ONE, t1);
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Estimate $${targetOf(params)}$ from the first three terms of $(1 + x)^{${nPow(n)}}$ at $x = ${qDec(x)}$. Tap the step to do next, then choose what it gives.`,
+        },
+      ],
+      start,
+      reductions: [
+        { span: [8, 9], value: qDec(x2), bank: bank(x2, qMul(x, [2, 1])) },
+        { span: [6, 9], operator: 7, value: qDec(qAbs(t2)), bank: bank(qAbs(t2), qMul(qAbs(c2), x)) },
+        { span: [2, 5], operator: 3, value: qDec(qAbs(t1)), bank: bank(qAbs(t1)) },
+        { span: [0, 3], operator: 1, value: qDec(first), bank: bank(first, qAdd(ONE, qNeg(t1))) },
+        { span: [0, 3], operator: 1, value: qDec(qAdd(first, t2)), bank: bank(qAdd(first, t2), qAdd(first, qNeg(t2))) },
+      ],
+    };
+  },
+  solution: (params) => estimateWorking(params, targetOf(params)),
+};
+
+/* --- reciprocals --- */
+
+/** One over a power of a number near 1, as (1 + bx)^n with n negative and x above 1. */
+function sampleReciprocal(rng: Rng, difficulty: number): EstimateParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const n: Frac = rng.pick(
+      hard
+        ? ([
+            [-1, 1],
+            [-2, 1],
+            [-3, 1],
+            [-1, 2],
+          ] as Frac[])
+        : ([
+            [-1, 1],
+            [-2, 1],
+          ] as Frac[]),
+    );
+    const b = rng.sign() * rng.int(1, hard ? 4 : 2);
+    const d = rng.int(1, 5);
+    if (Math.abs(b * d) <= (hard ? 16 : 10)) return { n, b, x: hundredths(d), front: ONE };
+  }
+}
+
+interface RewriteParams {
+  n: Frac;
+  b: Frac;
+  /** The number on top. */
+  k: number;
+}
+
+/** (1 + bx)^n, a power of 1 written as the bare bracket. */
+function bracketPow(b: Frac, n: Frac): string {
+  return qSame(n, ONE) ? `(${insideOf(1, b)})` : seriesTex(1, b, n);
+}
+
+/** k over (1 + bx)^p, or over a root of it, for a negative n. */
+function reciprocalTex({ n, b, k }: RewriteParams): string {
+  const inside = insideOf(1, b);
+  const p = -n[0];
+  const power = p === 1 ? inside : `(${inside})^{${p}}`;
+  const bottom = n[1] === 1 ? power : n[1] === 2 ? `\\sqrt{${power}}` : `\\sqrt[${n[1]}]{${power}}`;
+  return `\\frac{${k}}{${bottom}}`;
+}
+
+/**
+ * One over a bracket written as one power. The slips are the power's sign
+ * left positive, the bracket's sign turned, n upside down, and the number on
+ * top put underneath.
+ */
+const reciprocalRewrite: Generator<RewriteParams> = {
+  id: 'bin-reciprocal-rewrite',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const ns: Frac[] = hard
+      ? [
+          [-1, 1],
+          [-2, 1],
+          [-3, 1],
+          [-1, 2],
+          [-1, 3],
+          [-3, 2],
+        ]
+      : [
+          [-1, 1],
+          [-2, 1],
+          [-3, 1],
+          [-1, 2],
+        ];
+    return { n: rng.pick(ns), b: wholeB(rng, 1, hard ? 6 : 5), k: hard ? rng.int(1, 4) : 1 };
+  },
+  render: (params): Slide => {
+    const { n, b, k } = params;
+    const top = k === 1 ? '' : `${k}`;
+    const labels = firstDistinct([
+      `${top}${bracketPow(b, n)}`,
+      `${top}${bracketPow(b, qNeg(n))}`,
+      `${top}${bracketPow(qNeg(b), n)}`,
+      `${top}${bracketPow(b, [n[1] * Math.sign(n[0]), Math.abs(n[0])])}`,
+      ...(k === 1 ? [] : [`\\frac{1}{${k}}${bracketPow(b, n)}`]),
+      `${top}${bracketPow(qNeg(b), qNeg(n))}`,
+    ]);
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: `Write $${reciprocalTex(params)}$ as one power, ready for the series.` }],
+      ...nativeChoice(labels, saltOf(...labels)),
+    };
+  },
+  solution: ({ n, b, k }) => [
+    { text: `One over a power is the negative power, and a root is a fractional one, so the bracket moves to the top with the sign of its power turned:` },
+    { tex: `${reciprocalTex({ n, b, k })} = ${k === 1 ? '' : k}${bracketPow(b, n)}` },
+    { text: 'Nothing inside the bracket changes.' },
+  ],
+};
+
+/** The first three terms of (1 + bx)^n, with its coefficients given. */
+function threeOf(c1: Frac, c2: Frac): string {
+  return sumTex(['1', qTermTex(c1, 1), qTermTex(c2, 2)]);
+}
+
+/**
+ * The estimate set up a fork at a time: the power, the x, and the three
+ * terms. The wrong turns are the power's sign, bx for x or the sign of x,
+ * and the terms with a sign or the r! slipped.
+ */
+const reciprocalFlow: Generator<EstimateParams> = {
+  id: 'bin-reciprocal-flow',
+  sample: sampleReciprocal,
+  render: (params): Slide => {
+    const { n, b, x } = params;
+    const base = qDec(baseAt(params));
+    const target = targetOf(params);
+    const salt = estimateSalt(params);
+    const c1 = termCoef(n, [b, 1], 1);
+    const c2 = termCoef(n, [b, 1], 2);
+    const bx = qMul([b, 1], x);
+    const right = threeOf(c1, c2);
+    const powers = [
+      { label: `$${base}^{${nPow(n)}}$`, to: 'x' },
+      { label: qSame(n, [-1, 1]) ? `$${base}$` : `$${base}^{${nPow(qNeg(n))}}$`, outcome: `That is $${base}$ to a positive power; one over it takes the power's sign away.` },
+      {
+        label: `$${base}^{${nPow([n[1] * Math.sign(n[0]), Math.abs(n[0])])}}$`,
+        outcome: 'Turn only the sign of the power. The power upside down belongs to a root.',
+      },
+    ].filter((branch, i, all) => all.findIndex((other) => other.label === branch.label) === i);
+    const xs = [
+      { label: `$${qDec(x)}$`, to: 'terms' },
+      ...(Math.abs(b) === 1 ? [] : [{ label: `$${qDec(bx)}$`, outcome: `That is $${bxTex([b, 1])}$. Divide by $${b}$ to get $x$.` }]),
+      { label: `$${qDec(qNeg(x))}$`, outcome: `Check the sign: $${insideOf(1, [b, 1])}$ with that $x$ is not $${base}$.` },
+      { label: `$${base}$`, outcome: 'That is the whole bracket. $x$ is only in the part added to the $1$.' },
+    ].filter((branch, i, all) => all.findIndex((other) => other.label === branch.label) === i);
+    const terms = [
+      { label: `$${right}$`, outcome: `Right: $${target} \\approx ${qDec(keptSum(params))}$.` },
+      { label: `$${threeOf(qNeg(c1), c2)}$`, outcome: `The $x$ term is $n$ times $${bxTex([b, 1])}$, and $n$ is negative.` },
+      { label: `$${threeOf(c1, qMul(c2, [2, 1]))}$`, outcome: 'The $x^2$ coefficient is divided by $2!$.' },
+      { label: `$${threeOf(c1, qMul(seriesCoef(n, 2), [b, 1]))}$`, outcome: `The number on $x$ is squared in the $x^2$ term.` },
+    ].filter((branch, i) => branch.label !== `$${right}$` || i === 0);
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `Estimate $${target}$ with the series of $${seriesTex(1, [b, 1], n)}$. Decide one step at a time.` }],
+      subject: target,
+      steps: [
+        { id: 'power', ask: `$${target}$ is which power of $${base}$?`, branches: turned(powers, salt) },
+        { id: 'x', ask: `So $${insideOf(1, [b, 1])} = ${base}$. What is $x$?`, branches: turned(xs, salt + 1) },
+        {
+          id: 'terms',
+          ask: `Which three terms start the series of $${seriesTex(1, [b, 1], n)}$?`,
+          branches: turned(
+            terms.filter((branch, i, all) => all.findIndex((other) => other.label === branch.label) === i),
+            salt + 2,
+          ),
+        },
+      ],
+      answer: [`$${base}^{${nPow(n)}}$`, `$${qDec(x)}$`, `$${right}$`],
+    };
+  },
+  solution: (params) => estimateWorking(params, targetOf(params)),
+};
+
+const reciprocalEstimate = estimateGenerator(
+  'bin-reciprocal-estimate',
+  sampleReciprocal,
+  targetOf,
+  () => 'Write one over the power as a negative power:',
+);
+
+const reciprocalTermsTree = termsTree('bin-reciprocal-terms-tree', sampleReciprocal);
+
+/* --- taking the number out first --- */
+
+interface OutFirstParams extends EstimateParams {
+  /** The number taken out: a square for a square root, a cube for a cube root. */
+  a: number;
+}
+
+function sampleOutFirst(rng: Rng, difficulty: number): OutFirstParams {
+  const hard = difficulty > 1;
+  const n: Frac = rng.pick(
+    hard
+      ? ([
+          [1, 2],
+          [1, 3],
+          [-1, 2],
+          [-1, 3],
+          [1, 4],
+        ] as Frac[])
+      : ([
+          [1, 2],
+          [1, 3],
+        ] as Frac[]),
+  );
+  // One over a root of 9 or 27 is a third, and a third times the estimate never ends.
+  const squares = n[0] < 0 ? [4, 16, 25] : [4, 9, 16, 25];
+  const a = n[1] === 2 ? rng.pick(squares) : n[1] === 3 ? (n[0] < 0 ? 8 : rng.pick([8, 27])) : 16;
+  return { n, b: 1, x: sampleX(rng, n, 9, hard), front: aPow(a, n), a };
+}
+
+/** The number whose root is asked: a(1 + x), 4.08 for a = 4 and x = 0.02. */
+function outFirstTarget(params: OutFirstParams): string {
+  return rootPowerTex(qDec(qMul([params.a, 1], baseAt(params))), params.n);
+}
+
+function outFirstWorking(params: OutFirstParams): SolutionStep[] {
+  const { a, n, x } = params;
+  const number = qDec(qMul([a, 1], baseAt(params)));
+  return [
+    { text: `Take $${a}$ out: $${number} = ${a} \\times ${qDec(baseAt(params))}$, and $${a}^{${nPow(n)}} = ${qTex(params.front)}$.` },
+    { tex: relationTex(params, outFirstTarget(params)) },
+    { text: `The bracket left is $(1 + x)^{${nPow(n)}}$ with $x = ${qDec(x)}$, far inside $|x| < 1$, so a few terms are plenty.` },
+  ];
+}
+
+/**
+ * The number out and the x left, placed. The slips are the number not
+ * rooted or upside down, x not divided by a, the whole number less 1 for x,
+ * and x's sign turned.
+ */
+const outFirstTiles: Generator<OutFirstParams> = {
+  id: 'bin-out-first-tiles',
+  sample: sampleOutFirst,
+  render: (params): Slide => {
+    const { a, n, x, front } = params;
+    const xToken = (value: Frac) => (value[0] < 0 ? `- ${qDec(qNeg(value))}` : `+ ${qDec(value)}`);
+    const answer = [qTex(front), xToken(x)];
+    const slips = [
+      `${a}`,
+      qTex([front[1], front[0]]),
+      xToken(qMul([a, 1], x)),
+      xToken(qAdd(qMul([a, 1], baseAt(params)), [-1, 1])),
+      xToken(qNeg(x)),
+    ];
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: `Take the $${a}$ out of the root, so the bracket left starts with $1$.` },
+        { kind: 'display', tex: `${outFirstTarget(params)} =` },
+      ],
+      template: `{0}(1 {1})^{${nPow(n)}}`,
+      bank: tileBank(answer, fewSlips(answer, slips)),
+      answer,
+    };
+  },
+  solution: outFirstWorking,
+};
+
+/**
+ * Which way of writing the root both equals it and has a bracket its series
+ * holds for. The wrong ones are the whole number less 1 as x, far outside
+ * the range, the number taken out unrooted, and x not divided by it.
+ */
+const outFirstWhich: Generator<OutFirstParams> = {
+  id: 'bin-out-first-which',
+  sample: sampleOutFirst,
+  render: (params): Slide => {
+    const { a, n, x, front } = params;
+    const written = (lead: string, value: Frac) => `${lead}(1 ${decSigned(value)})^{${nPow(n)}}`;
+    const labels = firstDistinct([
+      written(qTex(front), x),
+      written('', qAdd(qMul([a, 1], baseAt(params)), [-1, 1])),
+      written(`${a}`, x),
+      written(qTex(front), qMul([a, 1], x)),
+      written(qTex([front[1], front[0]]), x),
+    ]);
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: `Which of these equals $${outFirstTarget(params)}$ and has a bracket its series holds for?` }],
+      ...nativeChoice(labels, saltOf(...labels)),
+    };
+  },
+  solution: (params) => [
+    ...outFirstWorking(params),
+    {
+      text: `Writing it as $(1 ${decSigned(qAdd(qMul([params.a, 1], baseAt(params)), [-1, 1]))})^{${nPow(params.n)}}$ is equal, but that $x$ is outside $|x| < 1$ and its series does not hold.`,
+    },
+  ],
+};
+
+const outFirstEstimate = estimateGenerator(
+  'bin-out-first-estimate',
+  sampleOutFirst,
+  outFirstTarget,
+  ({ a }) => `Take the $${a}$ out first:`,
+);
+
+/**
+ * The number out, the bracket's three terms at x, then the estimate as their
+ * product. The slips are the number not rooted or upside down, the bracket
+ * with a slipped term, and the number times two terms only.
+ */
+const outFirstTree: Generator<OutFirstParams> = {
+  id: 'bin-out-first-tree',
+  sample: sampleOutFirst,
+  render: (params): Slide => {
+    const { a, n, x, front } = params;
+    const bracket = { ...params, front: ONE };
+    const sum = keptSum(bracket);
+    const answer = [front, sum, qMul(front, sum)];
+    const slips = [
+      [a, 1] as Frac,
+      [front[1], front[0]] as Frac,
+      ...estimateSlips(bracket).slice(0, 2),
+      qMul([a, 1], sum),
+      qMul(front, keptSum(bracket, 2)),
+    ];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$${outFirstTarget(params)} = ${a}^{${nPow(n)}}(1 + x)^{${nPow(n)}}$ at $x = ${qDec(x)}$. Top row: $${a}^{${nPow(n)}}$, and the first three terms of $(1 + x)^{${nPow(n)}}$ added. Then the estimate.`,
+        },
+      ],
+      expression: outFirstTarget(params),
+      nodes: [
+        { id: 'front', from: [] },
+        { id: 'bracket', from: [] },
+        { id: 'estimate', from: ['front', 'bracket'] },
+      ],
+      bank: decimalBank(answer, slips),
+      answer: answer.map(qDec),
+    };
+  },
+  solution: (params) => [...outFirstWorking(params).slice(0, 1), ...estimateWorking(params, outFirstTarget(params))],
+};
+
+/* --- how good, and which x --- */
+
+/** n whose first four coefficients end as decimals, for any hundredth x. */
+function sampleError(rng: Rng, difficulty: number, top = 9): EstimateParams {
+  const hard = difficulty > 1;
+  const ns: Frac[] = hard
+    ? [
+        [1, 4],
+        [-1, 4],
+        [3, 2],
+        [-3, 2],
+        [-3, 1],
+        [1, 2],
+        [-1, 2],
+      ]
+    : [
+        [1, 2],
+        [-1, 2],
+        [-1, 1],
+        [-2, 1],
+      ];
+  for (;;) {
+    const n = rng.pick(ns);
+    const params = { n, b: 1, x: sampleX(rng, n, top, hard), front: ONE };
+    // A term such as 0.0000000546875 is a typing test, not a question.
+    if (placesOf(leftOut(params)) <= 9) return params;
+  }
+}
+
+function errorPrompt(params: EstimateParams): string {
+  return `You estimate $${targetOf(params)}$ from the first three terms of $(1 + x)^{${nPow(params.n)}}$, with $x = ${qDec(params.x)}$.`;
+}
+
+/** The x^3 term worked, and why it is about the size of the error. */
+function errorWorking(params: EstimateParams): SolutionStep[] {
+  const c3 = termCoef(params.n, ONE, 3);
+  return [
+    { text: 'The estimate stops at $x^2$, so the first term it leaves out is the $x^3$ term.' },
+    { tex: `x^{3}: \\enspace ${fallingTexOf(params.n, 3)} = ${qTex(c3)}` },
+    { tex: `${qFactor(c3)} \\times ${decFactor(params.x)}^{3} = ${qDec(leftOut(params))}` },
+    { text: 'Every term after it carries a higher power of a small number, so the estimate is out by about this much.' },
+  ];
+}
+
+/**
+ * The first term left out, typed. The choice form offers its sign turned, x
+ * squared where it is cubed, the 3! left out, and the last term kept.
+ */
+const errorTerm: Generator<EstimateParams> = {
+  id: 'bin-error-term',
+  sample: (rng, difficulty) => sampleError(rng, difficulty),
+  choices: (params) => {
+    const dropped = leftOut(params);
+    const c3 = termCoef(params.n, ONE, 3);
+    return decimalChoices(
+      dropped,
+      [qNeg(dropped), qMul(c3, qPow(params.x, 2)), qMul(dropped, [6, 1]), keptTerms(params)[2], qMul(dropped, [10, 1])],
+      estimateSalt(params),
+    );
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: errorPrompt(params) },
+      { kind: 'display', tex: relationTex(params, targetOf(params)) },
+      { kind: 'prose', text: 'What is the first term the estimate leaves out, as a decimal?' },
+    ],
+    lead: '\\text{term} =',
+    keypad: [],
+    answer: qDec(leftOut(params)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: errorWorking,
+};
+
+/**
+ * Whether the first term left out and the true error agree on the places,
+ * and sit well clear of the boundaries either side, as level 5's clearCut.
+ */
+function placesAgree(params: EstimateParams): boolean {
+  const error = Math.abs(trueOf(params) - qValue(keptSum(params)));
+  const dropped = Math.abs(qValue(leftOut(params)));
+  const k = placesFor(error);
+  const clear = (size: number) => size < 0.8 * halfUnit(k) && size > 1.25 * halfUnit(k + 1);
+  return k >= 2 && placesFor(dropped) === k && clear(error) && clear(dropped);
+}
+
+/**
+ * How many places the estimate can be trusted to, a fork at a time: the
+ * first term left out, the half unit it is under, and the places. The wrong
+ * turns are the last term kept, x squared for cubed, and a place either side.
+ */
+const errorPlacesFlow: Generator<EstimateParams> = {
+  id: 'bin-error-places-flow',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = sampleError(rng, difficulty, 12);
+      if (placesAgree(params)) return params;
+    }
+  },
+  render: (params): Slide => {
+    const dropped = leftOut(params);
+    const size = qAbs(dropped);
+    const k = placesFor(qValue(size));
+    const salt = estimateSalt(params);
+    const c3 = termCoef(params.n, ONE, 3);
+    const unique = <T extends { label: string }>(branches: T[]) =>
+      branches.filter((branch, i, all) => all.findIndex((other) => other.label === branch.label) === i);
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `${errorPrompt(params)} To how many decimal places can the estimate be trusted? Decide step by step.` }],
+      subject: `${targetOf(params)} \\approx ${qDec(keptSum(params))}`,
+      steps: [
+        {
+          id: 'term',
+          ask: 'What is the first term the estimate leaves out?',
+          branches: turned(
+            unique([
+              { label: `$${qDec(dropped)}$`, to: 'half' },
+              { label: `$${qDec(keptTerms(params)[2])}$`, outcome: 'That is the $x^2$ term, which the estimate keeps. The first one left out is the $x^3$ term.' },
+              { label: `$${qDec(qMul(c3, qPow(params.x, 2)))}$`, outcome: 'That has $x$ squared. The $x^3$ term has it cubed.' },
+            ]),
+            salt,
+          ),
+        },
+        {
+          id: 'half',
+          ask: `Which is the smallest of these half units that $${qDec(size)}$ is still under?`,
+          branches: turned(
+            [
+              { label: `$${halfUnitTex(k)}$`, to: 'places' },
+              { label: `$${halfUnitTex(k + 1)}$`, outcome: `$${qDec(size)}$ is bigger than that.` },
+              { label: `$${halfUnitTex(k - 1)}$`, outcome: 'It is under that, but it is under a smaller one too.' },
+            ],
+            salt + 1,
+          ),
+        },
+        {
+          id: 'places',
+          ask: 'So the estimate can be trusted to how many decimal places?',
+          branches: turned(
+            [
+              { label: `$${k}$`, outcome: `Right: half a unit in place $${k}$ is $${halfUnitTex(k)}$, and the error is smaller.` },
+              { label: `$${k + 1}$`, outcome: `The error is bigger than $${halfUnitTex(k + 1)}$, half a unit in place $${k + 1}$.` },
+              { label: `$${k - 1}$`, outcome: `It is good to $${k - 1}$ place${k - 1 === 1 ? '' : 's'}, but to one more as well.` },
+            ],
+            salt + 2,
+          ),
+        },
+      ],
+      answer: [`$${qDec(dropped)}$`, `$${halfUnitTex(k)}$`, `$${k}$`],
+    };
+  },
+  solution: (params) => {
+    const size = Math.abs(qValue(leftOut(params)));
+    const k = placesFor(size);
+    return [
+      ...errorWorking(params),
+      { text: `An estimate is good to $k$ places when its error is under half a unit in place $k$. $${qDec(qAbs(leftOut(params)))}$ is under $${halfUnitTex(k)}$ but not under $${halfUnitTex(k + 1)}$, so it is good to $${k}$ places.` },
+    ];
+  },
+};
+
+interface KnownRoot {
+  /** √(1 + d/100) = m√k/10. */
+  m: number;
+  k: number;
+  d: number;
+}
+
+function squareFree(k: number): boolean {
+  for (let p = 2; p * p <= k; p += 1) if (k % (p * p) === 0) return false;
+  return true;
+}
+
+/** Every √(m²k/100) with the number under the root between 0.5 and 1.5 and k no square: √0.98 = 7√2/10. */
+const KNOWN_ROOTS: KnownRoot[] = [];
+for (let m = 2; m <= 9; m += 1) {
+  for (let k = 2; m * m * k <= 150; k += 1) {
+    if (m * m * k >= 50 && m * m * k !== 100 && squareFree(k)) KNOWN_ROOTS.push({ m, k, d: m * m * k - 100 });
+  }
+}
+
+/** c√k as the learner reads it: \frac{7\sqrt{2}}{10}, \frac{\sqrt{5}}{2}, 2\sqrt{3}. */
+function surdTex([p, q]: Frac, k: number): string {
+  const top = `${p === 1 ? '' : p}\\sqrt{${k}}`;
+  return q === 1 ? top : `\\frac{${top}}{${q}}`;
+}
+
+interface KnownWhichParams extends KnownRoot {
+  /** What is asked: the root as a surd, the surd from the root, or the best x for this surd. */
+  form: 'value' | 'back' | 'x';
+}
+
+/** The entries for one surd, nearest 1 first. */
+function rootsFor(k: number): KnownRoot[] {
+  return KNOWN_ROOTS.filter((root) => root.k === k).sort((p, q) => Math.abs(p.d) - Math.abs(q.d));
+}
+
+/**
+ * The known number the bracket holds: a root as a surd, the surd back from
+ * the root, or which x gives a surd with the smallest error. The slips are
+ * m not rooted, the 10 not rooted, m and k swapped, and the factor upside
+ * down.
+ */
+const knownRootWhich: Generator<KnownWhichParams> = {
+  id: 'bin-known-root-which',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const pool = hard ? KNOWN_ROOTS : KNOWN_ROOTS.filter((root) => Math.abs(root.d) <= 30);
+    const root = rng.pick(pool);
+    const forms: KnownWhichParams['form'][] = hard && rootsFor(root.k).length >= 3 ? ['value', 'back', 'x'] : ['value', 'back'];
+    return { ...root, form: rng.pick(forms) };
+  },
+  render: (params): Slide => {
+    const { m, k, d, form } = params;
+    const base = qDec(hundredths(100 + d));
+    const surd = surdTex(reduced(m, 10), k);
+    if (form === 'x') {
+      const choices = rootsFor(k).slice(0, 4);
+      const labels = choices.map((root) => `x = ${qDec(hundredths(root.d))}`);
+      return {
+        kind: 'choice',
+        prompt: [
+          {
+            kind: 'prose',
+            text: `Each of these $x$ makes $(1 + x)^{1/2}$ a multiple of $\\sqrt{${k}}$. Which gives the best estimate of $\\sqrt{${k}}$ from three terms of its series?`,
+          },
+        ],
+        ...nativeChoice(labels, saltOf(...labels)),
+      };
+    }
+    const labels =
+      form === 'value'
+        ? firstDistinct([
+            surd,
+            surdTex(reduced(m * m, 10), k),
+            surdTex(reduced(m, 100), k),
+            ...(squareFree(m) ? [surdTex(reduced(k, 10), m)] : []),
+            surdTex([m, 1], k),
+          ])
+        : firstDistinct([
+            `${qTex(reduced(10, m))}\\sqrt{${base}}`,
+            `${qTex(reduced(m, 10))}\\sqrt{${base}}`,
+            `${qTex(reduced(10, m * m))}\\sqrt{${base}}`,
+            `${qTex(reduced(100, m))}\\sqrt{${base}}`,
+          ]);
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: form === 'value' ? `Which of these is $\\sqrt{${base}}$?` : `$\\sqrt{${base}} = ${surd}$. Which of these is $\\sqrt{${k}}$?`,
+        },
+      ],
+      ...nativeChoice(labels, saltOf(...labels)),
+    };
+  },
+  solution: ({ m, k, d, form }) => {
+    const base = qDec(hundredths(100 + d));
+    const surd = surdTex(reduced(m, 10), k);
+    const steps: SolutionStep[] = [
+      { tex: `\\sqrt{${base}} = \\frac{\\sqrt{${m * m * k}}}{\\sqrt{100}} = \\frac{${m}\\sqrt{${k}}}{10}${surd === `\\frac{${m}\\sqrt{${k}}}{10}` ? '' : ` = ${surd}`}` },
+    ];
+    if (form === 'back') steps.push({ tex: `\\sqrt{${k}} = ${qTex(reduced(10, m))}\\sqrt{${base}}` });
+    if (form === 'x') {
+      const best = rootsFor(k)[0];
+      steps.push({
+        text: `Each term of the series carries a power of $x$, so the smaller $|x|$ is, the faster the terms shrink. The smallest here is $x = ${qDec(hundredths(best.d))}$.`,
+      });
+    }
+    return steps;
+  },
+};
+
+interface KnownEstimateParams extends EstimateParams {
+  root: KnownRoot;
+  /** The surd asked is √(s²k) = s√k. */
+  s: number;
+  places: number;
+}
+
+/** The surd estimated, √(s²k) or one over it. */
+function knownTarget({ root, s, n }: KnownEstimateParams): string {
+  const inner = `\\sqrt{${s * s * root.k}}`;
+  return n[0] < 0 ? `\\frac{1}{${inner}}` : inner;
+}
+
+/** How the known root gives the surd, before the relation itself. */
+function knownLead({ root, s }: KnownEstimateParams): string {
+  const base = qDec(hundredths(100 + root.d));
+  const again = s > 1 ? `, and $\\sqrt{${s * s * root.k}} = ${s}\\sqrt{${root.k}}$` : '';
+  return `$\\sqrt{${base}} = ${surdTex(reduced(root.m, 10), root.k)}$${again}, so`;
+}
+
+/** Roots near 1 whose x is at most 0.12 in size, where three terms give five or six places. */
+const NEAR_ROOTS = KNOWN_ROOTS.filter((root) => Math.abs(root.d) <= 12);
+
+function sampleKnown(rng: Rng, difficulty: number): KnownEstimateParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const root = rng.pick(NEAR_ROOTS);
+    const s = hard ? rng.int(1, 3) : rng.pick([1, 2, 3, 4, 5, 10]);
+    const n: Frac = hard && rng.chance(0.5) ? [-1, 2] : [1, 2];
+    const ratio = reduced(10 * s, root.m);
+    const params: KnownEstimateParams = { n, b: 1, x: hundredths(root.d), front: n[0] < 0 ? [ratio[1], ratio[0]] : ratio, root, s, places: 0 };
+    const estimate = keptSum(params);
+    const exact = trueOf(params);
+    // The most places the error allows, stepping down until the estimate and
+    // the true surd round alike with neither on a rounding boundary.
+    for (let places = Math.min(placesFor(Math.abs(exact - qValue(estimate))), 6); places >= 3; places -= 1) {
+      const scaled = exact * 10 ** places;
+      if (clearance(estimate, places) < 0.03 || Math.abs((scaled % 1) - 0.5) < 0.03) continue;
+      if (qRound(estimate, places) === (Math.round(scaled) / 10 ** places).toFixed(places)) return { ...params, places };
+    }
+  }
+}
+
+/**
+ * A surd from a known root, typed to the places the error allows. The choice
+ * form offers two terms only, the x^2 term's sign turned, and a unit either
+ * side in the last place.
+ */
+const knownRootEstimate: Generator<KnownEstimateParams> = {
+  id: 'bin-known-root-estimate',
+  sample: sampleKnown,
+  choices: (params) => decimalChoices(keptSum(params), estimateSlips(params).slice(0, 2), estimateSalt(params), params.places),
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: knownLead(params) },
+      { kind: 'display', tex: relationTex(params, knownTarget(params)) },
+      {
+        kind: 'prose',
+        text: `with $x = ${qDec(params.x)}$. Use the first three terms of the series to estimate $${knownTarget(params)}$, correct to $${params.places}$ decimal places.`,
+      },
+    ],
+    lead: '\\text{estimate} =',
+    keypad: [],
+    answer: qRound(keptSum(params), params.places),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => estimateWorking(params, knownTarget(params), params.places),
+};
+
+/* --- the series of a partial-fraction split --- */
+
+interface SplitParams {
+  /** f(x) = A/(1 + ux) + B/(1 + vx). */
+  A: number;
+  B: number;
+  u: number;
+  v: number;
+  /** The power asked about. */
+  r: number;
+}
+
+/** The coefficient of x^r: A(-u)^r + B(-v)^r, each part a geometric series. */
+function splitCoef({ A, B, u, v }: SplitParams, r: number): number {
+  return A * (-u) ** r + B * (-v) ** r;
+}
+
+function sampleSplit(rng: Rng, difficulty: number, fits: (params: SplitParams) => boolean = () => true): SplitParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const size = hard ? 5 : 4;
+    const A = (hard ? rng.sign() : 1) * rng.int(1, size);
+    const B = (hard ? rng.sign() : 1) * rng.int(1, size);
+    const u = rng.sign() * rng.int(1, hard ? 4 : 3);
+    const v = rng.sign() * rng.int(1, hard ? 4 : 3);
+    const params = { A, B, u, v, r: hard ? rng.int(2, 3) : 2 };
+    if (Math.abs(u) !== Math.abs(v) && A + B !== 0 && fits(params)) return params;
+  }
+}
+
+/** A/(1 + ux) as a term of the split: the sign out in front. */
+function partTex(c: number, u: number, first: boolean): string {
+  const body = `\\frac{${Math.abs(c)}}{${insideOf(1, [u, 1])}}`;
+  if (c < 0) return first ? `-${body}` : ` - ${body}`;
+  return first ? body : ` + ${body}`;
+}
+
+function splitTex({ A, B, u, v }: SplitParams): string {
+  return `${partTex(A, u, true)}${partTex(B, v, false)}`;
+}
+
+/** f(x) as one fraction, then split. */
+function fractionTex(params: SplitParams): string {
+  const { A, B, u, v } = params;
+  const top = sumTex([`${A + B}`, termTex(A * v + B * u, 1)]);
+  return chain(`f(x) &= \\frac{${top}}{(${insideOf(1, [u, 1])})(${insideOf(1, [v, 1])})}`, `&= ${splitTex(params)}`);
+}
+
+function splitWorking(params: SplitParams, rs: number[]): SolutionStep[] {
+  const { A, B, u, v } = params;
+  const part = (c: number, w: number) => `${c === 1 ? '' : c === -1 ? '-' : c}${seriesTex(1, [w, 1], [-1, 1])}`;
+  const power = (w: number, r: number) => (r === 1 ? baseTex(-w) : `${baseTex(-w)}^{${r}}`);
+  return [
+    { text: 'Each part is a number times $(1 + wx)^{-1}$, whose series is $1 - wx + w^2x^2 - \\dots$: the coefficient of $x^r$ is $(-w)^r$.' },
+    { tex: `${partTex(A, u, true)} = ${part(A, u)}` },
+    { tex: `${partTex(B, v, true)} = ${part(B, v)}` },
+    ...rs.map((r) => ({
+      tex: `${r === 1 ? 'x' : `x^{${r}}`}: \\enspace ${A} \\times ${power(u, r)} + ${baseTex(B)} \\times ${power(v, r)} = ${splitCoef(params, r)}`,
+    })),
+  ];
+}
+
+/**
+ * The coefficient of x^r in each part, then the two added. The slips are
+ * each part with -u taken as u, and each part on its own.
+ */
+const splitPartsTree: Generator<SplitParams> = {
+  id: 'bin-pf-parts-tree',
+  sample: (rng, difficulty) => sampleSplit(rng, difficulty),
+  render: (params): Slide => {
+    const { A, B, u, v, r } = params;
+    const first = A * (-u) ** r;
+    const second = B * (-v) ** r;
+    const answer = [first, second, first + second].map(String);
+    const slips = [A * u ** r, B * v ** r, A * u ** r + B * v ** r, first - second, A * u * r, B * v * r].map(String);
+    return {
+      kind: 'tree',
+      prompt: [
+        { kind: 'display', tex: fractionTex(params) },
+        {
+          kind: 'prose',
+          text: `Find the coefficient of $x^{${r}}$ in the series of $f(x)$. Top row: its coefficient in each part. Then the two added.`,
+        },
+      ],
+      expression: splitTex(params),
+      nodes: [
+        { id: 'first', from: [] },
+        { id: 'second', from: [] },
+        { id: 'sum', from: ['first', 'second'] },
+      ],
+      bank: treeBank(answer, slips),
+      answer,
+    };
+  },
+  solution: (params) => splitWorking(params, [params.r]),
+};
+
+/** Whether the first three coefficients can be placed as tiles: none 0 or ±1 past the first. */
+function splitTidy(params: SplitParams): boolean {
+  return [1, 2].every((r) => Math.abs(splitCoef(params, r)) > 1) && Math.abs(splitCoef(params, 2)) < 200;
+}
+
+/**
+ * The first three terms of the series of f(x), placed. The slips are the
+ * signs of u and v taken as they stand, one part on its own, and the
+ * coefficients doubled.
+ */
+const splitTiles: Generator<SplitParams> = {
+  id: 'bin-pf-tiles',
+  sample: (rng, difficulty) => sampleSplit(rng, difficulty, splitTidy),
+  render: (params): Slide => {
+    const { A, B, u, v } = params;
+    const answer = [0, 1, 2].map((r) => signedToken(splitCoef(params, r), r === 0));
+    const slips = [0, 1, 2].flatMap((r) =>
+      [A * u ** r + B * v ** r, A * (-u) ** r, B * (-v) ** r, -splitCoef(params, r)]
+        .filter((value) => value !== 0)
+        .map((value) => signedToken(value, r === 0)),
+    );
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'display', tex: fractionTex(params) },
+        { kind: 'prose', text: 'Expand $f(x)$ as far as the $x^2$ term, each part with the series of $(1 + wx)^{-1}$.' },
+      ],
+      template: 'f(x) = {0} {1}x {2}x^2 + \\dots',
+      bank: tileBank(answer, fewSlips(answer, slips, 5)),
+      answer,
+    };
+  },
+  solution: (params) => [
+    ...splitWorking(params, [1, 2]),
+    { tex: `f(x) = ${sumTex([`${splitCoef(params, 0)}`, termTex(splitCoef(params, 1), 1), termTex(splitCoef(params, 2), 2)])} + \\dots` },
+  ],
+};
+
+/**
+ * The coefficient of x^r, typed. The choice form offers the signs of u and
+ * v taken as they stand, one part forgotten, and the parts subtracted.
+ */
+const splitCoefGen: Generator<SplitParams> = {
+  id: 'bin-pf-coef',
+  sample: (rng, difficulty) => sampleSplit(rng, difficulty),
+  choices: (params) => {
+    const { A, B, u, v, r } = params;
+    const c = splitCoef(params, r);
+    return aimedNumbers(c, [A * u ** r + B * v ** r, A * (-u) ** r, B * (-v) ** r, A * (-u) ** r - B * (-v) ** r], spread(A, B, u, v, r));
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'display', tex: fractionTex(params) },
+      { kind: 'prose', text: `What is the coefficient of $x^{${params.r}}$ in the series of $f(x)$?` },
+    ],
+    lead: '\\text{coefficient} =',
+    keypad: [],
+    answer: `${splitCoef(params, params.r)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => splitWorking(params, [params.r]),
+};
+
+/**
+ * The range the series of f(x) holds for: the smaller of the two parts'
+ * ranges. The slips are the larger one, 1 as for (1 + x), and the product
+ * and sum of the numbers on x.
+ */
+const splitRange: Generator<SplitParams> = {
+  id: 'bin-pf-range',
+  sample: (rng, difficulty) => sampleSplit(rng, difficulty),
+  render: (params): Slide => {
+    const { u, v } = params;
+    const big = Math.max(Math.abs(u), Math.abs(v));
+    const small = Math.min(Math.abs(u), Math.abs(v));
+    const range = (bound: Frac) => `|x| < ${qTex(bound)}`;
+    const labels = firstDistinct([
+      range([1, big]),
+      range([1, small]),
+      range(ONE),
+      range([1, big * small]),
+      range([1, big + small]),
+      range([big, 1]),
+      range([small + big, 1]),
+    ]);
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'display', tex: fractionTex(params) },
+        { kind: 'prose', text: 'For which $x$ does the series of $f(x)$ hold?' },
+      ],
+      ...nativeChoice(labels, saltOf(...labels)),
+    };
+  },
+  solution: ({ A, B, u, v }) => {
+    const big = Math.max(Math.abs(u), Math.abs(v));
+    return [
+      { text: `The series of $${partTex(A, u, true)}$ holds for $|x| < ${qTex([1, Math.abs(u)])}$, and of $${partTex(B, v, true)}$ for $|x| < ${qTex([1, Math.abs(v)])}$.` },
+      { text: `The series of $f(x)$ needs both, so it holds for the smaller range: $|x| < ${qTex([1, big])}$.` },
+    ];
+  },
+};
+
 /**
  * A worked line too wide for a phone, broken at its equals signs into an
  * aligned column. Lines already aligned, or with no equals sign at the top
@@ -7419,4 +8682,24 @@ export const binomialGenerators = [
   fitted(frontSeriesTiles),
   fitted(frontTree),
   fitted(frontRange),
+  fitted(rootSetup),
+  fitted(rootTermsTree),
+  fitted(rootEstimate),
+  fitted(rootSubstituteSteps),
+  fitted(reciprocalRewrite),
+  fitted(reciprocalFlow),
+  fitted(reciprocalEstimate),
+  fitted(reciprocalTermsTree),
+  fitted(outFirstTiles),
+  fitted(outFirstWhich),
+  fitted(outFirstEstimate),
+  fitted(outFirstTree),
+  fitted(errorTerm),
+  fitted(errorPlacesFlow),
+  fitted(knownRootWhich),
+  fitted(knownRootEstimate),
+  fitted(splitPartsTree),
+  fitted(splitTiles),
+  fitted(splitCoefGen),
+  fitted(splitRange),
 ];

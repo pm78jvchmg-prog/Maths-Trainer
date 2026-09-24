@@ -6,11 +6,22 @@
  * for a whole `N`. A function is held as that base, the `u = k x^m` put into
  * it and a whole multiplier (`Fn`), so the coefficient of any power of `x` is
  * exact rational arithmetic (`Q`): the coefficient of `u^j` in the base, times
- * `k^j`. Nothing is ever a rounded decimal, so every bank, option and typed
- * answer is a fraction in lowest terms.
+ * `k^j`. Nothing in levels 1 and 2 is ever a rounded decimal, so every bank,
+ * option and typed answer there is a fraction in lowest terms.
  *
  * Taylor series (level 2) use the same machinery in `h = x - a`: each centre
  * is chosen so that `f(a)` is whole, which is what keeps the series exact.
+ *
+ * Level 3 is error terms: the Lagrange remainder `f^(n+1)(c) x^(n+1)/(n+1)!`,
+ * a bound `M` on that derivative, the bound against the first term left out,
+ * the smallest degree for a tolerance, and remainders about a centre (`ln x`,
+ * `sqrt x`, `1/x` and `e^x` about a whole `a`, the `Centred` model). A bound is
+ * exact wherever `M` is; where `M` holds an `e` or a root off a square it is a
+ * decimal to 3 significant figures, drawn only clear of a rounding boundary
+ * (`sig3`). No question asks for `c` itself. No slide declares `source`:
+ * nothing at this level is a derivative answer, so the oracle in
+ * `generators.test.ts` has nothing to check, and `seriesExpansions.test.ts`
+ * recomputes every remainder and bound from mathjs's derivatives instead.
  *
  * A series is a *form*, and the checker compares values (PITFALLS 3.4), so a
  * whole series is only ever asked through tiles, steps, a tree or a choice;
@@ -29,7 +40,8 @@ import { markerWindow, plotSvg } from '../figures';
 import { canonicalSet } from '../numberLine';
 import { ALGEBRA_KEYS, sumTex } from './calculus';
 import { windowFor } from './numberLine';
-import { fracTex, gcd, mix, steered, stepBank, tokenBank, treeBank, turned } from './parametricImplicit';
+import { fmt } from './numericalMethods';
+import { fracTex, gcd, mix, numberChoices, steered, stepBank, tokenBank, treeBank, turned } from './parametricImplicit';
 
 /* ================================================================
  * Exact fractions
@@ -3085,6 +3097,1470 @@ const validTiles: Generator<Omit<LineParams, 'min' | 'max' | 'step'>> = {
   solution: (params) => validLine.solution({ ...params, min: 0, max: 0, step: 1 }).slice(0, 2),
 };
 
+/* ================================================================
+ * Level 3: error terms
+ * ================================================================ */
+
+/** `16`, `-`, nothing or `\frac{1}{16}`: a multiplier written in front of a function. */
+const qLead = (c: Q): string => (eq(c, ONE) ? '' : eq(c, neg(ONE)) ? '-' : qTex(c));
+
+/** A derivative's name with no argument: `f'''`, `f^{(4)}`. */
+const dName = (p: number): string => (p <= 3 ? `f${"'".repeat(p)}` : `f^{(${p})}`);
+
+/** Where the p-th derivative of sin or cos lands in the cycle sin, cos, -sin, -cos. */
+function trigTurn(base: Base, p: number): { sign: number; base: Base } {
+  const at = ((base === 'sin' ? 0 : 1) + p) % 4;
+  return { sign: at < 2 ? 1 : -1, base: at % 2 === 0 ? 'sin' : 'cos' };
+}
+
+/**
+ * `f^(p)` at a point named `at`, for `a e^{kx}`, `a sin kx` or `a cos kx`:
+ * `16e^{2c}`, `-\sin c`, `\frac{1}{16}\cos\frac{c}{2}`.
+ */
+function derivTex(f: Fn, p: number, at = 'c'): string {
+  const u = uTex(f.k, 1, at);
+  const c = mul(q(f.scale), pow(f.k, p));
+  if (f.base === 'exp') return `${qLead(c)}e^{${u}}`;
+  const turn = trigTurn(f.base, p);
+  return `${qLead(mul(c, q(turn.sign)))}${baseTex(turn.base, u)}`;
+}
+
+/** `\frac{x^{4}}{4!}`: the power and factorial in a remainder. */
+const remFrac = (p: number, v = 'x', fac = p): string => `\\frac{${v}^{${p}}}{${fac}!}`;
+
+/** Level 3's functions about 0: e^x, sin x and cos x, then other k and a multiplier. */
+function sampleWave(rng: Rng, hard: boolean): Fn {
+  const base = rng.pick<Base>(['exp', 'sin', 'cos']);
+  if (!hard) return fnOf(base, base === 'exp' ? rng.pick([1, 1, -1]) : 1);
+  const k = base === 'exp' ? rng.pick([q(2), q(-2), q(3), q(1, 2), q(-1)]) : rng.pick([q(2), q(3), q(1, 2)]);
+  return fnOf(base, k, { scale: rng.pick([1, 2, 3, -1, -2]) });
+}
+
+/** The size |f^(p)| can reach: `|a| |k|^p`, before any e^{kc}. */
+const ampOf = (f: Fn, p: number): Q => abs(mul(q(f.scale), pow(f.k, p)));
+
+/**
+ * The Lagrange bound M on |f^(p)(c)| for c between 0 and x. A wave never
+ * passes its amplitude; `a e^{kc}` is largest at whichever end makes `kc`
+ * larger, so at 0 or at x. `expo` is how the learner reads `kx`.
+ */
+function waveM(f: Fn, p: number, x: Q, expo: (v: Q) => string): { value: number; tex: string; at: 'zero' | 'end' | 'wave' } {
+  const amp = ampOf(f, p);
+  if (f.base !== 'exp') return { value: val(amp), tex: qTex(amp), at: 'wave' };
+  const kx = mul(f.k, x);
+  if (val(kx) <= 0) return { value: val(amp), tex: qTex(amp), at: 'zero' };
+  return { value: val(amp) * Math.exp(val(kx)), tex: eTex(amp, expo(kx)), at: 'end' };
+}
+
+/** `16e^{0.5}`, `e`, `\frac{1}{8}e^{2}`. */
+const eTex = (amp: Q, power: string): string => `${qLead(amp)}e${power === '1' ? '' : `^{${power}}`}`;
+
+/** A decimal as the learner reads it, from an exact value. */
+const decQ = (v: Q): string => fmt(val(v));
+
+/**
+ * A value to 3 significant figures, or nothing when it sits within 0.05 of a
+ * unit of a rounding boundary (a learner carrying a calculator's digits could
+ * land either side) or when `fmt` cannot print it exactly.
+ */
+function sig3(v: number): number | undefined {
+  if (!(v > 0) || !Number.isFinite(v)) return undefined;
+  const scaled = v / 10 ** (Math.floor(Math.log10(v)) - 2);
+  if (Math.abs(scaled - Math.floor(scaled) - 0.5) < 0.05) return undefined;
+  const r = Number(v.toPrecision(3));
+  return Number(fmt(r)) === r ? r : undefined;
+}
+
+/** Options for a 3 s.f. decimal: the answer, then slips rounded the same way. */
+function sigChoices(correct: number, slips: number[], salt: number): ChoiceOption[] {
+  const tex = (v: number) => fmt(Number(v.toPrecision(3)));
+  const seen = new Set([tex(correct)]);
+  const kept: string[] = [];
+  for (const v of [...slips, correct * 10, correct / 10, correct * 2, correct / 2]) {
+    if (!(v > 0) || !Number.isFinite(v)) continue;
+    const t = tex(v);
+    if (seen.has(t) || Number(t) === 0) continue;
+    seen.add(t);
+    kept.push(t);
+  }
+  const asOption = (t: string) => ({ tex: t, answer: t });
+  return steered(options(asOption(tex(correct)), ...kept.slice(0, 3).map(asOption)), salt, kept.slice(3).map(asOption));
+}
+
+/** The first few distinct strings of a list, topped up from `spare`. */
+function firstDistinct(wanted: number, ...lists: string[][]): string[] {
+  const out: string[] = [];
+  for (const item of lists.flat()) {
+    if (out.length >= wanted) break;
+    if (!out.includes(item)) out.push(item);
+  }
+  return out;
+}
+
+/* ---------- Level 3, lesson 1: the remainder ---------- */
+
+interface RemParams {
+  f: Fn;
+  n: number;
+}
+
+/** "The Maclaurin polynomial up to x^n", in the words every level 3 prompt uses. */
+const polyWords = (n: number): string => `$P_{${n}}(x)$, the Maclaurin polynomial up to $${n === 1 ? 'x' : `x^{${n}}`}$`;
+
+/** Tiles: the derivative at c and the power over its factorial, in R_n(x). */
+const remTiles: Generator<RemParams> = {
+  id: 'ser-rem-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return { f: sampleWave(rng, hard), n: hard ? rng.int(2, 5) : rng.int(1, 8) };
+  },
+  render: ({ f, n }): Slide => {
+    const answer = [derivTex(f, n + 1), remFrac(n + 1)];
+    // Derivative and fraction slips take turns, so the spare tiles tempt both blanks.
+    const slips = [
+      derivTex(f, n),
+      remFrac(n + 1, 'x', n),
+      derivTex(f, n + 1, 'x'),
+      ...(n >= 2 ? [remFrac(n)] : []),
+      qTex(derivAt(f, n + 1)),
+      remFrac(n + 2),
+      derivTex(f, n + 2),
+      remFrac(n + 1, 'c'),
+    ];
+    return {
+      kind: 'tiles',
+      prompt: [say(`Complete the Lagrange form of the remainder after ${polyWords(n)}, for $f(x) = ${fnTex(f)}$. As always, $c$ lies between $0$ and $x$.`)],
+      template: `R_${n}(x) = {0} \\times {1}`,
+      bank: termBank(answer, slips, 4),
+      answer,
+    };
+  },
+  solution: ({ f, n }) => [
+    { text: `After $P_{${n}}$ the remainder takes the next derivative, $${dName(n + 1)}$, at some $c$ between $0$ and $x$, times the next power of $x$ over its factorial.` },
+    { tex: `${derivName(n + 1, 'x')} = ${derivTex(f, n + 1, 'x')}` },
+    { tex: `R_{${n}}(x) = ${derivTex(f, n + 1)} \\times ${remFrac(n + 1)}` },
+  ],
+};
+
+const WHERE_C = 'some $c$ between $0$ and $x$';
+
+/** Flow: which derivative goes into R_n, what it is, and where it is evaluated. */
+const remFlow: Generator<RemParams> = {
+  id: 'ser-rem-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return { f: sampleWave(rng, hard), n: hard ? rng.int(2, 6) : rng.int(1, 7) };
+  },
+  render: ({ f, n }): Slide => {
+    const salt = saltOf(f, n);
+    const right = derivTex(f, n + 1, 'x');
+    const labels = firstDistinct(
+      4,
+      [right, derivTex(f, n, 'x'), derivTex(f, n + 2, 'x'), derivTex(f, n + 3, 'x')],
+      [derivTex(fnOf(f.base, f.k, { scale: -f.scale }), n + 1, 'x'), derivTex(fnOf(f.base, f.k, { scale: f.scale * (n + 1) }), n + 1, 'x')],
+      [derivTex(fnOf(f.base, q(n + 1)), 0, 'x'), derivTex(fnOf(f.base, f.k, { scale: f.scale * 2 }), n + 1, 'x')],
+    ).map((tex) => `$${tex}$`);
+    const next = derivAt(f, n + 1);
+    const where: [string, string][] = [
+      ['$x = 0$', isZero(next) ? '0' : `\\frac{${qTex(next)}}{${n + 1}!}x^{${n + 1}}`],
+      [WHERE_C, `\\frac{${derivTex(f, n + 1)}}{${n + 1}!}x^{${n + 1}}`],
+      ['$x$ itself', `\\frac{${right}}{${n + 1}!}x^{${n + 1}}`],
+    ];
+    return {
+      kind: 'flow',
+      prompt: [say(`Build the Lagrange form of the remainder after ${polyWords(n)}.`)],
+      subject: `f(x) = ${fnTex(f)}`,
+      steps: [
+        {
+          id: 'which',
+          ask: `Which derivative of $f$ goes into $R_{${n}}(x)$?`,
+          branches: turned([n, n + 1, n + 2].map((p) => `$${dName(p)}$`), salt).map((label) => ({ label, to: 'what' })),
+        },
+        {
+          id: 'what',
+          ask: 'What is that derivative, as a function of $x$?',
+          branches: turned(labels, salt >>> 3).map((label) => ({ label, to: 'where' })),
+        },
+        {
+          id: 'where',
+          ask: 'In the remainder, that derivative is evaluated at',
+          branches: turned(where, salt >>> 6).map(([label, tex]) => ({ label, outcome: `Then $R_{${n}}(x) = ${tex}$.` })),
+        },
+      ],
+      answer: [`$${dName(n + 1)}$`, `$${right}$`, WHERE_C],
+    };
+  },
+  solution: ({ f, n }) => [
+    { text: `$P_{${n}}$ stops at $x^{${n}}$, so the remainder starts one step on: the derivative $${dName(n + 1)}$ and the power $x^{${n + 1}}$.` },
+    { tex: `${derivName(n + 1, 'x')} = ${derivTex(f, n + 1, 'x')}` },
+    { text: 'It is evaluated at a point $c$ somewhere between $0$ and $x$, not at $0$: at $0$ it would only be the next term of the series.' },
+    { tex: `R_{${n}}(x) = \\frac{${derivTex(f, n + 1)}}{${n + 1}!}x^{${n + 1}}` },
+  ],
+};
+
+/** `\frac{16e^{2c}}{24}x^{4}`: a remainder written out in one piece. */
+const remForm = (d: string, p: number, fac = p): string => `\\frac{${d}}{${fact(fac)}}${powerTex(p, 'x')}`;
+
+/** Choice: which is R_n(x), against the next term, the wrong order and the wrong point. */
+const remPick: Generator<RemParams> = {
+  id: 'ser-rem-pick',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return { f: sampleWave(rng, hard), n: hard ? rng.int(2, 5) : rng.int(2, 8) };
+  },
+  render: ({ f, n }): Slide => {
+    const opt = (tex: string) => ({ tex, key: tex });
+    const next = derivAt(f, n + 1);
+    const slips = [
+      ...(isZero(next) ? [] : [remForm(qTex(next), n + 1)]),
+      remForm(derivTex(f, n), n),
+      remForm(derivTex(f, n + 1), n + 1, n),
+      remForm(derivTex(f, n + 1, 'x'), n + 1),
+      remForm(derivTex(f, n), n + 1),
+      remForm(derivTex(f, n + 2), n + 2),
+    ];
+    const opts = formChoices(opt(remForm(derivTex(f, n + 1), n + 1)), slips.map(opt), saltOf(f, n, 7));
+    return choiceSlide(
+      [say(`Which is the Lagrange form of $R_{${n}}(x)$, the remainder after ${polyWords(n)}, for $f(x) = ${fnTex(f)}$? Here $c$ lies between $0$ and $x$.`)],
+      opts,
+    );
+  },
+  solution: ({ f, n }) => [
+    { text: `The remainder after $P_{${n}}$ uses $${dName(n + 1)}$ at some $c$, with $x^{${n + 1}}$ over $${n + 1}! = ${fact(n + 1)}$:` },
+    { tex: `R_{${n}}(x) = ${remForm(derivTex(f, n + 1), n + 1)}` },
+    {
+      text: isZero(derivAt(f, n + 1))
+        ? `With $0$ in place of $c$ it would be $0$, since $${dName(n + 1)}(0) = 0$, yet the error is not zero: $c$ is not $0$.`
+        : `With $0$ in place of $c$ it would be $${remForm(qTex(derivAt(f, n + 1)), n + 1)}$, the next term of the series, which is not the same thing.`,
+    },
+  ],
+};
+
+interface RemExactParams {
+  /** A finite binomial `(1 + kx)^N`, so the remainder is exact. */
+  f: Fn;
+  n: number;
+  h: Q;
+}
+
+/** P_n(h), f(h) and R_n(h) = f(h) - P_n(h), all exact. */
+function remParts({ f, n, h }: RemExactParams): { kept: Term[]; rest: Term[]; p: Q; r: Q } {
+  const all = termsOf(f, 99, f.index);
+  const at = (terms: Term[]) => terms.reduce((sum, t) => add(sum, mul(t.c, pow(h, t.p))), ZERO);
+  const kept = all.filter((t) => t.p <= n);
+  const rest = all.filter((t) => t.p > n);
+  return { kept, rest, p: at(kept), r: at(rest) };
+}
+
+/** Expression: R_n(h) for a polynomial, where the remainder is just the terms after x^n. */
+const remExact: Generator<RemExactParams> = {
+  id: 'ser-rem-exact',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const index = hard ? rng.int(4, 6) : rng.int(3, 5);
+      const k = hard ? rng.pick([q(2), q(-2), q(3), q(1, 2), q(-1, 2), q(1, 3)]) : q(rng.pick([1, -1, 2]));
+      const f = fnOf('pow', k, { index });
+      const n = rng.int(hard ? 2 : 1, index - 1);
+      const h = hard ? rng.pick([q(1, 2), q(-1, 2), q(1, 3), q(2, 3), q(-1), q(3, 2)]) : rng.pick([q(1), q(-1), q(2), q(1, 2), q(-2)]);
+      const { r } = remParts({ f, n, h });
+      if (isZero(r) || r.d > 5000 || Math.abs(r.n) > 5000) continue;
+      return { f, n, h };
+    }
+  },
+  render: (params): Slide => {
+    const { f, n, h } = params;
+    const { kept, r } = remParts(params);
+    return {
+      kind: 'expression',
+      prompt: [
+        say(`$f(x) = ${fnTex(f)}$ has Maclaurin polynomial`),
+        show(`P_{${n}}(x) = ${seriesTex(kept, 'x', false)}`),
+        say(`Find the remainder $R_{${n}}(x) = f(x) - P_{${n}}(x)$ at $x = ${qTex(h)}$.`),
+      ],
+      lead: `R_{${n}}(${qTex(h)}) =`,
+      keypad: FRACTION_KEYS,
+      answer: qAns(r),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { f, n, h } = params;
+    const { rest, r } = remParts(params);
+    return [
+      { text: `$${fnTex(f)}$ multiplies out to a polynomial, so the remainder is exactly the terms after $x^{${n}}$:` },
+      { tex: `R_{${n}}(x) = ${seriesTex(rest, 'x', false)}` },
+      { text: `Put $x = ${qTex(h)}$ into each:` },
+      { tex: `${rest.map((t) => inLine(mul(t.c, pow(h, t.p)))).join(' + ')} = ${qTex(r)}` },
+    ];
+  },
+  choices: (params) => {
+    const { f, n, h } = params;
+    const { rest, p, r } = remParts(params);
+    const whole = add(p, r);
+    return qChoices(r, [whole, p, mul(rest[0].c, pow(h, rest[0].p))], saltOf(f, n, h.n, h.d));
+  },
+};
+
+/* ---------- Level 3, lesson 2: bounding the remainder ---------- */
+
+interface BoundParams {
+  f: Fn;
+  n: number;
+  /** The x the estimate is made at, or the far end of the interval. */
+  x: Q;
+}
+
+/** Decimals a bound is asked at: tenths and a few beyond 1. */
+const BOUND_X = [q(1, 10), q(1, 5), q(3, 10), q(2, 5), q(1, 2), q(3, 5), q(7, 10), q(4, 5), q(9, 10), q(1), q(3, 2), q(-1, 5), q(-1, 2), q(-4, 5), q(-1)];
+
+/** Tex labels for M, the right one first, then slips: the other end, no multiplier, the wrong order. */
+function mSlips(f: Fn, n: number, x: Q): string[] {
+  const right = waveM(f, n + 1, x, decQ);
+  const amp = ampOf(f, n + 1);
+  const other = f.base !== 'exp' ? [] : right.at === 'end' ? [qTex(amp)] : [eTex(amp, decQ(mul(f.k, x)))];
+  const withAmp = (a: Q) => (right.at === 'end' ? eTex(a, decQ(mul(f.k, x))) : qTex(a));
+  const next = derivAt(f, n + 1);
+  return firstDistinct(
+    4,
+    [right.tex],
+    other,
+    [withAmp(ampOf(f, n)), withAmp(ampOf(f, n + 2))],
+    eq(amp, ONE) ? [] : [withAmp(ONE)],
+    [qTex(abs(next)), '0', decQ(abs(x)), qTex(mul(amp, q(2))), qTex(add(amp, ONE)), qTex(add(amp, q(2)))],
+  );
+}
+
+const intervalTex = (x: Q): string => (x.n > 0 ? `0 \\le c \\le ${decQ(x)}` : `${decQ(x)} \\le c \\le 0`);
+
+const NOWHERE = 'Nowhere in particular: it never passes a fixed size';
+
+/** Flow: which derivative, where on the interval it is largest, and so M. */
+const boundMFlow: Generator<BoundParams> = {
+  id: 'ser-bound-m-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const f = sampleWave(rng, hard);
+    return { f, n: rng.int(hard ? 2 : 1, hard ? 5 : 4), x: rng.pick(BOUND_X) };
+  },
+  render: ({ f, n, x }): Slide => {
+    const salt = saltOf(f, n, x.n, x.d);
+    const m = waveM(f, n + 1, x, decQ);
+    const labels = mSlips(f, n, x).map((tex) => `$M = ${tex}$`);
+    const where: [string, string][] = [
+      ['At $c = 0$', 'zero'],
+      [`At $c = ${decQ(x)}$`, 'end'],
+      [NOWHERE, 'wave'],
+    ];
+    return {
+      kind: 'flow',
+      prompt: [say(`$f(x) = ${fnTex(f)}$ is estimated by ${polyWords(n)}, at $x = ${decQ(x)}$. Find the bound $M$ for the Lagrange form of the error.`)],
+      subject: `f(x) = ${fnTex(f)}, \\quad x = ${decQ(x)}`,
+      steps: [
+        {
+          id: 'which',
+          ask: 'Which derivative has to be bounded?',
+          branches: turned([n, n + 1, n + 2].map((p) => `$${dName(p)}$`), salt).map((label) => ({ label, to: 'where' })),
+        },
+        {
+          id: 'where',
+          ask: `For $${intervalTex(x)}$, where is the size of that derivative at $c$ largest?`,
+          branches: where.map(([label]) => ({ label, to: 'M' })),
+        },
+        {
+          id: 'M',
+          ask: 'So the bound to use is',
+          branches: turned(labels, salt >>> 4).map((label) => ({
+            label,
+            outcome: `Then $|R_{${n}}| \\le ${label.slice(5, -1)} \\times \\frac{|x|^{${n + 1}}}{${n + 1}!}$.`,
+          })),
+        },
+      ],
+      answer: [`$${dName(n + 1)}$`, where.find(([, at]) => at === m.at)![0], `$M = ${m.tex}$`],
+    };
+  },
+  solution: ({ f, n, x }) => {
+    const m = waveM(f, n + 1, x, decQ);
+    const why =
+      m.at === 'wave'
+        ? `$\\sin$ and $\\cos$ never pass $1$ in size, so $|${dName(n + 1)}(c)|$ never passes $${m.tex}$, wherever $c$ is.`
+        : m.at === 'end'
+          ? `$e^{${uTex(f.k, 1, 'c')}}$ grows as $${uTex(f.k, 1, 'c')}$ grows, so on $${intervalTex(x)}$ it is largest at $c = ${decQ(x)}$.`
+          : `$e^{${uTex(f.k, 1, 'c')}}$ shrinks as $c$ moves from $0$ towards $${decQ(x)}$, so it is largest at $c = 0$, where it is $1$.`;
+    return [
+      { text: `The error after $P_{${n}}$ involves $${derivName(n + 1, 'c')} = ${derivTex(f, n + 1)}$.` },
+      { text: why },
+      { tex: `M = ${m.tex}` },
+    ];
+  },
+};
+
+/** Tiles: M, the power and the factorial in a bound over a whole interval. */
+const boundTiles: Generator<BoundParams> = {
+  id: 'ser-bound-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    // Not |x| = 1, where every power tile would read 1.
+    return { f: sampleWave(rng, hard), n: rng.int(hard ? 2 : 1, hard ? 5 : 4), x: rng.pick(BOUND_X.filter((v) => !eq(abs(v), ONE))) };
+  },
+  render: ({ f, n, x }): Slide => {
+    const b = decQ(abs(x));
+    const [right, ...mWrong] = mSlips(f, n, x);
+    const answer = [right, `${b}^{${n + 1}}`, `${n + 1}!`];
+    // M, power and factorial slips take turns, so the spare tiles tempt every blank.
+    const powers = [n, n + 2].map((p) => (p === 1 ? b : `${b}^{${p}}`));
+    const slips = [mWrong[0], powers[0], `${n + 2}!`, mWrong[1], powers[1], `${n}!`, ...mWrong.slice(2)].filter((s) => s !== undefined);
+    const range = x.n > 0 ? `0 \\le x \\le ${b}` : `-${b} \\le x \\le 0`;
+    return {
+      kind: 'tiles',
+      prompt: [say(`$f(x) = ${fnTex(f)}$ is replaced by ${polyWords(n)}, for $${range}$. Complete the Lagrange bound on the error over that whole interval.`)],
+      template: `|R_${n}(x)| \\le {0} \\times {1} \\div {2}`,
+      bank: termBank(answer, slips, 4),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { n, x } = params;
+    const b = decQ(abs(x));
+    return [
+      ...boundMFlow.solution(params).slice(0, 2),
+      { text: `Then $|x|$ is at most $${b}$, and the power and factorial are the next ones after $P_{${n}}$:` },
+      { tex: `|R_{${n}}(x)| \\le ${waveM(params.f, n + 1, x, decQ).tex} \\times ${b}^{${n + 1}} \\div ${n + 1}!` },
+    ];
+  },
+};
+
+/** Fractions a bound is worked exactly at. */
+const TREE_X = [q(1, 2), q(-1, 2), q(1, 3), q(-1, 3), q(2, 3), q(-2, 3), q(1, 4), q(-1, 4), q(1), q(-1), q(3, 2), q(-3, 2)];
+
+/** M |h|^{n+1} / (n+1)!, exactly, when M is exact: a wave, or e^{kx} on the side where it shrinks. */
+const exactBound = (f: Fn, n: number, h: Q): Q => div(mul(ampOf(f, n + 1), pow(abs(h), n + 1)), q(fact(n + 1)));
+
+/** Tree: M, |x|^{n+1} and (n+1)!, then the bound they make. */
+const boundTree: Generator<BoundParams> = {
+  id: 'ser-bound-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const f = sampleWave(rng, hard);
+      const n = rng.int(2, hard ? 4 : 3);
+      const x = rng.pick(TREE_X);
+      // Only where M is exact: e^{kc} must shrink away from 0.
+      if (f.base === 'exp' && val(mul(f.k, x)) > 0) continue;
+      const bound = exactBound(f, n, x);
+      if (bound.d > 60000 || bound.n > 1000) continue;
+      return { f, n, x };
+    }
+  },
+  render: ({ f, n, x }): Slide => {
+    const amp = ampOf(f, n + 1);
+    const power = pow(abs(x), n + 1);
+    const bound = exactBound(f, n, x);
+    const slips = [pow(abs(x), n), pow(abs(x), n + 2), q(fact(n)), q(fact(n + 2)), div(mul(amp, pow(abs(x), n)), q(fact(n))), div(power, q(fact(n + 1))), mul(bound, q(2))];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `Bound the error when $f(x) = ${fnTex(f)}$ is replaced by $P_{${n}}(x)$ at $x = ${qTex(x)}$. Top row, left to right: the bound $M$ on $|${dName(n + 1)}(c)|$, then $|x|^{${n + 1}}$, then $${n + 1}!$. Underneath: the bound on the error.`,
+        ),
+      ],
+      expression: `|R_{${n}}(x)| \\le M \\times \\frac{|x|^{${n + 1}}}{${n + 1}!}`,
+      nodes: [
+        { id: 'M', from: [] },
+        { id: 'pow', from: [] },
+        { id: 'fact', from: [] },
+        { id: 'bound', from: ['M', 'pow', 'fact'] },
+      ],
+      bank: qBank([amp, power, q(fact(n + 1)), bound], slips, 3),
+      answer: [amp, power, q(fact(n + 1)), bound].map(qTex),
+    };
+  },
+  solution: ({ f, n, x }) => {
+    const amp = ampOf(f, n + 1);
+    const why =
+      f.base === 'exp'
+        ? `$${derivName(n + 1, 'c')} = ${derivTex(f, n + 1)}$, and $e^{${uTex(f.k, 1, 'c')}}$ is at most $1$ for $c$ between $0$ and $${qTex(x)}$, where the power is never positive.`
+        : `$${derivName(n + 1, 'c')} = ${derivTex(f, n + 1)}$, and $\\sin$ and $\\cos$ are never more than $1$ in size.`;
+    return [
+      { text: why },
+      { tex: `M = ${qTex(amp)}, \\quad |x|^{${n + 1}} = ${qTex(pow(abs(x), n + 1))}, \\quad ${n + 1}! = ${fact(n + 1)}` },
+      { tex: `|R_{${n}}| \\le \\frac{${qTex(amp)} \\times ${qTex(pow(abs(x), n + 1))}}{${fact(n + 1)}} = ${qTex(exactBound(f, n, x))}` },
+    ];
+  },
+};
+
+/** The Lagrange bound as a number: M |x|^{n+1} / (n+1)!. */
+const waveBound = ({ f, n, x }: BoundParams): number => (waveM(f, n + 1, x, decQ).value * Math.abs(val(x)) ** (n + 1)) / fact(n + 1);
+
+/** Expression: the bound as a decimal to 3 s.f., with M = e^b where e^x grows. */
+const boundDec: Generator<BoundParams> = {
+  id: 'ser-bound-dec',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const f = hard ? sampleWave(rng, true) : fnOf(rng.pick<Base>(['exp', 'sin', 'cos', 'exp']), 1);
+      const n = rng.int(hard ? 2 : 1, hard ? 5 : 4);
+      const x = rng.pick(hard ? BOUND_X : BOUND_X.filter((v) => v.n > 0));
+      const bound = waveBound({ f, n, x });
+      if (bound < 0.0001 || bound > 50 || sig3(bound) === undefined) continue;
+      return { f, n, x };
+    }
+  },
+  render: (params): Slide => {
+    const { f, n, x } = params;
+    return {
+      kind: 'expression',
+      prompt: [
+        say(`$${fnTex(f)}$ is estimated at $x = ${decQ(x)}$ by ${polyWords(n)}. Use the Lagrange form to bound the error, to 3 significant figures.`),
+      ],
+      lead: `|R_{${n}}(${decQ(x)})| \\le`,
+      keypad: [],
+      answer: fmt(sig3(waveBound(params))!),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { f, n, x } = params;
+    const m = waveM(f, n + 1, x, decQ);
+    return [
+      ...boundMFlow.solution(params).slice(1, 3),
+      { tex: `|R_{${n}}| \\le ${m.tex} \\times \\frac{${fmt(Math.abs(val(x)))}^{${n + 1}}}{${n + 1}!}` },
+      { tex: `= ${fmt(waveBound(params))}\\ldots = ${fmt(sig3(waveBound(params))!)}` },
+    ];
+  },
+  choices: (params) => {
+    const { f, n, x } = params;
+    const m = waveM(f, n + 1, x, decQ).value;
+    const ax = Math.abs(val(x));
+    return sigChoices(
+      waveBound(params),
+      [ax ** (n + 1) / fact(n + 1), (m * ax ** n) / fact(n), (m * ax ** (n + 2)) / fact(n + 2), (m * ax ** (n + 1)) / fact(n)],
+      saltOf(f, n, x.n, x.d),
+    );
+  },
+};
+
+/* ---------- Level 3, lesson 3: bound against estimate ---------- */
+
+interface CompareParams {
+  f: Fn;
+  h: Q;
+  /** How many non-zero terms the estimate uses. */
+  count: number;
+}
+
+const COUNT_WORDS = ['', 'one', 'two', 'three', 'four'];
+
+/** Whether the series' terms at h alternate in sign. */
+function alternates({ f, h }: Pick<CompareParams, 'f' | 'h'>): boolean {
+  const values = termsOf(f, 4, 12).map((t) => val(mul(t.c, pow(h, t.p))));
+  return values.every((v, i) => i === 0 || v * values[i - 1] < 0);
+}
+
+/** The first term left out, at h. */
+const droppedAt = (params: CompareParams): Q => termValues(params, params.count + 1)[params.count].value;
+
+/** Flow: do the terms alternate, and so is the error smaller or larger than the first term left out? */
+const compareFlow: Generator<CompareParams> = {
+  id: 'ser-compare-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const base = rng.pick<Base>(hard ? ['exp', 'ln', 'geo', 'sin', 'cos', 'ln', 'geo'] : ['exp', 'sin', 'cos', 'exp']);
+    const within = base === 'ln' || base === 'geo';
+    const h = rng.pick(
+      within
+        ? [q(1, 2), q(-1, 2), q(1, 3), q(-1, 3), q(1, 4), q(-1, 4), q(2, 3), q(-2, 3), q(3, 4), q(-1, 5)]
+        : [q(1, 2), q(-1, 2), q(1, 3), q(-1, 3), q(1), q(-1), q(2, 3), q(-2, 3), q(1, 4), q(3, 2)],
+    );
+    return { f: fnOf(base, 1), h, count: rng.int(2, hard ? 4 : 3) };
+  },
+  render: (params): Slide => {
+    const { f, h, count } = params;
+    const used = termValues(params).map(({ term }) => term);
+    const d = qTex(abs(droppedAt(params)));
+    const size = [
+      { label: 'Smaller', say: (alt: boolean) => (alt ? `So the first term left out, $${d}$ in size, is itself a bound on the error.` : `So the error is under $${d}$.`) },
+      { label: 'Larger', say: (alt: boolean) => (alt ? `So the error is over $${d}$.` : `So the first term left out, $${d}$ in size, understates the error: only a bound such as Lagrange's covers it.`) },
+    ];
+    const alt = alternates(params);
+    return {
+      kind: 'flow',
+      prompt: [
+        say(`$f(${qTex(h)})$ is estimated from the first ${COUNT_WORDS[count]} terms of the series $f(x) \\approx ${seriesTex(used, 'x', false)}$. Decide how the true error compares with the first term left out.`),
+      ],
+      subject: `f(x) = ${fnTex(f)}, \\quad x = ${qTex(h)}`,
+      steps: [
+        {
+          id: 'signs',
+          ask: `Put $x = ${qTex(h)}$ into the series. What signs do its terms have?`,
+          branches: [
+            { label: 'They alternate', to: 'alt' },
+            { label: 'They all have the same sign', to: 'same' },
+          ],
+        },
+        {
+          id: 'alt',
+          ask: 'Then, next to the first term left out, the size of the true error is',
+          branches: size.map(({ label, say: text }) => ({ label, outcome: text(true) })),
+        },
+        {
+          id: 'same',
+          ask: 'Then, next to the first term left out, the size of the true error is',
+          branches: size.map(({ label, say: text }) => ({ label, outcome: text(false) })),
+        },
+      ],
+      answer: alt ? ['They alternate', 'Smaller'] : ['They all have the same sign', 'Larger'],
+    };
+  },
+  solution: (params) => {
+    const { h } = params;
+    const values = termValues(params, params.count + 2).map(({ value }) => value);
+    const alt = alternates(params);
+    return [
+      { text: `At $x = ${qTex(h)}$ the terms are` },
+      { tex: `${values.map(qTex).join(', \\; ')}, \\; \\ldots` },
+      {
+        text: alt
+          ? 'They alternate and shrink, so each term left out partly undoes the one before: the error is smaller than the first term left out.'
+          : 'They all have the same sign, so every term left out adds to the error: it is larger than the first term left out.',
+      },
+    ];
+  },
+};
+
+interface CompareTreeParams {
+  /** e^{kx} with k = 1 or -1. */
+  k: number;
+  h: Q;
+  n: number;
+}
+
+/** A whole number above e^h, the M a learner would take without a calculator. */
+const wholeAbove = (h: Q): number => Math.floor(Math.exp(val(h))) + 1;
+
+const compareM = ({ k, h }: CompareTreeParams): number => (k > 0 ? wholeAbove(h) : 1);
+
+/** D = h^{n+1}/(n+1)!, the first term left out of e^{±h}, in size. */
+const compareD = ({ h, n }: CompareTreeParams): Q => div(pow(h, n + 1), q(fact(n + 1)));
+
+/** Tree: the first term left out, then the Lagrange bound, for e^{x} and e^{-x}. */
+const compareTree: Generator<CompareTreeParams> = {
+  id: 'ser-compare-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const k = hard ? rng.pick([1, -1]) : 1;
+      const h = rng.pick(hard ? [q(1, 2), q(1, 3), q(2, 3), q(3, 4), q(1), q(3, 2), q(2)] : [q(1, 2), q(1, 3), q(1, 4), q(1, 5), q(2, 5), q(2, 3), q(3, 4), q(1)]);
+      const n = rng.int(hard ? 2 : 1, hard ? 5 : 4);
+      const params = { k, h, n };
+      if (compareD(params).d > 50000) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { k, h, n } = params;
+    const M = compareM(params);
+    const d = compareD(params);
+    const b = mul(q(M), d);
+    const slips = [pow(h, n), q(fact(n)), div(pow(h, n), q(fact(n))), mul(q(M + 1), d), mul(q(M), pow(h, n + 1))];
+    const why = k > 0 ? `$e^{c} < ${M}$ for every $c$ up to $${qTex(h)}$` : '$e^{-c} \\le 1$ for every $c \\ge 0$';
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `$e^{${k > 0 ? '' : '-'}${qTex(h)}}$ is estimated from ${polyWords(n)} of $e^{${k > 0 ? '' : '-'}x}$. The first term left out has size $D$; since ${why}, the Lagrange bound is $B = ${M === 1 ? '' : M}D$. Top row: $\\left(${qTex(h)}\\right)^{${n + 1}}$ and $${n + 1}!$. Then $D$, then $B$.`,
+        ),
+      ],
+      expression: `D = \\frac{\\left(${qTex(h)}\\right)^{${n + 1}}}{${n + 1}!}, \\quad B = ${M === 1 ? 'D' : `${M} \\times D`}`,
+      nodes: [
+        { id: 'pow', from: [] },
+        { id: 'fact', from: [] },
+        { id: 'D', from: ['pow', 'fact'] },
+        { id: 'B', from: ['D'] },
+      ],
+      bank: qBank([pow(h, n + 1), q(fact(n + 1)), d, b], slips, 3),
+      answer: [pow(h, n + 1), q(fact(n + 1)), d, b].map(qTex),
+    };
+  },
+  solution: (params) => {
+    const { k, h, n } = params;
+    const M = compareM(params);
+    const d = compareD(params);
+    return [
+      { tex: `D = \\frac{${qTex(pow(h, n + 1))}}{${fact(n + 1)}} = ${qTex(d)}, \\quad B = ${M === 1 ? qTex(d) : `${M} \\times ${inLine(d)} = ${qTex(mul(q(M), d))}`}` },
+      {
+        text:
+          k > 0
+            ? 'Every term of $e^{x}$ is positive here, so the true error is more than $D$; the Lagrange bound $B$ is what is sure to be above it.'
+            : 'The terms of $e^{-x}$ alternate, so the true error is below $D$, and here the Lagrange bound agrees: $B = D$.',
+      },
+    ];
+  },
+};
+
+interface ComparePickParams {
+  f: Fn;
+  h: Q;
+  n: number;
+}
+
+/** D, the first term left out in size, and B, the Lagrange bound, both exact. */
+function dAndB({ f, h, n }: ComparePickParams): { d: Q; b: Q } {
+  const d = abs(mul(coefOf(f, n + 1), pow(h, n + 1)));
+  const hn = pow(abs(h), n + 1);
+  switch (f.base) {
+    case 'exp':
+      return { d, b: val(mul(f.k, h)) > 0 ? mul(q(wholeAbove(abs(h))), d) : d };
+    case 'ln':
+      // f^(n+1)(c) = ±n!/(1 + c)^{n+1}: largest where 1 + c is smallest.
+      return { d, b: h.n > 0 ? d : div(hn, mul(q(n + 1), pow(add(ONE, h), n + 1))) };
+    default:
+      // 1/(1 - x): f^(n+1)(c) = (n+1)!/(1 - c)^{n+2}, largest where 1 - c is smallest.
+      return { d, b: h.n > 0 ? div(hn, pow(sub(ONE, h), n + 2)) : d };
+  }
+}
+
+/** Choice: where the true error sits against D and B. */
+const comparePick: Generator<ComparePickParams> = {
+  id: 'ser-compare-pick',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const base = rng.pick<Base>(hard ? ['exp', 'ln', 'geo'] : ['exp', 'exp', 'ln']);
+      const f = fnOf(base, base === 'exp' ? rng.pick([1, -1]) : 1);
+      const h = rng.pick(
+        base === 'exp' ? [q(1, 2), q(1, 3), q(2, 3), q(1), q(-1, 2), q(3, 4)] : [q(1, 2), q(-1, 2), q(1, 3), q(-1, 3), q(1, 4), q(-1, 4), q(2, 3)],
+      );
+      const n = rng.int(hard ? 2 : 1, 3);
+      const { d, b } = dAndB({ f, h, n });
+      if (d.d > 20000 || b.d > 20000) continue;
+      // Difficulty 2 leans on the cases where the bound and the estimate part.
+      if (hard && eq(b, d) && rng.chance(0.5)) continue;
+      return { f, h, n };
+    }
+  },
+  render: (params): Slide => {
+    const { f, h, n } = params;
+    const { d, b } = dAndB(params);
+    const D = qTex(d);
+    const B = qTex(b);
+    const alt = eq(b, d);
+    const opt = (tex: string) => ({ tex, key: tex });
+    const correct = alt ? `E < ${D}` : `${D} < E \\le ${B}`;
+    const wrong = alt ? [`E = ${D}`, `E > ${D}`, `E > ${qTex(mul(q(2), d))}`] : [`E < ${D}`, `E = ${D}`, `E > ${B}`];
+    return choiceSlide(
+      [
+        say(
+          `$f(x) = ${fnTex(f)}$ is estimated at $x = ${qTex(h)}$ by ${polyWords(n)}. The first term left out has size $D = ${D}$, and the Lagrange bound is $B = ${B}$. Which is true of the size $E$ of the actual error?`,
+        ),
+      ],
+      formChoices(opt(correct), wrong.map(opt), saltOf(f, h.n, h.d, n)),
+    );
+  },
+  solution: (params) => {
+    const { d, b } = dAndB(params);
+    return eq(b, d)
+      ? [
+          { text: 'At this $x$ the terms of the series alternate and shrink, so each one left out partly undoes the one before.' },
+          { text: `So $E < D = ${qTex(d)}$, and the Lagrange bound says the same thing.` },
+        ]
+      : [
+          { text: 'At this $x$ every term has the same sign, so all the terms left out add up: the error is more than the first of them.' },
+          { text: `The Lagrange bound still holds, so $${qTex(d)} < E \\le ${qTex(b)}$.` },
+        ];
+  },
+};
+
+interface CompareExactParams {
+  k: Q;
+  h: Q;
+  n: number;
+}
+
+/** 1/(1 - kx) at h: P_n, the actual error, and the first term left out, exactly. */
+function geoError({ k, h, n }: CompareExactParams): { u: Q; p: Q; e: Q; d: Q } {
+  const u = mul(k, h);
+  const p = Array.from({ length: n + 1 }, (_, j) => pow(u, j)).reduce(add, ZERO);
+  return { u, p, e: sub(div(ONE, sub(ONE, u)), p), d: pow(u, n + 1) };
+}
+
+/** Expression: the actual error of a geometric estimate, next to the first term left out. */
+const compareExact: Generator<CompareExactParams> = {
+  id: 'ser-compare-exact',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const k = hard ? rng.pick([q(2), q(-2), q(3), q(1, 2), q(-1)]) : ONE;
+      const h = rng.pick([q(1, 2), q(-1, 2), q(1, 3), q(-1, 3), q(1, 4), q(-1, 4), q(2, 3), q(-2, 3), q(3, 4), q(1, 5)]);
+      const n = rng.int(hard ? 2 : 1, hard ? 4 : 3);
+      if (Math.abs(val(mul(k, h))) >= 1) continue;
+      if (geoError({ k, h, n }).e.d > 20000) continue;
+      return { k, h, n };
+    }
+  },
+  render: (params): Slide => {
+    const { k, h, n } = params;
+    const f = fnOf('geo', k);
+    const { d, e } = geoError(params);
+    return {
+      kind: 'expression',
+      prompt: [
+        say(`$f(x) = ${fnTex(f)}$ is estimated at $x = ${qTex(h)}$ by`),
+        show(`P_{${n}}(x) = ${seriesTex(termsOf(f, n + 1, n), 'x', false)}`),
+        say(`The first term left out is $${qTex(d)}$. Find the actual error, $f(${qTex(h)}) - P_{${n}}(${qTex(h)})$.`),
+      ],
+      lead: `f(${qTex(h)}) - P_{${n}}(${qTex(h)}) =`,
+      keypad: FRACTION_KEYS,
+      answer: qAns(e),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { h, n } = params;
+    const { u, p, e, d } = geoError(params);
+    return [
+      { tex: `f(${qTex(h)}) = \\frac{1}{1 - ${inLine(u)}} = ${qTex(div(ONE, sub(ONE, u)))}, \\quad P_{${n}}(${qTex(h)}) = ${qTex(p)}` },
+      { tex: `f - P_{${n}} = ${qTex(e)}` },
+      {
+        text: `That is the first term left out divided by $1 - ${inLine(u)}$: ${val(u) > 0 ? `more than $${qTex(d)}$, since every term left out is positive` : `smaller in size than $${qTex(d)}$, since the terms left out alternate`}.`,
+      },
+    ];
+  },
+  choices: (params) => {
+    const { k, h, n } = params;
+    const { u, p, e, d } = geoError(params);
+    return qChoices(e, [d, div(ONE, sub(ONE, u)), mul(d, u), neg(p)], mix(k.n, k.d, h.n, h.d, n));
+  },
+};
+
+/* ---------- Level 3, lesson 4: choosing a degree ---------- */
+
+interface TableParams {
+  f: Fn;
+  h: Q;
+  /** The first degree in the table. */
+  start: number;
+}
+
+/** A whole M: the amplitude of a wave, 1 for e^{kc} shrinking, a whole number above e^{kh} otherwise. */
+function wholeM(f: Fn, p: number, h: Q): number {
+  const amp = val(ampOf(f, p));
+  if (f.base !== 'exp' || val(mul(f.k, h)) <= 0) return amp;
+  return amp * wholeAbove(mul(f.k, h));
+}
+
+const tableBound = ({ f, h }: TableParams, n: number): Q => div(mul(q(wholeM(f, n + 1, h)), pow(abs(h), n + 1)), q(fact(n + 1)));
+
+/** Table: the bound for four degrees in a row, to see where it drops under a tolerance. */
+const degreeTable: Generator<TableParams> = {
+  id: 'ser-degree-table',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const base = rng.pick<Base>(['exp', 'sin', 'cos']);
+      const f = fnOf(base, base === 'exp' ? rng.pick([1, -1]) : 1, { scale: hard ? rng.pick([1, 2, 3]) : 1 });
+      const h = rng.pick(hard ? [q(1), q(3, 2), q(2), q(-1), q(2, 3), q(3, 4), q(-3, 2)] : [q(1, 2), q(-1, 2), q(1, 3), q(2, 3), q(1), q(-1), q(3, 4)]);
+      const start = hard ? rng.int(2, 3) : 1;
+      const params = { f, h, start };
+      if (tableBound(params, start + 3).d > 50000) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { f, h, start } = params;
+    const ns = [0, 1, 2, 3].map((i) => start + i);
+    const answer = ns.map((n) => tableBound(params, n));
+    const slips = [div(answer[0], q(start + 1)), mul(answer[0], q(2)), div(answer[3], q(start + 5)), mul(answer[3], q(start + 4))];
+    const M = wholeM(f, start + 1, h);
+    const grows = f.base === 'exp' && val(mul(f.k, h)) > 0;
+    const mSay = grows ? `Take $M = ${M}$, using $e^{c} < ${wholeAbove(mul(f.k, h))}$` : `Here $M = ${M}$`;
+    return {
+      kind: 'table',
+      prompt: [
+        say(
+          `$f(x) = ${fnTex(f)}$ is estimated at $x = ${qTex(h)}$ by $P_{n}(x)$. ${mSay}${f.scale === 1 ? '' : ', since the multiplier carries through every derivative'}. Fill in the Lagrange bound for each degree $n$.`,
+        ),
+      ],
+      columns: ['n', '\\frac{M|x|^{n+1}}{(n+1)!}'],
+      rows: ns.map((n) => [`${n}`, null]),
+      bank: qBank(answer, slips, 3),
+      answer: answer.map(qTex),
+    };
+  },
+  solution: (params) => {
+    const { f, h, start } = params;
+    const ns = [0, 1, 2, 3].map((i) => start + i);
+    const under = ns.find((n) => val(tableBound(params, n)) < 0.001);
+    return [
+      { text: `$M = ${wholeM(f, start + 1, h)}$, and each row divides $M|x|^{n+1}$ by $(n+1)!$:` },
+      { tex: ns.map((n) => `n = ${n}: \\; ${qTex(tableBound(params, n))}`).join(', \\; ') },
+      {
+        text:
+          under === undefined
+            ? 'The bound shrinks with each degree: a tolerance says which row is the first small enough.'
+            : `The first below $0.001$ is at $n = ${under}$, so $P_{${under}}$ would be enough for that.`,
+      },
+    ];
+  },
+};
+
+interface DegreeParams {
+  f: Fn;
+  x: Q;
+  tol: number;
+}
+
+/** M |x|^{n+1}/(n+1)! with the true M, as a number. */
+const boundAt = (f: Fn, n: number, x: Q): number => waveBound({ f, n, x });
+
+/** The smallest n whose bound is under the tolerance. */
+function degreeNeeded({ f, x, tol }: DegreeParams): number {
+  let n = 1;
+  while (boundAt(f, n, x) >= tol) n += 1;
+  return n;
+}
+
+const TOLERANCES = [0.01, 0.005, 0.001, 0.0005, 0.0001];
+
+/** Expression: the smallest degree that meets a tolerance. */
+const degreeN: Generator<DegreeParams> = {
+  id: 'ser-degree-n',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const base = rng.pick<Base>(['exp', 'sin', 'cos']);
+      // e^{-x} but never sin(-x), which reads as a slip rather than a harder question.
+      const f = fnOf(base, !hard ? 1 : base === 'exp' ? rng.pick([1, -1]) : rng.pick([1, 1, 2]));
+      const x = rng.pick(hard ? BOUND_X : BOUND_X.filter((v) => v.n > 0));
+      const tol = rng.pick(hard ? TOLERANCES : [0.01, 0.001]);
+      const params = { f, x, tol };
+      const n = degreeNeeded(params);
+      // Clear of the tolerance both sides, so M need not be exact to decide.
+      if (n < 2 || n > 9 || boundAt(f, n, x) > 0.8 * tol || boundAt(f, n - 1, x) < 1.25 * tol) continue;
+      return params;
+    }
+  },
+  render: ({ f, x, tol }): Slide => ({
+    kind: 'expression',
+    prompt: [
+      say(`$f(x) = ${fnTex(f)}$ is estimated at $x = ${decQ(x)}$ by $P_{n}(x)$. Using the Lagrange bound, what is the smallest $n$ that makes sure the error is under $${fmt(tol)}$?`),
+    ],
+    lead: 'n =',
+    keypad: [],
+    answer: `${degreeNeeded({ f, x, tol })}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const { f, x, tol } = params;
+    const n = degreeNeeded(params);
+    const m = waveM(f, n + 1, x, decQ);
+    const row = (k: number) => `n = ${k}: \\; ${m.tex} \\times \\frac{${fmt(Math.abs(val(x)))}^{${k + 1}}}{${k + 1}!} \\approx ${fmt(Number(boundAt(f, k, x).toPrecision(3)))}`;
+    return [
+      { text: `Here $M = ${m.tex}$. Work the bound out for each $n$ until it drops under $${fmt(tol)}$:` },
+      { tex: row(n - 1) },
+      { tex: row(n) },
+      { text: `So $n = ${n}$ is the first that is small enough.` },
+    ];
+  },
+  choices: (params) => {
+    const n = degreeNeeded(params);
+    return numberChoices(n, [n + 1, n - 1, n + 2], saltOf(params.f, params.x.n, params.x.d, Math.round(params.tol * 1e5)));
+  },
+};
+
+interface SliderParams {
+  f: Fn;
+  n: number;
+  tol: number;
+}
+
+const REACH_STEP = 0.05;
+
+/** The bound on |R_n(x)| for x ≥ 0 as a function of x: M grows with x for e^x. */
+const reachBound = ({ f, n }: Pick<SliderParams, 'f' | 'n'>, x: number): number =>
+  ((f.base === 'exp' && val(f.k) > 0 ? Math.exp(val(f.k) * x) : 1) * val(ampOf(f, n + 1)) * x ** (n + 1)) / fact(n + 1);
+
+/** Where the bound reaches the tolerance, by bisection: it only grows. */
+function reachLimit(params: SliderParams): number {
+  let lo = 0;
+  let hi = 4;
+  for (let i = 0; i < 60; i += 1) {
+    const mid = (lo + hi) / 2;
+    if (reachBound(params, mid) <= params.tol) lo = mid;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/** The last step on the slider at or before the limit. */
+const reachAnswer = (params: SliderParams): number => Math.round(Math.floor(reachLimit(params) / REACH_STEP) * REACH_STEP * 100) / 100;
+
+/** Slider: turned round, how far x may go before the bound passes the tolerance. */
+const degreeSlider: Generator<SliderParams> = {
+  id: 'ser-degree-slider',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const base = rng.pick<Base>(hard ? ['exp', 'exp', 'sin', 'cos'] : ['sin', 'cos', 'exp']);
+      const f = fnOf(base, base === 'exp' && !hard ? -1 : 1);
+      const params = { f, n: rng.int(2, 7), tol: rng.pick([0.01, 0.005, 0.001, 0.0005]) };
+      const limit = reachLimit(params);
+      const steps = limit / REACH_STEP;
+      // The crossing has to sit well inside a step, or the last good step is a coin toss.
+      if (limit < 0.3 || limit > 1.95 || steps - Math.floor(steps) < 0.2 || steps - Math.floor(steps) > 0.8) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { f, n, tol } = params;
+    const yMax = 2 * tol;
+    const grows = f.base === 'exp' && val(f.k) > 0;
+    const formula = `\\frac{${grows ? 'e^{x}' : ''}x^{${n + 1}}}{${n + 1}!}`;
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          `For $f(x) = ${fnTex(f)}$ and $x \\ge 0$, the Lagrange bound on the error of $P_{${n}}(x)$ is $${formula}$${grows ? ', since $M = e^{x}$ grows with $x$' : ''}. It is drawn below, with a dashed line at $${fmt(tol)}$. Slide to the largest $x$ on the scale at which the bound is at most $${fmt(tol)}$.`,
+        ),
+      ],
+      min: 0,
+      max: 2,
+      step: REACH_STEP,
+      answer: reachAnswer(params),
+      readout: 'x = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: 2,
+          yMin: 0,
+          yMax,
+          curves: [{ f: (x) => (reachBound(params, x) <= yMax * 1.05 ? reachBound(params, x) : NaN), accent: true, breaks: true }],
+          horizontals: [tol],
+          label: `The bound on the error for x from 0 to 2, rising to meet a dashed line at ${fmt(tol)}`,
+        }),
+        ...markerWindow(0, 2),
+      },
+    };
+  },
+  solution: (params) => {
+    const { n, tol } = params;
+    const limit = reachLimit(params);
+    const answer = reachAnswer(params);
+    return [
+      { text: `The bound grows with $x$, and reaches $${fmt(tol)}$ at about $x = ${fmt(Math.round(limit * 1000) / 1000)}$.` },
+      { tex: `\\text{at } x = ${fmt(answer)}: \\; ${fmt(Number(reachBound(params, answer).toPrecision(3)))} \\le ${fmt(tol)}` },
+      { tex: `\\text{at } x = ${fmt(Math.round((answer + REACH_STEP) * 100) / 100)}: \\; ${fmt(Number(reachBound(params, answer + REACH_STEP).toPrecision(3)))} > ${fmt(tol)}` },
+      { text: `So $P_{${n}}$ is good enough for $0 \\le x \\le ${fmt(answer)}$ on this scale.` },
+    ];
+  },
+};
+
+interface ReachParams {
+  f: Fn;
+  n: number;
+  /** The answer: how far x may go. */
+  r: Q;
+}
+
+/** The tolerance that makes r the answer: M r^{n+1} / (n+1)!. */
+const reachTol = ({ f, n, r }: ReachParams): Q => div(mul(ampOf(f, n + 1), pow(r, n + 1)), q(fact(n + 1)));
+
+/** Expression: turned round exactly, the largest X whose bound meets a given tolerance. */
+const degreeReach: Generator<ReachParams> = {
+  id: 'ser-degree-reach',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const base = rng.pick<Base>(hard ? ['sin', 'cos', 'exp'] : ['sin', 'cos']);
+      const f = fnOf(base, base === 'exp' ? -1 : hard ? rng.pick([1, 2]) : 1, { scale: hard ? rng.pick([1, 2, 3]) : 1 });
+      const n = rng.int(hard ? 2 : 1, hard ? 4 : 3);
+      const r = rng.pick([q(1, 2), q(1, 3), q(2, 3), q(1, 4), q(3, 4), q(1), q(3, 2), q(2)]);
+      const params = { f, n, r };
+      const tol = reachTol(params);
+      if (tol.d > 50000 || val(tol) > 1) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { f, n } = params;
+    const tol = reachTol(params);
+    const hard = f.scale !== 1 || f.base === 'exp' || !eq(f.k, ONE);
+    return {
+      kind: 'expression',
+      prompt: [
+        say(
+          `For $f(x) = ${fnTex(f)}$, ${hard ? '' : `the Lagrange bound on the error of $P_{${n}}(x)$ is $\\frac{x^{${n + 1}}}{${n + 1}!}$ for $x \\ge 0$. `}${hard ? 'find' : 'Find'} the largest $X$ such that ${hard ? `the Lagrange bound on the error of $P_{${n}}(x)$` : 'it'} is at most $${qTex(tol)}$ for every $x$ from $0$ to $X$.`,
+        ),
+      ],
+      lead: 'X =',
+      keypad: FRACTION_KEYS,
+      answer: qAns(params.r),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { f, n, r } = params;
+    const tol = reachTol(params);
+    const amp = ampOf(f, n + 1);
+    const top = div(mul(tol, q(fact(n + 1))), amp);
+    return [
+      { text: `$|${dName(n + 1)}(c)|$ is never more than $M = ${qTex(amp)}$ for $c \\ge 0$, so the bound is $\\frac{${eq(amp, ONE) ? '' : qTex(amp)}x^{${n + 1}}}{${n + 1}!}$. Set it at most $${qTex(tol)}$:` },
+      { tex: `x^{${n + 1}} \\le \\frac{${fact(n + 1)} \\times ${inLine(tol)}}{${qTex(amp)}} = ${qTex(top)}` },
+      { tex: `x \\le ${qTex(r)}` },
+    ];
+  },
+  choices: (params) => {
+    const { f, n, r } = params;
+    return qChoices(r, [pow(r, n + 1), pow(r, 2), div(r, q(2)), mul(r, q(n + 1))], saltOf(f, n, r.n, r.d));
+  },
+};
+
+/* ---------- Level 3, lesson 5: remainders about a centre ---------- */
+
+type CKind = 'ln' | 'sqrt' | 'recip' | 'exp';
+
+/** `scale` times ln x, √x, 1/x or e^x, expanded about a whole `a`. */
+interface Centred {
+  kind: CKind;
+  a: number;
+  scale: number;
+}
+
+/** The coefficient C in f^(m)(x) = C x^{power}: ln, 1/x and √x; e^x has C = scale. */
+function cCoef({ kind, scale }: Centred, m: number): Q {
+  switch (kind) {
+    case 'ln':
+      return q(scale * (m % 2 === 1 ? 1 : -1) * fact(m - 1));
+    case 'recip':
+      return q(scale * (m % 2 === 0 ? 1 : -1) * fact(m));
+    case 'sqrt': {
+      // 1/2 × (-1/2) × (-3/2) × ... one factor per derivative.
+      let c = q(scale);
+      for (let i = 0; i < m; i += 1) c = mul(c, q(1 - 2 * i, 2));
+      return c;
+    }
+    case 'exp':
+      return q(scale);
+  }
+}
+
+/** The power of x in f^(m)(x), doubled so √x's halves stay whole. */
+function cPow2({ kind }: Centred, m: number): number {
+  if (kind === 'ln') return -2 * m;
+  if (kind === 'recip') return -2 * (m + 1);
+  return 1 - 2 * m;
+}
+
+export const cfnTex = ({ kind, scale }: Centred): string =>
+  kind === 'ln' ? `${lead(scale)}\\ln x` : kind === 'recip' ? `${scale < 0 ? '-' : ''}\\frac{${Math.abs(scale)}}{x}` : kind === 'sqrt' ? `${lead(scale)}\\sqrt{x}` : `${lead(scale)}e^{x}`;
+
+export const cfnSource = ({ kind, scale }: Centred): string =>
+  `(${scale})*${kind === 'ln' ? 'log(x)' : kind === 'recip' ? '1/x' : kind === 'sqrt' ? 'sqrt(x)' : 'exp(x)'}`;
+
+/** f^(m) at a point named `at`: `\frac{2}{c^{3}}`, `-\frac{15}{16}c^{-\frac{7}{2}}`, `2e^{c}`. */
+function cDerivTex(g: Centred, m: number, at = 'c'): string {
+  const c = cCoef(g, m);
+  if (g.kind === 'exp') return `${lead(g.scale)}e^{${at}}`;
+  const p2 = cPow2(g, m);
+  if (p2 % 2 === 0) {
+    const sign = c.n < 0 ? '-' : '';
+    const size = abs(c);
+    const bottom = p2 === -2 ? at : `${at}^{${-p2 / 2}}`;
+    return size.d === 1 ? `${sign}\\frac{${size.n}}{${bottom}}` : `${sign}\\frac{${size.n}}{${size.d}${bottom}}`;
+  }
+  return `${qLead(c)}${at}^{-\\frac{${-p2}}{2}}`;
+}
+
+/** |f^(m)(c)| as a number. */
+const cSize = (g: Centred, m: number, c: number): number =>
+  g.kind === 'exp' ? Math.abs(g.scale) * Math.exp(c) : Math.abs(val(cCoef(g, m))) * c ** (cPow2(g, m) / 2);
+
+/** |f^(m)(c)| exactly, at a rational c, where it is rational: not for e^x, nor √x off a square. */
+function cSizeQ(g: Centred, m: number, c: Q): Q | undefined {
+  const p2 = cPow2(g, m);
+  if (g.kind === 'exp') return undefined;
+  if (p2 % 2 === 0) return abs(div(cCoef(g, m), pow(c, -p2 / 2)));
+  const rootN = Math.round(Math.sqrt(c.n));
+  const rootD = Math.round(Math.sqrt(c.d));
+  if (rootN * rootN !== c.n || rootD * rootD !== c.d) return undefined;
+  return abs(div(cCoef(g, m), pow(q(rootN, rootD), -p2)));
+}
+
+/** `(x - 4)`, `(x + 1)`. */
+const aBracket = (a: number): string => (a < 0 ? `(x + ${-a})` : `(x - ${a})`);
+
+/** `\frac{(x - 4)^{3}}{3!}`. */
+const cFrac = (a: number, p: number, fac = p): string => `\\frac{${aBracket(a)}^{${p}}}{${fac}!}`;
+
+interface CentredParams {
+  g: Centred;
+  n: number;
+}
+
+function sampleCentred(rng: Rng, hard: boolean): Centred {
+  const kind = rng.pick<CKind>(hard ? ['ln', 'sqrt', 'recip', 'exp', 'sqrt'] : ['ln', 'sqrt', 'recip']);
+  const scale = hard ? rng.pick([1, 2, 3, -1, -2]) : 1;
+  switch (kind) {
+    case 'ln':
+      return { kind, a: rng.pick(hard ? [1, 2, 3, 4] : [1, 1, 2, 3]), scale };
+    case 'sqrt':
+      return { kind, a: rng.pick(hard ? [1, 4, 9, 16, 25] : [4, 9]), scale };
+    case 'recip':
+      return { kind, a: rng.pick([1, 2, 3]), scale };
+    case 'exp':
+      return { kind, a: rng.pick([1, 2, -1]), scale };
+  }
+}
+
+/** Tiles: f^(n+1)(c) and (x - a)^{n+1}/(n+1)! in a Taylor remainder. */
+const centreTiles: Generator<CentredParams> = {
+  id: 'ser-centre-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return { g: sampleCentred(rng, hard), n: rng.int(1, 4) };
+  },
+  render: ({ g, n }): Slide => {
+    const answer = [cDerivTex(g, n + 1), cFrac(g.a, n + 1)];
+    const atA = cSizeQ(g, n + 1, q(g.a));
+    // Derivative and power slips take turns, so the spare tiles tempt both blanks.
+    const slips = [
+      cDerivTex(g, n),
+      cFrac(-g.a, n + 1),
+      cDerivTex(g, n + 1, 'x'),
+      remFrac(n + 1),
+      cDerivTex(g, n + 2),
+      cFrac(g.a, n + 1, n),
+      ...(atA ? [qTex(mul(atA, q(Math.sign(val(cCoef(g, n + 1))))))] : []),
+      ...(n >= 2 ? [cFrac(g.a, n)] : []),
+    ];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(
+          `$P_{${n}}(x)$ is the Taylor polynomial of $f(x) = ${cfnTex(g)}$ about $x = ${g.a}$, up to $${aBracket(g.a)}${n === 1 ? '' : `^{${n}}`}$. Complete the Lagrange form of its remainder, with $c$ between $${g.a}$ and $x$.`,
+        ),
+      ],
+      template: `R_${n}(x) = {0} \\times {1}`,
+      bank: termBank(answer, slips, 4),
+      answer,
+    };
+  },
+  solution: ({ g, n }) => [
+    { text: `About $x = ${g.a}$ everything is in powers of $${aBracket(g.a)}$: the remainder after $P_{${n}}$ takes $${dName(n + 1)}$ at some $c$ between $${g.a}$ and $x$, and $${aBracket(g.a)}^{${n + 1}}$ over $${n + 1}!$.` },
+    { tex: `${derivName(n + 1, 'x')} = ${cDerivTex(g, n + 1, 'x')}` },
+    { tex: `R_{${n}}(x) = ${cDerivTex(g, n + 1)} \\times ${cFrac(g.a, n + 1)}` },
+  ],
+};
+
+interface CentreAtParams {
+  g: Centred;
+  n: number;
+  /** Where the estimate is made, either side of the centre. */
+  x: Q;
+}
+
+/** The ends of the interval c lies in. */
+const endsOf = ({ g, x }: CentreAtParams): [Q, Q] => (val(x) < g.a ? [x, q(g.a)] : [q(g.a), x]);
+
+/** Offsets from a centre that make x a short decimal. */
+const OFFSETS = [q(1, 2), q(-1, 2), q(1, 5), q(-1, 5), q(1, 10), q(-1, 10), q(3, 10), q(-3, 10), q(1), q(-1)];
+
+/** Flow: which derivative, which way its size moves as c grows, and so which end gives M. */
+const centreFlow: Generator<CentreAtParams> = {
+  id: 'ser-centre-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const g = sampleCentred(rng, hard);
+      const x = add(q(g.a), rng.pick(OFFSETS));
+      if (val(x) <= 0 || (g.a === 1 && val(x) < 0.5)) continue;
+      // Difficulty 1 still meets e^x now and then, so "gets bigger" is a live answer.
+      return { g: !hard && rng.chance(0.25) ? { kind: 'exp', a: g.a, scale: 1 } : g, n: rng.int(1, hard ? 4 : 3), x };
+    }
+  },
+  render: (params): Slide => {
+    const { g, n, x } = params;
+    const [lo, hi] = endsOf(params);
+    const salt = mix(['ln', 'sqrt', 'recip', 'exp'].indexOf(g.kind), g.a, g.scale, n, x.n, x.d);
+    const grows = g.kind === 'exp';
+    const at = (end: Q) => `$c = ${decQ(end)}$`;
+    return {
+      kind: 'flow',
+      prompt: [say(`$f(x) = ${cfnTex(g)}$ is estimated at $x = ${decQ(x)}$ by $P_{${n}}(x)$, its Taylor polynomial about $x = ${g.a}$. Find where to take $M$ for the Lagrange bound.`)],
+      subject: `f(x) = ${cfnTex(g)}, \\quad a = ${g.a}, \\quad x = ${decQ(x)}`,
+      steps: [
+        {
+          id: 'which',
+          ask: 'Which derivative has to be bounded?',
+          branches: turned([n, n + 1, n + 2].map((p) => `$${dName(p)}$`), salt).map((label) => ({ label, to: 'grow' })),
+        },
+        {
+          id: 'grow',
+          ask: `As $c$ increases, the size of $${derivName(n + 1, 'c')} = ${cDerivTex(g, n + 1)}$`,
+          branches: [
+            { label: 'Gets bigger', to: 'end' },
+            { label: 'Gets smaller', to: 'end' },
+          ],
+        },
+        {
+          id: 'end',
+          ask: `So for $c$ between $${decQ(lo)}$ and $${decQ(hi)}$, it is largest at`,
+          branches: [lo, hi].map((end) => ({ label: at(end), outcome: `Then $M = |${derivName(n + 1, decQ(end))}|$.` })),
+        },
+      ],
+      answer: [`$${dName(n + 1)}$`, grows ? 'Gets bigger' : 'Gets smaller', at(grows ? hi : lo)],
+    };
+  },
+  solution: (params) => {
+    const { g, n } = params;
+    const [lo, hi] = endsOf(params);
+    const grows = g.kind === 'exp';
+    return [
+      { tex: `${derivName(n + 1, 'c')} = ${cDerivTex(g, n + 1)}` },
+      {
+        text: grows
+          ? '$e^{c}$ grows as $c$ grows, so it is largest at the right-hand end.'
+          : '$c$ is raised to a negative power, so the derivative shrinks in size as $c$ grows: it is largest at the left-hand end, nearest $0$.',
+      },
+      { tex: `M = |${derivName(n + 1, decQ(grows ? hi : lo))}|` },
+    ];
+  },
+};
+
+/** M, the bound and its pieces, exactly: M from the left-hand end, where every exact case here is largest. */
+function centreExact(params: CentreAtParams): { pow: Q; m: Q; bound: Q } | undefined {
+  const { g, n, x } = params;
+  const [lo] = endsOf(params);
+  const m = cSizeQ(g, n + 1, lo);
+  if (!m) return undefined;
+  const power = pow(abs(sub(x, q(g.a))), n + 1);
+  return { pow: power, m, bound: div(mul(m, power), q(fact(n + 1))) };
+}
+
+/** Tree: |x - a|^{n+1}, M and (n+1)!, then the bound, all exact. */
+const centreTree: Generator<CentreAtParams> = {
+  id: 'ser-centre-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const kind = rng.pick<CKind>(hard ? ['ln', 'sqrt', 'recip', 'sqrt'] : ['ln', 'ln', 'recip']);
+      const g: Centred = { kind, a: kind === 'sqrt' ? rng.pick([4, 9]) : rng.pick(hard ? [1, 2] : [1]), scale: hard ? rng.pick([1, 2, -1]) : 1 };
+      const x = add(q(g.a), rng.pick(OFFSETS));
+      const params = { g, n: rng.int(1, hard ? 3 : 2), x };
+      if (val(x) <= 0) continue;
+      const exact = centreExact(params);
+      if (!exact || exact.bound.d > 20000 || exact.m.d > 20000 || exact.bound.n > 1000) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { g, n, x } = params;
+    const { pow: power, m, bound } = centreExact(params)!;
+    const h = abs(sub(x, q(g.a)));
+    const [lo, hi] = endsOf(params);
+    const mHi = cSizeQ(g, n + 1, hi);
+    const slips = [pow(h, n), q(fact(n)), div(power, q(fact(n + 1))), ...(mHi ? [mHi, div(mul(mHi, power), q(fact(n + 1)))] : []), mul(bound, q(2))];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `$f(x) = ${cfnTex(g)}$ is replaced at $x = ${decQ(x)}$ by $P_{${n}}(x)$, its Taylor polynomial about $x = ${g.a}$. Top row, left to right: $|x - ${g.a}|^{${n + 1}}$, then $M$, the largest $|${dName(n + 1)}(c)|$ for $c$ from $${decQ(lo)}$ to $${decQ(hi)}$, then $${n + 1}!$. Underneath: the bound on the error.`,
+        ),
+      ],
+      expression: `|R_{${n}}(x)| \\le M \\times \\frac{|x - ${g.a}|^{${n + 1}}}{${n + 1}!}`,
+      nodes: [
+        { id: 'pow', from: [] },
+        { id: 'M', from: [] },
+        { id: 'fact', from: [] },
+        { id: 'bound', from: ['pow', 'M', 'fact'] },
+      ],
+      bank: qBank([power, m, q(fact(n + 1)), bound], slips, 3),
+      answer: [power, m, q(fact(n + 1)), bound].map(qTex),
+    };
+  },
+  solution: (params) => {
+    const { g, n } = params;
+    const { pow: power, m, bound } = centreExact(params)!;
+    const [lo] = endsOf(params);
+    return [
+      { text: `$${derivName(n + 1, 'c')} = ${cDerivTex(g, n + 1)}$ shrinks in size as $c$ grows, so $M$ is its size at $c = ${decQ(lo)}$:` },
+      { tex: `M = ${qTex(m)}, \\quad |x - ${g.a}|^{${n + 1}} = ${qTex(power)}` },
+      { tex: `|R_{${n}}| \\le \\frac{${qTex(m)} \\times ${qTex(power)}}{${fact(n + 1)}} = ${qTex(bound)}` },
+    ];
+  },
+};
+
+/** The bound as a number, with M at whichever end the derivative is largest. */
+function centreBound(params: CentreAtParams, m = params.n + 1, far = false): number {
+  const { g, x } = params;
+  const [lo, hi] = endsOf(params);
+  const grows = g.kind === 'exp';
+  const end = grows !== far ? hi : lo;
+  return (cSize(g, m, val(end)) * Math.abs(val(x) - g.a) ** m) / fact(m);
+}
+
+/** Offsets for a decimal bound: tenths and quarters either side. */
+const DEC_OFFSETS = [q(1, 10), q(-1, 10), q(1, 5), q(-1, 5), q(3, 10), q(-3, 10), q(2, 5), q(-2, 5), q(1, 2), q(-1, 2), q(1, 4), q(-1, 4), q(3, 5), q(1)];
+
+/** Expression: the bound about a centre, as a decimal to 3 s.f. */
+const centreDec: Generator<CentreAtParams> = {
+  id: 'ser-centre-dec',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const g: Centred = hard ? { kind: 'sqrt', a: rng.pick([4, 9]), scale: 1 } : { kind: 'ln', a: 1, scale: 1 };
+      // Difficulty 2 mixes the logarithm back in, and moves its centre.
+      const pick = hard && rng.chance(0.3) ? { kind: 'ln' as const, a: rng.pick([1, 2]), scale: 1 } : g;
+      const x = add(q(pick.a), rng.pick(DEC_OFFSETS));
+      const params = { g: pick, n: rng.int(1, 3), x };
+      if (val(x) <= 0 || (pick.a === 1 && val(x) < 0.5)) continue;
+      const bound = centreBound(params);
+      if (bound < 0.0001 || bound > 50 || sig3(bound) === undefined) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { g, n, x } = params;
+    return {
+      kind: 'expression',
+      prompt: [
+        say(
+          `$${cfnTex(g)}$ is estimated at $x = ${decQ(x)}$ by $P_{${n}}(x)$, its Taylor polynomial about $x = ${g.a}$. Use the Lagrange form to bound the error, to 3 significant figures.`,
+        ),
+      ],
+      lead: `|R_{${n}}(${decQ(x)})| \\le`,
+      keypad: [],
+      answer: fmt(sig3(centreBound(params))!),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { g, n, x } = params;
+    const [lo] = endsOf(params);
+    const h = fmt(Math.abs(val(x) - g.a));
+    return [
+      { text: `$${derivName(n + 1, 'c')} = ${cDerivTex(g, n + 1)}$ shrinks in size as $c$ grows, so take $M$ at $c = ${decQ(lo)}$, the end nearer $0$:` },
+      { tex: `M = |${derivName(n + 1, decQ(lo))}| \\approx ${fmt(Number(cSize(g, n + 1, val(lo)).toPrecision(4)))}` },
+      { tex: `|R_{${n}}| \\le M \\times \\frac{${h}^{${n + 1}}}{${n + 1}!} = ${fmt(sig3(centreBound(params))!)}` },
+    ];
+  },
+  choices: (params) => {
+    const { g, n, x } = params;
+    const h = Math.abs(val(x) - g.a);
+    return sigChoices(
+      centreBound(params),
+      [centreBound(params, n + 1, true), centreBound(params, n), (cSize(g, n + 1, g.a) * h ** (n + 1)) / fact(n)],
+      mix(['ln', 'sqrt'].indexOf(g.kind), g.a, n, x.n, x.d),
+    );
+  },
+};
+
 /** The generators by name, for `seriesExpansions.test.ts`. */
 export const seriesByName = {
   coefTree,
@@ -3127,6 +4603,26 @@ export const seriesByName = {
   rangeFlow,
   validPick,
   validTiles,
+  remTiles,
+  remFlow,
+  remPick,
+  remExact,
+  boundMFlow,
+  boundTiles,
+  boundTree,
+  boundDec,
+  compareFlow,
+  compareTree,
+  comparePick,
+  compareExact,
+  degreeTable,
+  degreeN,
+  degreeSlider,
+  degreeReach,
+  centreTiles,
+  centreFlow,
+  centreTree,
+  centreDec,
 };
 
 /* ---------- Fitting a phone ---------- */

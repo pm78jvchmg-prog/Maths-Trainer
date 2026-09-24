@@ -4076,7 +4076,9 @@ const relSlider: Generator<RelSliderParams> = {
       min,
       max,
       step: 0.5,
-      answer: inverse ? exact : estimate,
+      // On the half-step lattice by construction; rounded so float noise
+      // (50 x 1.11 = 55.50000000000001) never reaches the answer.
+      answer: Math.round((inverse ? exact : estimate) * 2) / 2,
       readout: inverse ? '\\text{exact value} = {v}' : '\\text{estimate} = {v}',
       figure: {
         svg: plotSvg({

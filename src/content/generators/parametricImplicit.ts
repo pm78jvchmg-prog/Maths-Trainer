@@ -2304,8 +2304,9 @@ const implChainTerm: Generator<ChainTermParams> = {
         ? (['power', 'sin', 'cos', 'exp', 'ln', 'xpower'] as const)
         : (['power', 'power', 'sin', 'cos', 'exp', 'xpower'] as const);
     const kind = rng.pick(kinds);
-    const k = rng.int(1, 6) * (difficulty >= 2 ? rng.sign() : 1);
-    return { kind, k, n: rng.int(2, 5) };
+    // Harder draws reach further as well as taking a sign.
+    const k = difficulty >= 2 ? rng.int(1, 9) * rng.sign() : rng.int(1, 6);
+    return { kind, k, n: rng.int(2, difficulty >= 2 ? 7 : 5) };
   },
   render: (params): Slide => {
     const labels = chainTermOptions(params);
@@ -6530,9 +6531,15 @@ function sampleInverseSine(rng: Rng, inv: InverseSineParams['inv'][], ks: number
   return { a, b, c, s: rng.sign(), k: rng.pick(ks), inv: rng.pick(inv) };
 }
 
-/** Difficulty 1 is sin^{-1} x alone; 2 adds cos^{-1} x and a number in front. */
-const sampleInverseMixed = (rng: Rng, difficulty: number): InverseSineParams =>
-  difficulty >= 2 ? sampleInverseSine(rng, ['sin', 'cos'], [1, 2, 3]) : sampleInverseSine(rng, ['sin'], [1]);
+/**
+ * Difficulty 1 is sin^{-1} x alone; 2 adds cos^{-1} x and a number in front,
+ * and is never plain sin^{-1} x, which would be the difficulty-1 question.
+ */
+function sampleInverseMixed(rng: Rng, difficulty: number): InverseSineParams {
+  if (difficulty < 2) return sampleInverseSine(rng, ['sin'], [1]);
+  const params = sampleInverseSine(rng, ['sin', 'cos'], [1, 2, 3]);
+  return params.inv === 'sin' && params.k === 1 ? { ...params, k: rng.pick([2, 3]) } : params;
+}
 
 /** y for mathjs. */
 export const inverseSineSource = ({ k, inv }: InverseSineParams): string => `${k} * ${inv === 'sin' ? 'asin' : 'acos'}(x)`;

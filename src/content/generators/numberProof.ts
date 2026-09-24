@@ -5057,8 +5057,12 @@ function ineqWalk(claim: IneqClaim): { split: string[]; after: string; reasons: 
 
 const prfIndIneqFlow: Generator<IneqPickParams> = {
   id: 'prf-ind-ineq-flow',
+  // Harder draws leave out 2^n > an, the simplest step, and take the squares.
   sample(rng, difficulty) {
-    const pool = difficulty >= 2 ? INEQ_ALL : [...INEQ_POW, ...INEQ_FACT_POW, ...INEQ_FACT_LIN];
+    const pool =
+      difficulty >= 2
+        ? INEQ_ALL.filter((claim) => !(claim.shape === 'powLin' && claim.b === 2))
+        : [...INEQ_POW, ...INEQ_FACT_POW, ...INEQ_FACT_LIN];
     return { claim: rng.pick(pool), wording: rng.int(0, 1) };
   },
   render({ claim, wording }) {

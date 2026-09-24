@@ -6479,8 +6479,12 @@ function sliderEnds(eq: MultiEq, difficulty: number): number[] {
 /** The curve and the level drawn: slide to one solution, named by its place. */
 const multiEqSlider: Generator<MultiSliderParams> = {
   id: 'tid-multi-eq-slider',
+  // Harder draws always have more than one solution to sort through: never an
+  // equation with a single answer, which is the difficulty-1 question again.
   sample: (rng, difficulty) => {
-    const eqs = SLIDER_EQS.map((e, i) => ({ e, i })).filter(({ e }) => (difficulty > 1 || !e.hard) && sliderEnds(e, difficulty).length > 0);
+    const eqs = SLIDER_EQS.map((e, i) => ({ e, i })).filter(
+      ({ e }) => (difficulty > 1 ? openSolutions(e).length > 1 : !e.hard) && sliderEnds(e, difficulty).length > 0,
+    );
     const eq = rng.pick(eqs).i;
     return { eq, end: rng.pick(sliderEnds(SLIDER_EQS[eq], difficulty)) };
   },

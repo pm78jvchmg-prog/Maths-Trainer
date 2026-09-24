@@ -1043,7 +1043,7 @@ export const sequencesSeries: Course = {
           title: 'Regular Savings',
           slides: [
             teach(
-              prose('Pay £$1000$ into an account at the start of each year, and $10\\%$ interest is added at the end of each year. Adding $10\\%$ is multiplying by $1.1$.'),
+              prose('Pay £1000 into an account at the start of each year, and $10\\%$ interest is added at the end of each year. Adding $10\\%$ is multiplying by $1.1$.'),
               prose('Year 1 ends with $1000 \\times 1.1 = 1100$. Year 2 starts with $1100 + 1000 = 2100$ and ends with $2100 \\times 1.1 = 2310$.'),
             ),
             ask('seq-save-table'),
@@ -1051,7 +1051,7 @@ export const sequencesSeries: Course = {
             ask('seq-save-sum-steps'),
             teach(
               prose('Follow each payment on its own instead. The last one grows for one year, the one before it for two, and the first for all $n$:'),
-              maths('\\begin{aligned} B_n = \\; &1000 \\times 1.1 + 1000 \\times 1.1^2 \\\\ &+ \\dots + 1000 \\times 1.1^n \\end{aligned}'),
+              maths('\\begin{aligned} B_n = \\; &1000 \\times 1.1 \\\\ &+ 1000 \\times 1.1^2 \\\\ &+ \\dots + 1000 \\times 1.1^n \\end{aligned}'),
               prose('That is a geometric series, with first term $1000 \\times 1.1$ and common ratio $1.1$.'),
             ),
             ask('seq-save-balance'),
@@ -1072,8 +1072,8 @@ export const sequencesSeries: Course = {
           title: 'Paying Off a Loan',
           slides: [
             teach(
-              prose('Borrow £$1000$ at $20\\%$ a year and repay £$300$ at the end of each year. Each year the debt is multiplied by $1.2$, then the payment comes off:'),
-              maths('u_{n+1} = 1.2u_n - 300, \\quad u_0 = 1000'),
+              prose('Borrow £1000 at $20\\%$ a year and repay £300 at the end of each year. Each year the debt is multiplied by $1.2$, then the payment comes off:'),
+              maths('\\begin{gathered} u_{n+1} = 1.2u_n - 300 \\\\ u_0 = 1000 \\end{gathered}'),
               prose('Here $u_n$ is what is still owed after $n$ payments.'),
             ),
             ask('seq-loan-table'),
@@ -1081,7 +1081,7 @@ export const sequencesSeries: Course = {
             ask('seq-loan-clear'),
             teach(
               prose('Run it a year at a time:'),
-              maths('\\begin{aligned} u_1 &= 1.2 \\times 1000 - 300 = 900 \\\\ u_2 &= 1.2 \\times 900 - 300 = 780 \\\\ u_3 &= 1.2 \\times 780 - 300 = 636 \\end{aligned}'),
+              maths('\\begin{aligned} u_1 &= 1200 - 300 = 900 \\\\ u_2 &= 1080 - 300 = 780 \\\\ u_3 &= 936 - 300 = 636 \\end{aligned}'),
               prose('The debt falls, but slowly: at first most of each payment goes on interest.'),
             ),
             ask('seq-loan-interest-tree'),
@@ -1089,7 +1089,7 @@ export const sequencesSeries: Course = {
             ask('seq-loan-rule-tiles', 2),
             teach(
               prose('The loan clears in the first year that what is owed, once the interest is on, is no more than the payment. That last payment is smaller.'),
-              prose('Repay £$600$ a year on £$1000$ at $20\\%$: $1200 - 600 = 600$, then $720 - 600 = 120$, then a last payment of $144$ clears it.'),
+              prose('Repay £600 a year on £1000 at $20\\%$: $1200 - 600 = 600$, then $720 - 600 = 120$, then a last payment of $144$ clears it.'),
               prose('The interest is everything repaid less the amount borrowed: $600 + 600 + 144 - 1000 = 344$.'),
             ),
             ask('seq-loan-clear', 2),
@@ -1103,7 +1103,7 @@ export const sequencesSeries: Course = {
           slides: [
             teach(
               prose('How many years until savings pass a target? Run the balance a year at a time and stop at the first one over it.'),
-              prose('£$10$ a year, doubled at the end of each year, ends the years on $20, 60, 140, 300$. A target of £$200$ is first passed in year $4$.'),
+              prose('£10 a year, doubled at the end of each year, ends the years on $20, 60, 140, 300$. A target of £200 is first passed in year $4$.'),
             ),
             ask('seq-target-table'),
             ask('seq-target-year'),
@@ -1116,7 +1116,7 @@ export const sequencesSeries: Course = {
             ask('seq-target-year', 2),
             teach(
               prose('To reach a target in a set number of years, use the fact that every balance is in proportion to the payment.'),
-              prose('At $50\\%$, £$40$ a year ends the years on $60, 150, 285$. To have £$1425$ after three years, pay $1425 \\div 285 = 5$ times as much: £$200$ a year.'),
+              prose('At $50\\%$, £40 a year ends the years on $60, 150, 285$. To have £1425 after three years, pay $1425 \\div 285 = 5$ times as much: £200 a year.'),
             ),
             ask('seq-target-payment+choice', 2),
             ask('seq-target-scale-tree', 2),
@@ -1128,15 +1128,15 @@ export const sequencesSeries: Course = {
           title: 'Arithmetic or Geometric',
           slides: [
             teach(
-              prose('A rent of £$800$ that rises by £$80$ a year adds the same amount each time: $800, 880, 960, \\dots$ is arithmetic, $u_n = 800 + 80(n - 1)$.'),
-              prose('A rent of £$800$ that rises by $10\\%$ a year multiplies by $1.1$ each time: $800, 880, 968, \\dots$ is geometric, $u_n = 800 \\times 1.1^{n-1}$.'),
+              prose('A rent of £800 that rises by £80 a year adds the same amount each time: $800, 880, 960, \\dots$ is arithmetic, $u_n = 800 + 80(n - 1)$.'),
+              prose('A rent of £800 that rises by $10\\%$ a year multiplies by $1.1$ each time: $800, 880, 968, \\dots$ is geometric, $u_n = 800 \\times 1.1^{n-1}$.'),
             ),
             ask('seq-model-pick'),
             ask('seq-model-check'),
             ask('seq-model-table'),
             teach(
               prose('The two start the same way, so look at the third value: $960$ against $968$.'),
-              prose('Read the words closely. A rise of $10\\%$ of the first year\'s rent is still a fixed £$80$ each year. A rise of $10\\%$ of the previous year\'s rent grows with the rent.'),
+              prose('Read the words closely. A rise of $10\\%$ of the first year\'s rent is still a fixed £80 each year. A rise of $10\\%$ of the previous year\'s rent grows with the rent.'),
             ),
             ask('seq-model-total-tiles'),
             ask('seq-model-pick', 2),
@@ -1155,7 +1155,7 @@ export const sequencesSeries: Course = {
           title: 'Two Plans Compared',
           slides: [
             teach(
-              prose('Plan A pays £$500$ in year 1 and £$100$ more each year. Plan B pays £$320$ in year 1 and $50\\%$ more each year.'),
+              prose('Plan A pays £500 in year 1 and £100 more each year. Plan B pays £320 in year 1 and $50\\%$ more each year.'),
               maths('\\begin{aligned} A &: 500, 600, 700, 800 \\\\ B &: 320, 480, 720, 1080 \\end{aligned}'),
               prose('A fixed rise wins at first, but a percentage rise grows its own rises: B pays more from year 3 on.'),
             ),
@@ -1171,7 +1171,7 @@ export const sequencesSeries: Course = {
             ask('seq-plans-overtake', 2),
             teach(
               prose('Totals come from the sum formulae. Over five years:'),
-              maths('\\begin{aligned} S_A &= \\tfrac{5}{2}(1000 + 4 \\times 100) = 3500 \\\\ S_B &= \\frac{320(1.5^5 - 1)}{1.5 - 1} = 4220 \\end{aligned}'),
+              maths('\\begin{aligned} S_A &= \\tfrac{5}{2}(1000 + 400) \\\\ &= 3500 \\\\ S_B &= \\frac{320(1.5^5 - 1)}{1.5 - 1} \\\\ &= 4220 \\end{aligned}'),
               prose('By year 5 the percentage plan is ahead in total too.'),
             ),
             ask('seq-plans-which', 2),

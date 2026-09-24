@@ -7875,7 +7875,7 @@ function samplePlan(rng: Rng, hard: boolean, most = 6): Plan {
 }
 
 function saveStory(name: string, P: number, pct: number): string {
-  return `${name} pays £$${P}$ into a savings account at the start of each year, and at the end of each year the account adds ${interest(pct)}.`;
+  return `${name} pays £${P} into a savings account at the start of each year, and at the end of each year the account adds ${interest(pct)}.`;
 }
 
 /** The balance after n years as a series: `1000 \times 1.1 + 1000 \times 1.1^2 + …`. */
@@ -7888,7 +7888,8 @@ function saveSeriesTex({ P, pct, n }: Plan): string {
 function saveWorking({ P, pct, n }: Plan): SolutionStep {
   const run = savingsRun(P, pct, n);
   return {
-    tex: chain(...run.map((B, k) => `\\text{year } ${k + 1} &: (${k === 0 ? 0 : run[k - 1]} + ${P}) \\times ${rateOf(pct).tex} = ${B}`)),
+    // Prose rather than a display, so a long year wraps instead of running off a phone.
+    text: run.map((B, k) => `Year $${k + 1}$: $(${k === 0 ? 0 : run[k - 1]} + ${P}) \\times ${rateOf(pct).tex} = ${B}$.`).join(' '),
   };
 }
 
@@ -7939,7 +7940,7 @@ const saveTable: Generator<SaveTableParams> = {
     };
   },
   solution: (params) => [
-    { text: `Each year: add the £$${params.P}$ payment, then multiply by $${rateOf(params.pct).tex}$ for the interest.` },
+    { text: `Each year: add the £${params.P} payment, then multiply by $${rateOf(params.pct).tex}$ for the interest.` },
     saveWorking(params),
   ],
 };
@@ -7978,7 +7979,7 @@ const saveSeriesTiles: Generator<SavePlanParams> = {
     const total = savingsRun(P, pct, n)[n - 1];
     return [
       { text: `The last payment grows for one year, so it becomes $${P} \\times ${rPow(pct, 1)}$. The first grows for all $${n}$, so it becomes $${P} \\times ${rPow(pct, n)}$.` },
-      { tex: `B_{${n}} = ${saveSeriesTex({ P, pct, n })}` },
+      { text: `So $B_{${n}} = ${saveSeriesTex({ P, pct, n })}$.` },
       { text: `Adding the terms, or running the balance year by year, gives $${total}$.` },
     ];
   },
@@ -8019,7 +8020,7 @@ const saveSumSteps: Generator<SavePlanParams> = {
     const terms = Array.from({ length: n }, (_, i) => savingsTerm(P, pct, i + 1));
     return [
       { text: 'Each payment has grown by its own number of years. Work out each term, then add.' },
-      { tex: `${terms.join(' + ')} = ${savingsRun(P, pct, n)[n - 1]}` },
+      { text: `$${terms.join(' + ')} = ${savingsRun(P, pct, n)[n - 1]}$.` },
     ];
   },
 };
@@ -8123,7 +8124,7 @@ function sampleLoan(rng: Rng, years: number[]): LoanDraw {
 }
 
 function loanStory(name: string, { D, pct, R }: Loan): string {
-  return `${name} borrows £$${D}$. At the end of each year $${pct}\\%$ interest is added to what is owed, then £$${R}$ is repaid, or the rest of the debt if that is less.`;
+  return `${name} borrows £${D}. At the end of each year $${pct}\\%$ interest is added to what is owed, then £${R} is repaid, or the rest of the debt if that is less.`;
 }
 
 function loanWorking({ D, pct, R }: Loan): SolutionStep {
@@ -8131,10 +8132,10 @@ function loanWorking({ D, pct, R }: Loan): SolutionStep {
   const lines = run.owed.map((o, k) => {
     const before = k === 0 ? D : run.after[k - 1];
     return k === run.years - 1
-      ? `\\text{year } ${k + 1} &: ${before} \\times ${rateOf(pct).tex} = ${o}, \\text{ all repaid}`
-      : `\\text{year } ${k + 1} &: ${before} \\times ${rateOf(pct).tex} - ${R} = ${run.after[k]}`;
+      ? `Year $${k + 1}$: $${before} \\times ${rateOf(pct).tex} = ${o}$, all repaid.`
+      : `Year $${k + 1}$: $${before} \\times ${rateOf(pct).tex} - ${R} = ${run.after[k]}$.`;
   });
-  return { tex: chain(...lines) };
+  return { text: lines.join(' ') };
 }
 
 interface LoanParams {
@@ -8187,7 +8188,7 @@ const loanTable: Generator<LoanTableParams> = {
     };
   },
   solution: (params) => [
-    { text: `Each year: multiply what is owed by $${rateOf(params.pct).tex}$, then take off £$${params.R}$. The year the debt is £$${params.R}$ or less, the last payment clears it.` },
+    { text: `Each year: multiply what is owed by $${rateOf(params.pct).tex}$, then take off £${params.R}. The year the debt is £${params.R} or less, the last payment clears it.` },
     loanWorking(params),
   ],
 };
@@ -8200,7 +8201,7 @@ const loanRuleTiles: Generator<LoanParams> = {
     const { D, pct, R, name } = params;
     const run = loanRun(params)!;
     const answer = [rateOf(pct).tex, `${R}`, `${D}`, `${run.after[1]}`];
-    const slips = [rateDecimal(pct), `${run.after[0]}`, `${run.owed[1]}`, `${D - 2 * R}`, `${D + R}`, `${pct}`];
+    const slips = [rateDecimal(pct), `${run.after[0]}`, `${run.owed[1]}`, `${D - R}`, `${D + R}`, `${pct}`];
     return {
       kind: 'tiles',
       prompt: [
@@ -8209,7 +8210,7 @@ const loanRuleTiles: Generator<LoanParams> = {
           text: `${loanStory(NAMES[name], params)} Let $u_n$ be what is owed just after the $n$th payment, so $u_0$ is the amount borrowed. Write the recurrence, then find $u_2$.`,
         },
       ],
-      template: 'u_{n+1} = {0}u_n - {1}, \\quad u_0 = {2} \\qquad u_2 = {3}',
+      template: 'u_{n+1} = {0}u_n - {1} \\quad u_0 = {2} \\quad u_2 = {3}',
       bank: tileBank(answer, slips, 5),
       answer,
     };
@@ -8220,8 +8221,8 @@ const loanRuleTiles: Generator<LoanParams> = {
     const r = rateOf(pct).tex;
     return [
       { text: `Adding $${pct}\\%$ multiplies by $${r}$; the payment then takes off $${R}$.` },
-      { tex: `u_{n+1} = ${r}u_n - ${R}, \\quad u_0 = ${D}` },
-      { tex: chain(`u_1 &= ${r} \\times ${D} - ${R} = ${run.after[0]}`, `u_2 &= ${r} \\times ${run.after[0]} - ${R} = ${run.after[1]}`) },
+      { tex: `\\begin{gathered} u_{n+1} = ${r}u_n - ${R} \\\\ u_0 = ${D} \\end{gathered}` },
+      { text: `So $u_1 = ${r} \\times ${D} - ${R} = ${run.after[0]}$ and $u_2 = ${r} \\times ${run.after[0]} - ${R} = ${run.after[1]}$.` },
     ];
   },
 };
@@ -8266,10 +8267,10 @@ const loanInterestTree: Generator<LoanParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${loanStory(NAMES[name], params)} After the payment in year $${run.years - 1}$, £$${run.after[run.years - 2]}$ is still owed, and year $${run.years}$ clears it. Fill the tree: the last payment, the full payments before it, the total repaid, then the interest.`,
+          text: `${loanStory(NAMES[name], params)} After the payment in year $${run.years - 1}$, £${run.after[run.years - 2]} is still owed, and year $${run.years}$ clears it. Fill the tree: the last payment, the full payments before it, the total repaid, then the interest.`,
         },
       ],
-      expression: `\\text{interest} = \\text{total repaid} - ${D}`,
+      expression: `\\text{interest} = \\text{repaid} - ${D}`,
       nodes: [
         { id: 'last', from: [] },
         { id: 'full', from: [] },
@@ -8286,9 +8287,8 @@ const loanInterestTree: Generator<LoanParams> = {
     const left = run.after[run.years - 2];
     const full = (run.years - 1) * R;
     return [
-      { tex: `\\text{last payment} = ${left} \\times ${rateOf(pct).tex} = ${run.last}` },
-      { tex: `\\text{full payments} = ${run.years - 1} \\times ${R} = ${full}` },
-      { tex: chain(`\\text{total} &= ${full} + ${run.last} = ${full + run.last}`, `\\text{interest} &= ${full + run.last} - ${D} = ${full + run.last - D}`) },
+      { text: `The last payment is $${left} \\times ${rateOf(pct).tex} = ${run.last}$, and the full ones before it come to $${run.years - 1} \\times ${R} = ${full}$.` },
+      { text: `The total repaid is $${full} + ${run.last} = ${full + run.last}$, so the interest is $${full + run.last} - ${D} = ${full + run.last - D}$.` },
     ];
   },
 };
@@ -8330,7 +8330,7 @@ const targetYear: Generator<TargetParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${saveStory(NAMES[name], P, pct)} The dots show the balance at the end of each year; the dashed line is £$${T}$. Slide to the first year the balance is more than £$${T}$.`,
+          text: `${saveStory(NAMES[name], P, pct)} The dots show the balance at the end of each year; the dashed line is £${T}. Slide to the first year the balance is more than £${T}.`,
         },
       ],
       min: 0,
@@ -8358,7 +8358,7 @@ const targetYear: Generator<TargetParams> = {
     return [
       { text: 'Run the balance a year at a time: add the payment, then the interest.' },
       { tex: chain(`B_{${n - 1}} &= ${run[n - 2]}`, `B_{${n}} &= ${run[n - 1]}`) },
-      { text: `So the balance first passes £$${T}$ in year $${n}$.` },
+      { text: `So the balance first passes £${T} in year $${n}$.` },
     ];
   },
 };
@@ -8382,7 +8382,7 @@ const targetPayment: Generator<PaymentParams> = {
       [
         {
           kind: 'prose',
-          text: `${NAMES[name]} wants £$${T}$ in a savings account at the end of year $${n}$. The account adds ${interest(pct)} at the end of each year. How much must be paid in at the start of each year?`,
+          text: `${NAMES[name]} wants £${T} in a savings account at the end of year $${n}$. The account adds ${interest(pct)} at the end of each year. How much must be paid in at the start of each year?`,
         },
       ],
       '\\text{payment} =',
@@ -8394,9 +8394,9 @@ const targetPayment: Generator<PaymentParams> = {
     const unit = unitFor(pct, n);
     const trial = savingsRun(unit, pct, n)[n - 1];
     return [
-      { text: `The balance is a multiple of the payment. Try £$${unit}$ a year: after $${n}$ years it grows to £$${trial}$.` },
-      { tex: `${T} \\div ${trial} = ${T / trial}, \\quad ${unit} \\times ${T / trial} = ${P}` },
-      { text: `So £$${P}$ a year reaches £$${T}$.` },
+      { text: `The balance is a multiple of the payment. Try £${unit} a year: after $${n}$ years it grows to £${trial}.` },
+      { text: `The target is $${T} \\div ${trial} = ${T / trial}$ times that, so the payment is $${unit} \\times ${T / trial} = ${P}$.` },
+      { text: `So £${P} a year reaches £${T}.` },
     ];
   },
 };
@@ -8433,7 +8433,7 @@ const targetScaleTree: Generator<ScaleParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `A savings account adds ${interest(pct)} at the end of each year, and the same amount is paid in at the start of each year. The aim is £$${T}$ at the end of year $${n}$. Try £$${unit}$ a year first: fill its balance at the end of each year, then how many times that the target is, then the payment needed.`,
+          text: `A savings account adds ${interest(pct)} at the end of each year, and the same amount is paid in at the start of each year. The aim is £${T} at the end of year $${n}$. Try £${unit} a year first: fill its balance at the end of each year, then how many times that the target is, then the payment needed.`,
         },
       ],
       expression: `\\text{payment} = ${unit} \\times ${T} \\div B_{${n}}`,
@@ -8451,7 +8451,7 @@ const targetScaleTree: Generator<ScaleParams> = {
     const trial = savingsRun(unit, pct, n);
     return [
       saveWorking({ P: unit, pct, n }),
-      { text: `The target is $${k * trial[n - 1]} \\div ${trial[n - 1]} = ${k}$ times that. Every balance is in proportion to the payment, so the payment is $${k}$ times as much too: £$${k * unit}$.` },
+      { text: `The target is $${k * trial[n - 1]} \\div ${trial[n - 1]} = ${k}$ times that. Every balance is in proportion to the payment, so the payment is $${k}$ times as much too: £${k * unit}.` },
     ];
   },
 };
@@ -8490,7 +8490,7 @@ const targetTable: Generator<TargetTableParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${saveStory(NAMES[name], P, pct)} The target is £$${T}$. Fill in the balance at the end of each year and how far it is above the target: the last row is the first year it is more than £$${T}$.`,
+          text: `${saveStory(NAMES[name], P, pct)} The target is £${T}. Fill in the balance at the end of each year and how far it is above the target: the last row is the first year it is more than £${T}.`,
         },
       ],
       columns: ['n', 'B_n', `B_n - ${T}`],
@@ -8517,8 +8517,8 @@ interface ModelStory {
 }
 
 const MODEL_STORIES: ModelStory[] = [
-  { text: (a, rise) => `A job pays £$${a}$ in its first year, and the pay rises by ${rise} every year.`, period: 'year', noun: 'pay', money: true },
-  { text: (a, rise) => `A flat's rent is £$${a}$ in its first year, and the rent goes up by ${rise} every year.`, period: 'year', noun: 'rent', money: true },
+  { text: (a, rise) => `A job pays £${a} in its first year, and the pay rises by ${rise} every year.`, period: 'year', noun: 'pay', money: true },
+  { text: (a, rise) => `A flat's rent is £${a} in its first year, and the rent goes up by ${rise} every year.`, period: 'year', noun: 'rent', money: true },
   { text: (a, rise) => `A shop sells $${a}$ jars of honey in its first month, and its sales go up by ${rise} every month.`, period: 'month', noun: 'sales', money: false },
   { text: (a, rise) => `A club has $${a}$ members in its first year, and the number goes up by ${rise} every year.`, period: 'year', noun: 'number', money: false },
 ];
@@ -8555,7 +8555,7 @@ function modelText(params: ModelParams): string {
     : hard
       ? `$${pct}\\%$ of the first ${s.period}'s ${s.noun}`
       : s.money
-        ? `£$${riseOf(params)}$`
+        ? `£${riseOf(params)}`
         : `$${riseOf(params)}$`;
   return s.text(a, rise);
 }
@@ -8728,7 +8728,7 @@ const modelTotalTiles: Generator<ModelParams> = {
           ? `The story multiplies by $r = ${rateOf(pct).tex}$, so the total is a geometric series with $a = ${a}$.`
           : `The story adds $d = ${riseOf(params)}$, so the total is an arithmetic series with $a = ${a}$.`,
       },
-      { tex: `${terms.join(' + ')} = ${terms.reduce((s, t) => s + t, 0)}` },
+      { text: `$${terms.join(' + ')} = ${terms.reduce((s, t) => s + t, 0)}$.` },
     ];
   },
 };
@@ -8788,7 +8788,7 @@ const modelTable: Generator<ModelTableParams> = {
           ? `Each value is the one before times $${rateOf(params.pct).tex}$: geometric.`
           : `Each value is the one before plus $${riseOf(params)}$: arithmetic.`,
       },
-      { tex: chain(`u_n &: ${terms.join(', ')}`, `S_n &: ${terms.map((_, i) => terms.slice(0, i + 1).reduce((s, t) => s + t, 0)).join(', ')}`) },
+      { text: `Values: $${terms.join(', ')}$. Running totals: $${terms.map((_, i) => terms.slice(0, i + 1).reduce((s, t) => s + t, 0)).join(', ')}$.` },
     ];
   },
 };
@@ -8843,12 +8843,12 @@ function samplePlans(rng: Rng, hard: boolean): PlansParams {
 }
 
 function plansStory({ a, d, b, pct }: PlansParams): string {
-  return `Plan A pays £$${a}$ in year 1, then £$${d}$ more each year. Plan B pays £$${b}$ in year 1, then $${pct}\\%$ more each year.`;
+  return `Plan A pays £${a} in year 1, then £${d} more each year. Plan B pays £${b} in year 1, then $${pct}\\%$ more each year.`;
 }
 
 function plansWorking(params: PlansParams): SolutionStep {
   const [A, B] = [planA(params, params.N), planB(params, params.N)];
-  return { tex: chain(`A &: ${A.join(', ')}`, `B &: ${B.join(', ')}`) };
+  return { text: `Plan A pays $${A.join(', ')}$. Plan B pays $${B.join(', ')}$.` };
 }
 
 interface PlansTableParams extends PlansParams {
@@ -8891,7 +8891,7 @@ const plansTable: Generator<PlansTableParams> = {
     };
   },
   solution: (params) => [
-    { text: `Plan A adds £$${params.d}$ each year: arithmetic. Plan B multiplies by $${rateOf(params.pct).tex}$ each year: geometric.` },
+    { text: `Plan A adds £${params.d} each year: arithmetic. Plan B multiplies by $${rateOf(params.pct).tex}$ each year: geometric.` },
     plansWorking(params),
   ],
 };
@@ -8974,7 +8974,7 @@ const plansWhich: Generator<PlansWhichParams> = {
     const { N, year } = params;
     const [A, B] = [planA(params, N), planB(params, N)];
     if (year === 0) {
-      return [plansWorking(params), { tex: `S_A = ${sumOf(A)}, \\quad S_B = ${sumOf(B)}` }, { text: `The difference is $${Math.abs(sumOf(A) - sumOf(B))}$.` }];
+      return [plansWorking(params), { text: `In total A pays $${sumOf(A)}$ and B pays $${sumOf(B)}$: a difference of $${Math.abs(sumOf(A) - sumOf(B))}$.` }];
     }
     return [plansWorking(params), { text: `In year $${year}$: A pays $${A[year - 1]}$ and B pays $${B[year - 1]}$, a difference of $${Math.abs(A[year - 1] - B[year - 1])}$.` }];
   },
@@ -9013,7 +9013,7 @@ const plansTotalTree: Generator<PlansParams> = {
     const [A, B] = [planA(params, N), planB(params, N)];
     return [
       plansWorking(params),
-      { tex: chain(`S_A &= ${A.join(' + ')} = ${sumOf(A)}`, `S_B &= ${B.join(' + ')} = ${sumOf(B)}`) },
+      { text: `$S_A = ${A.join(' + ')} = ${sumOf(A)}$ and $S_B = ${B.join(' + ')} = ${sumOf(B)}$.` },
       { text: `The difference is $${Math.abs(sumOf(A) - sumOf(B))}$.` },
     ];
   },

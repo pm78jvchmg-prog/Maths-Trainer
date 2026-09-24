@@ -1,5 +1,6 @@
 /**
- * An independent check on Binomial Expansion level 5, estimates and surds.
+ * An independent check on Binomial Expansion levels 5 and 6: estimates and
+ * surds, and the binomial series for rational n.
  *
  * The oracle in `generators.test.ts` differentiates a `source`, and nothing
  * here declares one: an estimate is a number and a surd expansion is a form.
@@ -9,6 +10,11 @@
  * evaluating the power itself. a and b in a + b√k are recovered from the
  * power and its conjugate, (v + w)/2 and (v - w)/(2√k), never from the row
  * the generator used, which would only prove it agrees with itself.
+ *
+ * Level 6 reads the bracket (a + bx)^n back off the slide, n and all, and
+ * checks every coefficient against a falling product computed here and
+ * against mathjs differentiating the power; four terms at bx = 0.1 must match
+ * the power to within the fifth.
  */
 import { describe, expect, it } from 'vitest';
 import { makeRng } from '../../engine/rng';
@@ -307,6 +313,205 @@ describe('a bracket times its conjugate', () => {
       const value = evaluate(texToMath(display.tex).replace(/(\d)sqrt/g, '$1 * sqrt').replace(/\)\(/g, ') * ('));
       expect(Number(lastValue(slide)), display.tex).toBe(Math.round(value));
       expect(isWhole(value)).toBe(true);
+    }
+  });
+});
+
+// Symbolic differentiation per bracket: a budget rather than fewer seeds.
+describe('the binomial series for rational n', { timeout: 60_000 }, () => {
+  /** A number as a tile, label or bank value writes it: `- \frac{3}{8}`, `+ 2`, `\frac{1}{2}`. */
+  const texNumber = (tex: string): number =>
+    evaluate(tex.replace(/\$/g, '').replace(/\\frac\{(\d+)\}\{(\d+)\}/g, '($1/$2)').replace(/\s/g, '').replace(/^\+/, ''));
+
+  interface Bracket {
+    a: number;
+    b: number;
+    n: number;
+  }
+
+  /** (a ± bx)^{n} in some TeX, where bx may be written \frac{2x}{3}, and n may be -1/2. */
+  function bracketIn(text: string): Bracket {
+    const m = text.match(/\((\d+) ([+-]) (?:\\frac\{(\d*)x\}\{(\d+)\}|(\d*)x)\)\^\{(-?\d+)(?:\/(\d+))?\}/);
+    if (!m) throw new Error(`no bracket in ${text}`);
+    const sign = m[2] === '-' ? -1 : 1;
+    const size = m[4] !== undefined ? Number(m[3] || 1) / Number(m[4]) : Number(m[5] || 1);
+    return { a: Number(m[1]), b: sign * size, n: Number(m[6]) / Number(m[7] ?? 1) };
+  }
+
+  /** n(n - 1)...(n - r + 1)/r!, as a float, from n as read off the slide. */
+  const falling = (n: number, r: number): number => {
+    let value = 1;
+    for (let i = 0; i < r; i += 1) value *= (n - i) / (i + 1);
+    return value;
+  };
+
+  /**
+   * The coefficient of x^r in (a + bx)^n, by differentiating with mathjs.
+   * Symbolic differentiation is slow and the brackets repeat, so each is done
+   * once.
+   */
+  const known = new Map<string, number>();
+  function coefficient(bracket: Bracket, r: number): number {
+    const key = `${bracket.a} ${bracket.b} ${bracket.n} ${r}`;
+    if (!known.has(key)) known.set(key, differentiated(bracket, r));
+    return known.get(key)!;
+  }
+
+  function differentiated({ a, b, n }: Bracket, r: number): number {
+    let f = math.parse(`(${a} + ${b} * x)^(${n})`);
+    for (let i = 0; i < r; i += 1) f = math.derivative(f, 'x');
+    let fact = 1;
+    for (let i = 2; i <= r; i += 1) fact *= i;
+    return (f.evaluate({ x: 0 }) as number) / fact;
+  }
+
+  /** The power asked about in "coefficient of $x^{r}$". */
+  const powerIn = (text: string): number => Number(text.match(/coefficient of \$x(?:\^\{(\d)\})?\$/)![1] ?? 1);
+
+  it('places four terms that agree with the power at a small x, to within the fifth term', () => {
+    for (const id of ['bin-negative-tiles', 'bin-fraction-tiles']) {
+      for (const slide of slides(id)) {
+        if (slide.kind !== 'tiles') throw new Error('expected a tiles slide');
+        const { a, b, n } = bracketIn(proseOf(slide));
+        expect(a).toBe(1);
+        const coefs = slide.answer.map(texNumber);
+        coefs.forEach((c, i) => expect(close(c, falling(n, i + 1) * b ** (i + 1)), `${proseOf(slide)} x^${i + 1}`).toBe(true));
+        // x chosen so bx is 0.1: 1.1^n, as far as the fourth term.
+        const x = 0.1 / Math.abs(b);
+        const four = 1 + coefs.reduce((sum, c, i) => sum + c * x ** (i + 1), 0);
+        const fifth = Math.abs(falling(n, 4) * (b * x) ** 4);
+        expect(Math.abs(evaluate(`(1 + ${b * x})^(${n})`) - four), proseOf(slide)).toBeLessThan(1.5 * fifth);
+      }
+    }
+  });
+
+  it('asks for a coefficient the falling product gives', () => {
+    for (const id of ['bin-negative-coef', 'bin-fraction-coef']) {
+      for (const slide of slides(id)) {
+        if (slide.kind !== 'expression') throw new Error('expected an expression slide');
+        const text = proseOf(slide);
+        const { b, n } = bracketIn(text);
+        const r = powerIn(text);
+        expect(close(evaluate(slide.answer), falling(n, r) * b ** r), text).toBe(true);
+        expect(close(evaluate(slide.answer), coefficient({ a: 1, b, n }, r)), text).toBe(true);
+      }
+    }
+  });
+
+  it('works a line of working out to the coefficient', () => {
+    for (const id of ['bin-series-coef-steps', 'bin-fraction-term-steps', 'bin-taken-out-coef-steps']) {
+      for (const slide of slides(id)) {
+        const text = proseOf(slide);
+        const bracket = bracketIn(text);
+        const r = powerIn(text);
+        expect(close(texNumber(lastValue(slide)), coefficient(bracket, r)), text).toBe(true);
+      }
+    }
+  });
+
+  it('builds the factors and coefficients from n', () => {
+    for (const slide of slides('bin-series-factors-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected a tiles slide');
+      const text = proseOf(slide);
+      const { n } = bracketIn(text);
+      const r = powerIn(text);
+      const values = slide.answer.map(texNumber);
+      expect(values.slice(0, r), text).toEqual(Array.from({ length: r }, (_, i) => expect.closeTo(n - i, 9)));
+      if (values.length > r) expect(values[r]).toBe(r === 3 ? 6 : 2);
+    }
+    for (const slide of slides('bin-series-build-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected a tree slide');
+      const bracket = bracketIn(slide.expression);
+      const byId = new Map(slide.nodes.map((node, i) => [node.id, texNumber(slide.answer[i])]));
+      expect(close(byId.get('x2')!, coefficient(bracket, 2)), slide.expression).toBe(true);
+      expect(close(byId.get('x3')!, coefficient(bracket, 3)), slide.expression).toBe(true);
+    }
+    for (const slide of slides('bin-negative-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected a tree slide');
+      const r = Number(proseOf(slide).match(/coefficient of \$x\^\{(\d)\}\$/)![1]);
+      expect(close(Number(slide.answer[3]), coefficient(bracketIn(slide.expression), r)), slide.expression).toBe(true);
+    }
+  });
+
+  it('names the sign of the term the falling product gives', () => {
+    for (const slide of slides('bin-negative-signs-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected a flow slide');
+      const bracket = bracketIn(slide.subject);
+      const r = Number(proseOf(slide).match(/\$x(?:\^\{(\d)\})?\$ term/)![1] ?? 1);
+      expect(slide.answer[2], slide.subject).toBe(coefficient(bracket, r) > 0 ? 'Positive' : 'Negative');
+    }
+  });
+
+  it('marks as correct the only start that matches the series', () => {
+    for (const slide of slides('bin-fraction-which')) {
+      if (slide.kind !== 'choice') throw new Error('expected a choice slide');
+      const bracket = bracketIn(proseOf(slide));
+      const [, c1, c2] = [0, 1, 2].map((r) => coefficient(bracket, r));
+      const matches = (label: string) =>
+        [0.5, 1.5, 3].every((x) => close(evaluate(texToMath(label.replace(/\\frac\{(\d+)\}\{(\d+)\}/g, '($1/$2)')).replace(/x/g, `(${x})`)), 1 + c1 * x + c2 * x * x));
+      const fitting = slide.options.filter((option) => matches(option.label)).map((option) => option.id);
+      expect(fitting, proseOf(slide)).toEqual([slide.correctId]);
+    }
+    for (const slide of slides('bin-series-stops-choice')) {
+      if (slide.kind !== 'choice') throw new Error('expected a choice slide');
+      const wantStops = proseOf(slide).includes('stops');
+      const stopsAt = (label: string) => {
+        const power = label.match(/^\(1 \+ x\)\^\{(.+)\}$/)![1];
+        const n = evaluate(power.replace(/\\sqrt\{(\d+)\}/g, 'sqrt($1)'));
+        return Number.isInteger(n) && n >= 0;
+      };
+      const fitting = slide.options.filter((option) => stopsAt(option.label) === wantStops).map((option) => option.id);
+      expect(fitting, slide.options.map((option) => option.label).join(' | ')).toEqual([slide.correctId]);
+    }
+  });
+
+  it('gives the range the series holds for', () => {
+    for (const id of ['bin-valid-bound', 'bin-taken-out-range']) {
+      for (const slide of slides(id)) {
+        if (slide.kind !== 'expression') throw new Error('expected an expression slide');
+        const { a, b } = bracketIn(proseOf(slide));
+        expect(close(evaluate(slide.answer), a / Math.abs(b)), proseOf(slide)).toBe(true);
+      }
+    }
+    for (const slide of slides('bin-valid-slider')) {
+      if (slide.kind !== 'slider') throw new Error('expected a slider slide');
+      const { b } = bracketIn(proseOf(slide));
+      expect(close(slide.answer, 1 / Math.abs(b)), proseOf(slide)).toBe(true);
+    }
+  });
+
+  it('says the series holds exactly where |bx| is under 1', () => {
+    for (const slide of slides('bin-valid-which-x')) {
+      if (slide.kind !== 'choice') throw new Error('expected a choice slide');
+      const { b } = bracketIn(proseOf(slide));
+      const inside = (label: string) => Math.abs(b * texNumber(label.replace('x = ', ''))) < 1;
+      const fitting = slide.options.filter((option) => inside(option.label)).map((option) => option.id);
+      expect(fitting, proseOf(slide)).toEqual([slide.correctId]);
+      // Never on the edge, where whether it holds depends on n.
+      for (const option of slide.options) expect(close(Math.abs(b * texNumber(option.label.replace('x = ', ''))), 1)).toBe(false);
+    }
+    for (const slide of slides('bin-valid-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected a flow slide');
+      const { b } = bracketIn(slide.subject);
+      const x = texNumber(proseOf(slide).match(/at \$x = ([^$]+)\$/)![1]);
+      expect(slide.answer[2], `${slide.subject} at ${x}`).toBe(Math.abs(b * x) < 1 ? 'Yes' : 'No');
+    }
+  });
+
+  it('takes the number out and places the terms mathjs finds', () => {
+    for (const slide of slides('bin-taken-out-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected a tiles slide');
+      const bracket = bracketIn(proseOf(slide));
+      expect(slide.answer.map(texNumber).every((c, r) => close(c, coefficient(bracket, r))), proseOf(slide)).toBe(true);
+    }
+    for (const slide of slides('bin-taken-out-parts-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected a tree slide');
+      const bracket = bracketIn(slide.expression);
+      const [power, ratio, x1, x2] = slide.answer.map(texNumber);
+      expect(close(power, bracket.a ** bracket.n)).toBe(true);
+      expect(close(ratio, bracket.b / bracket.a)).toBe(true);
+      expect(close(x1, coefficient(bracket, 1)), slide.expression).toBe(true);
+      expect(close(x2, coefficient(bracket, 2)), slide.expression).toBe(true);
     }
   });
 });

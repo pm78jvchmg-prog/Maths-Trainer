@@ -12,11 +12,14 @@
  * through g, one step and then k. Level 4 is Simpson's rule: parabolas over
  * pairs of strips, why the number of strips is even, Simpson against the
  * trapezium rule on the same heights, exactness for cubics, and tables of
- * readings.
+ * readings. Level 5 is Euler's method: one tangent step, stepping on in a
+ * table, recomputing the gradient when f has y in it, the error against an
+ * exact solution and which way it misses, and how the error follows h.
  *
  * The tangent's equation belongs to Differentiation (`df-l1-tangent`) and
  * rectangle sums to Integration (`in-l8`); both are pointed at, not taught
- * again. Later levels are in `docs/roadmap/levels/numerical-methods.md`.
+ * again. So is solving dy/dx = f(x) exactly (`de-l1-separate`,
+ * `de-l1-particular`), which level 5 checks Euler against. Later levels are in `docs/roadmap/levels/numerical-methods.md`.
  *
  * Each level closes with a level check: fifteen questions, no teaching
  * slides, one attempt each.
@@ -148,6 +151,46 @@ const parabolaFigure: Block = {
       { x: 2, y: 2 },
     ],
     label: 'The curve y = 6 over x plus 1 from 0 to 2, with a parabola through its heights at 0, 1 and 2',
+  }),
+};
+
+/** The solution of dy/dx = x + y through (0, 1), with its tangent there carried to x = 0.5. */
+const eulerTangent: Block = {
+  kind: 'diagram',
+  svg: plotSvg({
+    xMin: -0.2,
+    xMax: 0.8,
+    yMin: 0,
+    yMax: 3,
+    curves: [{ f: (x) => 2 * Math.exp(x) - x - 1 }, { f: (x) => 1 + x, accent: true }],
+    verticals: [{ x: 0, dashed: true }, { x: 0.5, dashed: true }],
+    marks: [
+      { x: 0, y: 1 },
+      { x: 0.5, y: 1.5 },
+    ],
+    label: 'The solution curve through (0, 1) and its tangent there, reaching 1.5 at x = 0.5 while the curve reaches about 1.8',
+  }),
+};
+
+/** Euler's steps with h = 0.5 for dy/dx = 2x + 1 from (0, 1), under the curve y = x^2 + x + 1. */
+const eulerSteps: Block = {
+  kind: 'diagram',
+  svg: plotSvg({
+    xMin: 0,
+    xMax: 1.5,
+    yMin: 0,
+    yMax: 5,
+    curves: [
+      { f: (x) => x * x + x + 1 },
+      { f: (x) => (x < 0.5 ? 1 + x : x < 1 ? 1.5 + 2 * (x - 0.5) : 2.5 + 3 * (x - 1)), accent: true },
+    ],
+    marks: [
+      { x: 0, y: 1 },
+      { x: 0.5, y: 1.5 },
+      { x: 1, y: 2.5 },
+      { x: 1.5, y: 4 },
+    ],
+    label: "Euler's three steps from (0, 1), each a straight line, falling further below the curve y = x squared plus x plus 1",
   }),
 };
 
@@ -923,6 +966,201 @@ export const numericalMethods: Course = {
         ask('numer-exact-choice', 2),
         ask('numer-odd-choice', 2),
         ask('numer-simpson-error', 2),
+      ],
+    },
+    {
+      id: 'nm-l5',
+      title: "Euler's Method",
+      lessons: [
+        {
+          id: 'nm-l5-tangent',
+          title: 'One Tangent Step',
+          slides: [
+            teach(
+              prose(
+                'Most differential equations cannot be solved exactly. $\\frac{dy}{dx} = f(x, y)$ still says one thing everywhere: the gradient of the solution through any point.',
+              ),
+              prose(
+                "**Euler's method** starts at the known point $(x_0, y_0)$, finds the gradient there, and walks a short step $h$ along the tangent:",
+              ),
+              working('x_1 &= x_0 + h', 'y_1 &= y_0 + h\\,f(x_0, y_0)'),
+            ),
+            ask('numer-euler-step-tree'),
+            ask('numer-euler-formula-tiles'),
+            ask('numer-euler-point-choice'),
+            teach(
+              prose('$\\frac{dy}{dx} = x + y$ with $y = 1$ when $x = 0$, and $h = 0.5$:'),
+              working('f(0, 1) &= 0 + 1 = 1', 'y_1 &= 1 + 0.5 \\times 1 = 1.5'),
+              eulerTangent,
+              prose(
+                'The tangent reaches $1.5$ at $x = 0.5$; the curve itself is at about $1.8$ by then. One step is an estimate, and it drifts off the curve as the curve bends away.',
+              ),
+            ),
+            ask('numer-euler-tangent-slider'),
+            ask('numer-euler-step-tree', 2),
+            ask('numer-euler-first-value'),
+            teach(
+              prose(
+                'Three slips to avoid. The rise is $h$ times the gradient, not the gradient itself. The gradient is taken where the step **starts**, not where it ends. And the step is added to $y_0$: $h\\,f(x_0, y_0)$ alone is how far $y$ climbs, not where it gets to.',
+              ),
+            ),
+            ask('numer-euler-formula-tiles', 2),
+            ask('numer-euler-point-choice', 2),
+          ],
+          skillCheck: [ask('numer-euler-step-tree', 2), ask('numer-euler-tangent-slider', 2), ask('numer-euler-first-value', 2)],
+        },
+        {
+          id: 'nm-l5-stepping',
+          title: 'Stepping On',
+          slides: [
+            teach(
+              prose(
+                'One step gets from $x_0$ to $x_1$. To go further, do it again from where the step landed, with the gradient worked out afresh each time:',
+              ),
+              working('x_{n+1} &= x_n + h', 'y_{n+1} &= y_n + h\\,f(x_n, y_n)'),
+              prose('Keep the working in a table: $n$, $x_n$, $y_n$, and the gradient that takes you to the next row.'),
+            ),
+            ask('numer-euler-table'),
+            ask('numer-euler-chain-steps'),
+            ask('numer-euler-count-flow'),
+            teach(
+              prose('$\\frac{dy}{dx} = 2x + 1$ with $y = 1$ when $x = 0$, and $h = 0.5$:'),
+              maths(
+                '\\begin{array}{c|c|c|c} n & x_n & y_n & f(x_n) \\\\ \\hline 0 & 0 & 1 & 1 \\\\ 1 & 0.5 & 1.5 & 2 \\\\ 2 & 1 & 2.5 & 3 \\\\ 3 & 1.5 & 4 & \\end{array}',
+              ),
+              eulerSteps,
+              prose('Each step is a straight line with the gradient at its own start, so the path is a chain of tangents.'),
+            ),
+            ask('numer-euler-reach-value'),
+            ask('numer-euler-table', 2),
+            ask('numer-euler-chain-steps', 2),
+            teach(
+              prose(
+                'To estimate $y$ at a given $x$, count the steps first: from $x_0$ to $X$ in steps of $h$ is $\\frac{X - x_0}{h}$ of them, and the answer is the last $y$. From $0$ to $1.5$ with $h = 0.5$ is three steps, so $y(1.5) \\approx y_3 = 4$.',
+              ),
+            ),
+            ask('numer-euler-count-flow', 2),
+            ask('numer-euler-reach-value', 2),
+          ],
+          skillCheck: [ask('numer-euler-table', 2), ask('numer-euler-chain-steps', 2), ask('numer-euler-reach-value', 2)],
+        },
+        {
+          id: 'nm-l5-with-y',
+          title: 'When f Has y in It',
+          slides: [
+            teach(
+              prose(
+                'When $\\frac{dy}{dx}$ has $y$ in it, the gradient depends on how high the curve is as well as where. So each step needs the $y$ the last step reached before its gradient can be found.',
+              ),
+              prose('$\\frac{dy}{dx} = x + y$ with $y = 1$ when $x = 0$, and $h = 0.5$:'),
+              working('f(0, 1) &= 0 + 1 = 1', 'y_1 &= 1 + 0.5 \\times 1 = 1.5', 'f(0.5, 1.5) &= 0.5 + 1.5 = 2', 'y_2 &= 1.5 + 0.5 \\times 2 = 2.5'),
+            ),
+            ask('numer-euler-ytable'),
+            ask('numer-euler-frozen-choice'),
+            ask('numer-euler-y-tree'),
+            teach(
+              prose(
+                'The slip is to hold the first gradient: $y_2 = 1 + 2 \\times 0.5 \\times 1 = 2$, as if the curve kept its starting slope. Or to update $x$ but not $y$: $f(0.5, 1) = 1.5$ instead of $2$.',
+              ),
+              prose('Neither is Euler. The gradient at the start of every step uses both the $x$ and the $y$ of that step.'),
+            ),
+            ask('numer-euler-slip-flow'),
+            ask('numer-euler-y-value'),
+            ask('numer-euler-ytable', 2),
+            teach(
+              prose(
+                'Products work the same way: for $\\frac{dy}{dx} = xy$, the gradient at $(1, 2)$ is $1 \\times 2 = 2$, and at $(1.5, 3)$ it is $4.5$. If $f$ has no $y$ in it at all, as with $2x + 1$, the $y$ reached makes no difference to the gradient.',
+              ),
+              prose('An equation with $y$ in it usually has no neat exact solution, which is exactly when Euler earns its keep.'),
+            ),
+            ask('numer-euler-y-tree', 2),
+            ask('numer-euler-frozen-choice', 2),
+          ],
+          skillCheck: [ask('numer-euler-y-tree', 2), ask('numer-euler-slip-flow', 2), ask('numer-euler-y-value', 2)],
+        },
+        {
+          id: 'nm-l5-exact',
+          title: 'Against the Exact Answer',
+          slides: [
+            teach(
+              prose(
+                'When $\\frac{dy}{dx}$ is in $x$ alone, the equation can be solved exactly by integrating and fixing the constant from the starting point (Differential Equations level 1, A Particular Solution). Then the estimate can be checked.',
+              ),
+              prose('$\\frac{dy}{dx} = 2x + 1$ with $y = 1$ at $x = 0$ gives $y = x^{2} + x + 1$. At $x = 1.5$:'),
+              working('y(1.5) &= 2.25 + 1.5 + 1 = 4.75', '\\text{error} &= 4 - 4.75 = -0.75'),
+              prose('As in level 3, the error is the estimate minus the true value, so a negative error means the estimate is too low.'),
+            ),
+            ask('numer-euler-exact-steps'),
+            ask('numer-euler-error-tree'),
+            ask('numer-euler-miss-flow'),
+            teach(
+              prose(
+                'Which way Euler misses comes from the bend. If the gradient rises as $x$ grows, the curve bends upward, each tangent runs below it, and every step lands low: an **underestimate**. If the gradient falls, the curve bends down and Euler overshoots.',
+              ),
+              eulerSteps,
+              prose('$2x + 1$ rises, so the steps fall further below $y = x^{2} + x + 1$ at every step.'),
+            ),
+            ask('numer-euler-error-value'),
+            ask('numer-euler-miss-choice'),
+            ask('numer-euler-exact-steps', 2),
+            teach(
+              prose(
+                "Whether the gradient rises is a question about **its** gradient: for $\\frac{dy}{dx} = f(x)$ that is $f'(x)$. For $3x^{2} - 12$ on $[0.5, 1.5]$, $f'(x) = 6x$ is positive, so the gradient rises there even though it is negative throughout.",
+              ),
+            ),
+            ask('numer-euler-error-tree', 2),
+            ask('numer-euler-miss-flow', 2),
+          ],
+          skillCheck: [ask('numer-euler-error-value', 2), ask('numer-euler-miss-choice', 2), ask('numer-euler-error-tree', 2)],
+        },
+        {
+          id: 'nm-l5-size',
+          title: 'Step Size and Error',
+          slides: [
+            teach(
+              prose('Smaller steps follow the curve more closely. The same journey from $x = 0$ to $x = 1.5$ for $\\frac{dy}{dx} = 2x + 1$:'),
+              working('h = 0.5: \\quad y_3 &= 4', '\\text{error} &= -0.75', 'h = 0.25: \\quad y_6 &= 4.375', '\\text{error} &= -0.375'),
+              prose('Halving the step halved the error. That is the rule of thumb for Euler: the error is roughly **proportional to $h$**.'),
+            ),
+            ask('numer-euler-halve-table'),
+            ask('numer-euler-halve-choice'),
+            ask('numer-euler-size-slider'),
+            teach(
+              prose(
+                'For a straight-line gradient like $2x + 1$ the halving is exact. For anything else it is roughly so, and closer the smaller $h$ already is. The estimate stays on the same side of the true value, since the curve still bends the same way.',
+              ),
+            ),
+            ask('numer-euler-size-flow'),
+            ask('numer-euler-needed-value'),
+            ask('numer-euler-halve-table', 2),
+            teach(
+              prose(
+                'So a target error sets the step. An error of $0.75$ wanted down to $0.05$ must shrink $15$ times, so $h$ must too: $\\frac{0.5}{15}$, which is $3 \\times 15 = 45$ steps instead of $3$.',
+              ),
+              prose('Every extra decimal place costs about ten times the steps. That is why better methods than Euler exist.'),
+            ),
+            ask('numer-euler-halve-choice', 2),
+            ask('numer-euler-size-slider', 2),
+          ],
+          skillCheck: [ask('numer-euler-halve-table', 2), ask('numer-euler-needed-value', 2), ask('numer-euler-size-flow', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('numer-euler-step-tree', 2),
+        ask('numer-euler-table', 2),
+        ask('numer-euler-frozen-choice', 2),
+        ask('numer-euler-error-value', 2),
+        ask('numer-euler-size-flow', 2),
+        ask('numer-euler-tangent-slider', 2),
+        ask('numer-euler-count-flow', 2),
+        ask('numer-euler-y-value', 2),
+        ask('numer-euler-miss-flow', 2),
+        ask('numer-euler-halve-choice', 2),
+        ask('numer-euler-point-choice', 2),
+        ask('numer-euler-chain-steps', 2),
+        ask('numer-euler-ytable', 2),
+        ask('numer-euler-exact-steps', 2),
+        ask('numer-euler-needed-value', 2),
       ],
     },
   ],

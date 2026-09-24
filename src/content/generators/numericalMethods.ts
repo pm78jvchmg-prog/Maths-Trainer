@@ -11,7 +11,10 @@
  * an error in x_n is carried through g, one step and then k. Level 4 is
  * Simpson's rule: a parabola through each pair of strips, why n is even, how
  * it compares with the trapezium rule on the same heights, why it is exact
- * for cubics, and using it on a table of readings.
+ * for cubics, and using it on a table of readings. Level 5 is Euler's
+ * method: one tangent step, stepping on in a table, a gradient recomputed
+ * from the new y, the error against the exact solution of an equation in x
+ * alone and which way it misses, and the error roughly proportional to h.
  *
  * Three rules hold everywhere in this file.
  *
@@ -22,9 +25,9 @@
  *   changes any row. `carriedRounded` below is a copy of the private one in
  *   `iterationTable.ts`. The limit comes from iterating to convergence, never
  *   from reading `x_4`.
- * - A trapezium or Simpson estimate is not the integral, so no `expression` here
- *   declares `integrand` and `limits`: the quadrature oracle would grade the
- *   estimate against the exact value. Ordinates are whole by choice of `f`,
+ * - A trapezium, Simpson or Euler estimate is not the integral, so no
+ *   `expression` here declares `source`, `integrand` or `limits`: the oracle
+ *   would grade the estimate against the exact value. Ordinates are whole by choice of `f`,
  *   `a`, `b` and `n` (polynomials at whole numbers, `2^x`, and `k/x` for a
  *   `k` every ordinate divides), so every estimate is an exact decimal.
  * - The checker compares values (PITFALLS 3.4), so a rearrangement or the
@@ -6691,6 +6694,1490 @@ const oddChoice: Generator<OddChoiceParams> = {
   },
 };
 
+/* ================================================================
+ * Level 5: Euler's method
+ * ================================================================ */
+
+/**
+ * The right-hand side of dy/dx = f(x, y): a polynomial in x, plus q y, plus
+ * r x y. With q = r = 0 the equation is in x alone and its exact solution is
+ * found by integrating, which is the only place an exact y is ever asked for.
+ */
+interface Rhs {
+  px: Poly;
+  q: number;
+  r: number;
+}
+
+/** An initial value problem stepped n times with step h. */
+interface Ivp {
+  rhs: Rhs;
+  x0: number;
+  y0: number;
+  h: number;
+  n: number;
+}
+
+/** Float dust off a value built from exact decimals. */
+const clean = (value: number) => Number(value.toFixed(9));
+
+const hasY = ({ q, r }: Rhs) => q !== 0 || r !== 0;
+
+function rhsAt({ px, q, r }: Rhs, x: number, y: number): number {
+  return clean(valueAt(px, x) + q * y + r * x * y);
+}
+
+/** Signed terms joined as they are read: `2x^{2} - xy + 0.5y - 3`. */
+function termsTex(terms: [number, string[]][]): string {
+  let out = '';
+  for (const [c, factors] of terms) {
+    if (c === 0) continue;
+    const size = Math.abs(c);
+    const body = size === 1 && factors.length > 0 ? factors.join(' \\times ') : [fmt(size), ...factors].join(' \\times ');
+    out += out === '' ? (c < 0 ? `-${body}` : body) : c < 0 ? ` - ${body}` : ` + ${body}`;
+  }
+  return out || '0';
+}
+
+/** f as the learner reads it: x terms, then xy, then y, then the constant. */
+function rhsTex({ px, q, r }: Rhs): string {
+  const n = px.length - 1;
+  const letters = (c: number, v: string): [number, string[]] => [c, [v]];
+  const terms: [number, string[]][] = [
+    ...px.slice(0, -1).map((c, i) => letters(c, n - i === 1 ? 'x' : `x^{${n - i}}`)),
+    letters(r, 'xy'),
+    letters(q, 'y'),
+    [px[n], []],
+  ];
+  // Letters sit against their coefficient, `2x` rather than `2 \times x`.
+  return termsTex(terms).replace(/ \\times (?=[xy])/g, '');
+}
+
+/** f with numbers in place of x and y, for a line of working. */
+function rhsSubTex({ px, q, r }: Rhs, x: number, y: number): string {
+  const n = px.length - 1;
+  const power = (k: number) => (k === 1 ? paren(x) : `${paren(x)}^{${k}}`);
+  return termsTex([
+    ...px.slice(0, -1).map((c, i): [number, string[]] => [c, [power(n - i)]]),
+    [r, [paren(x), paren(y)]],
+    [q, [paren(y)]],
+    [px[n], []],
+  ]);
+}
+
+/** `f(x_0, y_0)`, or `f(x_0)` when y plays no part. */
+function gradName(rhs: Rhs, x: string, y: string): string {
+  return hasY(rhs) ? `f(${x}, ${y})` : `f(${x})`;
+}
+
+/** The problem as one sentence: the equation and the starting point. */
+function ivpText({ rhs, x0, y0 }: Pick<Ivp, 'rhs' | 'x0' | 'y0'>): string {
+  return `$\\frac{dy}{dx} = ${gradName(rhs, 'x', 'y')} = ${rhsTex(rhs)}$, with $y = ${fmt(y0)}$ when $x = ${fmt(x0)}$`;
+}
+
+/** The equation alone, for a flow's subject line. */
+const odeTex = (rhs: Rhs) => `\\frac{dy}{dx} = ${rhsTex(rhs)}`;
+
+interface EulerRun {
+  xs: number[];
+  ys: number[];
+  /** The gradient used for each step: gs[i] = f(x_i, y_i). */
+  gs: number[];
+}
+
+/** Euler's method: y_{i+1} = y_i + h f(x_i, y_i), n times. */
+function eulerRun({ rhs, x0, y0, h, n }: Ivp): EulerRun {
+  const xs = [x0];
+  const ys = [y0];
+  const gs: number[] = [];
+  for (let i = 0; i < n; i += 1) {
+    const g = rhsAt(rhs, xs[i], ys[i]);
+    gs.push(g);
+    xs.push(clean(xs[i] + h));
+    ys.push(clean(ys[i] + h * g));
+  }
+  return { xs, ys, gs };
+}
+
+/** The run, when every value it writes is an exact decimal of a sensible size. */
+function exactRun(ivp: Ivp, limit = 60): EulerRun | undefined {
+  const run = eulerRun(ivp);
+  const written = [...run.xs, ...run.ys, ...run.gs, ...run.gs.map((g) => clean(ivp.h * g))];
+  return written.every((v) => terminates(v) && Math.abs(v) <= limit) ? run : undefined;
+}
+
+/** An antiderivative with no constant, by the power rule. */
+function antiderivative(px: Poly): Poly {
+  const n = px.length - 1;
+  return [...px.map((c, i) => c / (n - i + 1)), 0];
+}
+
+/** The exact y at x, for an equation in x alone: y_0 plus the integral from x_0. */
+function exactY({ rhs, x0, y0 }: Pick<Ivp, 'rhs' | 'x0' | 'y0'>, x: number): number {
+  const F = antiderivative(rhs.px);
+  return clean(y0 + valueAt(F, x) - valueAt(F, x0));
+}
+
+/** An antiderivative as the learner reads it. */
+const antiTexOf = (px: Poly) => rhsTex({ px: antiderivative(px).map(clean), q: 0, r: 0 });
+
+/**
+ * The solution curve, for drawing only: integrated exactly when f is in x
+ * alone, and by a fine Runge-Kutta march otherwise. Nothing graded reads it.
+ */
+function solutionCurve({ rhs, x0, y0 }: Pick<Ivp, 'rhs' | 'x0' | 'y0'>): (x: number) => number {
+  if (!hasY(rhs)) return (x) => exactY({ rhs, x0, y0 }, x);
+  const f = (x: number, y: number) => valueAt(rhs.px, x) + rhs.q * y + rhs.r * x * y;
+  return (x) => {
+    const steps = 40;
+    const dx = (x - x0) / steps;
+    let t = x0;
+    let y = y0;
+    for (let i = 0; i < steps; i += 1) {
+      const k1 = f(t, y);
+      const k2 = f(t + dx / 2, y + (dx * k1) / 2);
+      const k3 = f(t + dx / 2, y + (dx * k2) / 2);
+      const k4 = f(t + dx, y + dx * k3);
+      y += (dx * (k1 + 2 * k2 + 2 * k3 + k4)) / 6;
+      t += dx;
+    }
+    return y;
+  };
+}
+
+const H_EASY = [0.5, 0.2, 0.1];
+const H_HARD = [0.25, 0.2, 0.1, 0.5];
+
+/**
+ * An equation in x alone: a line at difficulty 1, a quadratic with whole or
+ * half coefficients at 2. Refused unless every step and the exact y at the
+ * end are exact decimals.
+ */
+function sampleXOnly(rng: Rng, difficulty: number, steps: number[], hs = difficulty > 1 ? H_HARD : H_EASY): Ivp {
+  const hard = difficulty > 1;
+  for (;;) {
+    const px: Poly = hard
+      ? [rng.pick([-3, -1.5, 1.5, 3]), rng.int(-4, 4), rng.int(-3, 5)]
+      : [nonZero(rng, 4), rng.int(-4, 5)];
+    const ivp: Ivp = { rhs: { px, q: 0, r: 0 }, x0: rng.int(0, 3), y0: rng.int(-3, 6), h: rng.pick(hs), n: rng.pick(steps) };
+    const run = exactRun(ivp);
+    if (!run) continue;
+    const exact = exactY(ivp, run.xs[ivp.n]);
+    if (!terminates(exact) || Math.abs(exact) > 60) continue;
+    return ivp;
+  }
+}
+
+/**
+ * An equation with y in it: `ax + by + c` at difficulty 1, and at 2 half
+ * coefficients, starts on the half-integers and products `xy`. Refused unless
+ * y actually moves the second gradient, so holding the first one fixed is a
+ * visible slip.
+ */
+function sampleWithY(rng: Rng, difficulty: number, steps: number[], hs = difficulty > 1 ? H_HARD : H_EASY): Ivp {
+  const hard = difficulty > 1;
+  for (;;) {
+    const rhs: Rhs =
+      hard && rng.next() < 0.5
+        ? { px: [0, rng.int(-2, 2)], q: rng.pick([0, 0, 1, -1]), r: rng.pick([1, -1, 0.5, 2]) }
+        : { px: [rng.int(-2, 3), rng.int(-3, 3)], q: rng.pick(hard ? [1, -1, 2, -2, 0.5, -0.5] : [1, -1, 2]), r: 0 };
+    const ivp: Ivp = {
+      rhs,
+      x0: hard ? rng.int(0, 6) / 2 : rng.int(0, 2),
+      y0: rng.int(hard ? -3 : 0, 5),
+      h: rng.pick(hs),
+      n: rng.pick(steps),
+    };
+    const run = exactRun(ivp);
+    if (!run) continue;
+    if (rhsAt(rhs, run.xs[1], run.ys[1]) === rhsAt(rhs, run.xs[1], ivp.y0)) continue;
+    return ivp;
+  }
+}
+
+/** Either kind, a third of the time in x alone. */
+function sampleAny(rng: Rng, difficulty: number, steps: number[], hs?: number[]): Ivp {
+  return rng.next() < 1 / 3 ? sampleXOnly(rng, difficulty, steps, hs) : sampleWithY(rng, difficulty, steps, hs);
+}
+
+/** The working for step i: the gradient, then the new y. */
+function stepLines({ rhs, h }: Ivp, run: EulerRun, i: number): SolutionStep[] {
+  const { xs, ys, gs } = run;
+  return [
+    { tex: aligned(`${gradName(rhs, fmt(xs[i]), fmt(ys[i]))} &= ${rhsSubTex(rhs, xs[i], ys[i])}`, `&= ${fmt(gs[i])}`) },
+    { tex: aligned(`y_{${i + 1}} &= ${fmt(ys[i])} + ${fmt(h)} \\times ${paren(gs[i])}`, `&= ${fmt(ys[i + 1])}`) },
+  ];
+}
+
+/** Every step of a run, each gradient found at the point the last step reached. */
+function runSolution(ivp: Ivp): SolutionStep[] {
+  const run = eulerRun(ivp);
+  return [
+    { text: `Each step: the gradient at the point reached so far, times $h = ${fmt(ivp.h)}$, added to $y$.` },
+    ...run.gs.flatMap((_, i) => stepLines(ivp, run, i)),
+  ];
+}
+
+/** Rows n, x_n, y_n so far, as a small table in the prompt. */
+function reachedTable(run: EulerRun, upTo: number): string {
+  const rows = run.xs.slice(0, upTo + 1).map((x, i) => `${i} & ${fmt(x)} & ${fmt(run.ys[i])}`);
+  return `\\begin{array}{c|c|c} n & x_n & y_n \\\\ \\hline ${rows.join(' \\\\ ')} \\end{array}`;
+}
+
+/** A native choice slide turned by `key`, for options whose labels never change. */
+function keyedChoice(prompt: Block[], opts: ChoiceOption[], key: string, tex: boolean): Slide {
+  const ordered = turned(opts, key);
+  return {
+    kind: 'choice',
+    prompt,
+    options: ordered.map((option, idx) => ({ id: `opt${idx}`, label: option.tex, tex })),
+    correctId: `opt${ordered.findIndex((option) => option.correct)}`,
+  };
+}
+
+const ivpKey = ({ rhs, x0, y0, h, n }: Ivp) => `${rhs.px.join(',')}|${rhs.q}|${rhs.r}|${x0}|${y0}|${h}|${n}`;
+
+/*
+ * Every Euler value is an estimate, not the solution, so no slide in this
+ * level declares `source`, `integrand` or `limits`: the oracle in
+ * generators.test.ts would differentiate or integrate and mark the estimate
+ * against the exact answer. The checks live in numericalMethods.test.ts, which
+ * reads f, h, x_0 and y_0 off each slide and steps Euler itself.
+ */
+
+/* ---------- Level 5, lesson 1: one tangent step ---------- */
+
+/** One step as a tree: x_1 and the gradient, the rise h times it, then y_1. */
+const eulerStepTree: Generator<Ivp> = {
+  id: 'numer-euler-step-tree',
+  sample: (rng, difficulty) => sampleAny(rng, difficulty, [1]),
+  render: (ivp): Slide => {
+    const { rhs, x0, y0, h } = ivp;
+    const run = eulerRun(ivp);
+    const [g] = run.gs;
+    const rise = clean(h * g);
+    const answer = [run.xs[1], g, rise, run.ys[1]].map(fmt);
+    const slips = [clean(y0 + g), rhsAt(rhs, run.xs[1], y0), clean(g + h), clean(y0 - rise), clean(x0 + g)];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `${ivpText(ivp)}. One step of Euler's method with $h = ${fmt(h)}$ runs along the tangent at $(${fmt(x0)}, ${fmt(y0)})$. Top row: $x_1$, and the gradient $${gradName(rhs, 'x_0', 'y_0')}$. Then the rise, $h$ times that gradient; last, $y_1$.`,
+        ),
+      ],
+      expression: `y_1 = y_0 + h\\,${gradName(rhs, 'x_0', 'y_0')}`,
+      nodes: [
+        { id: 'x1', from: [] },
+        { id: 'grad', from: [] },
+        { id: 'rise', from: ['grad'] },
+        { id: 'y1', from: ['rise'] },
+      ],
+      bank: numberBank(answer, slips.map(fmt), around([run.ys[1], g], h)),
+      answer,
+    };
+  },
+  solution: (ivp) => {
+    const run = eulerRun(ivp);
+    return [
+      { tex: `x_1 = ${fmt(ivp.x0)} + ${fmt(ivp.h)} = ${fmt(run.xs[1])}` },
+      { text: 'The gradient where the step starts, then that gradient times the step:' },
+      ...stepLines(ivp, run, 0),
+    ];
+  },
+};
+
+/**
+ * The step formula as tiles, with the question's own numbers: the first step
+ * at difficulty 1, and at 2 the second, from a table of where the first one
+ * reached, so the old point is there to be picked by mistake.
+ */
+const eulerFormulaTiles: Generator<Ivp> = {
+  id: 'numer-euler-formula-tiles',
+  sample: (rng, difficulty) => sampleAny(rng, difficulty, [difficulty > 1 ? 2 : 1]),
+  render: (ivp): Slide => {
+    const { rhs, h, n } = ivp;
+    const run = eulerRun(ivp);
+    const k = n - 1;
+    const [xk, yk] = [run.xs[k], run.ys[k]].map(fmt);
+    const answer = hasY(rhs) ? [yk, fmt(h), xk, yk] : [yk, fmt(h), xk];
+    const slips = [run.xs[k + 1], run.gs[k], clean(2 * h), ...(k > 0 ? [run.xs[0], run.ys[0]] : [clean(run.ys[0] + 1)])].map(fmt);
+    const prompt: Block[] =
+      k === 0
+        ? [say(`${ivpText(ivp)}. Complete the first step of Euler's method, with $h = ${fmt(h)}$.`)]
+        : [
+            say(`${ivpText(ivp)}. Euler's method with $h = ${fmt(h)}$ has reached this far:`),
+            show(reachedTable(run, k)),
+            say('Complete the next step.'),
+          ];
+    return {
+      kind: 'tiles',
+      prompt,
+      template: `y_${k + 1} = {0} + {1} \\times ${hasY(rhs) ? 'f({2}, {3})' : 'f({2})'}`,
+      bank: fillBank(answer, slips),
+      answer,
+    };
+  },
+  solution: (ivp) => {
+    const run = eulerRun(ivp);
+    const k = ivp.n - 1;
+    return [
+      { text: `The step starts from the last point reached, $(${fmt(run.xs[k])}, ${fmt(run.ys[k])})$, and uses the gradient there.` },
+      { tex: `y_{${k + 1}} = y_{${k}} + h\\,${gradName(ivp.rhs, `x_{${k}}`, `y_{${k}}`)}` },
+      ...stepLines(ivp, run, k),
+    ];
+  },
+};
+
+const SLIDER_STEP = 0.25;
+
+/**
+ * The tangent drawn against the curve, and the learner slides a line to the
+ * height it reaches one step along: y_1. Only draws where y_1 sits on the
+ * slider's quarter steps.
+ */
+const eulerTangentSlider: Generator<Ivp> = {
+  id: 'numer-euler-tangent-slider',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const ivp = sampleAny(rng, difficulty, [1], difficulty > 1 ? [0.25, 0.5] : [0.5]);
+      const run = eulerRun(ivp);
+      const on = run.ys[1] / SLIDER_STEP;
+      if (Math.abs(on - Math.round(on)) > 1e-9 || Math.abs(run.gs[0]) > 8 || run.gs[0] === 0) continue;
+      return ivp;
+    }
+  },
+  render: (ivp): Slide => {
+    const { x0, y0, h } = ivp;
+    const run = eulerRun(ivp);
+    const [g] = run.gs;
+    const curve = clamped(solutionCurve(ivp), 200);
+    const tangent = (x: number) => y0 + g * (x - x0);
+    const xMin = x0 - h / 2;
+    const xMax = x0 + 1.5 * h;
+    const seen = Array.from({ length: 41 }, (_, i) => xMin + ((xMax - xMin) * i) / 40).flatMap((x) => [curve(x), tangent(x)]);
+    const lo = Math.floor(Math.min(...seen)) - 1;
+    const hi = Math.ceil(Math.max(...seen)) + 1;
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          `${ivpText(ivp)}. The curve is the solution; the accent line is its tangent at $(${fmt(x0)}, ${fmt(y0)})$. Slide the level to the height the tangent reaches at $x = ${fmt(run.xs[1])}$: Euler's $y_1$ with $h = ${fmt(h)}$.`,
+        ),
+      ],
+      min: lo,
+      max: hi,
+      step: SLIDER_STEP,
+      answer: run.ys[1],
+      readout: 'y_1 = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin,
+          xMax,
+          yMin: lo,
+          yMax: hi,
+          curves: [{ f: curve }, { f: tangent, accent: true }],
+          verticals: [{ x: x0, dashed: true }, { x: run.xs[1], dashed: true }],
+          marks: [{ x: x0, y: y0 }],
+          label: `The solution curve through (${fmt(x0)}, ${fmt(y0)}) and its tangent there, running on to x = ${fmt(run.xs[1])}`,
+        }),
+        ...markerWindow(lo, hi, 'y'),
+        axis: 'y',
+      },
+    };
+  },
+  solution: (ivp) => [
+    { text: 'The tangent has the gradient $\\frac{dy}{dx}$ gives at the start. Over a step of $h$ it rises $h$ times that:' },
+    ...stepLines(ivp, eulerRun(ivp), 0),
+    { text: 'The curve itself ends somewhere else: the step follows the tangent, not the curve.' },
+  ],
+};
+
+/** The four points a step might be said to reach, or none when two coincide. */
+function pointOptions(ivp: Ivp): ChoiceOption[] | undefined {
+  const { rhs, h, n } = ivp;
+  const run = eulerRun(ivp);
+  const k = n - 1;
+  const [xn, yk, g] = [run.xs[n], run.ys[k], run.gs[k]];
+  const heights = [
+    run.ys[n],
+    clean(yk + g),
+    clean(yk + h * rhsAt(rhs, xn, yk)),
+    n > 1 ? clean(ivp.y0 + n * h * run.gs[0]) : clean(h * g),
+  ];
+  if (new Set(heights).size < 4 || !heights.every((v) => terminates(v))) return undefined;
+  return heights.map((y, i) => ({ tex: `(${fmt(xn)}, ${fmt(y)})`, correct: i === 0 }));
+}
+
+/**
+ * Where a step lands: the right one beside forgetting h, taking the gradient
+ * at the far end, and (first step) forgetting y_0 or (second) holding the
+ * first gradient.
+ */
+const eulerPointChoice: Generator<Ivp> = {
+  id: 'numer-euler-point-choice',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const ivp = sampleAny(rng, difficulty, [difficulty > 1 ? 2 : 1]);
+      if (pointOptions(ivp)) return ivp;
+    }
+  },
+  render: (ivp): Slide =>
+    choiceSlide(
+      [
+        say(
+          `${ivpText(ivp)}. Euler's method runs with $h = ${fmt(ivp.h)}$. Where does ${ivp.n > 1 ? 'the second step' : 'the first step'} land?`,
+        ),
+      ],
+      pointOptions(ivp)!,
+    ),
+  solution: (ivp) => {
+    const run = eulerRun(ivp);
+    return [
+      { text: 'Each step moves $h$ across and $h$ times the gradient at its start up.' },
+      ...run.gs.flatMap((_, i) => stepLines(ivp, run, i)),
+      { text: `So the step lands at $(${fmt(run.xs[ivp.n])}, ${fmt(run.ys[ivp.n])})$.` },
+    ];
+  },
+};
+
+/** One step's estimate, typed, with h left to be read off the two x values. */
+const eulerFirstValue: Generator<Ivp> = {
+  id: 'numer-euler-first-value',
+  sample: (rng, difficulty) => sampleAny(rng, difficulty, [1]),
+  render: (ivp): Slide => {
+    const run = eulerRun(ivp);
+    return {
+      kind: 'expression',
+      prompt: [say(`${ivpText(ivp)}. Use a single step of Euler's method to estimate $y$ when $x = ${fmt(run.xs[1])}$.`)],
+      lead: `y(${fmt(run.xs[1])}) \\approx`,
+      keypad: [],
+      answer: fmt(run.ys[1]),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (ivp) => [
+    { text: `One step from $x = ${fmt(ivp.x0)}$ to $x = ${fmt(ivp.x0 + ivp.h)}$ is $h = ${fmt(ivp.h)}$.` },
+    ...stepLines(ivp, eulerRun(ivp), 0),
+  ],
+};
+
+/* ---------- Level 5, lesson 2: stepping on ---------- */
+
+/**
+ * The table as it is written on paper: n, x_n, y_n and the gradient, each
+ * row's gradient then the next y from a bank. `numer-euler-table` has f in x
+ * alone; `numer-euler-ytable` (lesson 3) has y in it.
+ */
+function eulerTableSlide(ivp: Ivp): Slide {
+  const { rhs, h, n, y0 } = ivp;
+  const run = eulerRun(ivp);
+  const rows = run.xs.map((x, i) => [String(i), fmt(x), i === 0 ? fmt(y0) : null, i < n ? null : '']);
+  const answer = run.xs.flatMap((_, i) => [...(i > 0 ? [run.ys[i]] : []), ...(i < n ? [run.gs[i]] : [])]).map(fmt);
+  const slips = [
+    clean(y0 + n * h * run.gs[0]),
+    clean(y0 + run.gs[0]),
+    clean(run.ys[1] + run.gs[1]),
+    clean(run.ys[n] + h),
+    clean(run.ys[n] - h * run.gs[n - 1]),
+  ];
+  return {
+    kind: 'table',
+    prompt: [
+      say(
+        `${ivpText(ivp)}. Fill in the table by Euler's method with $h = ${fmt(h)}$: each row's gradient $${gradName(rhs, 'x_n', 'y_n')}$, then the next row's $y$.`,
+      ),
+    ],
+    columns: ['n', 'x_n', 'y_n', gradName(rhs, 'x_n', 'y_n')],
+    rows,
+    bank: numberBank(answer, slips.map(fmt), around([run.ys[n]], h)),
+    answer,
+  };
+}
+
+const eulerTable: Generator<Ivp> = {
+  id: 'numer-euler-table',
+  sample: (rng, difficulty) => sampleXOnly(rng, difficulty, [difficulty > 1 ? 4 : 3]),
+  render: eulerTableSlide,
+  solution: runSolution,
+};
+
+interface ChainParams extends Ivp {
+  /** Both steps on one line (f in x alone), rather than the second from a given y_1. */
+  both: boolean;
+}
+
+/**
+ * A step worked along a line. Difficulty 1 is the second step from a given
+ * y_1. Difficulty 2 is two steps at once for an equation in x alone, where
+ * y_2 = y_0 + h f(x_0) + h f(x_1), so the gradients can be found first.
+ */
+const eulerChainSteps: Generator<ChainParams> = {
+  id: 'numer-euler-chain-steps',
+  sample: (rng, difficulty) =>
+    difficulty > 1 ? { ...sampleXOnly(rng, 2, [2]), both: true } : { ...sampleAny(rng, 1, [2]), both: false },
+  render: (params): Slide => {
+    const { rhs, h, y0, both } = params;
+    const run = eulerRun(params);
+    const [x0, x1] = run.xs;
+    const [g0, g1] = run.gs;
+    const [, y1, y2] = run.ys;
+    const H = fmt(h);
+    const bank = (value: number, ...slips: number[]) => stepBank(fmt(value), ...slips.map(fmt));
+    if (!both) {
+      return {
+        kind: 'steps',
+        prompt: [
+          say(
+            `${ivpText(params)}. With $h = ${H}$, the first step of Euler's method reached $y_1 = ${fmt(y1)}$ at $x_1 = ${fmt(x1)}$. Work out $y_2$: tap the part you would work out next, then choose what it comes to.`,
+          ),
+        ],
+        start: [fmt(y1), '+', H, '\\times', gradName(rhs, fmt(x1), fmt(y1))],
+        reductions: [
+          { span: [4, 5], value: fmt(g1), bank: bank(g1, g0, rhsAt(rhs, x1, y0), g1 + 1) },
+          { span: [2, 5], operator: 3, value: fmt(clean(h * g1)), bank: bank(clean(h * g1), g1, clean(g1 + h), clean(2 * h * g1)) },
+          { span: [0, 3], operator: 1, value: fmt(y2), bank: bank(y2, clean(y1 + g1), clean(y1 + h * g0), clean(y2 + h)) },
+        ],
+      };
+    }
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `${ivpText(params)}. The gradient does not depend on $y$, so two steps of Euler's method with $h = ${H}$ are one line. Work out $y_2$: tap the part you would work out next, then choose what it comes to.`,
+        ),
+      ],
+      start: [fmt(y0), '+', H, '\\times', `f(${fmt(x0)})`, '+', H, '\\times', `f(${fmt(x1)})`],
+      reductions: [
+        { span: [4, 5], value: fmt(g0), bank: bank(g0, g1, g0 + 1, rhsAt(rhs, x0 + 1, 0)) },
+        { span: [8, 9], value: fmt(g1), bank: bank(g1, g0, g1 + 1, rhsAt(rhs, run.xs[2], 0)) },
+        { span: [2, 5], operator: 3, value: fmt(clean(h * g0)), bank: bank(clean(h * g0), g0, clean(g0 + h), clean(2 * h * g0)) },
+        { span: [4, 7], operator: 5, value: fmt(clean(h * g1)), bank: bank(clean(h * g1), g1, clean(g1 + h), clean(2 * h * g1)) },
+        { span: [0, 3], operator: 1, value: fmt(y1), bank: bank(y1, clean(y0 + g0), clean(y1 + h), clean(y1 - 2 * h * g0)) },
+        { span: [0, 3], operator: 1, value: fmt(y2), bank: bank(y2, clean(y0 + 2 * h * g0), clean(y2 + h), clean(y1 + g1)) },
+      ],
+    };
+  },
+  solution: (params) => {
+    const run = eulerRun(params);
+    return params.both
+      ? [
+          { text: `The gradient depends on $x$ alone, so each step adds $h$ times $f$ at the step's start, whatever $y$ has reached.` },
+          ...stepLines(params, run, 0),
+          ...stepLines(params, run, 1),
+        ]
+      : [{ text: 'The second step takes its gradient at the point the first one reached.' }, ...stepLines(params, run, 1)];
+  },
+};
+
+/** An estimate several steps along, typed; the number of steps is left to count. */
+const eulerReachValue: Generator<Ivp> = {
+  id: 'numer-euler-reach-value',
+  sample: (rng, difficulty) => sampleXOnly(rng, difficulty, difficulty > 1 ? [3, 4] : [2, 3]),
+  render: (ivp): Slide => {
+    const run = eulerRun(ivp);
+    const X = fmt(run.xs[ivp.n]);
+    return {
+      kind: 'expression',
+      prompt: [say(`${ivpText(ivp)}. Use Euler's method with $h = ${fmt(ivp.h)}$ to estimate $y$ when $x = ${X}$.`)],
+      lead: `y(${X}) \\approx`,
+      keypad: [],
+      answer: fmt(run.ys[ivp.n]),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (ivp) => [
+    { text: `From $x = ${fmt(ivp.x0)}$ to $x = ${fmt(eulerRun(ivp).xs[ivp.n])}$ in steps of $${fmt(ivp.h)}$ is $${ivp.n}$ steps.` },
+    ...runSolution(ivp),
+  ],
+};
+
+/** The three branches of the count flow's last fork, or none when two agree. */
+function countValues(ivp: Ivp): number[] | undefined {
+  const { rhs, h, n } = ivp;
+  const run = eulerRun(ivp);
+  const [V, g] = [run.ys[n - 1], run.gs[n - 1]];
+  const values = [run.ys[n], clean(V + g), clean(V + h * rhsAt(rhs, run.xs[n], V))];
+  return new Set(values).size === 3 && values.every((v) => terminates(v)) ? values : undefined;
+}
+
+/**
+ * Reading y at a given x: how many steps reach it, where the last one takes
+ * its gradient, and the value it lands on, from a stated second-to-last row.
+ */
+const eulerCountFlow: Generator<Ivp> = {
+  id: 'numer-euler-count-flow',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const ivp = sampleAny(rng, difficulty, difficulty > 1 ? [4] : [3, 4]);
+      if (countValues(ivp)) return ivp;
+    }
+  },
+  render: (ivp): Slide => {
+    const { h, n, x0 } = ivp;
+    const run = eulerRun(ivp);
+    const X = fmt(run.xs[n]);
+    const V = fmt(run.ys[n - 1]);
+    const key = ivpKey(ivp);
+    const values = countValues(ivp)!.map(fmt);
+    const last = [`At $x = ${fmt(run.xs[n - 1])}$`, `At $x = ${X}$`, `At $x = ${fmt(x0)}$`];
+    return {
+      kind: 'flow',
+      prompt: [
+        say(
+          `${ivpText(ivp)}. Euler's method with $h = ${fmt(h)}$ is to estimate $y$ at $x = ${X}$, and its working has reached $y = ${V}$ one step short of there.`,
+        ),
+      ],
+      subject: `${odeTex(ivp.rhs)}, \\quad y(${fmt(x0)}) = ${fmt(ivp.y0)}`,
+      steps: [
+        {
+          id: 'count',
+          ask: `How many steps of $${fmt(h)}$ take $x$ from $${fmt(x0)}$ to $${X}$?`,
+          branches: turned([n, n + 1, n - 1].map(String), key).map((label) => ({ label, to: 'last' })),
+        },
+        {
+          id: 'last',
+          ask: `The last step starts from $y = ${V}$. Where is its gradient worked out?`,
+          branches: turned(last, key).map((label) => ({ label, to: 'value' })),
+        },
+        {
+          id: 'value',
+          ask: `So Euler's estimate of $y(${X})$ is`,
+          branches: turned(
+            [
+              { label: `$${values[0]}$`, outcome: `That is the last row of the table: $y_${n}$.` },
+              { label: `$${values[1]}$`, outcome: 'That adds the whole gradient, as if the step were 1 wide.' },
+              { label: `$${values[2]}$`, outcome: 'That takes the gradient at the end of the step instead of its start.' },
+            ],
+            key,
+          ),
+        },
+      ],
+      answer: [String(n), last[0], `$${values[0]}$`],
+    };
+  },
+  solution: (ivp) => {
+    const run = eulerRun(ivp);
+    const n = ivp.n;
+    return [
+      { text: `$\\frac{${fmt(run.xs[n])} - ${fmt(ivp.x0)}}{${fmt(ivp.h)}} = ${n}$ steps, so the estimate is $y_${n}$.` },
+      { text: `The last step starts at $x_${n - 1} = ${fmt(run.xs[n - 1])}$, where $y_${n - 1} = ${fmt(run.ys[n - 1])}$, and takes its gradient there:` },
+      ...stepLines(ivp, run, n - 1),
+    ];
+  },
+};
+
+/* ---------- Level 5, lesson 3: when f has y in it ---------- */
+
+const eulerYTable: Generator<Ivp> = {
+  id: 'numer-euler-ytable',
+  sample: (rng, difficulty) => sampleWithY(rng, difficulty, [3]),
+  render: eulerTableSlide,
+  solution: runSolution,
+};
+
+/** Two steps as a tree, the second gradient fed by the new y. */
+const eulerYTree: Generator<Ivp> = {
+  id: 'numer-euler-y-tree',
+  sample: (rng, difficulty) => sampleWithY(rng, difficulty, [2]),
+  render: (ivp): Slide => {
+    const { rhs, x0, y0, h } = ivp;
+    const run = eulerRun(ivp);
+    const [g0, g1] = run.gs;
+    const [, y1, y2] = run.ys;
+    const answer = [g0, y1, g1, y2].map(fmt);
+    const stale = rhsAt(rhs, run.xs[1], y0);
+    const slips = [clean(y0 + 2 * h * g0), stale, clean(y1 + h * stale), rhsAt(rhs, x0, y1), clean(y1 + g1)];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `${ivpText(ivp)}. Two steps of Euler's method with $h = ${fmt(h)}$. Top: the gradient $f(x_0, y_0)$; then $y_1$; then the gradient $f(x_1, y_1)$ at the point reached; last, $y_2$.`,
+        ),
+      ],
+      expression: 'y_2 = y_1 + h\\,f(x_1, y_1)',
+      nodes: [
+        { id: 'g0', from: [] },
+        { id: 'y1', from: ['g0'] },
+        { id: 'g1', from: ['y1'] },
+        { id: 'y2', from: ['g1'] },
+      ],
+      bank: numberBank(answer, slips.map(fmt), around([y2], h)),
+      answer,
+    };
+  },
+  solution: (ivp) => {
+    const run = eulerRun(ivp);
+    return [
+      ...stepLines(ivp, run, 0),
+      { text: `The gradient has $y$ in it, so it is worked out again at $(${fmt(run.xs[1])}, ${fmt(run.ys[1])})$:` },
+      ...stepLines(ivp, run, 1),
+    ];
+  },
+};
+
+/** The four ways to take the second gradient: from (x_1, y_1), and the three slips. */
+function frozenOptions(ivp: Ivp): ChoiceOption[] | undefined {
+  const { rhs, h, x0, y0 } = ivp;
+  const run = eulerRun(ivp);
+  const [x1, y1] = [run.xs[1], run.ys[1]];
+  const points: [number, number][] = [
+    [x1, y1],
+    [x1, y0],
+    [x0, y0],
+    [x0, y1],
+  ];
+  const values = points.map(([x, y]) => clean(y1 + h * rhsAt(rhs, x, y)));
+  if (new Set(values).size < 4 || !values.every((v) => terminates(v))) return undefined;
+  return points.map(([x, y], i) => ({
+    tex: `${fmt(y1)} + ${fmt(h)}\\,f(${fmt(x)}, ${fmt(y)}) = ${fmt(values[i])}`,
+    correct: i === 0,
+  }));
+}
+
+/** Which line gives y_2: the new point, or a gradient held over from the start. */
+const eulerFrozenChoice: Generator<Ivp> = {
+  id: 'numer-euler-frozen-choice',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const ivp = sampleWithY(rng, difficulty, [2]);
+      if (frozenOptions(ivp)) return ivp;
+    }
+  },
+  render: (ivp): Slide => {
+    const run = eulerRun(ivp);
+    return choiceSlide(
+      [
+        say(
+          `${ivpText(ivp)}. Euler's method with $h = ${fmt(ivp.h)}$ gives $y_1 = ${fmt(run.ys[1])}$ at $x_1 = ${fmt(run.xs[1])}$. Which line gives $y_2$?`,
+        ),
+      ],
+      frozenOptions(ivp)!,
+    );
+  },
+  solution: (ivp) => {
+    const run = eulerRun(ivp);
+    return [
+      { text: 'The second step starts where the first one landed, so its gradient uses both new values, $x_1$ and $y_1$:' },
+      ...stepLines(ivp, run, 1),
+      { text: 'Keeping $x_0$ or $y_0$ carries part of the first gradient into a step that starts somewhere else.' },
+    ];
+  },
+};
+
+/** The flow's three values for y_2, or none when two agree. */
+function slipValues(ivp: Ivp): number[] | undefined {
+  const { rhs, h, y0 } = ivp;
+  const run = eulerRun(ivp);
+  const [g0, g1] = run.gs;
+  const y1 = run.ys[1];
+  const third = hasY(rhs) ? clean(y1 + h * rhsAt(rhs, run.xs[1], y0)) : clean(y0 + h * g1);
+  const values = [run.ys[2], clean(y1 + h * g0), third];
+  return new Set(values).size === 3 && values.every((v) => terminates(v)) ? values : undefined;
+}
+
+/**
+ * Whether y matters, where the second gradient is found, and y_2. For f in x
+ * alone the middle question is skipped: the gradient at x_1 is the same
+ * whatever y has reached.
+ */
+const eulerSlipFlow: Generator<Ivp> = {
+  id: 'numer-euler-slip-flow',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const ivp = sampleAny(rng, difficulty, [2]);
+      if (slipValues(ivp)) return ivp;
+    }
+  },
+  render: (ivp): Slide => {
+    const { rhs, x0, y0, h } = ivp;
+    const run = eulerRun(ivp);
+    const [x1, y1] = [fmt(run.xs[1]), fmt(run.ys[1])];
+    const key = ivpKey(ivp);
+    const values = slipValues(ivp)!.map((v) => `$${fmt(v)}$`);
+    const where = [
+      `$(${x1}, ${y1})$, where the first step landed`,
+      `$(${x1}, ${fmt(y0)})$, keeping the starting $y$`,
+      `$(${fmt(x0)}, ${fmt(y0)})$, the same as the first step`,
+    ];
+    return {
+      kind: 'flow',
+      prompt: [
+        say(`${ivpText(ivp)}. Euler's method with $h = ${fmt(h)}$ gives $y_1 = ${y1}$ at $x_1 = ${x1}$. The second step needs its own gradient.`),
+      ],
+      subject: odeTex(rhs),
+      steps: [
+        {
+          id: 'depends',
+          ask: 'With $x$ held fixed, does the gradient change when $y$ changes?',
+          branches: [
+            { label: 'Yes', to: 'where' },
+            { label: 'No', to: 'value' },
+          ],
+        },
+        {
+          id: 'where',
+          ask: "So the second step's gradient is worked out at",
+          branches: turned(
+            [
+              { label: where[0], to: 'value' },
+              { label: where[1], outcome: 'Then the gradient ignores how far the first step climbed.' },
+              { label: where[2], outcome: 'Then the second step runs on along the first tangent.' },
+            ],
+            key,
+          ),
+        },
+        {
+          id: 'value',
+          ask: 'So $y_2$ is',
+          branches: turned(
+            [
+              { label: values[0], outcome: "That is Euler's second step." },
+              { label: values[1], outcome: 'That holds the first gradient for both steps.' },
+              {
+                label: values[2],
+                outcome: hasY(rhs) ? 'That finds the gradient with the old $y$.' : 'That adds the second gradient to $y_0$ instead of to $y_1$.',
+              },
+            ],
+            key,
+          ),
+        },
+      ],
+      answer: hasY(rhs) ? ['Yes', where[0], values[0]] : ['No', values[0]],
+    };
+  },
+  solution: (ivp) => {
+    const run = eulerRun(ivp);
+    return [
+      {
+        text: hasY(ivp.rhs)
+          ? `$${rhsTex(ivp.rhs)}$ has $y$ in it, so the gradient is found again at the new point $(${fmt(run.xs[1])}, ${fmt(run.ys[1])})$.`
+          : `$${rhsTex(ivp.rhs)}$ has no $y$ in it, so only the new $x$ matters.`,
+      },
+      ...stepLines(ivp, run, 1),
+    ];
+  },
+};
+
+/** Two or three steps with y in f, typed. Euler's value, never the true y. */
+const eulerYValue: Generator<Ivp> = {
+  id: 'numer-euler-y-value',
+  sample: (rng, difficulty) => sampleWithY(rng, difficulty, [difficulty > 1 ? 3 : 2]),
+  render: (ivp): Slide => {
+    const run = eulerRun(ivp);
+    const X = fmt(run.xs[ivp.n]);
+    return {
+      kind: 'expression',
+      prompt: [say(`${ivpText(ivp)}. Use Euler's method with $h = ${fmt(ivp.h)}$ to estimate $y$ when $x = ${X}$.`)],
+      lead: `y(${X}) \\approx`,
+      keypad: [],
+      answer: fmt(run.ys[ivp.n]),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: runSolution,
+};
+
+/* ---------- Level 5, lesson 4: against the exact answer ---------- */
+
+/** The exact working for an equation in x alone: integrate, then y(X). */
+function exactLines(ivp: Ivp, X: number): SolutionStep[] {
+  const F = antiderivative(ivp.rhs.px).map(clean);
+  const [FX, F0] = [valueAt(F, X), valueAt(F, ivp.x0)].map(clean);
+  return [
+    { text: `Integrating: $y = ${antiTexOf(ivp.rhs.px)} + c$, with $c$ fixed by $y = ${fmt(ivp.y0)}$ at $x = ${fmt(ivp.x0)}$ (Differential Equations level 1, A Particular Solution).` },
+    { tex: aligned(`y(${fmt(X)}) &= ${fmt(ivp.y0)} + ${paren(FX)} - ${paren(F0)}`, `&= ${fmt(exactY(ivp, X))}`) },
+  ];
+}
+
+/** The error in the last estimate: estimate minus true value, as level 3 has it. */
+function eulerError(ivp: Ivp) {
+  const run = eulerRun(ivp);
+  const X = run.xs[ivp.n];
+  const estimate = run.ys[ivp.n];
+  const exact = exactY(ivp, X);
+  return { run, X, estimate, exact, error: clean(estimate - exact) };
+}
+
+function errorSolution(ivp: Ivp): SolutionStep[] {
+  const { X, estimate, exact, error } = eulerError(ivp);
+  return [
+    ...runSolution(ivp),
+    ...exactLines(ivp, X),
+    { tex: `\\text{error} = ${fmt(estimate)} - ${paren(exact)} = ${fmt(error)}` },
+    { text: error < 0 ? 'Negative: the estimate is too low.' : 'Positive: the estimate is too high.' },
+  ];
+}
+
+/** Euler's values down one side, the true y on the other, the error where they meet. */
+const eulerErrorTree: Generator<Ivp> = {
+  id: 'numer-euler-error-tree',
+  sample: (rng, difficulty) => sampleXOnly(rng, difficulty, [difficulty > 1 ? 3 : 2]),
+  render: (ivp): Slide => {
+    const { run, X, estimate, exact, error } = eulerError(ivp);
+    const n = ivp.n;
+    const ys = run.ys.slice(1);
+    const answer = [...ys, exact, error].map(fmt);
+    const slips = [clean(-error), clean(exact + ivp.h), clean(ivp.y0 + n * ivp.h * run.gs[0]), clean(estimate + error)];
+    const names = ys.map((_, i) => `y_${i + 1}`);
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `${ivpText(ivp)}. Down the left, Euler's ${names.map((name) => `$${name}$`).join(', ')} with $h = ${fmt(ivp.h)}$. Beside them the true $y(${fmt(X)})$, from integrating. Last, the error: the estimate minus the true value.`,
+        ),
+      ],
+      expression: `\\text{error} = y_${n} - y(${fmt(X)})`,
+      nodes: [
+        ...ys.map((_, i) => ({ id: `y${i + 1}`, from: i === 0 ? [] : [`y${i}`] })),
+        { id: 'exact', from: [] },
+        { id: 'error', from: [`y${n}`, 'exact'] },
+      ],
+      bank: numberBank(answer, slips.map(fmt), around([exact, error], ivp.h)),
+      answer,
+    };
+  },
+  solution: errorSolution,
+};
+
+/** The error after n steps, typed. */
+const eulerErrorValue: Generator<Ivp> = {
+  id: 'numer-euler-error-value',
+  sample: (rng, difficulty) => sampleXOnly(rng, difficulty, difficulty > 1 ? [3, 4] : [2, 3, 4]),
+  render: (ivp): Slide => {
+    const { X, error } = eulerError(ivp);
+    return {
+      kind: 'expression',
+      prompt: [
+        say(
+          `${ivpText(ivp)}. Euler's method with $h = ${fmt(ivp.h)}$ estimates $y$ at $x = ${fmt(X)}$. Solve the equation exactly and find the error in that estimate: the estimate minus the true value.`,
+        ),
+      ],
+      lead: '\\text{error} =',
+      keypad: [],
+      answer: fmt(error),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: errorSolution,
+};
+
+/** Whether the gradient f rises across the steps, or undefined if it turns. */
+function gradientRises({ rhs, x0, h, n }: Ivp): boolean | undefined {
+  const df = derivative(rhs.px);
+  const ends = [valueAt(df, x0), valueAt(df, x0 + n * h)];
+  if (ends.some((v) => Math.abs(v) < 1e-9) || Math.sign(ends[0]) !== Math.sign(ends[1])) return undefined;
+  return ends[0] > 0;
+}
+
+/** An equation in x alone whose gradient only rises or only falls over the steps. */
+function sampleMonotone(rng: Rng, difficulty: number, steps: number[], hs?: number[]): Ivp {
+  for (;;) {
+    const ivp = sampleXOnly(rng, difficulty, steps, hs);
+    if (gradientRises(ivp) !== undefined) return ivp;
+  }
+}
+
+const RISES = 'It rises';
+const FALLS = 'It falls';
+const BELOW = 'Below the curve';
+const ABOVE = 'Above the curve';
+
+/**
+ * Which way Euler misses: a rising gradient bends the curve up, tangents sit
+ * under it, and the estimate is low. Difficulty 2 has a quadratic f, so the
+ * gradient's own slope has to be checked at both ends.
+ */
+const eulerMissFlow: Generator<Ivp> = {
+  id: 'numer-euler-miss-flow',
+  sample: (rng, difficulty) => sampleMonotone(rng, difficulty, [2, 3, 4]),
+  render: (ivp): Slide => {
+    const X = fmt(ivp.x0 + ivp.n * ivp.h);
+    const rises = gradientRises(ivp)!;
+    return {
+      kind: 'flow',
+      prompt: [say(`${ivpText(ivp)}. Euler's method with $h = ${fmt(ivp.h)}$ estimates $y$ at $x = ${X}$.`)],
+      subject: `${odeTex(ivp.rhs)}, \\quad ${fmt(ivp.x0)} \\le x \\le ${X}`,
+      steps: [
+        {
+          id: 'gradient',
+          ask: `As $x$ runs from $${fmt(ivp.x0)}$ to $${X}$, does the gradient $\\frac{dy}{dx}$ rise or fall?`,
+          branches: [
+            { label: RISES, to: 'tangent' },
+            { label: FALLS, to: 'tangent' },
+          ],
+        },
+        {
+          id: 'tangent',
+          ask: 'So a tangent step, starting on the curve, ends',
+          branches: [
+            { label: BELOW, to: 'verdict' },
+            { label: ABOVE, to: 'verdict' },
+          ],
+        },
+        {
+          id: 'verdict',
+          ask: `So Euler's estimate of $y(${X})$ is`,
+          branches: [
+            { label: UNDER, outcome: 'Too low: the error, estimate minus true value, is negative.' },
+            { label: OVER, outcome: 'Too high: the error, estimate minus true value, is positive.' },
+          ],
+        },
+      ],
+      answer: rises ? [RISES, BELOW, UNDER] : [FALLS, ABOVE, OVER],
+    };
+  },
+  solution: (ivp) => {
+    const rises = gradientRises(ivp)!;
+    const df = derivative(ivp.rhs.px);
+    const X = ivp.x0 + ivp.n * ivp.h;
+    return [
+      {
+        text: `The gradient $${rhsTex(ivp.rhs)}$ has slope $${rhsTex({ px: df, q: 0, r: 0 })}$, which is $${fmt(valueAt(df, ivp.x0))}$ at $x = ${fmt(ivp.x0)}$ and $${fmt(valueAt(df, X))}$ at $x = ${fmt(X)}$: ${rises ? 'positive throughout, so the gradient rises' : 'negative throughout, so the gradient falls'}.`,
+      },
+      {
+        text: rises
+          ? 'The curve bends upward, so each tangent runs below it and every step comes up short: an underestimate.'
+          : 'The curve bends downward, so each tangent runs above it and every step overshoots: an overestimate.',
+      },
+      { tex: `y_${ivp.n} = ${fmt(eulerError(ivp).estimate)}, \\quad y(${fmt(X)}) = ${fmt(eulerError(ivp).exact)}` },
+    ];
+  },
+};
+
+/** The four verdicts: too high or too low, for either reason. */
+const MISS_LABELS = [
+  'Too low, as the curve bends upward',
+  'Too high, as the curve bends upward',
+  'Too low, as the curve bends downward',
+  'Too high, as the curve bends downward',
+];
+
+/** The solution curve drawn, and which way Euler will miss read off its bend. */
+const eulerMissChoice: Generator<Ivp> = {
+  id: 'numer-euler-miss-choice',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const ivp = sampleMonotone(rng, difficulty, [2, 4], [0.5]);
+      // A bend worth seeing: the gradient changes by a good share of its size.
+      const ends = [ivp.x0, ivp.x0 + ivp.n * ivp.h].map((x) => valueAt(ivp.rhs.px, x));
+      if (Math.abs(ends[1] - ends[0]) >= 0.6 * Math.max(...ends.map(Math.abs))) return ivp;
+    }
+  },
+  render: (ivp): Slide => {
+    const X = ivp.x0 + ivp.n * ivp.h;
+    const right = gradientRises(ivp) ? 0 : 3;
+    const curve = solutionCurve(ivp);
+    const seen = Array.from({ length: 41 }, (_, i) => curve(ivp.x0 + ((X - ivp.x0) * i) / 40));
+    const [lo, hi] = [Math.min(...seen), Math.max(...seen)];
+    const pad = (hi - lo) * 0.1;
+    return keyedChoice(
+      [
+        say(
+          `The curve is the solution of ${ivpText(ivp)}. Euler's method with $h = ${fmt(ivp.h)}$ starts at the dot and estimates $y$ at $x = ${fmt(X)}$. How will its estimate compare with the true value?`,
+        ),
+        {
+          kind: 'diagram',
+          svg: plotSvg({
+            xMin: ivp.x0,
+            xMax: X,
+            yMin: lo - pad,
+            yMax: hi + pad,
+            curves: [{ f: curve }],
+            marks: [{ x: ivp.x0, y: ivp.y0 }],
+            label: `The solution curve from x = ${fmt(ivp.x0)} to x = ${fmt(X)}, starting at the dot`,
+          }),
+        },
+      ],
+      MISS_LABELS.map((tex, i) => ({ tex, correct: i === right })),
+      ivpKey(ivp),
+      false,
+    );
+  },
+  solution: (ivp) => {
+    const { estimate, exact, X } = eulerError(ivp);
+    const rises = gradientRises(ivp)!;
+    return [
+      {
+        text: rises
+          ? 'The curve bends upward: it gets steeper as $x$ grows. A tangent leaves it with the gradient at its start and falls behind, so every step lands low.'
+          : 'The curve bends downward: its gradient falls as $x$ grows. A tangent keeps the steeper gradient at its start and overshoots, so every step lands high.',
+      },
+      { tex: `y_${ivp.n} = ${fmt(estimate)}, \\quad y(${fmt(X)}) = ${fmt(exact)}` },
+    ];
+  },
+};
+
+interface ExactStepsParams extends Ivp {
+  /** Difficulty 1 writes F out; 2 leaves the integrating to the learner. */
+  given: boolean;
+}
+
+/**
+ * The error worked along a line: F at both ends, the integral, the true y,
+ * then the estimate less it. Only draws where F at each end is exact too.
+ */
+const eulerExactSteps: Generator<ExactStepsParams> = {
+  id: 'numer-euler-exact-steps',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const ivp = sampleXOnly(rng, difficulty, [2, 3]);
+      const F = antiderivative(ivp.rhs.px);
+      const X = ivp.x0 + ivp.n * ivp.h;
+      if ([valueAt(F, X), valueAt(F, ivp.x0)].every((v) => terminates(clean(v)))) return { ...ivp, given: difficulty === 1 };
+    }
+  },
+  render: (params): Slide => {
+    const { estimate, exact, error, X } = eulerError(params);
+    const F = antiderivative(params.rhs.px).map(clean);
+    const [FX, F0] = [valueAt(F, X), valueAt(F, params.x0)].map(clean);
+    const I = clean(FX - F0);
+    const x = fmt(X);
+    const x0 = fmt(params.x0);
+    const y0 = params.y0;
+    const bank = (value: number, ...slips: number[]) => stepBank(fmt(value), ...slips.map(fmt));
+    const where = params.given
+      ? `with $F(x) = ${antiTexOf(params.rhs.px)}$`
+      : `where $F$ is the antiderivative of $${rhsTex(params.rhs)}$ with no constant`;
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `${ivpText(params)}. Euler's method with $h = ${fmt(params.h)}$ estimates $y(${x}) \\approx ${fmt(estimate)}$. The true value is $F(${x}) - F(${x0}) + ${paren(y0)}$, ${where}. Work out the error, the estimate minus the true value: tap the part you would work out next, then choose what it comes to.`,
+        ),
+      ],
+      start: [fmt(estimate), '-', '(', `F(${x})`, '-', `F(${x0})`, '+', paren(y0), ')'],
+      reductions: [
+        { span: [3, 4], value: fmt(FX), bank: bank(FX, valueAt(params.rhs.px, X), clean(FX + 1), clean(-FX)) },
+        { span: [5, 6], value: fmt(F0), bank: bank(F0, valueAt(params.rhs.px, params.x0), clean(F0 + 1), clean(F0 - 1)) },
+        { span: [3, 6], operator: 4, value: fmt(I), bank: bank(I, clean(FX + F0), clean(F0 - FX), clean(I + 1)) },
+        { span: [2, 7], operator: 4, value: fmt(exact), bank: bank(exact, clean(I - y0), I, clean(exact + 1)) },
+        { span: [0, 3], operator: 1, value: fmt(error), bank: bank(error, clean(-error), clean(estimate + exact), clean(error - 1)) },
+      ],
+    };
+  },
+  solution: (params) => {
+    const { X, estimate, exact, error } = eulerError(params);
+    return [
+      ...exactLines(params, X),
+      { tex: `\\text{error} = ${fmt(estimate)} - ${paren(exact)} = ${fmt(error)}` },
+    ];
+  },
+};
+
+/* ---------- Level 5, lesson 5: step size against error ---------- */
+
+/** The same journey with h and h/2: estimates, true value, errors. */
+function halving(ivp: Ivp) {
+  const coarse = eulerError(ivp);
+  const fine = eulerError({ ...ivp, h: clean(ivp.h / 2), n: 2 * ivp.n });
+  return { coarse, fine };
+}
+
+function sampleHalving(rng: Rng, difficulty: number): Ivp {
+  for (;;) {
+    const ivp = sampleXOnly(rng, difficulty, [2], [0.5, 0.2]);
+    if (exactRun({ ...ivp, h: clean(ivp.h / 2), n: 2 * ivp.n })) return ivp;
+  }
+}
+
+function halvingSolution(ivp: Ivp): SolutionStep[] {
+  const { coarse, fine } = halving(ivp);
+  const half = clean(ivp.h / 2);
+  return [
+    { text: `With $h = ${fmt(ivp.h)}$, $${ivp.n}$ steps:` },
+    ...runSolution(ivp).slice(1),
+    { text: `With $h = ${fmt(half)}$, $${2 * ivp.n}$ steps, the same way, reaching $${fmt(fine.estimate)}$.` },
+    {
+      tex: aligned(
+        `${fmt(coarse.estimate)} - ${paren(coarse.exact)} &= ${fmt(coarse.error)}`,
+        `${fmt(fine.estimate)} - ${paren(fine.exact)} &= ${fmt(fine.error)}`,
+      ),
+    },
+    { text: 'Halving the step roughly halves the error.' },
+  ];
+}
+
+/**
+ * h and h/2 side by side: estimates and errors from a bank, with the true
+ * value given. Difficulty 1 is a straight-line f, whose error halves exactly,
+ * and gives the finer estimate; 2 is a quadratic and leaves both to find.
+ */
+const eulerHalveTable: Generator<Ivp> = {
+  id: 'numer-euler-halve-table',
+  sample: sampleHalving,
+  render: (ivp): Slide => {
+    const { coarse, fine } = halving(ivp);
+    const hard = ivp.rhs.px.length > 2;
+    const half = clean(ivp.h / 2);
+    const answer = (hard ? [coarse.estimate, coarse.error, fine.estimate, fine.error] : [coarse.estimate, coarse.error, fine.error]).map(fmt);
+    const slips = [clean(-coarse.error), clean(-fine.error), clean(2 * coarse.error), clean(coarse.error / 4), coarse.exact];
+    return {
+      kind: 'table',
+      prompt: [
+        say(
+          `${ivpText(ivp)}. Its true value at $x = ${fmt(coarse.X)}$ is $${fmt(coarse.exact)}$. Fill in Euler's estimate there with each step size, and its error: the estimate minus the true value.`,
+        ),
+      ],
+      columns: ['h', '\\text{steps}', '\\text{estimate}', '\\text{error}'],
+      rows: [
+        [fmt(ivp.h), String(ivp.n), null, null],
+        [fmt(half), String(2 * ivp.n), hard ? null : fmt(fine.estimate), null],
+      ],
+      bank: numberBank(answer, slips.map(fmt), around([coarse.error, fine.error], 0.05)),
+      answer,
+    };
+  },
+  solution: halvingSolution,
+};
+
+interface NeededParams {
+  x0: number;
+  h: number;
+  steps: number;
+  error: number;
+  target: number;
+}
+
+const TARGETS = [0.01, 0.02, 0.04, 0.05, 0.1, 0.2];
+
+/** h shrinks by error/target, so the steps grow by it, rounded up. */
+const neededSteps = ({ steps, error, target }: NeededParams) => Math.ceil(clean((steps * error) / target) - 1e-9);
+
+/**
+ * How many steps a target error needs, taking the error as proportional to h.
+ * Difficulty 1 has a whole ratio; 2 one that leaves a fraction to round up.
+ */
+const eulerNeededValue: Generator<NeededParams> = {
+  id: 'numer-euler-needed-value',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const ratio = difficulty > 1 ? rng.pick([1.5, 2.5, 3.5, 4.5, 1.25, 2.4]) : rng.int(2, 8);
+      const target = rng.pick(TARGETS);
+      const steps = difficulty > 1 ? rng.pick([3, 5, 7]) : rng.pick([2, 4, 5, 10]);
+      const params = { x0: rng.int(0, 3), h: rng.pick([0.5, 0.25, 0.2, 0.1]), steps, error: clean(ratio * target), target };
+      if (!terminates(params.error) || !terminates(params.x0 + steps * params.h)) continue;
+      if (difficulty > 1 && Number.isInteger(clean(steps * ratio))) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      say(
+        `Euler's method with $${params.steps}$ steps of $h = ${fmt(params.h)}$, from $x = ${params.x0}$ to $x = ${fmt(clean(params.x0 + params.steps * params.h))}$, gives an estimate whose error has size $${fmt(params.error)}$. Taking the error as proportional to $h$, what is the fewest steps that brings it to $${fmt(params.target)}$ or less?`,
+      ),
+    ],
+    lead: '\\text{steps} =',
+    keypad: [],
+    answer: String(neededSteps(params)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const ratio = clean(params.error / params.target);
+    const exact = clean(params.steps * ratio);
+    return [
+      { text: `The error has to shrink by a factor of $\\frac{${fmt(params.error)}}{${fmt(params.target)}} = ${fmt(ratio)}$, so $h$ does too.` },
+      { text: `A step that many times smaller means that many times as many steps: $${params.steps} \\times ${fmt(ratio)} = ${fmt(exact)}$.` },
+      ...(Number.isInteger(exact) ? [] : [{ text: `Steps come whole, and $${Math.floor(exact)}$ would leave the error just over the target, so $${neededSteps(params)}$.` }]),
+    ];
+  },
+};
+
+/** The four guesses at the h/2 estimate, or none when two coincide. */
+function halveOptions(ivp: Ivp): ChoiceOption[] | undefined {
+  const { estimate, exact, error } = eulerError(ivp);
+  const values = [exact + error / 2, exact + error / 4, exact - error / 2, estimate + error / 2].map(clean);
+  if (error === 0 || new Set(values).size < 4 || !values.every((v) => terminates(v))) return undefined;
+  return values.map((v, i) => ({ tex: fmt(v), correct: i === 0 }));
+}
+
+/**
+ * The h/2 estimate from h's and the true value: half the error, same side.
+ * Exact for a straight-line f (difficulty 1), roughly so for a quadratic.
+ */
+const eulerHalveChoice: Generator<Ivp> = {
+  id: 'numer-euler-halve-choice',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const ivp = sampleXOnly(rng, difficulty, [2, 3, 4]);
+      if (halveOptions(ivp)) return ivp;
+    }
+  },
+  render: (ivp): Slide => {
+    const { X, estimate, exact } = eulerError(ivp);
+    return choiceSlide(
+      [
+        say(
+          `${ivpText(ivp)}. With $h = ${fmt(ivp.h)}$, Euler's method estimates $y(${fmt(X)}) \\approx ${fmt(estimate)}$; the true value is $${fmt(exact)}$. Roughly what will it give with $h = ${fmt(clean(ivp.h / 2))}$?`,
+        ),
+      ],
+      halveOptions(ivp)!,
+    );
+  },
+  solution: (ivp) => {
+    const { estimate, exact, error } = eulerError(ivp);
+    return [
+      { tex: `\\text{error} = ${fmt(estimate)} - ${paren(exact)} = ${fmt(error)}` },
+      { text: `Halving $h$ roughly halves the error, and the estimate stays on the same side of the true value, since the curve still bends the same way.` },
+      { tex: `${fmt(exact)} + \\tfrac{1}{2}(${fmt(error)}) = ${fmt(clean(exact + error / 2))}` },
+    ];
+  },
+};
+
+interface SizeParams {
+  x0: number;
+  h: number;
+  steps: number;
+  error: number;
+  /** How many times smaller the error must get. */
+  k: number;
+}
+
+const sizeOf = ({ error, k }: SizeParams) => clean(error / k);
+
+/** By what factor, so what h, so how many steps: the error proportional to h. */
+const eulerSizeFlow: Generator<SizeParams> = {
+  id: 'numer-euler-size-flow',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = {
+        x0: rng.int(0, 3),
+        h: rng.pick([0.5, 0.25, 0.2, 0.1]),
+        steps: rng.pick([2, 4, 5]),
+        error: rng.pick([0.12, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.2, 1.6, 2]),
+        k: rng.pick(difficulty > 1 ? [4, 5, 8, 10] : [2, 4, 5]),
+      };
+      if ([clean(params.h / params.k), sizeOf(params)].every((v) => terminates(v))) return params;
+    }
+  },
+  render: (params): Slide => {
+    const { x0, h, steps, error, k } = params;
+    const X = fmt(clean(x0 + steps * h));
+    const key = `${x0}|${h}|${steps}|${error}|${k}`;
+    const factors = [k, k * k, k + 1].map((v) => `$${v}$`);
+    const hs = [h / k, h / (k * k), h * k].map((v) => `$h = ${fmt(clean(v))}$`);
+    const counts = [steps * k, steps * k * k, steps].map(String);
+    return {
+      kind: 'flow',
+      prompt: [
+        say(
+          `Euler's method with $${steps}$ steps of $h = ${fmt(h)}$, from $x = ${x0}$ to $x = ${X}$, has an error of size $${fmt(error)}$. It is wanted down to $${fmt(sizeOf(params))}$, with the error proportional to $h$.`,
+        ),
+      ],
+      subject: `h = ${fmt(h)}: \\ \\text{error} = ${fmt(error)} \\quad \\to \\quad \\text{error} = ${fmt(sizeOf(params))}`,
+      steps: [
+        {
+          id: 'factor',
+          ask: 'The error has to shrink by what factor?',
+          branches: turned(factors, key).map((label) => ({ label, to: 'h' })),
+        },
+        {
+          id: 'h',
+          ask: 'So the new step is',
+          branches: turned(hs, key).map((label) => ({ label, to: 'count' })),
+        },
+        {
+          id: 'count',
+          ask: `That takes how many steps from $x = ${x0}$ to $x = ${X}$?`,
+          branches: turned(
+            [
+              { label: counts[0], outcome: `$${k}$ times the steps for an error $${k}$ times smaller.` },
+              { label: counts[1], outcome: 'That is the count if the error went with $h^{2}$.' },
+              { label: counts[2], outcome: 'That is the count already taken.' },
+            ],
+            key,
+          ),
+        },
+      ],
+      answer: [factors[0], hs[0], counts[0]],
+    };
+  },
+  solution: (params) => {
+    const { h, steps, error, k } = params;
+    return [
+      { tex: `\\frac{${fmt(error)}}{${fmt(sizeOf(params))}} = ${k}` },
+      { text: `The error is proportional to $h$, so $h$ shrinks by $${k}$ too: $\\frac{${fmt(h)}}{${k}} = ${fmt(clean(h / k))}$.` },
+      { text: `The journey is the same length, so it takes $${k}$ times the steps: $${steps} \\times ${k} = ${steps * k}$.` },
+    ];
+  },
+};
+
+interface SizeSliderParams {
+  h: number;
+  /** The slider's step. */
+  unit: number;
+  error: number;
+  /** The step the learner is after. */
+  target: number;
+}
+
+const SIZE_ERRORS = [0.2, 0.3, 0.4, 0.6, 0.8, 1.2, 1.5, 2];
+
+/**
+ * Error against h drawn as the line through the origin and the two measured
+ * points; the learner slides to the h that gives the stated error.
+ */
+const eulerSizeSlider: Generator<SizeSliderParams> = {
+  id: 'numer-euler-size-slider',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const h = difficulty > 1 ? rng.pick([0.5, 0.25]) : 0.5;
+      const unit = difficulty > 1 ? 0.025 : 0.05;
+      const target = clean(unit * rng.int(1, Math.round(h / unit) - 1));
+      const params = { h, unit, error: rng.pick(SIZE_ERRORS), target };
+      if (target === clean(h / 2)) continue;
+      if (!terminates(clean((params.error * target) / h))) continue;
+      return params;
+    }
+  },
+  render: ({ h, unit, error, target }): Slide => {
+    const wanted = clean((error * target) / h);
+    const hMax = clean(h * 1.2);
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          `Euler's method on one journey gives an error of size $${fmt(error)}$ with $h = ${fmt(h)}$, and $${fmt(clean(error / 2))}$ with $h = ${fmt(clean(h / 2))}$: the error is proportional to $h$, the line on the graph. Slide to the step that brings the error down to $${fmt(wanted)}$.`,
+        ),
+      ],
+      min: 0,
+      max: hMax,
+      step: unit,
+      answer: target,
+      readout: 'h = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: hMax,
+          yMin: 0,
+          yMax: error * 1.3,
+          curves: [{ f: (x) => (error * x) / h, accent: true }],
+          marks: [
+            { x: h, y: error },
+            { x: h / 2, y: error / 2 },
+          ],
+          horizontals: [wanted],
+          label: `Error against step size: a line through the origin and the points (${fmt(h)}, ${fmt(error)}) and (${fmt(h / 2)}, ${fmt(error / 2)}), with a level at ${fmt(wanted)}`,
+        }),
+        ...markerWindow(0, hMax, 'x'),
+        axis: 'x',
+      },
+    };
+  },
+  solution: ({ h, error, target }) => {
+    const wanted = clean((error * target) / h);
+    return [
+      { text: `The error per unit of $h$ is $\\frac{${fmt(error)}}{${fmt(h)}} = ${fmt(clean(error / h))}$.` },
+      { tex: `h = \\frac{${fmt(wanted)}}{${fmt(clean(error / h))}} = ${fmt(target)}` },
+    ];
+  },
+};
+
 export const numericalMethodsGenerators = [
   signTree,
   signInterval,
@@ -6769,4 +8256,28 @@ export const numericalMethodsGenerators = [
   tableTree,
   readingsSlider,
   oddChoice,
+  eulerStepTree,
+  eulerFormulaTiles,
+  eulerTangentSlider,
+  eulerPointChoice,
+  eulerFirstValue,
+  eulerTable,
+  eulerChainSteps,
+  eulerReachValue,
+  eulerCountFlow,
+  eulerYTable,
+  eulerYTree,
+  eulerFrozenChoice,
+  eulerSlipFlow,
+  eulerYValue,
+  eulerErrorTree,
+  eulerErrorValue,
+  eulerMissFlow,
+  eulerMissChoice,
+  eulerExactSteps,
+  eulerHalveTable,
+  eulerNeededValue,
+  eulerHalveChoice,
+  eulerSizeFlow,
+  eulerSizeSlider,
 ];

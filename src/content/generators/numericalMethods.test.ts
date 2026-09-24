@@ -932,3 +932,326 @@ describe("Numerical Methods level 4: Simpson's rule, parabola by parabola", () =
     }
   });
 });
+
+/* ---------- Euler's method ---------- */
+
+/**
+ * The problem as the learner reads it: f turned into mathjs from the slide's
+ * TeX, the starting point, and h where the prompt states it. Nothing here
+ * comes from the generator's parameters or its own stepping.
+ */
+interface ReadIvp {
+  f: (x: number, y: number) => number;
+  x0: number;
+  y0: number;
+  h: number | undefined;
+}
+
+/** Every piece of text on a slide: prose, displays and a flow's questions. */
+function slideText(slide: Slide): string {
+  if (slide.kind === 'teach') return '';
+  const blocks = slide.prompt.map((b) => (b.kind === 'prose' ? b.text : b.kind === 'display' ? `$${b.tex}$` : '')).join(' ');
+  const flow = slide.kind === 'flow' ? slide.steps.map((s) => s.ask).join(' ') : '';
+  return `${blocks} ${flow}`;
+}
+
+function readIvp(slide: Slide): ReadIvp {
+  const text = slideText(slide);
+  const eq = text.match(/\\frac\{dy\}\{dx\} = f\([^)]*\) = ([^$]*)\$/);
+  const start = text.match(/\$y = (-?[\d.]+)\$ when \$x = (-?[\d.]+)\$/);
+  if (!eq || !start) throw new Error(`no problem in: ${text}`);
+  const expr = eq[1]
+    .replace(/\\times/g, '*')
+    .replace(/\^\{(\d+)\}/g, '^$1')
+    .replace(/xy/g, 'x*y');
+  const node = math.compile(expr);
+  const h = text.match(/\$h = ([\d.]+)\$/);
+  return {
+    f: (x, y) => Number(node.evaluate({ x, y })),
+    x0: Number(start[2]),
+    y0: Number(start[1]),
+    h: h ? Number(h[1]) : undefined,
+  };
+}
+
+/** Euler's method written out again: n steps of h from (x0, y0). */
+function euler({ f, x0, y0 }: ReadIvp, h: number, n: number) {
+  const xs = [x0];
+  const ys = [y0];
+  const gs: number[] = [];
+  for (let i = 0; i < n; i += 1) {
+    gs.push(f(xs[i], ys[i]));
+    ys.push(ys[i] + h * gs[i]);
+    xs.push(x0 + (i + 1) * h);
+  }
+  return { xs, ys, gs };
+}
+
+/** The exact y at X for an equation in x alone: f fitted as a quadratic, integrated by the power rule. */
+function exactAt({ f, x0, y0 }: ReadIvp, X: number): number {
+  const c = f(0, 0);
+  const a = (f(1, 0) + f(-1, 0)) / 2 - c;
+  const b = (f(1, 0) - f(-1, 0)) / 2;
+  expect(f(2, 0), 'f is not a quadratic in x').toBeCloseTo(4 * a + 2 * b + c, 9);
+  expect(f(1.3, 5), 'f has y in it').toBeCloseTo(f(1.3, -2), 9);
+  return y0 + integratePoly([a, b, c], x0, X);
+}
+
+const stepsBetween = (from: number, to: number, h: number) => {
+  const n = Math.round((to - from) / h);
+  expect(from + n * h).toBeCloseTo(to, 9);
+  return n;
+};
+
+const near = (token: string, value: number, where: string) => expect(Number(token.replace(/\$/g, '')), where).toBeCloseTo(value, 9);
+
+describe("Euler's method, stepped again from what each slide shows", () => {
+  it('numer-euler-step-tree is x_1, the gradient at the start, h times it, and y_1', () => {
+    for (const { slide, seed } of draws<unknown>('numer-euler-step-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const ivp = readIvp(slide);
+      const { xs, ys, gs } = euler(ivp, ivp.h!, 1);
+      [xs[1], gs[0], ivp.h! * gs[0], ys[1]].forEach((v, i) => near(slide.answer[i], v, `seed ${seed}, node ${i}`));
+    }
+  });
+
+  it('numer-euler-formula-tiles fills the step from the last point the table reached', () => {
+    for (const { slide, seed } of draws<unknown>('numer-euler-formula-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('not a tiles slide');
+      const ivp = readIvp(slide);
+      const k = Number(slide.template.match(/^y_(\d)/)![1]) - 1;
+      const { xs, ys } = euler(ivp, ivp.h!, k);
+      const table = slide.prompt.find((b) => b.kind === 'display');
+      if (k > 0) {
+        if (!table || table.kind !== 'display') throw new Error('no table');
+        const last = numbersIn(table.tex.split('\\\\').at(-1)!);
+        expect(last[1], `seed ${seed}`).toBeCloseTo(xs[k], 9);
+        expect(last[2], `seed ${seed}`).toBeCloseTo(ys[k], 9);
+      }
+      const expected = [ys[k], ivp.h!, xs[k], ys[k]].slice(0, slide.answer.length);
+      expected.forEach((v, i) => near(slide.answer[i], v, `seed ${seed}, blank ${i}`));
+      expect(slide.answer.length === 4, `seed ${seed}`).toBe(ivp.f(1.3, 5) !== ivp.f(1.3, -2));
+    }
+  });
+
+  it('numer-euler-tangent-slider asks for the height the tangent reaches one step on', () => {
+    for (const { slide, seed } of draws<unknown>('numer-euler-tangent-slider')) {
+      if (slide.kind !== 'slider') throw new Error('not a slider slide');
+      const ivp = readIvp(slide);
+      expect(slide.answer, `seed ${seed}`).toBeCloseTo(euler(ivp, ivp.h!, 1).ys[1], 9);
+      expect(slide.answer > slide.min && slide.answer < slide.max, `seed ${seed}`).toBe(true);
+    }
+  });
+
+  it('numer-euler-point-choice marks the point the step lands on', () => {
+    for (const { slide, seed } of draws<unknown>('numer-euler-point-choice')) {
+      if (slide.kind !== 'choice') throw new Error('not a choice slide');
+      const ivp = readIvp(slide);
+      const n = slideText(slide).includes('the second step') ? 2 : 1;
+      const { xs, ys } = euler(ivp, ivp.h!, n);
+      const right = numbersIn(slide.options.find((o) => o.id === slide.correctId)!.label);
+      expect(right[0], `seed ${seed}`).toBeCloseTo(xs[n], 9);
+      expect(right[1], `seed ${seed}`).toBeCloseTo(ys[n], 9);
+    }
+  });
+
+  it('numer-euler-first-value, reach-value and y-value are Euler at the x in the lead, and accepted', () => {
+    for (const id of ['numer-euler-first-value', 'numer-euler-reach-value', 'numer-euler-y-value']) {
+      for (const { slide, seed } of draws<unknown>(id)) {
+        if (slide.kind !== 'expression') throw new Error('not an expression slide');
+        const ivp = readIvp(slide);
+        const X = Number(slide.lead!.match(/y\((-?[\d.]+)\)/)![1]);
+        const h = ivp.h ?? X - ivp.x0;
+        const n = stepsBetween(ivp.x0, X, h);
+        if (id === 'numer-euler-first-value') expect(n).toBe(1);
+        near(slide.answer, euler(ivp, h, n).ys[n], `${id} seed ${seed}`);
+        expect(slide.source ?? slide.integrand ?? slide.limits, `${id} declares an oracle field`).toBeUndefined();
+        expect(verdict(slide, slide.answer), `${id} seed ${seed}`).toBe('correct');
+      }
+    }
+  });
+
+  it('numer-euler-table and ytable read gradient then next y down the rows', () => {
+    for (const id of ['numer-euler-table', 'numer-euler-ytable']) {
+      for (const { slide, seed } of draws<unknown>(id)) {
+        if (slide.kind !== 'table') throw new Error('not a table slide');
+        const ivp = readIvp(slide);
+        const n = slide.rows.length - 1;
+        const { xs, ys, gs } = euler(ivp, ivp.h!, n);
+        slide.rows.forEach((row, i) => expect(Number(row[1]), `${id} seed ${seed}`).toBeCloseTo(xs[i], 9));
+        const expected = xs.flatMap((_, i) => [...(i > 0 ? [ys[i]] : []), ...(i < n ? [gs[i]] : [])]);
+        expected.forEach((v, i) => near(slide.answer[i], v, `${id} seed ${seed}, blank ${i}`));
+        expect(ivp.f(1.3, 5) !== ivp.f(1.3, -2), `${id} seed ${seed}: y in f`).toBe(id === 'numer-euler-ytable');
+      }
+    }
+  });
+
+  it('numer-euler-chain-steps ends on y_2, and a stated y_1 is the first step', () => {
+    for (const { slide, seed } of draws<unknown>('numer-euler-chain-steps')) {
+      if (slide.kind !== 'steps') throw new Error('not a steps slide');
+      const ivp = readIvp(slide);
+      const { ys } = euler(ivp, ivp.h!, 2);
+      near(slide.reductions.at(-1)!.value, ys[2], `seed ${seed}`);
+      const stated = slideText(slide).match(/y_1 = (-?[\d.]+)/);
+      if (stated) expect(Number(stated[1]), `seed ${seed}`).toBeCloseTo(ys[1], 9);
+    }
+  });
+
+  it('numer-euler-count-flow counts the steps, takes the last gradient at its start, and lands on y_n', () => {
+    for (const { slide, seed } of draws<unknown>('numer-euler-count-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const ivp = readIvp(slide);
+      const X = Number(slide.steps[0].ask.match(/to \$(-?[\d.]+)\$/)![1]);
+      const n = stepsBetween(ivp.x0, X, ivp.h!);
+      const { xs, ys } = euler(ivp, ivp.h!, n);
+      expect(slide.answer[0], `seed ${seed}`).toBe(String(n));
+      near(slide.answer[1].match(/x = (-?[\d.]+)/)![1], xs[n - 1], `seed ${seed}`);
+      near(slide.answer[2], ys[n], `seed ${seed}`);
+      const reached = Number(slideText(slide).match(/reached \$y = (-?[\d.]+)\$/)![1]);
+      expect(reached, `seed ${seed}`).toBeCloseTo(ys[n - 1], 9);
+    }
+  });
+
+  it('numer-euler-y-tree recomputes the gradient at the new point', () => {
+    for (const { slide, seed } of draws<unknown>('numer-euler-y-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const ivp = readIvp(slide);
+      const { ys, gs } = euler(ivp, ivp.h!, 2);
+      [gs[0], ys[1], gs[1], ys[2]].forEach((v, i) => near(slide.answer[i], v, `seed ${seed}, node ${i}`));
+    }
+  });
+
+  it('numer-euler-frozen-choice marks the line whose result is y_2, and every line adds up', () => {
+    for (const { slide, seed } of draws<unknown>('numer-euler-frozen-choice')) {
+      if (slide.kind !== 'choice') throw new Error('not a choice slide');
+      const ivp = readIvp(slide);
+      const { ys } = euler(ivp, ivp.h!, 2);
+      for (const option of slide.options) {
+        const [y, h, x, yy, result] = numbersIn(option.label);
+        expect(result, `seed ${seed}: ${option.label}`).toBeCloseTo(y + h * ivp.f(x, yy), 9);
+        expect(Math.abs(result - ys[2]) < 1e-9, `seed ${seed}: ${option.label}`).toBe(option.id === slide.correctId);
+      }
+    }
+  });
+
+  it('numer-euler-slip-flow asks where the gradient is found only when f has y in it, and ends on y_2', () => {
+    for (const { slide, seed } of draws<unknown>('numer-euler-slip-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const ivp = readIvp(slide);
+      const withY = [0, 0.7, 1.5].some((x) => ivp.f(x, 5) !== ivp.f(x, -2));
+      expect(slide.answer[0], `seed ${seed}`).toBe(withY ? 'Yes' : 'No');
+      near(slide.answer.at(-1)!, euler(ivp, ivp.h!, 2).ys[2], `seed ${seed}`);
+    }
+  });
+
+  it('numer-euler-error-tree and error-value give the estimate less the power-rule y', () => {
+    for (const { slide, seed } of draws<unknown>('numer-euler-error-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const ivp = readIvp(slide);
+      const n = slide.nodes.length - 2;
+      const { xs, ys } = euler(ivp, ivp.h!, n);
+      const exact = exactAt(ivp, xs[n]);
+      [...ys.slice(1), exact, ys[n] - exact].forEach((v, i) => near(slide.answer[i], v, `seed ${seed}, node ${i}`));
+    }
+    for (const { slide, seed } of draws<unknown>('numer-euler-error-value')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const ivp = readIvp(slide);
+      const X = Number(slideText(slide).match(/at \$x = (-?[\d.]+)\$/)![1]);
+      const n = stepsBetween(ivp.x0, X, ivp.h!);
+      near(slide.answer, euler(ivp, ivp.h!, n).ys[n] - exactAt(ivp, X), `seed ${seed}`);
+      expect(verdict(slide, slide.answer), `seed ${seed}`).toBe('correct');
+    }
+  });
+
+  it('numer-euler-exact-steps reaches the error, from an estimate that is Euler\'s', () => {
+    for (const { slide, seed } of draws<unknown>('numer-euler-exact-steps')) {
+      if (slide.kind !== 'steps') throw new Error('not a steps slide');
+      const ivp = readIvp(slide);
+      const [, X, estimate] = slideText(slide).match(/y\((-?[\d.]+)\) \\approx (-?[\d.]+)/)!.map(Number);
+      const n = stepsBetween(ivp.x0, X, ivp.h!);
+      expect(estimate, `seed ${seed}`).toBeCloseTo(euler(ivp, ivp.h!, n).ys[n], 9);
+      near(slide.reductions[3].value, exactAt(ivp, X), `seed ${seed}`);
+      near(slide.reductions[4].value, estimate - exactAt(ivp, X), `seed ${seed}`);
+    }
+  });
+
+  it('numer-euler-miss-flow and miss-choice say low exactly when the steps land below the true y', () => {
+    for (const { slide, seed } of draws<unknown>('numer-euler-miss-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const ivp = readIvp(slide);
+      const X = Number(slide.subject.match(/\\le (-?[\d.]+)$/)![1]);
+      const n = stepsBetween(ivp.x0, X, ivp.h!);
+      const low = euler(ivp, ivp.h!, n).ys[n] < exactAt(ivp, X);
+      expect(slide.answer, `seed ${seed}`).toEqual(low ? ['It rises', 'Below the curve', 'An underestimate'] : ['It falls', 'Above the curve', 'An overestimate']);
+    }
+    for (const { slide, seed } of draws<unknown>('numer-euler-miss-choice')) {
+      if (slide.kind !== 'choice') throw new Error('not a choice slide');
+      const ivp = readIvp(slide);
+      const X = Number(slideText(slide).match(/at \$x = (-?[\d.]+)\$/)![1]);
+      const n = stepsBetween(ivp.x0, X, ivp.h!);
+      const low = euler(ivp, ivp.h!, n).ys[n] < exactAt(ivp, X);
+      const right = slide.options.find((o) => o.id === slide.correctId)!.label;
+      expect(right, `seed ${seed}`).toBe(low ? 'Too low, as the curve bends upward' : 'Too high, as the curve bends downward');
+    }
+  });
+
+  it('numer-euler-halve-table has both estimates and errors, and a straight-line f halves exactly', () => {
+    for (const { slide, seed } of draws<unknown>('numer-euler-halve-table')) {
+      if (slide.kind !== 'table') throw new Error('not a table slide');
+      const ivp = readIvp(slide);
+      const [h, n] = slide.rows[0].map(Number);
+      const exact = Number(slideText(slide).match(/is \$(-?[\d.]+)\$/)![1]);
+      const X = ivp.x0 + n * h;
+      expect(exact, `seed ${seed}`).toBeCloseTo(exactAt(ivp, X), 9);
+      const coarse = euler(ivp, h, n).ys[n];
+      const fine = euler(ivp, h / 2, 2 * n).ys[2 * n];
+      const expected = slide.rows[1][2] === null ? [coarse, coarse - exact, fine, fine - exact] : [coarse, coarse - exact, fine - exact];
+      if (slide.rows[1][2] !== null) expect(Number(slide.rows[1][2]), `seed ${seed}`).toBeCloseTo(fine, 9);
+      expected.forEach((v, i) => near(slide.answer[i], v, `seed ${seed}, blank ${i}`));
+      if (Math.abs(ivp.f(2, 0) - 2 * ivp.f(1, 0) + ivp.f(0, 0)) < 1e-9) expect(fine - exact, `seed ${seed}`).toBeCloseTo((coarse - exact) / 2, 9);
+    }
+  });
+
+  it('numer-euler-halve-choice marks the option nearest the h/2 estimate, and it is exact for a straight line', () => {
+    for (const { slide, seed } of draws<unknown>('numer-euler-halve-choice')) {
+      if (slide.kind !== 'choice') throw new Error('not a choice slide');
+      const ivp = readIvp(slide);
+      const [, X, estimate] = slideText(slide).match(/y\((-?[\d.]+)\) \\approx (-?[\d.]+)/)!.map(Number);
+      const n = stepsBetween(ivp.x0, X, ivp.h!);
+      expect(estimate, `seed ${seed}`).toBeCloseTo(euler(ivp, ivp.h!, n).ys[n], 9);
+      const fine = euler(ivp, ivp.h! / 2, 2 * n).ys[2 * n];
+      const nearest = [...slide.options].sort((a, b) => Math.abs(Number(a.label) - fine) - Math.abs(Number(b.label) - fine))[0];
+      expect(nearest.id, `seed ${seed}`).toBe(slide.correctId);
+      if (Math.abs(ivp.f(2, 0) - 2 * ivp.f(1, 0) + ivp.f(0, 0)) < 1e-9) near(nearest.label, fine, `seed ${seed}`);
+    }
+  });
+
+  it('numer-euler-needed-value is the fewest steps whose proportional error meets the target', () => {
+    for (const { slide, seed } of draws<unknown>('numer-euler-needed-value')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const [steps, , , , error, target] = numbersIn(slideText(slide).replace(/\$h = /, ''));
+      let n = steps;
+      while ((error * steps) / n > target + 1e-12) n += 1;
+      expect(slide.answer, `seed ${seed}`).toBe(String(n));
+    }
+  });
+
+  it('numer-euler-size-flow shrinks h by the error ratio and multiplies the steps by it', () => {
+    for (const { slide, seed } of draws<unknown>('numer-euler-size-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const [steps, h, , , error, target] = numbersIn(slideText(slide));
+      const newH = Number(slide.answer[1].match(/h = ([\d.]+)/)![1]);
+      expect((error * newH) / h, `seed ${seed}`).toBeCloseTo(target, 9);
+      expect(Number(slide.answer[2]), `seed ${seed}`).toBeCloseTo((steps * h) / newH, 9);
+    }
+  });
+
+  it('numer-euler-size-slider asks for the h whose proportional error is the one stated', () => {
+    for (const { slide, seed } of draws<unknown>('numer-euler-size-slider')) {
+      if (slide.kind !== 'slider') throw new Error('not a slider slide');
+      const [error, h, , , wanted] = numbersIn(slideText(slide));
+      expect((error * slide.answer) / h, `seed ${seed}`).toBeCloseTo(wanted, 9);
+      expect(Math.abs(slide.answer / slide.step - Math.round(slide.answer / slide.step)), `seed ${seed}`).toBeLessThan(1e-9);
+    }
+  });
+});

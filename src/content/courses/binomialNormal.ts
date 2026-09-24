@@ -10,6 +10,10 @@
  * finding mu or sigma from one known probability. Level 3 finds both from two
  * probabilities: two standardising equations solved simultaneously, the
  * equal-tails shortcut, and checking and using the pair once it is found.
+ * Level 4 is the normal approximation to the binomial: why a long binomial
+ * sum is worth replacing, when np and n(1 - p) are both above 5, the matching
+ * N(np, np(1 - p)), the continuity correction, and the whole route to a
+ * probability.
  *
  * nCr belongs to Binomial Expansion (`be-l2-ncr`) and is pointed at, not
  * taught again. Independence belongs to the Probability course and the mean
@@ -21,7 +25,7 @@
  * slides, one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
-import { normalSvg } from '../generators/binomialNormal';
+import { barsSvg, normalSvg } from '../generators/binomialNormal';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -40,6 +44,9 @@ const maths = (tex: string): Block => ({ kind: 'display', tex });
 
 /** Lines of working stacked in one display and aligned on their `&`. */
 const working = (...lines: string[]) => maths(`\\begin{aligned} ${lines.join(' \\\\ ')} \\end{aligned}`);
+
+/** Bars of B(n, p), with an optional normal curve, shaded run and boundary over them. */
+const bars = (n: number, p: number, opts: Parameters<typeof barsSvg>[2]): Block => ({ kind: 'diagram', svg: barsSvg(n, p, opts) });
 
 /** A two-column table, stacked so it never runs off a phone. */
 const table = (head: [string, string], rows: [string, string][]): Block =>
@@ -561,6 +568,180 @@ export const binomialNormal: Course = {
         ask('dist-both-check-table', 2),
         ask('dist-both-new-prob', 2),
         ask('dist-both-chain-tree', 2),
+      ],
+    },
+    {
+      id: 'bn-l4',
+      title: 'Normal Approximation to the Binomial',
+      lessons: [
+        {
+          id: 'bn-l4-why',
+          title: 'Why Approximate?',
+          slides: [
+            teach(
+              prose('$X \\sim B(100, 0.5)$. Worked out exactly, $P(X \\le 45)$ is a sum of $46$ terms, each with its own $\\tbinom{100}{k}$ and powers:'),
+              working('& P(X = 0) + P(X = 1)', '&\\quad + \\dots + P(X = 45)'),
+              prose('Draw each $P(X = r)$ as a bar one unit wide, centred on $r$. With $p$ near a half and $n$ large, the bars make a bell, centred on the mean $np$, and a normal curve fits over them:'),
+              bars(40, 0.5, { from: 10, to: 30, curve: true, label: 'The bars of B(40, 0.5) from 10 to 30, with a bell-shaped normal curve over them' }),
+            ),
+            ask('dist-approx-sum'),
+            ask('dist-approx-peak'),
+            ask('dist-approx-bars'),
+            teach(
+              prose('Far from a half the bars pile up against one end and trail off in a long tail to the other. $B(20, 0.1)$ has its mean at $2$ and is skewed to the right:'),
+              bars(20, 0.1, { from: 0, to: 12, label: 'The bars of B(20, 0.1), piled up near 0 with a long tail to the right' }),
+              prose('No bell fits bars like these.'),
+            ),
+            ask('dist-approx-skew'),
+            ask('dist-approx-sum', 2),
+            ask('dist-approx-bars', 2),
+            teach(
+              prose('The more trials, the closer the bars come to a bell, even for a $p$ some way from a half. The next lesson makes "large enough" exact.'),
+            ),
+            ask('dist-approx-skew', 2),
+            ask('dist-approx-peak', 2),
+          ],
+          skillCheck: [ask('dist-approx-sum', 2), ask('dist-approx-bars', 2), ask('dist-approx-peak', 2)],
+        },
+        {
+          id: 'bn-l4-allowed',
+          title: 'When It Is Allowed',
+          slides: [
+            teach(
+              prose('A normal curve approximates $X \\sim B(n, p)$ well when $n$ is large and $p$ is not too close to $0$ or $1$. The usual test:'),
+              maths('np > 5 \\quad \\text{and} \\quad n(1 - p) > 5'),
+              prose('$np$ is the mean number of successes and $n(1 - p)$ the mean number of failures: both need room to spread out on either side.'),
+            ),
+            ask('dist-approx-valid'),
+            ask('dist-approx-products'),
+            ask('dist-approx-which-valid'),
+            teach(
+              prose('$X \\sim B(40, 0.1)$:'),
+              working('np &= 40 \\times 0.1 = 4', 'n(1 - p) &= 40 \\times 0.9 = 36'),
+              prose('$np$ is not above $5$, so the bars pile up against $0$ and the approximation is poor. Exactly $5$ fails too: the test is **above** $5$.'),
+            ),
+            ask('dist-approx-min-n'),
+            ask('dist-approx-valid', 2),
+            ask('dist-approx-products', 2),
+            teach(
+              prose('For the smallest $n$ that works, take the smaller of $p$ and $1 - p$: $n$ times it must clear $5$. With $p = 0.2$, $n \\times 0.2 > 5$ needs $n > 25$, so $n = 26$.'),
+            ),
+            ask('dist-approx-which-valid', 2),
+            ask('dist-approx-min-n', 2),
+          ],
+          skillCheck: [ask('dist-approx-valid', 2), ask('dist-approx-which-valid', 2), ask('dist-approx-products', 2)],
+        },
+        {
+          id: 'bn-l4-matching',
+          title: 'The Matching Normal',
+          slides: [
+            teach(
+              prose('The approximating normal has the same mean and the same variance as the binomial. For $X \\sim B(n, p)$:'),
+              working('\\mu &= np', '\\sigma^2 &= np(1 - p)'),
+              prose('so $X$ is approximated by'),
+              maths('Y \\sim N(np, np(1 - p))'),
+            ),
+            ask('dist-approx-param'),
+            ask('dist-approx-normal'),
+            ask('dist-approx-moments-tree'),
+            teach(
+              prose('$X \\sim B(100, 0.2)$:'),
+              working('\\mu &= 100 \\times 0.2 = 20', '\\sigma^2 &= 20 \\times 0.8 = 16', '\\sigma &= \\sqrt{16} = 4'),
+              prose('So $Y \\sim N(20, 16)$. The second number is the variance, as always for a normal distribution.'),
+            ),
+            ask('dist-approx-build'),
+            ask('dist-approx-param', 2),
+            ask('dist-approx-normal', 2),
+            teach(
+              prose('Standardising divides by $\\sigma$, not by the variance, so take the square root before going on.'),
+            ),
+            ask('dist-approx-moments-tree', 2),
+            ask('dist-approx-build', 2),
+          ],
+          skillCheck: [ask('dist-approx-param', 2), ask('dist-approx-normal', 2), ask('dist-approx-build', 2)],
+        },
+        {
+          id: 'bn-l4-correction',
+          title: 'The Continuity Correction',
+          slides: [
+            teach(
+              prose('$X$ takes whole values and $Y$ is continuous. The bar for $X = r$ covers $Y$ from $r - 0.5$ to $r + 0.5$, so a whole bar is taken in or left out:'),
+              bars(20, 0.5, {
+                from: 4,
+                to: 16,
+                curve: true,
+                shade: [4, 12],
+                boundary: 12.5,
+                label: 'Bars up to 12 shaded, with the curve cut at 12.5, the end of the bar at 12',
+              }),
+              table(['\\text{bars}', '\\text{curve}'], [
+                ['X \\le r', 'Y < r + 0.5'],
+                ['X \\ge r', 'Y > r - 0.5'],
+              ]),
+            ),
+            ask('dist-cc-choice'),
+            ask('dist-cc-line'),
+            ask('dist-cc-boundary'),
+            teach(
+              prose('Turn words into whole numbers first. Fewer than $r$ is $X \\le r - 1$, so $Y < r - 0.5$; more than $r$ is $X \\ge r + 1$, so $Y > r + 0.5$.'),
+              prose('Exactly $r$ is one whole bar, and a range runs from the start of its first bar to the end of its last:'),
+              working('& P(X = r)', '&\\approx P(r - 0.5 < Y < r + 0.5)', '& P(a \\le X \\le b)', '&\\approx P(a - 0.5 < Y < b + 0.5)'),
+            ),
+            ask('dist-cc-flow'),
+            ask('dist-cc-choice', 2),
+            ask('dist-cc-line', 2),
+            teach(
+              prose('To check a correction, ask which bars are in: the boundary sits half a unit past the last bar in, never through the middle of one.'),
+            ),
+            ask('dist-cc-boundary', 2),
+            ask('dist-cc-flow', 2),
+          ],
+          skillCheck: [ask('dist-cc-choice', 2), ask('dist-cc-line', 2), ask('dist-cc-boundary', 2)],
+        },
+        {
+          id: 'bn-l4-route',
+          title: 'The Whole Route',
+          slides: [
+            teach(
+              prose('To approximate a binomial probability:'),
+              prose('**1.** Check $np$ and $n(1 - p)$ are both above $5$. **2.** Write $Y \\sim N(np, np(1 - p))$ and find $\\sigma$. **3.** Apply the continuity correction. **4.** Standardise the boundary. **5.** Read $\\Phi$, taking the complement or a difference as needed.'),
+            ),
+            ask('dist-approx-plan'),
+            ask('dist-approx-route-tree'),
+            ask('dist-approx-prob'),
+            teach(
+              prose('$X \\sim B(100, 0.5)$: find $P(X \\le 45)$. Here $\\mu = 50$ and $\\sigma = 5$, and $\\Phi(0.9) = 0.8159$.'),
+              working('P(X \\le 45) &\\approx P(Y < 45.5)', 'z &= \\frac{45.5 - 50}{5}', '&= -0.9', 'P(Z < -0.9) &= 1 - 0.8159', '&= 0.1841'),
+            ),
+            ask('dist-approx-standardise-steps'),
+            ask('dist-approx-prob+choice'),
+            ask('dist-approx-route-tree', 2),
+            teach(
+              prose('For exactly $r$, or a range, take one area from another. $P(X = 50) \\approx P(49.5 < Y < 50.5)$, where $z = \\pm 0.1$ and $\\Phi(0.1) = 0.5398$:'),
+              working('& \\Phi(0.1) - (1 - \\Phi(0.1))', '&= 0.5398 - 0.4602', '&= 0.0796'),
+            ),
+            ask('dist-approx-plan', 2),
+            ask('dist-approx-standardise-steps', 2),
+          ],
+          skillCheck: [ask('dist-approx-prob', 2), ask('dist-approx-route-tree', 2), ask('dist-approx-standardise-steps', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('dist-approx-sum', 2),
+        ask('dist-approx-bars', 2),
+        ask('dist-approx-peak', 2),
+        ask('dist-approx-valid', 2),
+        ask('dist-approx-which-valid', 2),
+        ask('dist-approx-min-n', 2),
+        ask('dist-approx-param', 2),
+        ask('dist-approx-normal', 2),
+        ask('dist-approx-build', 2),
+        ask('dist-cc-choice', 2),
+        ask('dist-cc-line', 2),
+        ask('dist-cc-boundary', 2),
+        ask('dist-approx-prob', 2),
+        ask('dist-approx-route-tree', 2),
+        ask('dist-approx-standardise-steps', 2),
       ],
     },
   ],

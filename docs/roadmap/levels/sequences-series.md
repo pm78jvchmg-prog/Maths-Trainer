@@ -15,11 +15,13 @@ infinity, with the split given); Proof by Induction for Series (the step
 S(k + 1) = S(k) + u(k + 1), the standard results tidied by the factor
 (k + 1), arithmetic and geometric sums, a recurrence's closed form such as
 u(n) = 2ⁿ − 1, and reading a proof: testing a claim, where the base case goes,
-and the slips a step can make).
+and the slips a step can make); Series in Context (regular savings whose
+balance is a geometric series, a loan repaid by u(n + 1) = ru(n) − R and the
+interest it costs, the first year a balance passes a target and the payment
+that reaches one, whether a story is arithmetic or geometric, and a fixed
+rise against a percentage one).
 
-Needs: Series in Context (loans and savings with regular payments, how many
-years until a total passes a target, and choosing between arithmetic and
-geometric models); Harder Arithmetic and Geometric Problems (simultaneous
+Needs: Harder Arithmetic and Geometric Problems (simultaneous
 conditions on two terms or two sums, and the least n for which a sum exceeds a
 value, solved with logarithms). The binomial series for rational n belongs to
 Binomial Expansion, and Maclaurin and Taylor series to C14 Series Expansions,

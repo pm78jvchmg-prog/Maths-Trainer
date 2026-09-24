@@ -1486,6 +1486,161 @@ button {
 }
 
 /*
+ * The probability tree and the Venn diagram (`probTree`, `venn`).
+ *
+ * Both are a drawing and an overlay: lines and circles in SVG scaled to the
+ * frame's width, and every label and value an HTML element placed over it at
+ * the same proportional position, centred on its point. The drawing is in
+ * `currentColor`; the overlay lets taps through except where there is a
+ * button, so a tap on a given value still reaches the branch under it.
+ * The blanks are `.answer-slot`s and the values come from the shared
+ * `.tile-bank`, pinned while there is something left to place.
+ */
+.answer-frame.ptree-frame,
+.answer-frame.venn-frame {
+  display: block;
+  padding: 6px 4px;
+}
+
+.ptree,
+.venn {
+  position: relative;
+  width: 100%;
+}
+
+.ptree-lines,
+.venn-lines {
+  display: block;
+  width: 100%;
+  height: auto;
+  color: var(--text-dim);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.ptree-branch {
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+/* The branches the learner has taken. Accent, not a verdict colour: the
+   frame alone says whether the path was right. */
+.ptree-branch.chosen {
+  stroke: var(--accent);
+  stroke-width: 4;
+}
+
+.ptree-hit {
+  stroke: transparent;
+  stroke-width: 30;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.ptree-lines.locked .ptree-hit {
+  cursor: default;
+}
+
+.venn-lines rect,
+.venn-lines circle {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+.ptree-over,
+.venn-over {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.ptree-over > div,
+.ptree-over > div > div {
+  display: contents;
+}
+
+.ptree-p,
+.ptree-label,
+.ptree-slot,
+.venn-set,
+.venn-value,
+.venn-slot {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+}
+
+/* A given probability sits on its branch; the surface behind it breaks the
+   line, as a value written on a branch does on paper. */
+.ptree-p {
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: none;
+  font-size: 17px;
+  color: var(--text);
+}
+
+.ptree-label,
+.venn-set {
+  font-size: 19px;
+  color: var(--text);
+}
+
+.ptree-slot,
+.venn-slot {
+  pointer-events: auto;
+  min-width: 56px;
+  min-height: 44px;
+  padding: 2px 6px;
+  font-size: 17px;
+  color: var(--text);
+  background: var(--surface);
+}
+
+/* In a path question the labels are what gets tapped, so they are the full
+   44 px target and read as buttons. */
+.ptree-pick {
+  pointer-events: auto;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+}
+
+.ptree-pick.chosen {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.ptree-pick .katex,
+.ptree-slot .katex,
+.venn-slot .katex {
+  pointer-events: none;
+}
+
+.venn-value {
+  font-size: 19px;
+  color: var(--text);
+}
+
+/* Anchored at its left edge, in the rectangle's corner. */
+.venn-corner {
+  position: absolute;
+  transform: translate(0, -50%);
+  white-space: nowrap;
+  font-size: 15px;
+  color: var(--text-dim);
+}
+
+/*
  * Proof ordering.
  *
  * The slots and the bank borrow the tile and answer-slot looks rather than

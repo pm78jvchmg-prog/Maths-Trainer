@@ -40,6 +40,7 @@ import {
   MIN_WIDGET_KINDS,
 } from '../shapeVariety';
 import { TRIPLES } from './complexPlane';
+import { tokenValue } from './probTree';
 import {
   IDENTITY,
   encodeTransform,
@@ -510,6 +511,108 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
         ).toBeGreaterThanOrEqual(2);
       }
 
+      if (slide.kind === 'probTree' || slide.kind === 'venn') {
+        // Shared by both: blanks filled from a bank and graded as exact
+        // tokens. One token per blank; the bank holds each as often as the
+        // answer needs it and at least two spares; sorted by value, never
+        // shuffled; and no value offered under two spellings, since
+        // `\frac{1}{2}` and `0.5` are different tokens and one would be
+        // marked wrong for being right.
+        const values =
+          slide.kind === 'venn'
+            ? slide.regions
+            : slide.branches.flatMap((branch) => [branch.p, ...branch.next.map((under) => under.p)]);
+        const blanks = values.filter((value) => value === null).length;
+        expect(slide.answer.length, 'one answer token per blank').toBe(
+          slide.kind === 'probTree' && slide.mode === 'path' ? 2 : blanks,
+        );
+        const bank = [...slide.bank];
+        for (const token of slide.kind === 'probTree' && slide.mode === 'path' ? [] : slide.answer) {
+          const at = bank.indexOf(token);
+          expect(at, `${slide.kind} value ${token} missing from bank`).toBeGreaterThanOrEqual(0);
+          bank.splice(at, 1);
+        }
+        if (slide.bank.length > 0) {
+          expect(
+            bank.length,
+            `${slide.kind} bank for ${JSON.stringify(slide.answer)} keeps only ${bank.length} distractor(s)`,
+          ).toBeGreaterThanOrEqual(2);
+          const sorted = [...slide.bank].sort(
+            (a, b) => tokenValue(a)! - tokenValue(b)! || a.localeCompare(b),
+          );
+          expect(slide.bank, `${slide.kind} bank is not sorted by value`).toEqual(sorted);
+          for (const a of slide.bank) {
+            expect(tokenValue(a), `${slide.kind} bank token ${a} is not a value`).toBeDefined();
+            for (const b of slide.bank) {
+              if (a !== b) {
+                expect(
+                  Math.abs(tokenValue(a)! - tokenValue(b)!),
+                  `${a} and ${b} are one value spelled two ways`,
+                ).toBeGreaterThan(1e-9);
+              }
+            }
+          }
+        }
+      }
+
+      if (slide.kind === 'probTree') {
+        // Two stages, at most three first-stage branches and two under each,
+        // labels unique among siblings. Given plus answer, the branches from
+        // every point sum to 1: a tree that does not is not a tree.
+        expect(slide.branches.length).toBeGreaterThanOrEqual(2);
+        expect(slide.branches.length).toBeLessThanOrEqual(3);
+        const unique = (labels: string[]) => new Set(labels).size === labels.length;
+        expect(unique(slide.branches.map((b) => b.label)), 'first-stage labels repeat').toBe(true);
+        for (const branch of slide.branches) {
+          expect(branch.next).toHaveLength(2);
+          expect(unique(branch.next.map((b) => b.label)), `labels under ${branch.label} repeat`).toBe(true);
+        }
+        const answers = [...slide.answer];
+        const probAt = (p: string | null) => {
+          const token = p ?? answers.shift()!;
+          const value = tokenValue(token);
+          expect(value, `branch value ${token} is not a probability`).toBeDefined();
+          expect(value!).toBeGreaterThan(0);
+          expect(value!).toBeLessThan(1);
+          return value!;
+        };
+        if (slide.mode === 'path') {
+          expect(slide.bank, 'a path question has no bank').toEqual([]);
+          const [top, under] = slide.answer;
+          const branch = slide.branches.find((b) => b.label === top);
+          expect(branch, `path starts at ${top}, which is no first-stage branch`).toBeDefined();
+          expect(
+            branch!.next.map((b) => b.label),
+            `path goes on to ${under}, which is not under ${top}`,
+          ).toContain(under);
+        }
+        // Blanks are read first stage then second, the order `answer` lists them.
+        const first = slide.branches.map((branch) => probAt(branch.p));
+        const groups = [first, ...slide.branches.map((branch) => branch.next.map((b) => probAt(b.p)))];
+        for (const group of groups) {
+          expect(
+            group.reduce((total, value) => total + value, 0),
+            `branches ${JSON.stringify(slide.branches)} with ${JSON.stringify(slide.answer)}`,
+          ).toBeCloseTo(1, 9);
+        }
+      }
+
+      if (slide.kind === 'venn') {
+        // Four regions, given plus answer: whole counts adding to the total
+        // in the corner, or probabilities adding to 1.
+        expect(slide.regions).toHaveLength(4);
+        const answers = [...slide.answer];
+        const regions = slide.regions.map((given) => tokenValue(given ?? answers.shift()!)!);
+        const total = regions.reduce((sum, value) => sum + value, 0);
+        if (slide.total !== undefined) {
+          for (const value of regions) expect(Number.isInteger(value), `region ${value}`).toBe(true);
+          expect(total, `regions ${regions.join(', ')}`).toBe(slide.total);
+        } else {
+          for (const value of regions) expect(value).toBeGreaterThan(0);
+          expect(total, `regions ${regions.join(', ')}`).toBeCloseTo(1, 9);
+        }
+      }
+
       if (slide.kind === 'order') {
         // Every step of the proof has to be in the bank exactly once, or the
         // slots cannot be filled; and at least one step has to be a
@@ -661,6 +764,27 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
       if (slide.kind === 'iterate') {
         check(slide.start, 'iterate start');
         for (const token of slide.bank) check(token, 'iterate bank');
+      }
+
+      if (slide.kind === 'probTree') {
+        // Every label and value is its own KaTeX call over the drawing.
+        for (const branch of slide.branches) {
+          check(branch.label, 'tree label');
+          if (branch.p) check(branch.p, 'tree probability');
+          for (const under of branch.next) {
+            check(under.label, 'tree label');
+            if (under.p) check(under.p, 'tree probability');
+          }
+        }
+        for (const token of slide.bank) check(token, 'tree bank');
+        for (const token of slide.answer) check(token, 'tree answer');
+      }
+
+      if (slide.kind === 'venn') {
+        for (const set of slide.sets) check(set, 'venn set');
+        check(slide.total === undefined ? '\\xi' : `n(\\xi) = ${slide.total}`, 'venn corner');
+        for (const region of slide.regions) if (region) check(region, 'venn region');
+        for (const token of slide.bank) check(token, 'venn bank');
       }
 
       if (slide.kind === 'order') {

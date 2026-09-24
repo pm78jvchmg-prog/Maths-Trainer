@@ -8738,13 +8738,14 @@ function dataPrompt(params: DataParams, ask: string, ...after: Block[]): Block[]
 }
 
 /**
- * Residuals written out: the quoted ones a prompt reads from. Four fit on one
- * line of a phone; more are broken three to a line.
+ * Residuals written out: the quoted ones a prompt reads from. A short list
+ * sits on one line of a phone; a longer one puts the label on a line of its
+ * own and the values under it, at most three to a line.
  */
 function residualLine(res: number[]): string {
-  if (res.length <= 4) return `\\text{residuals: } ${res.join(',\\ ')}`;
-  const lines = [res.slice(0, 3), res.slice(3)].map((part) => part.join(',\\ '));
-  return `\\begin{gathered} \\text{residuals: } ${lines.join(', \\\\ ')} \\end{gathered}`;
+  if (res.length <= 4 && res.join('').length <= 8) return `\\text{residuals: } ${res.join(',\\ ')}`;
+  const rows = (res.length <= 4 ? [res] : [res.slice(0, 3), res.slice(3)]).map((row) => row.join(',\\ '));
+  return `\\begin{gathered} \\text{residuals: } \\\\ ${rows.join(', \\\\ ')} \\end{gathered}`;
 }
 
 /** Predictions stay three digits wide at most. */
@@ -9556,7 +9557,15 @@ function pairSolution(params: PairParams): SolutionStep[] {
     { text: `Model A gives $${pa.map(texNum).join(',\\ ')}$ and model B gives $${pb.map(texNum).join(',\\ ')}$, so the residuals are` },
     { tex: chain(`\\text{A} &: \\; ${ra.join(',\\ ')}`, `\\text{B} &: \\; ${rb.join(',\\ ')}`) },
     { text: 'Square each residual and add, so a miss counts the same above or below:' },
-    { tex: chain(`S_A &= ${ra.map((r) => `${r < 0 ? `(${r})` : r}^2`).join(' + ')} = ${squares(ra)}`, `S_B &= ${rb.map((r) => `${r < 0 ? `(${r})` : r}^2`).join(' + ')} = ${squares(rb)}`) },
+    // The squares, not the residuals squared: four bracketed squares run off a phone.
+    {
+      tex: chain(
+        `S_A &= ${ra.map((r) => r * r).join(' + ')}`,
+        `&= ${squares(ra)}`,
+        `S_B &= ${rb.map((r) => r * r).join(' + ')}`,
+        `&= ${squares(rb)}`,
+      ),
+    },
     { text: `The smaller sum is the better fit: model ${better}.` },
   ];
 }

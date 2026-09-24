@@ -5538,7 +5538,18 @@ function longTex(lhs: string, terms: string[], rhs = ''): string {
 function productDisplay(lhs: string, product: string): string {
   const whole = `${lhs} = ${product}`;
   if (texWidth(whole) <= FITS) return whole;
-  // Top-level brackets, each with any power after it; a leading minus stays with the first.
+  const parts = bracketParts(product);
+  if (!parts) return whole;
+  const half = Math.ceil(parts.length / 2);
+  return chain(`${lhs} &= ${parts.slice(0, half).join('')}`, `&\\quad \\times ${parts.slice(half).join('')}`);
+}
+
+/**
+ * Top-level brackets, each with any power after it; a leading number or minus
+ * stays with the first. Undefined when there are fewer than two, or anything
+ * trails the last.
+ */
+function bracketParts(product: string): string[] | undefined {
   const parts: string[] = [];
   let depth = 0;
   let current = '';
@@ -5558,9 +5569,7 @@ function productDisplay(lhs: string, product: string): string {
       }
     }
   }
-  if (current || parts.length < 2) return whole;
-  const half = Math.ceil(parts.length / 2);
-  return chain(`${lhs} &= ${parts.slice(0, half).join('')}`, `&\\quad \\times ${parts.slice(half).join('')}`);
+  return current || parts.length < 2 ? undefined : parts;
 }
 
 /**
@@ -7304,8 +7313,27 @@ function pieceTex(piece: Piece): string {
   return `${piece.lo} ${lower} x ${upper} ${piece.hi}`;
 }
 
-/** A whole set as inequalities joined by "or". */
-const setTex = (pieces: Piece[]): string => canonicalPieces(pieces).map(pieceTex).join(' \\text{ or } ');
+/**
+ * A whole set as inequalities joined by "or". Each piece is a group, or the
+ * minus of a piece starting -3 after the "or" is spaced as a subtraction.
+ */
+const setTex = (pieces: Piece[]): string =>
+  canonicalPieces(pieces)
+    .map((piece) => `{${pieceTex(piece)}}`)
+    .join(' \\text{ or } ');
+
+/** The same for a display, one piece to a line when one line would run off a phone. */
+function setDisplay(pieces: Piece[]): string {
+  const whole = setTex(pieces);
+  const canonical = canonicalPieces(pieces);
+  const parts = canonical.map(pieceTex);
+  // `texWidth` drops \le and friends, which are most of a set's width, so a
+  // set is measured by its pieces: a stretch between two ends is about ten
+  // characters, a ray or a point about six, and each "or" three.
+  const width = canonical.reduce((sum, p) => sum + (Number.isFinite(p.lo) && Number.isFinite(p.hi) && p.lo < p.hi ? 10 : 6), 3 * (parts.length - 1));
+  if (width <= 20 || parts.length < 2) return whole;
+  return chain(`&${parts[0]}`, ...parts.slice(1).map((part) => `\\text{or }\\; &{${part}}`));
+}
 
 /** The open stretch i, as the learner reads it: x < -2, -2 < x < 1, x > 3. */
 function stretchTex(roots: number[], i: number): string {
@@ -7327,6 +7355,22 @@ const factorAt = (f: Factor, x: number): number => (factorLead(f) * (x - f.root)
 
 /** The inequality as the learner reads it, factorised against zero. */
 const ineqTex = (form: Form, op: Op): string => `${formTex(form)} ${OP_TEX[op]} 0`;
+
+/** The same for a display, split after half its brackets when it would run off a phone. */
+function ineqDisplay(form: Form, op: Op): string {
+  const whole = ineqTex(form, op);
+  const parts = texWidth(whole) <= FITS ? undefined : bracketParts(formTex(form));
+  if (!parts) return whole;
+  const half = Math.ceil(parts.length / 2);
+  return chain(`&${parts.slice(0, half).join('')}`, `&\\quad \\times ${parts.slice(half).join('')} ${OP_TEX[op]} 0`);
+}
+
+/**
+ * A form for a flow's subject box, which wraps like prose: each bracket is a
+ * group, so a line can break between brackets but never inside one.
+ */
+const breakableTex = (form: Form): string =>
+  `${leadTex(form.lead)}${form.factors.map((f) => `{${factorTex(f)}}`).join('\\allowbreak ')}`;
 
 /** A number line window ten steps wide, a tick to spare beyond the outer critical values. */
 function lineWindow(rng: Rng, roots: number[]): { min: number; max: number } {
@@ -7375,7 +7419,7 @@ function ineqSolution(form: Form, op: Op): SolutionStep[] {
         isStrict(op) ? 'left out, since there $p(x) = 0$' : 'included, since $p(x) = 0$ is allowed'
       }.`,
     },
-    { tex: setTex(solutionPieces(p, roots, op)) },
+    { tex: setDisplay(solutionPieces(p, roots, op)) },
   ];
 }
 
@@ -7446,16 +7490,24 @@ interface SignTableParams {
   blank: number;
 }
 
+/** A whole number inside each stretch: one past each end, one past each critical value between. */
+const tableTestValues = (roots: number[]): number[] => [roots[0] - 1, ...roots.map((r) => r + 1)];
+
 /**
- * A sign diagram as a table, one row per stretch: one factor's column and
- * the product's are blank. Difficulty 2 writes the blank factor as r - x,
- * whose sign runs the other way.
+ * A sign diagram as a table, one row per stretch, tested at a whole number
+ * inside it: one factor's column and the product's are blank. The critical
+ * values are two apart at least, so every stretch has a whole number in it,
+ * and the row names only that number, which keeps the table phone-wide.
+ * Difficulty 2 writes the blank factor as r - x, whose sign runs the other
+ * way.
  */
 const polySignTable: Generator<SignTableParams> = {
   id: 'poly-sign-table',
   sample: (rng, difficulty) => {
     for (;;) {
       const form = ineqForm(rng, [1, 1, 1]);
+      const roots = formRoots(form);
+      if (roots.some((r, i) => i > 0 && r - roots[i - 1] < 2)) continue;
       const blank = rng.int(0, 2);
       if (difficulty > 1) {
         if (form.factors[blank].root <= 0) continue;
@@ -7467,19 +7519,16 @@ const polySignTable: Generator<SignTableParams> = {
   render: ({ form, blank }): Slide => {
     const roots = formRoots(form);
     const answer: string[] = [];
-    const rows = stretchEnds(roots)
-      .slice(1)
-      .map((_, i) => {
-        const t = insideStretch(roots, i);
-        const signs = form.factors.map((f) => Math.sign(factorAt(f, t)));
-        answer.push(signToken(signs[blank]), signToken(signs.reduce((a, b) => a * b, form.lead)));
-        return [stretchTex(roots, i), ...signs.map((s, j) => (j === blank ? null : signToken(s))), null];
-      });
+    const rows = tableTestValues(roots).map((t) => {
+      const signs = form.factors.map((f) => Math.sign(factorAt(f, t)));
+      answer.push(signToken(signs[blank]), signToken(signs.reduce((a, b) => a * b, form.lead)));
+      return [String(t), ...signs.map((s, j) => (j === blank ? null : signToken(s))), null];
+    });
     return {
       kind: 'table',
       prompt: [
         say(
-          `Complete the sign diagram of $p(x) = ${formTex(form)}$. Each row is a stretch between critical values: fill in the sign of the factor that is missing, then the sign of $p(x)$, their product.`,
+          `Complete the sign diagram of $p(x) = ${formTex(form)}$, whose critical values are $${roots.join(',\\ ')}$. Each row tests one value of $x$ from a stretch between them: fill in the sign of the factor that is missing, then the sign of $p(x)$, their product.`,
         ),
       ],
       columns: ['x', ...form.factors.map((f) => factorTex(f).slice(1, -1)), 'p(x)'],
@@ -7492,19 +7541,16 @@ const polySignTable: Generator<SignTableParams> = {
     const roots = formRoots(form);
     const f = form.factors[blank];
     return [
-      { text: 'Take one value inside each stretch and put it into every factor: only the signs matter.' },
-      ...stretchEnds(roots)
-        .slice(1)
-        .map((_, i) => {
-          const t = i === 0 ? roots[0] - 1 : i === roots.length ? roots[roots.length - 1] + 1 : roots[i - 1] + 0.5;
-          const signs = form.factors.map((g) => Math.sign(factorAt(g, t)));
-          const product = signs.reduce((a, b) => a * b, 1);
-          return {
-            text: `$${stretchTex(roots, i)}$: at $x = ${t}$, $${factorTex(f, false).slice(1, -1)}$ is ${signWord(signs[blank])}, and ${
-              signs.filter((s) => s < 0).length
-            } negative ${signs.filter((s) => s < 0).length === 1 ? 'factor makes' : 'factors make'} $p(x)$ ${signWord(product)}.`,
-          };
-        }),
+      { text: 'Put each test value into every factor: only the signs matter, and each one holds for its whole stretch.' },
+      ...tableTestValues(roots).map((t, i) => {
+        const signs = form.factors.map((g) => Math.sign(factorAt(g, t)));
+        const negatives = signs.filter((s) => s < 0).length;
+        return {
+          text: `$x = ${t}$, on $${stretchTex(roots, i)}$: $${factorTex(f, false).slice(1, -1)}$ is ${signWord(signs[blank])}, and ${negatives} negative ${
+            negatives === 1 ? 'factor makes' : 'factors make'
+          } $p(x)$ ${signWord(signs.reduce((a, b) => a * b, 1))}.`,
+        };
+      }),
     ];
   },
 };
@@ -7571,7 +7617,7 @@ const polyStretchSignFlow: Generator<StretchParams> = {
     return {
       kind: 'flow',
       prompt: [say(`Find the sign of $p(x)$ ${whereStretch(roots, stretch)}, one factor at a time. Each answer chooses what gets asked next.`)],
-      subject: `p(x) = ${formTex(form)}`,
+      subject: `p(x) = ${breakableTex(form)}`,
       steps,
       answer: [...signs.map(signLabel), signLabel(signs.reduce((a, b) => a * b, form.lead))],
     };
@@ -7624,7 +7670,7 @@ const polySignPattern: Generator<{ form: Form }> = {
     return choiceSlide(
       [
         say('Which row gives the signs of $p(x)$ on the stretches between its critical values, reading from left to right?'),
-        show(`p(x) = ${formTex(form)}`),
+        show(productDisplay('p(x)', formTex(form))),
       ],
       options({ tex: row(right) }, ...wrong.map((signs) => ({ tex: row(signs) }))).slice(0, 4),
     );
@@ -7664,7 +7710,7 @@ const polyCubicLine: Generator<IneqLineParams> = {
   },
   render: ({ form, op, min, max }): Slide => ({
     kind: 'numberLine',
-    prompt: [say('Solve the inequality, then shade its solution set on the number line.'), show(ineqTex(form, op))],
+    prompt: [say('Solve the inequality, then shade its solution set on the number line.'), show(ineqDisplay(form, op))],
     min,
     max,
     step: 1,
@@ -7733,7 +7779,7 @@ const polyIneqFlow: Generator<IneqParams> = {
     return {
       kind: 'flow',
       prompt: [say('Solve the inequality one decision at a time. Each answer chooses what gets asked next.')],
-      subject: ineqTex(form, op),
+      subject: `${breakableTex(form)} ${OP_TEX[op]} 0`,
       steps: [
         {
           id: 'critical',
@@ -7814,7 +7860,7 @@ const polyIneqInteger: Generator<IneqParams> = {
     const largest = !unboundedAbove(p, op);
     return {
       kind: 'expression',
-      prompt: [say(`What is the ${largest ? 'largest' : 'smallest'} whole number that satisfies this inequality?`), show(ineqTex(form, op))],
+      prompt: [say(`What is the ${largest ? 'largest' : 'smallest'} whole number that satisfies this inequality?`), show(ineqDisplay(form, op))],
       lead: 'x =',
       keypad: [],
       answer: String(largest ? Math.max(...whole) : Math.min(...whole)),
@@ -7865,7 +7911,7 @@ const polyTouchLine: Generator<IneqLineParams> = {
   },
   render: ({ form, op, min, max }): Slide => ({
     kind: 'numberLine',
-    prompt: [say('Solve the inequality, then shade its solution set on the number line.'), show(ineqTex(form, op))],
+    prompt: [say('Solve the inequality, then shade its solution set on the number line.'), show(ineqDisplay(form, op))],
     min,
     max,
     step: 1,
@@ -7889,7 +7935,7 @@ const polyTouchLine: Generator<IneqLineParams> = {
               : `$${a}$ itself is in the set as a lone filled dot`
         }.`,
       },
-      { tex: setTex(solutionPieces(p, formRoots(form), op)) },
+      { tex: setDisplay(solutionPieces(p, formRoots(form), op)) },
     ];
   },
 };
@@ -7928,7 +7974,7 @@ const polyHoleFlow: Generator<IneqParams> = {
     return {
       kind: 'flow',
       prompt: [say(`$${factorTex(form.factors.find((f) => f.power === 2)!)}$ is a squared factor. Decide what the solution set does at $x = ${a}$.`)],
-      subject: ineqTex(form, op),
+      subject: `${breakableTex(form)} ${OP_TEX[op]} 0`,
       steps: [
         {
           id: 'left',
@@ -7992,7 +8038,7 @@ const polySignChanges: Generator<{ form: Form }> = {
   },
   render: ({ form }): Slide => ({
     kind: 'expression',
-    prompt: [say('As $x$ runs from left to right, how many times does this polynomial change sign?'), show(`p(x) = ${formTex(form)}`)],
+    prompt: [say('As $x$ runs from left to right, how many times does this polynomial change sign?'), show(productDisplay('p(x)', formTex(form)))],
     lead: '\\text{sign changes} =',
     keypad: [],
     answer: String(form.factors.filter((f) => f.power % 2 === 1).length),
@@ -8114,7 +8160,7 @@ function rearrangedTex(params: RearrangeParams): string {
   const left = polyTex(leftSide(params));
   const right = polyTex(params.q);
   const whole = `${left} ${OP_TEX[params.op]} ${right}`;
-  return texWidth(whole) <= FITS + 6 ? whole : chain(`${left} &`, `&${OP_TEX[params.op]} ${right}`);
+  return texWidth(whole) <= FITS ? whole : chain(`&${left}`, `&\\quad ${OP_TEX[params.op]} ${right}`);
 }
 
 /** Its solution: subtract, factorise, and turn round if the cubic leads with a minus. */
@@ -8127,13 +8173,13 @@ function rearrangeSolution(params: RearrangeParams): SolutionStep[] {
     { text: `Take $${polyTex(params.q)}$ from both sides, which never turns an inequality round:` },
     { tex: `${polyTex(p)} ${OP_TEX[op]} 0` },
     {
-      text: `Trying small divisors of $${p[3]}$, $x = ${roots[0]}$ makes it zero, so $(${linTex(roots[0])})$ is a factor; dividing leaves a quadratic that factorises:`,
+      text: `Trying small divisors of $${p[3]}$, $x = ${roots[1]}$ makes it zero, so $(${linTex(roots[1])})$ is a factor; dividing leaves a quadratic that factorises:`,
     },
     { tex: `${formTex(rootsForm(roots, [1, 1, 1], lead))} ${OP_TEX[op]} 0` },
     ...(lead < 0
       ? [{ text: 'Multiply by $-1$ to clear the minus, turning the inequality round:' }, { tex: `${formTex(monic)} ${OP_TEX[finalOp]} 0` }]
       : []),
-    { tex: setTex(solutionPieces(p, roots, op)) },
+    { tex: setDisplay(solutionPieces(p, roots, op)) },
   ];
 }
 
@@ -8348,7 +8394,7 @@ const polyFlipChoice: Generator<IneqParams> = {
     );
     const right = formLead(form) < 0 ? FLIP_OP[op] : op;
     return choiceSlide(
-      [say('Which inequality has exactly the same solutions as this one?'), show(ineqTex(form, op))],
+      [say('Which inequality has exactly the same solutions as this one?'), show(ineqDisplay(form, op))],
       options(
         { tex: ineqTex(plain, right) },
         { tex: ineqTex(plain, FLIP_OP[right]) },
@@ -8417,7 +8463,7 @@ const polyReadGraph: Generator<IneqParams> = {
           .map((s) => (s > 0 ? 'above' : 'below'))
           .join(', then ')}.`,
       },
-      { tex: setTex(solutionPieces(p, roots, op)) },
+      { tex: setDisplay(solutionPieces(p, roots, op)) },
     ];
   },
 };
@@ -8441,7 +8487,7 @@ const polyIntegerCount: Generator<IneqParams> = {
   },
   render: ({ form, op }): Slide => ({
     kind: 'expression',
-    prompt: [say('How many whole numbers satisfy this inequality?'), show(ineqTex(form, op))],
+    prompt: [say('How many whole numbers satisfy this inequality?'), show(ineqDisplay(form, op))],
     lead: '\\text{whole numbers} =',
     keypad: [],
     answer: String(wholeSolutions(formPoly(form), op).length),
@@ -8524,7 +8570,7 @@ const polyQuarticLine: Generator<IneqLineParams> = {
   },
   render: ({ form, op, min, max }): Slide => ({
     kind: 'numberLine',
-    prompt: [say('Solve the inequality, then shade its solution set on the number line.'), show(ineqTex(form, op))],
+    prompt: [say('Solve the inequality, then shade its solution set on the number line.'), show(ineqDisplay(form, op))],
     min,
     max,
     step: 1,

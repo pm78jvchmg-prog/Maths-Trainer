@@ -795,9 +795,25 @@ function relation(sign: string, left: number, right: number): boolean {
   throw new Error(`no relation ${sign}`);
 }
 
+/**
+ * Level 6's TeX made plain: a display split over two lines joined back with
+ * its times sign, and a flow subject's grouped brackets and break points
+ * dropped.
+ */
+function plainTex(tex: string): string {
+  return flat(tex)
+    .replace(/\\allowbreak\s*/g, '')
+    .replace(/\{\(/g, '(')
+    .replace(/\)(\^\{\d+\})?\}/g, ')$1')
+    .replace(/\\times/g, '*')
+    .replace(/\\;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 /** An inequality as shown, `left sign right`, as a test on x worked out from the TeX alone. */
 function inequality(tex: string): (x: number) => boolean {
-  const match = /^(.+?)\s*(\\le|\\ge|<|>)\s*(.+)$/.exec(flat(tex).replace(/\\;/g, ' ').trim());
+  const match = /^(.+?)\s*(\\le|\\ge|<|>)\s*(.+)$/.exec(plainTex(tex));
   if (!match) throw new Error(`no inequality in ${tex}`);
   const [, left, sign, right] = match;
   return (x) => relation(sign, at(left, x), at(right, x));
@@ -816,6 +832,7 @@ function setHolds(tex: string): (x: number) => boolean {
   const clean = tex
     .replace(/\\quad|\\;/g, ' ')
     .replace(/\\text\{\s*(and|or)\s*\}/g, ' |$1| ')
+    .replace(/[{}]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
   const parts = clean.split(/\s*\|(and|or)\|\s*/);
@@ -897,8 +914,13 @@ describe('polynomial inequalities, checked from what the learner sees', () => {
       const where = `seed ${seed} d${difficulty}`;
       const p = /\$p\(x\) = ([^$]+)\$/.exec(prose(slide))![1];
       const answers = [...slide.answer];
+      // One test value from each stretch: exactly one zero of p between neighbours.
+      const tests = slide.rows.map((row) => Number(row[0]));
+      const zeros = zerosOf(p);
+      expect(zeros.length, where).toBe(tests.length - 1);
+      zeros.forEach((z, i) => expect(tests[i] < z && z < tests[i + 1], `${where}: ${tests.join(', ')} around ${z}`).toBe(true));
       for (const row of slide.rows) {
-        const t = insideLabel(row[0]!);
+        const t = Number(row[0]);
         row.slice(1).forEach((cell, j) => {
           const header = slide.columns[j + 1];
           const expected = signOf(header === 'p(x)' ? curveAt(p, t) : at(header, t));
@@ -918,7 +940,7 @@ describe('polynomial inequalities, checked from what the learner sees', () => {
         ? (Number(between[1]) + Number(between[2])) / 2
         : insideLabel(/for \$(x [<>] -?\d+)\$/.exec(text)![1]);
       const factors = slide.steps.filter((step) => step.id.endsWith('-0') && step.id.startsWith('f')).map((step) => /\$([^$]+)\$/.exec(step.ask)![1]);
-      const p = slide.subject.replace(/^p\(x\) = /, '');
+      const p = plainTex(slide.subject).replace(/^p\(x\) = /, '');
       expect(slide.answer, where).toEqual([...factors.map((f) => signName(at(f, t))), signName(curveAt(p, t))]);
     }
   });
@@ -926,7 +948,7 @@ describe('polynomial inequalities, checked from what the learner sees', () => {
   it('the sign row chosen is the signs of p on its stretches', () => {
     for (const { slide, seed, difficulty } of slides('poly-sign-pattern')) {
       if (slide.kind !== 'choice') throw new Error('expected choice');
-      const p = display(slide).replace(/^p\(x\) = /, '');
+      const p = plainTex(display(slide)).replace(/^p\(x\) = /, '');
       const roots = zerosOf(p);
       const tests = [roots[0] - 0.5, ...roots.slice(1).map((r, i) => (roots[i] + r) / 2), roots[roots.length - 1] + 0.5];
       const chosen = [...correctLabel(slide).matchAll(/\{([+-])\}/g)].map((m) => m[1]);
@@ -948,7 +970,7 @@ describe('polynomial inequalities, checked from what the learner sees', () => {
       if (slide.kind !== 'flow') throw new Error('expected flow');
       const where = `seed ${seed} d${difficulty}`;
       const holds = inequality(slide.subject);
-      const left = slide.subject.replace(/\s*(\\le|\\ge|<|>)\s*0$/, '');
+      const left = plainTex(slide.subject).replace(/\s*(\\le|\\ge|<|>)\s*0$/, '');
       const [values, far, stretches, ends] = slide.answer;
       const roots = unwrapMaths(values).replace('x = ', '').split(',\\ ').map(Number);
       expect(roots, where).toEqual(zerosOf(left));
@@ -979,7 +1001,7 @@ describe('polynomial inequalities, checked from what the learner sees', () => {
       const where = `seed ${seed} d${difficulty}`;
       const a = Number(/at \$x = (-?\d+)\$\./.exec(prose(slide))![1]);
       const holds = inequality(slide.subject);
-      const left = slide.subject.replace(/\s*(\\le|\\ge|<|>)\s*0$/, '');
+      const left = plainTex(slide.subject).replace(/\s*(\\le|\\ge|<|>)\s*0$/, '');
       const [l, r, picture] = slide.answer;
       expect(l, where).toBe(signName(curveAt(left, a - 0.5)));
       expect(r, where).toBe(signName(curveAt(left, a + 0.5)));
@@ -993,7 +1015,7 @@ describe('polynomial inequalities, checked from what the learner sees', () => {
   it('the count of sign changes is what the polynomial does across the line', () => {
     for (const id of ['poly-sign-changes', 'poly-sign-changes+choice']) {
       for (const { slide, seed, difficulty } of slides(id)) {
-        const p = display(slide).replace(/^p\(x\) = /, '');
+        const p = plainTex(display(slide)).replace(/^p\(x\) = /, '');
         const signs = HALF_STEPS.map((x) => curveAt(p, x)).filter((v) => Math.abs(v) > 1e-9).map(Math.sign);
         const changes = signs.filter((s, i) => i > 0 && s !== signs[i - 1]).length;
         const given = slide.kind === 'expression' ? slide.answer : slide.kind === 'choice' ? correctLabel(slide) : '';

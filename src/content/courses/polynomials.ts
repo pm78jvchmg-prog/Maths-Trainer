@@ -1098,7 +1098,7 @@ export const polynomials: Course = {
             ask('poly-stretch-sign-flow', 2),
             teach(
               prose('A number in front, or a bracket written the other way round, can make the leading coefficient negative. $3 - x$ is $-(x - 3)$, so'),
-              maths('(x + 2)(x - 1)(3 - x) = -(x + 2)(x - 1)(x - 3)'),
+              working('&(x + 2)(x - 1)(3 - x)', '=\\;&-(x + 2)(x - 1)(x - 3)'),
               prose('and every sign in its diagram is turned round: $+\\;-\\;+\\;-$. A positive number in front, such as $2$, changes no sign at all.'),
             ),
             ask('poly-sign-table', 2),
@@ -1212,9 +1212,9 @@ export const polynomials: Course = {
             ask('poly-quartic-line'),
             teach(
               prose('A quartic has up to four critical values and five stretches. With a positive leading coefficient it is positive at both ends, so $p(x) < 0$ or $p(x) \\le 0$ stops at both ends, and its whole numbers can be counted:'),
-              maths('(x + 3)(x + 1)(x - 1)(x - 3) \\le 0'),
+              working('&(x + 3)(x + 1)', '&\\quad \\times (x - 1)(x - 3) \\le 0'),
               prose('is solved by'),
-              maths('-3 \\le x \\le -1 \\quad\\text{or}\\quad 1 \\le x \\le 3'),
+              working('&-3 \\le x \\le -1', '\\text{or }\\; &1 \\le x \\le 3'),
               prose('That holds $-3, -2, -1, 1, 2$ and $3$: six whole numbers. With $< 0$ the ends go, leaving only $-2$ and $2$.'),
             ),
             ask('poly-integer-count'),

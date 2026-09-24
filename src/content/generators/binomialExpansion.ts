@@ -14,10 +14,13 @@
  * equating coefficients across a product. Level 5 sizes the error of a
  * three-term estimate, puts a number in front of x, and expands brackets with
  * a surd in them into a + b√k, alone, in conjugate pairs and with a number.
+ * Level 6 lets n be negative or a fraction: the series that never ends, its
+ * coefficients, the range |x| < 1 it holds for, and (a + bx)^n with a^n
+ * taken out.
  *
- * Every question here has a whole-number n of at most 8 in an expansion (nCr
- * on its own goes to 12), so every coefficient, bank and option is exact. The
- * binomial series for negative and fractional n is a later level.
+ * Up to level 5 every n is a whole number of at most 8 in an expansion (nCr
+ * on its own goes to 12); level 6 keeps its coefficients as exact fractions.
+ * Every coefficient, bank and option is exact.
  *
  * Expansions are asked through tiles or one coefficient at a time, never as a
  * typed expansion: the checker compares values, so a typed `(1 + x)^4` would
@@ -5952,6 +5955,1325 @@ const unitSteps: Generator<SurdParams> = {
   },
 };
 
+/* ---------- Level 6: the binomial series for rational n ---------- */
+
+/*
+ * Level 6 lets n be negative or a fraction. The coefficient of x^r is still
+ * n(n - 1)...(n - r + 1)/r!, but the falling product never reaches zero, so the
+ * expansion never stops, and it is valid only while the part added to the 1 is
+ * smaller than 1 in size. A number in front comes out first, as
+ * (a + bx)^n = a^n(1 + bx/a)^n.
+ *
+ * Every coefficient is an exact fraction held as [top, bottom] in lowest
+ * terms, never a float, and a series stops at four terms. n comes from -1, -2,
+ * -3, 1/2, -1/2, 1/3 and 3/2, except in the questions about one coefficient's
+ * factors, where n is all there is to vary and a wider spread is drawn. a is a
+ * square or a cube to suit n, so a^n is exact too. Approximating with the
+ * series is the next level: nothing here is a decimal estimate.
+ */
+
+type Frac = [number, number];
+
+const NEGATIVE_N: Frac[] = [
+  [-1, 1],
+  [-2, 1],
+  [-3, 1],
+];
+const FRACTION_N: Frac[] = [
+  [1, 2],
+  [-1, 2],
+  [1, 3],
+  [3, 2],
+];
+const RATIONAL_N: Frac[] = [...NEGATIVE_N, ...FRACTION_N];
+
+/**
+ * n for a question about one coefficient's factors: whole n that stop, as the
+ * contrast, then negative and fractional n that never do.
+ */
+const SERIES_N: Frac[] = [
+  [2, 1],
+  [3, 1],
+  [4, 1],
+  [5, 1],
+  [-1, 1],
+  [-2, 1],
+  [-3, 1],
+  [-4, 1],
+  [-5, 1],
+  [-6, 1],
+  [1, 2],
+  [-1, 2],
+  [3, 2],
+  [-3, 2],
+  [5, 2],
+  [-5, 2],
+  [7, 2],
+  [1, 3],
+  [-1, 3],
+  [2, 3],
+  [-2, 3],
+  [4, 3],
+  [1, 4],
+  [-1, 4],
+  [3, 4],
+  [-3, 4],
+];
+
+const ONE: Frac = [1, 1];
+
+function qMul(x: Frac, y: Frac): Frac {
+  return reduced(x[0] * y[0], x[1] * y[1]);
+}
+
+function qAdd(x: Frac, y: Frac): Frac {
+  return reduced(x[0] * y[1] + y[0] * x[1], x[1] * y[1]);
+}
+
+function qPow(x: Frac, k: number): Frac {
+  return reduced(x[0] ** k, x[1] ** k);
+}
+
+function qNeg(x: Frac): Frac {
+  return [-x[0], x[1]];
+}
+
+function qAbs(x: Frac): Frac {
+  return [Math.abs(x[0]), x[1]];
+}
+
+function qValue(x: Frac): number {
+  return x[0] / x[1];
+}
+
+function qSame(x: Frac, y: Frac): boolean {
+  return x[0] === y[0] && x[1] === y[1];
+}
+
+/** The expansion stops only when n is a whole number, 0 or more. */
+function stops(n: Frac): boolean {
+  return n[1] === 1 && n[0] >= 0;
+}
+
+/** The factors n, n - 1, ..., n - r + 1. */
+function fallingFactors(n: Frac, r: number): Frac[] {
+  return Array.from({ length: r }, (_, i) => reduced(n[0] - i * n[1], n[1]));
+}
+
+/** n(n - 1)...(n - r + 1), the top of the number from n. */
+function fallingProduct(n: Frac, r: number): Frac {
+  return fallingFactors(n, r).reduce(qMul, ONE);
+}
+
+/** n(n - 1)...(n - r + 1)/r!: the coefficient of x^r in (1 + x)^n. */
+function seriesCoef(n: Frac, r: number): Frac {
+  return reduced(fallingProduct(n, r)[0], fallingProduct(n, r)[1] * factorial(r));
+}
+
+/** The coefficient of x^r in (1 + bx)^n. */
+function termCoef(n: Frac, b: Frac, r: number): Frac {
+  return qMul(seriesCoef(n, r), qPow(b, r));
+}
+
+const qTex = ([p, q]: Frac): string => fracTex(p, q);
+const qAnswer = ([p, q]: Frac): string => fracAnswer(p, q);
+
+/** A factor inside a product: bracketed when negative. */
+function qFactor(x: Frac): string {
+  return x[0] < 0 ? `(${qTex(x)})` : qTex(x);
+}
+
+/** n as a power, -1/2: a stacked fraction is unreadable at superscript size. */
+function nPow([p, q]: Frac): string {
+  return q === 1 ? `${p}` : `${p}/${q}`;
+}
+
+/** bx as the learner reads it: 2x, -x, \frac{x}{3}, -\frac{2x}{3}. */
+function bxTex([p, q]: Frac): string {
+  const size = Math.abs(p);
+  const top = size === 1 ? 'x' : `${size}x`;
+  const body = q === 1 ? top : `\\frac{${top}}{${q}}`;
+  return p < 0 ? `-${body}` : body;
+}
+
+/** (a + bx) without the power. */
+function insideOf(a: number, b: Frac): string {
+  return sumTex([`${a}`, bxTex(b)]);
+}
+
+/** (a + bx)^n, n written as a power. */
+function seriesTex(a: number, b: Frac, n: Frac): string {
+  return `(${insideOf(a, b)})^{${nPow(n)}}`;
+}
+
+/** b to a power in a line of working, bracketed when it is negative or a fraction. */
+function bPowTex(b: Frac, r: number): string {
+  if (b[1] !== 1) return `\\left(${qTex(b)}\\right)^{${r}}`;
+  return b[0] < 0 ? `(${b[0]})^{${r}}` : `${b[0]}^{${r}}`;
+}
+
+/** c x^e with a fractional c: -\frac{1}{8}x^{2}. */
+function qTermTex(c: Frac, e: number): string {
+  if (c[1] === 1) return termTex(c[0], e);
+  if (e === 0) return qTex(c);
+  return `${qTex(c)}${e === 1 ? 'x' : `x^{${e}}`}`;
+}
+
+/**
+ * A coefficient as a tile, spelled one way only, as signedToken does it for
+ * whole numbers: `- \frac{1}{8}`, `+ \frac{3}{2}`, and a bare `\frac{1}{2}`
+ * only for the first term.
+ */
+function qToken(c: Frac, first: boolean): string {
+  if (c[1] === 1) return signedToken(c[0], first);
+  const body = `\\frac{${Math.abs(c[0])}}{${c[1]}}`;
+  if (c[0] < 0) return `- ${body}`;
+  return first ? body : `+ ${body}`;
+}
+
+/** The distinct fractions among `values`, in order, leaving out any in `taken`. */
+function freshFracs(values: Frac[], taken: Frac[]): Frac[] {
+  const out: Frac[] = [];
+  for (const value of values) {
+    if (value[1] === 0 || !Number.isFinite(value[0])) continue;
+    const r = reduced(value[0], value[1]);
+    if ([...taken, ...out].some((seen) => qSame(seen, r))) continue;
+    out.push(r);
+  }
+  return out;
+}
+
+/** Fractions sorted by size, written for the learner. */
+function bySize(values: Frac[]): string[] {
+  return [...values].sort((x, y) => qValue(x) - qValue(y)).map(qTex);
+}
+
+/** A tree bank of fractions: the answer, repeats kept, then two to four slips, topped up past the largest. */
+function qTreeBank(answer: Frac[], slips: Frac[]): Frac[] {
+  const extras = freshFracs(slips, answer).slice(0, 4);
+  const top = answer.reduce((x, y) => (qValue(y) > qValue(x) ? y : x));
+  for (let step = 1; extras.length < 2; step += 1) extras.push(...freshFracs([qAdd(top, [step, 1])], [...answer, ...extras]));
+  return [...answer, ...extras];
+}
+
+/** A steps bank of four fractions: the value, the slips, then the values just above it. */
+function qStepBank(right: Frac, ...wrong: Frac[]): string[] {
+  const values = [right, ...freshFracs(wrong, [right])].slice(0, 4);
+  for (let step = 1; values.length < 4; step += 1) values.push(...freshFracs([qAdd(right, [step, 1])], values));
+  return bySize(values);
+}
+
+/** A stable number from some TeX, for ordering the options of a native choice. */
+function saltOf(...texts: string[]): number {
+  return spread(...texts.map((text) => [...text].reduce((sum, ch, i) => sum + ch.charCodeAt(0) * (i + 1), 0)));
+}
+
+/** n(n - 1)...(n - r + 1) ÷ r! with the learner's n, every factor in brackets. */
+function fallingTexOf(n: Frac, r: number): string {
+  if (r === 1) return qTex(n);
+  return `${fallingFactors(n, r)
+    .map((f) => `(${qTex(f)})`)
+    .join('')} \\div ${r}!`;
+}
+
+/** The coefficients of (1 + bx)^n worked one power at a time: the number from n, then b^r. */
+function seriesSteps(n: Frac, b: Frac, rs: number[]): SolutionStep[] {
+  const plain = qSame(b, ONE);
+  const steps: SolutionStep[] = [
+    {
+      text: plain
+        ? `The coefficient of $x^r$ is $\\frac{n(n - 1)\\dots(n - r + 1)}{r!}$, with $n = ${qTex(n)}$.`
+        : `The coefficient of $x^r$ is $\\frac{n(n - 1)\\dots(n - r + 1)}{r!}$ times $${bPowTex(b, 1).replace(/\^\{1\}$/, '')}^r$, with $n = ${qTex(n)}$.`,
+    },
+  ];
+  for (const r of rs) {
+    const c = seriesCoef(n, r);
+    const power = r === 1 ? 'x' : `x^{${r}}`;
+    if (r === 1 && !plain) steps.push({ tex: `x: \\enspace ${qFactor(n)} \\times ${qFactor(b)} = ${qTex(termCoef(n, b, 1))}` });
+    else steps.push({ tex: `${power}: \\enspace ${fallingTexOf(n, r)} = ${qTex(c)}` });
+    if (r > 1 && !plain) steps.push({ tex: `${qFactor(c)} \\times ${bPowTex(b, r)} = ${qTex(termCoef(n, b, r))}` });
+  }
+  return steps;
+}
+
+/** The series written out as far as x^top, with dots. */
+function seriesLine(a: number, b: Frac, n: Frac, coefs: Frac[]): string {
+  return expansionTex(seriesTex(a, b, n), [...coefs.map((c, r) => qTermTex(c, r)), '\\dots']);
+}
+
+/* --- the series that never ends --- */
+
+interface FactorParams {
+  n: Frac;
+  r: number;
+  /** Whether the r! underneath is asked for as well. */
+  bottom: boolean;
+}
+
+function factorsWorking({ n, r }: FactorParams): SolutionStep[] {
+  const [, m1, m2] = fallingFactors(n, 3);
+  return [
+    { text: `Start at $n = ${qTex(n)}$ and take $1$ off each time: $${r}$ factors on top, $${r}!$ underneath.` },
+    { tex: `${fallingTexOf(n, r)} = ${qTex(seriesCoef(n, r))}` },
+    {
+      text: !stops(n)
+        ? `The factors go $${qTex(n)}, ${qTex(m1)}, ${qTex(m2)}, \\dots$ for ever, and none of them is ever $0$: the expansion never ends.`
+        : n[0] < r
+          ? 'One factor is $0$, so this coefficient and every one after it is $0$: the expansion stops.'
+          : `The factors reach $0$ at the $x^{${n[0] + 1}}$ term, so the expansion stops after $${n[0] + 1}$ terms.`,
+    },
+  ];
+}
+
+/**
+ * The factors on top of one coefficient, and at difficulty 2 the r! beneath.
+ * The slips are the factors rising instead of falling, one factor too many,
+ * and n with its sign turned.
+ */
+const seriesFactorsTiles: Generator<FactorParams> = {
+  id: 'bin-series-factors-tiles',
+  sample: (rng, difficulty) => ({ n: rng.pick(SERIES_N), r: difficulty > 1 ? 3 : rng.int(2, 3), bottom: difficulty > 1 }),
+  render: ({ n, r, bottom }): Slide => {
+    const factors = fallingFactors(n, r);
+    const answer = factors.map(qTex);
+    const slips = [qAdd(n, [n[1], n[1]]), qAdd(n, [2 * n[1], n[1]]), reduced(n[0] - r * n[1], n[1]), qNeg(n), qNeg(factors[1])].map(qTex);
+    if (bottom) {
+      answer.push(`${factorial(r)}`);
+      slips.push(`${r}`, `${factorial(r) + r}`);
+    }
+    const blanks = factors.map((_, i) => `({${i}})`).join('');
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: bottom
+            ? `The coefficient of $x^{${r}}$ in $${seriesTex(1, ONE, n)}$ is $\\frac{n(n - 1)(n - 2)}{3!}$ with $n = ${qTex(n)}$. Fill in the three factors on top, then what $3!$ is.`
+            : `The coefficient of $x^{${r}}$ in $${seriesTex(1, ONE, n)}$ is $${r === 2 ? '\\frac{n(n - 1)}{2!}' : '\\frac{n(n - 1)(n - 2)}{3!}'}$ with $n = ${qTex(n)}$. Fill in the factors on top.`,
+        },
+      ],
+      template: bottom ? `${blanks} \\div {${r}}` : blanks,
+      bank: tileBank(answer, fewSlips(answer, slips, bottom ? 4 : 3)),
+      answer,
+    };
+  },
+  solution: factorsWorking,
+};
+
+interface CoefTreeParams {
+  n: Frac;
+  /** Whether the products before each division get a slot of their own. */
+  full: boolean;
+}
+
+/**
+ * From n to the x^2 and x^3 coefficients, each from the one before: n - 1 and
+ * n - 2, then n(n - 1)/2, then that times (n - 2)/3. Difficulty 2 gives each
+ * product its own slot before the division. The slips are the factors rising,
+ * the division left out, and the sign turned.
+ */
+const seriesCoefTree: Generator<CoefTreeParams> = {
+  id: 'bin-series-build-tree',
+  sample: (rng, difficulty) => ({ n: rng.pick(SERIES_N), full: difficulty > 1 }),
+  render: ({ n, full }): Slide => {
+    const [, m1, m2] = fallingFactors(n, 3);
+    const p2 = fallingProduct(n, 2);
+    const c2 = seriesCoef(n, 2);
+    const p3 = qMul(c2, m2);
+    const c3 = seriesCoef(n, 3);
+    const answer = full ? [m1, p2, c2, m2, p3, c3] : [m1, m2, c2, c3];
+    const slips = [qAdd(n, ONE), qMul(n, qAdd(n, ONE)), qNeg(c2), qNeg(c3), full ? qMul(p2, [2, 1]) : p2, full ? qMul(p3, [3, 1]) : p3];
+    const nodes = full
+      ? [
+          { id: 'n-1', from: [] },
+          { id: 'top2', from: ['n-1'] },
+          { id: 'x2', from: ['top2'] },
+          { id: 'n-2', from: [] },
+          { id: 'top3', from: ['x2', 'n-2'] },
+          { id: 'x3', from: ['top3'] },
+        ]
+      : [
+          { id: 'n-1', from: [] },
+          { id: 'n-2', from: [] },
+          { id: 'x2', from: ['n-1'] },
+          { id: 'x3', from: ['x2', 'n-2'] },
+        ];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: full
+            ? `Build the $x^2$ and $x^3$ coefficients from $n = ${qTex(n)}$: $n - 1$, then $n(n - 1)$, then that over $2$. Then $n - 2$, the $x^2$ coefficient times it, and that over $3$.`
+            : `Build the $x^2$ and $x^3$ coefficients from $n = ${qTex(n)}$. Top row: $n - 1$ and $n - 2$. Then $\\frac{n(n - 1)}{2}$, and the $x^3$ coefficient, which is that times $\\frac{n - 2}{3}$.`,
+        },
+      ],
+      expression: seriesTex(1, ONE, n),
+      nodes,
+      bank: bySize(qTreeBank(answer, slips)),
+      answer: answer.map(qTex),
+    };
+  },
+  solution: ({ n }) => [
+    ...seriesSteps(n, ONE, [2, 3]),
+    {
+      text: `Each coefficient is the one before times the next factor, over the next whole number: $${qTex(seriesCoef(n, 2))} \\times ${qFactor(fallingFactors(n, 3)[2])} \\div 3 = ${qTex(seriesCoef(n, 3))}$.`,
+    },
+  ],
+};
+
+interface StopParams {
+  /** The exponents offered, the right one first: TeX and the value it stands for. */
+  options: { tex: string; value: Frac }[];
+  /** Whether the question asks which one stops, or which one never ends. */
+  ask: 'stops' | 'goes';
+}
+
+const STOPPING = [
+  { tex: '2', value: [2, 1] as Frac },
+  { tex: '3', value: [3, 1] as Frac },
+  { tex: '4', value: [4, 1] as Frac },
+  { tex: '5', value: [5, 1] as Frac },
+  { tex: '6', value: [6, 1] as Frac },
+];
+
+const STOPPING_DISGUISED = [
+  { tex: '6/2', value: [3, 1] as Frac },
+  { tex: '8/4', value: [2, 1] as Frac },
+  { tex: '12/3', value: [4, 1] as Frac },
+  { tex: '\\sqrt{9}', value: [3, 1] as Frac },
+  { tex: '\\sqrt{16}', value: [4, 1] as Frac },
+  { tex: '-(-3)', value: [3, 1] as Frac },
+];
+
+const GOING = [
+  { tex: '-1', value: [-1, 1] as Frac },
+  { tex: '-2', value: [-2, 1] as Frac },
+  { tex: '-3', value: [-3, 1] as Frac },
+  { tex: '1/2', value: [1, 2] as Frac },
+  { tex: '-1/2', value: [-1, 2] as Frac },
+  { tex: '1/3', value: [1, 3] as Frac },
+  { tex: '3/2', value: [3, 2] as Frac },
+  { tex: '2/3', value: [2, 3] as Frac },
+];
+
+const GOING_DISGUISED = [
+  { tex: '-4/2', value: [-2, 1] as Frac },
+  { tex: '3/6', value: [1, 2] as Frac },
+  { tex: '-\\sqrt{4}', value: [-2, 1] as Frac },
+  { tex: '1.5', value: [3, 2] as Frac },
+  { tex: '0.5', value: [1, 2] as Frac },
+  { tex: '-6/3', value: [-2, 1] as Frac },
+];
+
+/**
+ * Which expansion stops, or which never ends. Difficulty 2 disguises the
+ * powers: 6/2 stops, -4/2 does not, and a whole number is not enough if it is
+ * negative.
+ */
+const seriesStops: Generator<StopParams> = {
+  id: 'bin-series-stops-choice',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const stopping = hard ? [...STOPPING.slice(0, 3), ...STOPPING_DISGUISED] : STOPPING;
+    const going = hard ? [...GOING.slice(0, 5), ...GOING_DISGUISED] : GOING;
+    const ask = rng.chance(0.5) ? 'stops' : 'goes';
+    const [right, wrong] = ask === 'stops' ? [stopping, going] : [going, stopping];
+    return { ask, options: [rng.pick(right), ...rng.sample(wrong, 3)] };
+  },
+  render: ({ options, ask }): Slide => {
+    const labels = options.map(({ tex }) => `(1 + x)^{${tex}}`);
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: ask === 'stops' ? 'Which of these expansions stops after a few terms?' : 'Which of these expansions never ends?',
+        },
+      ],
+      ...nativeChoice(labels, saltOf(...labels)),
+    };
+  },
+  solution: ({ options }) => [
+    { text: 'The expansion of $(1 + x)^n$ stops only when $n$ is a whole number, $0$ or more: then the factor $n - r$ reaches $0$, and every coefficient after it is $0$.' },
+    ...options.map(({ tex, value }) => ({
+      text: `$(1 + x)^{${tex}}$: ${tex === nPow(value) ? '' : `$n = ${qTex(value)}$, so it `}${stops(value) ? 'stops' : 'never ends'}.`,
+    })),
+  ],
+};
+
+interface FallingStepsParams {
+  n: Frac;
+  r: number;
+}
+
+/**
+ * One coefficient worked from n a step at a time: r!, then the factors
+ * multiplied, then the division. The slips are the factors added, the sign
+ * turned, and the division left out or done twice.
+ */
+const seriesCoefSteps: Generator<FallingStepsParams> = {
+  id: 'bin-series-coef-steps',
+  sample: (rng, difficulty) => ({ n: rng.pick(SERIES_N), r: difficulty > 1 ? 3 : 2 }),
+  render: ({ n, r }): Slide => {
+    const factors = fallingFactors(n, r);
+    const start: string[] = [qTex(n)];
+    for (const f of factors.slice(1)) start.push('\\times', qFactor(f));
+    start.push('\\div', `${r}!`);
+    const fact: Frac = [factorial(r), 1];
+    const reductions: Extract<Slide, { kind: 'steps' }>['reductions'] = [
+      { span: [start.length - 1, start.length], value: `${factorial(r)}`, bank: qStepBank(fact, [r, 1], [r + 1, 1], [factorial(r) * 2, 1]) },
+    ];
+    let running = factors[0];
+    for (const f of factors.slice(1)) {
+      const next = qMul(running, f);
+      reductions.push({ span: [0, 3], operator: 1, value: qTex(next), bank: qStepBank(next, qNeg(next), qAdd(running, f), qMul(running, qAdd(f, [-1, 1]))) });
+      running = next;
+    }
+    const c = seriesCoef(n, r);
+    reductions.push({ span: [0, 3], operator: 1, value: qTex(c), bank: qStepBank(c, running, qNeg(c), qMul(running, fact), qMul(c, [1, r])) });
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Work out the coefficient of $x^{${r}}$ in $${seriesTex(1, ONE, n)}$, $${r === 2 ? '\\frac{n(n - 1)}{2!}' : '\\frac{n(n - 1)(n - 2)}{3!}'}$ with $n = ${qTex(n)}$. Tap the step to do next, then choose what it gives.`,
+        },
+      ],
+      start,
+      reductions,
+    };
+  },
+  solution: ({ n, r }) => seriesSteps(n, ONE, [r]),
+};
+
+/* --- negative whole n --- */
+
+interface RationalParams {
+  /** The bracket is (1 + bx)^n. */
+  n: Frac;
+  b: Frac;
+}
+
+interface RationalTermParams extends RationalParams {
+  r: number;
+}
+
+/** Whole b between lo and hi in size, either sign. */
+function wholeB(rng: Rng, lo: number, hi: number): Frac {
+  return [rng.sign() * rng.int(lo, hi), 1];
+}
+
+function coefsOf({ n, b }: RationalParams, top = 3): Frac[] {
+  return Array.from({ length: top + 1 }, (_, r) => termCoef(n, b, r));
+}
+
+function seriesWorking(params: RationalParams, top = 3): SolutionStep[] {
+  const rs = Array.from({ length: top }, (_, i) => i + 1);
+  return [...seriesSteps(params.n, params.b, rs), { tex: seriesLine(1, params.b, params.n, coefsOf(params, top)) }];
+}
+
+/**
+ * The first four terms of (1 + bx)^n for negative whole n, placed with their
+ * signs. The slips are the sign turned, b left unraised, and the row of
+ * Pascal's triangle for the positive n.
+ */
+const negativeTiles: Generator<RationalParams> = {
+  id: 'bin-negative-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const n = rng.pick(NEGATIVE_N);
+      const b = hard ? wholeB(rng, 2, 9) : wholeB(rng, 1, 7);
+      const coefs = coefsOf({ n, b }).slice(1);
+      if (coefs.some(([c]) => Math.abs(c) === 1)) continue;
+      if (coefs.every(([c]) => Math.abs(c) <= (hard ? 1000 : 350))) return { n, b };
+    }
+  },
+  render: (params): Slide => {
+    const { n, b } = params;
+    const coefs = coefsOf(params).slice(1);
+    const answer = coefs.map(([c]) => signedToken(c, false));
+    const slips = coefs.flatMap(([c], i) => {
+      const r = i + 1;
+      return [-c, seriesCoef(n, r)[0] * b[0], nCr(-n[0], r) * b[0] ** r, Math.abs(c)]
+        .filter((value) => value !== 0)
+        .map((value) => signedToken(value, false));
+    });
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Expand as far as the $x^3$ term, signs and all.' },
+        { kind: 'display', tex: `${seriesTex(1, b, n)} =` },
+      ],
+      template: '1 {0}x {1}x^2 {2}x^3 + \\dots',
+      bank: tileBank(answer, fewSlips(answer, slips)),
+      answer,
+    };
+  },
+  solution: (params) => seriesWorking(params),
+};
+
+/**
+ * One coefficient of (1 + bx)^n for negative whole n, typed. The choice form
+ * offers the sign turned, b left unraised, and Pascal's triangle's entry for
+ * the positive n.
+ */
+const negativeCoef: Generator<RationalTermParams> = {
+  id: 'bin-negative-coef',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const n: Frac = hard ? rng.pick([...NEGATIVE_N, [-4, 1]]) : rng.pick(NEGATIVE_N);
+      const b = hard ? wholeB(rng, 2, 5) : wholeB(rng, 1, 3);
+      const r = rng.int(2, 3);
+      if (Math.abs(termCoef(n, b, r)[0]) <= 2000) return { n, b, r };
+    }
+  },
+  choices: ({ n, b, r }) => {
+    const [c] = termCoef(n, b, r);
+    return aimedNumbers(c, [-c, seriesCoef(n, r)[0] * b[0], nCr(-n[0], r) * b[0] ** r, termCoef(n, b, r - 1)[0]], spread(n[0], b[0], r));
+  },
+  render: ({ n, b, r }): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: `What is the coefficient of $x^{${r}}$ in the expansion of $${seriesTex(1, b, n)}$?` }],
+    lead: '\\text{coefficient} =',
+    keypad: [],
+    answer: `${termCoef(n, b, r)[0]}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ n, b, r }) => seriesSteps(n, b, [r]),
+};
+
+const SIGN_LABELS = ['Positive', 'Negative'];
+
+function signLabel(x: Frac): string {
+  return x[0] > 0 ? 'Positive' : 'Negative';
+}
+
+/**
+ * The sign of one term, a fork at a time: the number from n, then b^r, then
+ * the term. A negative n puts r negative factors on top, so that number's
+ * sign goes with r alone.
+ */
+const negativeSignsFlow: Generator<RationalTermParams> = {
+  id: 'bin-negative-signs-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      n: hard ? rng.pick([...NEGATIVE_N, [-4, 1]]) : rng.pick(NEGATIVE_N),
+      b: hard ? wholeB(rng, 2, 5) : wholeB(rng, 1, 3),
+      r: hard ? rng.int(1, 3) : rng.int(2, 3),
+    };
+  },
+  render: ({ n, b, r }): Slide => {
+    const c = seriesCoef(n, r);
+    const bp = qPow(b, r);
+    const term = qMul(c, bp);
+    const power = r === 1 ? 'x' : `x^{${r}}`;
+    const count = r === 1 ? 'one negative factor' : `${r} negative factors`;
+    const parity = r % 2 === 0 ? 'an even number of negatives multiply to a positive' : 'an odd number of negatives multiply to a negative';
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `Is the $${power}$ term of this expansion positive or negative? Decide one part at a time.` }],
+      subject: seriesTex(1, b, n),
+      steps: [
+        {
+          id: 'number',
+          ask: `The number from $n$ is $${fallingTexOf(n, r)}$. Is it positive or negative?`,
+          branches: SIGN_LABELS.map((label) =>
+            label === signLabel(c) ? { label, to: 'power' } : { label, outcome: `It has ${count} on top, and ${parity}.` },
+          ),
+        },
+        {
+          id: 'power',
+          ask: `And $${bPowTex(b, r)}$?`,
+          branches: SIGN_LABELS.map((label) =>
+            label === signLabel(bp)
+              ? { label, to: 'term' }
+              : { label, outcome: b[0] > 0 ? `A positive number to any power is positive.` : `$${b[0]}$ to an ${r % 2 === 0 ? 'even' : 'odd'} power is ${r % 2 === 0 ? 'positive' : 'negative'}.` },
+          ),
+        },
+        {
+          id: 'term',
+          ask: `So the $${power}$ term is:`,
+          branches: SIGN_LABELS.map((label) =>
+            label === signLabel(term)
+              ? { label, outcome: `Right: it is $${qTermTex(term, r)}$.` }
+              : { label, outcome: `Two signs the same make a positive and two different make a negative. The term is $${qTermTex(term, r)}$.` },
+          ),
+        },
+      ],
+      answer: [signLabel(c), signLabel(bp), signLabel(term)],
+    };
+  },
+  solution: ({ n, b, r }) => [
+    ...seriesSteps(n, b, [r]),
+    { text: `With $n$ negative every factor on top is negative, so the number from $n$ has the sign of $(-1)^{${r}}$. The signs of $(1 + x)^{${nPow(n)}}$ alternate, and a negative $b$ turns the odd powers back.` },
+  ],
+};
+
+/**
+ * One coefficient in pieces: the product on top, b^r, the number from n, and
+ * the coefficient. The slips are the sign of the product turned, the r!
+ * forgotten, and b not raised.
+ */
+const negativeTree: Generator<RationalTermParams> = {
+  id: 'bin-negative-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const n: Frac = hard ? rng.pick([...NEGATIVE_N, [-4, 1]]) : rng.pick(NEGATIVE_N);
+      const b = wholeB(rng, 2, hard ? 5 : 4);
+      const r = rng.int(2, 3);
+      if (Math.abs(termCoef(n, b, r)[0]) <= 5000) return { n, b, r };
+    }
+  },
+  render: ({ n, b, r }): Slide => {
+    const [top] = fallingProduct(n, r);
+    const [bp] = qPow(b, r);
+    const [c] = seriesCoef(n, r);
+    const answer = [top, bp, c, c * bp].map(String);
+    const slips = [-top, -c, c * b[0], -c * bp, top * bp, b[0] * r, Math.abs(top)].map(String);
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Work out the coefficient of $x^{${r}}$ in pieces. Top row: $n(n - 1)${r === 3 ? '(n - 2)' : ''}$ and $${bPowTex(b, r)}$. Then the number from $n$, over $${r}!$, and the coefficient.`,
+        },
+      ],
+      expression: seriesTex(1, b, n),
+      nodes: [
+        { id: 'top', from: [] },
+        { id: 'power', from: [] },
+        { id: 'number', from: ['top'] },
+        { id: 'coefficient', from: ['number', 'power'] },
+      ],
+      bank: treeBank(answer, slips),
+      answer,
+    };
+  },
+  solution: ({ n, b, r }) => seriesSteps(n, b, [r]),
+};
+
+/* --- fractional n --- */
+
+/** Fractional n: the four of the brief, and at difficulty 2 three more. */
+function fractionN(rng: Rng, hard: boolean): Frac {
+  return rng.pick(hard ? [...FRACTION_N, [-3, 2], [2, 3], [-1, 3]] : FRACTION_N);
+}
+
+/** Whether every coefficient to x^3 is tidy enough to place: none ±1, small tops and bottoms. */
+function tidy(coefs: Frac[], top = 200, bottom = 256): boolean {
+  return coefs.every(([p, q]) => Math.abs(p) !== q && Math.abs(p) <= top && q <= bottom);
+}
+
+/**
+ * The x^r coefficient of (1 + bx)^n for fractional n, a step at a time: b^r
+ * and r! first, then the product, the division and the power of b. The slips
+ * are the factors added, the r! forgotten and the sign turned.
+ */
+const fractionTermSteps: Generator<RationalTermParams> = {
+  id: 'bin-fraction-term-steps',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const n = fractionN(rng, hard);
+      const b = wholeB(rng, 2, hard ? 6 : 5);
+      const r = hard ? 3 : 2;
+      if (tidy([termCoef(n, b, r)], 200, 512)) return { n, b, r };
+    }
+  },
+  render: ({ n, b, r }): Slide => {
+    const factors = fallingFactors(n, r);
+    const start: string[] = [qTex(n)];
+    for (const f of factors.slice(1)) start.push('\\times', qFactor(f));
+    start.push('\\div', r === 2 ? '2' : '3!', '\\times', bPowTex(b, r));
+    const bp = qPow(b, r);
+    const reductions: Extract<Slide, { kind: 'steps' }>['reductions'] = [
+      { span: [start.length - 1, start.length], value: qTex(bp), bank: qStepBank(bp, qNeg(bp), qMul(b, [r, 1]), qPow(b, r - 1)) },
+    ];
+    if (r === 3) reductions.push({ span: [start.length - 3, start.length - 2], value: '6', bank: qStepBank([6, 1], [3, 1], [9, 1]) });
+    let running = factors[0];
+    for (const f of factors.slice(1)) {
+      const next = qMul(running, f);
+      reductions.push({ span: [0, 3], operator: 1, value: qTex(next), bank: qStepBank(next, qNeg(next), qAdd(running, f)) });
+      running = next;
+    }
+    const c = seriesCoef(n, r);
+    reductions.push({ span: [0, 3], operator: 1, value: qTex(c), bank: qStepBank(c, running, qNeg(c), qMul(c, [1, r])) });
+    const coef = qMul(c, bp);
+    reductions.push({ span: [0, 3], operator: 1, value: qTex(coef), bank: qStepBank(coef, qNeg(coef), qMul(c, b), qMul(running, bp)) });
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `This is the coefficient of $x^{${r}}$ in $${seriesTex(1, b, n)}$: the number from $n = ${qTex(n)}$, times $${bPowTex(b, r)}$. Tap the step to do next, then choose what it gives.`,
+        },
+      ],
+      start,
+      reductions,
+    };
+  },
+  solution: ({ n, b, r }) => seriesSteps(n, b, [r]),
+};
+
+function sampleFractionSeries(rng: Rng, difficulty: number): RationalParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const n = fractionN(rng, hard);
+    const b: Frac = hard ? [rng.sign() * rng.pick([2, 3, 4, 5, 6, 8]), 1] : wholeB(rng, 1, 5);
+    if (tidy(coefsOf({ n, b }).slice(1))) return { n, b };
+  }
+}
+
+/**
+ * The first four terms of (1 + bx)^n for fractional n. The slips are the sign
+ * turned, the r! left out, and b left unraised.
+ */
+const fractionTiles: Generator<RationalParams> = {
+  id: 'bin-fraction-tiles',
+  sample: sampleFractionSeries,
+  render: (params): Slide => {
+    const { n, b } = params;
+    const coefs = coefsOf(params).slice(1);
+    const answer = coefs.map((c) => qToken(c, false));
+    const slips = coefs.flatMap((c, i) => {
+      const r = i + 1;
+      return [qNeg(c), qMul(fallingProduct(n, r), qPow(b, r)), qMul(seriesCoef(n, r), b)].map((value) => qToken(value, false));
+    });
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Expand as far as the $x^3$ term, signs and all.' },
+        { kind: 'display', tex: `${seriesTex(1, b, n)} =` },
+      ],
+      // No dots: fraction tiles are wide, and the line would wrap onto a second row.
+      template: '1 {0}x {1}x^2 {2}x^3',
+      bank: tileBank(answer, fewSlips(answer, slips)),
+      answer,
+    };
+  },
+  solution: (params) => seriesWorking(params),
+};
+
+/**
+ * One coefficient of (1 + bx)^n for fractional n, typed as a fraction. The
+ * choice form offers the sign turned, b left unraised, the r! left out, and
+ * the factors rising instead of falling.
+ */
+const fractionCoef: Generator<RationalTermParams> = {
+  id: 'bin-fraction-coef',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const n = fractionN(rng, hard);
+      const b = wholeB(rng, hard ? 2 : 1, hard ? 8 : 4);
+      const r = hard ? rng.int(2, 3) : 2;
+      if (tidy([termCoef(n, b, r)], 200, 512)) return { n, b, r };
+    }
+  },
+  choices: ({ n, b, r }) => {
+    const [p, q] = termCoef(n, b, r);
+    const rising = reduced(Array.from({ length: r }, (_, i) => n[0] + i * n[1]).reduce((x, y) => x * y, 1), n[1] ** r * factorial(r));
+    return fractionOptions(p, q, spread(n[0], n[1], b[0], r), [
+      qNeg([p, q]),
+      qMul(seriesCoef(n, r), b),
+      qMul(fallingProduct(n, r), qPow(b, r)),
+      qMul(rising, qPow(b, r)),
+    ]);
+  },
+  render: ({ n, b, r }): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: `What is the coefficient of $x^{${r}}$ in the expansion of $${seriesTex(1, b, n)}$? Type it as a fraction.` }],
+    lead: '\\text{coefficient} =',
+    keypad: [{ insert: '/' }],
+    answer: qAnswer(termCoef(n, b, r)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ n, b, r }) => seriesSteps(n, b, [r]),
+};
+
+/**
+ * Which three terms start the expansion. The wrong ones divide by 1 where it
+ * should be 2!, let the factors rise, leave b unsquared, or turn the sign of
+ * the x^2 term.
+ */
+const fractionWhich: Generator<RationalParams> = {
+  id: 'bin-fraction-which',
+  sample: sampleFractionSeries,
+  render: (params): Slide => {
+    const { n, b } = params;
+    const [, c1, c2] = coefsOf(params, 2);
+    const start = (x1: Frac, x2: Frac) => sumTex(['1', qTermTex(x1, 1), qTermTex(x2, 2)]);
+    const labels = firstDistinct([
+      start(c1, c2),
+      start(c1, qMul(fallingProduct(n, 2), qPow(b, 2))),
+      start(c1, qMul(qMul(n, qAdd(n, ONE)), [b[0] ** 2, 2])),
+      start(c1, qMul(seriesCoef(n, 2), b)),
+      start(c1, qNeg(c2)),
+      start(n, c2),
+    ]);
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: `Which of these is how the expansion of $${seriesTex(1, b, n)}$ starts?` }],
+      ...nativeChoice(labels, saltOf(...labels)),
+    };
+  },
+  solution: (params) => seriesWorking(params, 2),
+};
+
+/* --- valid for |x| < 1 --- */
+
+/** The largest |x| the series of (1 + bx)^n holds for: 1/|b|. */
+function boundOf(b: Frac): Frac {
+  return reduced(b[1], Math.abs(b[0]));
+}
+
+/** b for a validity question: whole at difficulty 1, a fraction at 2. */
+function sampleValidB(rng: Rng, difficulty: number): Frac {
+  if (difficulty < 2) return wholeB(rng, 2, 9);
+  for (;;) {
+    const b = reduced(rng.sign() * rng.int(1, 5), rng.int(2, 6));
+    if (b[1] !== 1 && Math.abs(b[0]) !== b[1]) return b;
+  }
+}
+
+function validWorking(b: Frac, n: Frac): SolutionStep[] {
+  const k = boundOf(b);
+  return [
+    { text: `$(1 + u)^n$ with $n = ${qTex(n)}$ never ends, and the series holds only for $|u| < 1$. Here $u = ${bxTex(b)}$.` },
+    { tex: `|${bxTex(b)}| < 1 \\iff |x| < ${qTex(k)}` },
+  ];
+}
+
+/**
+ * The range of x the series holds for, typed. The choice form offers the
+ * bound upside down, 1 as for (1 + x)^n, and a whole one out.
+ */
+const validBound: Generator<RationalParams> = {
+  id: 'bin-valid-bound',
+  sample: (rng, difficulty) => ({ n: rng.pick(RATIONAL_N), b: sampleValidB(rng, difficulty) }),
+  choices: ({ n, b }) => {
+    const [p, q] = boundOf(b);
+    return fractionOptions(p, q, spread(n[0], n[1], b[0], b[1]), [[q, p], ONE, qMul([p, q], [1, 2])]);
+  },
+  render: ({ n, b }): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: `The expansion of $${seriesTex(1, b, n)}$ as a series is valid for $|x| < k$. What is $k$?` }],
+    lead: 'k =',
+    keypad: [{ insert: '/' }],
+    answer: qAnswer(boundOf(b)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ n, b }) => validWorking(b, n),
+};
+
+interface WhichXParams extends RationalParams {
+  /** The x offered, the valid one first. */
+  xs: Frac[];
+}
+
+const INSIDE: Frac[] = [
+  [1, 2],
+  [-1, 2],
+  [2, 3],
+  [-2, 3],
+  [3, 4],
+  [-3, 4],
+  [1, 3],
+];
+const OUTSIDE: Frac[] = [
+  [2, 1],
+  [-2, 1],
+  [3, 2],
+  [-3, 2],
+  [3, 1],
+  [4, 3],
+  [-4, 3],
+];
+
+/**
+ * Which x can go into the series: one inside the range and three outside,
+ * none on its edge, where whether the series holds depends on n.
+ */
+const validWhichX: Generator<WhichXParams> = {
+  id: 'bin-valid-which-x',
+  sample: (rng, difficulty) => {
+    const b = sampleValidB(rng, difficulty);
+    const k = boundOf(b);
+    const outside = rng.sample(OUTSIDE, 3).map((m) => qMul(k, m));
+    return { n: rng.pick(RATIONAL_N), b, xs: [qMul(k, rng.pick(INSIDE)), ...outside] };
+  },
+  render: ({ n, b, xs }): Slide => {
+    const labels = xs.map((x) => `x = ${qTex(x)}`);
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: `The expansion of $${seriesTex(1, b, n)}$ as a series holds only for some $x$. For which of these does it hold?` }],
+      ...nativeChoice(labels, saltOf(...labels)),
+    };
+  },
+  solution: ({ n, b, xs }) => [
+    ...validWorking(b, n),
+    {
+      tex: column(xs.map((x): [string, string] => [`x = ${qTex(x)}: \\enspace |${bxTex(b)}|`, qTex(qAbs(qMul(b, x)))])),
+    },
+    { text: `Only $x = ${qTex(xs[0])}$ makes $|${bxTex(b)}|$ less than $1$.` },
+  ],
+};
+
+interface SliderParams {
+  n: Frac;
+  /** The bound, |x| < k, so b = ±1/k. */
+  k: Frac;
+  sign: number;
+}
+
+const SLIDER_BOUNDS: Frac[] = [
+  [1, 2],
+  [1, 1],
+  [3, 2],
+  [2, 1],
+  [5, 2],
+  [3, 1],
+];
+
+/** The first `terms` terms of (1 + bx)^n as a function, for drawing. */
+function partialSum(n: Frac, b: number, terms: number): (x: number) => number {
+  const coefs: number[] = [1];
+  for (let r = 1; r < terms; r += 1) coefs.push((coefs[r - 1] * (qValue(n) - r + 1) * b) / r);
+  return (x) => coefs.reduce((sum, c, r) => sum + c * x ** r, 0);
+}
+
+/**
+ * Slide to the edge of the range: the curve and the first ten terms of its
+ * series agree inside it and part outside. The bracket carries 1/k, so the
+ * edge is k.
+ */
+const validSlider: Generator<SliderParams> = {
+  id: 'bin-valid-slider',
+  sample: (rng, difficulty) => ({
+    n: rng.pick(RATIONAL_N),
+    k: rng.pick(difficulty > 1 ? SLIDER_BOUNDS : SLIDER_BOUNDS.filter(([, q]) => q === 1)),
+    sign: rng.sign(),
+  }),
+  render: ({ n, k, sign }): Slide => {
+    const b = reduced(sign * k[1], k[0]);
+    const edge = qValue(k);
+    let span = 4;
+    while (defaultSliderValue(0, span, 0.5) === edge) span += 0.5;
+    const bv = qValue(b);
+    const curve = (x: number) => (1 + bv * x) ** qValue(n);
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The solid curve is $y = ${seriesTex(1, b, n)}$ and the dashed one the first ten terms of its series. Slide to the edge of the range the series is valid for.`,
+        },
+      ],
+      min: 0,
+      max: span,
+      step: 0.5,
+      answer: edge,
+      readout: '|x| < {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: span,
+          yMin: -1,
+          yMax: 4,
+          curves: [
+            { f: curve, breaks: true },
+            // In the accent colour, or it is lost under the curve where the two agree.
+            { f: partialSum(n, bv, 10), dashed: true, accent: true, breaks: true },
+          ],
+          label: 'A curve and its series, which agree near 0 and part further out',
+        }),
+        ...markerWindow(0, span),
+      },
+    };
+  },
+  solution: ({ n, k, sign }) => validWorking(reduced(sign * k[1], k[0]), n),
+};
+
+interface ValidFlowParams extends RationalParams {
+  x: Frac;
+}
+
+/**
+ * Whether the series holds at one x: which part must stay under 1, its size
+ * there, and the verdict. The wrong turns are |x| alone and the whole
+ * bracket.
+ */
+const validFlow: Generator<ValidFlowParams> = {
+  id: 'bin-valid-flow',
+  sample: (rng, difficulty) => {
+    const b = sampleValidB(rng, difficulty);
+    const u = qMul([rng.sign(), 1], rng.pick([...INSIDE.filter(([p]) => p > 0), ...OUTSIDE.filter(([p]) => p > 0)]));
+    return { n: rng.pick(RATIONAL_N), b, x: qMul(u, reduced(b[1], b[0])) };
+  },
+  render: ({ n, b, x }): Slide => {
+    const size = qAbs(qMul(b, x));
+    const bx = `$${bxTex(b)}$`;
+    const sizeLabel = `$${qTex(size)}$`;
+    const wrongSizes = [
+      { label: `$${qTex(qAbs(x))}$`, outcome: `That is $|x|$ on its own. It is $|${bxTex(b)}|$ that has to be under $1$.` },
+      { label: `$${qTex(qAdd(qAbs(b), qAbs(x)))}$`, outcome: `That adds $|x|$ to the number in front; $${bxTex(b)}$ multiplies them.` },
+    ].filter((branch, i, all) => branch.label !== sizeLabel && all.findIndex((other) => other.label === branch.label) === i);
+    const holds = qValue(size) < 1;
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `Does the series for this expansion hold at $x = ${qTex(x)}$? Decide step by step.` }],
+      subject: seriesTex(1, b, n),
+      steps: [
+        {
+          id: 'part',
+          ask: 'The series for $(1 + u)^n$ holds for $|u| < 1$. What is $u$ here?',
+          branches: turned(
+            [
+              { label: bx, to: 'size' },
+              { label: '$x$', outcome: `$u$ is all of what is added to the $1$: here $${bxTex(b)}$, not $x$ alone.` },
+              { label: `$${insideOf(1, b)}$`, outcome: 'The whole bracket is $1 + u$: $u$ is only the part added to the $1$.' },
+            ],
+            spread(n[0], b[0], b[1], x[0], x[1]),
+          ),
+        },
+        {
+          id: 'size',
+          ask: `At $x = ${qTex(x)}$, what is $|${bxTex(b)}|$?`,
+          branches: turned([{ label: sizeLabel, to: 'verdict' }, ...wrongSizes], spread(x[0], x[1], b[0], 3)),
+        },
+        {
+          id: 'verdict',
+          ask: `Is $${qTex(size)}$ less than $1$?`,
+          branches: [
+            { label: 'Yes', outcome: `Then $x = ${qTex(x)}$ is inside the range, and the series holds there.` },
+            { label: 'No', outcome: `Then $x = ${qTex(x)}$ is outside the range, and the series does not hold there.` },
+          ],
+        },
+      ],
+      answer: [bx, sizeLabel, holds ? 'Yes' : 'No'],
+    };
+  },
+  solution: ({ n, b, x }) => [
+    ...validWorking(b, n),
+    {
+      text: `At $x = ${qTex(x)}$, $|${bxTex(b)}| = ${qTex(qAbs(qMul(b, x)))}$, which is ${qValue(qAbs(qMul(b, x))) < 1 ? 'less than $1$: the series holds' : 'more than $1$: the series does not hold'}.`,
+    },
+  ],
+};
+
+/* --- a number in front --- */
+
+interface FrontSeriesParams {
+  /** The bracket is (a + bx)^n. */
+  a: number;
+  b: number;
+  n: Frac;
+}
+
+interface FrontTermParams extends FrontSeriesParams {
+  r: number;
+}
+
+/** a^n exactly: a is a square for halves, a cube for thirds. */
+function aPow(a: number, n: Frac): Frac {
+  const root = Math.round(a ** (1 / n[1]));
+  const whole = root ** Math.abs(n[0]);
+  return n[0] < 0 ? [1, whole] : [whole, 1];
+}
+
+/** b/a, the number on x once a^n is out. */
+function frontRatio({ a, b }: FrontSeriesParams): Frac {
+  return reduced(b, a);
+}
+
+/** The coefficient of x^r in (a + bx)^n: a^n times the number from n times (b/a)^r. */
+function frontCoef(params: FrontSeriesParams, r: number): Frac {
+  return qMul(aPow(params.a, params.n), termCoef(params.n, frontRatio(params), r));
+}
+
+function sampleFrontSeries(rng: Rng, difficulty: number, fits: (params: FrontSeriesParams) => boolean): FrontSeriesParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const n = rng.pick(RATIONAL_N);
+    const a = n[1] === 2 ? rng.pick(hard ? [4, 9, 16, 25] : [4, 9]) : n[1] === 3 ? rng.pick([8, 27]) : rng.pick(hard ? [2, 3, 4, 5] : [2, 3]);
+    const b = rng.sign() * rng.int(1, hard ? 5 : 2);
+    const params = { a, b, n };
+    // b = a would leave (1 + x)^n with nothing to divide.
+    if (Math.abs(b) !== a && fits(params)) return params;
+  }
+}
+
+/** Whether the first terms are tidy: no coefficient ±1, tops under 1000 and bottoms under 1024. */
+function frontFits(params: FrontSeriesParams, top = 2): boolean {
+  return Array.from({ length: top }, (_, i) => frontCoef(params, i + 1)).every(
+    ([p, q]) => Math.abs(p) !== q && Math.abs(p) < 1000 && q <= 1024,
+  );
+}
+
+function frontSeriesWorking(params: FrontSeriesParams, rs: number[]): SolutionStep[] {
+  const { a, b, n } = params;
+  const ratio = frontRatio(params);
+  const an = aPow(a, n);
+  return [
+    { text: `Take $${a}$ out of the bracket first, so that it starts with $1$:` },
+    { tex: chain(`& ${seriesTex(a, [b, 1], n)}`, `&= ${a}^{${nPow(n)}}${seriesTex(1, ratio, n)}`) },
+    { tex: `${a}^{${nPow(n)}} = ${qTex(an)}` },
+    ...seriesSteps(n, ratio, rs),
+    ...rs.map((r) => ({ tex: `${qFactor(an)} \\times ${qFactor(termCoef(n, ratio, r))} = ${qTex(frontCoef(params, r))}` })),
+  ];
+}
+
+/**
+ * One coefficient of (a + bx)^n with a^n taken out, a step at a time: a^n,
+ * (b/a)^r, then the two products. The slips are a times n, a^n upside down,
+ * and b/a left unraised.
+ */
+const frontCoefSteps: Generator<FrontTermParams> = {
+  id: 'bin-taken-out-coef-steps',
+  sample: (rng, difficulty) => {
+    const r = difficulty > 1 ? rng.int(2, 3) : rng.int(1, 2);
+    // A number from n of 1 or -1 leaves a product with nothing in it.
+    const fits = (params: FrontSeriesParams) => frontFits(params, r) && Math.abs(seriesCoef(params.n, r)[0]) !== seriesCoef(params.n, r)[1];
+    return { ...sampleFrontSeries(rng, difficulty, fits), r };
+  },
+  render: (params): Slide => {
+    const { a, b, n, r } = params;
+    const ratio = frontRatio(params);
+    const an = aPow(a, n);
+    const c = seriesCoef(n, r);
+    const rp = qPow(ratio, r);
+    const ratioTex = r === 1 ? qFactor(ratio) : bPowTex(ratio, r);
+    const start = [`${a}^{${nPow(n)}}`, '\\times', qFactor(c), '\\times', ratioTex];
+    const first = qMul(an, c);
+    const coef = frontCoef(params, r);
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `With $${a}^{${nPow(n)}}$ taken out, the coefficient of $${r === 1 ? 'x' : `x^{${r}}`}$ in $${seriesTex(a, [b, 1], n)}$ is $${a}^{${nPow(n)}}$ times the number from $n$, $${qTex(c)}$, times $${ratioTex}$. Tap the step to do next, then choose what it gives.`,
+        },
+      ],
+      start,
+      reductions: [
+        { span: [0, 1], value: qTex(an), bank: qStepBank(an, qMul([a, 1], n), [an[1], an[0]], qNeg(an)) },
+        ...(r === 1 ? [] : [{ span: [4, 5] as [number, number], value: qTex(rp), bank: qStepBank(rp, qMul(ratio, [r, 1]), qNeg(rp), ratio) }]),
+        { span: [0, 3], operator: 1, value: qTex(first), bank: qStepBank(first, qNeg(first), qAdd(an, c), c) },
+        { span: [0, 3], operator: 1, value: qTex(coef), bank: qStepBank(coef, qNeg(coef), qMul(first, [b ** r, 1]), qMul(c, rp)) },
+      ],
+    };
+  },
+  solution: (params) => frontSeriesWorking(params, [params.r]),
+};
+
+/**
+ * The first three terms of (a + bx)^n. The slips are a^n forgotten, b left
+ * undivided by a, the sign turned, and a times n for a^n.
+ */
+const frontSeriesTiles: Generator<FrontSeriesParams> = {
+  id: 'bin-taken-out-tiles',
+  sample: (rng, difficulty) => sampleFrontSeries(rng, difficulty, (params) => frontFits(params)),
+  render: (params): Slide => {
+    const { a, b, n } = params;
+    const ratio = frontRatio(params);
+    const an = aPow(a, n);
+    const coefs = [an, frontCoef(params, 1), frontCoef(params, 2)];
+    const answer = coefs.map((c, r) => qToken(c, r === 0));
+    const slips = [
+      qToken(qMul([a, 1], n), true),
+      qToken([an[1], an[0]], true),
+      ...[1, 2].flatMap((r) => [termCoef(n, ratio, r), qMul(an, termCoef(n, [b, 1], r)), qNeg(frontCoef(params, r))].map((c) => qToken(c, false))),
+    ];
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Expand as far as the $x^2$ term, taking the number out of the bracket first.' },
+        { kind: 'display', tex: `${seriesTex(a, [b, 1], n)} =` },
+      ],
+      template: '{0} {1}x {2}x^2 + \\dots',
+      bank: tileBank(answer, fewSlips(answer, slips, 5)),
+      answer,
+    };
+  },
+  solution: (params) => [
+    ...frontSeriesWorking(params, [1, 2]),
+    { tex: seriesLine(params.a, [params.b, 1], params.n, [0, 1, 2].map((r) => (r === 0 ? aPow(params.a, params.n) : frontCoef(params, r)))) },
+  ],
+};
+
+/**
+ * a^n and b/a, then the x and x^2 coefficients from them. The slips are a
+ * times n, a/b for b/a, and a^n forgotten.
+ */
+const frontTree: Generator<FrontSeriesParams> = {
+  id: 'bin-taken-out-parts-tree',
+  sample: (rng, difficulty) => sampleFrontSeries(rng, difficulty, (params) => frontFits(params)),
+  render: (params): Slide => {
+    const { a, b, n } = params;
+    const ratio = frontRatio(params);
+    const an = aPow(a, n);
+    const answer = [an, ratio, frontCoef(params, 1), frontCoef(params, 2)];
+    const slips = [qMul([a, 1], n), reduced(a, b), termCoef(n, ratio, 1), termCoef(n, ratio, 2), qNeg(frontCoef(params, 1)), qMul(an, termCoef(n, [b, 1], 1))];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Take the $${a}$ out of the bracket. Top row: $${a}^{${nPow(n)}}$, and the number on $x$ in the bracket left behind. Then the coefficients of $x$ and $x^2$.`,
+        },
+      ],
+      expression: seriesTex(a, [b, 1], n),
+      nodes: [
+        { id: 'power', from: [] },
+        { id: 'ratio', from: [] },
+        { id: 'x', from: ['power', 'ratio'] },
+        { id: 'x2', from: ['power', 'ratio'] },
+      ],
+      bank: bySize(qTreeBank(answer, slips)),
+      answer: answer.map(qTex),
+    };
+  },
+  solution: (params) => frontSeriesWorking(params, [1, 2]),
+};
+
+/**
+ * The range of (a + bx)^n, typed: |x| < a/|b|. The choice form offers it
+ * upside down, 1/|b| with the a forgotten, and 1.
+ */
+const frontRange: Generator<FrontSeriesParams> = {
+  id: 'bin-taken-out-range',
+  sample: (rng, difficulty) => sampleFrontSeries(rng, difficulty, () => true),
+  choices: ({ a, b, n }) => {
+    const [p, q] = reduced(a, Math.abs(b));
+    return fractionOptions(p, q, spread(a, b, n[0], n[1]), [[q, p], [1, Math.abs(b)], ONE, [a * Math.abs(b), 1]]);
+  },
+  render: ({ a, b, n }): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: `The expansion of $${seriesTex(a, [b, 1], n)}$ as a series is valid for $|x| < k$. What is $k$?` }],
+    lead: 'k =',
+    keypad: [{ insert: '/' }],
+    answer: fracAnswer(a, Math.abs(b)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ a, b, n }) => {
+    const ratio = reduced(b, a);
+    return [
+      { text: `Take $${a}$ out: $${seriesTex(a, [b, 1], n)} = ${a}^{${nPow(n)}}${seriesTex(1, ratio, n)}$.` },
+      { text: `That series holds for $|${bxTex(ratio)}| < 1$.` },
+      { tex: `|x| < ${qTex(boundOf(ratio))}` },
+    ];
+  },
+};
+
 /**
  * A worked line too wide for a phone, broken at its equals signs into an
  * aligned column. Lines already aligned, or with no equals sign at the top
@@ -6077,4 +7399,24 @@ export const binomialGenerators = [
   fitted(mixedTermsTree),
   fitted(mixedPart),
   fitted(unitSteps),
+  fitted(seriesFactorsTiles),
+  fitted(seriesCoefTree),
+  fitted(seriesStops),
+  fitted(seriesCoefSteps),
+  fitted(negativeTiles),
+  fitted(negativeCoef),
+  fitted(negativeSignsFlow),
+  fitted(negativeTree),
+  fitted(fractionTermSteps),
+  fitted(fractionTiles),
+  fitted(fractionCoef),
+  fitted(fractionWhich),
+  fitted(validBound),
+  fitted(validWhichX),
+  fitted(validSlider),
+  fitted(validFlow),
+  fitted(frontCoefSteps),
+  fitted(frontSeriesTiles),
+  fitted(frontTree),
+  fitted(frontRange),
 ];

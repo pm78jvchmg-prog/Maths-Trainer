@@ -1,5 +1,6 @@
 /**
- * Number & Proof, level 1: Proof, and level 3: Logic and Implication.
+ * Number & Proof, level 1: Proof, level 3: Logic and Implication, and
+ * level 4: Proof by Induction.
  *
  * What a proof is and the four ways this level makes one: direct algebraic
  * proof (even as `2k`, odd as `2k + 1`), proof by exhaustion over remainders,
@@ -28,6 +29,7 @@ import { hashSeed } from '../../engine/rng';
 import { orderBank } from './proofOrder';
 import { canonicalPieces, formatSet, type Piece } from '../numberLine';
 import { windowFor } from './numberLine';
+import { stepBank, treeBank } from './parametricImplicit';
 
 /* ---------- shared helpers ---------- */
 
@@ -3882,6 +3884,1516 @@ const prfDirectionChoice: Generator<HalfParams> = {
   },
 };
 
+/* ================================================================
+ * Level 4: Proof by Induction
+ *
+ * Three kinds of claim, each proved from one base case and one step:
+ *
+ * - a sum: the odd numbers, `1 + 3 + ... + (2n - 1) = n^2`, or the whole
+ *   numbers, `1 + 2 + ... + n = \tfrac{1}{2}n(n + 1)`, or a whole multiple of
+ *   either. `shift` adds a constant to the right side, which makes a false
+ *   claim whose step still works: the reason a base case is needed at all.
+ * - divisibility: `b^n + c` is a multiple of `d`, with `d` a factor of
+ *   `b - 1`, because `b^{k+1} + c = b(b^k + c) - c(b - 1)`. True exactly when
+ *   `d` divides `b + c` too; the classic claims have `c = -1`.
+ * - an inequality that only starts to hold at some `n = N`, found by
+ *   checking, never assumed.
+ *
+ * Sequences & Series owns sigma notation and general sums, so the sums here
+ * are the two classic ones and their multiples.
+ * ================================================================ */
+
+type SumClaim = { kind: 'sum'; series: 'odd' | 'nat'; c: number; shift: number };
+type DivClaim = { kind: 'div'; b: number; c: number; d: number };
+type IneqShape = 'powLin' | 'factPow' | 'factLin' | 'powSq' | 'factSq';
+type IneqClaim = { kind: 'ineq'; shape: IneqShape; b: number; a: number };
+type IndClaim = SumClaim | DivClaim | IneqClaim;
+
+const factorial = (n: number): number => (n <= 1 ? 1 : n * factorial(n - 1));
+
+/** A multiplier in front of a letter or a bracket: nothing for 1. */
+const coefTex = (c: number) => (c === 1 ? '' : `${c}`);
+
+/** `a(k + 1)`, or `k + 1` when a is 1. */
+const timesTex = (a: number, inner: string) => (a === 1 ? inner : `${a}(${inner})`);
+
+/** A term in brackets when it has a sign outside any bracket, so it can follow a `+`. */
+const bracketed = (t: string) => (/ [+-] /.test(t.replace(/\([^()]*\)/g, '')) ? `(${t})` : t);
+
+/** `v` as an exponent: `n`, `3`, or `{k+1}`. */
+const expTex = (v: string) => (v.length > 1 ? `{${v.replace(/ /g, '')}}` : v);
+
+const lowerFirst = (t: string) => t.charAt(0).toLowerCase() + t.slice(1);
+const upperFirst = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+
+/* ---------- sums ---------- */
+
+const ODD_C = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+/** No 2: `2 + 4 + ... + 2n = n(n + 1)` leaves the step nothing to factorise. */
+const NAT_C = [1, 3, 4, 5, 6, 7, 8, 9];
+
+function sampleSum(rng: Rng, top = 9): SumClaim {
+  const series = rng.pick(['odd', 'nat'] as const);
+  const pool = (series === 'odd' ? ODD_C : NAT_C).filter((c) => c <= top);
+  return { kind: 'sum', series, c: rng.pick(pool), shift: 0 };
+}
+
+const sumTerm = ({ series, c }: SumClaim, r: number) => (series === 'odd' ? c * (2 * r - 1) : c * r);
+
+/** The right side at `n`, shift included. */
+const sumRight = ({ series, c, shift }: SumClaim, n: number) =>
+  (series === 'odd' ? c * n * n : (c * n * (n + 1)) / 2) + shift;
+
+/** The term at `v + s`, in `v`: `2k + 1` for the odd numbers at `k + 1`. */
+function sumTermTex({ series, c }: SumClaim, v: string, s = 0): string {
+  if (series === 'odd') return lin(2 * c, 2 * c * s - c, v);
+  return s === 0 ? lin(c, 0, v) : timesTex(c, `${v} + ${s}`);
+}
+
+/** The first three terms, then the dots and the term at `v + s`. */
+function sumLeftTex(claim: SumClaim, v: string, s = 0): string {
+  const first = [1, 2, 3].map((r) => sumTerm(claim, r)).join(' + ');
+  return `${first} + \\dots + ${bracketed(sumTermTex(claim, v, s))}`;
+}
+
+/** Half of c in front of a product: `\tfrac{3}{2}`, `2`, or nothing. */
+const halfTex = (c: number) => (c % 2 ? `\\tfrac{${c}}{2}` : coefTex(c / 2));
+
+/** The right side at `v + s`: `n^2`, `3(k + 1)^2`, `\tfrac{1}{2}(k + 1)(k + 2)`. */
+function sumRightTex({ series, c, shift }: SumClaim, v: string, s = 0): string {
+  const x = s === 0 ? v : `(${v} + ${s})`;
+  const main = series === 'odd' ? `${coefTex(c)}${x}^2` : `${halfTex(c)}${x}(${v} + ${s + 1})`;
+  return shift === 0 ? main : `${main} ${signedTail(shift)}`;
+}
+
+/** `\tfrac{3}{2}k` or `2k`: the whole-number sum's right side over `k + 1`, less its constant. */
+const halfK = (c: number) => `${halfTex(c)}k`;
+const natInner = (c: number) => `${halfK(c)} + ${c}`;
+
+/** The right side at n = 1, worked: `1^2 = 1`, `\tfrac{3}{2} \times 1 \times 2 = 3`. */
+function sumRightAtOne({ series, c }: SumClaim): string {
+  if (series === 'odd') return c === 1 ? '1^2 = 1' : `${c} \\times 1^2 = ${c}`;
+  return `${c % 2 ? `\\tfrac{${c}}{2}` : c / 2} \\times 1 \\times 2 = ${c}`;
+}
+
+/* ---------- divisibility ---------- */
+
+const divisorsOf = (m: number) => Array.from({ length: m - 1 }, (_, i) => i + 2).filter((d) => m % d === 0);
+
+/** `b^n + c` is a multiple of `d`: `c = -1` unless `general`, which draws any true `c` up to 9. */
+function sampleDiv(rng: Rng, general: boolean, top = 11): DivClaim {
+  const b = rng.int(3, top);
+  const d = rng.pick(divisorsOf(b - 1));
+  const cs = Array.from({ length: 9 }, (_, i) => i + 1).filter((c) => (b + c) % d === 0);
+  if (!general || cs.length === 0 || rng.chance(0.3)) return { kind: 'div', b, c: -1, d };
+  return { kind: 'div', b, c: rng.pick(cs), d };
+}
+
+/** A claim whose step works but whose base case fails: `d` does not divide `b + c`. */
+function sampleFalseDiv(rng: Rng): DivClaim {
+  const b = rng.int(3, 9);
+  const d = rng.pick(divisorsOf(b - 1));
+  const cs = Array.from({ length: 9 }, (_, i) => i + 1).filter((c) => (b + c) % d !== 0);
+  return { kind: 'div', b, c: rng.pick(cs), d };
+}
+
+const divTex = ({ b, c }: DivClaim, v: string) => `${b}^${expTex(v)} ${signedTail(c)}`;
+
+/** What is left over: `b^{k+1} + c = b(b^k + c) + rest`. */
+const divRest = ({ b, c }: DivClaim) => -c * (b - 1);
+
+/* ---------- inequalities ---------- */
+
+const isPow = (shape: IneqShape) => shape === 'powLin' || shape === 'powSq';
+
+function ineqLeft({ shape, b }: IneqClaim, v: string): string {
+  if (isPow(shape)) return `${b}^${expTex(v)}`;
+  return v.includes(' ') ? `(${v})!` : `${v}!`;
+}
+
+function ineqRight({ shape, a }: IneqClaim, v: string): string {
+  const compound = v.includes(' ');
+  if (shape === 'factPow') return `${a}^${expTex(v)}`;
+  if (shape === 'powSq' || shape === 'factSq') return compound ? `(${v})^2` : `${v}^2`;
+  if (compound) return timesTex(a, v);
+  return /^\d+$/.test(v) ? `${a} \\times ${v}` : `${coefTex(a)}${v}`;
+}
+
+const ineqLeftValue = ({ shape, b }: IneqClaim, n: number) => (isPow(shape) ? b ** n : factorial(n));
+
+function ineqRightValue({ shape, a }: IneqClaim, n: number): number {
+  if (shape === 'factPow') return a ** n;
+  return shape === 'powSq' || shape === 'factSq' ? n * n : a * n;
+}
+
+const ineqHolds = (claim: IneqClaim, n: number) => ineqLeftValue(claim, n) > ineqRightValue(claim, n);
+
+/** The smallest N from which the claim holds at every n, checked as far as n = 15. */
+function ineqStart(claim: IneqClaim): number {
+  let start = 16;
+  for (let n = 15; n >= 1 && ineqHolds(claim, n); n -= 1) start = n;
+  return start;
+}
+
+const range = (lo: number, hi: number) => Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
+
+const ineq = (shape: IneqShape, b: number, a: number): IneqClaim => ({ kind: 'ineq', shape, b, a });
+
+/** Each starts at n = 2 or later, and no number in a base case reaches 1000. */
+const INEQ_POW = [...range(2, 10).map((a) => ineq('powLin', 2, a)), ...range(3, 9).map((a) => ineq('powLin', 3, a))];
+const INEQ_FACT_POW = [ineq('factPow', 1, 2)];
+const INEQ_FACT_LIN = range(2, 9).map((a) => ineq('factLin', 1, a));
+const INEQ_SQUARES = [ineq('powSq', 2, 1), ineq('factSq', 1, 1)];
+const INEQ_ALL = [...INEQ_POW, ...INEQ_FACT_POW, ...INEQ_FACT_LIN, ...INEQ_SQUARES];
+
+/* ---------- a claim as the learner reads it ---------- */
+
+const startOf = (claim: IndClaim) => (claim.kind === 'ineq' ? ineqStart(claim) : 1);
+
+/** The claim at `v + s`, as prose with inline maths. */
+function claimProse(claim: IndClaim, v = 'n', s = 0): string {
+  const x = s === 0 ? v : `${v} + ${s}`;
+  switch (claim.kind) {
+    case 'sum':
+      return `$${sumLeftTex(claim, v, s)} = ${sumRightTex(claim, v, s)}$`;
+    case 'div':
+      return `$${divTex(claim, x)}$ is a multiple of $${claim.d}$`;
+    case 'ineq':
+      return `$${ineqLeft(claim, x)} > ${ineqRight(claim, x)}$`;
+  }
+}
+
+const claimLine = (claim: IndClaim, from = startOf(claim)) =>
+  `Claim: ${claimProse(claim)} for every whole number $n \\ge ${from}$.`;
+
+/** The base case, starting in lower case: "at $n = 1$ the left side is ...". */
+function baseCheck(claim: IndClaim): string {
+  switch (claim.kind) {
+    case 'sum':
+      return `at $n = 1$ the left side is $${sumTerm(claim, 1)}$ and the right side is $${sumRightAtOne(claim)}$`;
+    case 'div': {
+      const v = claim.b + claim.c;
+      return `at $n = 1$, $${divTex(claim, '1')} = ${v} = ${claim.d} \\times ${v / claim.d}$`;
+    }
+    case 'ineq': {
+      const N = ineqStart(claim);
+      return `at $n = ${N}$, $${ineqLeft(claim, `${N}`)} = ${ineqLeftValue(claim, N)} > ${ineqRightValue(claim, N)} = ${ineqRight(claim, `${N}`)}$`;
+    }
+  }
+}
+
+function hypothesisLine(claim: IndClaim): string {
+  switch (claim.kind) {
+    case 'sum':
+      return `Assume it holds at $n = k$: $${sumLeftTex(claim, 'k')} = ${sumRightTex(claim, 'k')}$.`;
+    case 'div':
+      return `Assume $${divTex(claim, 'k')} = ${claim.d}m$ for some whole number $m$.`;
+    case 'ineq':
+      return `Assume $${ineqLeft(claim, 'k')} > ${ineqRight(claim, 'k')}$ for some whole number $k \\ge ${ineqStart(claim)}$.`;
+  }
+}
+
+/** The sum's right side at k + 1 before it is tidied: `k^2 + 2k + 1`, `(k + 1)(\tfrac{3}{2}k + 3)`. */
+function sumMiddle(claim: SumClaim): string {
+  const { series, c, shift } = claim;
+  if (series === 'odd') return polyTex([c, 2 * c, c + shift]);
+  return `(k + 1)(${natInner(c)})${shift === 0 ? '' : ` ${signedTail(shift)}`}`;
+}
+
+function ineqStepLines({ shape, b, a }: IneqClaim): string[] {
+  switch (shape) {
+    case 'powLin':
+      return [
+        `Then $${b}^{k+1} = ${b} \\times ${b}^k > ${b * a}k$.`,
+        `And $${b * a}k = ${a}k + ${(b - 1) * a}k \\ge ${a}k + ${a} = ${a}(k + 1)$, since $k \\ge 1$.`,
+      ];
+    case 'factPow':
+      return [
+        'Then $(k + 1)! = (k + 1) \\times k! > (k + 1) \\times 2^k$.',
+        'And $k + 1 > 2$, so $(k + 1) \\times 2^k > 2 \\times 2^k = 2^{k+1}$.',
+      ];
+    case 'factLin':
+      return [
+        `Then $(k + 1)! = (k + 1) \\times k! > (k + 1) \\times ${a}k$.`,
+        `And $k \\ge 1$, so $(k + 1) \\times ${a}k \\ge ${a}(k + 1)$.`,
+      ];
+    case 'powSq':
+      return [
+        'Then $2^{k+1} = 2 \\times 2^k > 2k^2 = k^2 + k^2$.',
+        'And $k^2 \\ge 3k > 2k + 1$ once $k \\ge 3$, so $k^2 + k^2 > k^2 + 2k + 1 = (k + 1)^2$.',
+      ];
+    case 'factSq':
+      return [
+        'Then $(k + 1)! = (k + 1) \\times k! > (k + 1)k^2$.',
+        'And $k^2 \\ge k + 1$ once $k \\ge 2$, so $(k + 1)k^2 \\ge (k + 1)^2$.',
+      ];
+  }
+}
+
+/** The algebra of the step: two lines, or three when `split`. */
+function stepLines(claim: IndClaim, split: boolean): string[] {
+  switch (claim.kind) {
+    case 'sum': {
+      const next = bracketed(sumTermTex(claim, 'k', 1));
+      const final = sumRightTex(claim, 'k', 1);
+      const first = `Then at $n = k + 1$ the sum is $${sumRightTex(claim, 'k')} + ${next}$.`;
+      return split
+        ? [first, `That is $${sumMiddle(claim)}$.`, `And that is $${final}$, the right side at $n = k + 1$.`]
+        : [first, `That is $${sumMiddle(claim)} = ${final}$, the right side at $n = k + 1$.`];
+    }
+    case 'div': {
+      const { b, c, d } = claim;
+      const rest = divRest(claim);
+      const regroup = `$${divTex(claim, 'k + 1')} = ${b}(${divTex(claim, 'k')}) ${signedTail(rest)}$`;
+      const last = `That is $${b}(${d}m) ${signedTail(rest)} = ${d}(${lin(b, rest / d, 'm')})$, a multiple of $${d}$.`;
+      return split
+        ? [
+            `Then $${divTex(claim, 'k + 1')} = ${b} \\times ${b}^k ${signedTail(c)}$.`,
+            `That is $${b}(${divTex(claim, 'k')}) ${signedTail(rest)}$.`,
+            last,
+          ]
+        : [`Then ${regroup}.`, last];
+    }
+    case 'ineq':
+      return ineqStepLines(claim);
+  }
+}
+
+const conclusionLine = (claim: IndClaim) => {
+  const N = startOf(claim);
+  return `It holds at $n = ${N}$, and whenever it holds at $n = k$ it holds at $n = k + 1$: so it holds for every $n \\ge ${N}$.`;
+};
+
+/** The ways a step of this claim's proof gets written wrongly, for an order bank. */
+function slipPool(claim: IndClaim): Distractor[] {
+  const assumeNext: Distractor = {
+    text: `Assume it holds at $n = k + 1$: ${claimProse(claim, 'k', 1)}.`,
+    why: 'That assumes what the step has to show.',
+  };
+  switch (claim.kind) {
+    case 'sum': {
+      const next = bracketed(sumTermTex(claim, 'k', 1));
+      return [
+        assumeNext,
+        {
+          text: `Then at $n = k + 1$ the sum is $${sumRightTex(claim, 'k')} + ${bracketed(sumTermTex(claim, 'k'))}$.`,
+          why: `The term added at $n = k + 1$ is $${sumTermTex(claim, 'k', 1)}$, not the one before it.`,
+        },
+        {
+          text: `Then at $n = k + 1$ the sum is $${sumRightTex(claim, 'k', 1)} + ${next}$.`,
+          why: `The sum up to $n = k$ is $${sumRightTex(claim, 'k')}$; $${sumRightTex(claim, 'k', 1)}$ is where the step is heading.`,
+        },
+        { text: 'It also holds at $n = 2$ and at $n = 3$, so it holds for every $n$.', why: 'Checking more values is not a proof.' },
+      ];
+    }
+    case 'div': {
+      const { b, c, d } = claim;
+      return [
+        assumeNext,
+        {
+          text: `Then $${divTex(claim, 'k + 1')} = ${b}(${divTex(claim, 'k')})$.`,
+          why: `$${b}(${divTex(claim, 'k')}) = ${b}^{k+1} ${signedTail(b * c)}$, so something is missing.`,
+        },
+        {
+          text: `Then $${divTex(claim, 'k + 1')} = (${divTex(claim, 'k')}) + ${b}$.`,
+          why: `$${b}^{k+1}$ is $${b}$ times $${b}^k$, not $${b}$ more than it.`,
+        },
+        {
+          text: `It also works at $n = 2$: $${divTex(claim, '2')} = ${b * b + c}$, a multiple of $${d}$.`,
+          why: 'One more example is not a proof.',
+        },
+      ];
+    }
+    case 'ineq': {
+      const N = ineqStart(claim);
+      const low = N - 1;
+      const up = N + 1;
+      const pow = isPow(claim.shape);
+      return [
+        {
+          text: `Assume $${ineqLeft(claim, 'k + 1')} > ${ineqRight(claim, 'k + 1')}$ for some whole number $k \\ge ${N}$.`,
+          why: 'That assumes what the step has to show.',
+        },
+        {
+          text: `Base case: at $n = ${low}$, $${ineqLeft(claim, `${low}`)} = ${ineqLeftValue(claim, low)} > ${ineqRightValue(claim, low)} = ${ineqRight(claim, `${low}`)}$.`,
+          why: `That is false: $${ineqLeftValue(claim, low)} \\le ${ineqRightValue(claim, low)}$. The claim holds for good from $n = ${N}$.`,
+        },
+        {
+          text: `It also holds at $n = ${up}$, since $${ineqLeftValue(claim, up)} > ${ineqRightValue(claim, up)}$.`,
+          why: 'One more example is not a proof.',
+        },
+        pow
+          ? {
+              text: `Then $${claim.b}^{k+1} = ${claim.b}^k + ${claim.b} > ${ineqRight(claim, 'k')} + ${claim.b}$.`,
+              why: `$${claim.b}^{k+1} = ${claim.b} \\times ${claim.b}^k$, not $${claim.b}^k + ${claim.b}$.`,
+            }
+          : {
+              text: `Then $(k + 1)! = k! + 1 > ${ineqRight(claim, 'k')} + 1$.`,
+              why: '$(k + 1)! = (k + 1) \\times k!$, not $k! + 1$.',
+            },
+      ];
+    }
+  }
+}
+
+function inductionProof(claim: IndClaim, split: boolean): Proof {
+  return {
+    claim: `Prove by induction: ${claimProse(claim)} for every whole number $n \\ge ${startOf(claim)}$.`,
+    steps: [`Base case: ${baseCheck(claim)}.`, hypothesisLine(claim), ...stepLines(claim, split), conclusionLine(claim)],
+    pool: slipPool(claim),
+  };
+}
+
+/** Any true claim: a sum, a divisibility or an inequality. */
+function sampleClaim(rng: Rng, hard: boolean): IndClaim {
+  const kind = rng.pick(['sum', 'div', 'ineq'] as const);
+  if (kind === 'sum') return sampleSum(rng, hard ? 9 : 4);
+  if (kind === 'div') return sampleDiv(rng, hard);
+  return rng.pick(hard ? INEQ_ALL : INEQ_POW);
+}
+
+/* ================================================================
+ * Lesson 1: the shape of an inductive proof
+ * ================================================================ */
+
+/* ---------- the four parts, in order ---------- */
+
+function skeletonProof(claim: IndClaim, hard: boolean): Proof {
+  const N = startOf(claim);
+  const [first, ...rest] = stepLines(claim, false);
+  return {
+    claim: `Prove by induction: ${claimProse(claim)} for every whole number $n \\ge ${N}$.`,
+    steps: [
+      `Base case: ${baseCheck(claim)}.`,
+      `Hypothesis: assume it holds at $n = k$, for some $k \\ge ${N}$.`,
+      ...(hard
+        ? [`Step: ${lowerFirst(first)}`, ...rest]
+        : [`Step: from that, show it holds at $n = k + 1$: ${claimProse(claim, 'k', 1)}.`]),
+      `Conclusion: it holds for every $n \\ge ${N}$.`,
+    ],
+    pool: [
+      { text: 'Hypothesis: assume it holds at $n = k + 1$.', why: 'The step has to show that; assuming it is circular.' },
+      { text: `Check $n = ${N + 1}$ and $n = ${N + 2}$ as well, instead of a step.`, why: 'Checking more values is not a proof.' },
+      { text: `Conclusion: it held at $n = ${N}$, so it holds for every $n$.`, why: 'A base case on its own proves one value.' },
+      { text: 'Hypothesis: assume it holds for every $n$.', why: 'That assumes the whole claim.' },
+    ],
+  };
+}
+
+interface SkeletonParams {
+  claim: IndClaim;
+  hard: boolean;
+  picks: number[];
+}
+
+const prfIndSkeleton: Generator<SkeletonParams> = {
+  id: 'prf-ind-skeleton',
+  sample(rng, difficulty) {
+    const hard = difficulty >= 2;
+    const claim = sampleClaim(rng, hard);
+    return { claim, hard, picks: pickDistractors(rng, skeletonProof(claim, hard), difficulty) };
+  },
+  render({ claim, hard, picks }) {
+    return orderSlide(skeletonProof(claim, hard), picks);
+  },
+  solution({ claim, hard, picks }) {
+    return [
+      { text: 'Every proof by induction has the same four parts: base case, hypothesis, step, conclusion.' },
+      ...orderSolution(skeletonProof(claim, hard), picks),
+    ];
+  },
+};
+
+/* ---------- which part is this line? ---------- */
+
+type ProofPart = 'base' | 'hyp' | 'step' | 'end';
+
+const PART_PATH: Record<ProofPart, string[]> = {
+  base: ['Yes'],
+  hyp: ['No', 'Yes'],
+  step: ['No', 'No', 'Towards $n = k + 1$'],
+  end: ['No', 'No', 'Drawing it together'],
+};
+
+const PART_NAME: Record<ProofPart, string> = {
+  base: 'the base case',
+  hyp: 'the inductive hypothesis',
+  step: 'the inductive step',
+  end: 'the conclusion',
+};
+
+interface PartParams {
+  claim: IndClaim;
+  part: ProofPart;
+  wording: number;
+}
+
+function partLine({ claim, part, wording }: PartParams): string {
+  switch (part) {
+    case 'base':
+      return wording ? `First, ${baseCheck(claim)}.` : `${upperFirst(baseCheck(claim))}.`;
+    case 'hyp':
+      return wording ? `Suppose the claim is true when $n = k$: ${claimProse(claim, 'k')}.` : hypothesisLine(claim);
+    case 'step':
+      return stepLines(claim, false)[wording];
+    case 'end':
+      return wording
+        ? `By induction, ${claimProse(claim)} for every whole number $n \\ge ${startOf(claim)}$.`
+        : conclusionLine(claim);
+  }
+}
+
+const prfIndPartFlow: Generator<PartParams> = {
+  id: 'prf-ind-part-flow',
+  sample(rng, difficulty) {
+    return {
+      claim: sampleClaim(rng, difficulty >= 2),
+      part: rng.pick<ProofPart>(['base', 'hyp', 'step', 'end']),
+      wording: rng.int(0, 1),
+    };
+  },
+  render(params) {
+    return {
+      kind: 'flow',
+      prompt: [
+        say(claimLine(params.claim)),
+        say(`One line of its proof: “${partLine(params)}”`),
+        say('Which part of the proof is that line? Each answer chooses what gets asked next.'),
+      ],
+      subject: '\\text{Which part is it?}',
+      steps: [
+        {
+          id: 'one',
+          ask: 'Does the line work with one particular value of $n$?',
+          branches: [
+            { label: 'Yes', outcome: 'It is the base case.' },
+            { label: 'No', to: 'assume' },
+          ],
+        },
+        {
+          id: 'assume',
+          ask: 'Does it take something as true without showing it?',
+          branches: [
+            { label: 'Yes', outcome: 'It is the inductive hypothesis.' },
+            { label: 'No', to: 'aim' },
+          ],
+        },
+        {
+          id: 'aim',
+          ask: 'Is it working towards $n = k + 1$, or drawing the proof together?',
+          branches: [
+            { label: 'Towards $n = k + 1$', outcome: 'It is the inductive step.' },
+            { label: 'Drawing it together', outcome: 'It is the conclusion.' },
+          ],
+        },
+      ],
+      answer: PART_PATH[params.part],
+    };
+  },
+  solution({ claim, part }) {
+    const why: Record<ProofPart, string> = {
+      base: `It checks one value, $n = ${startOf(claim)}$, by working out both sides.`,
+      hyp: 'It takes the claim at $n = k$ as true without showing it. That is allowed: it is the hypothesis the step builds on.',
+      step: 'It starts from the case $n = k$ and works towards the claim at $n = k + 1$.',
+      end: 'It puts the base case and the step together to claim every $n$ from the start.',
+    };
+    return [{ text: `That line is ${PART_NAME[part]}.` }, { text: why[part] }];
+  },
+};
+
+/* ---------- the claim at n = k + 1 ---------- */
+
+function nextClaimTiles(claim: IndClaim): { template: string; answer: string[]; distractors: string[] } {
+  switch (claim.kind) {
+    case 'sum':
+      return {
+        template: `${sumLeftTex(claim, 'k')} + {0} = {1}`,
+        answer: [bracketed(sumTermTex(claim, 'k', 1)), sumRightTex(claim, 'k', 1)],
+        distractors: [
+          bracketed(sumTermTex(claim, 'k', 2)),
+          bracketed(sumTermTex(claim, 'k')),
+          sumRightTex(claim, 'k'),
+          sumRightTex(claim, 'k', 2),
+        ],
+      };
+    case 'div':
+      return {
+        template: `{0} ${signedTail(claim.c)} \\text{ is a multiple of } {1}`,
+        answer: [`${claim.b}^{k+1}`, `${claim.d}`],
+        distractors: [`${claim.b}^k`, `${claim.b}(k + 1)`, `${claim.b}`, `${claim.b}^{k+2}`],
+      };
+    case 'ineq':
+      return {
+        template: '{0} > {1}',
+        answer: [ineqLeft(claim, 'k + 1'), ineqRight(claim, 'k + 1')],
+        distractors: [ineqLeft(claim, 'k'), ineqRight(claim, 'k'), `${ineqRight(claim, 'k')} + 1`],
+      };
+  }
+}
+
+const prfIndNextClaim: Generator<{ claim: IndClaim }> = {
+  id: 'prf-ind-next-claim',
+  sample(rng, difficulty) {
+    if (difficulty >= 2) return { claim: sampleClaim(rng, true) };
+    return { claim: rng.chance(0.5) ? sampleSum(rng, 9) : rng.pick(INEQ_POW) };
+  },
+  render({ claim }) {
+    const { template, answer, distractors } = nextClaimTiles(claim);
+    return {
+      kind: 'tiles',
+      prompt: [say(claimLine(claim)), say('Write the claim at $n = k + 1$: the line the inductive step has to reach.')],
+      template,
+      bank: fillBank(answer, distractors),
+      answer,
+    };
+  },
+  solution({ claim }) {
+    return [
+      { text: 'Put $k + 1$ in place of every $n$:' },
+      { text: `${upperFirst(claimProse(claim, 'k', 1))}.` },
+      {
+        text:
+          claim.kind === 'sum'
+            ? `The left side gains one more term, $${sumTermTex(claim, 'k', 1)}$, and the right side is the formula at $k + 1$.`
+            : claim.kind === 'div'
+              ? `The power moves up one, and the number it must be a multiple of stays $${claim.d}$.`
+              : 'Both sides change: each is the same expression with $k + 1$ in it.',
+      },
+    ];
+  },
+};
+
+/* ---------- what a base case and a step prove ---------- */
+
+type CoverSetup = 'full' | 'noBase' | 'checks' | 'gap';
+
+interface CoversParams {
+  setup: CoverSetup;
+  a: number;
+  m: number;
+}
+
+const coverGe = (x: number) => `n \\ge ${x}`;
+const coverOnly = (xs: number[]) => `n = ${xs.join(', ')} \\text{ only}`;
+const COVER_NONE = '\\text{none yet}';
+
+function coverPlan({ setup, a, m }: CoversParams): { text: string; correct: string; distractors: string[] } {
+  const checks = range(a, a + m - 1);
+  const list = checks.map((x) => `$n = ${x}$`);
+  const listText = `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`;
+  switch (setup) {
+    case 'full':
+      return {
+        text: `A proof checks a claim at $n = ${a}$. It then shows that whenever the claim holds at $n = k$, for any $k \\ge ${a}$, it holds at $n = k + 1$.`,
+        correct: coverGe(a),
+        distractors: [coverGe(a > 1 ? 1 : 2), coverOnly([a]), COVER_NONE],
+      };
+    case 'noBase':
+      return {
+        text: `A proof shows that whenever a claim holds at $n = k$, for any $k \\ge ${a}$, it holds at $n = k + 1$. It checks no value of $n$ at all.`,
+        correct: COVER_NONE,
+        distractors: [coverGe(a), coverGe(a + 1), coverOnly([a])],
+      };
+    case 'checks':
+      return {
+        text: `A proof checks a claim at ${listText}, and stops there.`,
+        correct: coverOnly(checks),
+        distractors: [coverGe(a), coverOnly([a]), COVER_NONE],
+      };
+    case 'gap':
+      return {
+        text: `A proof checks a claim at $n = ${a}$. It then shows that whenever the claim holds at $n = k$, for any $k \\ge ${a + 2}$, it holds at $n = k + 1$.`,
+        correct: coverOnly([a]),
+        distractors: [coverGe(a), coverGe(a + 2), COVER_NONE],
+      };
+  }
+}
+
+const prfIndCovers: Generator<CoversParams> = {
+  id: 'prf-ind-covers',
+  sample(rng, difficulty) {
+    const setups: CoverSetup[] = difficulty >= 2 ? ['full', 'noBase', 'checks', 'gap', 'gap'] : ['full', 'noBase', 'checks'];
+    return { setup: rng.pick(setups), a: rng.int(1, 8), m: rng.int(2, 3) };
+  },
+  render(params) {
+    const { text, correct, distractors } = coverPlan(params);
+    return choiceSlide([say(text), say('Exactly which whole numbers $n$ does that prove the claim for?')], correct, distractors);
+  },
+  solution(params) {
+    const { setup, a } = params;
+    const why: Record<CoverSetup, string> = {
+      full: `The base case gives $n = ${a}$. The step, used at $k = ${a}$, gives $n = ${a + 1}$; used again, $n = ${a + 2}$; and so on for good. Nothing reaches the numbers below $${a}$.`,
+      noBase: 'The step only passes the claim along. With no first case to start from, it has nothing to pass on, so no value of $n$ is proved yet.',
+      checks: 'Each check proves the value it checks and nothing more. Without a step, nothing carries on to the next $n$.',
+      gap: `The step only starts at $k = ${a + 2}$, so it cannot use the case $n = ${a}$. Nothing gives $n = ${a + 1}$ or $n = ${a + 2}$, and so nothing after.`,
+    };
+    return [{ text: why[setup] }, { tex: coverPlan(params).correct }];
+  },
+};
+
+/* ================================================================
+ * Lesson 2: sums
+ * ================================================================ */
+
+interface SumOrderParams {
+  claim: SumClaim;
+  hard: boolean;
+  picks: number[];
+}
+
+const prfIndOrderSum: Generator<SumOrderParams> = {
+  id: 'prf-ind-order-sum',
+  sample(rng, difficulty) {
+    const hard = difficulty >= 2;
+    const claim = sampleSum(rng, hard ? 9 : 5);
+    return { claim, hard, picks: pickDistractors(rng, inductionProof(claim, hard), difficulty) };
+  },
+  render({ claim, hard, picks }) {
+    return orderSlide(inductionProof(claim, hard), picks);
+  },
+  solution({ claim, hard, picks }) {
+    return orderSolution(inductionProof(claim, hard), picks);
+  },
+};
+
+/* ---------- the assumed sum plus the next term, tidied ---------- */
+
+interface SumStepsParams {
+  claim: SumClaim;
+  hard: boolean;
+  wording: number;
+}
+
+type Reductions = Extract<Slide, { kind: 'steps' }>['reductions'];
+
+function sumReductions({ claim, hard }: SumStepsParams): { start: string[]; reductions: Reductions } {
+  const { series, c } = claim;
+  const final = sumRightTex(claim, 'k', 1);
+  if (series === 'odd') {
+    const next = `(${lin(2 * c, c)})`;
+    const expanded = polyTex([c, 2 * c, c]);
+    const reductions: Reductions = [
+      {
+        span: [0, 3],
+        operator: 1,
+        value: expanded,
+        bank: stepBank(expanded, polyTex([c, 2 * c, 2 * c]), polyTex([2 * c, 2 * c, c]), polyTex([c, 2 * c + 1, c])),
+      },
+      {
+        span: [0, 1],
+        value: final,
+        bank: stepBank(final, `${coefTex(c)}(k + 1)^2 + ${c}`, `${coefTex(c)}(k + 2)^2`, `${coefTex(c)}k(k + 2)`),
+      },
+    ];
+    if (!hard) return { start: [sumRightTex(claim, 'k'), '+', next], reductions };
+    return {
+      start: [sumRightTex(claim, 'k'), '+', `(${2 * c}(k + 1) - ${c})`],
+      reductions: [
+        {
+          span: [2, 3],
+          value: next,
+          bank: stepBank(next, `(${lin(2 * c, -c)})`, `(${lin(2 * c, 2 * c)})`, `(${lin(2 * c, 3 * c)})`),
+        },
+        ...reductions,
+      ],
+    };
+  }
+  const factored = `(k + 1)(${natInner(c)})`;
+  const reductions: Reductions = [
+    {
+      span: [0, 3],
+      operator: 1,
+      value: factored,
+      bank: stepBank(factored, `(k + 1)(${halfK(c)})`, `(k + 1)(${halfK(c)} + ${2 * c})`, `k(${natInner(c)})`),
+    },
+    {
+      span: [0, 1],
+      value: final,
+      bank: stepBank(final, `${halfTex(c)}(k + 1)(k + 3)`, `${halfTex(c)}(k + 1)^2`, `${halfTex(c)}k(k + 2)`),
+    },
+  ];
+  if (!hard) return { start: [sumRightTex(claim, 'k'), '+', c === 1 ? '(k + 1)' : `${c}(k + 1)`], reductions };
+  const tidy = timesTex(c, 'k + 1');
+  return {
+    start: [sumRightTex(claim, 'k'), '+', `(${lin(c, c)})`],
+    reductions: [
+      { span: [2, 3], value: tidy, bank: stepBank(tidy, `${c}k(k + 1)`, `(k + ${c})`, `${c}(k + ${c})`) },
+      ...reductions,
+    ],
+  };
+}
+
+const prfIndSumSteps: Generator<SumStepsParams> = {
+  id: 'prf-ind-sum-steps',
+  sample(rng, difficulty) {
+    const hard = difficulty >= 2;
+    let claim = sampleSum(rng);
+    // A hard whole-number sum starts from `(3k + 3)`, which needs a factor to take out.
+    while (hard && claim.series === 'nat' && claim.c === 1) claim = sampleSum(rng);
+    return { claim, hard, wording: rng.int(0, 1) };
+  },
+  render(params) {
+    const { start, reductions } = sumReductions(params);
+    return {
+      kind: 'steps',
+      prompt: [
+        say(claimLine(params.claim)),
+        say(
+          params.wording
+            ? 'In the step, the sum up to $n = k + 1$ is the assumed sum plus the next term. Work it into the right side at $n = k + 1$.'
+            : 'The step has reached the line below. Simplify it into the right side of the claim at $n = k + 1$.',
+        ),
+        say('Tap the part to work on next, then choose what it becomes.'),
+      ],
+      start,
+      reductions,
+    };
+  },
+  solution({ claim, hard }) {
+    const { series, c } = claim;
+    const steps: SolutionStep[] = [];
+    if (hard) steps.push({ text: `First tidy the next term: $${series === 'odd' ? `${2 * c}(k + 1) - ${c} = ${lin(2 * c, c)}` : `${lin(c, c)} = ${timesTex(c, 'k + 1')}`}$.` });
+    if (series === 'odd') {
+      steps.push({ text: 'Multiply out and collect:' });
+      steps.push({
+        tex: `\\begin{aligned} &${sumRightTex(claim, 'k')} + (${lin(2 * c, c)}) \\\\ &= ${polyTex([c, 2 * c, c])} \\end{aligned}`,
+      });
+      steps.push({ text: `Take out $${c}$ and the rest is a perfect square: $${sumRightTex(claim, 'k', 1)}$.` });
+    } else {
+      steps.push({ text: 'Both parts have a factor $(k + 1)$; take it out:' });
+      steps.push({
+        tex: `\\begin{aligned} &${sumRightTex(claim, 'k')} \\\\ &+ ${bracketed(timesTex(c, 'k + 1'))} \\\\ &= (k + 1)(${natInner(c)}) \\end{aligned}`,
+      });
+      steps.push({ text: `And $${natInner(c)} = ${halfTex(c)}(k + 2)$, which gives $${sumRightTex(claim, 'k', 1)}$.` });
+    }
+    steps.push({ text: 'That is the right side of the claim at $n = k + 1$, which is what the step had to reach.' });
+    return steps;
+  },
+};
+
+/* ---------- checking the step with numbers ---------- */
+
+interface SumCheckParams {
+  claim: SumClaim;
+  k: number;
+}
+
+const prfIndSumCheck: Generator<SumCheckParams> = {
+  id: 'prf-ind-sum-check',
+  sample(rng, difficulty) {
+    const hard = difficulty >= 2;
+    return { claim: sampleSum(rng, hard ? 9 : 4), k: hard ? rng.int(4, 7) : rng.int(2, 5) };
+  },
+  render({ claim, k }) {
+    const a = sumRight(claim, k);
+    const t = sumTerm(claim, k + 1);
+    const s = a + t;
+    return {
+      kind: 'tree',
+      prompt: [
+        say(claimLine(claim)),
+        say(
+          `The step says: the sum up to $n = ${k + 1}$ is the sum up to $n = ${k}$ plus the next term. Check it at $k = ${k}$. Top row: each part. Underneath: their total.`,
+        ),
+      ],
+      expression: `${sumRightTex(claim, 'k')} + ${bracketed(sumTermTex(claim, 'k', 1))}`,
+      nodes: [
+        { id: 'a', from: [] },
+        { id: 't', from: [] },
+        { id: 's', from: ['a', 't'] },
+      ],
+      bank: treeBank([a, t, s], [sumTerm(claim, k), sumTerm(claim, k + 2), a + sumTerm(claim, k), sumRight(claim, k - 1)]),
+      answer: [a, t, s].map(String),
+    };
+  },
+  solution({ claim, k }) {
+    const a = sumRight(claim, k);
+    const t = sumTerm(claim, k + 1);
+    return [
+      { text: `At $k = ${k}$ the right side is $${a}$: the sum up to $n = ${k}$.` },
+      { text: `The next term is $${sumTermTex(claim, 'n')}$ at $n = ${k + 1}$, which is $${t}$.` },
+      { tex: `${a} + ${t} = ${a + t}` },
+      { text: `And the right side at $n = ${k + 1}$ is $${sumRight(claim, k + 1)}$ too: the step agrees with the formula.` },
+    ];
+  },
+};
+
+/* ---------- the term the step adds ---------- */
+
+interface NextTermParams {
+  claim: SumClaim;
+  k: number;
+  gap: boolean;
+}
+
+const prfIndNextTerm: Generator<NextTermParams> = {
+  id: 'prf-ind-next-term',
+  sample(rng, difficulty) {
+    const hard = difficulty >= 2;
+    return { claim: sampleSum(rng, hard ? 9 : 4), k: hard ? rng.int(4, 12) : rng.int(2, 9), gap: hard && rng.chance(0.5) };
+  },
+  render({ claim, k, gap }) {
+    return {
+      kind: 'expression',
+      prompt: [
+        say(claimLine(claim)),
+        say(
+          gap
+            ? `By how much does the right side grow from $n = ${k}$ to $n = ${k + 1}$?`
+            : `Going from $n = ${k}$ to $n = ${k + 1}$, the left side gains one term. What is it?`,
+        ),
+      ],
+      lead: gap ? '\\text{growth} =' : '\\text{next term} =',
+      keypad: [],
+      answer: String(sumTerm(claim, k + 1)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution({ claim, k, gap }) {
+    const t = sumTerm(claim, k + 1);
+    if (!gap) {
+      return [
+        { text: `The terms follow $${sumTermTex(claim, 'n')}$, and the new one is at $n = ${k + 1}$:` },
+        { text: `it is $${t}$.` },
+      ];
+    }
+    return [
+      { text: `At $n = ${k + 1}$ the right side is $${sumRight(claim, k + 1)}$; at $n = ${k}$ it is $${sumRight(claim, k)}$.` },
+      { tex: `${sumRight(claim, k + 1)} - ${sumRight(claim, k)} = ${t}` },
+      { text: `That is exactly the next term on the left, $${sumTermTex(claim, 'n')}$ at $n = ${k + 1}$: which is why the step works.` },
+    ];
+  },
+};
+
+/* ================================================================
+ * Lesson 3: divisibility
+ * ================================================================ */
+
+interface DivOrderParams {
+  claim: DivClaim;
+  hard: boolean;
+  picks: number[];
+}
+
+const prfIndOrderDivides: Generator<DivOrderParams> = {
+  id: 'prf-ind-order-divides',
+  sample(rng, difficulty) {
+    const hard = difficulty >= 2;
+    const claim = sampleDiv(rng, hard);
+    return { claim, hard, picks: pickDistractors(rng, inductionProof(claim, hard), difficulty) };
+  },
+  render({ claim, hard, picks }) {
+    return orderSlide(inductionProof(claim, hard), picks);
+  },
+  solution({ claim, hard, picks }) {
+    return orderSolution(inductionProof(claim, hard), picks);
+  },
+};
+
+/* ---------- finding the case n = k inside the case n = k + 1 ---------- */
+
+interface RewriteParams {
+  claim: DivClaim;
+  shape: number;
+}
+
+const prfIndRewrite: Generator<RewriteParams> = {
+  id: 'prf-ind-rewrite',
+  sample(rng, difficulty) {
+    return { claim: sampleDiv(rng, difficulty >= 2, 12), shape: rng.int(0, 1) };
+  },
+  render({ claim, shape }) {
+    const { b, c } = claim;
+    const rest = signedTail(divRest(claim));
+    const lhs = `${b}^{k+1} ${signedTail(c)}`;
+    const answer = shape === 0 ? [`${b}`, rest] : [divTex(claim, 'k'), rest];
+    const distractors =
+      shape === 0
+        ? [`${b + 1}`, `${b}^k`, signedTail(-divRest(claim)), signedTail(c), signedTail(b)]
+        : [`${b}^k`, divTex(claim, 'k - 1'), signedTail(-divRest(claim)), signedTail(c)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(claimLine(claim)),
+        say(`The step needs the case $n = k$, $${divTex(claim, 'k')}$, to appear inside $${divTex(claim, 'k + 1')}$. Fill in the rewrite.`),
+      ],
+      template: shape === 0 ? `${lhs} = {0}(${divTex(claim, 'k')}) {1}` : `${lhs} = ${b}({0}) {1}`,
+      bank: fillBank(answer, distractors),
+      answer,
+    };
+  },
+  solution({ claim }) {
+    const { b, c } = claim;
+    const rest = divRest(claim);
+    return [
+      { text: `$${b}^{k+1} = ${b} \\times ${b}^k$, so take $${b}$ lots of $${divTex(claim, 'k')}$ and correct for the difference:` },
+      { tex: stackTex(`${b}(${divTex(claim, 'k')}) = ${b}^{k+1} ${signedTail(b * c)}`) },
+      { text: `That is $${Math.abs(rest)}$ ${rest > 0 ? 'short of' : 'more than'} $${divTex(claim, 'k + 1')}$, so` },
+      { tex: stackTex(`${divTex(claim, 'k + 1')} = ${b}(${divTex(claim, 'k')}) ${signedTail(rest)}`) },
+    ];
+  },
+};
+
+/* ---------- the rewrite, worked into a multiple ---------- */
+
+interface DivStepsParams {
+  claim: DivClaim;
+  hard: boolean;
+}
+
+const prfIndDividesSteps: Generator<DivStepsParams> = {
+  id: 'prf-ind-divides-steps',
+  sample(rng, difficulty) {
+    const hard = difficulty >= 2;
+    return { claim: hard ? sampleDiv(rng, true) : sampleDiv(rng, false, 16), hard };
+  },
+  render({ claim, hard }) {
+    const { b, c, d } = claim;
+    const rest = divRest(claim);
+    const tail = signedTail(rest);
+    const sub = `${b}(${d}m)`;
+    const product = `${b * d}m`;
+    const done = `${d}(${lin(b, rest / d, 'm')})`;
+    const tidy: Reductions = [
+      { span: [0, 1], value: product, bank: stepBank(product, `${b + d}m`, `${d}m`, `${b}m`) },
+      {
+        span: [0, 2],
+        operator: 1,
+        value: done,
+        bank: stepBank(done, `${d}(${lin(b, rest, 'm')})`, `${d}(${lin(b * d, rest / d, 'm')})`, `${d}(${lin(b, -rest / d, 'm')})`),
+      },
+    ];
+    return {
+      kind: 'steps',
+      prompt: [
+        say(claimLine(claim)),
+        say(
+          `Assume $${divTex(claim, 'k')} = ${d}m$. The step has reached $${divTex(claim, 'k + 1')} = ${b}(${divTex(claim, 'k')}) ${tail}$. Show it is a multiple of $${d}$.`,
+        ),
+        say('Tap the part to work on next, then choose what it becomes.'),
+      ],
+      start: hard ? [`${b}(${divTex(claim, 'k')})`, tail] : [sub, tail],
+      reductions: hard
+        ? [{ span: [0, 1], value: sub, bank: stepBank(sub, `${b}(${d}m ${signedTail(c)})`, `${d}m`, `${b}m`) }, ...tidy]
+        : tidy,
+    };
+  },
+  solution({ claim }) {
+    const { b, d } = claim;
+    const rest = divRest(claim);
+    return [
+      { text: `The hypothesis says $${divTex(claim, 'k')} = ${d}m$, so put that in:` },
+      { tex: stackTex(`${b}(${d}m) ${signedTail(rest)} = ${b * d}m ${signedTail(rest)}`) },
+      { text: `Both parts are multiples of $${d}$, so take $${d}$ out:` },
+      { tex: `${d}(${lin(b, rest / d, 'm')})` },
+      { text: `$${lin(b, rest / d, 'm')}$ is a whole number, so $${divTex(claim, 'k + 1')}$ is a multiple of $${d}$.` },
+    ];
+  },
+};
+
+/* ---------- the quotient ---------- */
+
+interface QuotientParams {
+  claim: DivClaim;
+  n: number;
+  hard: boolean;
+}
+
+const prfIndQuotient: Generator<QuotientParams> = {
+  id: 'prf-ind-quotient',
+  sample(rng, difficulty) {
+    const hard = difficulty >= 2;
+    for (;;) {
+      const claim = sampleDiv(rng, hard);
+      const n = rng.int(hard ? 3 : 2, 6);
+      if (claim.b ** n + claim.c < 1000) return { claim, n, hard };
+    }
+  },
+  render({ claim, n, hard }) {
+    const { b, c, d } = claim;
+    const value = b ** n + c;
+    const k = n - 1;
+    const m = (b ** k + c) / d;
+    return {
+      kind: 'expression',
+      prompt: hard
+        ? [
+            say(claimLine(claim)),
+            say(
+              `At $n = ${k}$, $${divTex(claim, `${k}`)} = ${d} \\times ${m}$. The step writes $${divTex(claim, 'k + 1')} = ${b}(${divTex(claim, 'k')}) ${signedTail(divRest(claim))}$. Use it to find the whole number at $n = ${n}$.`,
+            ),
+          ]
+        : [say(claimLine(claim)), say(`So at $n = ${n}$, $${divTex(claim, `${n}`)} = ${value}$ is $${d}$ times a whole number. Which one?`)],
+      lead: `${divTex(claim, `${n}`)} = ${d} \\times`,
+      keypad: [],
+      answer: String(value / d),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution({ claim, n, hard }) {
+    const { b, c, d } = claim;
+    const value = b ** n + c;
+    if (!hard) {
+      return [
+        { tex: stackTex(`${divTex(claim, `${n}`)} = ${b ** n} ${signedTail(c)} = ${value}`) },
+        { tex: `${value} = ${d} \\times ${value / d}` },
+      ];
+    }
+    const k = n - 1;
+    const m = (b ** k + c) / d;
+    const rest = divRest(claim);
+    return [
+      { text: `Put $${divTex(claim, `${k}`)} = ${d} \\times ${m}$ into the step:` },
+      { tex: stackTex(`${b}(${d} \\times ${m}) ${signedTail(rest)} = ${d}(${b} \\times ${m} ${signedTail(rest / d)})`) },
+      { text: `So the whole number is $${b} \\times ${m} ${signedTail(rest / d)} = ${value / d}$. Check: $${d} \\times ${value / d} = ${value}$.` },
+    ];
+  },
+};
+
+/* ================================================================
+ * Lesson 4: inequalities
+ * ================================================================ */
+
+interface IneqPickParams {
+  claim: IneqClaim;
+  wording: number;
+}
+
+const ineqStatement = (claim: IneqClaim) => `$${ineqLeft(claim, 'n')} > ${ineqRight(claim, 'n')}$`;
+
+/** Both sides at each n from 1 until the claim has held twice running. */
+function ineqTable(claim: IneqClaim): string {
+  const N = ineqStart(claim);
+  return range(claim.shape === 'powSq' ? 1 : Math.max(1, N - 2), N)
+    .map((n) => {
+      const l = ineqLeftValue(claim, n);
+      const r = ineqRightValue(claim, n);
+      return `n = ${n}\\colon\\ ${l} ${l > r ? '>' : l === r ? '=' : '<'} ${r}`;
+    })
+    .join(',\\quad ');
+}
+
+const prfIndBaseChoice: Generator<IneqPickParams> = {
+  id: 'prf-ind-base-choice',
+  sample(rng, difficulty) {
+    const pool = difficulty >= 2 ? INEQ_ALL : [...INEQ_POW, ...INEQ_FACT_POW, ...INEQ_FACT_LIN];
+    return { claim: rng.pick(pool), wording: rng.int(0, 1) };
+  },
+  render({ claim, wording }) {
+    const N = ineqStart(claim);
+    const wrong = [...new Set([1, N - 1, N + 1, N + 2])].filter((x) => x !== N).slice(0, 3);
+    return choiceSlide(
+      [
+        say(`Claim: ${ineqStatement(claim)} for every whole number $n$ from some point on.`),
+        say(
+          wording
+            ? 'A proof by induction should cover every $n$ from that point. Which value does its base case check?'
+            : 'Which value should the base case of a proof by induction check?',
+        ),
+      ],
+      `n = ${N}`,
+      wrong.map((x) => `n = ${x}`),
+    );
+  },
+  solution({ claim }) {
+    const N = ineqStart(claim);
+    return [
+      { text: 'Work out both sides for small $n$:' },
+      { tex: stackTex(ineqTable(claim)) },
+      {
+        text:
+          claim.shape === 'powSq'
+            ? `It holds at $n = 1$, but fails at $n = 2$, $3$ and $4$. It holds for good from $n = ${N}$, so that is the base case.`
+            : `It first holds at $n = ${N}$ and the step keeps it true from there, so the base case is $n = ${N}$.`,
+      },
+    ];
+  },
+};
+
+interface IneqOrderParams {
+  claim: IneqClaim;
+  picks: number[];
+}
+
+const prfIndOrderInequality: Generator<IneqOrderParams> = {
+  id: 'prf-ind-order-inequality',
+  sample(rng, difficulty) {
+    const claim = rng.pick(difficulty >= 2 ? INEQ_ALL : [...INEQ_POW, ...INEQ_FACT_POW]);
+    return { claim, picks: pickDistractors(rng, inductionProof(claim, false), difficulty) };
+  },
+  render({ claim, picks }) {
+    return orderSlide(inductionProof(claim, false), picks);
+  },
+  solution({ claim, picks }) {
+    return orderSolution(inductionProof(claim, false), picks);
+  },
+};
+
+/* ---------- walking the step of an inequality ---------- */
+
+function ineqWalk(claim: IneqClaim): { split: string[]; after: string; reasons: string[] } {
+  const { shape, b, a } = claim;
+  const pow = isPow(shape);
+  const split = pow
+    ? [`$${b} \\times ${b}^k$`, `$${b}^k + ${b}$`, `$${b}^k + 1$`]
+    : ['$(k + 1) \\times k!$', '$k! + 1$', '$k \\times k!$'];
+  switch (shape) {
+    case 'powLin':
+      return { split, after: `${b * a}k`, reasons: ['$k \\ge 1$', `$${b}^k > ${a}k$`, `$${a}(k + 1) > ${a}k$`] };
+    case 'factPow':
+      return { split, after: '(k + 1) \\times 2^k', reasons: ['$k + 1 > 2$', '$k! > 2^k$', '$2^{k+1} > 2^k$'] };
+    case 'factLin':
+      return { split, after: `(k + 1) \\times ${a}k`, reasons: ['$k \\ge 1$', `$k! > ${a}k$`, '$(k + 1)! > k!$'] };
+    case 'powSq':
+      return { split, after: '2k^2', reasons: ['$k^2 > 2k + 1$ once $k \\ge 3$', '$2^k > k^2$', '$2k^2 > k^2$'] };
+    case 'factSq':
+      return { split, after: '(k + 1)k^2', reasons: ['$k^2 \\ge k + 1$ once $k \\ge 2$', '$k! > k^2$', '$k^2 > k$'] };
+  }
+}
+
+const prfIndIneqFlow: Generator<IneqPickParams> = {
+  id: 'prf-ind-ineq-flow',
+  sample(rng, difficulty) {
+    const pool = difficulty >= 2 ? INEQ_ALL : [...INEQ_POW, ...INEQ_FACT_POW, ...INEQ_FACT_LIN];
+    return { claim: rng.pick(pool), wording: rng.int(0, 1) };
+  },
+  render({ claim, wording }) {
+    const { split, after, reasons } = ineqWalk(claim);
+    const up = ineqLeft(claim, 'k + 1');
+    const target = ineqRight(claim, 'k + 1');
+    const key = `${up}|${target}`;
+    const hypothesis = `${ineqLeft(claim, 'k')} > ${ineqRight(claim, 'k')}`;
+    return {
+      kind: 'flow',
+      prompt: [
+        say(claimLine(claim)),
+        say(`Assume $${hypothesis}$. Walk the step to $n = k + 1$. Each answer chooses what gets asked next.`),
+      ],
+      subject: `${up} > ${target}`,
+      steps: [
+        {
+          id: 'split',
+          ask: wording ? `Write $${up}$ using $${ineqLeft(claim, 'k')}$:` : `First, $${up}$ equals`,
+          branches: turned(split, `${key}|split`).map((label) => ({ label, to: 'use' })),
+        },
+        {
+          id: 'use',
+          ask: `The hypothesis, $${hypothesis}$, makes that`,
+          branches: turned([`$> ${after}$`, `$> ${target}$`, `$= ${after}$`], `${key}|use`).map((label) => ({
+            label,
+            to: 'finish',
+          })),
+        },
+        {
+          id: 'finish',
+          ask: `Last, $${after} \\ge ${target}$. Why?`,
+          branches: turned(reasons, `${key}|finish`).map((label) => ({ label, outcome: `Because ${label}.` })),
+        },
+      ],
+      answer: [split[0], `$> ${after}$`, reasons[0]],
+    };
+  },
+  solution({ claim }) {
+    const { split, after, reasons } = ineqWalk(claim);
+    return [
+      { text: `Split off one factor: $${ineqLeft(claim, 'k + 1')} = ${split[0].slice(1, -1)}$.` },
+      { text: `The hypothesis replaces $${ineqLeft(claim, 'k')}$ with something smaller, so the result is $> ${after}$.` },
+      { text: `And $${after} \\ge ${ineqRight(claim, 'k + 1')}$ because ${reasons[0]}.` },
+      { text: 'The other reasons are true, but none of them gives that last inequality.' },
+    ];
+  },
+};
+
+/* ---------- where the claim starts ---------- */
+
+const prfIndFirstN: Generator<IneqPickParams> = {
+  id: 'prf-ind-first-n',
+  sample(rng, difficulty) {
+    const pool = difficulty >= 2 ? INEQ_ALL : [...INEQ_POW, ...INEQ_FACT_POW, ...INEQ_FACT_LIN];
+    return { claim: rng.pick(pool), wording: rng.int(0, 1) };
+  },
+  render({ claim, wording }) {
+    return {
+      kind: 'expression',
+      prompt: [
+        say(`${ineqStatement(claim)} fails for some small $n$, then holds for every $n$ from some point on.`),
+        say(wording ? 'From which $n$ is it true for good?' : 'Find the smallest $n$ from which it holds for every larger $n$ too.'),
+      ],
+      lead: '\\text{from } n =',
+      keypad: [],
+      answer: String(ineqStart(claim)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution({ claim }) {
+    const N = ineqStart(claim);
+    return [
+      { text: 'Work out both sides for small $n$:' },
+      { tex: stackTex(ineqTable(claim)) },
+      {
+        text: `It holds at $n = ${N}$, and a proof by induction with its base case there shows it keeps holding. So $n = ${N}$.`,
+      },
+    ];
+  },
+};
+
+/* ================================================================
+ * Lesson 5: reading an inductive proof
+ * ================================================================ */
+
+type Flaw = 'noBase' | 'assumesNext' | 'wrongBase' | 'sound';
+
+interface ReadParams {
+  claim: IndClaim;
+  flaw: Flaw;
+}
+
+const FLAW_LABEL: Record<Flaw, string> = {
+  noBase: 'It never checks a first case.',
+  assumesNext: 'Its step assumes what it has to show.',
+  wrongBase: 'Its base case is not where the claim starts.',
+  sound: 'Nothing: it is a sound proof.',
+};
+
+/** The claim as the proof states it, and the proof's lines. */
+function readProof({ claim, flaw }: ReadParams): { from: number; lines: string[] } {
+  switch (flaw) {
+    case 'noBase':
+      return {
+        from: startOf(claim),
+        lines: [
+          hypothesisLine(claim),
+          ...stepLines(claim, false),
+          `So whenever it holds at $n = k$ it holds at $n = k + 1$, and it holds for every $n \\ge ${startOf(claim)}$.`,
+        ],
+      };
+    case 'assumesNext':
+      return {
+        from: startOf(claim),
+        lines: [
+          `Base case: ${baseCheck(claim)}.`,
+          `Assume it holds at $n = k + 1$: ${claimProse(claim, 'k', 1)}.`,
+          'Then it holds at $n = k + 1$, as the step needs.',
+          conclusionLine(claim),
+        ],
+      };
+    case 'wrongBase':
+      return {
+        from: 1,
+        lines: [
+          `Base case: ${baseCheck(claim)}.`,
+          hypothesisLine(claim),
+          ...stepLines(claim, false),
+          'So it holds for every $n \\ge 1$.',
+        ],
+      };
+    case 'sound':
+      return { from: startOf(claim), lines: inductionProof(claim, false).steps };
+  }
+}
+
+function sampleRead(rng: Rng, difficulty: number): ReadParams {
+  const flaw = rng.pick<Flaw>(
+    difficulty >= 2 ? ['noBase', 'assumesNext', 'wrongBase', 'sound'] : ['noBase', 'assumesNext', 'wrongBase'],
+  );
+  if (flaw === 'wrongBase') return { claim: rng.pick(difficulty >= 2 ? INEQ_ALL : INEQ_POW), flaw };
+  if (flaw === 'noBase' && rng.chance(0.6)) {
+    const claim: IndClaim = rng.chance(0.5)
+      ? { ...sampleSum(rng, 5), shift: rng.pick([-3, -2, -1, 1, 2, 3]) }
+      : sampleFalseDiv(rng);
+    return { claim, flaw };
+  }
+  return { claim: sampleClaim(rng, difficulty >= 2), flaw };
+}
+
+/** Whether the claim as stated is true at its first n: false claims are what a missing base case lets through. */
+function firstCase(claim: IndClaim, from: number): { holds: boolean; text: string } {
+  switch (claim.kind) {
+    case 'sum': {
+      const left = sumTerm(claim, 1);
+      const right = sumRight(claim, 1);
+      return { holds: left === right, text: `At $n = 1$ the left side is $${left}$ and the right side is $${right}$.` };
+    }
+    case 'div': {
+      const v = claim.b + claim.c;
+      return {
+        holds: v % claim.d === 0,
+        text: `At $n = 1$, $${divTex(claim, '1')} = ${v}$, which is ${v % claim.d === 0 ? '' : 'not '}a multiple of $${claim.d}$.`,
+      };
+    }
+    case 'ineq': {
+      const l = ineqLeftValue(claim, from);
+      const r = ineqRightValue(claim, from);
+      return { holds: l > r, text: `At $n = ${from}$, $${ineqLeft(claim, `${from}`)} = ${l}$ and $${ineqRight(claim, `${from}`)} = ${r}$.` };
+    }
+  }
+}
+
+function readSolution(params: ReadParams): SolutionStep[] {
+  const { claim, flaw } = params;
+  const { from } = readProof(params);
+  const first = firstCase(claim, from);
+  switch (flaw) {
+    case 'noBase':
+      return [
+        { text: 'The step is fine, but nothing checks a first value, so there is nothing for the step to pass along.' },
+        {
+          text: first.holds
+            ? `The claim happens to be true (${lowerFirst(first.text)}), but this proof never shows it.`
+            : `In fact the claim is false: ${lowerFirst(first.text)} A step on its own can "prove" a false claim.`,
+        },
+      ];
+    case 'assumesNext':
+      return [
+        { text: `It assumes the claim at $n = k + 1$, which is exactly what the step has to show.` },
+        { text: 'The hypothesis may only assume the claim at $n = k$.' },
+      ];
+    case 'wrongBase': {
+      if (claim.kind !== 'ineq') throw new Error('prf-ind: a wrong base case is drawn for inequalities only');
+      const fails = range(1, startOf(claim)).find((n) => !ineqHolds(claim, n)) ?? 1;
+      return [
+        { text: `The claim is stated for every $n \\ge 1$, but the base case is at $n = ${startOf(claim)}$.` },
+        {
+          text: `So the proof covers $n \\ge ${startOf(claim)}$ only, and in fact the claim fails at $n = ${fails}$: $${ineqLeftValue(claim, fails)} \\le ${ineqRightValue(claim, fails)}$.`,
+        },
+      ];
+    }
+    case 'sound':
+      return [
+        { text: `It checks $n = ${from}$, assumes only the case $n = k$, reaches $n = k + 1$, and concludes for every $n \\ge ${from}$.` },
+        { text: 'Nothing is missing: it is a sound proof.' },
+      ];
+  }
+}
+
+const prfIndFlaw: Generator<ReadParams> = {
+  id: 'prf-ind-flaw',
+  sample: sampleRead,
+  render(params) {
+    const { from, lines } = readProof(params);
+    const flaws: Flaw[] = ['noBase', 'assumesNext', 'wrongBase', 'sound'];
+    return choiceSlide(
+      [say(claimLine(params.claim, from)), ...lines.map(say), say('What, if anything, is wrong with this proof?')],
+      FLAW_LABEL[params.flaw],
+      flaws.filter((f) => f !== params.flaw).map((f) => FLAW_LABEL[f]),
+      true,
+    );
+  },
+  solution: readSolution,
+};
+
+const READ_PATH: Record<Flaw, string[]> = {
+  noBase: ['No'],
+  wrongBase: ['Yes', 'No'],
+  assumesNext: ['Yes', 'Yes', 'No'],
+  sound: ['Yes', 'Yes', 'Yes'],
+};
+
+const prfIndReadFlow: Generator<ReadParams> = {
+  id: 'prf-ind-read-flow',
+  sample: sampleRead,
+  render(params) {
+    const { from, lines } = readProof(params);
+    return {
+      kind: 'flow',
+      prompt: [
+        say(claimLine(params.claim, from)),
+        ...lines.map(say),
+        say('Check the proof one part at a time. Each answer chooses what gets asked next.'),
+      ],
+      subject: '\\text{Is it a proof?}',
+      steps: [
+        {
+          id: 'base',
+          ask: 'Does it check a first case?',
+          branches: [
+            { label: 'Yes', to: 'where' },
+            { label: 'No', outcome: 'Not a proof: the step has nothing to start from.' },
+          ],
+        },
+        {
+          id: 'where',
+          ask: 'Is that first case the first $n$ the claim is made for?',
+          branches: [
+            { label: 'Yes', to: 'assume' },
+            { label: 'No', outcome: 'Not a proof of this claim: it only covers $n$ from its base case on.' },
+          ],
+        },
+        {
+          id: 'assume',
+          ask: 'Does the step assume the claim at $n = k$ only?',
+          branches: [
+            { label: 'Yes', outcome: 'A sound proof.' },
+            { label: 'No', outcome: 'Not a proof: it assumes what it has to show.' },
+          ],
+        },
+      ],
+      answer: READ_PATH[params.flaw],
+    };
+  },
+  solution: readSolution,
+};
+
+/* ---------- testing a claim either side of where it starts ---------- */
+
+interface TestTreeParams {
+  claim: IneqClaim;
+  x0: number;
+}
+
+const TRUE_TILE = '\\text{true}';
+const FALSE_TILE = '\\text{false}';
+
+const prfIndTestTree: Generator<TestTreeParams> = {
+  id: 'prf-ind-test-tree',
+  sample(rng, difficulty) {
+    const claim = rng.pick(difficulty >= 2 ? INEQ_ALL : [...INEQ_POW, ...INEQ_FACT_POW]);
+    const N = ineqStart(claim);
+    // No more than 6! on the page, so a factorial stays under 1000.
+    const top = isPow(claim.shape) ? N : Math.min(N, 4);
+    const starts = claim.shape === 'powSq' ? [1, 2, 3] : range(Math.max(1, N - 2), Math.max(1, top - 1));
+    return { claim, x0: rng.pick(starts) };
+  },
+  render({ claim, x0 }) {
+    const xs = [x0, x0 + 1, x0 + 2];
+    const lefts = xs.map((x) => ineqLeftValue(claim, x));
+    const verdicts = xs.map((x) => (ineqHolds(claim, x) ? TRUE_TILE : FALSE_TILE));
+    const answer = [...lefts.map(String), ...verdicts];
+    const slips = [...xs.map((x) => String(ineqRightValue(claim, x))), String(ineqLeftValue(claim, x0 + 3))];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(`A proof of this claim puts its base case at $n = ${x0}$. Test the claim at $n = ${x0}$, $${x0 + 1}$ and $${x0 + 2}$.`),
+        say(`Top row: $${ineqLeft(claim, 'n')}$. Underneath: is the claim true there?`),
+      ],
+      expression: `${ineqLeft(claim, 'n')} > ${ineqRight(claim, 'n')}`,
+      nodes: [...xs.map((_, i) => ({ id: `l${i}`, from: [] })), ...xs.map((_, i) => ({ id: `v${i}`, from: [`l${i}`] }))],
+      bank: fillBank(answer, [TRUE_TILE, FALSE_TILE, ...slips], 2, 4),
+      answer,
+    };
+  },
+  solution({ claim, x0 }) {
+    const N = ineqStart(claim);
+    const xs = [x0, x0 + 1, x0 + 2];
+    return [
+      ...xs.map((x) => {
+        const l = ineqLeftValue(claim, x);
+        const r = ineqRightValue(claim, x);
+        return { text: `$n = ${x}$: $${ineqLeft(claim, `${x}`)} = ${l}$ and $${ineqRight(claim, `${x}`)} = ${r}$, so it is ${l > r ? 'true' : 'false'}.` };
+      }),
+      {
+        text:
+          x0 === N
+            ? `It holds at $n = ${x0}$, so a base case there is right.`
+            : `The claim holds for good from $n = ${N}$, so a base case at $n = ${x0}$ is ${ineqHolds(claim, x0) ? 'true, but the step cannot start there' : 'false'}.`,
+      },
+    ];
+  },
+};
+
 export const numberProofGenerators = [
   prfAlways,
   prfParity,
@@ -3920,10 +5432,55 @@ export const numberProofGenerators = [
   prfOrderIff,
   prfDirectionFlow,
   prfDirectionChoice,
+  prfIndSkeleton,
+  prfIndPartFlow,
+  prfIndNextClaim,
+  prfIndCovers,
+  prfIndOrderSum,
+  prfIndSumSteps,
+  prfIndSumCheck,
+  prfIndNextTerm,
+  prfIndOrderDivides,
+  prfIndRewrite,
+  prfIndDividesSteps,
+  prfIndQuotient,
+  prfIndBaseChoice,
+  prfIndOrderInequality,
+  prfIndIneqFlow,
+  prfIndFirstN,
+  prfIndFlaw,
+  prfIndReadFlow,
+  prfIndTestTree,
 ];
 
 /** The order generators, for the reducer harness in `proofOrder.test.ts`. */
-export const numberProofOrders = [prfOrderContradiction, prfOrderContrapositive, prfOrderIff];
+export const numberProofOrders = [
+  prfOrderContradiction,
+  prfOrderContrapositive,
+  prfOrderIff,
+  prfIndSkeleton,
+  prfIndOrderSum,
+  prfIndOrderDivides,
+  prfIndOrderInequality,
+];
 
 /** Level 3's statement families, for `numberLogic.test.ts`. */
 export const logicTesting = { ONE_WAY, BOTH_WAYS, NEITHER_WAY, samplePair, pairOf, implies, converseCase, lineCase };
+
+/** Level 4's claims, for `numberInduction.test.ts`. */
+export const inductionTesting = {
+  ODD_C,
+  NAT_C,
+  INEQ_ALL,
+  sumTerm,
+  sumRight,
+  sumTermTex,
+  sumRightTex,
+  sumMiddle,
+  divisorsOf,
+  divTex,
+  divRest,
+  ineqLeft,
+  ineqRight,
+  ineqStart,
+};

@@ -76,6 +76,25 @@ import {
   type InTParams,
   type ParallelParams,
   type SlopePointsParams,
+  arctanWhereTarget,
+  chainSource,
+  expSource,
+  inverseSineSource,
+  inverseSineX,
+  logDiffAtCurve,
+  logDiffSource,
+  powerPowerSource,
+  type ArctanAtParams,
+  type ArctanParams,
+  type ArctanWhereParams,
+  type ExpAtParams,
+  type ExpParams,
+  type InverseChainParams,
+  type InversePointParams,
+  type InverseSineParams,
+  type LogDiffAtParams,
+  type LogDiffParams,
+  type PowerPowerParams,
 } from './parametricImplicit';
 
 const SEEDS = 200;
@@ -909,6 +928,199 @@ describe('tangents and normals, checked against mathjs', { timeout: 120_000 }, (
         expect(points.length).toBe(2);
         expect(points.every(([x, y]) => right(x, y)), option.label).toBe(option.id === slide.correctId);
       }
+    }
+  });
+});
+
+/*
+ * Level 5. Everything is read off the rendered slide and checked against
+ * mathjs's own derivative of y, never against the generator's hand-worked
+ * coefficients. `rhsOf` reads the TeX this level writes: logarithms, roots,
+ * times signs and powers in braces.
+ */
+
+/** Level 5's TeX for mathjs: the part after the last `=`, with `y(...)` read as y times the bracket. */
+function rhsOf(tex: string, y?: string): string {
+  let s = tex.replaceAll('$', '').split('=').pop()!;
+  s = s.replace(/\\left|\\right/g, '').replace(/\\,/g, ' ').replace(/\\times/g, '*');
+  for (let i = 0; i < 5; i += 1) {
+    s = s
+      .replace(/\^\{([^{}]+)\}/g, '^($1)')
+      .replace(/\\sqrt\{([^{}]*)\}/g, 'sqrt($1)')
+      .replace(/\\frac\{([^{}]*)\}\{([^{}]*)\}/g, '(($1)/($2))');
+  }
+  // A space before each log, or mathjs reads `x log` written together as one function name.
+  s = s.replace(/\\ln\s*\(/g, ' log(').replace(/\\ln\s*(\d+|x)/g, ' log($1)');
+  if (y !== undefined) s = s.replace(/^\s*y\s*\(/, `(${y}) * (`);
+  return s;
+}
+
+const valueOf5 = (tex: string, scope: Scope = {}): number => fn(rhsOf(tex)).at(scope);
+
+describe('exponentials and inverses, checked against mathjs', { timeout: 300_000 }, () => {
+  const X_SAMPLES = [-1.3, -0.4, 0.3, 0.9, 1.6];
+
+  it('a^x differentiates to ln a times a^x, however it is asked', () => {
+    for (const generator of [g.implAxLogSteps, g.implAxTiles, g.implAxGrad]) {
+      for (const { params, slide } of draws(generator as Generator<ExpParams>)) {
+        const d = fn(expSource(params)).by('x');
+        const answer = slide.kind === 'tiles' ? rhsOf(filled(slide)) : slide.kind === 'steps' ? rhsOf(lastValue(slide)) : typed(slide);
+        for (const x of X_SAMPLES) expect(close(fn(answer).at({ x }), d.at({ x })), `${generator.id}: ${answer} at ${x}`).toBe(true);
+      }
+    }
+    for (const { params } of draws(g.implAxGrad as Generator<ExpParams>)) {
+      const d = fn(expSource(params)).by('x');
+      const right = correctAnswer(g.implAxGrad as Generator<ExpParams>, params);
+      for (const x of X_SAMPLES) expect(close(fn(right).at({ x }), d.at({ x })), right).toBe(true);
+    }
+    for (const { params, slide } of draws(g.implAxAtTree as Generator<ExpAtParams>)) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const source = `${params.a}^((${params.k}) * x)`;
+      const x = Number(/x = (-?\d+)/.exec(proseOf(slide))![1]);
+      const [y, rate, gradient] = slide.answer.map((tex) => valueOf5(tex));
+      expect(close(y, fn(source).at({ x })), slide.answer[0]).toBe(true);
+      expect(close(gradient, fn(source).by('x').at({ x })), slide.answer[2]).toBe(true);
+      expect(close(rate * y, gradient)).toBe(true);
+    }
+  });
+
+  it('the inverse sine and cosine have gradient ±1 over the root of 1 - x^2, however it is asked', () => {
+    const want = (params: InverseSineParams) => fn(inverseSineSource(params)).by('x').at({ x: inverseSineX(params) });
+    for (const { params, slide } of draws(g.implArcsinDeriveSteps as Generator<InverseSineParams>)) {
+      expect(close(valueOf5(lastValue(slide)), want(params)), lastValue(slide)).toBe(true);
+    }
+    for (const { params, slide } of draws(g.implArcsinAtTree as Generator<InverseSineParams>)) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const x = inverseSineX(params);
+      const [square, less, root, gradient] = slide.answer.map((tex) => valueOf5(tex));
+      expect(close(square, x * x) && close(less, 1 - x * x) && close(root, Math.sqrt(1 - x * x))).toBe(true);
+      expect(close(gradient, want(params)), slide.answer[3]).toBe(true);
+    }
+    for (const { params, slide } of draws(g.implArcsinGrad as Generator<InverseSineParams>)) {
+      expect(close(fn(typed(slide)).at({}), want(params))).toBe(true);
+      expect(close(fn(correctAnswer(g.implArcsinGrad as Generator<InverseSineParams>, params)).at({}), want(params))).toBe(true);
+    }
+    for (const { params, slide } of draws(g.implInverseSignFlow as Generator<InverseSineParams>)) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      expect(close(valueOf5(slide.answer[2]), want(params)), slide.answer[2]).toBe(true);
+      // No other value on offer is the gradient.
+      for (const branch of slide.steps[2].branches) {
+        if (branch.label !== slide.answer[2]) expect(close(valueOf5(branch.label), want(params)), branch.label).toBe(false);
+      }
+    }
+  });
+
+  it('the inverse tangent has gradient k over 1 + x^2, however it is asked', () => {
+    const want = (k: number, x: number) => fn(`${k} * atan(x)`).by('x').at({ x });
+    for (const { params, slide } of draws(g.implArctanGrad as Generator<ArctanParams>)) {
+      expect(close(fn(typed(slide)).at({}), want(params.k, params.x0))).toBe(true);
+      expect(close(fn(correctAnswer(g.implArctanGrad as Generator<ArctanParams>, params)).at({}), want(params.k, params.x0))).toBe(true);
+    }
+    for (const { params, slide } of draws(g.implArctanSecTiles as Generator<ArctanParams>)) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      // tan y = kx is y = atan(kx).
+      const { k, x0 } = params;
+      expect(close(valueOf5(slide.answer[0]), 1 + Math.tan(Math.atan(k * x0)) ** 2)).toBe(true);
+      expect(close(valueOf5(slide.answer[1]), fn(`atan(${k} * x)`).by('x').at({ x: x0 })), slide.answer[1]).toBe(true);
+    }
+    for (const { params, slide } of draws(g.implArctanAtTree as Generator<ArctanAtParams>)) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const x = (params.s * params.p) / params.q;
+      expect(close(valueOf5(slide.answer[1]), 1 + x * x)).toBe(true);
+      expect(close(valueOf5(slide.answer[2]), want(params.k, x)), slide.answer[2]).toBe(true);
+    }
+    // The set of x an option names, against where the gradient really is the one asked.
+    const named = (label: string): number[] => {
+      if (label.includes('no such')) return [];
+      const root = /\\sqrt\{(\d+)\}/.exec(label);
+      const size = root ? Math.sqrt(Number(root[1])) : Number(/(\d+)$/.exec(label)![1]);
+      return label.includes('\\pm') ? [size, -size] : [size];
+    };
+    for (const { params, slide } of draws(g.implArctanWhere as Generator<ArctanWhereParams>)) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const [top, bottom] = arctanWhereTarget(params);
+      const target = top / bottom;
+      const onCurve = (x: number) => close(want(params.k, x), target);
+      const square = params.k / target - 1;
+      const truth = square < 0 ? 0 : square === 0 ? 1 : 2;
+      for (const option of slide.options) {
+        const xs = named(option.label);
+        const right = xs.length === truth && new Set(xs).size === xs.length && xs.every(onCurve);
+        expect(right, option.label).toBe(option.id === slide.correctId);
+      }
+    }
+  });
+
+  it('logarithmic differentiation agrees with mathjs on y itself, however it is asked', () => {
+    // Far enough right that every bracket is positive, so ln y is real.
+    const FAR = [7.5, 9.2, 11.3];
+    for (const { params, slide } of draws(g.implLogdiffLnTiles as Generator<LogDiffParams>)) {
+      const y = fn(logDiffSource(params));
+      for (const x of FAR) expect(close(valueOf5(filled(slide), { x }), Math.log(y.at({ x }))), filled(slide)).toBe(true);
+    }
+    for (const { params, slide } of draws(g.implLogdiffRateSteps as Generator<LogDiffParams>)) {
+      const source = logDiffSource(params);
+      const gradient = fn(rhsOf(lastValue(slide), source));
+      for (const x of FAR) expect(close(gradient.at({ x }), fn(source).by('x').at({ x })), lastValue(slide)).toBe(true);
+    }
+    for (const { params, slide } of draws(g.implLogdiffAtTree as Generator<LogDiffAtParams>)) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const source = fn(logDiffSource(logDiffAtCurve(params)));
+      const x = params.x0;
+      const [, , rate, y, gradient] = slide.answer.map((tex) => valueOf5(tex));
+      expect(close(y, source.at({ x })), slide.answer[3]).toBe(true);
+      expect(close(gradient, source.by('x').at({ x })), slide.answer[4]).toBe(true);
+      expect(close(rate * y, gradient)).toBe(true);
+    }
+    for (const { params, slide } of draws(g.implLogdiffFlow as Generator<PowerPowerParams>)) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const y = fn(powerPowerSource(params));
+      const lnRight = (label: string, x: number) => valueOf5(label.replace(/^\$\\ln y =/, ''), { x });
+      for (const x of FAR) {
+        expect(close(lnRight(slide.answer[1], x), Math.log(y.at({ x }))), slide.answer[1]).toBe(true);
+        expect(close(valueOf5(slide.answer[2], { x }), y.by('x').at({ x }) / y.at({ x })), slide.answer[2]).toBe(true);
+      }
+      // No other offer at either fork is right.
+      for (const branch of slide.steps[1].branches) {
+        if (branch.label !== slide.answer[1]) expect(close(lnRight(branch.label, FAR[0]), Math.log(y.at({ x: FAR[0] }))), branch.label).toBe(false);
+      }
+      for (const branch of slide.steps[2].branches) {
+        if (branch.label !== slide.answer[2]) {
+          expect(close(valueOf5(branch.label, { x: FAR[0] }), y.by('x').at({ x: FAR[0] }) / y.at({ x: FAR[0] })), branch.label).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('an inverse inside a chain agrees with mathjs, however it is asked', () => {
+    // Small enough that u stays inside the inverse sine's domain.
+    const NEAR = [-0.08, 0.03, 0.07];
+    for (const { params, slide } of draws(g.implInverseChainTiles as Generator<InverseChainParams>)) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const d = fn(chainSource(params)).by('x');
+      const u = (x: number) => (params.over ? x / params.n : params.n * x);
+      const [outer, inner, whole] = slide.answer;
+      for (const x of NEAR) {
+        expect(close(valueOf5(whole, { x }), d.at({ x })), `${whole} at ${x}`).toBe(true);
+        expect(close(valueOf5(outer, { u: u(x) }) * valueOf5(inner), d.at({ x })), `${outer} times ${inner}`).toBe(true);
+      }
+    }
+    for (const { params } of draws(g.implArctanChainGrad as Generator<InverseChainParams>)) {
+      const d = fn(chainSource(params)).by('x');
+      const right = correctAnswer(g.implArctanChainGrad as Generator<InverseChainParams>, params);
+      for (const x of X_SAMPLES) expect(close(fn(right).at({ x }), d.at({ x })), right).toBe(true);
+    }
+    for (const { params, slide } of draws(g.implInverseOrigin as Generator<InverseChainParams>)) {
+      const d = fn(chainSource(params)).by('x').at({ x: 0 });
+      expect(close(fn(typed(slide)).at({}), d)).toBe(true);
+      expect(close(fn(correctAnswer(g.implInverseOrigin as Generator<InverseChainParams>, params)).at({}), d)).toBe(true);
+    }
+    for (const { params, slide } of draws(g.implInversePointTree as Generator<InversePointParams>)) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const x = params.x[0] / params.x[1];
+      const [u, , , gradient] = slide.answer.map((tex) => valueOf5(tex));
+      expect(close(u, params.over ? x / params.n : params.n * x), slide.answer[0]).toBe(true);
+      expect(close(gradient, fn(chainSource(params)).by('x').at({ x })), slide.answer[3]).toBe(true);
     }
   });
 });

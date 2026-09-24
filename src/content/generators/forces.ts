@@ -5102,12 +5102,21 @@ function onlyAnswer(answer: string[], bank: string[], holds: (values: number[]) 
   return walk();
 }
 
-/** The extras that keep the answer the only way to fill the blanks, in the order given. */
+/**
+ * The extras that keep the answer the only way to fill the blanks, in the order
+ * given. When the slips named leave fewer than two, near misses of the answer's
+ * own numbers top it up, each spelled for its blank, so the bank is never the
+ * answer alone.
+ */
 function soleExtras(answer: string[], extras: string[], holds: (values: number[]) => boolean, after: number[] = []): string[] {
   const kept: string[] = [];
-  for (const token of extras) {
-    if (answer.includes(token) || kept.includes(token) || kept.length >= 4) continue;
+  const offer = (token: string, most: number): void => {
+    if (answer.includes(token) || kept.includes(token) || kept.length >= most) return;
     if (onlyAnswer(answer, [...answer, ...kept, token], holds, after)) kept.push(token);
+  };
+  for (const token of extras) offer(token, 4);
+  for (const shift of [1, -1, 2, -2]) {
+    answer.forEach((token, i) => offer((after.includes(i) ? signed : bare)(tileValue(token) + shift), 2));
   }
   return kept;
 }
@@ -5572,7 +5581,9 @@ const collideTiles: Generator<CollideParams> = {
     return until(
       () => {
         const find: CollideParams['find'] = hard && rng.chance(0.5) ? 'A' : 'B';
-        return { c: collisionOf(rng, hard, (c) => (find === 'B' ? c.vA : c.vB) !== 0), find };
+        // Neither velocity after is zero: a known one reads as moving, and an
+        // unknown one of zero lets any tile stand as its mass.
+        return { c: collisionOf(rng, hard, (c) => c.vA !== 0 && c.vB !== 0), find };
       },
       (params) => {
         const { answer, holds, after } = collideTilesOf(params);

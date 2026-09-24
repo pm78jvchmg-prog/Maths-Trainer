@@ -7894,7 +7894,17 @@ function pwTex(f: Piecewise, rules: string[] = f.pieces.map(ruleTex), name = 'f(
   return `${name ? `${name} = ` : ''}\\begin{cases} ${rows.join(' \\\\ ')} \\end{cases}`;
 }
 
-const pwBlock = (f: Piecewise, rules?: string[]): Block => ({ kind: 'display', tex: pwTex(f, rules) });
+/**
+ * The rule as prompt blocks. Three rows with `f(x) =` in front run past the
+ * edge of a phone, so a three-piece rule is named in a line of prose above it.
+ */
+const pwBlock = (f: Piecewise, rules?: string[]): Block[] =>
+  f.pieces.length > 2
+    ? [
+        { kind: 'prose', text: '$f(x)$ has three pieces:' },
+        { kind: 'display', tex: pwTex(f, rules, '') },
+      ]
+    : [{ kind: 'display', tex: pwTex(f, rules) }];
 
 /** The pictures of a function in pieces run from $x = -5$ to $5$. */
 const PW_SPAN = 5;
@@ -8039,7 +8049,7 @@ const pieceValue: Generator<PwPointParams> = {
   sample: (rng, difficulty) => samplePwPoint(rng, difficulty, 'answer'),
   render: ({ f, t }): Slide => ({
     kind: 'expression',
-    prompt: [{ kind: 'prose', text: `Use the piece whose stretch includes $x = ${t}$.` }, pwBlock(f)],
+    prompt: [{ kind: 'prose', text: `Use the piece whose stretch includes $x = ${t}$.` }, ...pwBlock(f)],
     lead: `f(${t}) =`,
     keypad: [],
     answer: `${pwAt(f, t)}`,
@@ -8062,7 +8072,7 @@ const pieceOwnerFlow: Generator<PwPointParams> = {
     const own = pieceOf(f, t);
     return {
       kind: 'flow',
-      prompt: [{ kind: 'prose', text: `Work out $f(${t})$: first the piece, then its value.` }, pwBlock(f)],
+      prompt: [{ kind: 'prose', text: `Work out $f(${t})$: first the piece, then its value.` }, ...pwBlock(f)],
       subject: `f(${t})`,
       steps: [
         {
@@ -8126,7 +8136,7 @@ const pieceSumTree: Generator<PwPairParams> = {
       kind: 'tree',
       prompt: [
         { kind: 'prose', text: `Fill the tree: $f(${a})$, then $f(${b})$, then the ${minus ? 'difference' : 'sum'}.` },
-        pwBlock(f),
+        ...pwBlock(f),
       ],
       expression: `f(${a}) ${minus ? '-' : '+'} f(${b})`,
       nodes: [
@@ -8508,7 +8518,10 @@ const pieceRuleRead: Generator<PwParams> = {
   render: ({ f }): Slide => {
     const [left, right] = f.pieces;
     const c = f.cuts[0];
-    const turned: Lin = { m: -left.m, q: linAt(left, c) + left.m * c };
+    // Turning the left piece round through the join; where that only copies
+    // the right piece (a symmetric V), lift the left piece instead.
+    const flipped: Lin = { m: -left.m, q: linAt(left, c) + left.m * c };
+    const turned: Lin = flipped.m === right.m && flipped.q === right.q ? { m: left.m, q: left.q + 2 } : flipped;
     const bentM = right.m + 1 === left.m ? right.m - 1 : right.m + 1;
     const bent: Lin = { m: bentM, q: linAt(right, c) - bentM * c };
     return pickOne(
@@ -8559,7 +8572,7 @@ const pieceGradientsTiles: Generator<GradientParams> = {
             ? 'To sketch $f$, give the gradient of each piece, left first, and where the graph crosses the $y$-axis.'
             : 'To sketch $f$, give the gradient of each piece, left first, and the height where they meet.',
         },
-        pwBlock(f),
+        ...pwBlock(f),
       ],
       template: intercept
         ? '\\text{gradients } {0} \\text{ and } {1}, \\ f(0) = {2}'
@@ -8617,7 +8630,7 @@ const pieceStartSlider: Generator<PwParams> = {
           kind: 'prose',
           text: `The graph of $f$ is drawn as far as $x = ${c}$. Slide to the height where the next piece starts.`,
         },
-        pwBlock(f),
+        ...pwBlock(f),
       ],
       min: yMin,
       max: yMax,
@@ -8671,7 +8684,7 @@ const pieceSketchFlow: Generator<PwParams> = {
     const dirs = [RISES, FALLS, LEVEL];
     return {
       kind: 'flow',
-      prompt: [{ kind: 'prose', text: 'Plan the sketch of $f$ before drawing it.' }, pwBlock(f)],
+      prompt: [{ kind: 'prose', text: 'Plan the sketch of $f$ before drawing it.' }, ...pwBlock(f)],
       subject: `y = f(x)`,
       steps: [
         {
@@ -8745,7 +8758,7 @@ const joinMeetFlow: Generator<JoinParams> = {
     const jump = jumpAt(f, i);
     return {
       kind: 'flow',
-      prompt: [{ kind: 'prose', text: `Is $f$ continuous at $x = ${c}$?` }, pwBlock(f)],
+      prompt: [{ kind: 'prose', text: `Is $f$ continuous at $x = ${c}$?` }, ...pwBlock(f)],
       subject: `x = ${c}`,
       steps: [
         {
@@ -8800,7 +8813,7 @@ const joinJump: Generator<JoinParams> = {
         kind: 'prose',
         text: `How far does the graph of $f$ jump at $x = ${f.cuts[i]}$? Give the gap between the two pieces there.`,
       },
-      pwBlock(f),
+      ...pwBlock(f),
     ],
     lead: '\\text{jump} =',
     keypad: [],
@@ -8891,7 +8904,7 @@ const continuousK: Generator<KParams> = {
   sample: sampleK,
   render: (p): Slide => ({
     kind: 'expression',
-    prompt: [{ kind: 'prose', text: `Find the value of $k$ that makes $f$ continuous at $x = ${p.f.cuts[0]}$.` }, pwBlock(p.f, kRules(p))],
+    prompt: [{ kind: 'prose', text: `Find the value of $k$ that makes $f$ continuous at $x = ${p.f.cuts[0]}$.` }, ...pwBlock(p.f, kRules(p))],
     lead: 'k =',
     keypad: [],
     answer: `${kValue(p)}`,
@@ -8946,7 +8959,7 @@ const kSolveSteps: Generator<KParams> = {
           kind: 'prose',
           text: `Find $k$ so that $f$ is continuous at $x = ${c}$: both pieces give the same value there. ${HOW_TO_STEP}`,
         },
-        pwBlock(p.f, kRules(p)),
+        ...pwBlock(p.f, kRules(p)),
       ],
       start,
       reductions,
@@ -8975,7 +8988,7 @@ const joinDotsTiles: Generator<JoinParams> = {
           kind: 'prose',
           text: `The graph of $f$ jumps at $x = ${c}$. Where is the filled dot, on the graph, and where the hollow one?`,
         },
-        pwBlock(f),
+        ...pwBlock(f),
       ],
       template: `\\text{filled } (${c}, {0}), \\ \\text{hollow } (${c}, {1})`,
       bank: bankOf(answer, [`${c}`, `${-own}`, `${own + Math.sign(own - other)}`, `${other - Math.sign(own - other)}`]),
@@ -9076,7 +9089,7 @@ const pieceRoot: Generator<SolveParams> = {
     ),
   render: ({ f, k }): Slide => ({
     kind: 'expression',
-    prompt: [{ kind: 'prose', text: `Solve $f(x) = ${k}$. It has exactly one solution.` }, pwBlock(f)],
+    prompt: [{ kind: 'prose', text: `Solve $f(x) = ${k}$. It has exactly one solution.` }, ...pwBlock(f)],
     lead: 'x =',
     keypad: [],
     answer: `${keptRoots(f, k)[0]}`,
@@ -9120,7 +9133,7 @@ const pieceRejectFlow: Generator<RejectPieceParams> = {
     const x = (k - p.q) / p.m;
     return {
       kind: 'flow',
-      prompt: [{ kind: 'prose', text: `Solving $${ruleTex(p)} = ${k}$ gave $x = ${x}$. Is it a solution of $f(x) = ${k}$?` }, pwBlock(f)],
+      prompt: [{ kind: 'prose', text: `Solving $${ruleTex(p)} = ${k}$ gave $x = ${x}$. Is it a solution of $f(x) = ${k}$?` }, ...pwBlock(f)],
       subject: `x = ${x}`,
       steps: [
         {
@@ -9173,7 +9186,7 @@ const pieceCount: Generator<SolveParams> = {
     return pickOne(
       [
         { kind: 'prose', text: `The dashed line is $y = ${k}$. How many solutions has $f(x) = ${k}$?` },
-        pwBlock(f),
+        ...pwBlock(f),
         { kind: 'diagram', svg: piecewiseSvg(f, { horizontal: k, label: `${pwLabel(f)}, and a dashed line at y = ${k}` }) },
       ],
       COUNT_OFFERED[n],
@@ -9206,7 +9219,7 @@ const pieceRootsTiles: Generator<SolveParams> = {
     const answer = roots.map((x) => `${x}`);
     return {
       kind: 'tiles',
-      prompt: [{ kind: 'prose', text: `Solve $f(x) = ${k}$. It has two solutions.` }, pwBlock(f)],
+      prompt: [{ kind: 'prose', text: `Solve $f(x) = ${k}$. It has two solutions.` }, ...pwBlock(f)],
       template: 'x = {0} \\text{ or } x = {1}',
       bank: bankOf(answer, [...thrownRoots(f, k), k, -roots[0], -roots[1], ...f.cuts].map((x) => `${x}`).filter((x) => !answer.includes(x)).slice(0, 3)),
       answer,

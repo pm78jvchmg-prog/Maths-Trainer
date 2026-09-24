@@ -1116,7 +1116,8 @@ const pwValue = (rows: readonly PwRow[], x: number) => plain(at(rows[rowAt(rows,
 
 /** The `f(x) = \begin{cases}` display on a slide. */
 function pwRows(slide: Slide, k?: number): PwRow[] {
-  const tex = displays(slide).find((d) => d.startsWith('f(x) = \\begin{cases}'));
+  // Two pieces are written `f(x) = \begin{cases}`; three are named in the prose above.
+  const tex = displays(slide).find((d) => /^(f\(x\) = )?\\begin\{cases\}/.test(d));
   if (!tex) throw new Error('no cases display');
   const withK = k === undefined ? tex : tex.replace(/k(?=x)/g, `(${k})*`).replace(/k/g, `(${k})`);
   return casesOf(withK);

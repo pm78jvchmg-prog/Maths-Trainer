@@ -1415,7 +1415,8 @@ export const inequalitiesModulus: Course = {
               prose(
                 'Three pieces work the same way, with two joins to watch. In a sum such as $f(-3) + f(2)$, each value comes from its own row, so the two halves may use different rules.',
               ),
-              maths('f(x) = \\begin{cases} x + 4 & x < -1 \\\\ 1 - x & -1 \\le x \\le 2 \\\\ 2x - 5 & x > 2 \\end{cases}'),
+              prose('Here $f(x)$ is:'),
+              maths('\\begin{cases} x + 4 & x < -1 \\\\ 1 - x & -1 \\le x \\le 2 \\\\ 2x - 5 & x > 2 \\end{cases}'),
               prose('$f(-3) = 1$ from the first row and $f(2) = -1$ from the second, which owns $x = 2$: the sum is $0$.'),
             ),
             ask('mod-piece-sum-tree', 2),
@@ -1441,9 +1442,9 @@ export const inequalitiesModulus: Course = {
             ask('mod-abs-cases-choice'),
             teach(
               prose(
-                'Two moduli split in two places. $\\lvert x - 1 \\rvert + \\lvert x + 2 \\rvert$ splits at $x = -2$ and $x = 1$, making three stretches, and in each one every modulus comes out by the sign of its own inside.',
+                'Two moduli split in two places. $\\lvert x - 1 \\rvert + \\lvert x + 2 \\rvert$ splits at $x = -2$ and $x = 1$, making three stretches, and in each one every modulus comes out by the sign of its own inside. In pieces it is:',
               ),
-              maths('\\lvert x - 1 \\rvert + \\lvert x + 2 \\rvert = \\begin{cases} -2x - 1 & x < -2 \\\\ 3 & -2 \\le x < 1 \\\\ 2x + 1 & x \\ge 1 \\end{cases}'),
+              maths('\\begin{cases} -2x - 1 & x < -2 \\\\ 3 & -2 \\le x < 1 \\\\ 2x + 1 & x \\ge 1 \\end{cases}'),
               prose(
                 'In the middle, $(1 - x) + (x + 2) = 3$: the $x$ terms cancel, and the distances to $1$ and to $-2$ always add up to the gap between them.',
               ),

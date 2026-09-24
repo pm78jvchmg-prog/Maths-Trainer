@@ -14,6 +14,12 @@
  * Level 3 is checked the same way: every remainder, derivative at c, bound M
  * and error is recomputed from mathjs's derivatives, the largest size of a
  * derivative on an interval found on a grid, and each read back off the slide.
+ *
+ * Level 4 recomputes every radius from the functions themselves. Symbolic
+ * derivatives blow up past a few orders here, so the Taylor coefficients are
+ * read off the function's own values round a circle in the complex plane (the
+ * Cauchy integral, as a discrete Fourier transform), the radius is the limit
+ * of |a_n / a_(n+1)|, and each end is judged by how fast its terms shrink.
  */
 import { describe, expect, it } from 'vitest';
 import { makeRng } from '../../engine/rng';
@@ -28,7 +34,10 @@ import {
   fnSource,
   hTex,
   numeratorSource,
+  powerSource,
   seriesByName as g,
+  seriesSumTex,
+  singSource,
   taylorSource,
   type Fn,
 } from './seriesExpansions';
@@ -992,6 +1001,338 @@ describe('level 3 error terms, checked against mathjs derivatives', { timeout: 1
       const x = valueOf(params.x);
       const M = supOn(derivative(cfnSource(params.g), p), Math.min(x, params.g.a), Math.max(x, params.g.a));
       expect(value).toBe(sf3((M * Math.abs(x - params.g.a) ** p) / fact(p)));
+    }
+  });
+});
+
+/* ---------- Level 4: the radius of convergence ---------- */
+
+/**
+ * The Taylor coefficients about `centre` from the function's own values: the
+ * Cauchy integral, which is mathjs evaluating the function at 128 points round
+ * a circle of radius `rho` in the complex plane, then a discrete Fourier
+ * transform. `taylor` differentiates symbolically, and that is hopeless here:
+ * mathjs's sixth derivative of `-log(1 - 4/9 x^2)` is over seven thousand
+ * characters and took half a minute, and a shifted `u/(1 - u)^2` is worse.
+ * `c_n rho^n` is what the transform measures, and the function's values are
+ * only good to about `1e-16` of the largest, or of 1 when they are all small
+ * (`log(1 - u)` for small u loses the rest to the 1), so a measurement under
+ * `1e-11` of that is rounding and is returned as exactly 0.
+ */
+const cauchyCache = new Map<string, number[]>();
+function cauchy(source: string, centre: number, rho: number, count = 20, points = 128): number[] {
+  const key = `${source}@${centre}~${rho}`;
+  const cached = cauchyCache.get(key);
+  if (cached) return cached;
+  const f = math.compile(source);
+  const values = Array.from({ length: points }, (_, j) => {
+    const t = (2 * Math.PI * j) / points;
+    return math.complex(f.evaluate({ x: math.complex(centre + rho * Math.cos(t), rho * Math.sin(t)) }));
+  });
+  const measured = Array.from({ length: count }, (_, n) => {
+    let sum = 0;
+    for (let j = 0; j < points; j += 1) {
+      const t = (2 * Math.PI * j * n) / points;
+      sum += values[j].re * Math.cos(t) + values[j].im * Math.sin(t);
+    }
+    return sum / points;
+  });
+  const largest = Math.max(...values.map((v) => math.abs(v) as unknown as number));
+  const out = measured.map((m, n) => (Math.abs(m) < 1e-11 * Math.max(largest, 1) ? 0 : m / rho ** n));
+  cauchyCache.set(key, out);
+  return out;
+}
+
+/** The coefficients that are there. */
+const present = (coefs: number[]): { p: number; c: number }[] => coefs.map((c, p) => ({ p, c })).filter(({ c }) => c !== 0);
+
+/**
+ * The radius the coefficients give. `|c_n / c_(n+1)|` across consecutive
+ * terms tends to `R^g`, where only every g-th power appears. An extra n or
+ * 1/n makes it approach like `R^g (1 + b/n + c/n^2 + ...)`, so they are
+ * extrapolated in 1/n from the last three, which a plain geometric run
+ * passes through unchanged.
+ * Infinite when they keep growing, as a factorial underneath makes them.
+ */
+function radiusFromCoefs(coefs: number[]): number {
+  const terms = present(coefs);
+  expect(terms.length, `too few coefficients survive: ${coefs.join(', ')}`).toBeGreaterThanOrEqual(4);
+  const g = terms[terms.length - 1].p - terms[terms.length - 2].p;
+  const ratios = terms.slice(0, -1).map((t, i) => ({ n: t.p / g, v: Math.abs(t.c / terms[i + 1].c) }));
+  const last = ratios.length - 1;
+  const [a, b, c] = [ratios[last - 2], ratios[last - 1], ratios[last]];
+  if (c.v / ratios[Math.floor(last / 2)].v > 1.4) return Infinity;
+  const n = c.n;
+  const rg = (n * n * c.v - 2 * (n - 1) ** 2 * b.v + (n - 2) ** 2 * a.v) / 2;
+  return rg ** (1 / g);
+}
+
+/**
+ * The coefficients about `centre`, from a circle half as wide as the radius.
+ * The circle has to sit inside the radius, and the error in `c_n` grows like
+ * `(R/rho)^n`, so it starts small and widens to half of what each pass finds,
+ * or doubles while too few terms rise above rounding to judge by.
+ */
+function coefsOf(source: string, centre = 0): number[] {
+  let rho = 0.01;
+  for (let pass = 0; pass < 16; pass += 1) {
+    const coefs = cauchy(source, centre, rho);
+    const terms = present(coefs);
+    if (terms.length < 6 || terms[terms.length - 1].p < 12) {
+      // Too far inside the radius: the terms fall below rounding before enough of them are seen.
+      rho *= 2;
+      continue;
+    }
+    const r = radiusFromCoefs(coefs);
+    const next = Math.min(r, 8) / 2;
+    if (Math.abs(next - rho) < 0.1 * rho) return coefs;
+    expect(r, `${source}: a radius below the first circle`).toBeGreaterThan(rho);
+    rho = next;
+  }
+  throw new Error(`${source}: the circle never settled`);
+}
+
+const radiusFrom = (source: string, centre = 0): number => radiusFromCoefs(coefsOf(source, centre));
+
+/**
+ * Whether the series about `centre` converges at `x`, from the terms there:
+ * terms that do not shrink to 0 diverge, and terms shrinking like 1/n
+ * converge exactly when their signs alternate.
+ */
+function convergesAt(source: string, centre: number, x: number): boolean {
+  const terms = present(coefsOf(source, centre)).map(({ p, c }) => ({ p, t: c * (x - centre) ** p }));
+  const last = terms[terms.length - 1];
+  const mid = terms[Math.floor(terms.length / 2)];
+  const power = Math.log(Math.abs(last.t) / Math.abs(mid.t)) / Math.log(last.p / mid.p);
+  if (power > -0.5) return false;
+  if (power < -1.5) return true;
+  return terms.slice(-4).every((term, i, run) => i === 0 || Math.sign(term.t) !== Math.sign(run[i - 1].t));
+}
+
+/** Two radii agree: both infinite, or within the extrapolation's reach. */
+const sameRadius = (a: number, b: number): boolean => (a === Infinity || b === Infinity ? a === b : Math.abs(a - b) < 5e-3 * Math.max(a, b));
+
+/** A printed value, roots included: `\frac{1}{\sqrt{2}}`, `\sqrt[3]{4}`, `$R = \frac{3}{2}$`; `\infty` is Infinity. */
+function texValue(tex: string, scope: Record<string, number> = {}): number {
+  let s = tex
+    .replace(/\$/g, '')
+    .replace(/^[LR] = /, '')
+    .replace(/\\,/g, ' ')
+    .replace(/\\cdot/g, '*')
+    .trim();
+  if (s === '\\infty') return Infinity;
+  for (;;) {
+    const next = s
+      .replace(/\\sqrt\[3\]\{([^{}]*)\}/g, 'cbrt($1)')
+      .replace(/\\sqrt\{([^{}]*)\}/g, 'sqrt($1)')
+      .replace(/\\frac\{([^{}]*)\}\{([^{}]*)\}/g, '(($1)/($2))');
+    if (next === s) break;
+    s = next;
+  }
+  return at(s, scope);
+}
+
+/** A number line's set, read back. */
+function lineRange(answer: string) {
+  const m = /^([[(])(-?[\d.]+),(-?[\d.]+)([\])])$/.exec(answer)!;
+  return { lo: Number(m[2]), hi: Number(m[3]), loIn: m[1] === '[', hiIn: m[4] === ']' };
+}
+
+/** An interval about `centre` out to the radius, with each end included exactly where the series converges there. */
+function expectInterval(got: { lo: number; hi: number; loIn: boolean; hiIn: boolean }, source: string, centre: number) {
+  const r = radiusFrom(source, centre);
+  expect(near(got.lo, centre - r, 5e-3 * r) && near(got.hi, centre + r, 5e-3 * r), `${JSON.stringify(got)} for R = ${r} about ${centre}`).toBe(true);
+  expect(got.loIn, `the end ${got.lo} of ${source}`).toBe(convergesAt(source, centre, got.lo));
+  expect(got.hiIn, `the end ${got.hi} of ${source}`).toBe(convergesAt(source, centre, got.hi));
+}
+
+describe('level 4 radius of convergence, checked against the functions themselves', { timeout: 120_000 }, () => {
+  it('reads radii off coefficients, and ends off terms', () => {
+    // Each kind of series once, against radii and ends known by hand.
+    expect(sameRadius(radiusFrom('1/(1 - 3*x)'), 1 / 3)).toBe(true);
+    expect(sameRadius(radiusFrom('-log(1 - x/2)'), 2)).toBe(true);
+    expect(sameRadius(radiusFrom('(x/5)/(1 - x/5)^2'), 5)).toBe(true);
+    expect(sameRadius(radiusFrom('-log(1 - 8*x^3)'), 1 / 2)).toBe(true);
+    expect(sameRadius(radiusFrom('1/((x - 2)*(x + 2))', 1), 1)).toBe(true);
+    expect(sameRadius(radiusFrom('1/(9 + 4*x^2)'), 3 / 2)).toBe(true);
+    expect(radiusFrom('exp(5*x)')).toBe(Infinity);
+    expect(radiusFrom('(x/2)*exp(x/2)')).toBe(Infinity);
+    expect(convergesAt('-log(1 - x)', 0, 1)).toBe(false);
+    expect(convergesAt('-log(1 - x)', 0, -1)).toBe(true);
+    expect(convergesAt('1/(1 - x)', 0, -1)).toBe(false);
+    expect(convergesAt('x/(1 - x)^2', 0, -1)).toBe(false);
+    expect(texValue('\\frac{1}{\\sqrt{2}}')).toBeCloseTo(Math.SQRT1_2);
+    expect(texValue('\\sqrt{\\frac{3}{2}}')).toBeCloseTo(Math.sqrt(1.5));
+    expect(texValue('\\sqrt[3]{4}')).toBeCloseTo(Math.cbrt(4));
+    expect(texValue('(-1)^{n}\\,n', { n: 3 })).toBe(-3);
+  });
+
+  it('ser-ratio-tiles splits the ratio of consecutive coefficients truly', () => {
+    for (const { params, slide } of draws(g.ratioTiles)) {
+      const [kPart, nPart] = placed(slide);
+      const c = coefsOf(powerSource(params.s));
+      for (let n = 4; n <= 10; n += 1) {
+        expect(near(texValue(kPart) * texValue(nPart, { n }), Math.abs(c[n + 1] / c[n]), 1e-6), `n = ${n}`).toBe(true);
+      }
+    }
+  });
+
+  it('ser-ratio-flow finds L and compares L|x| with 1', () => {
+    for (const { params, slide } of draws(g.ratioFlow)) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const r = radiusFrom(powerSource(params.s));
+      const x = Math.abs(texValue(/x = (.+)$/.exec(slide.subject)![1]));
+      expect(sameRadius(1 / texValue(slide.answer[0]), r)).toBe(true);
+      const want = sameRadius(x, r) ? 'equal to $1$' : x < r ? 'less than $1$' : 'more than $1$';
+      expect(slide.answer[1]).toBe(want);
+    }
+  });
+
+  it('ser-ratio-limit types L, which is 1/R', () => {
+    for (const { params, value } of answered(g.ratioLimit)) {
+      expect(sameRadius(1 / value, radiusFrom(powerSource(params.s)))).toBe(true);
+    }
+  });
+
+  it('ser-radius-slider stops at the radius', () => {
+    for (const { params, slide } of draws(g.radiusSlider)) {
+      if (slide.kind !== 'slider') throw new Error('expected slider');
+      expect(sameRadius(slide.answer, radiusFrom(powerSource(params.s)))).toBe(true);
+    }
+  });
+
+  it('ser-radius-typed types the radius', () => {
+    for (const { params, value } of answered(g.radiusTyped)) {
+      expect(sameRadius(value, radiusFrom(powerSource(params.s)))).toBe(true);
+    }
+  });
+
+  it('ser-ratio-steps ends on L', () => {
+    for (const { params, slide } of draws(g.ratioSteps)) {
+      expect(sameRadius(1 / lastValue(slide), radiusFrom(powerSource(params.s)))).toBe(true);
+    }
+  });
+
+  it('ser-radius-flow ends on the radius, or on an infinite one', () => {
+    for (const { params, slide } of draws(g.radiusFlow)) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const r = radiusFrom(powerSource(params.s));
+      if (r === Infinity) {
+        expect(slide.answer).toEqual(['tends to $0$']);
+        continue;
+      }
+      expect(slide.answer[0]).toBe('tends to a number $L > 0$');
+      expect(sameRadius(1 / texValue(slide.answer[1]), r) && sameRadius(texValue(slide.answer[2]), r)).toBe(true);
+    }
+  });
+
+  it('ser-radius-match marks the one series with the radius asked for', () => {
+    for (const { params, slide } of draws(g.radiusMatch)) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const asked = /radius of convergence \$(.+?)\$/.exec(proseOf(slide));
+      const want = asked ? texValue(asked[1]) : Infinity;
+      const all = [params.target, ...params.others];
+      expect(slide.options.map((o) => o.label).sort()).toEqual(all.map(seriesSumTex).sort());
+      for (const s of all) {
+        const option = slide.options.find((o) => o.label === seriesSumTex(s))!;
+        expect(sameRadius(radiusFrom(powerSource(s)), want), option.label).toBe(option.id === slide.correctId);
+      }
+    }
+  });
+
+  it('ser-end-flow gives the true term at the end, and whether it converges there', () => {
+    for (const { params, slide } of draws(g.endFlow)) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const source = powerSource(params.s);
+      const x = texValue(/the end \$x = (.+?)\$/.exec(proseOf(slide))![1]);
+      expect(sameRadius(Math.abs(x), radiusFrom(source))).toBe(true);
+      const c = coefsOf(source);
+      for (let n = 5; n <= 8; n += 1) expect(near(texValue(slide.answer[0], { n }), c[n] * x ** n, 1e-6), `n = ${n}`).toBe(true);
+      const converges = slide.answer.length === 3 && slide.answer[2] === 'Yes';
+      expect(converges).toBe(convergesAt(source, 0, x));
+    }
+  });
+
+  it('ser-interval-line shades out to the radius, with each end as the terms there decide', () => {
+    for (const { params, slide } of draws(g.intervalLine)) {
+      if (slide.kind !== 'numberLine') throw new Error('expected numberLine');
+      expectInterval(lineRange(slide.answer), powerSource(params.s), 0);
+    }
+  });
+
+  it('ser-interval-tiles writes the interval of convergence', () => {
+    for (const { params, slide } of draws(g.intervalTiles)) {
+      const [lo, r1, r2, hi] = placed(slide);
+      expectInterval(readRange(`${lo} ${r1} x ${r2} ${hi}`), powerSource(params.s), 0);
+    }
+  });
+
+  it('ser-interval-pick marks the interval of convergence, or every x', () => {
+    for (const { params, slide } of draws(g.intervalPick)) {
+      const label = picked(slide);
+      const source = powerSource(params.s);
+      if (label === '\\text{all real } x') expect(radiusFrom(source)).toBe(Infinity);
+      else expectInterval(readRange(label), source, 0);
+    }
+  });
+
+  it('ser-sub-radius types the radius of a series in x^2 or x^3', () => {
+    for (const { params, value } of answered(g.subRadius)) {
+      expect(sameRadius(value, radiusFrom(powerSource(params.s)))).toBe(true);
+    }
+  });
+
+  it('ser-sub-pick marks the radius when it is a root', () => {
+    for (const { params, slide } of draws(g.subPick)) {
+      expect(sameRadius(texValue(picked(slide)), radiusFrom(powerSource(params.s)))).toBe(true);
+    }
+  });
+
+  it('ser-shift-tree fills L, R and the ends about the centre', () => {
+    for (const { params, slide } of draws(g.shiftTree)) {
+      const r = radiusFrom(powerSource(params.s), params.s.a);
+      const [L, R, lo, hi] = filled(slide);
+      expect(sameRadius(1 / L, r) && sameRadius(R, r)).toBe(true);
+      expect(near(lo, params.s.a - r, 5e-3) && near(hi, params.s.a + r, 5e-3)).toBe(true);
+    }
+  });
+
+  it('ser-shift-line shades the interval about the centre, ends and all', () => {
+    for (const { params, slide } of draws(g.shiftLine)) {
+      if (slide.kind !== 'numberLine') throw new Error('expected numberLine');
+      expectInterval(lineRange(slide.answer), powerSource(params.s), params.s.a);
+    }
+  });
+
+  it('ser-singular-typed types the radius, which the coefficients about the centre give', () => {
+    for (const { params, value } of answered(g.singularTyped)) {
+      expect(sameRadius(value, radiusFrom(singSource(params), params.a))).toBe(true);
+    }
+  });
+
+  it('ser-singular-flow finds where the function breaks, then the radius', () => {
+    for (const { params, slide } of draws(g.singularFlow)) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const source = singSource(params);
+      const points = [...slide.answer[0].matchAll(/\$x = (-?\d+)\$/g)].map((m) => Number(m[1]));
+      for (const x of points) expect(Number.isFinite(math.evaluate(source, { x }) as number), `${source} at ${x}`).toBe(false);
+      expect(sameRadius(texValue(slide.answer[1]), radiusFrom(source, params.a))).toBe(true);
+    }
+  });
+
+  it('ser-singular-slider stops at the radius', () => {
+    for (const { params, slide } of draws(g.singularSlider)) {
+      if (slide.kind !== 'slider') throw new Error('expected slider');
+      expect(sameRadius(slide.answer, radiusFrom(singSource(params), params.a))).toBe(true);
+    }
+  });
+
+  it('ser-complex-pick marks the radius a curve with no real break still has', () => {
+    for (const { params, slide } of draws(g.complexPick)) {
+      const source = `${params.b}/(${params.c ** 2} + ${params.k ** 2}*x^2)`;
+      const label = picked(slide);
+      expect(label).not.toBe('\\infty');
+      expect(sameRadius(texValue(label), radiusFrom(source))).toBe(true);
     }
   });
 });

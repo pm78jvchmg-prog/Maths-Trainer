@@ -42,6 +42,11 @@
   --accent-strong: #5b53e0;
   --accent-dim: #2a2856;
 
+  /* Letters standing for a quantity (x, m_A, \alpha) are tinted so they stand
+     apart from the words and numbers around them; the owner asked for it.
+     Sky rather than a verdict colour, and light enough to read on the page. */
+  --math-var: #a9ccff;
+
   /*
    * The verdicts, picked to sit beside the violet rather than fight it.
    *
@@ -74,6 +79,14 @@
   --lift: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 10px 24px -16px rgb(0 0 0 / 0.9);
 
   color-scheme: dark;
+}
+
+/* KaTeX sets variables in its italic `mathnormal` font and words, numbers and
+   function names (sin, log) upright, so the italic is exactly "a letter that
+   stands for something". */
+.katex .mathnormal,
+.katex .boldsymbol {
+  color: var(--math-var);
 }
 
 * {
@@ -1258,52 +1271,53 @@ button {
   margin: 0;
 }
 
-/* Each band washes the page behind it in its own colour, fading in above its
-   heading, so scrolling down the list reads as climbing in difficulty. The
-   owner asked for the maths bands to deepen in purple as they get harder, and
-   for Mechanics, which is physics rather than pure maths, to turn orange.
-   Only tokens change per band, so every rule inside reads the same variables. */
-.category-section {
-  --wash: 138 134 255;
-  --wash-strength: 0;
-  position: relative;
-  isolation: isolate;
+/* Two colour runs down the home list, as the owner asked: one purple
+   background from the first maths band to the last, deepening as the maths
+   gets harder, then one orange run for Statistics and Mechanics, light at its
+   top and dark at its foot. Each is full-bleed to the list's edges, and the
+   accent tokens follow the run, so the cards inside take its colour. */
+.band {
+  margin: 0 -20px;
+  padding: 0 20px 34px;
 }
 
-.category-section::before {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  inset: 0 -20px;
+.band-maths {
+  padding-top: 8px;
+  border-radius: 24px 24px 0 0;
   background: linear-gradient(
     to bottom,
-    transparent 0,
-    rgb(var(--wash) / var(--wash-strength)) 110px,
-    rgb(var(--wash) / calc(var(--wash-strength) * 0.7)) calc(100% - 50px),
-    transparent 100%
+    rgb(138 134 255 / 0.05) 0%,
+    rgb(112 92 250 / 0.14) 40%,
+    rgb(92 50 225 / 0.3) 75%,
+    rgb(70 24 190 / 0.45) 100%
   );
-  pointer-events: none;
+}
+
+.band-applied {
+  padding-top: 40px;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  margin-bottom: calc(-20px - env(safe-area-inset-bottom));
+  background: linear-gradient(
+    to bottom,
+    rgb(255 170 100 / 0.22) 0%,
+    rgb(240 120 40 / 0.22) 50%,
+    rgb(150 55 10 / 0.4) 100%
+  );
+  --accent: #ffa45e;
+  --accent-strong: #e8711c;
+  --card-glow: rgb(255 150 70 / 0.22);
 }
 
 .category-section + .category-section {
-  margin-top: 0;
-  padding-top: 70px;
-}
-
-.category-algebra-fundamentals {
-  --wash-strength: 0.05;
+  margin-top: 30px;
 }
 
 .category-advanced-algebra {
-  --wash: 112 92 250;
-  --wash-strength: 0.12;
   --accent: #7f72ff;
   --card-glow: rgb(112 92 250 / 0.26);
 }
 
 .category-advanced-maths {
-  --wash: 92 50 225;
-  --wash-strength: 0.22;
   --accent: #7458f5;
   --accent-strong: #4a2fd0;
   --card-glow: rgb(92 50 225 / 0.34);
@@ -1313,26 +1327,7 @@ button {
   border-color: rgb(116 88 245 / 0.35);
 }
 
-.category-statistics {
-  --wash-strength: 0;
-}
-
-.category-mechanics {
-  --wash: 255 150 70;
-  --wash-strength: 0.2;
-  --accent: #ffa45e;
-  --accent-strong: #e8711c;
-  --card-glow: rgb(255 150 70 / 0.22);
-}
-
-.category-mechanics .category-title {
-  background: linear-gradient(90deg, #a59bff, #ffa45e 55%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-.category-mechanics .course-card {
+.band-applied .course-card {
   border-color: rgb(255 164 94 / 0.25);
 }
 
@@ -2617,4 +2612,72 @@ button {
 .answer-slot[data-drop='true'] {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* ---------- Tablet ---------- */
+
+/* On an iPad the phone column left wide empty margins, so the home list and a
+   course's map spread further to the sides and their cards grow with them.
+   Lessons keep the phone width: a question read across a whole tablet is
+   harder to follow, not easier. */
+@media (min-width: 740px) {
+  .app-wide {
+    max-width: 900px;
+  }
+
+  .app-wide .map {
+    padding-left: 36px;
+    padding-right: 36px;
+  }
+
+  .app-wide .band {
+    margin-left: -36px;
+    margin-right: -36px;
+    padding-left: 36px;
+    padding-right: 36px;
+  }
+
+  .course-card {
+    padding: 18px 24px;
+    margin-bottom: 12px;
+  }
+
+  .course-card-title {
+    font-size: 21px;
+    margin-bottom: 8px;
+  }
+
+  .course-progress {
+    font-size: 14px;
+  }
+
+  .pip {
+    height: 6px;
+  }
+
+  .category-title {
+    font-size: 30px;
+  }
+
+  .category-blurb {
+    font-size: 16px;
+  }
+
+  .lesson-row {
+    padding: 18px 20px;
+    gap: 20px;
+  }
+
+  .lesson-name {
+    font-size: 19px;
+  }
+
+  .lesson-meta {
+    font-size: 15px;
+  }
+
+  .node {
+    width: 54px;
+    height: 54px;
+  }
 }

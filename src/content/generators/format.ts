@@ -96,3 +96,12 @@ export function surdAnswer(n: number): string {
 export function nonZero(rng: Rng, max: number): number {
   return rng.int(1, max) * rng.sign();
 }
+
+/**
+ * A tile list with each token once. Two formulas for a distractor can land on
+ * the same value (or on the answer), and a bank showing one tile twice reads
+ * as a hint about how many times it is needed.
+ */
+export function distinct(tokens: string[]): string[] {
+  return [...new Set(tokens)];
+}

@@ -54,6 +54,9 @@ import { docFromKeys, toAnswer } from '../../ui/mathInput';
 import type { Generator, Slide, SlideRef } from '../types';
 
 const SEEDS = 200;
+
+/** Tiles a bank may repeat beyond what the answer needs; see the repeated-tile check. */
+const SIGN_TILES = new Set(['+', '-', '+\\infty', '-\\infty']);
 const DIFFICULTIES = [1, 2];
 
 // A backslash-stripped command like "overline{3 + 4i}" is perfectly valid TeX
@@ -103,6 +106,22 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
   it('renders a well-formed slide for every seed', () => {
     for (const { params } of cases) {
       const slide = (generator as Generator<unknown>).render(params);
+
+      // A bank offers a tile no more often than the answer can use it. Two
+      // distractor formulas landing on the same value, or on the answer,
+      // showed one tile twice, which reads as a hint that it is needed twice.
+      // Signs are exempt: a sign table offers two of each so the count of
+      // tiles cannot give the answer away.
+      if ('bank' in slide && Array.isArray(slide.bank) && Array.isArray(slide.answer)) {
+        const needed = new Map<string, number>();
+        for (const token of slide.answer as string[]) needed.set(token, (needed.get(token) ?? 0) + 1);
+        const offered = new Map<string, number>();
+        for (const token of slide.bank as string[]) offered.set(token, (offered.get(token) ?? 0) + 1);
+        const surplus = [...offered].filter(
+          ([token, n]) => !SIGN_TILES.has(token) && n > Math.max(1, needed.get(token) ?? 0),
+        );
+        expect(surplus, `${generator.id}: repeated tiles in ${JSON.stringify(slide.bank)}`).toEqual([]);
+      }
 
       if (slide.kind === 'choice') {
         expect(slide.options.length).toBeGreaterThanOrEqual(2);

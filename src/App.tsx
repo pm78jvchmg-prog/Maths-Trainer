@@ -102,6 +102,18 @@ function LibraryLine() {
  */
 let homeScroll = 0;
 
+/**
+ * The home list's two colour runs. The owner asked for one background running
+ * from the first maths band to the last, deepening as the maths gets harder,
+ * and a second, orange, run for the applied subjects.
+ */
+const MATHS_BANDS = ['algebra-fundamentals', 'advanced-algebra', 'advanced-maths'];
+const BANDS = [
+  { id: 'maths', holds: (id: string) => MATHS_BANDS.includes(id) },
+  // Everything else, so a category added later cannot fall out of the list.
+  { id: 'applied', holds: (id: string) => !MATHS_BANDS.includes(id) },
+];
+
 function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
   const records = useProgress((state) => state.lessons);
   const list = useRef<HTMLDivElement>(null);
@@ -111,7 +123,7 @@ function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
   }, []);
 
   return (
-    <div className="app">
+    <div className="app app-wide">
       <div
         className="map"
         ref={list}
@@ -125,56 +137,62 @@ function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
         {/* Every category in one list, easiest first, each under its own
             heading. The owner asked for this in place of a tab strip, so the
             whole library is one scroll rather than five hidden panes. */}
-        {categories.map((category) => (
-          <section className={`category-section category-${category.id}`} key={category.id} aria-labelledby={`cat-${category.id}`}>
-            <header className="category-head">
-              <h2 className="category-title" id={`cat-${category.id}`}>
-                {category.title}
-              </h2>
-              <p className="category-blurb">{category.blurb}</p>
-            </header>
+        {BANDS.map((band) => (
+          <div className={`band band-${band.id}`} key={band.id}>
+          {categories
+            .filter((category) => band.holds(category.id))
+            .map((category) => (
+            <section className={`category-section category-${category.id}`} key={category.id} aria-labelledby={`cat-${category.id}`}>
+              <header className="category-head">
+                <h2 className="category-title" id={`cat-${category.id}`}>
+                  {category.title}
+                </h2>
+                <p className="category-blurb">{category.blurb}</p>
+              </header>
 
-            <div className="course-list">
-              {category.courses.map((course) => {
-                const ids = playables(course).map((lesson) => lesson.id);
-                const done = ids.filter((id) => records[id]).length;
-                const total = lessonCount(course) + checkCount(course);
-                const mastery = courseMastery(course, records);
+              <div className="course-list">
+                {category.courses.map((course) => {
+                  const ids = playables(course).map((lesson) => lesson.id);
+                  const done = ids.filter((id) => records[id]).length;
+                  const total = lessonCount(course) + checkCount(course);
+                  const mastery = courseMastery(course, records);
 
-                return (
-                  <button
-                    key={course.id}
-                    type="button"
-                    className={`course-card${done === total ? ' complete' : ''}`}
-                    aria-label={`${course.title}: ${course.blurb}`}
-                    onClick={() => onOpen(course)}
-                  >
-                    <div className="course-card-title">{course.title}</div>
-                    <div className="course-progress">
-                      <span className="progress-pips">
-                        {ids.map((id) => (
-                          <span key={id} className={`pip${records[id] ? ' done' : ''}`} />
-                        ))}
-                      </span>
-                      {/* Lessons finished, then marks earned. The pair is the
-                          point: you can finish every lesson in a course and
-                          still be some way off knowing it. */}
-                      <span className="progress-count">
-                        {done}/{total}
-                      </span>
-                      {mastery.played > 0 && (
-                        <span
-                          className={`mastery${mastery.fraction >= MASTERED_AT ? ' mastered' : ''}`}
-                        >
-                          {masteryPercent(mastery)}%
+                  return (
+                    <button
+                      key={course.id}
+                      type="button"
+                      className={`course-card${done === total ? ' complete' : ''}`}
+                      aria-label={`${course.title}: ${course.blurb}`}
+                      onClick={() => onOpen(course)}
+                    >
+                      <div className="course-card-title">{course.title}</div>
+                      <div className="course-progress">
+                        <span className="progress-pips">
+                          {ids.map((id) => (
+                            <span key={id} className={`pip${records[id] ? ' done' : ''}`} />
+                          ))}
                         </span>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
+                        {/* Lessons finished, then marks earned. The pair is the
+                            point: you can finish every lesson in a course and
+                            still be some way off knowing it. */}
+                        <span className="progress-count">
+                          {done}/{total}
+                        </span>
+                        {mastery.played > 0 && (
+                          <span
+                            className={`mastery${mastery.fraction >= MASTERED_AT ? ' mastered' : ''}`}
+                          >
+                            {masteryPercent(mastery)}%
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+          </div>
         ))}
       </div>
     </div>
@@ -193,7 +211,7 @@ function CourseMap({
   const records = useProgress((state) => state.lessons);
 
   return (
-    <div className="app">
+    <div className="app app-wide">
       <div className="map">
         <button type="button" className="back-link" onClick={onBack}>
           &#8249; All courses

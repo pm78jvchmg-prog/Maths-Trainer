@@ -2022,7 +2022,9 @@ const deCoolTree: Generator<CoolFitParams> = {
         { id: 'r', from: ['g0', 'g1'] },
         { id: 'k', from: ['r'] },
       ],
-      bank: [...numbers, ...kTokens],
+      // k's wrong forms can coincide with it (h = b = 2 makes ln h / b equal
+      // ln b / h), so each token is offered once.
+      bank: [...numbers, ...new Set(kTokens)],
       answer: [`${b * gap}`, `${gap}`, `${b}`, k],
     };
   },

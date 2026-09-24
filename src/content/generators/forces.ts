@@ -541,7 +541,8 @@ interface DirectionParams {
 
 /** Degrees, to one decimal place. */
 const deg1 = (radians: number): number => Math.round(((radians * 180) / Math.PI) * 10) / 10;
-const degTex = (v: number): string => `${fmt(v)}^{\\circ}`;
+/** Always to one decimal place, as the question asks: 166.0, never 166. */
+const degTex = (v: number): string => `${v.toFixed(1)}^{\\circ}`;
 
 /** Choice: the angle between a i + b j and the unit vector i. */
 const direction: Generator<DirectionParams> = {
@@ -3094,10 +3095,12 @@ const pairFlow: Generator<PairFlowParams> = {
   render: (params) => {
     const [a, b] = pairFlowForces(params);
     const { thing, holder, m } = params;
+    // "An" before a number read with a vowel sound: an 8 kg, an 11 kg, an 18 kg.
+    const article = /^(8|11(?!\d)|18(?!\d))/.test(`${m}`) ? 'An' : 'A';
     const scene =
       params.kind === 'motion'
-        ? `A ${m} kg swimmer is moving through the water.`
-        : `A ${m} kg ${thing} ${params.kind === 'hangTension' || params.kind === 'hangWeight' ? 'hangs at rest from a' : 'rests on a'} ${holder}.`;
+        ? `${article} ${m} kg swimmer is moving through the water.`
+        : `${article} ${m} kg ${thing} ${params.kind === 'hangTension' || params.kind === 'hangWeight' ? 'hangs at rest from a' : 'rests on a'} ${holder}.`;
     return {
       kind: 'flow',
       prompt: [say(`${scene} Force A: ${a}. Force B: ${b}. Are A and B a Newton's third law pair?`)],
@@ -3384,7 +3387,14 @@ const liftFlow: Generator<LiftFlowParams> = {
             : `A lift ${words} has its acceleration pointing ${sign > 0 ? 'up' : 'down'}: the direction it is speeding up in, or against the direction it is slowing down in.`,
       },
     ];
-    if (hard) steps.push({ tex: `R = ${m}(9.8 ${sign > 0 ? `+ ${fmt(size)}` : sign < 0 ? `- ${fmt(size)}` : ''}) = ${fmt(m * (G + sign * size))}` });
+    if (hard) {
+      steps.push({
+        tex:
+          sign === 0
+            ? `R = ${m} \\times 9.8 = ${fmt(m * G)}`
+            : `R = ${m}(9.8 ${sign > 0 ? '+' : '-'} ${fmt(size)}) = ${fmt(m * (G + sign * size))}`,
+      });
+    }
     return steps;
   },
 };
@@ -3826,7 +3836,9 @@ function rigWorking(rig: Rig, hard: boolean, withT = true): SolutionStep[] {
   if (mu1 > 0) steps.push({ tex: `F_{A} = ${fmt(mu1)} \\times ${fmt(m.R1)} = ${fmt(m.F1)}` });
   if (mu2 > 0) steps.push({ tex: `F_{B} = ${fmt(mu2)} \\times ${fmt(m.R2)} = ${fmt(m.F2)}` });
   steps.push(
-    { text: `Friction acts against the motion. One equation for each particle in its own direction of motion, $A$'s first:` },
+    {
+      text: `${mu1 > 0 || mu2 > 0 ? 'Friction acts against the motion. ' : ''}One equation for each particle in its own direction of motion, $A$'s first:`,
+    },
     { tex: pairTex([eqA, eqB]) },
     { text: 'Add them, and $T$ drops out:' },
     { tex: `${fmt(push - m.F1 - m.F2)} = ${fmt(m1 + m2)}a, \\quad a = ${fmt(m.a)}` },

@@ -414,7 +414,6 @@ export const differentiation: Course = {
                 kind: 'prose',
                 text: 'Each term differentiates exactly one of the factors and leaves the other alone. Checking that every term contains one dashed and one undashed letter catches most mistakes on sight.',
               },
-              { kind: 'display', tex: "\\frac{d}{dx}(uv) = u'v + uv'" },
             ),
             ask('product-rule'),
             ask('df-product-tiles'),
@@ -493,7 +492,6 @@ export const differentiation: Course = {
                 kind: 'prose',
                 text: 'The numerator starts with the derivative of the top. Swapping those two terms is the most common slip.',
               },
-              { kind: 'display', tex: "\\frac{d}{dx}\\left(\\frac{u}{v}\\right) = \\frac{u'v - uv'}{v^{2}}" },
               {
                 kind: 'prose',
                 text: 'Swapping them negates the whole answer, which is a hard error to spot afterwards because the expression still looks plausible. "Derivative of the top first" is the phrase worth fixing in memory.',
@@ -1124,6 +1122,9 @@ export const differentiation: Course = {
               ),
               prose(
                 'If $f\'\'(x) < 0$ the gradient is falling: the curve rises, flattens and falls, which is a local **maximum**. If $f\'\'(x) > 0$ the gradient is rising, which is a local **minimum**.',
+              ),
+              prose(
+                'Here is $y = x^{3} - 3x^{2} - 9x + 5$. Its stationary points are at $x = -1$ and $x = 3$, and $f\'\'(x) = 6x - 6$:',
               ),
               graph({
                 xMin: -3,

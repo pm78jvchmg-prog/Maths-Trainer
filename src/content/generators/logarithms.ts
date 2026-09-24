@@ -2566,11 +2566,19 @@ const productFlow: Generator<ProductFlowParams> = {
           : route === 'reciprocal'
             ? `${logTex(a, `${b}`)} \\times ${logTex(b, `${a}`)}`
             : `${logTex(a, `${b}`)} \\times ${logTex(c, `${d}`)}`;
-    const right = `$${logTex(a, `${c}`)}$`;
-    const wrong = `$${logTex(c, `${a}`)}$`;
+    // What a cancelled middle would leave, from the numbers in this product.
+    // Only a chain reaches this step on the right path; a wrong turn reaches it
+    // from the others too, and must not be shown a c this product never used.
+    const [one, other] =
+      route === 'reciprocal'
+        ? [logTex(a, `${a}`), logTex(b, `${b}`)]
+        : route === 'none'
+          ? [logTex(a, `${d}`), logTex(c, `${b}`)]
+          : [logTex(a, `${c}`), logTex(c, `${a}`)];
+    const right = `$${one}$`;
     const left = [
-      { label: right, outcome: `That reads the product as $${logTex(a, `${c}`)}$.` },
-      { label: wrong, outcome: `That reads the product as $${logTex(c, `${a}`)}$.` },
+      { label: right, outcome: `That reads the product as $${one}$.` },
+      { label: `$${other}$`, outcome: `That reads the product as $${other}$.` },
     ];
     return {
       kind: 'flow',

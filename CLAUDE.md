@@ -336,6 +336,18 @@ never from `x_4`. The widget (`src/ui/iterateSlide.tsx`) pins its bank to the
 bottom of the slide while it is live, since a filled table runs past the fold.
 `iterate-fixed-point` and `iterate-newton-raphson` are demonstrations no lesson
 asks yet.
+The iteration table carries a folded-away **calculator** (`src/ui/Calculator.tsx`,
+logic in `calculatorLine.ts`), asked for by the owner: nobody iterates a cube
+root in their head. It grades nothing and knows nothing but `x_0`, which seeds
+`Ans`, so typing the scheme with `Ans` once and pressing `=` gives each row.
+Its clicks stop at the panel, so it never counts as the retry tap.
+
+Typed mechanics answers (`forces.ts`, `kinematics.ts`, the `mech-*` vectors)
+carry `WORKING_KEYS` (`generators/workingKeys.ts`): times, divide, brackets
+and trig in degrees, so the learner can type the calculation rather than do
+it mentally. It is graded by value like any typed answer, which is only safe
+because those answers are exact decimals; a generator whose answer is rounded
+must not take these keys.
 
 **`probTree`** (batch C16-widget) is a two-stage probability tree drawn root on
 the left: at most three first-stage branches and two under each. Branches carry

@@ -5,7 +5,7 @@ import type { Block, ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } f
 import { hashSeed, type Rng } from '../../engine/rng';
 import { bin, num, pow, root } from '../expr';
 import {
-  I_KEY, coeffTex, complexTex, complexAnswer, bracketedTex, powersOf, nonZero,
+  I_KEY, coeffTex, complexTex, complexAnswer, bracketedTex, distinct, powersOf, nonZero,
   surdParts, surdTex, surdAnswer,
 } from './format';
 import { PLANE_VIEWBOX, complexPlaneSvg, planeGridSvg, pointPosition, rangeFor } from './plane';
@@ -1392,13 +1392,13 @@ export const sqrtPair: Generator<SqrtPairParams> = {
   sample: (rng, difficulty) => {
     const p = rng.int(1, difficulty >= 2 ? 7 : 6);
     const q = nonZero(rng, difficulty >= 2 ? 6 : 4);
-    const bank = rng.shuffle([
+    const bank = rng.shuffle(distinct([
       complexTex(p, q),
       complexTex(-p, -q),
       complexTex(p, -q),
       complexTex(-p, q),
       complexTex(Math.abs(q), p),
-    ]);
+    ]));
     return { p, q, bank };
   },
   render: ({ p, q, bank }) => {
@@ -4109,7 +4109,12 @@ export const locusCartesianTiles: Generator<CartesianTilesParams> = {
       { kind: 'display', tex: `${distTex(p, q, style)} = ${r}` },
     ],
     template: '(x {0})^2 + (y {1})^2 = {2}',
-    bank: [offsetTok(p), offsetTok(q), offsetTok(-p), offsetTok(-q), `${r * r}`, `${r}`].sort(),
+    bank: [
+      offsetTok(p),
+      offsetTok(q),
+      `${r * r}`,
+      ...distinct([offsetTok(-p), offsetTok(-q), `${r}`]).filter((t) => t !== offsetTok(p) && t !== offsetTok(q)),
+    ].sort(),
     answer: [offsetTok(p), offsetTok(q), `${r * r}`],
   }),
   solution: ({ p, q, r }) => [

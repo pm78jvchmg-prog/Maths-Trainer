@@ -7,7 +7,7 @@
  * steps always describe the question actually on screen.
  */
 import type { Generator } from '../types';
-import { I_KEY, coeffTex, complexTex, complexAnswer, nonZero } from './format';
+import { I_KEY, coeffTex, complexTex, complexAnswer, distinct, nonZero } from './format';
 import { options } from '../choiceVariant';
 
 
@@ -518,13 +518,13 @@ export const imaginaryCollect: Generator<CollectParams> = {
     const c = rng.int(1, a + b - 2);
     const first = a + b;
     const total = first - c;
-    const bank = rng.shuffle([
+    const bank = rng.shuffle(distinct([
       `${first}`,
       `${total}`,
       `${a + b + c}`,
       `${a - b + c}`,
       `${total + 1}`,
-    ]);
+    ]));
     return { a, b, c, bank };
   },
   render: ({ a, b, c, bank }) => ({
@@ -622,13 +622,13 @@ export const complexEquate: Generator<EquateParams> = {
     if (y === x) y = x > 0 ? -x : -x + 1;
     const c = nonZero(rng, span);
     const d = nonZero(rng, span);
-    const bank = rng.shuffle([
+    const bank = rng.shuffle(distinct([
       `${x}`,
       `${y}`,
       `${x + 2 * c}`,
       `${y + 2 * d}`,
       `${-x}`,
-    ]);
+    ]));
     return { x, y, c, d, bank };
   },
   render: ({ x, y, c, d, bank }) => ({
@@ -709,13 +709,13 @@ export const rootPair: Generator<PairParams> = {
   sample: (rng, difficulty) => {
     const p = nonZero(rng, difficulty >= 2 ? 7 : 5);
     const q = rng.int(1, difficulty >= 2 ? 7 : 5);
-    const bank = rng.shuffle([
+    const bank = rng.shuffle(distinct([
       complexTex(p, q),
       complexTex(p, -q),
       complexTex(-p, q),
       complexTex(-p, -q),
       complexTex(q, p),
-    ]);
+    ]));
     return { p, q, bank };
   },
   render: ({ p, q, bank }) => ({

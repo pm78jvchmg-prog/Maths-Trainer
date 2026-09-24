@@ -5691,7 +5691,9 @@ const weightsTiles: Generator<TrapParams> = {
         ),
       ],
       template: ys.map((y, i) => `{${i}}(${fmt(y)})`).join(' + '),
-      bank: [...answer, '2', '3', '4'].sort(),
+      // A spare weight the answer already uses would only be a second copy of
+      // one of its own tiles, so only the ones it does not use are added.
+      bank: [...answer, ...['2', '3', '4'].filter((w) => !answer.includes(w))].sort(),
       answer,
     };
   },

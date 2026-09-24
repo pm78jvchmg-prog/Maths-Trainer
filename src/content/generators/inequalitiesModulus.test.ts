@@ -1068,3 +1068,395 @@ describe('regions with modulus, checked from what the learner sees', () => {
     }
   });
 });
+
+/* ---------- Level 6: piecewise functions ---------- */
+
+interface PwRow {
+  rule: string;
+  holds: (x: number) => boolean;
+}
+
+const COMPARE: Record<string, (a: number, b: number) => boolean> = {
+  '<': (a, b) => a < b,
+  '>': (a, b) => a > b,
+  '\\le': (a, b) => a <= b,
+  '\\ge': (a, b) => a >= b,
+};
+
+/** A stretch as a test on x: `x < 3`, `-1 \le x < 2`, `x \ge 2`. */
+function stretchOf(cond: string): (x: number) => boolean {
+  const ray = /^x (<|>|\\le|\\ge) (-?\d+)$/.exec(cond);
+  if (ray) return (x) => COMPARE[ray[1]](x, Number(ray[2]));
+  const span = /^(-?\d+) (<|\\le) x (<|\\le) (-?\d+)$/.exec(cond);
+  if (span) return (x) => COMPARE[span[2]](Number(span[1]), x) && COMPARE[span[3]](x, Number(span[4]));
+  throw new Error(`no stretch in ${cond}`);
+}
+
+/** Every row of a `cases` block: its piece, and where that piece holds. */
+function casesOf(tex: string): PwRow[] {
+  const body = /\\begin\{cases\}(.*)\\end\{cases\}/.exec(tex);
+  if (!body) throw new Error(`no cases in ${tex}`);
+  return body[1].split('\\\\').map((row) => {
+    const [rule, cond] = row.split('&').map((part) => part.trim());
+    return { rule, holds: stretchOf(cond) };
+  });
+}
+
+/** The one row whose stretch holds x. */
+function rowAt(rows: readonly PwRow[], x: number): number {
+  const found = rows.flatMap((row, idx) => (row.holds(x) ? [idx] : []));
+  if (found.length !== 1) throw new Error(`${found.length} pieces hold x = ${x}`);
+  return found[0];
+}
+
+/** A value with any negative zero made plain, so `toEqual` compares numbers. */
+const plain = (v: number) => v + 0;
+
+const pwValue = (rows: readonly PwRow[], x: number) => plain(at(rows[rowAt(rows, x)].rule, x));
+
+/** The `f(x) = \begin{cases}` display on a slide. */
+function pwRows(slide: Slide, k?: number): PwRow[] {
+  // Two pieces are written `f(x) = \begin{cases}`; three are named in the prose above.
+  const tex = displays(slide).find((d) => /^(f\(x\) = )?\\begin\{cases\}/.test(d));
+  if (!tex) throw new Error('no cases display');
+  const withK = k === undefined ? tex : tex.replace(/k(?=x)/g, `(${k})*`).replace(/k/g, `(${k})`);
+  return casesOf(withK);
+}
+
+/** A row's gradient and intercept, read by evaluating it. */
+const lineOf = (rule: string) => ({ m: plain(at(rule, 1) - at(rule, 0)), q: plain(at(rule, 0)) });
+
+/** Where each row's stretch starts: the cuts, ascending. */
+function cutsOf(rows: readonly PwRow[]): number[] {
+  const cuts: number[] = [];
+  for (let x = -12; x <= 12; x += 1) if (rowAt(rows, x - 0.5) !== rowAt(rows, x + 0.5)) cuts.push(x);
+  return cuts;
+}
+
+/** The value either side of a cut, and the owner's. */
+function sidesAt(rows: readonly PwRow[], c: number): { left: number; right: number; own: number } {
+  return {
+    left: plain(at(rows[rowAt(rows, c - 0.5)].rule, c)),
+    right: plain(at(rows[rowAt(rows, c + 0.5)].rule, c)),
+    own: pwValue(rows, c),
+  };
+}
+
+/** Every solution of f(x) = k, worked out piece by piece from the rows. */
+function pwSolutions(rows: readonly PwRow[], k: number): number[] {
+  return rows.flatMap((row) => {
+    const { m, q } = lineOf(row.rule);
+    if (Math.abs(m) < 1e-9) {
+      if (Math.abs(q - k) < 1e-9) throw new Error('a level piece lies on the line');
+      return [];
+    }
+    const x = (k - q) / m;
+    return row.holds(x) ? [plain(x)] : [];
+  });
+}
+
+/** The dots of a picture on squared paper, in the picture's own units, read against its axes and grid. */
+function pwDots(svg: string): { x: number; y: number; filled: boolean }[] {
+  const lines = [...svg.matchAll(/<line ([^>]*)\/>/g)].map((m) => {
+    const attr = (name: string) => Number(new RegExp(`${name}="([-\\d.]+)"`).exec(m[1])![1]);
+    return { x1: attr('x1'), y1: attr('y1'), x2: attr('x2'), y2: attr('y2'), opacity: attr('opacity') };
+  });
+  const axes = lines.filter((l) => l.opacity === 0.55);
+  const grid = lines.filter((l) => l.opacity === 0.18);
+  const y0 = axes.find((l) => l.y1 === l.y2)!.y1;
+  const x0 = axes.find((l) => l.x1 === l.x2)!.x1;
+  const ys = grid.filter((l) => l.y1 === l.y2).map((l) => l.y1).sort((a, b) => a - b);
+  const xs = grid.filter((l) => l.x1 === l.x2).map((l) => l.x1).sort((a, b) => a - b);
+  // The grid skips the axes, so the smallest gap is one unit.
+  const step = (v: number[]) => Math.min(...v.slice(1).map((value, idx) => value - v[idx]));
+  const unitY = step(ys);
+  const unitX = step(xs);
+  return [...svg.matchAll(/<circle cx="([\d.]+)" cy="([\d.]+)" r="4" fill="(none|currentColor)"/g)].map((m) => ({
+    x: Math.round((Number(m[1]) - x0) / unitX) + 0,
+    y: Math.round((y0 - Number(m[2])) / unitY) + 0,
+    filled: m[3] === 'currentColor',
+  }));
+}
+
+/** At each jump, one filled dot on the owner's value and one hollow on the other; none where the pieces meet. */
+function expectDots(rows: readonly PwRow[], svg: string, where: string, drawn = rows.map((_, i) => i)): void {
+  const dots = pwDots(svg);
+  const expected = cutsOf(rows).flatMap((c) => {
+    const { left, right, own } = sidesAt(rows, c);
+    const sides = [
+      { piece: rowAt(rows, c - 0.5), y: left },
+      { piece: rowAt(rows, c + 0.5), y: right },
+    ].filter((side) => drawn.includes(side.piece));
+    if (sides.length === 2 && left === right) return [];
+    return sides.map((side) => ({ x: c, y: side.y, filled: side.piece === rowAt(rows, c) && side.y === own }));
+  });
+  const key = (d: { x: number; y: number; filled: boolean }) => `${d.x},${d.y},${d.filled}`;
+  expect(dots.map(key).sort(), where).toEqual(expected.map(key).sort());
+}
+
+const LEVEL_6 = [
+  'mod-piece-value',
+  'mod-piece-owner-flow',
+  'mod-piece-sum-tree',
+  'mod-split-tiles',
+  'mod-abs-cases-choice',
+  'mod-split-sign-flow',
+  'mod-two-abs-tiles',
+  'mod-piece-rule-read',
+  'mod-piece-gradients-tiles',
+  'mod-piece-start-slider',
+  'mod-piece-sketch-flow',
+  'mod-join-meet-flow',
+  'mod-jump',
+  'mod-continuous-k',
+  'mod-k-solve-steps',
+  'mod-join-dots-tiles',
+  'mod-piece-root',
+  'mod-piece-reject-flow',
+  'mod-piece-count',
+  'mod-piece-roots-tiles',
+];
+
+/** A claim `f(x) = P \text{ for } stretch` is true at every grid point of its stretch. */
+function claimHolds(claim: string, modulus: string): boolean {
+  const m = /^f\(x\) = (.*) \\text\{ for \} (.*)$/.exec(claim);
+  if (!m) throw new Error(`no claim in ${claim}`);
+  const inStretch = stretchOf(m[2]);
+  const xs = GRID.filter(inStretch);
+  return xs.length > 0 && xs.every((x) => Math.abs(at(m[1], x) - at(modulus, x)) < 1e-9);
+}
+
+describe('piecewise functions, checked from what the learner sees', () => {
+  it('splits the number line into stretches that never overlap and leave no gap', () => {
+    for (const id of LEVEL_6) {
+      for (const { slide, where } of slides(id)) {
+        const tex = displays(slide).find((d) => d.includes('\\begin{cases}'));
+        if (!tex) continue;
+        const rows = casesOf(tex.replace(/k/g, '(1)'));
+        for (const x of [...GRID, ...Array.from({ length: 25 }, (_, i) => i - 12)]) {
+          expect(rows.filter((row) => row.holds(x)).length, `${where} at x = ${x}`).toBe(1);
+        }
+      }
+    }
+  });
+
+  it('evaluates the piece whose stretch holds x', () => {
+    for (const { slide, where } of slides('mod-piece-value')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const t = Number(/f\((-?\d+)\)/.exec(slide.lead!)![1]);
+      const rows = pwRows(slide);
+      expect(Number(slide.answer), where).toBe(pwValue(rows, t));
+      // The wrong piece gives a different number, or the question tests nothing.
+      rows.forEach((row, idx) => {
+        if (idx !== rowAt(rows, t)) expect(at(row.rule, t), where).not.toBe(pwValue(rows, t));
+      });
+    }
+    for (const { slide, where } of slides('mod-piece-owner-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected a flow');
+      const t = Number(/f\((-?\d+)\)/.exec(slide.subject)![1]);
+      const rows = pwRows(slide);
+      expect(stretchOf(slide.answer[0].slice(1, -1))(t), where).toBe(true);
+      expect(Number(slide.answer[1].slice(1, -1)), where).toBe(pwValue(rows, t));
+    }
+  });
+
+  it('adds or subtracts two values of f, each from its own piece', () => {
+    for (const { slide, where } of slides('mod-piece-sum-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected a tree');
+      const m = /^f\((-?\d+)\) ([+-]) f\((-?\d+)\)$/.exec(slide.expression)!;
+      const rows = pwRows(slide);
+      const fa = pwValue(rows, Number(m[1]));
+      const fb = pwValue(rows, Number(m[3]));
+      expect(slide.answer.map(Number), where).toEqual([fa, fb, m[2] === '+' ? fa + fb : fa - fb]);
+    }
+  });
+
+  it('reads f at a jump off the filled dot, never the hollow one', () => {
+    for (const { slide, where } of slides('mod-join-dot-choice')) {
+      const c = Number(/f\((-?\d+)\)/.exec(prose(slide))![1]);
+      const dots = pwDots(diagramOf(slide)).filter((d) => d.x === c);
+      expect(dots.map((d) => d.filled).sort(), where).toEqual([false, true]);
+      expect(Number(chosen(slide)), where).toBe(dots.find((d) => d.filled)!.y);
+    }
+  });
+
+  it('writes a modulus in pieces that equal it at every point of their stretch, and nothing else fits', () => {
+    for (const id of ['mod-split-tiles', 'mod-two-abs-tiles']) {
+      for (const { slide, where } of slides(id)) {
+        if (slide.kind !== 'tiles') throw new Error('expected tiles');
+        const modulus = displays(slide)[0].replace(/^f\(x\) = /, '');
+        expect(claimHolds(filled(slide.template, slide.answer), modulus), where).toBe(true);
+        for (const token of slide.bank.filter((t) => t !== slide.answer[0])) {
+          expect(claimHolds(filled(slide.template, [token]), modulus), `${where}: ${token} also fits`).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('offers one cases block that is the modulus, and three that are not', () => {
+    for (const { slide, where } of slides('mod-abs-cases-choice')) {
+      if (slide.kind !== 'choice') throw new Error('expected a choice');
+      const modulus = displays(slide)[0].replace(/^f\(x\) = /, '');
+      for (const option of slide.options) {
+        const rows = casesOf(option.label);
+        const same = GRID.every((x) => Math.abs(pwValue(rows, x) - at(modulus, x)) < 1e-9);
+        expect(same, `${where}: ${option.label}`).toBe(option.id === slide.correctId);
+      }
+    }
+  });
+
+  it('picks the rule a modulus is at a point from the sign of its inside', () => {
+    for (const { slide, where } of slides('mod-split-sign-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected a flow');
+      const modulus = slide.subject.replace(/^f\(x\) = /, '');
+      const inside = /\\lvert (.*) \\rvert/.exec(modulus)![1];
+      const t = Number(/at \$x = (-?\d+)\$/.exec(prose(slide))![1]);
+      expect(slide.answer[0], where).toBe(at(inside, t) > 0 ? 'Positive' : 'Negative');
+      const near = [t - 0.5, t, t + 0.5];
+      const fits = slide.steps[1].branches.filter((b) => near.every((x) => Math.abs(at(b.label.slice(1, -1), x) - at(modulus, x)) < 1e-9));
+      expect(fits.map((b) => b.label), where).toEqual([slide.answer[1]]);
+    }
+  });
+
+  it('matches a picture to the one rule that draws it, dots and all', () => {
+    for (const { slide, where } of slides('mod-piece-rule-read')) {
+      if (slide.kind !== 'choice') throw new Error('expected a choice');
+      const right = casesOf(chosen(slide));
+      expectDots(right, diagramOf(slide), where);
+      for (const option of slide.options.filter((o) => o.id !== slide.correctId)) {
+        const rows = casesOf(option.label);
+        const differs = [...GRID, ...cutsOf(right)].some((x) => Math.abs(pwValue(rows, x) - pwValue(right, x)) > 1e-9);
+        expect(differs, `${where}: ${option.label} draws the same graph`).toBe(true);
+      }
+    }
+  });
+
+  it('gives each piece its gradient, and the corner or the y-intercept', () => {
+    for (const { slide, where } of slides('mod-piece-gradients-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const rows = pwRows(slide);
+      const [mL, mR, last] = slide.answer.map(Number);
+      expect([mL, mR], where).toEqual(rows.map((row) => lineOf(row.rule).m));
+      if (slide.template.includes('f(0)')) {
+        expect(last, where).toBe(pwValue(rows, 0));
+      } else {
+        const c = Number(/corner \} \((-?\d+),/.exec(slide.template)![1]);
+        expect(cutsOf(rows), where).toEqual([c]);
+        const { left, right } = sidesAt(rows, c);
+        expect([left, right], where).toEqual([last, last]);
+      }
+    }
+  });
+
+  it('slides to the start of the next piece, which the drawn pieces do not show', () => {
+    for (const { slide, where } of slides('mod-piece-start-slider')) {
+      if (slide.kind !== 'slider') throw new Error('expected a slider');
+      const rows = pwRows(slide);
+      const cuts = cutsOf(rows);
+      const c = cuts[cuts.length - 1];
+      const { left, right } = sidesAt(rows, c);
+      expect(slide.answer, where).toBe(right);
+      expect(right, where).not.toBe(left);
+      expect(slide.answer >= slide.min && slide.answer <= slide.max, where).toBe(true);
+      expectDots(rows, diagramOf(slide), where, rows.slice(0, -1).map((_, i) => i));
+    }
+  });
+
+  it('plans a sketch from each gradient and whether the pieces meet', () => {
+    for (const { slide, where } of slides('mod-piece-sketch-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected a flow');
+      const rows = pwRows(slide);
+      const way = (m: number) => (m > 0 ? 'It rises' : m < 0 ? 'It falls' : 'It is level');
+      const [c] = cutsOf(rows);
+      const { left, right } = sidesAt(rows, c);
+      expect(slide.answer, where).toEqual([...rows.map((row) => way(lineOf(row.rule).m)), left === right ? 'They meet' : 'There is a jump']);
+    }
+  });
+
+  it('says whether the pieces meet at a join, and the size and way of any jump', () => {
+    for (const { slide, where } of slides('mod-join-meet-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected a flow');
+      const c = Number(/x = (-?\d+)/.exec(slide.subject)![1]);
+      const { left, right } = sidesAt(pwRows(slide), c);
+      expect(slide.answer, where).toEqual(left === right ? ['Yes'] : ['No', right > left ? 'Up' : 'Down']);
+    }
+    for (const { slide, where } of slides('mod-jump')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const c = Number(/at \$x = (-?\d+)\$/.exec(prose(slide))![1]);
+      const { left, right } = sidesAt(pwRows(slide), c);
+      expect(Number(slide.answer), where).toBe(Math.abs(right - left));
+      expect(Number(slide.answer), where).toBeGreaterThan(0);
+    }
+  });
+
+  it('finds the one k that joins the pieces', () => {
+    const joins = (slide: Slide, k: number) => {
+      const rows = pwRows(slide, k);
+      const [c] = cutsOf(rows.length > 0 ? pwRows(slide, k + 0.25) : rows);
+      const { left, right } = sidesAt(rows, c);
+      return Math.abs(left - right) < 1e-9;
+    };
+    for (const { slide, where } of slides('mod-continuous-k')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const k = Number(slide.answer);
+      expect(joins(slide, k), where).toBe(true);
+      expect(joins(slide, k + 1) || joins(slide, k - 1), where).toBe(false);
+    }
+    for (const { slide, where } of slides('mod-k-solve-steps')) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      const last = slide.reductions[slide.reductions.length - 1].value;
+      const k = Number(/^k = (-?\d+)$/.exec(last)![1]);
+      expect(joins(slide, k), where).toBe(true);
+      // Each side is the piece put in at the join, and they agree once k is known.
+      const first = slide.reductions[0];
+      expect(Number(first.value), where).toBe(plain(at(slide.start[first.span[0]].replace(/\\times/g, '*'), 0)));
+    }
+  });
+
+  it('puts the filled dot of a jump on the piece that owns the join', () => {
+    for (const { slide, where } of slides('mod-join-dots-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const c = Number(/\((-?\d+), \{0\}\)/.exec(slide.template)![1]);
+      const rows = pwRows(slide);
+      const { left, right, own } = sidesAt(rows, c);
+      expect(left, where).not.toBe(right);
+      expect(slide.answer.map(Number), where).toEqual([own, own === left ? right : left]);
+    }
+  });
+
+  it('solves f(x) = k piece by piece, keeping only roots in their own stretch', () => {
+    const kOf = (slide: Slide) => Number(/f\(x\) = (-?\d+)/.exec(prose(slide))![1]);
+    for (const { slide, where } of slides('mod-piece-root')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      expect(pwSolutions(pwRows(slide), kOf(slide)), where).toEqual([Number(slide.answer)]);
+    }
+    for (const { slide, where } of slides('mod-piece-roots-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const found = pwSolutions(pwRows(slide), kOf(slide));
+      expect(found.every(Number.isInteger), where).toBe(true);
+      expect([...found].sort((a, b) => a - b), where).toEqual(slide.answer.map(Number).sort((a, b) => a - b));
+    }
+    for (const { slide, where } of slides('mod-piece-reject-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected a flow');
+      const m = /Solving \$(.*) = (-?\d+)\$ gave \$x = (-?\d+)\$/.exec(prose(slide))!;
+      const [rule, k, x] = [m[1], Number(m[2]), Number(m[3])];
+      const rows = pwRows(slide);
+      expect(at(rule, x), where).toBe(k);
+      const own = rows[rowAt(rows, x)].rule === rule;
+      expect(slide.answer, where).toEqual(own ? ['Yes, it is in that stretch', 'Yes'] : ['No, it is outside it']);
+      expect(pwSolutions(rows, k).includes(x), where).toBe(own);
+    }
+  });
+
+  it('counts the solutions the dashed line meets, never at a hollow dot', () => {
+    const words = ['None', 'One', 'Two', 'Three'];
+    for (const { slide, where } of slides('mod-piece-count')) {
+      const k = Number(/y = (-?\d+)/.exec(prose(slide))![1]);
+      const rows = pwRows(slide);
+      const found = pwSolutions(rows, k);
+      expect(found.every(Number.isInteger), where).toBe(true);
+      expect(chosen(slide), where).toBe(words[found.length]);
+      expectDots(rows, diagramOf(slide), where);
+    }
+  });
+});

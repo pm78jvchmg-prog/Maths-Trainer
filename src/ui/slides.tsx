@@ -41,6 +41,8 @@ import { defaultSliderValue } from './sliderValue';
 import { TransformSlide } from './transformSlide';
 import { NumberLineSlide } from './numberLineSlide';
 import { draftHasShading } from '../content/numberLine';
+import { ForcesSlide } from './forcesSlide';
+import { canonicalForces } from '../content/forces';
 
 export interface SlideProps {
   slide: Slide;
@@ -726,6 +728,8 @@ export function SlideView(props: SlideProps) {
       return <NumberLineSlide {...props} />;
     case 'table':
       return <TableSlide {...props} />;
+    case 'forces':
+      return <ForcesSlide {...props} />;
   }
 }
 
@@ -740,6 +744,9 @@ export function initialAnswer(slide: Slide): Answer {
   // grows a branch at a time, as `flow` does.
   if (slide.kind === 'probTree') {
     return slide.mode === 'fill' ? Array.from({ length: slide.answer.length }, () => '') : [];
+  }
+  if (slide.kind === 'forces' && slide.mode === 'fill') {
+    return Array.from({ length: slide.answer.length }, () => '');
   }
   // Both start at nothing chosen and grow as the learner works.
   if (
@@ -790,6 +797,16 @@ export function hasAnswer(slide: Slide, answer: Answer): boolean {
   // A line with dots on it but nothing shaded is not a set yet, and the
   // untouched line is not an answer at all.
   if (slide.kind === 'numberLine') return typeof answer === 'string' && draftHasShading(answer);
+  // A diagram with one arrow on is a set of forces; a fill needs every blank.
+  // The untouched diagram is not an answer at all.
+  if (slide.kind === 'forces') {
+    if (slide.mode === 'pick') return typeof answer === 'string' && canonicalForces(answer) !== '';
+    return (
+      Array.isArray(answer) &&
+      answer.length === slide.answer.length &&
+      answer.every((t) => t !== '')
+    );
+  }
   // One tile chosen is the whole answer.
   if (slide.kind === 'evaluate') return typeof answer === 'string' && answer !== '';
   // Answerable once any control has been tapped, even back to the identity:

@@ -11,7 +11,9 @@
  * irrational numbers. Level 3 is the logic underneath both: what an
  * implication says and which way it runs, the converse, the contrapositive,
  * necessary against sufficient, and "if and only if" proved one half at a
- * time.
+ * time. Level 4 is proof by induction: the four parts of the proof, then
+ * sums, divisibility and inequalities, and reading a proof for a missing or
+ * misplaced base case or a step that assumes what it has to show.
  *
  * Surds and rationalising denominators are taught in Exponents & Radicals
  * (`er-l3`, `er-l5`), not here. Later levels are in the level plan in
@@ -700,6 +702,214 @@ export const numberProof: Course = {
         ask('prf-nec-suff', 2),
         ask('prf-order-iff', 2),
         ask('prf-direction-flow', 2),
+      ],
+    },
+    {
+      id: 'np-l4',
+      title: 'Proof by Induction',
+      lessons: [
+        {
+          id: 'np-l4-shape',
+          title: 'The Shape of an Inductive Proof',
+          slides: [
+            teach(
+              prose(
+                'Proof by **induction** shows a claim for every whole number $n$ from some start, in two moves. The **base case** checks the first value. The **step** shows that whenever the claim holds at $n = k$, it also holds at $n = k + 1$.',
+              ),
+              prose(
+                'Together they work like a row of dominoes: the base case knocks over the first, and the step says each one knocks over the next. With both, every one falls.',
+              ),
+            ),
+            ask('prf-ind-covers'),
+            ask('prf-ind-part-flow'),
+            ask('prf-ind-skeleton'),
+            teach(
+              prose(
+                'A written proof has four parts, in this order. **Base case:** check the first value. **Hypothesis:** assume the claim at $n = k$. **Step:** use that to reach the claim at $n = k + 1$. **Conclusion:** it holds for every $n$ from the start.',
+              ),
+              prose(
+                'Assuming the claim at $n = k$ is not cheating. The step only says "if it holds at $k$, then it holds at $k + 1$", and the base case supplies the first "if".',
+              ),
+            ),
+            ask('prf-ind-next-claim'),
+            ask('prf-ind-part-flow', 2),
+            ask('prf-ind-covers', 2),
+            teach(
+              prose('The step has to reach the claim at $n = k + 1$, so write that down first: put $k + 1$ in place of every $n$.'),
+              prose(
+                'For $1 + 3 + \\dots + (2n - 1) = n^2$ it is $1 + 3 + \\dots + (2k - 1) + (2k + 1) = (k + 1)^2$: one more term on the left, and $k + 1$ in the formula.',
+              ),
+            ),
+            ask('prf-ind-skeleton', 2),
+            ask('prf-ind-next-claim', 2),
+          ],
+          skillCheck: [ask('prf-ind-skeleton', 2), ask('prf-ind-next-claim', 2), ask('prf-ind-part-flow', 2)],
+        },
+        {
+          id: 'np-l4-sums',
+          title: 'Proving a Sum',
+          slides: [
+            teach(
+              prose('Claim: $1 + 3 + 5 + \\dots + (2n - 1) = n^2$, the sum of the first $n$ odd numbers.'),
+              prose(
+                '**Base case:** at $n = 1$ both sides are $1$. **Hypothesis:** assume $1 + 3 + \\dots + (2k - 1) = k^2$.',
+              ),
+              prose(
+                '**Step:** the sum up to $n = k + 1$ is the sum up to $n = k$ plus the next term, $2k + 1$. So it is $k^2 + (2k + 1) = (k + 1)^2$, the claim at $n = k + 1$.',
+              ),
+            ),
+            ask('prf-ind-next-term'),
+            ask('prf-ind-sum-check'),
+            ask('prf-ind-order-sum'),
+            teach(
+              prose(
+                'Claim: $1 + 2 + 3 + \\dots + n = \\tfrac{1}{2}n(n + 1)$. The step is the same move: the assumed sum plus the next term, $k + 1$.',
+              ),
+              maths(
+                '\\begin{aligned} &\\tfrac{1}{2}k(k + 1) + (k + 1) \\\\ &= (k + 1)(\\tfrac{1}{2}k + 1) \\\\ &= \\tfrac{1}{2}(k + 1)(k + 2) \\end{aligned}',
+              ),
+              prose(
+                'Take out the common factor $(k + 1)$ rather than multiplying out: it lands straight on the right side at $n = k + 1$.',
+              ),
+            ),
+            ask('prf-ind-sum-steps'),
+            ask('prf-ind-next-term', 2),
+            ask('prf-ind-sum-check', 2),
+            teach(
+              prose(
+                'Every sum is proved the same way: the sum at $n = k + 1$ is the assumed sum plus one more term, tidied into the formula at $k + 1$.',
+              ),
+              prose(
+                'A multiple of either sum works just the same: $3 + 9 + 15 + \\dots + (6n - 3) = 3n^2$ is three times the odd numbers. Sigma notation and other series are in Sequences & Series.',
+              ),
+            ),
+            ask('prf-ind-order-sum', 2),
+            ask('prf-ind-sum-steps', 2),
+          ],
+          skillCheck: [ask('prf-ind-order-sum', 2), ask('prf-ind-sum-steps', 2), ask('prf-ind-next-term', 2)],
+        },
+        {
+          id: 'np-l4-divisibility',
+          title: 'Proving Divisibility',
+          slides: [
+            teach(
+              prose('Claim: $3^n - 1$ is a multiple of $2$ for every $n \\ge 1$. The base case: $3^1 - 1 = 2$.'),
+              prose(
+                'For the hypothesis, write "is a multiple of $2$" as an equation: $3^k - 1 = 2m$ for some whole number $m$. An equation is something the algebra can use.',
+              ),
+            ),
+            ask('prf-ind-quotient'),
+            ask('prf-ind-rewrite'),
+            ask('prf-ind-divides-steps'),
+            teach(
+              prose('The step needs $3^k - 1$ inside $3^{k+1} - 1$. Since $3^{k+1} = 3 \\times 3^k$,'),
+              maths('\\begin{aligned} 3^{k+1} - 1 &= 3(3^k - 1) + 2 \\\\ &= 3(2m) + 2 \\\\ &= 2(3m + 1) \\end{aligned}'),
+              prose(
+                'which is a multiple of $2$. The same rewrite shows $b^n - 1$ is a multiple of $b - 1$: $b^{k+1} - 1 = b(b^k - 1) + (b - 1)$.',
+              ),
+            ),
+            ask('prf-ind-order-divides'),
+            ask('prf-ind-quotient', 2),
+            ask('prf-ind-rewrite', 2),
+            teach(
+              prose(
+                'A different constant leaves a different remainder. For $4^n + 2$ and $3$: $4^{k+1} + 2 = 4(4^k + 2) - 6$.',
+              ),
+              prose('Both parts have to be multiples of $3$. $4(3m)$ is, and so is $6$, so $4^{k+1} + 2 = 3(4m - 2)$.'),
+            ),
+            ask('prf-ind-divides-steps', 2),
+            ask('prf-ind-order-divides', 2),
+          ],
+          skillCheck: [ask('prf-ind-order-divides', 2), ask('prf-ind-rewrite', 2), ask('prf-ind-divides-steps', 2)],
+        },
+        {
+          id: 'np-l4-inequalities',
+          title: 'Proving an Inequality',
+          slides: [
+            teach(
+              prose('Claim: $2^n > 2n$. At $n = 1$ and $n = 2$ the two sides are equal, so it fails. At $n = 3$, $8 > 6$.'),
+              prose(
+                'So the base case is $n = 3$, and what gets proved is "for every $n \\ge 3$". A base case goes where the claim starts holding for good, and you find that by checking.',
+              ),
+            ),
+            ask('prf-ind-first-n'),
+            ask('prf-ind-base-choice'),
+            ask('prf-ind-ineq-flow'),
+            teach(
+              prose('The step for an inequality is a chain. Assume $2^k > 2k$ for some $k \\ge 3$. Then'),
+              maths('\\begin{aligned} 2^{k+1} &= 2 \\times 2^k \\\\ &> 4k = 2k + 2k \\\\ &\\ge 2k + 2 = 2(k + 1) \\end{aligned}'),
+              prose('Split off one factor, use the hypothesis, then finish with a fact about $k$: here $2k \\ge 2$.'),
+            ),
+            ask('prf-ind-order-inequality'),
+            ask('prf-ind-first-n', 2),
+            ask('prf-ind-ineq-flow', 2),
+            teach(
+              prose(
+                'Factorials go the same way. For $n! > 2^n$, true from $n = 4$: $(k + 1)! = (k + 1) \\times k! > (k + 1) \\times 2^k$, and $k + 1 > 2$ finishes it.',
+              ),
+              prose(
+                'Watch for a claim that holds early, stops, then holds for good. $2^n > n^2$ is true at $n = 1$, false at $2$, $3$ and $4$, and true from $5$ on. Its base case is $n = 5$.',
+              ),
+            ),
+            ask('prf-ind-base-choice', 2),
+            ask('prf-ind-order-inequality', 2),
+          ],
+          skillCheck: [ask('prf-ind-order-inequality', 2), ask('prf-ind-ineq-flow', 2), ask('prf-ind-base-choice', 2)],
+        },
+        {
+          id: 'np-l4-reading',
+          title: 'Reading an Inductive Proof',
+          slides: [
+            teach(
+              prose(
+                'A step on its own proves nothing. Claim: $1 + 3 + \\dots + (2n - 1) = n^2 + 1$. The step works: $k^2 + 1 + (2k + 1) = (k + 1)^2 + 1$.',
+              ),
+              prose(
+                'But at $n = 1$ the left side is $1$ and the right side is $2$, and the claim is false for every $n$. Without a base case the dominoes never start.',
+              ),
+            ),
+            ask('prf-ind-flaw'),
+            ask('prf-ind-test-tree'),
+            ask('prf-ind-read-flow'),
+            teach(
+              prose(
+                'Two more slips. A step that assumes the claim at $n = k + 1$ is circular: that is exactly what it had to show.',
+              ),
+              prose(
+                'And a base case at the wrong $n$ proves less than the claim says. A base case at $n = 3$ covers $n \\ge 3$ only, whatever the claim promises.',
+              ),
+            ),
+            ask('prf-ind-skeleton'),
+            ask('prf-ind-flaw', 2),
+            ask('prf-ind-test-tree', 2),
+            teach(
+              prose(
+                'To read a proof by induction, check three things in turn: is there a base case, is it where the claim starts, and does the step assume only the case $n = k$?',
+              ),
+              prose('The habits from reading any proof still apply too, such as looking for a slip in the algebra.'),
+            ),
+            ask('prf-ind-read-flow', 2),
+            ask('prf-ind-skeleton', 2),
+          ],
+          skillCheck: [ask('prf-ind-flaw', 2), ask('prf-ind-read-flow', 2), ask('prf-ind-test-tree', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('prf-ind-covers', 2),
+        ask('prf-ind-next-claim', 2),
+        ask('prf-ind-part-flow', 2),
+        ask('prf-ind-next-term', 2),
+        ask('prf-ind-order-sum', 2),
+        ask('prf-ind-sum-steps', 2),
+        ask('prf-ind-quotient', 2),
+        ask('prf-ind-rewrite', 2),
+        ask('prf-ind-order-divides', 2),
+        ask('prf-ind-first-n', 2),
+        ask('prf-ind-ineq-flow', 2),
+        ask('prf-ind-base-choice', 2),
+        ask('prf-ind-order-inequality', 2),
+        ask('prf-ind-test-tree', 2),
+        ask('prf-ind-flaw', 2),
       ],
     },
   ],

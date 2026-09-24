@@ -2371,3 +2371,89 @@ button {
   color: var(--text-dim);
   font-size: 14px;
 }
+
+/*
+ * The force diagram (`forces`).
+ *
+ * The picture is an SVG string from `src/content/forces.ts`, drawn in
+ * `currentColor`; the TeX labels are laid over it as HTML, placed as a share
+ * of its width and height so they track it at any size. They take no taps:
+ * the tap targets are the circles over the arrow heads, 44 across before the
+ * picture scales up to the frame.
+ *
+ * An arrow not chosen is faint and dashed. A chosen (or filled) one carries
+ * `.plot-accent`, and only that arrow takes a verdict colour, so a wrong
+ * answer never shows the arrow that should have been there.
+ */
+.answer-frame.forces-frame {
+  padding: 8px 6px 6px;
+}
+
+.force-figure {
+  position: relative;
+  color: var(--text-soft);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.force-svg svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.force-arrow.faint {
+  opacity: 0.38;
+}
+
+.force-figure .plot-accent {
+  color: var(--accent);
+  transition: color 160ms ease;
+}
+
+.force-figure.correct .plot-accent {
+  color: var(--correct);
+}
+
+.force-figure.wrong .plot-accent {
+  color: var(--wrong);
+}
+
+.force-hit {
+  cursor: pointer;
+  outline: none;
+}
+
+.force-hit:focus-visible {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.force-figure.locked .force-hit {
+  cursor: default;
+}
+
+.force-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  white-space: nowrap;
+  font-size: 17px;
+  color: var(--text);
+}
+
+.force-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 18px;
+  margin: 6px 0 4px;
+}
+
+.force-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 18px;
+}

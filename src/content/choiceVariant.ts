@@ -121,7 +121,7 @@ export function choiceVariant<P>(generator: Generator<P>): Generator<P> | undefi
 
       return {
         kind: 'choice',
-        prompt: promptFrom(generator.render(params)),
+        prompt: promptFrom(base),
         // Indexed rather than labelled, because an option's text is the thing
         // being chosen between and would make a poor stable identifier.
         options: ordered.map((option, idx) => ({

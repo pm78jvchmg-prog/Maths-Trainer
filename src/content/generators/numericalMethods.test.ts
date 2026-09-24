@@ -1179,7 +1179,7 @@ describe("Euler's method, stepped again from what each slide shows", () => {
     for (const { slide, seed } of draws<unknown>('numer-euler-miss-flow')) {
       if (slide.kind !== 'flow') throw new Error('not a flow slide');
       const ivp = readIvp(slide);
-      const X = Number(slide.subject.match(/\\le (-?[\d.]+)$/)![1]);
+      const X = Number(slide.subject.match(/\\le (-?[\d.]+)/)![1]);
       const n = stepsBetween(ivp.x0, X, ivp.h!);
       const low = euler(ivp, ivp.h!, n).ys[n] < exactAt(ivp, X);
       expect(slide.answer, `seed ${seed}`).toEqual(low ? ['It rises', 'Below the curve', 'An underestimate'] : ['It falls', 'Above the curve', 'An overestimate']);

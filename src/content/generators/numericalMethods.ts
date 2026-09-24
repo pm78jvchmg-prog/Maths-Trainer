@@ -6728,16 +6728,20 @@ function rhsAt({ px, q, r }: Rhs, x: number, y: number): number {
 }
 
 /** Signed terms joined as they are read: `2x^{2} - xy + 0.5y - 3`. */
-function termsTex(terms: [number, string[]][]): string {
-  let out = '';
+function termPieces(terms: [number, string[]][]): string[] {
+  const out: string[] = [];
   for (const [c, factors] of terms) {
     if (c === 0) continue;
     const size = Math.abs(c);
-    const body = size === 1 && factors.length > 0 ? factors.join(' \\times ') : [fmt(size), ...factors].join(' \\times ');
-    out += out === '' ? (c < 0 ? `-${body}` : body) : c < 0 ? ` - ${body}` : ` + ${body}`;
+    const parts = size === 1 && factors.length > 0 ? factors : [fmt(size), ...factors];
+    // A bracketed factor sits against what it multiplies: `0.5(-3)`, which keeps a line of working short.
+    const body = parts.reduce((acc, part) => (acc === '' ? part : part.startsWith('(') ? `${acc}${part}` : `${acc} \\times ${part}`), '');
+    out.push(out.length === 0 ? (c < 0 ? `-${body}` : body) : c < 0 ? `- ${body}` : `+ ${body}`);
   }
-  return out || '0';
+  return out.length === 0 ? ['0'] : out;
 }
+
+const termsTex = (terms: [number, string[]][]) => termPieces(terms).join(' ');
 
 /** f as the learner reads it: x terms, then xy, then y, then the constant. */
 function rhsTex({ px, q, r }: Rhs): string {
@@ -6753,11 +6757,11 @@ function rhsTex({ px, q, r }: Rhs): string {
   return termsTex(terms).replace(/ \\times (?=[xy])/g, '');
 }
 
-/** f with numbers in place of x and y, for a line of working. */
-function rhsSubTex({ px, q, r }: Rhs, x: number, y: number): string {
+/** f with numbers in place of x and y, term by term, for lines of working. */
+function rhsSubTex({ px, q, r }: Rhs, x: number, y: number): string[] {
   const n = px.length - 1;
   const power = (k: number) => (k === 1 ? paren(x) : `${paren(x)}^{${k}}`);
-  return termsTex([
+  return termPieces([
     ...px.slice(0, -1).map((c, i): [number, string[]] => [c, [power(n - i)]]),
     [r, [paren(x), paren(y)]],
     [q, [paren(y)]],
@@ -6900,12 +6904,28 @@ function sampleAny(rng: Rng, difficulty: number, steps: number[], hs?: number[])
   return rng.next() < 1 / 3 ? sampleXOnly(rng, difficulty, steps, hs) : sampleWithY(rng, difficulty, steps, hs);
 }
 
+/** Substituted terms, as many to a line as fit a phone: about 18 characters. */
+function substituted(pieces: string[]): string[] {
+  const width = (piece: string) => piece.replace(/\\times/g, 'x').replace(/[\\{}^ ]/g, '').length;
+  const lines: string[][] = [];
+  for (const piece of pieces) {
+    const last = lines[lines.length - 1];
+    if (last && [...last, piece].reduce((sum, p) => sum + width(p) + 1, 0) <= 18) last.push(piece);
+    else lines.push([piece]);
+  }
+  return lines.map((line, i) => `&${i === 0 ? '=' : '\\quad'} ${line.join(' ')}`);
+}
+
+/** The error worked out, the subtraction split so it never runs off a phone. */
+const errorTex = (estimate: number, exact: number, error: number) =>
+  aligned(`\\text{error} &= ${fmt(estimate)}`, `&\\quad - ${paren(exact)}`, `&= ${fmt(error)}`);
+
 /** The working for step i: the gradient, then the new y. */
 function stepLines({ rhs, h }: Ivp, run: EulerRun, i: number): SolutionStep[] {
   const { xs, ys, gs } = run;
   return [
-    { tex: aligned(`${gradName(rhs, fmt(xs[i]), fmt(ys[i]))} &= ${rhsSubTex(rhs, xs[i], ys[i])}`, `&= ${fmt(gs[i])}`) },
-    { tex: aligned(`y_{${i + 1}} &= ${fmt(ys[i])} + ${fmt(h)} \\times ${paren(gs[i])}`, `&= ${fmt(ys[i + 1])}`) },
+    { tex: aligned(`&${gradName(rhs, fmt(xs[i]), fmt(ys[i]))}`, ...substituted(rhsSubTex(rhs, xs[i], ys[i])), `&= ${fmt(gs[i])}`) },
+    { tex: aligned(`y_{${i + 1}} &= ${fmt(ys[i])} + ${fmt(h)}${gs[i] < 0 ? paren(gs[i]) : ` \\times ${fmt(gs[i])}`}`, `&= ${fmt(ys[i + 1])}`) },
   ];
 }
 
@@ -7329,7 +7349,7 @@ const eulerCountFlow: Generator<Ivp> = {
           `${ivpText(ivp)}. Euler's method with $h = ${fmt(h)}$ is to estimate $y$ at $x = ${X}$, and its working has reached $y = ${V}$ one step short of there.`,
         ),
       ],
-      subject: `${odeTex(ivp.rhs)}, \\quad y(${fmt(x0)}) = ${fmt(ivp.y0)}`,
+      subject: `\\begin{gathered} ${odeTex(ivp.rhs)} \\\\ y(${fmt(x0)}) = ${fmt(ivp.y0)} \\end{gathered}`,
       steps: [
         {
           id: 'count',
@@ -7588,7 +7608,7 @@ function exactLines(ivp: Ivp, X: number): SolutionStep[] {
   const [FX, F0] = [valueAt(F, X), valueAt(F, ivp.x0)].map(clean);
   return [
     { text: `Integrating: $y = ${antiTexOf(ivp.rhs.px)} + c$, with $c$ fixed by $y = ${fmt(ivp.y0)}$ at $x = ${fmt(ivp.x0)}$ (Differential Equations level 1, A Particular Solution).` },
-    { tex: aligned(`y(${fmt(X)}) &= ${fmt(ivp.y0)} + ${paren(FX)} - ${paren(F0)}`, `&= ${fmt(exactY(ivp, X))}`) },
+    { tex: aligned(`y(${fmt(X)}) &= ${fmt(ivp.y0)} + ${paren(FX)}`, `&\\quad - ${paren(F0)}`, `&= ${fmt(exactY(ivp, X))}`) },
   ];
 }
 
@@ -7606,7 +7626,7 @@ function errorSolution(ivp: Ivp): SolutionStep[] {
   return [
     ...runSolution(ivp),
     ...exactLines(ivp, X),
-    { tex: `\\text{error} = ${fmt(estimate)} - ${paren(exact)} = ${fmt(error)}` },
+    { tex: errorTex(estimate, exact, error) },
     { text: error < 0 ? 'Negative: the estimate is too low.' : 'Positive: the estimate is too high.' },
   ];
 }
@@ -7700,7 +7720,7 @@ const eulerMissFlow: Generator<Ivp> = {
     return {
       kind: 'flow',
       prompt: [say(`${ivpText(ivp)}. Euler's method with $h = ${fmt(ivp.h)}$ estimates $y$ at $x = ${X}$.`)],
-      subject: `${odeTex(ivp.rhs)}, \\quad ${fmt(ivp.x0)} \\le x \\le ${X}`,
+      subject: `\\begin{gathered} ${odeTex(ivp.rhs)} \\\\ ${fmt(ivp.x0)} \\le x \\le ${X} \\end{gathered}`,
       steps: [
         {
           id: 'gradient',
@@ -7743,7 +7763,7 @@ const eulerMissFlow: Generator<Ivp> = {
           ? 'The curve bends upward, so each tangent runs below it and every step comes up short: an underestimate.'
           : 'The curve bends downward, so each tangent runs above it and every step overshoots: an overestimate.',
       },
-      { tex: `y_${ivp.n} = ${fmt(eulerError(ivp).estimate)}, \\quad y(${fmt(X)}) = ${fmt(eulerError(ivp).exact)}` },
+      { tex: aligned(`y_${ivp.n} &= ${fmt(eulerError(ivp).estimate)}`, `y(${fmt(X)}) &= ${fmt(eulerError(ivp).exact)}`) },
     ];
   },
 };
@@ -7806,7 +7826,7 @@ const eulerMissChoice: Generator<Ivp> = {
           ? 'The curve bends upward: it gets steeper as $x$ grows. A tangent leaves it with the gradient at its start and falls behind, so every step lands low.'
           : 'The curve bends downward: its gradient falls as $x$ grows. A tangent keeps the steeper gradient at its start and overshoots, so every step lands high.',
       },
-      { tex: `y_${ivp.n} = ${fmt(estimate)}, \\quad y(${fmt(X)}) = ${fmt(exact)}` },
+      { tex: aligned(`y_${ivp.n} &= ${fmt(estimate)}`, `y(${fmt(X)}) &= ${fmt(exact)}`) },
     ];
   },
 };
@@ -7863,7 +7883,7 @@ const eulerExactSteps: Generator<ExactStepsParams> = {
     const { X, estimate, exact, error } = eulerError(params);
     return [
       ...exactLines(params, X),
-      { tex: `\\text{error} = ${fmt(estimate)} - ${paren(exact)} = ${fmt(error)}` },
+      { tex: errorTex(estimate, exact, error) },
     ];
   },
 };
@@ -7891,12 +7911,9 @@ function halvingSolution(ivp: Ivp): SolutionStep[] {
     { text: `With $h = ${fmt(ivp.h)}$, $${ivp.n}$ steps:` },
     ...runSolution(ivp).slice(1),
     { text: `With $h = ${fmt(half)}$, $${2 * ivp.n}$ steps, the same way, reaching $${fmt(fine.estimate)}$.` },
-    {
-      tex: aligned(
-        `${fmt(coarse.estimate)} - ${paren(coarse.exact)} &= ${fmt(coarse.error)}`,
-        `${fmt(fine.estimate)} - ${paren(fine.exact)} &= ${fmt(fine.error)}`,
-      ),
-    },
+    { text: `The errors, $h = ${fmt(ivp.h)}$ then $h = ${fmt(half)}$:` },
+    { tex: errorTex(coarse.estimate, coarse.exact, coarse.error) },
+    { tex: errorTex(fine.estimate, fine.exact, fine.error) },
     { text: 'Halving the step roughly halves the error.' },
   ];
 }
@@ -8022,9 +8039,9 @@ const eulerHalveChoice: Generator<Ivp> = {
   solution: (ivp) => {
     const { estimate, exact, error } = eulerError(ivp);
     return [
-      { tex: `\\text{error} = ${fmt(estimate)} - ${paren(exact)} = ${fmt(error)}` },
+      { tex: errorTex(estimate, exact, error) },
       { text: `Halving $h$ roughly halves the error, and the estimate stays on the same side of the true value, since the curve still bends the same way.` },
-      { tex: `${fmt(exact)} + \\tfrac{1}{2}(${fmt(error)}) = ${fmt(clean(exact + error / 2))}` },
+      { tex: aligned(`&${fmt(exact)} + \\tfrac{1}{2}(${fmt(error)})`, `&= ${fmt(clean(exact + error / 2))}`) },
     ];
   },
 };
@@ -8069,7 +8086,7 @@ const eulerSizeFlow: Generator<SizeParams> = {
           `Euler's method with $${steps}$ steps of $h = ${fmt(h)}$, from $x = ${x0}$ to $x = ${X}$, has an error of size $${fmt(error)}$. It is wanted down to $${fmt(sizeOf(params))}$, with the error proportional to $h$.`,
         ),
       ],
-      subject: `h = ${fmt(h)}: \\ \\text{error} = ${fmt(error)} \\quad \\to \\quad \\text{error} = ${fmt(sizeOf(params))}`,
+      subject: `\\begin{aligned} h = ${fmt(h)}: \\quad \\text{error} &= ${fmt(error)} \\\\ \\text{wanted: error} &= ${fmt(sizeOf(params))} \\end{aligned}`,
       steps: [
         {
           id: 'factor',

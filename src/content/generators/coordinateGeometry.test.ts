@@ -453,3 +453,286 @@ describe('chords, checked from what the learner sees', () => {
     }
   });
 });
+
+describe('circle theorems on axes, checked from what the learner sees', () => {
+  type P2 = [number, number];
+
+  /** A number as the learner reads it: 3, -\frac{2}{3}. */
+  const numberOf = (tex: string) => math.evaluate(toMath(tex.replace(/^\$|\$$/g, ''))) as number;
+
+  /** The angle at P between PA and PB is right: the dot product of the two arms is zero. */
+  const rightAt = (A: P2, B: P2, P: P2) => (A[0] - P[0]) * (B[0] - P[0]) + (A[1] - P[1]) * (B[1] - P[1]) === 0;
+
+  /** The point as far from P, Q and R alike, by solving the two bisector conditions from scratch. */
+  function circumcentre([P, Q, R]: P2[]): P2 {
+    const row = (X: P2, Y: P2) => [2 * (Y[0] - X[0]), 2 * (Y[1] - X[1]), Y[0] ** 2 + Y[1] ** 2 - X[0] ** 2 - X[1] ** 2];
+    const [a1, b1, c1] = row(P, Q);
+    const [a2, b2, c2] = row(Q, R);
+    const det = a1 * b2 - a2 * b1;
+    return [(c1 * b2 - c2 * b1) / det, (a1 * c2 - a2 * c1) / det];
+  }
+
+  const onIt = (circle: Circle, [x, y]: P2) => onCircle(circle, x, y);
+
+  /** The centre, from C(a, b) in the prompt or else from the circle's equation. */
+  function centreIn(slide: Slide): P2 {
+    if (/C\(-?\d+, -?\d+\)/.test(prose(slide))) return pointIn(slide, 'C');
+    const { a, b } = circleIn(slide);
+    return [a, b];
+  }
+
+  it('the gradients of AP and BP are the ones shown and multiply to -1', () => {
+    for (const { slide, where } of slides('coord-semicircle-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const A = pointIn(slide, 'A');
+      const P = pointIn(slide, 'P');
+      let B: P2;
+      if (prose(slide).includes('has a diameter')) {
+        const circle = circleIn(slide);
+        B = [2 * circle.a - A[0], 2 * circle.b - A[1]];
+        expect(onIt(circle, A), `${where}: A on the circle`).toBeCloseTo(0, 9);
+        expect(onIt(circle, P), `${where}: P on the circle`).toBeCloseTo(0, 9);
+      } else B = pointIn(slide, 'B');
+      const [m1, m2, product] = slide.answer.map(numberOf);
+      expect(m1, where).toBeCloseTo((P[1] - A[1]) / (P[0] - A[0]), 9);
+      expect(m2, where).toBeCloseTo((P[1] - B[1]) / (P[0] - B[0]), 9);
+      expect(product, where).toBeCloseTo(m1 * m2, 9);
+      expect(rightAt(A, B, P), `${where}: a right angle at P`).toBe(true);
+    }
+  });
+
+  it('the product picked is the real one, and the verdict is right exactly when P sees AB square on', () => {
+    for (const { slide, where } of slides('coord-right-angle-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const [A, B, P] = ['A', 'B', 'P'].map((name) => pointIn(slide, name));
+      const product = ((P[1] - A[1]) / (P[0] - A[0])) * ((P[1] - B[1]) / (P[0] - B[0]));
+      expect(numberOf(slide.answer[0]), where).toBeCloseTo(product, 9);
+      expect(slide.answer[1], where).toBe(rightAt(A, B, P) ? 'Yes' : 'No');
+    }
+  });
+
+  it('the missing coordinate puts B where AP and BP meet square on', () => {
+    for (const { slide, where } of slides('coord-semicircle-missing')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const A = pointIn(slide, 'A');
+      const P = pointIn(slide, 'P');
+      const bx = Number(/B\((-?\d+), k\)/.exec(prose(slide))![1]);
+      const B: P2 = [bx, Number(slide.answer)];
+      expect(rightAt(A, B, P), where).toBe(true);
+      expect(B[0] === P[0] && B[1] === P[1], `${where}: B is not P`).toBe(false);
+    }
+  });
+
+  it('exactly the point marked right makes APB a right angle', () => {
+    for (const { slide, where } of slides('coord-right-angle-point')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const A = pointIn(slide, 'A');
+      const B = pointIn(slide, 'B');
+      for (const option of slide.options) {
+        const [, x, y] = /^\((-?\d+), (-?\d+)\)$/.exec(option.label)!;
+        const P: P2 = [Number(x), Number(y)];
+        expect(rightAt(A, B, P), `${where}: ${option.label}`).toBe(option.id === slide.correctId);
+      }
+    }
+  });
+
+  /** The circle on diameter AB: centred at the midpoint, through both ends. */
+  function expectOnDiameter(circle: Circle, A: P2, B: P2, where: string) {
+    expect(circle.a, `${where}: centre x`).toBeCloseTo((A[0] + B[0]) / 2, 9);
+    expect(circle.b, `${where}: centre y`).toBeCloseTo((A[1] + B[1]) / 2, 9);
+    expect(onIt(circle, A), `${where}: A on the circle`).toBeCloseTo(0, 9);
+    expect(onIt(circle, B), `${where}: B on the circle`).toBeCloseTo(0, 9);
+  }
+
+  it('the circle built on a diameter has it as a diameter', () => {
+    for (const { slide, where } of slides('coord-diameter-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      expectOnDiameter(circleOf(filled(slide)), pointIn(slide, 'A'), pointIn(slide, 'B'), where);
+    }
+    for (const { slide, where } of slides('coord-diameter-steps')) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      const last = slide.reductions[slide.reductions.length - 1].value;
+      expectOnDiameter(circleOf(last), pointIn(slide, 'A'), pointIn(slide, 'B'), where);
+    }
+    for (const { slide, where } of slides('coord-diameter-r2')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const A = pointIn(slide, 'A');
+      const B = pointIn(slide, 'B');
+      const shown = texts(slide).find((tex) => tex.includes('+ k'));
+      const circle = shown
+        ? circleOf(shown.replace('k', `(${slide.answer})`))
+        : { a: (A[0] + B[0]) / 2, b: (A[1] + B[1]) / 2, r2: Number(slide.answer) };
+      expectOnDiameter(circle, A, B, where);
+    }
+  });
+
+  it('the slider lands on the midpoint of the diameter drawn', () => {
+    for (const { slide, where } of slides('coord-diameter-slider')) {
+      if (slide.kind !== 'slider') throw new Error('expected slider');
+      const [A, B] = [pointIn(slide, 'A'), pointIn(slide, 'B')];
+      const axis = slide.readout.startsWith('x') ? 0 : 1;
+      expect(slide.answer, where).toBeCloseTo((A[axis] + B[axis]) / 2, 9);
+    }
+  });
+
+  it('the bisector found is equidistant from P and Q, and passes through the centre of all three', () => {
+    for (const { slide, where } of slides('coord-three-bisector-steps')) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      const points = ['P', 'Q', 'R'].map((name) => pointIn(slide, name));
+      const line = lineOf(slide.reductions[slide.reductions.length - 1].value);
+      for (const x of XS) {
+        const X: P2 = [x, line.m * x + line.c];
+        const d = (Y: P2) => (X[0] - Y[0]) ** 2 + (X[1] - Y[1]) ** 2;
+        expect(d(points[0]), `${where} at x = ${x}`).toBeCloseTo(d(points[1]), 6);
+      }
+      const [cx, cy] = circumcentre(points);
+      expect(line.m * cx + line.c, `${where}: through the centre`).toBeCloseTo(cy, 9);
+    }
+  });
+
+  it('the centre found is equidistant from all three points, and on both bisectors shown', () => {
+    for (const { slide, where } of slides('coord-circumcentre-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const points = ['P', 'Q', 'R'].map((name) => pointIn(slide, name));
+      const [x, y, r2] = slide.answer.map(Number);
+      const [cx, cy] = circumcentre(points);
+      expect(x, where).toBeCloseTo(cx, 9);
+      expect(y, where).toBeCloseTo(cy, 9);
+      for (const P of points) expect(onIt({ a: x, b: y, r2 }, P), `${where}: ${P} on the circle`).toBeCloseTo(0, 9);
+      for (const tex of slide.expression.replace(/\\begin\{gathered\}|\\end\{gathered\}/g, '').split('\\\\')) {
+        expect(equation(tex.trim())(x, y), `${where}: C on ${tex}`).toBeCloseTo(0, 9);
+      }
+    }
+  });
+
+  it('the circle through three points passes through all three', () => {
+    for (const { slide, where } of slides('coord-three-points-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const circle = circleOf(filled(slide));
+      for (const name of ['P', 'Q', 'R']) expect(onIt(circle, pointIn(slide, name)), `${where}: ${name}`).toBeCloseTo(0, 9);
+    }
+    for (const { slide, where } of slides('coord-three-points-r2')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const points = ['P', 'Q', 'R'].map((name) => pointIn(slide, name));
+      const [a, b] = circumcentre(points);
+      for (const P of points) expect(onIt({ a, b, r2: Number(slide.answer) }, P), `${where}: ${P}`).toBeCloseTo(0, 9);
+    }
+  });
+
+  it('the fact picked fits the scene, and the gradient is the one it gives', () => {
+    for (const { slide, where } of slides('coord-chord-fact-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const text = prose(slide);
+      let from: P2;
+      let to: P2;
+      let fact: string;
+      if (text.includes('midpoint of a chord')) {
+        [from, to, fact] = [centreIn(slide), pointIn(slide, 'M'), 'midpoint of a chord'];
+        if (!/C\(/.test(text)) expect(onIt(circleIn(slide), to), `${where}: M inside`).toBeLessThan(0);
+      } else if (text.includes('tangent')) {
+        [from, to, fact] = [centreIn(slide), pointIn(slide, 'T'), 'tangent'];
+        expect(onIt(circleIn(slide), to), `${where}: T on the circle`).toBeCloseTo(0, 9);
+      } else {
+        [from, to, fact] = [pointIn(slide, 'A'), pointIn(slide, 'P'), 'semicircle'];
+      }
+      expect(slide.answer[0], where).toContain(fact);
+      expect(numberOf(slide.answer[1]), where).toBeCloseTo(-(to[0] - from[0]) / (to[1] - from[1]), 9);
+    }
+  });
+
+  it('the distance to the chord is the perpendicular distance from the centre to AB', () => {
+    for (const { slide, where } of slides('coord-chord-distance')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const [A, B] = [pointIn(slide, 'A'), pointIn(slide, 'B')];
+      const [a, b] = centreIn(slide);
+      const cross = (B[0] - A[0]) * (b - A[1]) - (B[1] - A[1]) * (a - A[0]);
+      expect(Number(slide.answer), where).toBeCloseTo(Math.abs(cross) / Math.hypot(B[0] - A[0], B[1] - A[1]), 9);
+      const r2 = (A[0] - a) ** 2 + (A[1] - b) ** 2;
+      expect(onIt({ a, b, r2 }, B), `${where}: B on the same circle`).toBeCloseTo(0, 9);
+      if (!/C\(/.test(prose(slide))) expect(circleIn(slide).r2, where).toBeCloseTo(r2, 9);
+    }
+  });
+
+  it('the tangent placed touches the circle through A and B at A', () => {
+    for (const { slide, where } of slides('coord-chord-tangent-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const [A, B] = [pointIn(slide, 'A'), pointIn(slide, 'B')];
+      // The centre (0, t) or (t, t), from CA^2 = CB^2 solved afresh.
+      const g = prose(slide).includes('$y$-axis') ? (t: number): P2 => [0, t] : (t: number): P2 => [t, t];
+      const gap = (t: number) => onIt({ a: g(t)[0], b: g(t)[1], r2: 0 }, A) - onIt({ a: g(t)[0], b: g(t)[1], r2: 0 }, B);
+      const t = -gap(0) / (gap(1) - gap(0));
+      const [a, b] = g(t);
+      const circle = { a, b, r2: (A[0] - a) ** 2 + (A[1] - b) ** 2 };
+      expect(onIt(circle, B), `${where}: B on the circle`).toBeCloseTo(0, 9);
+      const line = lineOf(filled(slide));
+      expect(line.m * A[0] + line.c, `${where}: through A`).toBeCloseTo(A[1], 9);
+      expect(meeting(circle, line).D, `${where}: touches`).toBeCloseTo(0, 6);
+    }
+  });
+
+  it('the chord built from its midpoint passes through it, square on to CM', () => {
+    for (const { slide, where } of slides('coord-chord-from-midpoint-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const M = pointIn(slide, 'M');
+      const [a, b] = centreIn(slide);
+      const [cm, m, c] = slide.answer.map(numberOf);
+      expect(cm, where).toBeCloseTo((M[1] - b) / (M[0] - a), 9);
+      expect(m * cm, `${where}: perpendicular`).toBeCloseTo(-1, 9);
+      expect(m * M[0] + c, `${where}: through M`).toBeCloseTo(M[1], 9);
+      if (!/C\(/.test(prose(slide))) {
+        // M inside, so the chord really cuts the circle and M is its midpoint.
+        const [[x1, y1], [x2, y2]] = crossings(circleIn(slide), { m, c });
+        expect((x1 + x2) / 2, where).toBeCloseTo(M[0], 9);
+        expect((y1 + y2) / 2, where).toBeCloseTo(M[1], 9);
+      }
+    }
+  });
+
+  it('the fact offered as right is the one the scene asks for', () => {
+    const keys: [RegExp, string][] = [
+      [/angle \$APB\$/, 'semicircle'],
+      [/leads to its centre/, 'bisector'],
+      [/tangent at \$T\$/, 'tangent'],
+      [/finds \$B\$/, 'midpoint of a diameter'],
+    ];
+    for (const { slide, where } of slides('coord-which-theorem')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const [, fact] = keys.find(([pattern]) => pattern.test(prose(slide)))!;
+      expect(slide.options.find((o) => o.id === slide.correctId)?.label, where).toContain(fact);
+      if (fact === 'semicircle') expect(rightAt(pointIn(slide, 'A'), pointIn(slide, 'B'), pointIn(slide, 'P')), where).toBe(true);
+    }
+  });
+
+  it('the far end of the diameter is on the circle, with the centre halfway', () => {
+    for (const id of ['coord-other-end-steps', 'coord-other-end-slider']) {
+      for (const { slide, where } of slides(id)) {
+        const circle = circleIn(slide);
+        const A = pointIn(slide, 'A');
+        expect(onIt(circle, A), `${where}: A on the circle`).toBeCloseTo(0, 9);
+        const B: P2 = [2 * circle.a - A[0], 2 * circle.b - A[1]];
+        if (slide.kind === 'steps') {
+          const [, x, y] = /^B = \((-?\d+), (-?\d+)\)$/.exec(slide.reductions[slide.reductions.length - 1].value)!;
+          expect([Number(x), Number(y)], where).toEqual(B);
+        } else if (slide.kind === 'slider') {
+          expect(slide.answer, where).toBe(slide.readout.startsWith('x') ? B[0] : B[1]);
+        } else throw new Error(`unexpected ${slide.kind}`);
+      }
+    }
+  });
+
+  it('the tangent at the far end is parallel to the one at A, and touches', () => {
+    for (const { slide, where } of slides('coord-parallel-tangent')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const circle = circleIn(slide);
+      const A = pointIn(slide, 'A');
+      const atA = lineIn(slide);
+      expect(atA.m * A[0] + atA.c, `${where}: the tangent shown is through A`).toBeCloseTo(A[1], 9);
+      expect(meeting(circle, atA).D, `${where}: the tangent shown touches`).toBeCloseTo(0, 6);
+      const tex = texts(slide).find((t) => /^y = .* \+ c$/.test(t))!;
+      const atB = lineOf(tex.replace(/\+ c$/, `+ (${slide.answer})`));
+      expect(atB.m, `${where}: parallel`).toBeCloseTo(atA.m, 9);
+      expect(atB.c, `${where}: a different line`).not.toBeCloseTo(atA.c, 9);
+      expect(meeting(circle, atB).D, `${where}: touches`).toBeCloseTo(0, 6);
+    }
+  });
+});

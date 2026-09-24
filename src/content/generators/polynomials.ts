@@ -92,6 +92,37 @@ export function divideBy(p: Poly, a: number): { quotient: Poly; remainder: numbe
   return { quotient: carries.slice(0, -1), remainder: carries[carries.length - 1] };
 }
 
+/**
+ * Long division by a divisor whose leading coefficient is 1, keeping what is
+ * left after each step: `stages[i]` starts at the term the next step clears,
+ * and the last stage is the remainder.
+ */
+function longDivision(p: Poly, d: Poly): { quotient: Poly; stages: Poly[] } {
+  const n = d.length - 1;
+  let rest = [...p];
+  const quotient: number[] = [];
+  const stages: Poly[] = [];
+  for (let i = 0; i + n < p.length; i += 1) {
+    const q = rest[i];
+    quotient.push(q);
+    rest = rest.map((c, j) => (j >= i && j <= i + n ? c - q * d[j - i] : c));
+    stages.push(rest.slice(i + 1));
+  }
+  return { quotient, stages };
+}
+
+/**
+ * Division by any divisor whose leading coefficient is 1, such as a quadratic
+ * factor. The remainder is padded to the divisor's degree, so dividing by a
+ * quadratic always leaves [r, s] for rx + s.
+ */
+export function divideByPoly(p: Poly, d: Poly): { quotient: Poly; remainder: Poly } {
+  const n = d.length - 1;
+  const { quotient, stages } = longDivision(p, d);
+  const left = stages.length > 0 ? stages[stages.length - 1] : padTo(p, n);
+  return { quotient, remainder: left.slice(-n) };
+}
+
 const degreeOf = (p: Poly): number => p.length - 1;
 
 /** The coefficient of x^k. */
@@ -1334,7 +1365,7 @@ function reduceBanks(expr: Expr): Record<string, string[]> {
  * p(-3) = 2(-3)^3 - 4(-3)^2, then + 6(-3) + 8 underneath. A bracketed negative
  * needs no times sign; a bare positive does, or 2 \times 3^3 would read as 23^3.
  */
-function substitutedTex(p: Poly, a: number, total?: number): string {
+function substitutedTex(p: Poly, a: number, total?: number, name = 'p'): string {
   const n = degreeOf(p);
   const shown = a < 0 ? `(${a})` : `${a}`;
   const pieces = p
@@ -1350,7 +1381,7 @@ function substitutedTex(p: Poly, a: number, total?: number): string {
   const lines: string[] = [];
   for (let i = 0; i < pieces.length; i += 2) {
     const row = sumTex(pieces.slice(i, i + 2));
-    lines.push(i === 0 ? `p(${a}) &= ${row}` : `&\\quad ${row.startsWith('-') ? `- ${row.slice(1)}` : `+ ${row}`}`);
+    lines.push(i === 0 ? `${name}(${a}) &= ${row}` : `&\\quad ${row.startsWith('-') ? `- ${row.slice(1)}` : `+ ${row}`}`);
   }
   if (total !== undefined) lines.push(`&= ${total}`);
   return chain(...lines);
@@ -2409,6 +2440,19 @@ function quadraticRoots(b: number, c: number): [number, number] | undefined {
 /** Three linear brackets, as the learner reads them. */
 function bracketsTex(roots: number[]): string {
   return roots.map((r) => `(${linTex(r)})`).join('');
+}
+
+/** Sorted roots as brackets, a repeated root written once with its power: (x + 2)^{2}. */
+function groupedTex(roots: number[]): string {
+  const sorted = [...roots].sort((x, y) => x - y);
+  let out = '';
+  for (let i = 0; i < sorted.length; ) {
+    let j = i;
+    while (j < sorted.length && sorted[j] === sorted[i]) j += 1;
+    out += `(${linTex(sorted[i])})${j - i > 1 ? `^{${j - i}}` : ''}`;
+    i = j;
+  }
+  return out;
 }
 
 /**
@@ -5460,6 +5504,1712 @@ const polyRecipDivideSteps: Generator<SymParams> = {
   },
 };
 
+/* ================================================================
+ * Level 5: quartics and repeated factors
+ *
+ * Dividing by a quadratic factor, two factors found at once, a factor that
+ * divides more than once, a quartic that is a quadratic in x^2, and a quartic
+ * solved from scratch. Every quartic is still built outward — a divisor times
+ * a quotient plus a remainder, or small whole roots times a quadratic — so
+ * every quotient, remainder and root is whole by construction.
+ * ================================================================ */
+
+/**
+ * A polynomial for a display, broken after its third term when it has five.
+ * A display scrolls sideways rather than wrapping, and a quartic with all five
+ * terms runs past a phone screen: the constant was hidden off the edge.
+ */
+function longTex(lhs: string, terms: string[], rhs = ''): string {
+  const whole = `${lhs ? `${lhs} = ` : ''}${terms.join(' ')}${rhs}`;
+  if (texWidth(whole) <= FITS || terms.length < 3) return whole;
+  const cut = terms.length >= 5 ? 3 : 2;
+  return chain(`${lhs ? `${lhs} ` : ''}&${lhs ? '= ' : ''}${terms.slice(0, cut).join(' ')}`, `&\\quad ${terms.slice(cut).join(' ')}${rhs}`);
+}
+
+/**
+ * A product of brackets for a display, split over two lines when it is too
+ * wide: p(x) = (x - 2)(x + 2) on the first, times (x - 4)(x + 4) on the next.
+ */
+function productDisplay(lhs: string, product: string): string {
+  const whole = `${lhs} = ${product}`;
+  if (texWidth(whole) <= FITS) return whole;
+  // Top-level brackets, each with any power after it; a leading minus stays with the first.
+  const parts: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (let i = 0; i < product.length; i += 1) {
+    current += product[i];
+    if (product[i] === '(') depth += 1;
+    if (product[i] === ')') {
+      depth -= 1;
+      if (depth === 0) {
+        const power = /^\^\{\d+\}/.exec(product.slice(i + 1));
+        if (power) {
+          current += power[0];
+          i += power[0].length;
+        }
+        parts.push(current);
+        current = '';
+      }
+    }
+  }
+  if (current || parts.length < 2) return whole;
+  const half = Math.ceil(parts.length / 2);
+  return chain(`${lhs} &= ${parts.slice(0, half).join('')}`, `&\\quad \\times ${parts.slice(half).join('')}`);
+}
+
+/**
+ * Roughly how wide a line of TeX renders, in characters: an operator counts
+ * nearly two for the space around it and an exponent just over half. A
+ * display on a 393 px screen holds about FITS before it scrolls sideways.
+ */
+function texWidth(tex: string): number {
+  let width = 0;
+  const bare = tex
+    .replace(/\^\{([^}]*)\}/g, (_, power: string) => {
+      width += 0.6 * power.length;
+      return '';
+    })
+    .replace(/\\[a-z]+/g, '')
+    .replace(/[{}&\s]/g, '');
+  for (const ch of bare) width += /[+\-=]/.test(ch) ? 1.8 : 1;
+  return width;
+}
+
+const FITS = 21;
+
+/** p(x) = ..., broken as longTex does. */
+const pDisplay = (p: Poly, lhs = 'p(x)'): string => longTex(lhs, termTiles(p));
+
+/** ... = 0, broken as longTex does. */
+const equationDisplay = (p: Poly): string => longTex('', termTiles(p), ' = 0');
+
+/** A polynomial for a tiles template, which splits on {0}: x^2 rather than x^{2}. */
+const templateTex = (p: Poly): string => polyTex(p).replace(/\^\{(\d)\}/g, '^$1');
+
+/** A remainder rx + s as tiles that follow another term, zeros left out. */
+function remainderTiles([r, s]: Poly): string[] {
+  return [...(r === 0 ? [] : [signedTerm(r, 1)]), ...(s === 0 ? [] : [signedNum(s)])];
+}
+
+/** The two leading terms left after a step of long division, the second shown even when 0. */
+function leadingPair(a: number, b: number, k: number): string {
+  return `${termTex(a, k)} ${placeTerm(b, k - 1)}`;
+}
+
+/** A multiple of a bracket in a line of working: (x^2 + 1), 3x(x^2 + 1), (-2)(x^2 + 1). */
+function timesBracket(c: number, k: number, bracket: string): string {
+  const m = termTex(c, k);
+  return `${m === '1' ? '' : factor(m)}(${bracket})`;
+}
+
+/** The right polynomial, then slips that read differently from it and from each other, `count` in all. */
+function distinctPolys(right: Poly, slips: Poly[], count: number): Poly[] {
+  const out = [right];
+  for (const slip of slips) {
+    if (out.length === count) break;
+    if (out.some((seen) => polyTex(seen) === polyTex(slip))) continue;
+    out.push(slip);
+  }
+  return out;
+}
+
+/** A letter with its coefficient, as a term of an equation: 8k, - q, + 3p. */
+function letterTerm(c: number, name: string, first: boolean): string {
+  if (first) return `${coefMark(c)}${name}`;
+  return c < 0 ? `- ${coefMark(-c)}${name}` : `+ ${coefMark(c)}${name}`;
+}
+
+/* ---------- lesson 1: dividing by a quadratic ---------- */
+
+interface QuadDivideParams {
+  /** The divisor x^2 + bx + c, as [1, b, c]. */
+  d: Poly;
+  q: Poly;
+  /** The remainder rx + s, as [r, s]. */
+  rem: Poly;
+}
+
+const quadDividend = ({ d, q, rem }: QuadDivideParams): Poly => addPoly(mulPoly(d, q), rem);
+
+/**
+ * A divisor, a quotient of degree `top` led by `lead`, and a remainder that is
+ * there never, sometimes or always. Every coefficient of the dividend is kept
+ * non-zero so that no place goes missing from a line of working.
+ */
+function sampleQuadDivide(
+  rng: Rng,
+  top: number,
+  remainder: 'never' | 'sometimes' | 'always',
+  lead = 1,
+  limit = 40,
+): QuadDivideParams {
+  for (;;) {
+    const d = [1, nonZero(rng, 4), nonZero(rng, 6)];
+    const q = [lead, ...Array.from({ length: top }, () => nonZero(rng, 4))];
+    const none = remainder === 'never' || (remainder === 'sometimes' && rng.chance(0.3));
+    const rem = none ? [0, 0] : [rng.int(-5, 5), nonZero(rng, 9)];
+    const p = quadDividend({ d, q, rem });
+    if (p.length !== top + 3 || p.some((c) => c === 0) || !fits(p, limit)) continue;
+    return { d, q, rem };
+  }
+}
+
+/**
+ * Long division by a quadratic as a line that shrinks. Each step takes away a
+ * multiple of the divisor, which clears the first term and changes the two
+ * after it; the first step takes three pieces of the line and each later one
+ * takes the two-term piece it left plus the next term down. What is left when
+ * no x^2 can be cleared is the remainder.
+ */
+const polyLongQuadSteps: Generator<QuadDivideParams> = {
+  id: 'poly-long-quad-steps',
+  sample: (rng, difficulty) => (difficulty > 1 ? sampleQuadDivide(rng, 2, 'always') : sampleQuadDivide(rng, 1, 'sometimes')),
+  render: (params): Slide => {
+    const { d } = params;
+    const p = quadDividend(params);
+    const n = degreeOf(p);
+    const { quotient, stages } = longDivision(p, d);
+    const divisor = polyTex(d);
+    const reductions = stages.map((stage, i) => {
+      const before = i === 0 ? p : stages[i - 1];
+      const m = quotient[i];
+      const last = i === stages.length - 1;
+      const piece = (a: number, b: number): string | undefined =>
+        last ? polyTex([a, b]) : a === 0 ? undefined : leadingPair(a, b, n - i - 1);
+      const value = piece(stage[0], stage[1])!;
+      const slips = [
+        piece(before[1] + m * d[1], before[2] + m * d[2]),
+        piece(before[1] - m * d[1], before[2]),
+        piece(before[1] - m * d[1], before[2] + m * d[2]),
+        piece(before[1] + m * d[1], before[2] - m * d[2]),
+      ].filter((slip): slip is string => slip !== undefined);
+      return { span: [0, i === 0 ? 3 : 2] as [number, number], value, bank: stepBank(value, ...slips) };
+    });
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `Divide by $(${divisor})$. Each step takes away enough of $(${divisor})$ to clear the first term, which changes the two terms after it. When what is left has no $x^{2}$ term, that is the remainder. Tap the part you would do **next**, then choose what it leaves.`,
+        ),
+      ],
+      start: p.map((c, i) => (i === 0 ? termTex(c, n) : placeTerm(c, n - i))),
+      reductions,
+    };
+  },
+  solution: (params) => {
+    const { d, rem } = params;
+    const p = quadDividend(params);
+    const n = degreeOf(p);
+    const { quotient, stages } = longDivision(p, d);
+    const divisor = polyTex(d);
+    return [
+      { text: `Clear the first term each time by taking away the right multiple of $(${divisor})$:` },
+      // One step to a line, as prose: a step written out in full is wider than a phone.
+      ...stages.map((stage, i) => {
+        const before = i === 0 ? p : stages[i - 1];
+        const k = n - i;
+        const three = `${termTex(before[0], k)} ${placeTerm(before[1], k - 1)} ${placeTerm(before[2], k - 2)}`;
+        const left = i === stages.length - 1 ? polyTex(stage) : leadingPair(stage[0], stage[1], k - 1);
+        return { text: `$${three} - ${timesBracket(quotient[i], k - 2, divisor)} = ${left}$` };
+      }),
+      { text: `What was taken away is the quotient, $${polyTex(quotient)}$, and the remainder is $${polyTex(rem)}$.` },
+    ];
+  },
+};
+
+/**
+ * The same division by comparing coefficients, worked from the top down: the
+ * x^4 terms give the quotient's first coefficient, and each power after that
+ * gives the next, until the last two are the remainder.
+ */
+const polyQuadQuotientTree: Generator<QuadDivideParams> = {
+  id: 'poly-quad-quotient-tree',
+  sample: (rng, difficulty) =>
+    difficulty > 1 ? sampleQuadDivide(rng, 2, 'always', rng.pick([2, 3, -2]), 60) : sampleQuadDivide(rng, 2, 'sometimes'),
+  render: (params): Slide => {
+    const { d, q, rem } = params;
+    const p = quadDividend(params);
+    const [, b, c] = d;
+    const answer = [...q, ...rem];
+    const slips = [
+      p[1] + b * q[0],
+      -q[1],
+      p[2] - b * q[1] + c * q[0],
+      p[2] - c * q[0],
+      -q[2],
+      p[3],
+      p[4],
+      -rem[0],
+      -rem[1],
+      p[4] + c * q[2],
+    ];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `Divide $p(x)$ by $(${polyTex(d)})$ by comparing coefficients in $p(x) = (${polyTex(d)})(ax^{2} + bx + c) + rx + s$. Work down from the top: $a$ from the $x^{4}$ terms, then $b$ from the $x^{3}$ terms and $c$ from the $x^{2}$ terms. The bottom row is the remainder, $r$ and then $s$.`,
+        ),
+      ],
+      expression: pDisplay(p),
+      nodes: [
+        { id: 'a', from: [] },
+        { id: 'b', from: ['a'] },
+        { id: 'c', from: ['a', 'b'] },
+        { id: 'r', from: ['b', 'c'] },
+        { id: 's', from: ['c'] },
+      ],
+      bank: numberBank(answer, slips),
+      answer: answer.map(String),
+    };
+  },
+  solution: (params) => {
+    const { d, q, rem } = params;
+    const p = quadDividend(params);
+    const [, b, c] = d;
+    const [qa, qb, qc] = q;
+    const [r, s] = rem;
+    const times = (x: number, y: number) => `${productNum(x)} \\times ${productNum(y)}`;
+    return [
+      { text: `Multiply out $(${polyTex(d)})(ax^{2} + bx + c)$ and match each power with $p(x)$, from the top:` },
+      { text: `$x^{4}$: $a = ${qa}$.` },
+      { text: `$x^{3}$: $b + ${times(b, qa)} = ${p[1]}$, so $b = ${qb}$.` },
+      { text: `$x^{2}$: $c + ${times(b, qb)} + ${times(c, qa)} = ${p[2]}$, so $c = ${qc}$.` },
+      { text: `$x$: $r + ${times(b, qc)} + ${times(c, qb)} = ${p[3]}$, so $r = ${r}$.` },
+      { text: `Constant: $s + ${times(c, qc)} = ${p[4]}$, so $s = ${s}$.` },
+      { text: `The quotient is $${polyTex(q)}$ and the remainder is $${polyTex(rem)}$.` },
+    ];
+  },
+};
+
+/** The quotient, and the remainder when there is one, placed into p(x) = divisor × quotient + remainder. */
+const polyQuadQuotientTiles: Generator<QuadDivideParams> = {
+  id: 'poly-quad-quotient-tiles',
+  sample: (rng, difficulty) =>
+    difficulty > 1 ? sampleQuadDivide(rng, 2, 'always', rng.int(1, 2), 60) : sampleQuadDivide(rng, 1, 'sometimes'),
+  render: (params): Slide => {
+    const { d, q, rem } = params;
+    const p = quadDividend(params);
+    const quotient = termTiles(q);
+    const remainder = remainderTiles(rem);
+    const answer = [...quotient, ...remainder];
+    const inner = quotient.map((_, i) => `{${i}}`).join(' ');
+    const tail = remainder.map((_, i) => `{${quotient.length + i}}`).join(' ');
+    // The same division with the divisor's middle sign the wrong way round.
+    const wrong = divideByPoly(p, [1, -d[1], d[2]]);
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(`Divide $p(x)$ by $(${polyTex(d)})$. Fill in the quotient${remainder.length > 0 ? ' and the remainder' : ''}.`),
+        show(pDisplay(p)),
+      ],
+      template: `(${templateTex(d)})(${inner})${tail ? ` ${tail}` : ''}`,
+      bank: fillBank(answer, [
+        ...termTiles(wrong.quotient).slice(1),
+        ...q.slice(1).map((c, i) => signedTerm(-c, q.length - 2 - i)),
+        ...(fits(wrong.remainder, 30) ? remainderTiles(wrong.remainder) : []),
+        ...remainderTiles(rem.map((c) => -c)),
+      ]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { d, q, rem } = params;
+    const p = quadDividend(params);
+    const exact = rem.every((c) => c === 0);
+    const last = q[q.length - 1];
+    return [
+      {
+        text: `Divide by $(${polyTex(d)})$, clearing the first term at each step. The quotient is $${polyTex(q)}$${exact ? ' and nothing is left over' : ` and the remainder is $${polyTex(rem)}$`}.`,
+      },
+      { text: `$p(x) = (${polyTex(d)})(${polyTex(q)})${exact ? '' : ` ${signedPolyTex(rem)}`}$` },
+      {
+        text: `Check the ends: $x^{2} \\times ${termTex(q[0], q.length - 1)} = ${termTex(p[0], p.length - 1)}$, and $${productNum(d[2])} \\times ${productNum(last)}${rem[1] === 0 ? '' : ` ${signedNum(rem[1])}`} = ${p[p.length - 1]}$.`,
+      },
+    ];
+  },
+};
+
+interface QuadRemainderParams extends QuadDivideParams {
+  /** 0 asks for r, 1 for s. */
+  ask: number;
+}
+
+/** r or s in the remainder rx + s on dividing by a quadratic. */
+const polyQuadRemainder: Generator<QuadRemainderParams> = {
+  id: 'poly-quad-remainder',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const base =
+        difficulty > 1 ? sampleQuadDivide(rng, 2, 'always', rng.int(1, 2), 60) : sampleQuadDivide(rng, 1, 'always');
+      if (base.rem[0] === 0) continue;
+      return { ...base, ask: rng.int(0, 1) };
+    }
+  },
+  choices: (params) => {
+    const { d, rem, ask } = params;
+    const p = quadDividend(params);
+    const wrong = divideByPoly(p, [1, -d[1], d[2]]).remainder;
+    // The sign slip on the divisor can run to hundreds, which nobody would pick.
+    const slip = Math.abs(wrong[ask]) <= 30 ? [wrong[ask]] : [];
+    return intOptions(rem[ask], [-rem[ask], ...slip, rem[1 - ask], p[p.length - 2 + ask]]);
+  },
+  render: (params): Slide => {
+    const { d, rem, ask } = params;
+    const p = quadDividend(params);
+    const letter = ask === 0 ? 'r' : 's';
+    return {
+      kind: 'expression',
+      prompt: [
+        say(`When $p(x)$ is divided by $(${polyTex(d)})$, the remainder is $rx + s$. Find $${letter}$.`),
+        show(pDisplay(p)),
+      ],
+      lead: `${letter} =`,
+      keypad: [],
+      answer: String(rem[ask]),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { d, q, rem } = params;
+    return [
+      { text: `Divide by $(${polyTex(d)})$ until what is left has no $x^{2}$ term. The quotient is $${polyTex(q)}$, and what is left is the remainder:` },
+      { text: `$p(x) = (${polyTex(d)})(${polyTex(q)}) ${signedPolyTex(rem)}$` },
+      { text: `So $r = ${rem[0]}$ and $s = ${rem[1]}$.` },
+    ];
+  },
+};
+
+/* ---------- lesson 2: two factors at once ---------- */
+
+interface PairParams {
+  /** Two known roots, so (x - a)(x - b) is a factor. */
+  a: number;
+  b: number;
+  /** The other factor, [lead, e, f]. */
+  g: Poly;
+}
+
+const pairFactor = ({ a, b }: PairParams): Poly => fromRoots([a, b]);
+const pairPoly = (params: PairParams): Poly => mulPoly(pairFactor(params), params.g);
+
+/**
+ * Two roots, and a second quadratic factor led by `lead` whose other two
+ * coefficients are never 0. With a lead of 1 it splits over the whole numbers
+ * half the time, and never splits by accident the other half.
+ */
+function samplePair(rng: Rng, hard: boolean, lead: number, limit: number): PairParams {
+  for (;;) {
+    const [a, b] = sampleRoots(rng, 2, hard ? 4 : 3);
+    const splits = rng.chance(0.5);
+    const g = splits
+      ? fromRoots(sampleRoots(rng, 2, hard ? 5 : 4, true), lead)
+      : [lead, nonZero(rng, hard ? 7 : 5), nonZero(rng, hard ? 12 : 7)];
+    if (g[1] === 0 || g[2] === 0) continue;
+    if (!splits && lead === 1 && quadraticRoots(g[1], g[2]) !== undefined) continue;
+    if (!fits(pairPoly({ a, b, g }), limit)) continue;
+    return { a, b, g };
+  }
+}
+
+/** Why a quadratic offered as the factor is not one: it is not zero at one of the roots. */
+function missOutcome(f: Poly, roots: number[]): string {
+  const at = roots.find((r) => valueAt(f, r) !== 0) ?? roots[0];
+  return `It is $${valueAt(f, at)}$ at $x = ${at}$, not $0$, and the factor has to be zero at both roots.`;
+}
+
+/**
+ * Two roots at once: their brackets multiply to a quadratic factor, dividing
+ * by it leaves another quadratic, and that may or may not split.
+ */
+const polyPairFlow: Generator<PairParams> = {
+  id: 'poly-pair-flow',
+  sample: (rng, difficulty) => samplePair(rng, difficulty > 1, 1, difficulty > 1 ? 90 : 50),
+  render: (params): Slide => {
+    const { a, b, g } = params;
+    const p = pairPoly(params);
+    const k = pairFactor(params);
+    const key = polyTex(p);
+    const split = quadraticRoots(g[1], g[2]);
+
+    const factors = distinctPolys(k, [fromRoots([-a, -b]), [1, -(a + b), -a * b], [1, a + b, -a * b]], 3);
+    const quotients = distinctPolys(g, [divideByPoly(p, fromRoots([-a, -b])).quotient, [1, -g[1], g[2]], [1, g[1], -g[2]]], 3);
+
+    // Candidate full factorisations, as root lists.
+    const pairs: [number, number][] = split
+      ? [split, [-split[0], -split[1]], [-split[0], split[1]], [split[0], -split[1]]]
+      : [
+          ...divisors(g[2]).flatMap((dv) => [
+            [-dv, -g[2] / dv] as [number, number],
+            [dv, g[2] / dv] as [number, number],
+          ]),
+          [1, 1] as [number, number],
+          [-1, -1] as [number, number],
+        ];
+    const forms: number[][] = [];
+    const seen = new Set<string>();
+    for (const [s, t] of pairs) {
+      const roots = [a, b, s, t].sort((x, y) => x - y);
+      const id = roots.join(',');
+      if (seen.has(id) || forms.length === 3) continue;
+      seen.add(id);
+      forms.push(roots);
+    }
+    const right = split ? groupedTex([a, b, ...split].sort((x, y) => x - y)) : '';
+
+    return {
+      kind: 'flow',
+      prompt: [say('Factorise $p(x)$ as far as it goes. Each answer chooses what gets asked next.')],
+      subject: `p(x) = ${polyTex(p)}`,
+      steps: [
+        {
+          id: 'factor',
+          ask: `$p(${a}) = 0$ and $p(${b}) = 0$. Which quadratic must be a factor of $p(x)$?`,
+          branches: turned(
+            factors.map((f, i) =>
+              i === 0 ? { label: `$${polyTex(f)}$`, to: 'quotient' } : { label: `$${polyTex(f)}$`, outcome: missOutcome(f, [a, b]) },
+            ),
+            key,
+          ),
+        },
+        {
+          id: 'quotient',
+          ask: `Dividing $p(x)$ by $${polyTex(k)}$ leaves which quadratic?`,
+          branches: turned(
+            quotients.map((quad, i) =>
+              i === 0
+                ? { label: `$${polyTex(quad)}$`, to: 'split' }
+                : {
+                    label: `$${polyTex(quad)}$`,
+                    outcome: `Multiplying back, $(${polyTex(k)})(${polyTex(quad)})$ is $${polyTex(mulPoly(k, quad))}$, not $p(x)$.`,
+                  },
+            ),
+            `${key}|quotient`,
+          ),
+        },
+        {
+          id: 'split',
+          ask: `Does $${polyTex(g)}$ factorise into brackets with whole numbers?`,
+          branches: [
+            { label: 'Yes', to: 'form' },
+            { label: 'No', outcome: `Then $p(x) = (${polyTex(k)})(${polyTex(g)})$ is as far as it goes.` },
+          ],
+        },
+        {
+          id: 'form',
+          ask: 'Which is $p(x)$ fully factorised?',
+          branches: turned(
+            forms.map((roots) => ({
+              label: `$${groupedTex(roots)}$`,
+              outcome: `That multiplies out to $${polyTex(fromRoots(roots))}$.`,
+            })),
+            `${key}|form`,
+          ),
+        },
+      ],
+      answer: split
+        ? [`$${polyTex(k)}$`, `$${polyTex(g)}$`, 'Yes', `$${right}$`]
+        : [`$${polyTex(k)}$`, `$${polyTex(g)}$`, 'No'],
+    };
+  },
+  solution: (params) => {
+    const { a, b, g } = params;
+    const k = pairFactor(params);
+    const split = quadraticRoots(g[1], g[2]);
+    return [
+      { text: `$(${linTex(a)})$ and $(${linTex(b)})$ are both factors, so their product is too: $(${linTex(a)})(${linTex(b)}) = ${polyTex(k)}$.` },
+      { text: `Dividing $p(x)$ by $${polyTex(k)}$ leaves $${polyTex(g)}$.` },
+      split
+        ? {
+            text: `That splits too, $${polyTex(g)} = ${groupedTex(split)}$, so $p(x) = ${groupedTex([a, b, ...split].sort((x, y) => x - y))}$.`,
+          }
+        : {
+            text: `Two whole numbers would have to multiply to $${g[2]}$ and add to $${g[1]}$, and none do, so $p(x) = (${polyTex(k)})(${polyTex(g)})$ is as far as it goes.`,
+          },
+    ];
+  },
+};
+
+/**
+ * Two roots known: the quadratic factor they give, then the other quadratic
+ * factor by comparing the x^3 terms and the constants.
+ */
+const polyTwoRootsTree: Generator<PairParams> = {
+  id: 'poly-two-roots-tree',
+  sample: (rng, difficulty) =>
+    difficulty > 1 ? samplePair(rng, true, rng.pick([2, 3, -1, -2]), 90) : samplePair(rng, false, 1, 60),
+  render: (params): Slide => {
+    const { a, b, g } = params;
+    const p = pairPoly(params);
+    const [, m, n] = pairFactor(params);
+    const [lead, e, f] = g;
+    const answer = [m, n, e, f];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `$x = ${a}$ and $x = ${b}$ are roots of $p(x)$, so $p(x) = (x^{2} + mx + n)(${termTex(lead, 2)} + ex + f)$. Top row: $m$ and $n$, from the two roots. Underneath: $e$ from the $x^{3}$ terms and $f$ from the constant terms.`,
+        ),
+      ],
+      expression: pDisplay(p),
+      nodes: [
+        { id: 'm', from: [] },
+        { id: 'n', from: [] },
+        { id: 'e', from: ['m'] },
+        { id: 'f', from: ['n'] },
+      ],
+      bank: numberBank(answer, [a + b, -n, p[1], p[1] + m * lead, -e, -f, p[4], p[4] + n]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (params) => {
+    const { a, b, g } = params;
+    const p = pairPoly(params);
+    const k = pairFactor(params);
+    const [, m, n] = k;
+    const [lead, e, f] = g;
+    return [
+      { text: `$(${linTex(a)})(${linTex(b)}) = ${polyTex(k)}$, so $m = ${m}$ and $n = ${n}$.` },
+      { text: `$x^{3}$ terms: $e + ${productNum(m)} \\times ${productNum(lead)} = ${p[1]}$, so $e = ${e}$.` },
+      { text: `Constant terms: $${productNum(n)} \\times f = ${p[4]}$, so $f = ${f}$.` },
+      { tex: productDisplay('p(x)', `(${polyTex(k)})(${polyTex(g)})`) },
+    ];
+  },
+};
+
+interface OtherFactorParams extends PairParams {
+  /** Difficulty 2: the known factor is built from the two roots as well. */
+  build: boolean;
+}
+
+/** The other quadratic factor as tiles; at difficulty 2 the known one too, from its roots. */
+const polyOtherFactorTiles: Generator<OtherFactorParams> = {
+  id: 'poly-other-factor-tiles',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const hard = difficulty > 1;
+      const params = hard ? samplePair(rng, true, rng.int(1, 2), 90) : samplePair(rng, false, 1, 60);
+      if (hard && params.a + params.b === 0) continue;
+      return { ...params, build: hard };
+    }
+  },
+  render: (params): Slide => {
+    const { a, b, g, build } = params;
+    const p = pairPoly(params);
+    const k = pairFactor(params);
+    const other = termTiles(g);
+    const wrong = divideByPoly(p, fromRoots([-a, -b])).quotient;
+    const slips = [...termTiles(wrong).slice(1), signedTerm(-g[1], 1), signedTerm(-g[2], 0), signedTerm(g[2], 1)];
+    if (!build) {
+      return {
+        kind: 'tiles',
+        prompt: [say(`$(${polyTex(k)})$ is a factor of $p(x)$. Fill in the other factor.`), show(pDisplay(p))],
+        template: `(${templateTex(k)})({0} {1} {2})`,
+        bank: fillBank(other, slips),
+        answer: other,
+      };
+    }
+    const answer = [signedTerm(k[1], 1), signedNum(k[2]), ...other];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(`$p(${a}) = 0$ and $p(${b}) = 0$. Write $p(x)$ as a product of two quadratics.`),
+        show(pDisplay(p)),
+      ],
+      template: '(x^2 {0} {1})({2} {3} {4})',
+      bank: fillBank(answer, [...slips, signedTerm(-k[1], 1), signedNum(-k[2])]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { a, b, g, build } = params;
+    const p = pairPoly(params);
+    const k = pairFactor(params);
+    return [
+      ...(build ? [{ text: `$p(${a}) = 0$ and $p(${b}) = 0$, so $(${linTex(a)})(${linTex(b)}) = ${polyTex(k)}$ is a factor.` }] : []),
+      {
+        text: `The other factor's first term times $x^{2}$ makes $${termTex(p[0], 4)}$, and its last term times $${productNum(k[2])}$ makes $${p[4]}$. Dividing $p(x)$ by $${polyTex(k)}$ fills in the middle:`,
+      },
+      { tex: productDisplay('p(x)', `(${polyTex(k)})(${polyTex(g)})`) },
+    ];
+  },
+};
+
+interface PairUnknownParams extends PairParams {
+  /** Which coefficients are letters, as indices into the quartic: one (k) or two (p, q). */
+  at: number[];
+  /** Which letter is asked for. */
+  ask: number;
+}
+
+const letterNames = (at: number[]): string[] => (at.length === 1 ? ['k'] : ['p', 'q']);
+
+/** A polynomial's terms as TeX with some coefficients replaced by letters: x^4, + kx^3, - 7x^2, ... */
+function letteredTerms(p: Poly, letters: (string | undefined)[]): string[] {
+  const n = degreeOf(p);
+  const terms: string[] = [];
+  p.forEach((c, i) => {
+    const k = n - i;
+    const letter = letters[i];
+    if (letter) terms.push(`${terms.length === 0 ? '' : '+ '}${letter}${k === 0 ? '' : k === 1 ? 'x' : `x^{${k}}`}`);
+    else if (c !== 0) terms.push(signedTerm(c, k, terms.length === 0));
+  });
+  return terms;
+}
+
+/** The lettered coefficients that make p zero at each root, found from the roots alone. */
+function solveLetters(p: Poly, at: number[], roots: number[]): number[] {
+  const n = degreeOf(p);
+  const known = p.map((c, i) => (at.includes(i) ? 0 : c));
+  const row = (x: number) => [...at.map((i) => x ** (n - i)), -valueAt(known, x)];
+  if (at.length === 1) {
+    const [m, rhs] = row(roots[0]);
+    return [rhs / m];
+  }
+  const [a1, b1, c1] = row(roots[0]);
+  const [a2, b2, c2] = row(roots[1]);
+  const det = a1 * b2 - a2 * b1;
+  return [(c1 * b2 - c2 * b1) / det, (a1 * c2 - a2 * c1) / det];
+}
+
+/**
+ * A coefficient fixed by the two roots. One letter needs one root; two
+ * letters need both, as a pair of simultaneous equations.
+ */
+const polyPairUnknown: Generator<PairUnknownParams> = {
+  id: 'poly-pair-unknown',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      if (difficulty > 1) {
+        const base = samplePair(rng, true, 1, 90);
+        // |a| = |b| makes the two equations the same equation.
+        if (Math.abs(base.a) === Math.abs(base.b)) continue;
+        const p = pairPoly(base);
+        if (p[1] === 0 || p[3] === 0) continue;
+        return { ...base, at: [1, 3], ask: rng.int(0, 1) };
+      }
+      const base = samplePair(rng, false, 1, 60);
+      const at = [rng.int(1, 3)];
+      if (pairPoly(base)[at[0]] === 0) continue;
+      return { ...base, at, ask: 0 };
+    }
+  },
+  choices: (params) => {
+    const { a, b, at, ask } = params;
+    const p = pairPoly(params);
+    const value = p[at[ask]];
+    const flipped = solveLetters(p, at, [-a, -b])[ask];
+    return intOptions(value, [-value, flipped, ...(at.length > 1 ? [p[at[1 - ask]]] : []), p[at[ask] + 1]]);
+  },
+  render: (params): Slide => {
+    const { a, b, at, ask } = params;
+    const p = pairPoly(params);
+    const names = letterNames(at);
+    const letters = p.map((_, i) => (at.includes(i) ? names[at.indexOf(i)] : undefined));
+    return {
+      kind: 'expression',
+      prompt: [
+        say(`$(${linTex(a)})$ and $(${linTex(b)})$ are both factors of $f(x)$. Find $${names[ask]}$.`),
+        show(longTex('f(x)', letteredTerms(p, letters))),
+      ],
+      lead: `${names[ask]} =`,
+      keypad: [],
+      answer: String(p[at[ask]]),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { a, b, at } = params;
+    const p = pairPoly(params);
+    const n = degreeOf(p);
+    const names = letterNames(at);
+    const known = p.map((c, i) => (at.includes(i) ? 0 : c));
+    const equation = (x: number) =>
+      `${at.map((i, j) => letterTerm(x ** (n - i), names[j], j === 0)).join(' ')} ${signedNum(valueAt(known, x))} = 0`;
+    if (at.length === 1) {
+      return [
+        { text: `$(${linTex(a)})$ is a factor, so $f(${a}) = 0$. With the known terms added up:` },
+        { tex: equation(a) },
+        { text: `So $k = ${p[at[0]]}$. $f(${b}) = 0$ as well, which is a check.` },
+      ];
+    }
+    return [
+      { text: `Both are factors, so $f(${a}) = 0$ and $f(${b}) = 0$. With the known terms added up:` },
+      { tex: chain(equation(a), equation(b)) },
+      { text: `Solving them together gives $p = ${p[at[0]]}$ and $q = ${p[at[1]]}$.` },
+    ];
+  },
+};
+
+/* ---------- lesson 3: repeated factors ---------- */
+
+interface TwiceParams {
+  a: number;
+  lead: number;
+  /** What is left of p(x) once (x - a) is taken out, monic. */
+  q: Poly;
+}
+
+const twicePoly = ({ a, lead, q }: TwiceParams): Poly => mulPoly([lead, -lead * a], q);
+
+/** A cubic with (x - a) as a factor, repeated half the time and single the other half. */
+function sampleTwice(rng: Rng, difficulty: number): TwiceParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const a = nonZero(rng, 3);
+    const repeated = rng.chance(0.5);
+    let q: Poly;
+    if (hard) q = repeated ? fromRoots([a, nonZero(rng, 5)]) : [1, nonZero(rng, 6), nonZero(rng, 9)];
+    else q = repeated ? fromRoots([a, nonZero(rng, 4)]) : fromRoots(sampleRoots(rng, 2, 4, true));
+    if (!repeated && valueAt(q, a) === 0) continue;
+    const lead = hard ? rng.pick([1, -1, 2]) : 1;
+    if (!fits(twicePoly({ a, lead, q }), 60)) continue;
+    return { a, lead, q };
+  }
+}
+
+/**
+ * Synthetic division by (x - a), then the quotient divided by (x - a) again.
+ * Two zero remainders make (x - a)^2 a factor.
+ */
+const polyTwiceTree: Generator<TwiceParams> = {
+  id: 'poly-twice-tree',
+  sample: sampleTwice,
+  render: (params): Slide => {
+    const { a } = params;
+    const p = twicePoly(params);
+    const first = divideBy(p, a);
+    const [c2, c1, c0] = first.quotient;
+    const e1 = c2 * a + c1;
+    const r2 = e1 * a + c0;
+    const answer = [c2, c1, c0, e1, first.remainder, r2];
+    const wrong = divideBy(p, -a);
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `Is $(${linTex(a)})^{2}$ a factor of $p(x)$? Divide by $(${linTex(a)})$ with synthetic division, then divide the quotient by $(${linTex(a)})$ again. Down the left: the first division, ending in its remainder. On the right: the second division's middle number, then its remainder.`,
+        ),
+        show(`\\begin{array}{r|rrrr} ${a} & ${p.join(' & ')} \\end{array}`),
+      ],
+      expression: pDisplay(p),
+      nodes: [
+        { id: 'c2', from: [] },
+        { id: 'c1', from: ['c2'] },
+        { id: 'c0', from: ['c1'] },
+        { id: 'e1', from: ['c2', 'c1'] },
+        { id: 'r1', from: ['c0'] },
+        { id: 'r2', from: ['c0', 'e1'] },
+      ],
+      bank: numberBank(
+        answer,
+        [...wrong.quotient.slice(1), wrong.remainder, -e1, -r2, p[1], p[2], e1 + c0].filter((v) => Math.abs(v) <= 30),
+      ),
+      answer: answer.map(String),
+    };
+  },
+  solution: (params) => {
+    const { a } = params;
+    const p = twicePoly(params);
+    const first = divideBy(p, a);
+    const [c2, c1, c0] = first.quotient;
+    const e1 = c2 * a + c1;
+    const r2 = e1 * a + c0;
+    const step = (x: number, y: number, z: number) => `${factor(String(x))} \\times ${factor(String(a))} + ${factor(String(y))} &= ${z}`;
+    return [
+      { text: `First division: bring down $${c2}$, then multiply by $${a}$ and add the next coefficient each time.` },
+      { tex: chain(step(c2, p[1], c1), step(c1, p[2], c0), step(c0, p[3], first.remainder)) },
+      { text: `The remainder is $0$, so the quotient is $${polyTex(first.quotient)}$. Divide that by $(${linTex(a)})$ again:` },
+      { tex: chain(step(c2, c1, e1), step(e1, c0, r2)) },
+      {
+        text:
+          r2 === 0
+            ? `Both remainders are $0$: $(${linTex(a)})$ divides $p(x)$, then divides the quotient too, so $(${linTex(a)})^{2}$ is a factor.`
+            : `The second remainder is $${r2}$, not $0$: $(${linTex(a)})$ is a factor only once, so $(${linTex(a)})^{2}$ is not.`,
+      },
+    ];
+  },
+};
+
+interface RepeatFlowParams {
+  /** The value tested. */
+  a: number;
+  /** p(x) is the monic polynomial with these roots. */
+  roots: number[];
+}
+
+/** Factor, repeated factor, or neither: test p(a), and when it is 0, test the quotient at a. */
+const polyRepeatFlow: Generator<RepeatFlowParams> = {
+  id: 'poly-repeat-flow',
+  sample: (rng, difficulty) => {
+    const count = difficulty > 1 ? 4 : 3;
+    for (;;) {
+      const a = nonZero(rng, 3);
+      const times = rng.int(0, 2);
+      const others = sampleRoots(rng, count - times, 4, difficulty > 1);
+      if (others.includes(a)) continue;
+      const roots = [...Array<number>(times).fill(a), ...others];
+      if (!fits(fromRoots(roots), 80)) continue;
+      return { a, roots };
+    }
+  },
+  render: ({ a, roots }): Slide => {
+    const p = fromRoots(roots);
+    const v = valueAt(p, a);
+    const q = divideBy(p, a).quotient;
+    const w = valueAt(q, a);
+    const key = `${polyTex(p)}|${a}`;
+    const lin = `(${linTex(a)})`;
+    return {
+      kind: 'flow',
+      prompt: [say(`Is $${lin}$ a factor of $p(x)$, and if it is, is it repeated? Each answer chooses what gets asked next.`)],
+      subject: `p(x) = ${polyTex(p)}`,
+      steps: [
+        {
+          id: 'value',
+          ask: `What is $p(${a})$?`,
+          branches: turned(
+            [v, ...valueSlips(p, a, 2, v !== 0)].map((n, i) =>
+              i === 0
+                ? { label: `$${n}$`, to: 'verdict' }
+                : { label: `$${n}$`, outcome: `Put $x = ${a}$ into every term again: $p(${a})$ is not $${n}$.` },
+            ),
+            key,
+          ),
+        },
+        {
+          id: 'verdict',
+          ask: `So is $${lin}$ a factor of $p(x)$?`,
+          branches: [
+            v === 0 ? { label: 'Yes', to: 'again' } : { label: 'Yes', outcome: `A factor needs $p(${a}) = 0$.` },
+            {
+              label: 'No',
+              outcome:
+                v === 0
+                  ? `$p(${a}) = 0$ is exactly what makes $${lin}$ a factor.`
+                  : `Right: it is not a factor at all, so it cannot be a repeated one.`,
+            },
+          ],
+        },
+        {
+          id: 'again',
+          ask: `Dividing $p(x)$ by $${lin}$ leaves $q(x) = ${polyTex(q)}$. What is $q(${a})$?`,
+          branches: turned(
+            [w, ...valueSlips(q, a, 2, w !== 0)].map((n, i) =>
+              i === 0
+                ? { label: `$${n}$`, to: 'twice' }
+                : { label: `$${n}$`, outcome: `Put $x = ${a}$ into every term of $q(x)$ again: it is not $${n}$.` },
+            ),
+            `${key}|again`,
+          ),
+        },
+        {
+          id: 'twice',
+          ask: `So how many times does $${lin}$ divide $p(x)$?`,
+          branches: [
+            {
+              label: 'Once only',
+              outcome: w === 0 ? `$q(${a}) = 0$ means it divides the quotient as well.` : `Right: it divides $p(x)$ but not $q(x)$.`,
+            },
+            {
+              label: 'At least twice',
+              outcome: w === 0 ? `Right: $${lin}^{2}$ is a factor.` : `It would have to divide $q(x)$ too, which needs $q(${a}) = 0$.`,
+            },
+          ],
+        },
+      ],
+      answer: v !== 0 ? [`$${v}$`, 'No'] : ['$0$', 'Yes', `$${w}$`, w === 0 ? 'At least twice' : 'Once only'],
+    };
+  },
+  solution: ({ a, roots }) => {
+    const p = fromRoots(roots);
+    const v = valueAt(p, a);
+    const lin = `(${linTex(a)})`;
+    if (v !== 0) {
+      return [
+        { tex: substitutedTex(p, a, v) },
+        { text: `$p(${a})$ is not $0$, so $${lin}$ is not a factor at all.` },
+      ];
+    }
+    const q = divideBy(p, a).quotient;
+    const w = valueAt(q, a);
+    return [
+      { text: `$p(${a}) = 0$, so $${lin}$ is a factor. Dividing leaves $q(x) = ${polyTex(q)}$.` },
+      { tex: substitutedTex(q, a, w, 'q') },
+      {
+        text:
+          w === 0
+            ? `$q(${a}) = 0$ too, so $${lin}$ divides the quotient again: $${lin}^{2}$ is a factor of $p(x)$.`
+            : `$q(${a})$ is not $0$, so $${lin}$ divides $p(x)$ once only.`,
+      },
+    ];
+  },
+};
+
+interface MultiplicityParams {
+  a: number;
+  /** p(x) is lead times the polynomial with these roots. */
+  roots: number[];
+  lead: number;
+}
+
+/** How many times (x - a) divides p(x): 1 or 2 in a cubic, up to 3 in a quartic. */
+const polyMultiplicity: Generator<MultiplicityParams> = {
+  id: 'poly-multiplicity',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const count = hard ? 4 : 3;
+    for (;;) {
+      const a = nonZero(rng, 3);
+      const times = rng.int(1, hard ? 3 : 2);
+      const others = sampleRoots(rng, count - times, 4, hard);
+      if (others.includes(a)) continue;
+      const roots = [...Array<number>(times).fill(a), ...others];
+      const lead = hard ? rng.pick([1, -1, 2]) : 1;
+      if (!fits(fromRoots(roots, lead), 90)) continue;
+      return { a, roots, lead };
+    }
+  },
+  choices: ({ a, roots }) => intOptions(roots.filter((r) => r === a).length, [1, 2, 3, 4], 1),
+  render: ({ a, roots, lead }): Slide => ({
+    kind: 'expression',
+    prompt: [
+      say(
+        `$p(${a}) = 0$, so $(${linTex(a)})$ is a factor of $p(x)$. $(${linTex(a)})^{n}$ is the highest power of it that divides $p(x)$. Find $n$.`,
+      ),
+      show(pDisplay(fromRoots(roots, lead))),
+    ],
+    lead: 'n =',
+    keypad: [],
+    answer: String(roots.filter((r) => r === a).length),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ a, roots, lead }) => {
+    const lin = `(${linTex(a)})`;
+    const lines: SolutionStep[] = [{ text: `Keep dividing by $${lin}$ until the remainder is not $0$:` }];
+    let current = fromRoots(roots, lead);
+    let times = 0;
+    for (;;) {
+      const { quotient, remainder } = divideBy(current, a);
+      if (remainder !== 0) {
+        lines.push({ text: `Dividing $${polyTex(current)}$ by $${lin}$ leaves remainder $${remainder}$, so it stops there.` });
+        break;
+      }
+      times += 1;
+      lines.push({ text: `Division ${times}: remainder $0$, quotient $${polyTex(quotient)}$.` });
+      current = quotient;
+    }
+    lines.push({ text: `$${lin}$ divides $p(x)$ ${times === 1 ? 'once' : times === 2 ? 'twice' : `${times} times`}, so $n = ${times}$.` });
+    return lines;
+  },
+};
+
+interface RepeatStepsParams {
+  a: number;
+  /** The rest of p(x): p(x) = (x - a)^2 g(x), with g(a) not 0. */
+  g: Poly;
+}
+
+/**
+ * From one division to the repeated factor: the quotient left by dividing by
+ * (x - a) has a as a root again, so it splits off another (x - a), and the
+ * two gather into a square.
+ */
+const polyRepeatFactorSteps: Generator<RepeatStepsParams> = {
+  id: 'poly-repeat-factor-steps',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const a = nonZero(rng, 4);
+      const g = difficulty > 1 ? [1, nonZero(rng, 5), nonZero(rng, 7)] : [1, -nonZero(rng, 5)];
+      if (valueAt(g, a) === 0) continue;
+      if (!fits(mulPoly(fromRoots([a, a]), g), 90)) continue;
+      return { a, g };
+    }
+  },
+  render: ({ a, g }): Slide => {
+    const p = mulPoly(fromRoots([a, a]), g);
+    const q1 = mulPoly([1, -a], g);
+    const lin = `(${linTex(a)})`;
+    const rest = `(${polyTex(g)})`;
+    const once = `${lin}${rest}`;
+    const twice = `${lin}^{2}${rest}`;
+    const flipLast = [...g.slice(0, -1), -g[g.length - 1]];
+    const flipAll = [g[0], ...g.slice(1).map((c) => -c)];
+    const other = `(${polyTex(divideBy(q1, -a).quotient)})`;
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `$p(${a}) = 0$, so dividing by $${lin}$ gives the line below. Factorise what is left, then gather the factors. Tap the part you would do **next**, then choose what it becomes.`,
+        ),
+        show(pDisplay(p)),
+      ],
+      start: [lin, `(${polyTex(q1)})`],
+      reductions: [
+        {
+          span: [1, 2],
+          value: once,
+          bank: stepBank(once, `(${linTex(-a)})${other}`, `${lin}(${polyTex(flipLast)})`, `${lin}(${polyTex(flipAll)})`),
+        },
+        {
+          span: [0, 2],
+          value: twice,
+          bank: stepBank(twice, once, `${lin}^{3}`, `${lin}^{2}(${polyTex(flipLast)})`, `(${linTex(-a)})^{2}${rest}`),
+        },
+      ],
+    };
+  },
+  solution: ({ a, g }) => {
+    const q1 = mulPoly([1, -a], g);
+    const lin = `(${linTex(a)})`;
+    return [
+      { text: `The quotient $q(x) = ${polyTex(q1)}$ is zero at $x = ${a}$ as well:` },
+      { tex: substitutedTex(q1, a, 0, 'q') },
+      { text: `So divide it by $${lin}$ again: $${polyTex(q1)} = ${lin}(${polyTex(g)})$.` },
+      { tex: productDisplay('p(x)', `${lin}^{2}(${polyTex(g)})`) },
+      { text: `$${polyTex(g)}$ is not zero at $x = ${a}$, so $${lin}$ is repeated exactly twice.` },
+    ];
+  },
+};
+
+/* ---------- lesson 4: a quartic as a quadratic in x^2 ---------- */
+
+interface InUParams {
+  /** The two values of u = x^2, smaller first: p(x) = (x^2 - u1)(x^2 - u2). */
+  u: number[];
+}
+
+const inUPoly = ({ u }: InUParams): Poly => [1, 0, -(u[0] + u[1]), 0, u[0] * u[1]];
+
+/** A polynomial in u rather than x: u^2 - 5u + 4. */
+const uTex = (p: Poly): string => polyTex(p).replace(/x/g, 'u');
+
+const SQUARES = [1, 4, 9, 16, 25, 36];
+const isSquare = (u: number): boolean => u > 0 && Number.isInteger(Math.sqrt(u));
+
+/** x^2 - u as a factor: (x^{2} - 4), (x^{2} + 3). */
+const uFactorTex = (u: number): string => `(x^{2} ${signedNum(-u)})`;
+
+/** One factor x^2 - u taken as far as whole numbers go, as TeX pieces and polynomials. */
+function uFactors(u: number): { tex: string; poly: Poly }[] {
+  if (!isSquare(u)) return [{ tex: uFactorTex(u), poly: [1, 0, -u] }];
+  const m = Math.sqrt(u);
+  return [
+    { tex: `(x - ${m})`, poly: [1, -m] },
+    { tex: `(x + ${m})`, poly: [1, m] },
+  ];
+}
+
+/** Two different non-zero values of u drawn from `pool`, smaller first, at least one a square when `square` says so. */
+function sampleU(rng: Rng, pool: number[], square: boolean): number[] {
+  for (;;) {
+    const u = rng.sample(pool, 2).sort((x, y) => x - y);
+    if (square && !u.some(isSquare)) continue;
+    return u;
+  }
+}
+
+/** What u = x^2 gives, one line per value of u. */
+function uLine(u: number): string {
+  if (isSquare(u)) return `$x^{2} = ${u}$ gives $x = \\pm ${Math.sqrt(u)}$.`;
+  if (u > 0) return `$x^{2} = ${u}$ gives $x = \\pm\\sqrt{${u}}$, which are not whole.`;
+  return `$x^{2} = ${u}$ has no real solution: a square is never negative.`;
+}
+
+interface BiquadParams extends InUParams {
+  /** Difficulty 2: factorise all the way, as far as whole numbers allow. */
+  full: boolean;
+}
+
+const NEGATIVES = [-1, -2, -3, -4, -5, -6, -7, -8, -9];
+const NON_SQUARES = [2, 3, 5, 6, 7, 8];
+
+/**
+ * The quartic as two factors in x^2 at difficulty 1; at difficulty 2 as far
+ * as it goes, where x^2 - 9 splits and x^2 + 4 or x^2 - 2 stays whole.
+ */
+const polyBiquadTiles: Generator<BiquadParams> = {
+  id: 'poly-biquad-tiles',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1) {
+      const shape = rng.int(0, 2);
+      const square = rng.pick(SQUARES.slice(0, 5));
+      if (shape === 0) return { u: sampleU(rng, SQUARES.slice(0, 5), false), full: true };
+      const other = rng.pick(shape === 1 ? NEGATIVES : NON_SQUARES);
+      return { u: [square, other].sort((x, y) => x - y), full: true };
+    }
+    return { u: sampleU(rng, [...NEGATIVES.slice(0, 6), ...Array.from({ length: 9 }, (_, i) => i + 1)], false), full: false };
+  },
+  render: (params): Slide => {
+    const { u, full } = params;
+    const p = inUPoly(params);
+    if (!full) {
+      const answer = u.map((v) => signedNum(-v));
+      return {
+        kind: 'tiles',
+        prompt: [
+          say('Put $u = x^{2}$ and factorise as a quadratic in $u$, then put $x^{2}$ back. Fill in the two factors.'),
+          show(pDisplay(p)),
+        ],
+        template: '(x^2 {0})(x^2 {1})',
+        bank: fillBank(answer, [...u.map((v) => signedNum(v)), signedNum(-(u[0] + u[1])), signedNum(u[0] * u[1])]),
+        answer,
+        unordered: true,
+      };
+    }
+    const answer = u.flatMap((v) => uFactors(v).map((f) => f.tex));
+    const distractors = u.flatMap((v) =>
+      isSquare(v) ? [uFactorTex(v), `(x - ${v})`, `(x^{2} ${signedNum(v)})`] : [uFactorTex(-v), `(x - ${Math.abs(v)})`, `(x + ${Math.abs(v)})`],
+    );
+    return {
+      kind: 'tiles',
+      prompt: [say('Factorise $p(x)$ fully, as far as whole numbers allow.'), show(pDisplay(p))],
+      template: `p(x) = ${answer.map((_, i) => `{${i}}`).join(' ')}`,
+      bank: fillBank(answer, distractors),
+      answer,
+      unordered: true,
+    };
+  },
+  solution: (params) => {
+    const { u, full } = params;
+    const quad = [1, -(u[0] + u[1]), u[0] * u[1]];
+    const lines: SolutionStep[] = [
+      { text: `Put $u = x^{2}$: $${uTex(quad)} = (u ${signedNum(-u[0])})(u ${signedNum(-u[1])})$.` },
+      { text: `Put $x^{2}$ back: $p(x) = ${uFactorTex(u[0])}${uFactorTex(u[1])}$.` },
+    ];
+    if (!full) return lines;
+    for (const v of u) {
+      lines.push({
+        text: isSquare(v)
+          ? `$x^{2} - ${v}$ is a difference of two squares: $(x - ${Math.sqrt(v)})(x + ${Math.sqrt(v)})$.`
+          : v < 0
+            ? `$x^{2} + ${-v}$ is never zero, so it has no factor $(x - a)$ and stays as it is.`
+            : `$x^{2} - ${v}$ is zero at $x = \\pm\\sqrt{${v}}$, which are not whole, so it stays as it is.`,
+      });
+    }
+    lines.push({ tex: productDisplay('p(x)', u.flatMap((v) => uFactors(v).map((f) => f.tex)).join('')) });
+    return lines;
+  },
+};
+
+/**
+ * From u to x: the two values of u = x^2, then the real x each gives. A
+ * negative u gives none, so the tree has fewer nodes.
+ */
+const polyInUTree: Generator<InUParams> = {
+  id: 'poly-in-u-tree',
+  sample: (rng, difficulty) => {
+    const squares = SQUARES.slice(0, difficulty > 1 ? 5 : 4);
+    if (rng.chance(difficulty > 1 ? 0.6 : 0.3)) return { u: sampleU(rng, squares, false) };
+    return { u: [rng.pick(NEGATIVES), rng.pick(squares)] };
+  },
+  render: (params): Slide => {
+    const { u } = params;
+    const p = inUPoly(params);
+    const answer = [...u];
+    const nodes: { id: string; from: string[] }[] = [
+      { id: 'u1', from: [] },
+      { id: 'u2', from: [] },
+    ];
+    u.forEach((v, i) => {
+      if (!isSquare(v)) return;
+      const m = Math.sqrt(v);
+      nodes.push({ id: `x${i}a`, from: [`u${i + 1}`] }, { id: `x${i}b`, from: [`u${i + 1}`] });
+      answer.push(-m, m);
+    });
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          'Solve the equation by putting $u = x^{2}$. Top row: the two values of $u$, smaller first. Underneath each, the real values of $x$ it gives, negative first. A negative $u$ gives none.',
+        ),
+      ],
+      expression: equationDisplay(p),
+      nodes,
+      bank: numberBank(answer, [-u[0], -u[1], u[0] + u[1], -(u[0] + u[1]), ...u.filter(isSquare).map((v) => Math.sqrt(v) + 1)]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (params) => {
+    const { u } = params;
+    const quad = [1, -(u[0] + u[1]), u[0] * u[1]];
+    return [
+      { text: `With $u = x^{2}$ the equation is $${uTex(quad)} = 0$, which factorises as $(u ${signedNum(-u[0])})(u ${signedNum(-u[1])}) = 0$.` },
+      { text: `So $u = ${u[0]}$ or $u = ${u[1]}$.` },
+      ...u.map((v) => ({ text: uLine(v) })),
+    ];
+  },
+};
+
+interface CountUParams {
+  /** p(x) = x^4 + bx^2 + c. */
+  b: number;
+  c: number;
+}
+
+/** The values of u = x^2 that solve u^2 + bu + c = 0, or undefined when there are none. */
+function uRoots({ b, c }: CountUParams): number[] | undefined {
+  const disc = b * b - 4 * c;
+  if (disc < 0) return undefined;
+  const root = Math.sqrt(disc);
+  return [...new Set([(-b - root) / 2, (-b + root) / 2])];
+}
+
+function realCount(params: CountUParams): number {
+  return (uRoots(params) ?? []).reduce((n, u) => n + (u > 0 ? 2 : u === 0 ? 1 : 0), 0);
+}
+
+/**
+ * How many different real solutions a quartic in x^2 has: two for each
+ * positive u, one for u = 0 and none for a negative u or no real u at all.
+ */
+const polyBiquadCount: Generator<CountUParams> = {
+  id: 'poly-biquad-count',
+  sample: (rng, difficulty) => {
+    const pool = [...NEGATIVES, ...Array.from({ length: difficulty > 1 ? 16 : 9 }, (_, i) => i + 1)];
+    if (difficulty > 1) {
+      const kind = rng.int(0, 3);
+      if (kind === 3) {
+        for (;;) {
+          const b = rng.int(-6, 6);
+          const c = rng.int(1, 20);
+          if (b * b < 4 * c) return { b, c };
+        }
+      }
+      const u =
+        kind === 0 ? [0, rng.pick(pool)] : kind === 1 ? Array<number>(2).fill(rng.pick(pool)) : rng.sample(pool, 2);
+      return { b: -(u[0] + u[1]), c: u[0] * u[1] };
+    }
+    const u = rng.sample(pool, 2);
+    return { b: -(u[0] + u[1]), c: u[0] * u[1] };
+  },
+  render: (params): Slide => {
+    const { b, c } = params;
+    return choiceSlide(
+      [say('How many different real solutions does this equation have?'), show(`${polyTex([1, 0, b, 0, c])} = 0`)],
+      intOptions(realCount(params), [4, 2, 0, 3, 1], 0),
+    );
+  },
+  solution: (params) => {
+    const { b, c } = params;
+    const roots = uRoots(params);
+    const count = realCount(params);
+    const lines: SolutionStep[] = [{ text: `Put $u = x^{2}$: $${uTex([1, b, c])} = 0$.` }];
+    if (!roots) {
+      lines.push({ text: `$b^{2} - 4c = ${b * b - 4 * c}$ is negative, so there is no real $u$, and so no real $x$.` });
+    } else {
+      lines.push({ text: roots.length === 1 ? `That gives $u = ${roots[0]}$ only.` : `That gives $u = ${roots[0]}$ or $u = ${roots[1]}$.` });
+      for (const u of roots) lines.push({ text: u === 0 ? '$x^{2} = 0$ gives $x = 0$ only.' : uLine(u) });
+    }
+    lines.push({ text: `That is $${count}$ different real solution${count === 1 ? '' : 's'}.` });
+    return lines;
+  },
+};
+
+/**
+ * Factorising a quartic in x^2 fully: in u first, then x^2 back, then only
+ * the factors that are differences of two squares go further.
+ */
+const polyBiquadFlow: Generator<InUParams> = {
+  id: 'poly-biquad-flow',
+  sample: (rng, difficulty) =>
+    difficulty > 1
+      ? { u: sampleU(rng, [...SQUARES.slice(0, 5), ...NEGATIVES, ...NON_SQUARES], rng.chance(0.8)) }
+      : { u: sampleU(rng, [...SQUARES.slice(0, 4), ...NEGATIVES], true) },
+  render: (params): Slide => {
+    const { u } = params;
+    const [u0, u1] = u;
+    const p = inUPoly(params);
+    const key = polyTex(p);
+    const uForm = (a: number, b: number) => `$(u ${signedNum(-a)})(u ${signedNum(-b)})$`;
+    const uForms = [
+      { a: u0, b: u1 },
+      { a: -u0, b: -u1 },
+      { a: u0, b: -u1 },
+      { a: -u0, b: u1 },
+    ];
+    const seenForms = new Set<string>();
+    const uBranches = uForms
+      .filter(({ a, b }) => {
+        const label = uForm(a, b);
+        if (seenForms.has(label) || seenForms.size === 3) return false;
+        seenForms.add(label);
+        return true;
+      })
+      .map(({ a, b }, i) =>
+        i === 0
+          ? { label: uForm(a, b), to: 'back' }
+          : { label: uForm(a, b), outcome: `That multiplies out to $${uTex(fromRoots([a, b]))}$.` },
+      );
+
+    const splits = u.map(isSquare);
+    const whichLabels = ['Both', `Only $${uFactorTex(u0)}$`, `Only $${uFactorTex(u1)}$`, 'Neither'];
+    const right = splits[0] && splits[1] ? 0 : splits[0] ? 1 : splits[1] ? 2 : 3;
+    const pieces = u.flatMap(uFactors);
+    const full = pieces.map((f) => f.tex).join('');
+    const rule =
+      'Only a difference of two squares, $x^{2} - m^{2}$, splits into $(x - m)(x + m)$. Adding a number, or taking away one that is not a square, leaves nothing to split.';
+
+    const forms: { tex: string; poly: Poly }[] = [
+      { tex: full, poly: p },
+      { tex: `${uFactorTex(u0)}${uFactorTex(u1)}`, poly: p },
+      {
+        tex: u.map((v) => (isSquare(v) ? `(x - ${Math.sqrt(v)})^{2}` : uFactorTex(v))).join(''),
+        poly: u.reduce<Poly>((acc, v) => mulPoly(acc, isSquare(v) ? fromRoots([Math.sqrt(v), Math.sqrt(v)]) : [1, 0, -v]), [1]),
+      },
+      {
+        tex: u.map((v) => `(x - ${Math.abs(v)})(x + ${Math.abs(v)})`).join(''),
+        poly: u.reduce<Poly>((acc, v) => mulPoly(acc, [1, 0, -v * v]), [1]),
+      },
+    ];
+    const seenFull = new Set<string>();
+    const fullBranches = forms
+      .filter((form) => {
+        if (seenFull.has(form.tex)) return false;
+        seenFull.add(form.tex);
+        return true;
+      })
+      .map((form, i) => ({
+        label: `$${form.tex}$`,
+        outcome:
+          i === 0
+            ? 'Every factor left is either linear or has no whole-number roots.'
+            : form.tex === forms[1].tex
+              ? 'Not yet: a difference of two squares is still there to split.'
+              : `That multiplies out to $${polyTex(form.poly)}$.`,
+      }));
+
+    return {
+      kind: 'flow',
+      prompt: [say('Factorise $p(x)$ fully. Each answer chooses what gets asked next.')],
+      subject: `p(x) = ${polyTex(p)}`,
+      steps: [
+        {
+          id: 'u',
+          ask: `Put $u = x^{2}$. How does $${uTex([1, -(u0 + u1), u0 * u1])}$ factorise?`,
+          branches: turned(uBranches, key),
+        },
+        {
+          id: 'back',
+          ask: `So $p(x) = ${uFactorTex(u0)}${uFactorTex(u1)}$. Which of these factorise further with whole numbers?`,
+          branches: whichLabels.map((label, i) =>
+            i !== right
+              ? { label, outcome: rule }
+              : right === 3
+                ? { label, outcome: `Right: $p(x) = ${uFactorTex(u0)}${uFactorTex(u1)}$ is as far as it goes.` }
+                : { label, to: 'full' },
+          ),
+        },
+        ...(right === 3
+          ? []
+          : [
+              {
+                id: 'full',
+                ask: 'Which is $p(x)$ fully factorised?',
+                branches: turned(fullBranches, `${key}|full`),
+              },
+            ]),
+      ],
+      answer: right === 3 ? [uForm(u0, u1), whichLabels[3]] : [uForm(u0, u1), whichLabels[right], `$${full}$`],
+    };
+  },
+  solution: (params) => {
+    const { u } = params;
+    const [u0, u1] = u;
+    const lines: SolutionStep[] = [
+      { text: `With $u = x^{2}$: $${uTex([1, -(u0 + u1), u0 * u1])} = (u ${signedNum(-u0)})(u ${signedNum(-u1)})$.` },
+      { text: `Put $x^{2}$ back: $p(x) = ${uFactorTex(u0)}${uFactorTex(u1)}$.` },
+    ];
+    for (const v of u) {
+      lines.push({
+        text: isSquare(v)
+          ? `$x^{2} - ${v}$ is a difference of two squares, $(x - ${Math.sqrt(v)})(x + ${Math.sqrt(v)})$.`
+          : `$x^{2} ${signedNum(-v)}$ has no whole-number roots, so it stays.`,
+      });
+    }
+    lines.push({ tex: productDisplay('p(x)', u.flatMap(uFactors).map((f) => f.tex).join('')) });
+    return lines;
+  },
+};
+
+/* ---------- lesson 5: solving a quartic ---------- */
+
+interface QuarticParams {
+  /** roots[0] is the one found first by trial, roots[1] the second. */
+  roots: number[];
+  lead: number;
+}
+
+const quarticPoly = ({ roots, lead }: QuarticParams): Poly => fromRoots(roots, lead);
+
+/** Four small whole roots, distinct at difficulty 1, and a lead of 1 there. */
+function sampleQuartic(rng: Rng, difficulty: number, limit = 80): QuarticParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const roots = sampleRoots(rng, 4, hard ? 4 : 3, hard);
+    const lead = hard ? rng.pick([1, 1, -1, 2]) : 1;
+    if (!fits(fromRoots(roots, lead), limit)) continue;
+    return { roots, lead };
+  }
+}
+
+/** The distinct roots, smallest first, as "x = -2, 1, 3". */
+const rootSetLabel = (roots: number[]): string =>
+  `$x = ${[...new Set(roots)].sort((x, y) => x - y).join(',\\ ')}$`;
+
+/** Working for a quartic solved from scratch: one root, divide, another, divide, the quadratic. */
+function quarticSolution({ roots, lead }: QuarticParams, hint: boolean): SolutionStep[] {
+  const p = fromRoots(roots, lead);
+  const [r0, r1] = roots;
+  const cubic = divideBy(p, r0).quotient;
+  const quad = divideBy(cubic, r1).quotient;
+  return [
+    hint
+      ? { text: `$x = ${r0}$ is a solution, so divide by $(${linTex(r0)})$:` }
+      : { text: `Try divisors of $${Math.abs(p[4])}$: $p(${r0}) = 0$, so divide by $(${linTex(r0)})$:` },
+    { text: `$p(x) = (${linTex(r0)})(${polyTex(cubic)})$` },
+    { text: `The cubic is zero at $x = ${r1}$, so divide it by $(${linTex(r1)})$. That leaves $${polyTex(quad)}$, which factorises:` },
+    { tex: productDisplay('p(x)', `${leadTex(lead)}${groupedTex([...roots].sort((x, y) => x - y))}`) },
+  ];
+}
+
+interface QuarticFlowParams extends QuarticParams {
+  /** Values offered for the first root and for the second. */
+  tries: number[];
+  tries2: number[];
+}
+
+/** The whole method as a path: a root by trial, divide, another root, divide, solve the quadratic. */
+const polyQuarticFlow: Generator<QuarticFlowParams> = {
+  id: 'poly-quartic-flow',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const base = sampleQuartic(rng, difficulty);
+      const [r0, r1] = base.roots;
+      const p = quarticPoly(base);
+      const cubic = divideBy(p, r0).quotient;
+      const wrong = trialOrder(p[4]).filter((s) => valueAt(p, s) !== 0);
+      const wrong2 = trialOrder(cubic[3]).filter((s) => valueAt(cubic, s) !== 0);
+      if (wrong.length < 2 || wrong2.length < 2) continue;
+      return {
+        ...base,
+        tries: [r0, ...rng.sample(wrong, 2)].sort((x, y) => x - y),
+        tries2: [r1, ...rng.sample(wrong2, 2)].sort((x, y) => x - y),
+      };
+    }
+  },
+  render: (params): Slide => {
+    const { roots, tries, tries2 } = params;
+    const [r0, r1] = roots;
+    const p = quarticPoly(params);
+    const key = polyTex(p);
+    const cubic = divideBy(p, r0).quotient;
+    const quad = divideBy(cubic, r1).quotient;
+    const cubics = distinctPolys(
+      cubic,
+      [divideBy(p, -r0).quotient, cubic.map((c, i) => (i === 1 ? -c : c)), cubic.map((c, i) => (i === 3 ? -c : c))],
+      3,
+    );
+    const [, , r2, r3] = roots;
+    const sets: number[][] = [];
+    const seen = new Set<string>();
+    for (const set of [roots, [r0, r1, -r2, -r3], roots.map((x) => -x), [r0, r1, r2, -r3], [-r0, r1, r2, r3]]) {
+      const label = rootSetLabel(set);
+      if (seen.has(label) || sets.length === 3) continue;
+      seen.add(label);
+      sets.push(set);
+    }
+    return {
+      kind: 'flow',
+      prompt: [say('Solve $p(x) = 0$. Each answer chooses what gets asked next.')],
+      subject: `p(x) = ${polyTex(p)}`,
+      steps: [
+        {
+          id: 'first',
+          ask: 'Which of these makes $p(x)$ zero?',
+          branches: tries.map((s) =>
+            s === r0
+              ? { label: `$x = ${s}$`, to: 'cubic' }
+              : { label: `$x = ${s}$`, outcome: `$p(${s}) = ${valueAt(p, s)}$, which is not $0$.` },
+          ),
+        },
+        {
+          id: 'cubic',
+          ask: `Dividing by $(${linTex(r0)})$ leaves which cubic?`,
+          branches: turned(
+            cubics.map((c, i) =>
+              i === 0
+                ? { label: `$${polyTex(c)}$`, to: 'second' }
+                : {
+                    label: `$${polyTex(c)}$`,
+                    outcome: `Multiplying back, $(${linTex(r0)})(${polyTex(c)})$ is $${polyTex(mulPoly([1, -r0], c))}$.`,
+                  },
+            ),
+            key,
+          ),
+        },
+        {
+          id: 'second',
+          ask: `Which of these makes $${polyTex(cubic)}$ zero?`,
+          branches: tries2.map((s) =>
+            s === r1
+              ? { label: `$x = ${s}$`, to: 'solve' }
+              : { label: `$x = ${s}$`, outcome: `The cubic is $${valueAt(cubic, s)}$ there, not $0$.` },
+          ),
+        },
+        {
+          id: 'solve',
+          ask: `Dividing the cubic by $(${linTex(r1)})$ leaves $${polyTex(quad)}$. So what are all the solutions?`,
+          branches: turned(
+            sets.map((set) => ({
+              label: rootSetLabel(set),
+              outcome: `Those are the solutions of $${bracketsTex([...new Set(set)].sort((x, y) => x - y))} = 0$.`,
+            })),
+            `${key}|solve`,
+          ),
+        },
+      ],
+      answer: [`$x = ${r0}$`, `$${polyTex(cubic)}$`, `$x = ${r1}$`, rootSetLabel(roots)],
+    };
+  },
+  solution: (params) => [
+    ...quarticSolution(params, false),
+    { text: `So $x = ${[...new Set(params.roots)].sort((x, y) => x - y).join(',\\ ')}$.` },
+  ],
+};
+
+/** A quartic divided by a factor found by trial, as a line that shrinks to a remainder of 0. */
+const polyQuarticDivideSteps: Generator<QuarticParams> = {
+  id: 'poly-quartic-divide-steps',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const base = sampleQuartic(rng, difficulty);
+      if (divideBy(quarticPoly(base), base.roots[0]).quotient.some((c) => c === 0)) continue;
+      return base;
+    }
+  },
+  render: (params): Slide => {
+    const a = params.roots[0];
+    const p = quarticPoly(params);
+    const { quotient } = divideBy(p, a);
+    const reductions = [1, 2, 3, 4].map((i) => {
+      const k = 4 - i;
+      const prev = quotient[i - 1];
+      const show = (c: number) => (k === 0 ? String(c) : termTex(c, k));
+      const value = i < 4 ? show(quotient[i]) : '0';
+      return {
+        span: [0, 2] as [number, number],
+        value,
+        bank: stepBank(value, show(p[i] - a * prev), show(p[i]), show(p[i] + prev), show(a * prev)),
+      };
+    });
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `$p(${a}) = 0$, so $(${linTex(a)})$ is a factor. Divide by it: each step takes away enough of $(${linTex(a)})$ to clear the first term, which leaves a new first term. Tap the part you would do **next**, then choose what it leaves.`,
+        ),
+      ],
+      start: p.map((c, i) => (i === 0 ? termTex(c, 4) : placeTerm(c, 4 - i))),
+      reductions,
+    };
+  },
+  solution: (params) => {
+    const a = params.roots[0];
+    const p = quarticPoly(params);
+    const { quotient } = divideBy(p, a);
+    const lin = linTex(a);
+    return [
+      { text: `Clear the first term each time by taking away the right multiple of $(${lin})$.` },
+      ...[1, 2, 3, 4].map((i) => {
+        const k = 4 - i;
+        const left = i < 4 ? termTex(quotient[i], k) : '0';
+        return { text: `$${termTex(quotient[i - 1], k + 1)} ${placeTerm(p[i], k)} - ${timesBracket(quotient[i - 1], k, lin)} = ${left}$` };
+      }),
+      { text: `The quotient is $${polyTex(quotient)}$ and the remainder is $0$, as the factor theorem said.` },
+    ];
+  },
+};
+
+interface QuarticTilesParams extends QuarticParams {
+  /** Difficulty 1: one factor is given. */
+  hint: boolean;
+}
+
+/** The full factorisation of a quartic into four linear brackets. */
+const polyQuarticTiles: Generator<QuarticTilesParams> = {
+  id: 'poly-quartic-tiles',
+  sample: (rng, difficulty) => ({ ...sampleQuartic(rng, difficulty), hint: difficulty === 1 }),
+  render: (params): Slide => {
+    const { roots, lead, hint } = params;
+    const p = quarticPoly(params);
+    const decoy = nonRootDivisor(p);
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(hint ? `$(${linTex(roots[0])})$ is a factor of $p(x)$. Factorise $p(x)$ fully.` : 'Factorise $p(x)$ fully.'),
+        show(pDisplay(p)),
+      ],
+      template: `${leadTex(lead)}(x {0})(x {1})(x {2})(x {3})`,
+      bank: numberBank(
+        roots.map((r) => -r),
+        [...roots, ...(decoy === undefined ? [] : [-decoy])],
+        signedNum,
+        2,
+      ),
+      answer: roots.map((r) => signedNum(-r)),
+      unordered: true,
+    };
+  },
+  solution: (params) => quarticSolution(params, params.hint),
+};
+
+interface QuarticRootParams extends QuarticParams {
+  largest: boolean;
+  hint: boolean;
+}
+
+/** The largest or smallest solution of a quartic. */
+const polyQuarticRoot: Generator<QuarticRootParams> = {
+  id: 'poly-quartic-root',
+  sample: (rng, difficulty) => ({ ...sampleQuartic(rng, difficulty), largest: rng.chance(0.5), hint: difficulty === 1 }),
+  choices: ({ roots, lead, largest }) => {
+    const sorted = [...roots].sort((x, y) => x - y);
+    const target = largest ? sorted[3] : sorted[0];
+    const decoy = nonRootDivisor(fromRoots(roots, lead));
+    return intOptions(target, [-target, largest ? sorted[0] : sorted[3], largest ? sorted[2] : sorted[1], ...(decoy === undefined ? [] : [decoy])]);
+  },
+  render: ({ roots, lead, largest, hint }): Slide => {
+    const p = fromRoots(roots, lead);
+    const target = largest ? Math.max(...roots) : Math.min(...roots);
+    const which = largest ? 'largest' : 'smallest';
+    return {
+      kind: 'expression',
+      prompt: [
+        say(`${hint ? `$x = ${roots[0]}$ is one solution. ` : ''}Solve the equation and give its ${which} solution.`),
+        show(equationDisplay(p)),
+      ],
+      lead: `\\text{${which} } x =`,
+      keypad: [],
+      answer: String(target),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const sorted = [...new Set(params.roots)].sort((x, y) => x - y);
+    return [
+      ...quarticSolution(params, params.hint),
+      {
+        text: `The solutions are $${sorted.join(',\\ ')}$, so the ${params.largest ? 'largest' : 'smallest'} is $${params.largest ? sorted[sorted.length - 1] : sorted[0]}$.`,
+      },
+    ];
+  },
+};
+
 export const polynomialGenerators = [
   polyDegree,
   polyNameFlow,
@@ -5536,4 +7286,24 @@ export const polynomialGenerators = [
   polySquareIdentityTiles,
   polySymmetricTree,
   polyRecipDivideSteps,
+  polyLongQuadSteps,
+  polyQuadQuotientTree,
+  polyQuadQuotientTiles,
+  polyQuadRemainder,
+  polyPairFlow,
+  polyTwoRootsTree,
+  polyOtherFactorTiles,
+  polyPairUnknown,
+  polyTwiceTree,
+  polyRepeatFlow,
+  polyMultiplicity,
+  polyRepeatFactorSteps,
+  polyBiquadTiles,
+  polyInUTree,
+  polyBiquadCount,
+  polyBiquadFlow,
+  polyQuarticFlow,
+  polyQuarticDivideSteps,
+  polyQuarticTiles,
+  polyQuarticRoot,
 ];

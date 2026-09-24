@@ -16,6 +16,13 @@ import {
   type Facts,
 } from './countsCore';
 import { loadFacts } from './countsTree';
+// Imported statically so the whole content tree (every course file and all
+// the generators behind the registry) is transformed and evaluated while the
+// file is collected, which is untimed, rather than inside a test's 5 s budget.
+// Once they are loaded, loadFacts() re-imports the same modules from vitest's
+// cache in tens of milliseconds, so nothing is walked any less.
+import { courses, lessonCount } from '../../src/content/courses/index';
+import { registry } from '../../src/content/registry';
 
 const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
 const PLANS_DIR = join(REPO_ROOT, 'eval', 'plans');
@@ -316,8 +323,6 @@ describe('counts: the real plans, the real tree, and the command line', () => {
   const snapshot = loadSnapshot();
 
   it('maps every course file to the course it exports', async () => {
-    const { courses, lessonCount } = await import('../../src/content/courses/index');
-    const { registry } = await import('../../src/content/registry');
     const live = await loadFacts(REPO_ROOT);
 
     expect(Object.keys(live.courses)).toHaveLength(courses.length);

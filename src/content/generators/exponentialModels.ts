@@ -7082,6 +7082,1532 @@ const expmLogisticWhen: Generator<LogValueParams> = {
   solution: logReachSolution,
 };
 
+/* ---------- Level 6: continuous compounding ---------- */
+
+/*
+ * Money at a nominal rate paid in steps, then continuously. Every value a
+ * learner computes stays exact and short. Anything typed or placed is
+ * compounded twice a year with a whole percentage each half, so a year's
+ * multiplier is a two-place decimal squared, four places at most, and a
+ * balance on whole hundreds comes out in pounds and pence. Quarterly, monthly
+ * and daily appear only where nothing is evaluated: which calculation, which
+ * order, which offer, and there the step's rate stays a fraction. e is met as
+ * the limit of (1 + x/n)^n with n at most 4, where every value is a fraction,
+ * and a continuous amount stays exact as Ae^(rt).
+ */
+
+const ACCOUNTS = ['A savings account', 'A bond', 'A fixed-rate saver', 'A deposit account', 'An investment fund'];
+
+/** Whole hundreds, so a year compounded twice lands on pounds and pence. */
+const SAVINGS = [...READ_STARTS.filter((a) => a % 100 === 0), 1000, 1500, 2000, 2500, 5000];
+
+/** Half-year rates as whole percentages: the easy ones square in the head. */
+const HALF_EASY = [1, 2, 3, 4, 5, 10];
+const HALF_HARD = [6, 7, 8, 9, 11, 12];
+
+interface Schedule {
+  n: number;
+  word: string;
+  label: string;
+}
+
+const SCHEDULES: Schedule[] = [
+  { n: 1, word: 'yearly', label: 'Yearly' },
+  { n: 2, word: 'twice a year', label: 'Twice a year' },
+  { n: 4, word: 'quarterly', label: 'Quarterly' },
+  { n: 12, word: 'monthly', label: 'Monthly' },
+  { n: 365, word: 'daily', label: 'Daily' },
+];
+
+function scheduleOf(n: number): Schedule {
+  return SCHEDULES.find((s) => s.n === n) ?? SCHEDULES[0];
+}
+
+/** The rate a year actually pays, as a decimal: n steps, or continuous when n is 0. */
+function effectiveRate(r: number, n: number): number {
+  return n === 0 ? Math.exp(r / 100) - 1 : (1 + r / 100 / n) ** n - 1;
+}
+
+/** An amount in pounds as TeX: whole pounds bare, otherwise to the penny. */
+function money(x: number): string {
+  const pence = Math.round(x * 100);
+  return pence % 100 === 0 ? texNum(pence / 100) : (pence / 100).toFixed(2);
+}
+
+/** The same amount in prose, with its pound sign. */
+function pounds(x: number): string {
+  const pence = Math.round(x * 100);
+  if (pence % 100 !== 0) return `£${(pence / 100).toFixed(2)}`;
+  return `£${String(pence / 100).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+}
+
+function gcdOf(a: number, b: number): number {
+  return b === 0 ? Math.abs(a) : gcdOf(b, a % b);
+}
+
+/** p/q in lowest terms as TeX, a whole number bare. */
+function fracOf(p: number, q: number): string {
+  const g = gcdOf(p, q);
+  return q / g === 1 ? String(p / g) : `\\frac{${p / g}}{${q / g}}`;
+}
+
+/** p/q in lowest terms for mathjs. */
+function fracAnswer(p: number, q: number): string {
+  const g = gcdOf(p, q);
+  return q / g === 1 ? String(p / g) : `${p / g}/${q / g}`;
+}
+
+/** Years or months, whichever reads naturally. */
+function spanWords(months: number): string {
+  if (months % 12 !== 0) return `${months} months`;
+  return months === 12 ? '1 year' : `${months / 12} years`;
+}
+
+/** e to a power, with e^1 written as e. */
+function ePow(power: string): string {
+  return power === '1' ? 'e' : `e^{${power}}`;
+}
+
+/* ---------- Level 6, lesson 1: compounding in steps ---------- */
+
+interface HalfParams {
+  a: number;
+  /** The half-year rate as a whole percentage; the yearly rate is 2q. */
+  q: number;
+  ctx: number;
+}
+
+function sampleHalf(rng: Rng, difficulty: number): HalfParams {
+  return {
+    a: rng.pick(SAVINGS),
+    q: rng.pick(difficulty > 1 ? HALF_HARD : HALF_EASY),
+    ctx: rng.int(0, ACCOUNTS.length - 1),
+  };
+}
+
+/** The whole year's multiplier, (1 + q/100)^2, exactly. */
+function yearFactor(q: number): number {
+  return (100 + q) ** 2 / 10000;
+}
+
+function halfBalance({ a, q }: HalfParams): number {
+  return (a * (100 + q) ** 2) / 10000;
+}
+
+/** 800\left(1 + \frac{0.1}{2}\right)^{2}. */
+function halfTex(a: number | string, q: number, power = '2'): string {
+  const front = typeof a === 'number' ? texNum(a) : a;
+  return `${front}\\left(1 + \\frac{${dec(q / 50)}}{2}\\right)^{${power}}`;
+}
+
+function halfOpening({ a, q, ctx }: HalfParams): string {
+  return `${ACCOUNTS[ctx]} pays ${2 * q}% a year, compounded twice a year: ${q}% every six months. ${pounds(a)} is paid in.`;
+}
+
+function halfSolution(params: HalfParams): SolutionStep[] {
+  const { a, q } = params;
+  const balance = halfBalance(params);
+  const yearly = (a * (100 + 2 * q)) / 100;
+  return [
+    {
+      text: `${2 * q}% a year in two steps is ${q}% a step, $${dec(q / 100)}$ as a decimal, so each half year multiplies the balance by $${dec(1 + q / 100)}$.`,
+    },
+    {
+      tex: chain(
+        `${dec(1 + q / 100)}^{2} &= ${dec(yearFactor(q))}`,
+        `${texNum(a)} \\times ${dec(yearFactor(q))} &= ${money(balance)}`,
+      ),
+    },
+    {
+      text: `Paid once a year, ${2 * q}% would give ${pounds(yearly)}. The extra ${pounds(balance - yearly)} is interest earned on the first half year's interest.`,
+    },
+  ];
+}
+
+/** A year compounded twice, as a tree: the step's rate, its multiplier, the year's, the balance. */
+const expmStepTree: Generator<HalfParams> = {
+  id: 'expm-step-tree',
+  sample: sampleHalf,
+  render: (params): Slide => {
+    const { a, q } = params;
+    const answer = [dec(q / 100), dec(1 + q / 100), dec(yearFactor(q)), money(halfBalance(params))];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${halfOpening(params)} Fill in the half-year rate as a decimal, its multiplier, the year's multiplier, then the balance after a year.`,
+        },
+      ],
+      expression: halfTex(a, q),
+      nodes: [
+        { id: 'rate', from: [] },
+        { id: 'step', from: ['rate'] },
+        { id: 'year', from: ['step'] },
+        { id: 'balance', from: ['year'] },
+      ],
+      bank: fillBank(answer, [
+        dec(q / 50),
+        dec(1 + q / 50),
+        dec(2 * (1 + q / 100)),
+        money((a * (100 + 2 * q)) / 100),
+        money(2 * a * (1 + q / 100)),
+      ]),
+      answer,
+    };
+  },
+  solution: halfSolution,
+};
+
+type StepWorkParams = HalfParams & { back: boolean };
+
+/**
+ * The same year worked as a line of steps. At difficulty 2 it runs backwards:
+ * the balance is given and the amount paid in is found.
+ */
+const expmStepWorkSteps: Generator<StepWorkParams> = {
+  id: 'expm-step-work-steps',
+  sample: (rng, difficulty) => {
+    const back = difficulty > 1;
+    return { ...sampleHalf(rng, 1), q: rng.pick(back ? [...HALF_EASY, ...HALF_HARD] : HALF_EASY), back };
+  },
+  render: (params): Slide => {
+    const { a, q, back } = params;
+    const m = dec(1 + q / 100);
+    const f = dec(yearFactor(q));
+    const balance = halfBalance(params);
+    const bracket = `\\left(1 + \\frac{${dec(q / 50)}}{2}\\right)^{2}`;
+    const square = {
+      span: [2, 3] as [number, number],
+      operator: 2,
+      value: `${m}^{2}`,
+      bank: stepsBank([`${m}^{2}`, `${dec(1 + q / 50)}^{2}`, `${dec(1 + q / 10)}^{2}`, `${m}^{4}`]),
+    };
+    const multiply = {
+      span: [2, 3] as [number, number],
+      operator: 2,
+      value: f,
+      bank: stepsBank([f, dec(1 + q / 50), dec(2 * (1 + q / 100)), dec(1 + (q / 100) ** 2)]),
+    };
+    if (!back) {
+      return {
+        kind: 'steps',
+        prompt: [
+          {
+            kind: 'prose',
+            text: `${halfOpening(params)} Work out the balance after one year one step at a time: tap the step to do next, then choose what it gives.`,
+          },
+        ],
+        start: [texNum(a), '\\times', bracket],
+        reductions: [
+          square,
+          multiply,
+          {
+            span: [0, 3],
+            operator: 1,
+            value: money(balance),
+            bank: stepsBank([
+              money(balance),
+              money((a * (100 + 2 * q)) / 100),
+              money(2 * a * (1 + q / 100)),
+              money(a + yearFactor(q)),
+            ]),
+          },
+        ],
+      };
+    }
+    const total = money(balance);
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${ACCOUNTS[params.ctx]} pays ${2 * q}% a year, compounded twice a year. After one year the balance is ${pounds(balance)}. Find $P$, the amount paid in, one step at a time.`,
+        },
+      ],
+      start: ['P', '\\times', bracket, '=', total],
+      reductions: [
+        square,
+        multiply,
+        {
+          span: [0, 5],
+          operator: 1,
+          value: `P = ${total} \\div ${f}`,
+          bank: stepsBank([
+            `P = ${total} \\div ${f}`,
+            `P = ${total} \\times ${f}`,
+            `P = ${total} - ${f}`,
+            `P = ${f} \\div ${total}`,
+          ]),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: `P = ${texNum(a)}`,
+          bank: stepsBank([
+            `P = ${texNum(a)}`,
+            `P = ${money(balance - a)}`,
+            `P = ${texNum(a + 100)}`,
+            `P = ${money(balance * yearFactor(q))}`,
+          ]),
+        },
+      ],
+    };
+  },
+  solution: (params) => {
+    const steps = halfSolution(params);
+    if (!params.back) return steps;
+    const f = dec(yearFactor(params.q));
+    return [
+      steps[0],
+      {
+        tex: chain(
+          `P \\times ${f} &= ${money(halfBalance(params))}`,
+          `P &= ${money(halfBalance(params))} \\div ${f}`,
+          `&= ${texNum(params.a)}`,
+        ),
+      },
+      { text: 'Working backwards divides by the year\'s multiplier, the one step that undoes multiplying by it.' },
+    ];
+  },
+};
+
+type StepAmountParams = HalfParams & { interest: boolean };
+
+/** Type the balance after a year compounded twice, or at difficulty 2 the interest it earns. */
+const expmStepAmount: Generator<StepAmountParams> = {
+  id: 'expm-step-amount',
+  sample: (rng, difficulty) => ({
+    ...sampleHalf(rng, 1),
+    q: rng.pick(difficulty > 1 ? [...HALF_EASY, ...HALF_HARD] : HALF_EASY),
+    interest: difficulty > 1,
+  }),
+  render: (params): Slide => {
+    const balance = halfBalance(params);
+    const ask = params.interest
+      ? 'How much interest does it earn in the year, in pounds?'
+      : 'How much is in the account after one year, in pounds?';
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: `${halfOpening(params)} ${ask}` }],
+      lead: params.interest ? '\\text{interest} =' : '\\text{balance} =',
+      keypad: [],
+      answer: dec(params.interest ? balance - params.a : balance),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const steps = halfSolution(params);
+    if (!params.interest) return steps;
+    return [
+      ...steps.slice(0, 2),
+      { text: `The interest is what was added: ${pounds(halfBalance(params))} $-$ ${pounds(params.a)} $=$ ${pounds(halfBalance(params) - params.a)}.` },
+    ];
+  },
+};
+
+interface CalcParams {
+  a: number;
+  r: number;
+  n: number;
+  t: number;
+  ctx: number;
+}
+
+/** Which calculation gives the balance: n steps a year for t years is nt steps. */
+const expmStepCalc: Generator<CalcParams> = {
+  id: 'expm-step-calc',
+  sample: (rng, difficulty) => {
+    const n = rng.pick(difficulty > 1 ? [4, 12, 365] : [2, 4]);
+    return {
+      a: rng.pick(READ_STARTS),
+      r: rng.pick(READ_PERCENTS),
+      n,
+      t: rng.int(2, n === 365 ? 3 : difficulty > 1 ? 8 : 5),
+      ctx: rng.int(0, ACCOUNTS.length - 1),
+    };
+  },
+  render: ({ a, r, n, t, ctx }): Slide => {
+    const R = dec(r / 100);
+    const step = `\\frac{${R}}{${n}}`;
+    const body = (inside: string, power: string) => `${texNum(a)}\\left(1 + ${inside}\\right)^{${power}}`;
+    const right = body(step, String(n * t));
+    const slips = [
+      body(step, String(t)),
+      body(R, String(n * t)),
+      body(step, String(n)),
+      `${body(step, String(n))} \\times ${t}`,
+      body(step, `\\frac{${t}}{${n}}`),
+    ];
+    const labels = [right, ...[...new Set(slips)].filter((label) => label !== right).slice(0, 3)];
+    const ordered = turned(labels, labels.join('|'));
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${ACCOUNTS[ctx]} pays ${r}% a year, compounded ${scheduleOf(n).word}. ${pounds(a)} is paid in. Which calculation gives the balance after ${t} years?`,
+        },
+      ],
+      options: ordered.map((label, idx) => ({ id: `opt${idx}`, label, tex: true })),
+      correctId: `opt${ordered.indexOf(right)}`,
+    };
+  },
+  solution: ({ a, r, n, t }) => {
+    const R = dec(r / 100);
+    return [
+      { text: `Paid ${scheduleOf(n).word}, each step pays $\\frac{${R}}{${n}}$ of the balance, so it multiplies by $1 + \\frac{${R}}{${n}}$.` },
+      { text: `There are ${n} steps a year, so ${t} years is $${n} \\times ${t} = ${n * t}$ steps.` },
+      { tex: `${texNum(a)}\\left(1 + \\frac{${R}}{${n}}\\right)^{${n * t}}` },
+    ];
+  },
+};
+
+/* ---------- Level 6, lesson 2: more often, more money ---------- */
+
+interface OftenFlowParams {
+  r: number;
+  /** The less frequent schedule, as steps a year. */
+  lo: number;
+  /** The more frequent one. */
+  hi: number;
+  /** At difficulty 2 the rarer offer pays yearly at a higher rate, r + gap. */
+  gap: number;
+  ctx: number;
+}
+
+/** Two offers, one fork at a time: which compounds more often, which ends ahead, by how much. */
+const expmOftenFlow: Generator<OftenFlowParams> = {
+  id: 'expm-often-flow',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1) {
+      return {
+        r: rng.pick(READ_PERCENTS.filter((p) => p <= 12)),
+        lo: 1,
+        hi: rng.pick([4, 12, 365]),
+        gap: rng.pick([1, 2]),
+        ctx: rng.int(0, ACCOUNTS.length - 1),
+      };
+    }
+    const [lo, hi] = rng.sample(SCHEDULES, 2).map((s) => s.n).sort((x, y) => x - y);
+    return { r: rng.pick(READ_PERCENTS), lo, hi, gap: 0, ctx: rng.int(0, ACCOUNTS.length - 1) };
+  },
+  render: ({ r, lo, hi, gap, ctx }): Slide => {
+    const rare = scheduleOf(lo);
+    const often = scheduleOf(hi);
+    const key = `${r}-${lo}-${hi}-${gap}-${ctx}`;
+    const extra = dec(Math.round(effectiveRate(r, hi) * 10000 - r * 100) / 100);
+    if (gap === 0) {
+      return {
+        kind: 'flow',
+        prompt: [
+          {
+            kind: 'prose',
+            text: `${ACCOUNTS[ctx]} offers ${r}% a year, and you choose whether it is compounded ${rare.word} or ${often.word}. Decide one question at a time.`,
+          },
+        ],
+        subject: `${r}\\% \\text{: ${rare.word} or ${often.word}}`,
+        steps: [
+          {
+            id: 'often',
+            ask: 'Which adds interest to the balance more often?',
+            branches: turned(
+              [
+                { label: often.label, to: 'more' },
+                { label: rare.label, outcome: `${rare.label} pays ${lo === 1 ? 'once' : `${lo} times`} a year, ${often.word} ${hi} times.` },
+                { label: 'Neither', outcome: 'The yearly rate is the same, but the number of steps it is paid in is not.' },
+              ],
+              key,
+            ),
+          },
+          {
+            id: 'more',
+            ask: 'Both pay the same yearly rate. Which ends the year with more?',
+            branches: turned(
+              [
+                { label: often.label, to: 'much' },
+                { label: rare.label, outcome: 'Paying less often means each payment is bigger, but the money waits longer before it earns anything itself.' },
+                { label: 'They end level', outcome: 'Interest paid earlier starts earning interest of its own, so the two do not end level.' },
+              ],
+              `${key}-more`,
+            ),
+          },
+          {
+            id: 'much',
+            ask: `Roughly how much more does ${often.word} add over the year?`,
+            branches: [
+              { label: 'A little', outcome: `Right: at ${r}% a year the gap is only the interest on the interest, a small part of the total.` },
+              {
+                label: hi / lo === 2 ? 'About twice as much' : `About ${Math.round(hi / lo)} times as much`,
+                outcome: 'The rate is the same. More steps split the same rate into smaller pieces, so only the interest on the interest is extra.',
+              },
+            ],
+          },
+        ],
+        answer: [often.label, often.label, 'A little'],
+      };
+    }
+    const high = `${r + gap}% yearly`;
+    const low = `${r}% ${often.word}`;
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${ACCOUNTS[ctx]} offers either ${r}% a year compounded ${often.word}, or ${r + gap}% a year paid once, yearly. Decide one question at a time.`,
+        },
+      ],
+      subject: `${r}\\% \\text{ ${often.word} or } ${r + gap}\\% \\text{ yearly}`,
+      steps: [
+        {
+          id: 'rate',
+          ask: 'Which has the higher yearly rate?',
+          branches: turned(
+            [
+              { label: high, to: 'gain' },
+              { label: low, outcome: `${r}% is the lower rate; compounding ${often.word} is how it is paid, not a higher rate.` },
+            ],
+            key,
+          ),
+        },
+        {
+          id: 'gain',
+          ask: `Compounding ${often.word} adds interest on the interest. At ${r}%, is that worth ${gap === 1 ? 'a whole percentage point' : `${gap} whole percentage points`}?`,
+          branches: [
+            { label: 'No, less than that', to: 'end' },
+            { label: 'Yes, at least that', outcome: `Compounding ${often.word} at ${r}% adds only about ${extra} of a percentage point.` },
+          ],
+        },
+        {
+          id: 'end',
+          ask: 'So which ends the year ahead?',
+          branches: turned(
+            [
+              { label: high, outcome: `Right: ${r}% ${often.word} pays about ${dec(r + Number(extra))}% over the year, less than ${r + gap}%.` },
+              { label: low, outcome: `Compounding adds about ${extra} of a point, not enough to make up ${gap === 1 ? 'a whole point' : `${gap} points`}.` },
+            ],
+            `${key}-end`,
+          ),
+        },
+      ],
+      answer: [high, 'No, less than that', high],
+    };
+  },
+  solution: ({ r, lo, hi, gap }) => {
+    const often = scheduleOf(hi);
+    const gain = dec(Math.round(effectiveRate(r, hi) * 10000) / 100);
+    if (gap === 0) {
+      return [
+        { text: `Compounded ${often.word}, interest is added ${hi} times a year against ${lo === 1 ? 'once' : `${lo} times`}, so it starts earning interest of its own sooner.` },
+        { text: `So ${often.word} ends ahead, but only a little: over a year it pays about ${gain}% against ${dec(Math.round(effectiveRate(r, lo) * 10000) / 100)}%.` },
+      ];
+    }
+    return [
+      { text: `${r}% compounded ${often.word} pays about ${gain}% over a year.` },
+      { text: `That is less than ${r + gap}% paid yearly: compounding adds a fraction of a point, and the other offer is ${gap === 1 ? 'a whole point' : `${gap} points`} higher.` },
+    ];
+  },
+};
+
+interface OrderParams {
+  a: number;
+  /** Four offers: yearly rate and steps a year. */
+  offers: { r: number; n: number }[];
+}
+
+function offerLabel({ r, n }: { r: number; n: number }, mixed: boolean): string {
+  const word = scheduleOf(n).word;
+  return mixed ? `${r}% ${word}` : word;
+}
+
+/** Put four offers in order of what they pay after a year. */
+const expmOftenOrder: Generator<OrderParams> = {
+  id: 'expm-often-order',
+  sample: (rng, difficulty) => {
+    const a = rng.pick(READ_STARTS);
+    if (difficulty > 1) {
+      const r = rng.pick([2, 3, 4, 5, 6, 8, 10]);
+      const [n1, n2] = rng.sample(SCHEDULES, 2).map((s) => s.n);
+      const [n3, n4] = rng.sample(SCHEDULES, 2).map((s) => s.n);
+      return {
+        a,
+        offers: [
+          { r, n: Math.max(n1, n2) },
+          { r: r + 1, n: Math.min(n3, n4) },
+          { r, n: Math.min(n1, n2) },
+          { r: r + 1, n: Math.max(n3, n4) },
+        ],
+      };
+    }
+    const r = rng.pick(READ_PERCENTS);
+    const picked = rng.sample(SCHEDULES, 4).map((s) => s.n);
+    // Listed in a hashed order rather than smallest first, so the prompt does not give the answer.
+    return { a, offers: turned(picked, `${a}-${r}-${picked.join('')}`).map((n) => ({ r, n })) };
+  },
+  render: ({ a, offers }): Slide => {
+    const mixed = new Set(offers.map((o) => o.r)).size > 1;
+    const sorted = [...offers].sort((x, y) => effectiveRate(x.r, x.n) - effectiveRate(y.r, y.n));
+    const list = (items: { r: number; n: number }[]) => {
+      const text = items.map((o) => offerLabel(o, mixed)).join(', ');
+      return text.charAt(0).toUpperCase() + text.slice(1);
+    };
+    const right = list(sorted);
+    const swap = (i: number, j: number) => {
+      const out = [...sorted];
+      [out[i], out[j]] = [out[j], out[i]];
+      return list(out);
+    };
+    const byFrequency = list([...offers].sort((x, y) => x.n - y.n || x.r - y.r));
+    const slips = [...(mixed ? [byFrequency] : []), list([...sorted].reverse()), swap(1, 2), swap(0, 1), swap(2, 3)];
+    const labels = [right, ...[...new Set(slips)].filter((label) => label !== right).slice(0, 3)];
+    const ordered = turned(labels, labels.join('|'));
+    const rate = offers[0].r;
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: mixed
+            ? `You have ${pounds(a)} to put away for a year and four offers: ${offers.map((o) => offerLabel(o, true)).join(', ')}. Which list runs from the offer that pays least to the one that pays most?`
+            : `${pounds(a)} is put away for a year at ${rate}% a year. It could be compounded ${offers.map((o) => scheduleOf(o.n).word).join(', ')}. Which list runs from the smallest balance after a year to the largest?`,
+        },
+      ],
+      options: ordered.map((label, idx) => ({ id: `opt${idx}`, label })),
+      correctId: `opt${ordered.indexOf(right)}`,
+    };
+  },
+  solution: ({ offers }) => {
+    const mixed = new Set(offers.map((o) => o.r)).size > 1;
+    const sorted = [...offers].sort((x, y) => effectiveRate(x.r, x.n) - effectiveRate(y.r, y.n));
+    const paid = sorted.map((o) => `${offerLabel(o, true)} pays about ${dec(Math.round(effectiveRate(o.r, o.n) * 10000) / 100)}%`).join('; ');
+    return [
+      {
+        text: mixed
+          ? 'Compounding more often adds only a small part of a percentage point here, so the higher yearly rate comes first; within one rate, more often pays more.'
+          : 'At one yearly rate, the more often it is compounded, the more it pays.',
+      },
+      { text: `Over a year: ${paid}.` },
+    ];
+  },
+};
+
+interface OftenTilesParams {
+  a: number;
+  q: number;
+  /** Months left in; 0 at difficulty 2 asks for the balance after t years in general. */
+  months: number;
+  ctx: number;
+}
+
+/** Build A(1 + r/2)^(2t) from a story, for a whole number of half years or for t. */
+const expmOftenTiles: Generator<OftenTilesParams> = {
+  id: 'expm-often-tiles',
+  sample: (rng, difficulty) => ({
+    a: rng.pick(READ_STARTS),
+    q: rng.pick(difficulty > 1 ? [...HALF_EASY, ...HALF_HARD] : HALF_EASY),
+    months: difficulty > 1 ? rng.pick([0, 18, 30, 42]) : 12 * rng.int(2, 6),
+    ctx: rng.int(0, ACCOUNTS.length - 1),
+  }),
+  render: ({ a, q, months, ctx }): Slide => {
+    const R = dec(q / 50);
+    const power = months === 0 ? '2t' : String(months / 6);
+    const years = months === 0 ? 't' : dec(months / 12);
+    const bracket = (inside: string, p: string) => `\\left(1 + ${inside}\\right)^{${p}}`;
+    const half = `\\frac{${R}}{2}`;
+    const answer = [texNum(a), bracket(half, power)];
+    const when = months === 0 ? 'after $t$ years' : `after ${spanWords(months)}`;
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${ACCOUNTS[ctx]} pays ${2 * q}% a year, compounded twice a year. ${pounds(a)} is paid in. Build the balance $B$ ${when}.`,
+        },
+      ],
+      template: 'B = {0}\\,{1}',
+      bank: fillBank(answer, [
+        bracket(half, years),
+        bracket(R, power),
+        bracket(`\\frac{2}{${R}}`, power),
+        ...(months === 0 ? [bracket(half, '\\frac{t}{2}')] : [bracket(half, String(months))]),
+        texNum(2 * a),
+      ]),
+      answer,
+    };
+  },
+  solution: ({ a, q, months }) => {
+    const R = dec(q / 50);
+    const steps = months === 0 ? '2t' : String(months / 6);
+    return [
+      { text: `Twice a year, each step multiplies by $1 + \\frac{${R}}{2}$.` },
+      {
+        text:
+          months === 0
+            ? 'In $t$ years there are $2t$ half years, so that is the power.'
+            : `${spanWords(months)} is ${months / 6} half years, so that is the power.`,
+      },
+      { tex: `B = ${halfTex(a, q, steps)}` },
+    ];
+  },
+};
+
+/** How much more twice a year pays than yearly: the interest on the first half's interest. */
+const expmOftenGainTree: Generator<HalfParams> = {
+  id: 'expm-often-gain-tree',
+  sample: sampleHalf,
+  render: (params): Slide => {
+    const { a, q } = params;
+    const balance = halfBalance(params);
+    const yearly = (a * (100 + 2 * q)) / 100;
+    const answer = [dec(yearFactor(q)), money(balance), money(yearly), money(balance - yearly)];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${halfOpening(params)} How much more is that than ${2 * q}% paid once a year? Fill in the year's multiplier, the balance compounded twice, the balance paid yearly, then the difference.`,
+        },
+      ],
+      expression: `${texNum(a)} \\times ${dec(1 + q / 100)}^{2} - ${texNum(a)} \\times ${dec(1 + q / 50)}`,
+      nodes: [
+        { id: 'factor', from: [] },
+        { id: 'twice', from: ['factor'] },
+        { id: 'yearly', from: [] },
+        { id: 'gain', from: ['twice', 'yearly'] },
+      ],
+      bank: fillBank(answer, [
+        dec(1 + q / 50),
+        money(2 * a * (1 + q / 100)),
+        money(balance - a),
+        money((a * q) / 100),
+        money(a * (1 + q / 100)),
+      ]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { a, q } = params;
+    const balance = halfBalance(params);
+    const yearly = (a * (100 + 2 * q)) / 100;
+    return [
+      { tex: chain(`${dec(1 + q / 100)}^{2} &= ${dec(yearFactor(q))}`, `${texNum(a)} \\times ${dec(yearFactor(q))} &= ${money(balance)}`) },
+      { tex: `${texNum(a)} \\times ${dec(1 + q / 50)} = ${money(yearly)}` },
+      {
+        text: `The difference, ${pounds(balance - yearly)}, is ${q}% interest on the ${pounds((a * q) / 100)} paid after six months.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Level 6, lesson 3: e as a limit ---------- */
+
+interface BernoulliParams {
+  /** Steps a year. */
+  n: number;
+  /** The yearly rate as a whole multiple of 100%. */
+  x: number;
+  /** The amount paid in over n^n. */
+  k: number;
+  ctx: number;
+}
+
+const STEP_PERIODS: Record<number, string> = { 2: 'six months', 3: 'four months', 4: 'three months' };
+
+function sampleBernoulli(rng: Rng, difficulty: number): BernoulliParams {
+  return { n: rng.pick([2, 3, 4]), x: difficulty > 1 ? 2 : 1, k: rng.int(1, 12), ctx: rng.int(0, ACCOUNTS.length - 1) };
+}
+
+function bernoulliStart({ n, k }: BernoulliParams): number {
+  return k * n ** n;
+}
+
+function bernoulliEnd(params: BernoulliParams): number {
+  const { n, x } = params;
+  return (bernoulliStart(params) * (n + x) ** n) / n ** n;
+}
+
+function bernoulliOpening(params: BernoulliParams, paid = true): string {
+  const { n, x, ctx } = params;
+  const grows = x % n === 0 ? `multiplies by ${1 + x / n}` : `grows by $${fracOf(x, n)}$ of itself`;
+  const paidIn = paid ? ` ${pounds(bernoulliStart(params))} is paid in.` : '';
+  return `${ACCOUNTS[ctx]} pays ${100 * x}% a year, compounded in ${n} equal steps: every ${STEP_PERIODS[n]} the balance ${grows}.${paidIn}`;
+}
+
+function bernoulliTex({ n, x }: BernoulliParams): string {
+  return `\\left(1 + \\frac{${x}}{${n}}\\right)^{${n}}`;
+}
+
+function bernoulliSolution(params: BernoulliParams): SolutionStep[] {
+  const { n, x } = params;
+  const start = bernoulliStart(params);
+  return [
+    { text: `Each step multiplies by $1 + \\frac{${x}}{${n}} = ${fracOf(n + x, n)}$, and there are ${n} steps in the year.` },
+    {
+      tex: chain(
+        `${bernoulliTex(params)} &= \\frac{${n + x}^{${n}}}{${n}^{${n}}} = ${fracOf((n + x) ** n, n ** n)}`,
+        `${texNum(start)} \\times ${fracOf((n + x) ** n, n ** n)} &= ${texNum(bernoulliEnd(params))}`,
+      ),
+    },
+    { text: `Paid once a year, ${100 * x}% would give only ${pounds(start * (1 + x))}.` },
+  ];
+}
+
+/** P(1 + x/n)^n as a tree: the step's multiplier, the year's, then the balance. */
+const expmBernoulliTree: Generator<BernoulliParams> = {
+  id: 'expm-bernoulli-tree',
+  sample: sampleBernoulli,
+  render: (params): Slide => {
+    const { n, x } = params;
+    const start = bernoulliStart(params);
+    const answer = [fracOf(n + x, n), fracOf((n + x) ** n, n ** n), texNum(bernoulliEnd(params))];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${bernoulliOpening(params)} Fill in what each step multiplies by, what the year multiplies by, then the balance after a year.`,
+        },
+      ],
+      expression: `${texNum(start)}${bernoulliTex(params)}`,
+      nodes: [
+        { id: 'step', from: [] },
+        { id: 'year', from: ['step'] },
+        { id: 'balance', from: ['year'] },
+      ],
+      bank: fillBank(answer, [
+        fracOf(n, n + x),
+        fracOf(x, n),
+        fracOf((n + x) ** n, n),
+        ...(n === 2 ? [] : [fracOf((n + x) ** 2, n ** 2)]),
+        texNum(start * (1 + x)),
+        texNum((start * (n + x)) / n),
+      ]),
+      answer,
+    };
+  },
+  solution: bernoulliSolution,
+};
+
+/** The same year backwards: the balance is given, so the amount paid in is found. */
+const expmBernoulliBackSteps: Generator<BernoulliParams> = {
+  id: 'expm-bernoulli-back-steps',
+  sample: sampleBernoulli,
+  render: (params): Slide => {
+    const { n, x } = params;
+    const start = bernoulliStart(params);
+    const end = texNum(bernoulliEnd(params));
+    const top = (n + x) ** n;
+    const bottom = n ** n;
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${bernoulliOpening(params, false)} After a year the balance is ${pounds(bernoulliEnd(params))}. Find $P$, the amount paid in, one step at a time.`,
+        },
+      ],
+      start: ['P', '\\times', bernoulliTex(params), '=', end],
+      reductions: [
+        {
+          span: [2, 3],
+          operator: 2,
+          value: `\\left(\\frac{${n + x}}{${n}}\\right)^{${n}}`,
+          bank: stepsBank([
+            `\\left(\\frac{${n + x}}{${n}}\\right)^{${n}}`,
+            `\\left(\\frac{${x}}{${n}}\\right)^{${n}}`,
+            `\\left(\\frac{${n}}{${n + x}}\\right)^{${n}}`,
+            `\\left(\\frac{${x + 1}}{${n}}\\right)^{${n}}`,
+          ]),
+        },
+        {
+          span: [2, 3],
+          operator: 2,
+          value: fracOf(top, bottom),
+          bank: stepsBank([fracOf(top, bottom), fracOf(top, n), fracOf(n + x, bottom), fracOf(bottom, top)]),
+        },
+        {
+          span: [0, 5],
+          operator: 1,
+          value: `P = ${end} \\times ${fracOf(bottom, top)}`,
+          bank: stepsBank([
+            `P = ${end} \\times ${fracOf(bottom, top)}`,
+            `P = ${end} \\times ${fracOf(top, bottom)}`,
+            `P = ${end} - ${fracOf(top, bottom)}`,
+            `P = ${end} \\div ${n}`,
+          ]),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: `P = ${texNum(start)}`,
+          bank: stepsBank([
+            `P = ${texNum(start)}`,
+            `P = ${texNum(bernoulliEnd(params) - start)}`,
+            `P = ${texNum(start * n)}`,
+            `P = ${texNum(start + bottom)}`,
+          ]),
+        },
+      ],
+    };
+  },
+  solution: (params) => {
+    const { n, x } = params;
+    const power = fracOf((n + x) ** n, n ** n);
+    return [
+      { tex: `${bernoulliTex(params)} = \\left(\\frac{${n + x}}{${n}}\\right)^{${n}} = ${power}` },
+      { text: `So $P \\times ${power} = ${texNum(bernoulliEnd(params))}$. Dividing by a fraction is multiplying by it upside down.` },
+      { tex: `P = ${texNum(bernoulliEnd(params))} \\times ${fracOf(n ** n, (n + x) ** n)} = ${texNum(bernoulliStart(params))}` },
+    ];
+  },
+};
+
+interface EValueParams {
+  x: number;
+  n: number;
+  say: number;
+}
+
+const E_VALUE_ASKS = ['Work it out exactly, as a fraction if it is not whole.', 'Give its exact value as a single fraction, or a whole number.'];
+
+/** (1 + x/n)^n exactly, as a fraction: the values climbing towards e^x. */
+const expmEValue: Generator<EValueParams> = {
+  id: 'expm-e-value',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const x = rng.pick(difficulty > 1 ? [-3, -2, -1, 1, 2, 3] : [1, 2, 3, 4]);
+      const n = rng.int(difficulty > 1 ? 2 : 1, 4);
+      if (n + x > 0) return { x, n, say: rng.int(0, E_VALUE_ASKS.length - 1) };
+    }
+  },
+  render: ({ x, n, say }): Slide => {
+    const inner = `1 ${x < 0 ? '-' : '+'} \\frac{${Math.abs(x)}}{${n}}`;
+    const how = n === 1 ? 'in one step' : `in ${n} equal steps`;
+    const story =
+      x < 0
+        ? `£1 losing ${-100 * x}% a year, ${how}, shrinks to the value below.`
+        : `£1 at ${100 * x}% a year, compounded ${how}, grows to the value below.`;
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: `${story} ${E_VALUE_ASKS[say]}` }],
+      lead: `\\left(${inner}\\right)^{${n}} =`,
+      keypad: [{ insert: '/' }],
+      answer: fracAnswer((n + x) ** n, n ** n),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ x, n }) => [
+    { text: 'Write the bracket as one fraction first.' },
+    {
+      tex: chain(
+        `1 ${x < 0 ? '-' : '+'} \\frac{${Math.abs(x)}}{${n}} &= \\frac{${n + x}}{${n}}`,
+        `\\left(\\frac{${n + x}}{${n}}\\right)^{${n}} &= \\frac{${(n + x) ** n}}{${n ** n}}${gcdOf((n + x) ** n, n ** n) > 1 ? ` = ${fracOf((n + x) ** n, n ** n)}` : ''}`,
+      ),
+    },
+    { text: `As $n$ grows, $\\left(1 ${x < 0 ? '-' : '+'} \\frac{${Math.abs(x)}}{n}\\right)^{n}$ gets closer and closer to $${ePow(String(x))}$.` },
+  ],
+};
+
+interface ELimitParams {
+  a: number;
+  x: number;
+  t: number;
+  ctx: number;
+}
+
+/** What the balance approaches as the steps become more and more frequent: Ae^(xt). */
+const expmELimit: Generator<ELimitParams> = {
+  id: 'expm-e-limit',
+  sample: (rng, difficulty) => ({
+    a: rng.pick(READ_STARTS),
+    x: difficulty > 1 ? rng.pick([2, 3]) : 1,
+    t: rng.int(1, 3),
+    ctx: rng.int(0, ACCOUNTS.length - 1),
+  }),
+  render: ({ a, x, t, ctx }): Slide => {
+    const A = texNum(a);
+    const yearly = t === 1 ? `${A} \\times ${1 + x}` : `${A} \\times ${1 + x}^{${t}}`;
+    const right = `${A}${ePow(String(x * t))}`;
+    const slips = [
+      yearly,
+      `${A}${ePow(String(t))}`,
+      `${A}${ePow(String(x))}`,
+      '\\text{no limit: it grows for ever}',
+      `${A}${ePow(String(x + t))}`,
+    ];
+    const labels = [right, ...[...new Set(slips)].filter((label) => label !== right).slice(0, 3)];
+    const ordered = turned(labels, labels.join('|'));
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${ACCOUNTS[ctx]} pays ${100 * x}% a year on ${pounds(a)}, compounded in more and more, smaller and smaller steps. What does the balance after ${t === 1 ? 'one year' : `${t} years`} get closer and closer to?`,
+        },
+      ],
+      options: ordered.map((label, idx) => ({ id: `opt${idx}`, label, tex: true })),
+      correctId: `opt${ordered.indexOf(right)}`,
+    };
+  },
+  solution: ({ a, x, t }) => [
+    { text: `In $n$ steps a year, one year multiplies by $\\left(1 + \\frac{${x}}{n}\\right)^{n}$, which gets closer and closer to $${ePow(String(x))}$ but never passes it.` },
+    {
+      text:
+        t === 1
+          ? `One year multiplies by that once: $${ePow(String(x))}$.`
+          : `${t} years multiply by it ${t} times: $\\left(${ePow(String(x))}\\right)^{${t}} = ${ePow(String(x * t))}$.`,
+    },
+    { tex: `${texNum(a)}${ePow(String(x * t))}` },
+  ],
+};
+
+/* ---------- Level 6, lesson 4: continuous compounding ---------- */
+
+interface ContParams {
+  a: number;
+  r: number;
+  months: number;
+  ctx: number;
+}
+
+function sampleCont(rng: Rng, difficulty: number, rates = READ_PERCENTS): ContParams {
+  return {
+    a: rng.pick(READ_STARTS),
+    r: rng.pick(rates),
+    // Every span is a multiple of three months, so r times the years is four places at most.
+    months: difficulty > 1 ? rng.pick([6, 9, 18, 30, 42]) : 12 * rng.int(2, 6),
+    ctx: rng.int(0, ACCOUNTS.length - 1),
+  };
+}
+
+/** rt, the power of e: 0.05 for 5% over one year. */
+function contPower({ r, months }: ContParams): string {
+  return dec((r * months) / 1200);
+}
+
+function contOpening({ a, r, ctx }: ContParams): string {
+  return `${ACCOUNTS[ctx]} pays ${r}% a year, compounded continuously. ${pounds(a)} is paid in.`;
+}
+
+function contSolution(params: ContParams): SolutionStep[] {
+  const { a, r, months } = params;
+  const t = dec(months / 12);
+  return [
+    { text: `Compounded continuously at ${r}%, the balance is $Ae^{rt}$ with $r = ${dec(r / 100)}$${months % 12 === 0 ? '' : ` and $t = ${t}$, since ${months} months is ${t} of a year`}.` },
+    { tex: `${dec(r / 100)} \\times ${t} = ${contPower(params)}` },
+    { tex: `B = ${texNum(a)}e^{${contPower(params)}}` },
+  ];
+}
+
+/** Build Ae^(rt) from a story: the amount paid in, then e to the power rt. */
+const expmContTiles: Generator<ContParams> = {
+  id: 'expm-cont-tiles',
+  sample: (rng, difficulty) => sampleCont(rng, difficulty),
+  render: (params): Slide => {
+    const { a, r, months } = params;
+    const answer = [texNum(a), `e^{${contPower(params)}}`];
+    return {
+      kind: 'tiles',
+      prompt: [{ kind: 'prose', text: `${contOpening(params)} Build the balance $B$ after ${spanWords(months)}.` }],
+      template: 'B = {0}\\,{1}',
+      bank: fillBank(answer, [
+        `e^{${dec(r / 100)}}`,
+        `e^{${dec((r * months) / 12)}}`,
+        `e^{${dec((r * months) / 100)}}`,
+        `\\left(1 + ${dec(r / 100)}\\right)^{${dec(months / 12)}}`,
+        texNum(a + r),
+      ]),
+      answer,
+    };
+  },
+  solution: contSolution,
+};
+
+type ContExactParams = ContParams & { interest: boolean };
+
+/** Type the continuous balance exactly, leaving e in it; at difficulty 2 sometimes the interest. */
+const expmContExact: Generator<ContExactParams> = {
+  id: 'expm-cont-exact',
+  sample: (rng, difficulty) => ({ ...sampleCont(rng, difficulty), interest: difficulty > 1 && rng.chance(0.5) }),
+  render: (params): Slide => {
+    const { a, months, interest } = params;
+    const power = contPower(params);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${contOpening(params)} ${interest ? 'How much interest does it earn' : 'What is the balance'} after ${spanWords(months)}? Give the exact value, leaving $e$ in it.`,
+        },
+      ],
+      lead: interest ? '\\text{interest} =' : 'B =',
+      keypad: EXP_KEYS,
+      answer: interest ? `${a}*e^(${power}) - ${a}` : `${a}*e^(${power})`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const steps = contSolution(params);
+    if (!params.interest) return steps;
+    const A = texNum(params.a);
+    return [...steps, { text: `The interest is what was added: $${A}e^{${contPower(params)}} - ${A}$.` }];
+  },
+};
+
+/** From (1 + r/n)^(nt) to e^(rt), one fork at a time, then how it compares. */
+const expmContFlow: Generator<ContParams> = {
+  id: 'expm-cont-flow',
+  sample: (rng, difficulty) => sampleCont(rng, difficulty, difficulty > 1 ? READ_PERCENTS.filter((p) => p <= 12) : READ_PERCENTS),
+  render: (params): Slide => {
+    const { a, r, months, ctx } = params;
+    const R = dec(r / 100);
+    const t = dec(months / 12);
+    const kt = contPower(params);
+    const A = texNum(a);
+    const key = `${a}-${r}-${months}-${ctx}`;
+    const last =
+      months % 12 === 0
+        ? {
+            id: 'compare',
+            ask: `Is that more or less than compounding daily at ${r}%?`,
+            branches: turned(
+              [
+                { label: 'More, but only a little', outcome: 'Right: daily is already very close to the limit, and continuous is the limit itself.' },
+                { label: 'Less', outcome: 'Every extra step adds a little, and continuous is where the steps end up, so it pays the most.' },
+                { label: 'A lot more', outcome: `Daily is already very close: at ${r}% the two differ by pennies in the pound.` },
+              ],
+              `${key}-compare`,
+            ),
+          }
+        : {
+            id: 'compare',
+            ask: `Over a whole year, which pays more: this, or ${r + 1}% a year paid yearly?`,
+            branches: turned(
+              [
+                { label: `${r + 1}% yearly`, outcome: `Right: continuous compounding at ${r}% pays about ${dec(Math.round(effectiveRate(r, 0) * 10000) / 100)}% a year, less than ${r + 1}%.` },
+                { label: `${r}% continuously`, outcome: `Compounding adds less than a percentage point at ${r}%, not the whole point needed to beat ${r + 1}%.` },
+              ],
+              `${key}-compare`,
+            ),
+          };
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${contOpening(params)} In $n$ equal steps a year, the balance after ${spanWords(months)} would be $${A}\\left(1 + \\frac{${R}}{n}\\right)^{${t}n}$. Follow it as $n$ grows.`,
+        },
+      ],
+      subject: `${A}\\left(1 + \\frac{${R}}{n}\\right)^{${t}n}`,
+      steps: [
+        {
+          id: 'limit',
+          ask: `As $n$ grows, what does $\\left(1 + \\frac{${R}}{n}\\right)^{${t}n}$ get closer to?`,
+          branches: turned(
+            [
+              { label: `$e^{${kt}}$`, to: 'amount' },
+              { label: `$e^{${R}}$`, outcome: `That is one year's growth. There are ${t} years, so the power of $e$ is $${R} \\times ${t}$.` },
+              { label: `$\\left(1 + ${R}\\right)^{${t}}$`, outcome: 'That is compounding once a year, the fewest steps, not the limit of many.' },
+              { label: 'No limit', outcome: 'Each extra step adds less than the one before, and the total levels off at a limit.' },
+            ],
+            key,
+          ),
+        },
+        {
+          id: 'amount',
+          ask: 'So what is the balance, compounded continuously?',
+          branches: turned(
+            [
+              { label: `$${A}e^{${kt}}$`, to: 'compare' },
+              { label: `$${A} + e^{${kt}}$`, outcome: `$e^{${kt}}$ multiplies the amount paid in; it is not added to it.` },
+              { label: `$e^{${kt}}$`, outcome: 'That is what each pound grows to. The balance is that times the amount paid in.' },
+            ],
+            `${key}-amount`,
+          ),
+        },
+        last,
+      ],
+      answer: [`$e^{${kt}}$`, `$${A}e^{${kt}}$`, months % 12 === 0 ? 'More, but only a little' : `${r + 1}% yearly`],
+    };
+  },
+  solution: (params) => [
+    { text: `$\\left(1 + \\frac{${dec(params.r / 100)}}{n}\\right)^{n}$ gets closer and closer to $e^{${dec(params.r / 100)}}$, so ${spanWords(params.months)} of it gets closer to $e^{${dec(params.r / 100)} \\times ${dec(params.months / 12)}}$.` },
+    ...contSolution(params).slice(1),
+  ],
+};
+
+/** Many steps to e^(rt) as a line: regroup the power, take the limit, multiply out. */
+const expmContSteps: Generator<ContParams> = {
+  id: 'expm-cont-steps',
+  sample: (rng, difficulty) => sampleCont(rng, difficulty),
+  render: (params): Slide => {
+    const { a, r, months } = params;
+    const R = dec(r / 100);
+    const t = dec(months / 12);
+    const kt = contPower(params);
+    const A = texNum(a);
+    const inner = `\\left(1 + \\frac{${R}}{n}\\right)`;
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${contOpening(params)} In $n$ steps a year, the balance after ${spanWords(months)} is below. Take $n$ to be larger and larger, one step at a time.`,
+        },
+      ],
+      start: [A, '\\times', `${inner}^{${t}n}`],
+      reductions: [
+        {
+          span: [2, 3],
+          operator: 2,
+          value: `\\left(${inner}^{n}\\right)^{${t}}`,
+          bank: stepsBank([
+            `\\left(${inner}^{n}\\right)^{${t}}`,
+            `${inner}^{n} \\times ${t}`,
+            `${inner}^{n + ${t}}`,
+          ]),
+        },
+        {
+          span: [2, 3],
+          operator: 2,
+          value: `\\left(e^{${R}}\\right)^{${t}}`,
+          bank: stepsBank([
+            `\\left(e^{${R}}\\right)^{${t}}`,
+            `\\left(1 + ${R}\\right)^{${t}}`,
+            `${t}e^{${R}}`,
+            `\\left(e^{${R}}\\right)^{n}`,
+          ]),
+        },
+        {
+          span: [2, 3],
+          operator: 2,
+          value: `e^{${kt}}`,
+          bank: stepsBank([`e^{${kt}}`, `e^{${dec(r / 100 + months / 12)}}`, `e^{${R}}`, `e^{${dec((r * months) / 12)}}`]),
+        },
+        {
+          span: [0, 3],
+          operator: 1,
+          value: `${A}e^{${kt}}`,
+          bank: stepsBank([`${A}e^{${kt}}`, `${A} + e^{${kt}}`, `e^{${dec((a * r * months) / 1200)}}`, `${texNum(a * 2)}e^{${kt}}`]),
+        },
+      ],
+    };
+  },
+  solution: (params) => {
+    const R = dec(params.r / 100);
+    const t = dec(params.months / 12);
+    return [
+      { text: `A power of a power multiplies: $\\left(1 + \\frac{${R}}{n}\\right)^{${t}n} = \\left(\\left(1 + \\frac{${R}}{n}\\right)^{n}\\right)^{${t}}$.` },
+      { text: `As $n$ grows the inside gets closer to $e^{${R}}$, and $\\left(e^{${R}}\\right)^{${t}} = e^{${contPower(params)}}$.` },
+      { tex: `B = ${texNum(params.a)}e^{${contPower(params)}}` },
+    ];
+  },
+};
+
+/* ---------- Level 6, lesson 5: the effective annual rate ---------- */
+
+interface EffectiveParams {
+  /** A continuous rate as a percentage, or the half-year rate q when twice a year. */
+  p: number;
+  continuous: boolean;
+  ctx: number;
+}
+
+/** Type the effective annual rate: twice a year as a percentage, continuous exactly as e^k - 1. */
+const expmEffective: Generator<EffectiveParams> = {
+  id: 'expm-effective',
+  sample: (rng, difficulty) =>
+    difficulty > 1
+      ? { p: rng.pick(READ_PERCENTS), continuous: true, ctx: rng.int(0, ACCOUNTS.length - 1) }
+      : { p: rng.pick([...HALF_EASY, ...HALF_HARD]), continuous: false, ctx: rng.int(0, ACCOUNTS.length - 1) },
+  render: ({ p, continuous, ctx }): Slide => {
+    if (continuous) {
+      return {
+        kind: 'expression',
+        prompt: [
+          {
+            kind: 'prose',
+            text: `${ACCOUNTS[ctx]} pays ${p}% a year, compounded continuously. What is its effective annual rate, as a decimal? Give the exact value, leaving $e$ in it.`,
+          },
+        ],
+        lead: '\\text{rate} =',
+        keypad: EXP_KEYS,
+        answer: `e^(${dec(p / 100)}) - 1`,
+        domain: 'real',
+        mode: 'exact',
+      };
+    }
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${ACCOUNTS[ctx]} pays ${2 * p}% a year, compounded twice a year. What is its effective annual rate: the percentage a balance really grows by in a year? Type the number without the % sign.`,
+        },
+      ],
+      lead: '\\text{rate in } \\% =',
+      keypad: [],
+      answer: dec((yearFactor(p) - 1) * 100),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ p, continuous }) => {
+    if (continuous) {
+      return [
+        { text: `Continuously at ${p}%, one year multiplies the balance by $e^{${dec(p / 100)}}$.` },
+        { text: `The rate earned is what that adds to each pound: $e^{${dec(p / 100)}} - 1$, a little more than $${dec(p / 100)}$.` },
+      ];
+    }
+    return [
+      { tex: `${dec(1 + p / 100)}^{2} = ${dec(yearFactor(p))}` },
+      { text: `So each pound grows by $${dec(yearFactor(p) - 1)}$ in a year: ${dec((yearFactor(p) - 1) * 100)}%, a little more than the ${2 * p}% it is quoted at.` },
+    ];
+  },
+};
+
+interface BestParams {
+  a: number;
+  r: number;
+  /** Which offer wins: twice a year, yearly at a little more, or continuous. */
+  winner: 'twice' | 'yearly' | 'continuous';
+  ctx: number;
+}
+
+/** A yearly rate just below, and just above, what twice a year really pays at r. */
+const BEST_DELTAS: Record<number, [number, number]> = {
+  4: [0.02, 0.05],
+  6: [0.05, 0.1],
+  8: [0.1, 0.2],
+  10: [0.2, 0.3],
+  12: [0.3, 0.4],
+};
+
+function bestOffers({ r, winner }: BestParams): { label: string; rate: number; n: number }[] {
+  const [low, high] = BEST_DELTAS[r];
+  const yearly = dec(r + (winner === 'yearly' ? high : low));
+  const continuous = winner === 'continuous' ? r : r - 1;
+  return [
+    { label: `${r}% a year, compounded twice a year`, rate: r, n: 2 },
+    { label: `${yearly}% a year, paid yearly`, rate: Number(yearly), n: 1 },
+    { label: `${continuous}% a year, compounded continuously`, rate: continuous, n: 0 },
+  ];
+}
+
+/** Which of three offers pays the most, judged by effective annual rate. */
+const expmEffectiveBest: Generator<BestParams> = {
+  id: 'expm-effective-best',
+  // Difficulty 1 is settled by twice a year against yearly, with continuous
+  // well behind; difficulty 2 can make continuous at the same rate the winner.
+  sample: (rng, difficulty) => {
+    const params: BestParams = {
+      a: rng.pick(READ_STARTS),
+      r: rng.pick([4, 6, 8, 10, 12]),
+      winner: rng.pick(difficulty > 1 ? (['twice', 'yearly', 'continuous'] as const) : (['twice', 'yearly'] as const)),
+      ctx: rng.int(0, ACCOUNTS.length - 1),
+    };
+    const offers = bestOffers(params);
+    const best = offers.reduce((x, y) => (effectiveRate(y.rate, y.n) > effectiveRate(x.rate, x.n) ? y : x));
+    const expected = { twice: 2, yearly: 1, continuous: 0 }[params.winner];
+    if (best.n !== expected) throw new Error(`expm-effective-best: ${best.label} beats the intended winner`);
+    return params;
+  },
+  render: (params): Slide => {
+    const offers = bestOffers(params);
+    const right = offers.find((o) => o.n === { twice: 2, yearly: 1, continuous: 0 }[params.winner])!.label;
+    const labels = offers.map((o) => o.label);
+    const ordered = turned(labels, `${params.a}|${labels.join('|')}|${params.ctx}`);
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `You have ${pounds(params.a)} to put away for a year, and ${ACCOUNTS[params.ctx].charAt(0).toLowerCase()}${ACCOUNTS[params.ctx].slice(1)} comes in three versions. Which pays the most?`,
+        },
+      ],
+      options: ordered.map((label, idx) => ({ id: `opt${idx}`, label })),
+      correctId: `opt${ordered.indexOf(right)}`,
+    };
+  },
+  solution: (params) => {
+    const { r } = params;
+    const offers = bestOffers(params);
+    const [, yearly, continuous] = offers;
+    return [
+      { text: `Twice a year at ${r}%: $${dec(1 + r / 200)}^{2} = ${dec(yearFactor(r / 2))}$, so it really pays ${dec((yearFactor(r / 2) - 1) * 100)}%.` },
+      { text: `Yearly at ${yearly.rate}% pays exactly ${yearly.rate}%.` },
+      {
+        text: `Continuously at ${continuous.rate}% pays $e^{${dec(continuous.rate / 100)}} - 1$, about ${dec(Math.round(effectiveRate(continuous.rate, 0) * 10000) / 100)}%${continuous.rate === r ? `, more than twice a year at the same ${r}%` : ': compounding adds less than a percentage point, so it cannot make up the point it starts behind'}.`,
+      },
+    ];
+  },
+};
+
+/** Continuous rate k: the year's multiplier, the rate it pays, and how that compares with k. */
+const expmEffectiveFlow: Generator<EffectiveParams> = {
+  id: 'expm-effective-flow',
+  sample: (rng, difficulty) =>
+    difficulty > 1
+      ? { p: rng.pick([...HALF_EASY, ...HALF_HARD]), continuous: false, ctx: rng.int(0, ACCOUNTS.length - 1) }
+      : { p: rng.pick(READ_PERCENTS), continuous: true, ctx: rng.int(0, ACCOUNTS.length - 1) },
+  render: ({ p, continuous, ctx }): Slide => {
+    const key = `${p}-${continuous}-${ctx}`;
+    if (continuous) {
+      const k = dec(p / 100);
+      return {
+        kind: 'flow',
+        prompt: [
+          {
+            kind: 'prose',
+            text: `${ACCOUNTS[ctx]} pays ${p}% a year, compounded continuously, so $k = ${k}$. Find the rate it really pays in a year, one question at a time.`,
+          },
+        ],
+        subject: `k = ${k}`,
+        steps: [
+          {
+            id: 'factor',
+            ask: 'In one year, each pound is multiplied by what?',
+            branches: turned(
+              [
+                { label: `$e^{${k}}$`, to: 'rate' },
+                { label: `$${dec(1 + p / 100)}$`, outcome: `That is ${p}% paid once a year. Continuously, one year multiplies by $e^{k}$.` },
+                { label: `$e^{${p}}$`, outcome: `$k$ is the rate as a decimal, $${k}$, not the percentage ${p}.` },
+              ],
+              key,
+            ),
+          },
+          {
+            id: 'rate',
+            ask: 'So what does each pound gain in a year, as a decimal?',
+            branches: turned(
+              [
+                { label: `$e^{${k}} - 1$`, to: 'size' },
+                { label: `$e^{${k}}$`, outcome: 'That is what each pound grows to. The gain is that less the pound itself.' },
+                { label: `$${k}$`, outcome: `$${k}$ is the rate it is quoted at; compounding continuously makes it pay a little more.` },
+              ],
+              `${key}-rate`,
+            ),
+          },
+          {
+            id: 'size',
+            ask: `Is $e^{${k}} - 1$ more or less than $${k}$?`,
+            branches: [
+              { label: 'More', outcome: `Right: about ${dec(Math.round(effectiveRate(p, 0) * 10000) / 10000)}, the interest on the interest on top of $${k}$.` },
+              { label: 'Less', outcome: 'Interest earning interest can only add to a year, so it pays more than $k$.' },
+              { label: 'The same', outcome: `It would be the same only if interest never earned interest; continuously, it always does.` },
+            ],
+          },
+        ],
+        answer: [`$e^{${k}}$`, `$e^{${k}} - 1$`, 'More'],
+      };
+    }
+    const m = dec(1 + p / 100);
+    const aer = dec((yearFactor(p) - 1) * 100);
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${ACCOUNTS[ctx]} pays ${2 * p}% a year, compounded twice a year. Find the rate it really pays in a year, one question at a time.`,
+        },
+      ],
+      subject: `${2 * p}\\% \\text{ a year, twice a year}`,
+      steps: [
+        {
+          id: 'factor',
+          ask: 'In one year, each pound is multiplied by what?',
+          branches: turned(
+            [
+              { label: `$${m}^{2}$`, to: 'rate' },
+              { label: `$${dec(1 + p / 50)}$`, outcome: `That is ${2 * p}% paid once. Twice a year is two steps of ${p}%.` },
+              { label: `$${m} \\times 2$`, outcome: 'Two steps multiply twice; they do not double.' },
+            ],
+            key,
+          ),
+        },
+        {
+          id: 'rate',
+          ask: `$${m}^{2} = ${dec(yearFactor(p))}$. What is the effective annual rate?`,
+          branches: turned(
+            [
+              { label: `${aer}%`, outcome: `Right: each pound gains $${dec(yearFactor(p) - 1)}$, which is ${aer}%, a little more than ${2 * p}%.` },
+              { label: `${dec(yearFactor(p) * 100)}%`, outcome: 'That counts the pound itself. The rate is only what is gained.' },
+              { label: `${2 * p}%`, outcome: `${2 * p}% is the rate as quoted; compounding twice makes it pay a little more.` },
+            ],
+            `${key}-rate`,
+          ),
+        },
+      ],
+      answer: [`$${m}^{2}$`, `${aer}%`],
+    };
+  },
+  solution: ({ p, continuous }) => {
+    if (continuous) {
+      return [
+        { text: `Continuously at $k = ${dec(p / 100)}$, a year multiplies by $e^{${dec(p / 100)}}$.` },
+        { text: `The rate is the gain on each pound, $e^{${dec(p / 100)}} - 1$, about ${dec(Math.round(effectiveRate(p, 0) * 10000) / 100)}%: more than ${p}%.` },
+      ];
+    }
+    return [
+      { tex: `${dec(1 + p / 100)}^{2} = ${dec(yearFactor(p))}` },
+      { text: `Each pound gains $${dec(yearFactor(p) - 1)}$, an effective annual rate of ${dec((yearFactor(p) - 1) * 100)}%.` },
+    ];
+  },
+};
+
+
+interface MatchParams {
+  /** p% paid yearly, or at difficulty 2 the half-year rate of 2p% twice a year. */
+  p: number;
+  twice: boolean;
+  ctx: number;
+}
+
+/** Backwards: the continuous rate that grows a year as much as p% yearly, or 2p% twice a year. */
+const expmEffectiveTiles: Generator<MatchParams> = {
+  id: 'expm-effective-tiles',
+  sample: (rng, difficulty) =>
+    difficulty > 1
+      ? { p: rng.pick([...HALF_EASY, ...HALF_HARD]), twice: true, ctx: rng.int(0, ACCOUNTS.length - 1) }
+      : { p: rng.pick(READ_PERCENTS), twice: false, ctx: rng.int(0, ACCOUNTS.length - 1) },
+  render: ({ p, twice, ctx }): Slide => {
+    const m = dec(1 + p / 100);
+    const quoted = twice ? `${2 * p}% a year, compounded twice a year` : `${p}% a year, paid yearly`;
+    const answer = twice ? [`${m}^{2}`, `2\\ln ${m}`] : [m, `\\ln ${m}`];
+    const slips = twice
+      ? [`\\ln ${m}`, `\\ln ${dec(2 * (1 + p / 100))}`, dec(1 + p / 50), `\\ln ${dec(1 + p / 50)}`, `${m}^{\\frac{1}{2}}`]
+      : [dec(p / 100), `\\ln ${dec(p / 100)}`, `e^{${m}}`, `e^{${dec(p / 100)}}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${ACCOUNTS[ctx]} pays ${quoted}. What continuous rate $k$ would grow a balance by exactly as much in a year? A year multiplies by $e^{k}$: build what that equals, then $k$.`,
+        },
+      ],
+      template: 'e^{k} = {0} \\qquad k = {1}',
+      bank: fillBank(answer, slips),
+      answer,
+    };
+  },
+  solution: ({ p, twice }) => {
+    const m = dec(1 + p / 100);
+    if (!twice) {
+      return [
+        { text: `${p}% paid yearly multiplies by $${m}$ in a year. Continuously at $k$ it multiplies by $e^{k}$.` },
+        { tex: chain(`e^{k} &= ${m}`, `k &= \\ln ${m}`) },
+        { text: `$\\ln ${m}$ is a little under $${dec(p / 100)}$: compounding continuously needs a slightly lower rate to keep up.` },
+      ];
+    }
+    return [
+      { text: `Twice a year at ${2 * p}%, a year multiplies by $${m}^{2}$.` },
+      { tex: chain(`e^{k} &= ${m}^{2}`, `k &= \\ln ${m}^{2} = 2\\ln ${m}`) },
+    ];
+  },
+};
+
 /* ---------- registry ---------- */
 
 export const exponentialModelGenerators = [
@@ -7181,4 +8707,24 @@ export const exponentialModelGenerators = [
   expmLogisticUTiles,
   expmLogisticReachSlider,
   expmLogisticWhen,
+  expmStepTree,
+  expmStepWorkSteps,
+  expmStepAmount,
+  expmStepCalc,
+  expmOftenFlow,
+  expmOftenOrder,
+  expmOftenTiles,
+  expmOftenGainTree,
+  expmBernoulliTree,
+  expmBernoulliBackSteps,
+  expmEValue,
+  expmELimit,
+  expmContTiles,
+  expmContExact,
+  expmContFlow,
+  expmContSteps,
+  expmEffective,
+  expmEffectiveBest,
+  expmEffectiveFlow,
+  expmEffectiveTiles,
 ];

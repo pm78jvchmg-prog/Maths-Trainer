@@ -8700,6 +8700,1704 @@ const triSumAllSteps: Generator<SumAllParams> = {
   },
 };
 
+/* ======================================================================
+ * Level 6: Inequalities in Two Variables & Regions
+ *
+ * Batch C1-l6. Several inequalities at once, and the region satisfying all
+ * of them: two half-planes overlapping, a pictured region read back as its
+ * inequalities, the corners where two boundaries meet, the whole-number
+ * points inside, and regions from words. One half-plane is level 4 and
+ * where two lines meet is level 2; both are pointed at, not re-taught.
+ *
+ * Built outward from the corners. Three whole corners are drawn in $-5$ to
+ * $5$ first, and each boundary is the line through two of them, on the side
+ * of the third, so every corner, gradient and intercept a learner meets is
+ * whole. No boundary is vertical, since `plotSvg` draws $y$ against $x$, and
+ * the dot marking a region is a whole point well inside it.
+ * ==================================================================== */
+
+type Pt = readonly [number, number];
+
+/**
+ * A triangle of whole corners and the three boundaries through them.
+ *
+ * Side `i` joins corner `i` to the next, and its inequality is the side of
+ * that line the third corner is on, so the three together describe the
+ * triangle. Two inequalities are sides 0 and 2, the two through corner 0,
+ * and describe the wedge between them.
+ */
+interface Corners {
+  form: 'slope' | 'general';
+  corners: [Pt, Pt, Pt];
+  /** Per side, whether its boundary is left out. */
+  strict: [boolean, boolean, boolean];
+  /** A whole point well inside the triangle, drawn as the dot. */
+  dot: Pt;
+}
+
+const SIDES = [0, 1, 2] as const;
+const WEDGE = [0, 2] as const;
+
+const NOT_STRICT: Record<Ineq, Ineq> = { '<': '<=', '<=': '<', '>': '>=', '>=': '>' };
+
+/** Side `i` as a half-plane: the line through two corners, on the third corner's side. */
+function sideOf(p: Corners, i: number): RegionParams {
+  const [x1, y1] = p.corners[i];
+  const [x2, y2] = p.corners[(i + 1) % 3];
+  const [tx, ty] = p.corners[(i + 2) % 3];
+  const line: RegionParams = { form: p.form, m: 0, a: 0, b: 0, c: 0, op: '<', px: p.dot[0], py: p.dot[1] };
+  if (p.form === 'slope') {
+    line.m = (y2 - y1) / (x2 - x1) + 0;
+    line.c = y1 - line.m * x1 + 0;
+  } else {
+    const g = gcd(Math.abs(y2 - y1), Math.abs(x2 - x1));
+    const s = y2 > y1 ? 1 : -1;
+    line.a = (s * (y2 - y1)) / g;
+    line.b = (s * (x1 - x2)) / g + 0;
+    line.c = line.a * x1 + line.b * y1 + 0;
+  }
+  const above = residual(line, tx, ty) > 0;
+  line.op = above ? (p.strict[i] ? '>' : '>=') : p.strict[i] ? '<' : '<=';
+  return line;
+}
+
+/** A boundary as a line, with `=` in place of the sign. */
+function edgeTex(s: RegionParams): string {
+  return s.form === 'slope' ? `y = ${regionSideTex(s)}` : `${regionSideTex(s)} = ${s.c}`;
+}
+
+/** Lines stacked one under another. */
+function stackTex(lines: string[]): string {
+  return `\\begin{gathered} ${lines.join(' \\\\ ')} \\end{gathered}`;
+}
+
+const passes = (s: RegionParams, x: number, y: number): boolean => holds(residual(s, x, y), s.op, 0);
+
+const onLine = (s: RegionParams, x: number, y: number): boolean => residual(s, x, y) === 0;
+
+function distanceTo(s: RegionParams, x: number, y: number): number {
+  const norm = s.form === 'slope' ? Math.hypot(s.m, 1) : Math.hypot(s.a, s.b);
+  return Math.abs(residual(s, x, y)) / norm;
+}
+
+const inAll = (sides: RegionParams[], x: number, y: number): boolean => sides.every((s) => passes(s, x, y));
+
+/** Every whole point of the window, row by row. */
+const LATTICE: readonly Pt[] = range(-6, 6).flatMap((x) => range(-6, 6).map((y) => [x, y] as const));
+
+const twiceArea = ([a, b, c]: readonly Pt[]): number =>
+  Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1]));
+
+const inBox = ([x, y]: Pt): boolean => Math.abs(x) <= 5 && Math.abs(y) <= 5;
+
+/** A turn of the corners, so no side is always the one through the first corner drawn. */
+function turned(rng: Rng, corners: [Pt, Pt, Pt]): [Pt, Pt, Pt] {
+  const k = rng.int(0, 2);
+  return [corners[k], corners[(k + 1) % 3], corners[(k + 2) % 3]];
+}
+
+/**
+ * Corners whose three sides all have whole gradients, at most `steep` either
+ * way: two gradients from the first corner, then the third side kept only
+ * when its gradient comes out whole too.
+ */
+function slopeCorners(rng: Rng, steep: number): [Pt, Pt, Pt] | undefined {
+  const a: Pt = [rng.int(-5, 5), rng.int(-5, 5)];
+  const [m1, m2] = rng.sample(range(-steep, steep), 2);
+  const t = rng.pick(nonZeroRange(-5, 5));
+  const s = rng.pick(nonZeroRange(-5, 5));
+  if (t === s) return undefined;
+  const b: Pt = [a[0] + t, a[1] + m1 * t];
+  const c: Pt = [a[0] + s, a[1] + m2 * s];
+  const m3 = (c[1] - b[1]) / (c[0] - b[0]);
+  if (!Number.isInteger(m3) || Math.abs(m3) > steep || ![b, c].every(inBox)) return undefined;
+  return turned(rng, [a, b, c]);
+}
+
+/** Any three corners with no side vertical or level, and small coefficients. */
+function generalCorners(rng: Rng): [Pt, Pt, Pt] | undefined {
+  const corners: [Pt, Pt, Pt] = [
+    [rng.int(-5, 5), rng.int(-5, 5)],
+    [rng.int(-5, 5), rng.int(-5, 5)],
+    [rng.int(-5, 5), rng.int(-5, 5)],
+  ];
+  for (const i of SIDES) {
+    const [x1, y1] = corners[i];
+    const [x2, y2] = corners[(i + 1) % 3];
+    if (x1 === x2 || y1 === y2) return undefined;
+    const g = gcd(Math.abs(y2 - y1), Math.abs(x2 - x1));
+    if (Math.abs(y2 - y1) / g > 5 || Math.abs(x2 - x1) / g > 5) return undefined;
+  }
+  return corners;
+}
+
+/** The whole point nearest the middle that sits well inside, if there is one. */
+function dotFor(p: Omit<Corners, 'dot'>): Pt | undefined {
+  const sides = SIDES.map((i) => sideOf({ ...p, dot: [0, 0] }, i));
+  const cx = (p.corners[0][0] + p.corners[1][0] + p.corners[2][0]) / 3;
+  const cy = (p.corners[0][1] + p.corners[1][1] + p.corners[2][1]) / 3;
+  let best: Pt | undefined;
+  let bestGap = Infinity;
+  for (const [x, y] of LATTICE) {
+    if (!inBox([x, y])) continue;
+    if (!sides.every((s) => passes(s, x, y) && distanceTo(s, x, y) >= 0.6)) continue;
+    const gap = (x - cx) ** 2 + (y - cy) ** 2;
+    if (gap < bestGap) {
+      best = [x, y];
+      bestGap = gap;
+    }
+  }
+  return best;
+}
+
+const SLOPE_FALLBACK: Corners = { form: 'slope', corners: [[-3, -2], [3, -2], [0, 4]], strict: [true, false, false], dot: [0, 0] };
+const GENERAL_FALLBACK: Corners = { form: 'general', corners: [[-4, -1], [2, -3], [1, 4]], strict: [false, true, false], dot: [0, 0] };
+
+/** Slope form at difficulty 1, `ax + by` at difficulty 2. */
+const formFor = (difficulty: number): Corners['form'] => (difficulty > 1 ? 'general' : 'slope');
+
+/** A triangle drawn outward from its corners, kept only if `accept` holds. */
+function drawCorners(
+  rng: Rng,
+  form: Corners['form'],
+  accept: (p: Corners) => boolean = () => true,
+  steep = 3,
+): Corners {
+  for (let tries = 0; tries < 400; tries += 1) {
+    const corners = form === 'slope' ? slopeCorners(rng, steep) : generalCorners(rng);
+    if (!corners || twiceArea(corners) < 8) continue;
+    const strict: [boolean, boolean, boolean] = [rng.chance(0.5), rng.chance(0.5), rng.chance(0.5)];
+    const dot = dotFor({ form, corners, strict });
+    if (!dot) continue;
+    const p: Corners = { form, corners, strict, dot };
+    if (accept(p)) return p;
+  }
+  return form === 'slope' ? SLOPE_FALLBACK : GENERAL_FALLBACK;
+}
+
+const sidesOf = (p: Corners, which: readonly number[] = SIDES): RegionParams[] => which.map((i) => sideOf(p, i));
+
+/** The inequalities of the given sides, stacked. */
+const systemOf = (p: Corners, which: readonly number[] = SIDES): string => stackTex(sidesOf(p, which).map((s) => regionTex(s)));
+
+function dashWords(sides: RegionParams[]): string {
+  const dashed = sides.filter((s) => isStrict(s.op)).length;
+  if (dashed === 0) return 'every line solid';
+  if (dashed === sides.length) return 'every line dashed';
+  return `${dashed} dashed and ${sides.length - dashed} solid`;
+}
+
+/** The region's boundaries, dashed where they are left out, with the dot if wanted. */
+function regionSvg(p: Corners, which: readonly number[] = SIDES, dot = true): string {
+  const sides = sidesOf(p, which);
+  return plotSvg({
+    ...REGION_WINDOW,
+    height: REGION_HEIGHT,
+    grid: true,
+    curves: sides.map((s) => ({ f: boundaryOf(s), dashed: isStrict(s.op) })),
+    marks: dot ? [{ x: p.dot[0], y: p.dot[1] }] : [],
+    label: `${sides.length} straight lines, ${dashWords(sides)}${dot ? `, with a dot at (${p.dot[0]}, ${p.dot[1]})` : ''}`,
+  });
+}
+
+const regionFigure = (p: Corners, which: readonly number[] = SIDES, dot = true): Block => ({
+  kind: 'diagram',
+  svg: regionSvg(p, which, dot),
+});
+
+/** One inequality tried at a point, as a line of working. */
+function tryAt(s: RegionParams, x: number, y: number): SolutionStep {
+  const ok = passes(s, x, y);
+  if (s.form === 'slope') {
+    const value = s.m * x + s.c;
+    return {
+      text: `$${regionTex(s)}$: at $x = ${x}$ the right-hand side is $${value}$, and $${y} ${INEQ_TEX[s.op]} ${value}$ is ${ok ? 'true' : 'false'}.`,
+    };
+  }
+  const value = s.a * x + s.b * y;
+  return {
+    text: `$${regionTex(s)}$: at $(${x}, ${y})$ the left-hand side is $${value}$, and $${value} ${INEQ_TEX[s.op]} ${s.c}$ is ${ok ? 'true' : 'false'}.`,
+  };
+}
+
+/* ---------- Lesson 1: two at once ---------- */
+
+type OverlapCase = 'both' | 'first' | 'second' | 'neither';
+
+/** The whole points off both lines, by which of the two inequalities they pass. */
+function byCase(p: Corners): Record<OverlapCase, Pt[]> {
+  const [first, second] = sidesOf(p, WEDGE);
+  const out: Record<OverlapCase, Pt[]> = { both: [], first: [], second: [], neither: [] };
+  for (const [x, y] of LATTICE) {
+    if (!inBox([x, y]) || onLine(first, x, y) || onLine(second, x, y)) continue;
+    const one = passes(first, x, y);
+    const two = passes(second, x, y);
+    out[one && two ? 'both' : one ? 'first' : two ? 'second' : 'neither'].push([x, y]);
+  }
+  return out;
+}
+
+interface OverlapParams extends Corners {
+  point: Pt;
+}
+
+const OVERLAP_CASES: readonly OverlapCase[] = ['both', 'both', 'first', 'second', 'neither'];
+
+function sampleOverlap(rng: Rng, difficulty: number, cases: readonly OverlapCase[] = OVERLAP_CASES): OverlapParams {
+  const p = drawCorners(rng, formFor(difficulty));
+  const found = byCase(p);
+  const want = rng.pick(cases);
+  const pool = found[want].length > 0 ? found[want] : found.both;
+  return { ...p, point: rng.pick(pool) };
+}
+
+function overlapWorking(p: OverlapParams): SolutionStep[] {
+  const [first, second] = sidesOf(p, WEDGE);
+  const [x, y] = p.point;
+  const one = passes(first, x, y);
+  const two = passes(second, x, y);
+  return [
+    tryAt(first, x, y),
+    tryAt(second, x, y),
+    {
+      text:
+        one && two
+          ? `It passes both, so $${pointTex(x, y)}$ is in the region.`
+          : `It fails ${one || two ? 'one' : 'both'}, so $${pointTex(x, y)}$ is not in the region: a point has to pass every inequality.`,
+    },
+  ];
+}
+
+const OVERLAP_YES = 'Yes';
+const OVERLAP_NO = 'No';
+
+/**
+ * Is the point in both? Two tests, and the second is only worth doing if the
+ * first passes. Difficulty 2 is the form `ax + by`.
+ */
+const overlapFlow: Generator<OverlapParams> = {
+  id: 'lin-overlap-flow',
+  sample: (rng, difficulty) => sampleOverlap(rng, difficulty),
+  render: (p): Slide => {
+    const [first, second] = sidesOf(p, WEDGE);
+    const [x, y] = p.point;
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `Is $${pointTex(x, y)}$ in the region where both inequalities hold?` }],
+      subject: systemOf(p, WEDGE),
+      steps: [
+        {
+          id: 'first',
+          ask: `Put $${pointTex(x, y)}$ into the first inequality. Is it true?`,
+          branches: [
+            { label: OVERLAP_YES, to: 'second' },
+            { label: OVERLAP_NO, outcome: 'Then the point is not in the region: it has to pass both.' },
+          ],
+        },
+        {
+          id: 'second',
+          ask: 'Now the second. Is that true as well?',
+          branches: [
+            { label: OVERLAP_YES, outcome: 'It passes both, so the point is in the region.' },
+            { label: OVERLAP_NO, outcome: 'It fails one, so the point is not in the region.' },
+          ],
+        },
+      ],
+      answer: passes(first, x, y) ? [OVERLAP_YES, passes(second, x, y) ? OVERLAP_YES : OVERLAP_NO] : [OVERLAP_NO],
+    };
+  },
+  solution: overlapWorking,
+};
+
+interface OverlapWhichParams extends Corners {
+  /** The point in both first, then three that are not. */
+  points: [Pt, Pt, Pt, Pt];
+}
+
+/** A point on a dashed boundary that passes the other: left out, and easy to take for in. */
+function onDashed(p: Corners): Pt[] {
+  const [first, second] = sidesOf(p, WEDGE);
+  return LATTICE.filter(
+    ([x, y]) =>
+      inBox([x, y]) &&
+      ((isStrict(first.op) && onLine(first, x, y) && passes(second, x, y) && !onLine(second, x, y)) ||
+        (isStrict(second.op) && onLine(second, x, y) && passes(first, x, y) && !onLine(first, x, y))),
+  );
+}
+
+/**
+ * Which of four points is in both regions? One passes both; the others pass
+ * only the first, only the second, or neither. At difficulty 2 one of the
+ * wrong ones sits on a dashed boundary where it can.
+ */
+const overlapWhich: Generator<OverlapWhichParams> = {
+  id: 'lin-overlap-which',
+  sample: (rng, difficulty) => {
+    const p = drawCorners(rng, formFor(difficulty), (q) => {
+      const found = byCase(q);
+      return found.both.length > 0 && found.first.length > 0 && found.second.length > 0 && found.neither.length > 0;
+    });
+    const found = byCase(p);
+    const edge = difficulty > 1 ? onDashed(p) : [];
+    const wrong = [
+      edge.length > 0 ? rng.pick(edge) : rng.pick(found.first.length > 0 ? found.first : found.neither),
+      rng.pick(found.second.length > 0 ? found.second : found.neither),
+      rng.pick(found.neither.length > 0 ? found.neither : found.first),
+    ];
+    const right = rng.pick(found.both);
+    const seen = new Set([pointTex(...right)]);
+    const points: Pt[] = [right];
+    for (const q of [...wrong, ...found.neither, ...found.first, ...found.second]) {
+      if (points.length === 4) break;
+      if (seen.has(pointTex(...q))) continue;
+      seen.add(pointTex(...q));
+      points.push(q);
+    }
+    return { ...p, points: points as [Pt, Pt, Pt, Pt] };
+  },
+  render: (p): Slide =>
+    sortedChoice(
+      [
+        { kind: 'prose', text: 'Which point is in the region where **both** inequalities hold?' },
+        { kind: 'display', tex: systemOf(p, WEDGE) },
+      ],
+      labelChoices(pointTex(...p.points[0]), ...p.points.slice(1).map((q) => pointTex(...q))),
+    ),
+  solution: (p) => {
+    const [first, second] = sidesOf(p, WEDGE);
+    const [x, y] = p.points[0];
+    return [
+      tryAt(first, x, y),
+      tryAt(second, x, y),
+      { text: `$${pointTex(x, y)}$ passes both. Each of the others fails at least one, and failing one is enough to be left out.` },
+    ];
+  },
+};
+
+/**
+ * Both inequalities worked out at a point, side by side. In the slope form it
+ * is each right-hand side at the point's $x$: the $x$ term, then the whole
+ * side. In the form `ax + by` it is each left-hand side: two terms, then the
+ * total.
+ */
+const overlapTree: Generator<OverlapParams> = {
+  id: 'lin-overlap-tree',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => sampleOverlap(rng, difficulty),
+      (p) => sidesOf(p, WEDGE).every((s) => (s.form === 'slope' ? s.m !== 0 && s.c !== 0 : true)),
+      { ...SLOPE_FALLBACK, point: [1, 1] },
+    ),
+  render: (p): Slide => {
+    const [first, second] = sidesOf(p, WEDGE);
+    const [x, y] = p.point;
+    const slope = p.form === 'slope';
+    const nodes = slope
+      ? [
+          { id: 'mx1', from: [] },
+          { id: 'mx2', from: [] },
+          { id: 'side1', from: ['mx1'] },
+          { id: 'side2', from: ['mx2'] },
+        ]
+      : [
+          { id: 'ax1', from: [] },
+          { id: 'by1', from: [] },
+          { id: 'ax2', from: [] },
+          { id: 'by2', from: [] },
+          { id: 'side1', from: ['ax1', 'by1'] },
+          { id: 'side2', from: ['ax2', 'by2'] },
+        ];
+    const values = slope
+      ? [first.m * x, second.m * x, first.m * x + first.c, second.m * x + second.c]
+      : [first.a * x, first.b * y, second.a * x, second.b * y, first.a * x + first.b * y, second.a * x + second.b * y];
+    const answer = values.map((v) => `${v + 0}`);
+    const last = values[values.length - 1];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: slope
+            ? `Is $${pointTex(x, y)}$ in the region? Work out the right-hand side of each inequality at $x = ${x}$: the $x$ term, then the whole side.`
+            : `Is $${pointTex(x, y)}$ in the region? Work out the left-hand side of each inequality there: each term, sign included, then the total.`,
+        },
+        { kind: 'display', tex: systemOf(p, WEDGE) },
+      ],
+      expression: `${regionSideTex(first)} \\quad \\text{and} \\quad ${regionSideTex(second)}`,
+      nodes,
+      bank: treeBank(answer, [...values.map((v) => -v), slope ? first.c : first.c, slope ? second.c : second.c], last),
+      answer,
+    };
+  },
+  solution: overlapWorking,
+};
+
+/**
+ * The side that decides. The point passes the first inequality, so the
+ * second settles it: its value at the point, typed.
+ */
+const overlapSide: Generator<OverlapParams> = {
+  id: 'lin-overlap-side',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => sampleOverlap(rng, difficulty, ['both', 'first']),
+      (p) => passes(sideOf(p, 0), ...p.point) && (p.form === 'general' || sideOf(p, 2).m !== 0),
+      { ...SLOPE_FALLBACK, point: [0, 0] },
+    ),
+  render: (p): Slide => {
+    const second = sideOf(p, 2);
+    const [x, y] = p.point;
+    const slope = p.form === 'slope';
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: slope
+            ? `$${pointTex(x, y)}$ passes the first inequality, so the second decides. Work out its right-hand side at $x = ${x}$.`
+            : `$${pointTex(x, y)}$ passes the first inequality, so the second decides. Work out its left-hand side at the point.`,
+        },
+        { kind: 'display', tex: systemOf(p, WEDGE) },
+      ],
+      lead: `${regionSideTex(second)} =`,
+      keypad: [],
+      answer: `${slope ? second.m * x + second.c : second.a * x + second.b * y}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (p) => {
+    const second = sideOf(p, 2);
+    const [x, y] = p.point;
+    return [
+      tryAt(second, x, y),
+      {
+        text: passes(second, x, y)
+          ? `So it passes both, and $${pointTex(x, y)}$ is in the region.`
+          : `So it fails the second, and $${pointTex(x, y)}$ is not in the region.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Lesson 2: reading a region ---------- */
+
+const SIGN_TILES = ['<', '\\le', '>', '\\ge'];
+
+/**
+ * A pictured region, its three boundaries given: choose each sign. Dashed or
+ * solid decides strictness and the dot decides the side. Difficulty 2 is the
+ * form `ax + by`, where "above" is no longer always "greater".
+ */
+const readSigns: Generator<Corners> = {
+  id: 'lin-read-signs',
+  sample: (rng, difficulty) => drawCorners(rng, formFor(difficulty)),
+  render: (p): Slide => {
+    const sides = sidesOf(p);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'The region is inside all three lines, with the dot in it. A dashed line is left out and a solid one included. Choose each sign.',
+        },
+        regionFigure(p),
+      ],
+      template: sides
+        .map((s, n) => (s.form === 'slope' ? `y {${n}} ${regionSideTex(s)}` : `${regionSideTex(s)} {${n}} ${s.c}`))
+        .join(', \\quad '),
+      bank: bankOf(
+        sides.map((s) => INEQ_TEX[s.op]),
+        SIGN_TILES,
+      ),
+      answer: sides.map((s) => INEQ_TEX[s.op]),
+    };
+  },
+  solution: (p) => [
+    ...sidesOf(p).map((s) => ({
+      text: `$${edgeTex(s)}$ is ${isStrict(s.op) ? 'dashed, so strict' : 'solid, so "or equal to"'}. ${
+        s.form === 'slope'
+          ? `The dot is ${residual(s, ...p.dot) > 0 ? 'above' : 'below'} it, so $y$ is ${residual(s, ...p.dot) > 0 ? 'greater' : 'less'}: $${regionTex(s)}$.`
+          : `At the dot $${regionSideTex(s)} = ${s.a * p.dot[0] + s.b * p.dot[1]}$, ${residual(s, ...p.dot) > 0 ? 'more' : 'less'} than $${s.c}$: $${regionTex(s)}$.`
+      }`,
+    })),
+  ],
+};
+
+interface ReadSystemParams extends Corners {
+  /** The three wrong systems, as the signs of the two sides. */
+  wrong: [Ineq, Ineq][];
+}
+
+/**
+ * Which pair of inequalities is the pictured wedge? The wrong options turn a
+ * sign round, lose or add "or equal to", or turn both.
+ */
+const readSystem: Generator<ReadSystemParams> = {
+  id: 'lin-read-system',
+  sample: (rng, difficulty) => {
+    const p = drawCorners(rng, formFor(difficulty));
+    const [a, b] = sidesOf(p, WEDGE).map((s) => s.op);
+    const candidates: [Ineq, Ineq][] = [
+      [TURNED[a], b],
+      [a, TURNED[b]],
+      [NOT_STRICT[a], b],
+      [a, NOT_STRICT[b]],
+      [TURNED[a], TURNED[b]],
+    ];
+    return { ...p, wrong: rng.sample(candidates, 3) };
+  },
+  render: (p): Slide => {
+    const [first, second] = sidesOf(p, WEDGE);
+    const pair = ([a, b]: [Ineq, Ineq]) => stackTex([regionTex(first, a), regionTex(second, b)]);
+    return sortedChoice(
+      [
+        { kind: 'prose', text: 'The region is between the two lines, on the side with the dot. Which pair of inequalities is it?' },
+        regionFigure(p, WEDGE),
+      ],
+      labelChoices(pair([first.op, second.op]), ...p.wrong.map(pair)),
+    );
+  },
+  solution: (p) =>
+    sidesOf(p, WEDGE).map((s) => ({
+      text: `$${edgeTex(s)}$ is ${isStrict(s.op) ? 'dashed' : 'solid'}, and the dot $${pointTex(...p.dot)}$ makes $${regionTex(s)}$ true.`,
+    })),
+};
+
+interface ReadFlowParams extends Corners {
+  side: 0 | 1 | 2;
+}
+
+const READ_SOLID = 'Solid';
+const READ_DASHED = 'Dashed';
+const READ_ABOVE = 'Above';
+const READ_BELOW = 'Below';
+const READ_MORE = 'More';
+const READ_LESS = 'Less';
+
+/**
+ * One boundary of a pictured region, read into its inequality in two
+ * decisions: solid or dashed, then which side. At difficulty 1 the side is
+ * above or below; at difficulty 2, in the form `ax + by`, it is whether the
+ * dot makes the left-hand side more or less than the right.
+ */
+const readFlow: Generator<ReadFlowParams> = {
+  id: 'lin-read-flow',
+  sample: (rng, difficulty) => ({ ...drawCorners(rng, formFor(difficulty)), side: rng.pick([0, 1, 2] as const) }),
+  render: (p): Slide => {
+    const s = sideOf(p, p.side);
+    const up = residual(s, ...p.dot) > 0;
+    const slope = p.form === 'slope';
+    return {
+      kind: 'flow',
+      prompt: [
+        { kind: 'prose', text: 'The region is inside the three lines, with the dot in it. Which inequality does this boundary give?' },
+        regionFigure(p),
+      ],
+      subject: edgeTex(s),
+      steps: [
+        {
+          id: 'line',
+          ask: 'On the picture, is this boundary solid or dashed?',
+          branches: [
+            { label: READ_SOLID, to: 'side' },
+            { label: READ_DASHED, to: 'side' },
+          ],
+        },
+        slope
+          ? {
+              id: 'side',
+              ask: 'Is the dot above this line or below it?',
+              branches: [
+                { label: READ_ABOVE, outcome: 'Above the line, $y$ is more than the line: the sign is $>$ or $\\ge$.' },
+                { label: READ_BELOW, outcome: 'Below the line, $y$ is less than the line: the sign is $<$ or $\\le$.' },
+              ],
+            }
+          : {
+              id: 'side',
+              ask: `The dot is at $${pointTex(...p.dot)}$. Is $${regionSideTex(s)}$ there more or less than $${s.c}$?`,
+              branches: [
+                { label: READ_MORE, outcome: 'The sign is $>$ or $\\ge$.' },
+                { label: READ_LESS, outcome: 'The sign is $<$ or $\\le$.' },
+              ],
+            },
+      ],
+      answer: [isStrict(s.op) ? READ_DASHED : READ_SOLID, slope ? (up ? READ_ABOVE : READ_BELOW) : up ? READ_MORE : READ_LESS],
+    };
+  },
+  solution: (p) => {
+    const s = sideOf(p, p.side);
+    return [
+      { text: `The line is ${isStrict(s.op) ? 'dashed, so the sign is strict' : 'solid, so the sign has "or equal to"'}.` },
+      tryAt(s, ...p.dot),
+      { text: `So the boundary gives $${regionTex(s)}$.` },
+    ];
+  },
+};
+
+
+interface ReadLineParams extends Corners {
+  side: 0 | 1 | 2;
+  ask: 'c' | 'm';
+}
+
+/**
+ * Reading a boundary off the grid. Difficulty 1 gives the gradient and asks
+ * where the line crosses the $y$-axis; difficulty 2 gives the crossing and
+ * asks the gradient, rise over run between the two corners on it.
+ */
+const readLine: Generator<ReadLineParams> = {
+  id: 'lin-read-line',
+  sample: (rng, difficulty) => {
+    const ask = difficulty > 1 ? 'm' : 'c';
+    // On the grid, and the only boundary crossing there, so the prompt names one line.
+    const usable = (q: Corners, i: number): boolean => {
+      const s = sideOf(q, i);
+      return Math.abs(s.c) <= 5 && sidesOf(q).filter((t) => t.c === s.c).length === 1 && (ask === 'c' || s.m !== 0);
+    };
+    const p = drawCorners(rng, 'slope', (q) => SIDES.some((i) => usable(q, i)));
+    const open = SIDES.filter((i) => usable(p, i));
+    return { ...p, side: open.length > 0 ? rng.pick(open) : 0, ask };
+  },
+  render: (p): Slide => {
+    const s = sideOf(p, p.side);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text:
+            p.ask === 'c'
+              ? `The boundary with gradient $${s.m}$ is $y = ${s.m === 0 ? 'c' : `${termTex(s.m, 1)} + c`}$. Read $c$ off the grid: where does it cross the $y$-axis?`
+              : `The boundary crossing the $y$-axis at $${s.c}$ is $y = mx${s.c === 0 ? '' : ` ${signedTile(s.c)}`}$. Read its gradient $m$ off the grid, as rise over run.`,
+        },
+        regionFigure(p),
+      ],
+      lead: `${p.ask} =`,
+      keypad: [],
+      answer: `${p.ask === 'm' ? s.m : s.c}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (p) => {
+    const s = sideOf(p, p.side);
+    const ends = [p.corners[p.side], p.corners[(p.side + 1) % 3]].sort((u, v) => u[0] - v[0]);
+    const rise = ends[1][1] - ends[0][1];
+    const run = ends[1][0] - ends[0][0];
+    return [
+      p.ask === 'c'
+        ? { text: `It crosses the $y$-axis at $(0, ${s.c})$, so $c = ${s.c}$.` }
+        : {
+            text: `From the corner $${pointTex(...ends[0])}$ to $${pointTex(...ends[1])}$ it goes $${run}$ across and ${rise < 0 ? `$${-rise}$ down` : `$${rise}$ up`}. So $m = ${rise} \\div ${run} = ${s.m}$.`,
+          },
+      { text: `The boundary is $${edgeTex(s)}$, and the region is $${regionTex(s)}$.` },
+    ];
+  },
+};
+
+/* ---------- Lesson 3: corners ---------- */
+
+interface CornerParams extends Corners {
+  /** The corner asked about: where side `corner` meets side `corner + 2`. */
+  corner: 0 | 1 | 2;
+}
+
+/** The two boundaries through a corner. */
+const meeting = (p: CornerParams): [RegionParams, RegionParams] => [sideOf(p, p.corner), sideOf(p, (p.corner + 2) % 3)];
+
+const cornerOf = (p: CornerParams): Pt => p.corners[p.corner];
+
+/** A corner satisfying `ok`, drawn with its triangle. */
+function sampleCorner(
+  rng: Rng,
+  form: Corners['form'],
+  ok: (p: CornerParams) => boolean = () => true,
+  steep = 3,
+): CornerParams {
+  const valid = (q: Corners) => SIDES.filter((corner) => ok({ ...q, corner }));
+  const p = drawCorners(rng, form, (q) => valid(q).length > 0, steep);
+  const open = valid(p);
+  return { ...p, corner: open.length > 0 ? rng.pick(open) : 0 };
+}
+
+interface CornerStepsParams extends CornerParams {
+  /** Write the second boundary on the left. */
+  swap: boolean;
+}
+
+/** The two boundaries in the order the line of working uses them. */
+function stepsPair(p: CornerStepsParams): [RegionParams, RegionParams] {
+  const [one, two] = meeting(p);
+  return p.swap ? [two, one] : [one, two];
+}
+
+/**
+ * Where two boundaries meet, as a line of working: the two $y$ values set
+ * equal, the $x$ terms collected, the number taken across, the coefficient
+ * divided out. Difficulty 1 collects on the side with more $x$, as in level
+ * 1; difficulty 2 has steeper lines and sometimes a negative to divide by.
+ */
+const cornerSteps: Generator<CornerStepsParams> = {
+  id: 'lin-corner-steps',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const p = sampleCorner(
+      rng,
+      'slope',
+      (q) => {
+        const [one, two] = meeting(q);
+        return Math.abs(one.m - two.m) >= 2 && one.c !== 0 && two.c !== 0;
+      },
+      hard ? 4 : 3,
+    );
+    const [one, two] = meeting(p);
+    return { ...p, swap: hard ? rng.chance(0.5) : one.m < two.m };
+  },
+  render: (p): Slide => {
+    const [left, right] = stepsPair(p);
+    const d = left.m - right.m;
+    const x = cornerOf(p)[0];
+    const reductions: Extract<Slide, { kind: 'steps' }>['reductions'] = [];
+    // The first move spans the whole opening line; every later one, the single token left.
+    const next = (): [number, number] => (reductions.length === 0 ? [0, 3] : [0, 1]);
+    // A level line has no x term to collect, so it starts by taking the number across.
+    if (right.m !== 0) {
+      reductions.push({
+        span: next(),
+        value: `${linTex(d, left.c)} = ${right.c}`,
+        bank: stepBank(
+          `${linTex(d, left.c)} = ${right.c}`,
+          `${linTex(left.m + right.m, left.c)} = ${right.c}`,
+          `${linTex(-d, left.c)} = ${right.c}`,
+          `${linTex(d, -left.c)} = ${right.c}`,
+        ),
+      });
+    }
+    reductions.push({
+      span: next(),
+      value: `${termTex(d, 1)} = ${right.c - left.c}`,
+      bank: stepBank(
+        `${termTex(d, 1)} = ${right.c - left.c}`,
+        `${termTex(d, 1)} = ${right.c + left.c}`,
+        `${termTex(d, 1)} = ${left.c - right.c}`,
+        `${termTex(d, 1)} = ${right.c}`,
+      ),
+    });
+    reductions.push({
+      span: next(),
+      value: `x = ${x}`,
+      bank: stepBank(`x = ${x}`, `x = ${0 - x}`, `x = ${right.c - left.c - d}`, `x = ${(right.c - left.c) * d}`, `x = ${x + 1}`),
+    });
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Find the $x$-coordinate of the corner where $${edgeTex(left)}$ meets $${edgeTex(right)}$. There the two $y$ values are equal. ${HOW_TO_STEP}`,
+        },
+      ],
+      start: [linTex(left.m, left.c), '=', linTex(right.m, right.c)],
+      reductions,
+    };
+  },
+  solution: (p) => {
+    const [left, right] = stepsPair(p);
+    const d = left.m - right.m;
+    const [x, y] = cornerOf(p);
+    return [
+      { tex: `${linTex(left.m, left.c)} = ${linTex(right.m, right.c)}` },
+      {
+        text: `${right.m === 0 ? '' : `Take $${termTex(right.m, 1)}$ from both sides, then`} ${right.m === 0 ? 'Take' : 'take'} $${left.c}$ from both sides.`.trim(),
+        tex: `${termTex(d, 1)} = ${right.c - left.c}`,
+      },
+      { tex: `x = ${x}` },
+      { text: `Either line then gives $y = ${y}$, so the corner is $${pointTex(x, y)}$.` },
+    ];
+  },
+};
+
+interface CornerValueParams extends CornerParams {
+  ask: 'x' | 'y';
+}
+
+/**
+ * One coordinate of a corner, typed. Difficulty 1 is two lines in the slope
+ * form and asks $y$, once $x$ is found; difficulty 2 is the form `ax + by`,
+ * solved as a pair by elimination, and asks either.
+ */
+const cornerValue: Generator<CornerValueParams> = {
+  id: 'lin-corner-value',
+  sample: (rng, difficulty) => {
+    const p = sampleCorner(rng, formFor(difficulty));
+    return { ...p, ask: difficulty > 1 ? rng.pick(['x', 'y'] as const) : 'y' };
+  },
+  render: (p): Slide => {
+    const [one, two] = meeting(p);
+    const [x, y] = cornerOf(p);
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: `Two boundaries of a region meet at one of its corners. What is the corner's $${p.ask}$-coordinate?` },
+        { kind: 'display', tex: stackTex([edgeTex(one), edgeTex(two)]) },
+      ],
+      lead: `${p.ask} =`,
+      keypad: [],
+      answer: `${p.ask === 'x' ? x : y}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (p) => {
+    const [one, two] = meeting(p);
+    const [x, y] = cornerOf(p);
+    if (p.form === 'slope') {
+      return [
+        { text: 'Where they meet, the two $y$ values are equal.', tex: `${linTex(one.m, one.c)} = ${linTex(two.m, two.c)}` },
+        { tex: `${termTex(one.m - two.m, 1)} = ${two.c - one.c}` },
+        { tex: `x = ${x}` },
+        { text: `Put it back into either line: $y = ${timesTex(one.m, x)} ${signedTile(one.c)} = ${y}$.` },
+      ];
+    }
+    return [
+      { text: 'Solve the two together, as in Simultaneous Linear Equations: scale one so a letter matches, then add or subtract.' },
+      { tex: `x = ${x}, \\quad y = ${y}` },
+      {
+        text: `Check both: $${timesTex(one.a, x)} ${one.b < 0 ? '-' : '+'} ${timesTex(Math.abs(one.b), y)} = ${one.c}$ and $${timesTex(two.a, x)} ${two.b < 0 ? '-' : '+'} ${timesTex(Math.abs(two.b), y)} = ${two.c}$.`,
+      },
+    ];
+  },
+};
+
+/**
+ * The corner on the picture: slide to its $x$-coordinate. The corner is
+ * named by the two boundaries through it, so finding the right two lines is
+ * the question. Difficulty 2 names them in the form `ax + by`.
+ */
+const cornerSlider: Generator<CornerParams> = {
+  id: 'lin-corner-slider',
+  sample: (rng, difficulty) => sampleCorner(rng, formFor(difficulty)),
+  render: (p): Slide => {
+    const [one, two] = meeting(p);
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `This region has three corners. Slide to the $x$-coordinate of the one where $${edgeTex(one)}$ meets $${edgeTex(two)}$.`,
+        },
+      ],
+      min: -6,
+      max: 6,
+      step: 1,
+      answer: cornerOf(p)[0],
+      readout: 'x = {v}',
+      figure: { svg: regionSvg(p), ...markerWindow(-6, 6) },
+    };
+  },
+  solution: (p) => {
+    const [one, two] = meeting(p);
+    const [x, y] = cornerOf(p);
+    return [
+      { text: `The two lines cross at $${pointTex(x, y)}$, so $x = ${x}$.` },
+      { text: `Check it is on both: ${[one, two].map((s) => `$${edgeTex(s)}$`).join(' and ')} each hold at $${pointTex(x, y)}$.` },
+    ];
+  },
+};
+
+interface CornerCheckParams extends CornerParams {
+  /** The real corner, or another point on the first line only. */
+  real: boolean;
+}
+
+/** The point a corner check is made at. */
+function checkPoint(p: CornerCheckParams): Pt {
+  const [x, y] = cornerOf(p);
+  if (p.real) return [x, y];
+  const [one] = meeting(p);
+  const [dx, dy] = one.form === 'slope' ? [1, one.m] : [one.b, -one.a];
+  const along: Pt = inBox([x + dx, y + dy]) ? [x + dx, y + dy] : [x - dx, y - dy];
+  return along;
+}
+
+/**
+ * A corner checked on both boundaries. Difficulty 1 has $x$ found and works
+ * out $y$ from each line, which must agree. Difficulty 2, in the form
+ * `ax + by`, works out each left-hand side at a point offered as the corner;
+ * half the time the point is only on the first line, so the check matters.
+ */
+const cornerCheckTree: Generator<CornerCheckParams> = {
+  id: 'lin-corner-check-tree',
+  sample: (rng, difficulty) => {
+    const p = sampleCorner(rng, formFor(difficulty), (q) => meeting(q).every((s) => s.form === 'general' || s.m !== 0));
+    return { ...p, real: difficulty > 1 ? rng.chance(0.5) : true };
+  },
+  render: (p): Slide => {
+    const [one, two] = meeting(p);
+    const [x, y] = checkPoint(p);
+    const slope = p.form === 'slope';
+    const values = slope
+      ? [one.m * x, two.m * x, one.m * x + one.c, two.m * x + two.c]
+      : [one.a * x, one.b * y, two.a * x, two.b * y, one.a * x + one.b * y, two.a * x + two.b * y];
+    const answer = values.map((v) => `${v + 0}`);
+    return {
+      kind: 'tree',
+      prompt: slope
+        ? [
+            {
+              kind: 'prose',
+              text: `Solving gave $x = ${x}$ at the corner where $${edgeTex(one)}$ meets $${edgeTex(two)}$. Find $y$ from each line: the $x$ term, then the whole side. Both should give the same $y$.`,
+            },
+          ]
+        : [
+            {
+              kind: 'prose',
+              text: `Is $${pointTex(x, y)}$ the corner where these two boundaries meet? Work out each left-hand side there: each term, sign included, then the total.`,
+            },
+            { kind: 'display', tex: stackTex([edgeTex(one), edgeTex(two)]) },
+          ],
+      expression: `${regionSideTex(one)} \\quad \\text{and} \\quad ${regionSideTex(two)}`,
+      nodes: slope
+        ? [
+            { id: 'mx1', from: [] },
+            { id: 'mx2', from: [] },
+            { id: 'side1', from: ['mx1'] },
+            { id: 'side2', from: ['mx2'] },
+          ]
+        : [
+            { id: 'ax1', from: [] },
+            { id: 'by1', from: [] },
+            { id: 'ax2', from: [] },
+            { id: 'by2', from: [] },
+            { id: 'side1', from: ['ax1', 'by1'] },
+            { id: 'side2', from: ['ax2', 'by2'] },
+          ],
+      bank: treeBank(answer, [...values.map((v) => -v), one.c, two.c], values[values.length - 1]),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const [one, two] = meeting(p);
+    const [x, y] = checkPoint(p);
+    if (p.form === 'slope') {
+      return [
+        { tex: `${timesTex(one.m, x)} ${signedTile(one.c)} = ${one.m * x + one.c}` },
+        { tex: `${timesTex(two.m, x)} ${signedTile(two.c)} = ${two.m * x + two.c}` },
+        { text: `Both give $y = ${y}$, so the corner is $${pointTex(x, y)}$.` },
+      ];
+    }
+    const first = one.a * x + one.b * y;
+    const second = two.a * x + two.b * y;
+    return [
+      { text: `$${regionSideTex(one)} = ${first}$, ${first === one.c ? 'which' : 'but the line needs'} $${one.c}$${first === one.c ? ' is right' : ''}.` },
+      { text: `$${regionSideTex(two)} = ${second}$, ${second === two.c ? 'which' : 'but the line needs'} $${two.c}$${second === two.c ? ' is right' : ''}.` },
+      {
+        text: p.real
+          ? `It is on both lines, so it is the corner.`
+          : `It is on the first line but not the second, so it is not the corner.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Lesson 4: whole-number points ---------- */
+
+/** Every whole point in the region, boundaries counted by their signs. */
+const latticeIn = (p: Corners): Pt[] => LATTICE.filter(([x, y]) => inAll(sidesOf(p), x, y));
+
+/** A small triangle, so the points can be counted by hand. */
+const countable = (low: number, high: number) => (p: Corners): boolean => {
+  const n = latticeIn(p).length;
+  return twiceArea(p.corners) <= 30 && n >= low && n <= high;
+};
+
+/** Column by column, the whole $y$ values in the region. */
+function columns(p: Corners): { x: number; ys: number[] }[] {
+  const points = latticeIn(p);
+  return [...new Set(points.map(([x]) => x))]
+    .sort((u, v) => u - v)
+    .map((x) => ({ x, ys: points.filter((q) => q[0] === x).map((q) => q[1]).sort((u, v) => u - v) }));
+}
+
+const ON_OFF = 'A point on a solid line counts; one on a dashed line does not.';
+
+/**
+ * How many whole points are in the region? Counted column by column, and
+ * every corner is a whole point on two boundaries, so the signs decide
+ * whether the corners count. Difficulty 2 is the form `ax + by`.
+ */
+const latticeCount: Generator<Corners> = {
+  id: 'lin-lattice-count',
+  sample: (rng, difficulty) => drawCorners(rng, formFor(difficulty), countable(3, 14)),
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: `How many points with whole-number coordinates are in this region? Call it $n$. ${ON_OFF}` },
+      regionFigure(p, SIDES, false),
+      { kind: 'display', tex: systemOf(p) },
+    ],
+    lead: 'n =',
+    keypad: [],
+    answer: `${latticeIn(p).length}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (p) => [
+    { text: 'Go column by column, keeping each point that passes all three inequalities.' },
+    ...columns(p).map(({ x, ys }) => ({ text: `$x = ${x}$: $y = ${ys.join(', ')}$, so $${ys.length}$.` })),
+    { text: `That is $${latticeIn(p).length}$ points in all.` },
+  ],
+};
+
+interface LatticeWhichParams extends Corners {
+  /** The point inside first, then three that are not. */
+  points: [Pt, Pt, Pt, Pt];
+}
+
+/** Points left out but close: on a dashed side, or one step outside. */
+function nearMisses(p: Corners): { edge: Pt[]; near: Pt[] } {
+  const sides = sidesOf(p);
+  const edge: Pt[] = [];
+  const near: Pt[] = [];
+  for (const [x, y] of LATTICE) {
+    if (!inBox([x, y]) || inAll(sides, x, y)) continue;
+    const failed = sides.filter((s) => !passes(s, x, y));
+    if (failed.every((s) => isStrict(s.op) && onLine(s, x, y))) edge.push([x, y]);
+    else if (failed.every((s) => distanceTo(s, x, y) <= 1.5)) near.push([x, y]);
+  }
+  return { edge, near };
+}
+
+/**
+ * Which point is in the region? The wrong ones are close: on a dashed side
+ * where there is one, otherwise just outside a boundary.
+ */
+const latticeWhich: Generator<LatticeWhichParams> = {
+  id: 'lin-lattice-which',
+  sample: (rng, difficulty) => {
+    const p = drawCorners(rng, formFor(difficulty), (q) => {
+      const { edge, near } = nearMisses(q);
+      return countable(2, 14)(q) && edge.length + near.length >= 3;
+    });
+    const { edge, near } = nearMisses(p);
+    const inside = latticeIn(p);
+    const right = inside.length > 0 ? rng.pick(inside) : p.dot;
+    const wrong = [...(edge.length > 0 ? [rng.pick(edge)] : []), ...rng.shuffle(near), ...edge];
+    const seen = new Set([pointTex(...right)]);
+    const points: Pt[] = [right];
+    for (const q of wrong) {
+      if (points.length === 4) break;
+      if (seen.has(pointTex(...q))) continue;
+      seen.add(pointTex(...q));
+      points.push(q);
+    }
+    for (const q of LATTICE) {
+      if (points.length === 4) break;
+      if (seen.has(pointTex(...q)) || inAll(sidesOf(p), ...q)) continue;
+      seen.add(pointTex(...q));
+      points.push(q);
+    }
+    return { ...p, points: points as [Pt, Pt, Pt, Pt] };
+  },
+  render: (p): Slide =>
+    sortedChoice(
+      [
+        { kind: 'prose', text: `Which point is in the region? ${ON_OFF}` },
+        regionFigure(p, SIDES, false),
+        { kind: 'display', tex: systemOf(p) },
+      ],
+      labelChoices(pointTex(...p.points[0]), ...p.points.slice(1).map((q) => pointTex(...q))),
+    ),
+  solution: (p) => {
+    const sides = sidesOf(p);
+    const [x, y] = p.points[0];
+    return [
+      ...sides.map((s) => tryAt(s, x, y)),
+      { text: `$${pointTex(x, y)}$ passes all three. Each of the others fails one, even if only by lying on a dashed line.` },
+    ];
+  },
+};
+
+interface LatticeColumnParams extends Corners {
+  column: number;
+}
+
+/**
+ * One column of the count: the whole $y$ values at one $x$, smallest first.
+ * The bank has the values just past each end, which a dashed boundary or a
+ * misread line would let in.
+ */
+const latticeColumn: Generator<LatticeColumnParams> = {
+  id: 'lin-lattice-column',
+  sample: (rng, difficulty) => {
+    const fits = (q: Corners) => columns(q).filter(({ ys }) => ys.length >= 2 && ys.length <= 5);
+    const p = drawCorners(rng, formFor(difficulty), (q) => countable(3, 16)(q) && fits(q).length > 0);
+    const open = fits(p);
+    return { ...p, column: open.length > 0 ? rng.pick(open).x : columns(p)[0]?.x ?? 0 };
+  },
+  render: (p): Slide => {
+    const ys = columns(p).find(({ x }) => x === p.column)?.ys ?? [];
+    const answer = ys.map(numberTile);
+    const lo = ys[0];
+    const hi = ys[ys.length - 1];
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: `Which whole numbers $y$ put $(${p.column}, y)$ in the region? Smallest first. ${ON_OFF}` },
+        regionFigure(p, SIDES, false),
+        { kind: 'display', tex: systemOf(p) },
+      ],
+      template: `y = ${ys.map((_, n) => `{${n}}`).join(', \\; ')}`,
+      bank: bankOf(answer, [lo - 1, lo - 2, hi + 1, hi + 2].map(numberTile)),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const ys = columns(p).find(({ x }) => x === p.column)?.ys ?? [];
+    const sides = sidesOf(p);
+    const below = ys[0] - 1;
+    const above = ys[ys.length - 1] + 1;
+    const fail = (y: number) => sides.find((s) => !passes(s, p.column, y));
+    const out = [below, above].flatMap((y) => {
+      const s = fail(y);
+      return s ? [tryAt(s, p.column, y)] : [];
+    });
+    return [
+      { text: `At $x = ${p.column}$ the whole numbers passing all three are $y = ${ys.join(', ')}$.` },
+      ...out,
+      { text: `So $(${p.column}, ${below})$ and $(${p.column}, ${above})$ are left out.` },
+    ];
+  },
+};
+
+type LatticeCase = 'inside' | 'outside' | 'dashed' | 'solid' | 'solid-out';
+
+/** Whole points by how the count treats them, corners left out since they sit on two lines. */
+function latticeCases(p: Corners): Record<LatticeCase, Pt[]> {
+  const sides = sidesOf(p);
+  const out: Record<LatticeCase, Pt[]> = { inside: [], outside: [], dashed: [], solid: [], 'solid-out': [] };
+  for (const [x, y] of LATTICE) {
+    if (!inBox([x, y])) continue;
+    const on = sides.filter((s) => onLine(s, x, y));
+    if (on.length > 1) continue;
+    if (on.length === 0) {
+      if (inAll(sides, x, y)) out.inside.push([x, y]);
+      else if (sides.every((s) => passes(s, x, y) || distanceTo(s, x, y) <= 2)) out.outside.push([x, y]);
+      continue;
+    }
+    const rest = inAll(sides.filter((s) => s !== on[0]), x, y);
+    if (isStrict(on[0].op)) {
+      if (rest) out.dashed.push([x, y]);
+    } else out[rest ? 'solid' : 'solid-out'].push([x, y]);
+  }
+  return out;
+}
+
+interface LatticeFlowParams extends Corners {
+  point: Pt;
+}
+
+const LAT_YES = 'Yes';
+const LAT_NO = 'No';
+const LAT_SOLID = 'Solid';
+const LAT_DASHED = 'Dashed';
+
+/**
+ * Does this point count? On a line, the line's style decides and then the
+ * other two inequalities; off every line, all three do. Difficulty 1 has the
+ * picture; difficulty 2 is the form `ax + by` with the inequalities alone.
+ */
+const latticeFlow: Generator<LatticeFlowParams> = {
+  id: 'lin-lattice-flow',
+  sample: (rng, difficulty) => {
+    const p = drawCorners(rng, formFor(difficulty), countable(2, 16));
+    const found = latticeCases(p);
+    const open = (['inside', 'outside', 'dashed', 'solid', 'solid-out'] as const).filter((c) => found[c].length > 0);
+    const want = rng.pick(open);
+    return { ...p, point: rng.pick(found[want]) };
+  },
+  render: (p): Slide => {
+    const sides = sidesOf(p);
+    const [x, y] = p.point;
+    const on = sides.find((s) => onLine(s, x, y));
+    const answer = on
+      ? isStrict(on.op)
+        ? [LAT_YES, LAT_DASHED]
+        : [LAT_YES, LAT_SOLID, inAll(sides, x, y) ? LAT_YES : LAT_NO]
+      : [LAT_NO, inAll(sides, x, y) ? LAT_YES : LAT_NO];
+    return {
+      kind: 'flow',
+      prompt: [
+        { kind: 'prose', text: `Does $${pointTex(x, y)}$ count as a point of this region?` },
+        ...(p.form === 'slope' ? [regionFigure(p, SIDES, false)] : []),
+      ],
+      subject: systemOf(p),
+      steps: [
+        {
+          id: 'on',
+          ask: `Is $${pointTex(x, y)}$ on one of the boundary lines?`,
+          branches: [
+            { label: LAT_YES, to: 'style' },
+            { label: LAT_NO, to: 'all' },
+          ],
+        },
+        {
+          id: 'style',
+          ask: 'Is that line solid or dashed?',
+          branches: [
+            { label: LAT_SOLID, to: 'rest' },
+            { label: LAT_DASHED, outcome: 'A dashed line is left out, so the point does not count.' },
+          ],
+        },
+        {
+          id: 'rest',
+          ask: 'Does it pass the other two inequalities?',
+          branches: [
+            { label: LAT_YES, outcome: 'It counts.' },
+            { label: LAT_NO, outcome: 'It is on the line but outside the region, so it does not count.' },
+          ],
+        },
+        {
+          id: 'all',
+          ask: 'Does it pass all three inequalities?',
+          branches: [
+            { label: LAT_YES, outcome: 'It counts.' },
+            { label: LAT_NO, outcome: 'It does not count.' },
+          ],
+        },
+      ],
+      answer,
+    };
+  },
+  solution: (p) => {
+    const sides = sidesOf(p);
+    const [x, y] = p.point;
+    const on = sides.find((s) => onLine(s, x, y));
+    return [
+      ...sides.map((s) => tryAt(s, x, y)),
+      {
+        text: on
+          ? `It is on $${edgeTex(on)}$, which is ${isStrict(on.op) ? 'dashed' : 'solid'}. ${inAll(sides, x, y) ? 'It passes all three, so it counts.' : 'It fails one, so it does not count.'}`
+          : inAll(sides, x, y)
+            ? 'It is on no line and passes all three, so it counts.'
+            : 'It is on no line and fails one, so it does not count.',
+      },
+    ];
+  },
+};
+
+/* ---------- Lesson 5: regions from words ---------- */
+
+interface RegionStory {
+  /** What $x$ and $y$ count, plural. */
+  x: string;
+  y: string;
+  /** How much of the total each one takes, the $x$ item first. */
+  each: (a: number, b: number) => string;
+  total: string;
+  amount: (c: number) => string;
+}
+
+const REGION_STORIES: readonly RegionStory[] = [
+  {
+    x: 'small boxes',
+    y: 'large boxes',
+    each: (a, b) => `Small boxes weigh $${a}$ kg each and large boxes $${b}$ kg each.`,
+    total: 'total mass',
+    amount: (c) => `$${c}$ kg`,
+  },
+  {
+    x: 'adult tickets',
+    y: 'child tickets',
+    each: (a, b) => `Adult tickets cost £$${a}$ each and child tickets £$${b}$ each.`,
+    total: 'total cost',
+    amount: (c) => `£$${c}$`,
+  },
+  {
+    x: 'loaves',
+    y: 'cakes',
+    each: (a, b) => `Loaves need $${a}$ minutes each in the oven and cakes $${b}$ minutes each.`,
+    total: 'total oven time',
+    amount: (c) => `$${c}$ minutes`,
+  },
+  {
+    x: 'small tables',
+    y: 'large tables',
+    each: (a, b) => `Small tables seat $${a}$ people each and large tables $${b}$ people each.`,
+    total: 'number of seats',
+    amount: (c) => `$${c}$`,
+  },
+  {
+    x: 'sheep',
+    y: 'goats',
+    each: (a, b) => `Sheep need $${a}$ square metres each and goats $${b}$ square metres each.`,
+    total: 'area they need',
+    amount: (c) => `$${c}$ square metres`,
+  },
+  {
+    x: 'long shifts',
+    y: 'short shifts',
+    each: (a, b) => `Long shifts last $${a}$ hours each and short shifts $${b}$ hours each.`,
+    total: 'total time worked',
+    amount: (c) => `$${c}$ hours`,
+  },
+];
+
+/** The words for each sign. "No more than" and "at most" say the same thing. */
+const STORY_WORDS: Record<string, Ineq> = {
+  'at most': '<=',
+  'no more than': '<=',
+  'at least': '>=',
+  'no less than': '>=',
+  'less than': '<',
+  'more than': '>',
+};
+
+const EASY_WORDS = ['at most', 'at least'];
+
+interface StoryTilesParams {
+  story: number;
+  a: number;
+  b: number;
+  c: number;
+  word: string;
+  /** $x$ counts the item the sentence names second. */
+  swap: boolean;
+}
+
+function storyLetters(story: RegionStory, swap: boolean): string {
+  return `Let $x$ be the number of ${swap ? story.y : story.x} and $y$ the number of ${swap ? story.x : story.y}.`;
+}
+
+/** The coefficients of $x$ and $y$, whichever item each letter counts. */
+const storyCoefficients = (p: StoryTilesParams): [number, number] => (p.swap ? [p.b, p.a] : [p.a, p.b]);
+
+/**
+ * One sentence into one inequality. Difficulty 1 is "at most" or "at
+ * least" with the letters in the sentence's order; difficulty 2 adds the
+ * strict words and the phrasings that mean the same, and half the time
+ * lets $x$ count the item named second.
+ */
+const storyTiles: Generator<StoryTilesParams> = {
+  id: 'lin-story-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const [a, b] = rng.sample(range(2, hard ? 9 : 6), 2);
+    return {
+      story: rng.int(0, REGION_STORIES.length - 1),
+      a,
+      b,
+      c: rng.int(12, hard ? 90 : 60),
+      word: rng.pick(hard ? Object.keys(STORY_WORDS) : EASY_WORDS),
+      swap: hard && rng.chance(0.5),
+    };
+  },
+  render: (p): Slide => {
+    const story = REGION_STORIES[p.story];
+    const [cx, cy] = storyCoefficients(p);
+    const op = STORY_WORDS[p.word];
+    const answer = [leadTerm(cx, 'x'), signedTile(cy, 'y'), INEQ_TEX[op], `${p.c}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${story.each(p.a, p.b)} ${storyLetters(story, p.swap)} The ${story.total} must be ${p.word} ${story.amount(p.c)}. Write this as an inequality.`,
+        },
+      ],
+      template: '{0} {1} {2} {3}',
+      bank: bankOf(answer, [
+        leadTerm(cy, 'x'),
+        signedTile(cx, 'y'),
+        INEQ_TEX[TURNED[op]],
+        INEQ_TEX[NOT_STRICT[op]],
+        `${p.c + cx + cy}`,
+      ]),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const story = REGION_STORIES[p.story];
+    const [cx, cy] = storyCoefficients(p);
+    const op = STORY_WORDS[p.word];
+    return [
+      {
+        text: `$x$ ${p.swap ? story.y : story.x} make $${leadTerm(cx, 'x')}$ and $y$ ${p.swap ? story.x : story.y} make $${leadTerm(cy, 'y')}$, so the ${story.total} is $${leadTerm(cx, 'x')} ${signedTile(cy, 'y')}$.`,
+      },
+      {
+        text: `"${p.word.charAt(0).toUpperCase()}${p.word.slice(1)}" is $${INEQ_TEX[op]}$${isStrict(op) ? ': the total itself is not allowed' : ': the total itself is allowed'}.`,
+      },
+      { tex: `${leadTerm(cx, 'x')} ${signedTile(cy, 'y')} ${INEQ_TEX[op]} ${p.c}` },
+    ];
+  },
+};
+
+/**
+ * A region from a story, built from its corners. The total's line crosses
+ * the axes at $X$ and $Y$, so it is $Yx + Xy = XY$ over their common factor;
+ * the minimum is $x \ge k$ or $y \ge k$, kept only where it meets that line
+ * at a whole point. Every corner is whole. The line is then scaled up so each
+ * item counts at least $2$ and at most $12$, which moves no corner.
+ */
+interface StoryShape {
+  X: number;
+  Y: number;
+  on: 'x' | 'y';
+  k: number;
+  /** Both coefficients and the total multiplied by this: the same line, in the story's numbers. */
+  f: number;
+}
+
+const STORY_SHAPES: readonly StoryShape[] = range(3, 10).flatMap((X) =>
+  range(3, 10).flatMap((Y) =>
+    X === Y
+      ? []
+      : (['x', 'y'] as const).flatMap((on) =>
+          range(2, (on === 'x' ? X : Y) - 1)
+            .filter((k) => (on === 'y' ? (X * (Y - k)) % Y === 0 : (Y * (X - k)) % X === 0))
+            .map((k) => ({ X, Y, on, k, f: 1 })),
+        ),
+  ),
+);
+
+function storyLine({ X, Y, f }: StoryShape): { a: number; b: number; c: number } {
+  const g = gcd(X, Y);
+  return { a: (f * Y) / g, b: (f * X) / g, c: (f * X * Y) / g };
+}
+
+/** The region's corners: two on an axis, and where the total meets the minimum. */
+function storyCorners(s: StoryShape): Pt[] {
+  if (s.on === 'y') return [[0, s.k], [0, s.Y], [(s.X * (s.Y - s.k)) / s.Y, s.k]];
+  return [[s.k, 0], [s.X, 0], [s.k, (s.Y * (s.X - s.k)) / s.X]];
+}
+
+interface StoryRegionParams extends StoryShape {
+  story: number;
+  capWord: string;
+  minWord: string;
+}
+
+function sampleStoryRegion(rng: Rng, words: 'easy' | 'hard', on?: 'x' | 'y'): StoryRegionParams {
+  const shapes = on ? STORY_SHAPES.filter((s) => s.on === on) : STORY_SHAPES;
+  const shape = rng.pick(shapes);
+  const { a, b } = storyLine(shape);
+  const scales = range(1, 6).filter((f) => Math.min(a, b) * f >= 2 && Math.max(a, b) * f <= 12);
+  return {
+    ...shape,
+    f: scales.length > 0 ? rng.pick(scales) : 1,
+    story: rng.int(0, REGION_STORIES.length - 1),
+    capWord: words === 'hard' ? rng.pick(['at most', 'no more than', 'less than']) : 'at most',
+    minWord: words === 'hard' ? rng.pick(['at least', 'no less than', 'more than']) : 'at least',
+  };
+}
+
+function storyRegionText(p: StoryRegionParams): string {
+  const story = REGION_STORIES[p.story];
+  const { a, b, c } = storyLine(p);
+  return `${story.each(a, b)} ${storyLetters(story, false)} The ${story.total} must be ${p.capWord} ${story.amount(c)}, and there must be ${p.minWord} $${p.k}$ ${p.on === 'x' ? story.x : story.y}.`;
+}
+
+const totalTex = (p: StoryShape): string => {
+  const { a, b } = storyLine(p);
+  return `${leadTerm(a, 'x')} ${signedTile(b, 'y')}`;
+};
+
+interface StorySystemParams extends StoryRegionParams {
+  /** The three wrong pairs: total sign, minimum sign, coefficients swapped, minimum on the other letter. */
+  wrong: ('cap' | 'min' | 'swap' | 'letter')[];
+}
+
+/**
+ * Which pair of inequalities is the story? The wrong pairs turn one sign
+ * round, swap the two coefficients, or put the minimum on the other letter.
+ * Difficulty 2 adds the strict words and "no more than", "no less than".
+ */
+const storySystem: Generator<StorySystemParams> = {
+  id: 'lin-story-system',
+  sample: (rng, difficulty) => ({
+    ...sampleStoryRegion(rng, difficulty > 1 ? 'hard' : 'easy'),
+    wrong: rng.sample(['cap', 'min', 'swap', 'letter'] as const, 3),
+  }),
+  render: (p): Slide => {
+    const { a, b, c } = storyLine(p);
+    const cap = STORY_WORDS[p.capWord];
+    const min = STORY_WORDS[p.minWord];
+    const other = p.on === 'x' ? 'y' : 'x';
+    const pair = (change?: StorySystemParams['wrong'][number]) =>
+      stackTex([
+        `${change === 'swap' ? `${leadTerm(b, 'x')} ${signedTile(a, 'y')}` : totalTex(p)} ${INEQ_TEX[change === 'cap' ? TURNED[cap] : cap]} ${c}`,
+        `${change === 'letter' ? other : p.on} ${INEQ_TEX[change === 'min' ? TURNED[min] : min]} ${p.k}`,
+      ]);
+    return sortedChoice(
+      [
+        {
+          kind: 'prose',
+          text: `${storyRegionText(p)} Along with $x \\ge 0$ and $y \\ge 0$, which pair of inequalities describes this?`,
+        },
+      ],
+      labelChoices(pair(), ...p.wrong.map(pair)),
+    );
+  },
+  solution: (p) => {
+    const story = REGION_STORIES[p.story];
+    const { c } = storyLine(p);
+    const cap = STORY_WORDS[p.capWord];
+    const min = STORY_WORDS[p.minWord];
+    return [
+      { text: `The ${story.total} is $${totalTex(p)}$, and "${p.capWord}" is $${INEQ_TEX[cap]}$.`, tex: `${totalTex(p)} ${INEQ_TEX[cap]} ${c}` },
+      {
+        text: `$${p.on}$ counts the ${p.on === 'x' ? story.x : story.y}, and "${p.minWord}" is $${INEQ_TEX[min]}$.`,
+        tex: `${p.on} ${INEQ_TEX[min]} ${p.k}`,
+      },
+    ];
+  },
+};
+
+const STORY_WINDOW = { xMin: -1, xMax: 11, yMin: -1, yMax: 11 };
+
+/** The story's region: the total's line, the minimum, and the axes. */
+function storySvg(p: StoryShape): string {
+  const { a, b, c } = storyLine(p);
+  const corners = storyCorners(p);
+  const cx = (corners[0][0] + corners[1][0] + corners[2][0]) / 3;
+  const cy = (corners[0][1] + corners[1][1] + corners[2][1]) / 3;
+  const dot: Pt = [Math.round(cx), Math.round(cy)];
+  const inside =
+    a * dot[0] + b * dot[1] < c && (p.on === 'x' ? dot[0] > p.k : dot[1] > p.k) && dot[0] > 0 && dot[1] > 0;
+  return plotSvg({
+    ...STORY_WINDOW,
+    height: REGION_HEIGHT,
+    grid: true,
+    curves: [{ f: (x: number) => (c - a * x) / b }, ...(p.on === 'y' ? [{ f: () => p.k }] : [])],
+    verticals: p.on === 'x' ? [{ x: p.k, dashed: false }] : [],
+    marks: inside ? [{ x: dot[0], y: dot[1] }] : [],
+    label: `A region in the first quadrant under a sloping line, with a ${p.on === 'x' ? 'vertical' : 'level'} line at ${p.k}`,
+  });
+}
+
+
+interface StoryMostParams extends StoryRegionParams {
+  /** The corners are listed in the prompt. */
+  listed: boolean;
+}
+
+/**
+ * The most items altogether, $x + y$, at a corner of the story's region.
+ * Difficulty 1 lists the corners; difficulty 2 leaves them to be found, one
+ * of them where the total's line meets the minimum.
+ */
+const storyMost: Generator<StoryMostParams> = {
+  id: 'lin-story-most',
+  sample: (rng, difficulty) => ({ ...sampleStoryRegion(rng, 'easy'), listed: difficulty < 2 }),
+  render: (p): Slide => {
+    const story = REGION_STORIES[p.story];
+    const corners = storyCorners(p);
+    const { c } = storyLine(p);
+    const ask = `The most ${story.x} and ${story.y} altogether, $x + y$, is at a corner of the region. What is it?`;
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: storyRegionText(p) },
+        { kind: 'diagram', svg: storySvg(p) },
+        {
+          kind: 'display',
+          tex: stackTex([`${totalTex(p)} \\le ${c}`, `${p.on} \\ge ${p.k}, \\quad ${p.on === 'x' ? 'y' : 'x'} \\ge 0`]),
+        },
+        {
+          kind: 'prose',
+          text: p.listed ? `The corners are ${corners.map((q) => `$${pointTex(...q)}$`).join(', ')}. ${ask}` : ask,
+        },
+      ],
+      lead: 'x + y =',
+      keypad: [],
+      answer: `${Math.max(...corners.map(([x, y]) => x + y))}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (p) => {
+    const corners = storyCorners(p);
+    const best = Math.max(...corners.map(([x, y]) => x + y));
+    const [mx, my] = corners[2];
+    return [
+      ...(p.listed
+        ? []
+        : [
+            {
+              text: `Two corners are on the axis and one is where $${totalTex(p)} = ${storyLine(p).c}$ meets $${p.on} = ${p.k}$: put $${p.on} = ${p.k}$ in to get $${pointTex(mx, my)}$.`,
+            },
+          ]),
+      ...corners.map(([x, y]) => ({ text: `At $${pointTex(x, y)}$, $x + y = ${x + y}$.` })),
+      { text: `The largest is $${best}$.` },
+    ];
+  },
+};
+
+/**
+ * The corner where the story's total meets its minimum, as a line of
+ * working: the known letter put in, the product worked out, the number taken
+ * across, the coefficient divided out. Difficulty 1 puts in $y$; difficulty
+ * 2 puts in either.
+ */
+const storyMeetSteps: Generator<StoryRegionParams> = {
+  id: 'lin-story-meet-steps',
+  sample: (rng, difficulty) => sampleStoryRegion(rng, 'easy', difficulty > 1 ? rng.pick(['x', 'y'] as const) : 'y'),
+  render: (p): Slide => {
+    const { a, b, c } = storyLine(p);
+    const [mx, my] = storyCorners(p)[2];
+    const known = p.on === 'y' ? b : a;
+    const product = known * p.k;
+    const unknown = p.on === 'y' ? 'x' : 'y';
+    const coefficient = p.on === 'y' ? a : b;
+    const value = p.on === 'y' ? mx : my;
+    const term = leadTerm(coefficient, unknown);
+    const rest = c - product;
+    const reductions: Extract<Slide, { kind: 'steps' }>['reductions'] =
+      p.on === 'y'
+        ? [{ span: [1, 2], value: `+ ${product}`, bank: stepBank(`+ ${product}`, `+ ${known + p.k}`, `+ ${product + known}`, `+ ${product + p.k}`) }]
+        : [{ span: [0, 1], value: `${product}`, bank: stepBank(`${product}`, `${known + p.k}`, `${product + known}`, `${product + p.k}`) }];
+    reductions.push({
+      span: [0, 4],
+      value: `${term} = ${rest}`,
+      bank: stepBank(`${term} = ${rest}`, `${term} = ${c + product}`, `${term} = ${c}`, `${term} = ${product - c}`),
+    });
+    if (coefficient !== 1) {
+      reductions.push({
+        span: [0, 1],
+        value: `${unknown} = ${value}`,
+        bank: stepBank(`${unknown} = ${value}`, `${unknown} = ${rest - coefficient}`, `${unknown} = ${rest * coefficient}`, `${unknown} = ${value + 1}`),
+      });
+    }
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${storyRegionText(p)} One corner of the region is where $${totalTex(p)} = ${c}$ meets $${p.on} = ${p.k}$. Put $${p.on} = ${p.k}$ in and find $${unknown}$. ${HOW_TO_STEP}`,
+        },
+      ],
+      start:
+        p.on === 'y'
+          ? [leadTerm(a, 'x'), `+ ${b} \\times ${p.k}`, '=', `${c}`]
+          : [`${a} \\times ${p.k}`, signedTile(b, 'y'), '=', `${c}`],
+      reductions,
+    };
+  },
+  solution: (p) => {
+    const { a, b, c } = storyLine(p);
+    const [mx, my] = storyCorners(p)[2];
+    const unknown = p.on === 'y' ? 'x' : 'y';
+    const coefficient = p.on === 'y' ? a : b;
+    const product = (p.on === 'y' ? b : a) * p.k;
+    return [
+      { tex: p.on === 'y' ? `${leadTerm(a, 'x')} + ${b} \\times ${p.k} = ${c}` : `${a} \\times ${p.k} ${signedTile(b, 'y')} = ${c}` },
+      { tex: `${leadTerm(coefficient, unknown)} = ${c} - ${product} = ${c - product}` },
+      { tex: `${unknown} = ${p.on === 'y' ? mx : my}` },
+      { text: `So the corner is $${pointTex(mx, my)}$.` },
+    ];
+  },
+};
+
 export const linearEquationsGenerators = [
   oneStep,
   twoStep,
@@ -8803,4 +10501,24 @@ export const linearEquationsGenerators = [
   triWordsTiles,
   triWordsSolve,
   triSumAllSteps,
+  overlapFlow,
+  overlapWhich,
+  overlapTree,
+  overlapSide,
+  readSigns,
+  readSystem,
+  readFlow,
+  readLine,
+  cornerSteps,
+  cornerValue,
+  cornerSlider,
+  cornerCheckTree,
+  latticeCount,
+  latticeWhich,
+  latticeColumn,
+  latticeFlow,
+  storyTiles,
+  storySystem,
+  storyMost,
+  storyMeetSteps,
 ] as unknown as Generator<unknown>[];

@@ -18,9 +18,19 @@ import type { Generator, Slide } from '../types';
 const SEEDS = 120;
 const POINTS = [-3, -2, -1, 0, 1, 2, 3, 5];
 
+/** A display broken over two aligned lines, joined back into one. */
+function flat(tex: string): string {
+  if (!tex.startsWith('\\begin{aligned}')) return tex;
+  return tex
+    .replace(/\\(begin|end)\{aligned\}/g, '')
+    .replace(/\\\\|\\quad|&/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 /** The learner-facing TeX of a polynomial as something mathjs evaluates. */
 function toMath(tex: string): string {
-  return tex
+  return flat(tex)
     .replace(/^p\(x\)\s*=\s*/, '')
     .replace(/\s*=\s*0$/, '')
     .replace(/\^\{(-?\d+)\}/g, '^($1)')
@@ -58,7 +68,7 @@ function prose(slide: Slide): string {
 function display(slide: Slide): string {
   if (!('prompt' in slide)) return '';
   const block = slide.prompt.find((b) => b.kind === 'display');
-  return block && 'tex' in block ? block.tex : '';
+  return block && 'tex' in block ? flat(block.tex) : '';
 }
 
 /** The identity itself: dividend(x) = (x - a) quotient(x) + remainder, at every point. */
@@ -478,6 +488,291 @@ describe('roots and coefficients, checked from what the learner sees', () => {
       const where = `seed ${seed} d${difficulty}`;
       expect(readNumber(slide.answer[4]), where).toBeCloseTo(reciprocals(roots), 9);
       expect(Number(slide.answer[5]), where).toBe(squares(roots));
+    }
+  });
+});
+
+/** An expanded polynomial as the learner reads it, as coefficients from the top power down. */
+function coefficientsOf(tex: string): number[] {
+  const bare = flat(tex).replace(/^[pf]\(x\)\s*=\s*/, '').replace(/\s*=\s*0$/, '').replace(/\s/g, '');
+  const found = new Map<number, number>();
+  for (const term of bare.split(/(?=[+-])/)) {
+    const match = /^([+-]?)(\d*)(x(?:\^\{(\d+)\})?)?$/.exec(term);
+    if (!match) throw new Error(`cannot read the term ${term} in ${tex}`);
+    const [, sign, digits, x, power] = match;
+    const size = digits === '' ? 1 : Number(digits);
+    const degree = x ? Number(power ?? 1) : 0;
+    found.set(degree, (found.get(degree) ?? 0) + (sign === '-' ? -size : size));
+  }
+  const top = Math.max(...found.keys());
+  return Array.from({ length: top + 1 }, (_, i) => found.get(top - i) ?? 0);
+}
+
+/** Written out again for mathjs: the coefficients, highest power first. */
+const polyOf = (c: number[]): string => c.map((k, i) => `(${k})*x^${c.length - 1 - i}`).join(' + ');
+
+/** Divide by (x - a) as many times as it goes: how many times that is. */
+function timesDivides(c: number[], a: number): number {
+  let n = 0;
+  let rest = c;
+  for (;;) {
+    const out: number[] = [];
+    for (const k of rest) out.push(k + (out.length ? a * out[out.length - 1] : 0));
+    if (out.pop() !== 0 || out.length === 0) return n;
+    n += 1;
+    rest = out;
+  }
+}
+
+/** Long division by any divisor, done here from scratch: the remainder, highest power first. */
+function remainderOf(p: number[], d: number[]): number[] {
+  const rest = [...p];
+  for (let i = 0; i + d.length <= rest.length; i += 1) {
+    const q = rest[i] / d[0];
+    d.forEach((k, j) => (rest[i + j] -= q * k));
+  }
+  return rest.slice(-(d.length - 1));
+}
+
+/** dividend = divisor × quotient + remainder at every point, all four read off the slide. */
+function expectQuadDivision(dividend: string, divisor: string, quotient: string, remainder: string, where: string) {
+  for (const x of POINTS) {
+    expect(at(dividend, x), `${where} at x = ${x}`).toBeCloseTo(at(divisor, x) * at(quotient, x) + at(remainder, x), 9);
+  }
+}
+
+/** A label that is one inline formula, without its dollars; any other label as it is. */
+const unwrap = (label: string): string => (/^\$[^$]+\$$/.test(label) ? label.slice(1, -1) : label);
+const divisorIn = (text: string): string => /by \$\((x\^\{2\}[^$]*)\)\$/.exec(text)![1];
+
+describe('quartics and repeated factors, checked from what the learner sees', () => {
+  it('dividing by a quadratic: quotient and remainder rebuild the dividend', () => {
+    for (const { slide, seed, difficulty } of slides('poly-long-quad-steps')) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      const where = `long seed ${seed} d${difficulty}`;
+      const divisor = divisorIn(prose(slide));
+      const dividend = slide.start.join(' ');
+      const n = coefficientsOf(dividend).length - 1;
+      const lead = coefficientsOf(divisor)[0];
+      // Each step leaves a new first term; its coefficient over the divisor's
+      // leading one is the next quotient coefficient. The last step is the remainder.
+      const values = slide.reductions.map((step) => step.value);
+      const quotient = [coefficientsOf(dividend)[0] / lead, ...values.slice(0, -1).map((v, i) => {
+        const c = coefficientsOf(v);
+        return c.length - 1 === n - 1 - i ? c[0] / lead : 0;
+      })];
+      expect(quotient.length, where).toBe(n - 1);
+      expectQuadDivision(dividend, divisor, polyOf(quotient), values[values.length - 1], where);
+    }
+    for (const { slide, seed, difficulty } of slides('poly-quad-quotient-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const [a, b, c, r, s] = slide.answer;
+      expectQuadDivision(slide.expression, divisorIn(prose(slide)), `(${a})*x^2 + (${b})*x + (${c})`, `(${r})*x + (${s})`, `tree seed ${seed} d${difficulty}`);
+    }
+    for (const { slide, seed, difficulty } of slides('poly-quad-quotient-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const filled = filledTemplate(slide);
+      for (const x of POINTS) expect(at(filled, x), `tiles seed ${seed} d${difficulty} at x = ${x}`).toBeCloseTo(at(display(slide), x), 9);
+      // The remainder is what follows the quotient's bracket, and it must be below x^2.
+      expect(filled.split(')').pop()!, `tiles seed ${seed} d${difficulty}`).not.toMatch(/x\^/);
+    }
+    for (const { slide, seed, difficulty } of slides('poly-quad-remainder')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const [r, s] = remainderOf(coefficientsOf(display(slide)), coefficientsOf(divisorIn(prose(slide))));
+      expect(Number(slide.answer), `remainder seed ${seed} d${difficulty}`).toBe(slide.lead === 'r =' ? r : s);
+    }
+  });
+
+  it('two factors at once: the quadratic factor, the other factor and the full form all rebuild p(x)', () => {
+    for (const { slide, seed, difficulty } of slides('poly-pair-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const where = `flow seed ${seed} d${difficulty}`;
+      const p = slide.subject;
+      const [a, b] = [.../\$p\((-?\d+)\) = 0\$ and \$p\((-?\d+)\) = 0\$/.exec(slide.steps[0].ask)!].slice(1).map(Number);
+      const [k, g, verdict, form] = slide.answer.map(unwrap);
+      for (const r of [a, b]) {
+        expect(at(p, r), `${where}: p(${r})`).toBeCloseTo(0, 9);
+        expect(at(k, r), `${where}: factor at ${r}`).toBeCloseTo(0, 9);
+      }
+      expectQuadDivision(p, k, g, '0', where);
+      expect(verdict, where).toBe(wholeRoots(g).length > 0 ? 'Yes' : 'No');
+      if (form) for (const x of POINTS) expect(at(form, x), `${where} at x = ${x}`).toBeCloseTo(at(p, x), 9);
+    }
+    for (const { slide, seed, difficulty } of slides('poly-two-roots-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const where = `tree seed ${seed} d${difficulty}`;
+      const text = prose(slide);
+      const roots = [.../\$x = (-?\d+)\$ and \$x = (-?\d+)\$/.exec(text)!].slice(1).map(Number);
+      const lead = /\((-?\d*)x\^\{2\} \+ ex/.exec(text)![1];
+      const [m, n, e, f] = slide.answer;
+      const k = `x^2 + (${m})*x + (${n})`;
+      for (const r of roots) expect(at(k, r), `${where}: x = ${r}`).toBeCloseTo(0, 9);
+      const other = `(${lead === '-' ? -1 : Number(lead || 1)})*x^2 + (${e})*x + (${f})`;
+      expectQuadDivision(slide.expression, k, other, '0', where);
+    }
+    for (const { slide, seed, difficulty } of slides('poly-other-factor-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const where = `tiles seed ${seed} d${difficulty}`;
+      const filled = filledTemplate(slide);
+      for (const x of POINTS) expect(at(filled, x), `${where} at x = ${x}`).toBeCloseTo(at(display(slide), x), 9);
+      const given = /\$p\((-?\d+)\) = 0\$ and \$p\((-?\d+)\) = 0\$/.exec(prose(slide));
+      if (given) {
+        const first = /^\(([^)]*)\)/.exec(filled)![1];
+        for (const r of [given[1], given[2]].map(Number)) expect(at(first, r), `${where}: x = ${r}`).toBeCloseTo(0, 9);
+      }
+    }
+    for (const { slide, seed, difficulty } of slides('poly-pair-unknown')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const where = `unknown seed ${seed} d${difficulty}`;
+      const roots = [.../\$\((x [+-] \d+)\)\$ and \$\((x [+-] \d+)\)\$/.exec(prose(slide))!].slice(1).map((t) => rootIn(`(${t})`));
+      const f = lettered(display(slide).replace(/^f\(x\)\s*=\s*/, ''));
+      const letters = ['k', 'p', 'q'].filter((l) => new RegExp(`${l}\\*x`).test(f));
+      const value = (x: number, scope: Record<string, number>) => math.evaluate(f, { k: 0, p: 0, q: 0, ...scope, x }) as number;
+      // Every unknown enters linearly, so each root gives one linear equation.
+      const rows = roots.map((x) => [...letters.map((l) => value(x, { [l]: 1 }) - value(x, {})), -value(x, {})]);
+      let solved: Record<string, number>;
+      if (letters.length === 1) {
+        solved = { [letters[0]]: rows[0][1] / rows[0][0] };
+      } else {
+        const [[a1, b1, c1], [a2, b2, c2]] = rows;
+        const det = a1 * b2 - a2 * b1;
+        solved = { [letters[0]]: (c1 * b2 - c2 * b1) / det, [letters[1]]: (a1 * c2 - a2 * c1) / det };
+      }
+      for (const r of roots) expect(value(r, solved), `${where}: x = ${r}`).toBeCloseTo(0, 9);
+      const asked = /^([kpq]) =$/.exec(slide.lead ?? '')![1];
+      expect(Number(slide.answer), where).toBeCloseTo(solved[asked], 9);
+    }
+  });
+
+  it('repeated factors: the divisions, the values and the count agree with p(x)', () => {
+    for (const { slide, seed, difficulty } of slides('poly-twice-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const where = `twice seed ${seed} d${difficulty}`;
+      const a = rootIn(prose(slide));
+      const [c2, c1, c0, e1, r1, r2] = slide.answer.map(Number);
+      const row = /\\begin\{array\}\{r\|r+\} (-?\d+) & (.+) \\end\{array\}/.exec(display(slide))!;
+      expect(Number(row[1]), where).toBe(a);
+      expect(row[2].split(' & ').map(Number), where).toEqual(coefficientsOf(slide.expression));
+      const quotient = `(${c2})*x^2 + (${c1})*x + (${c0})`;
+      expectDivision(slide.expression, a, quotient, r1, where);
+      expectDivision(quotient, a, `(${c2})*x + (${e1})`, r2, `${where}, second division`);
+    }
+    for (const { slide, seed, difficulty } of slides('poly-repeat-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const where = `flow seed ${seed} d${difficulty}`;
+      const a = rootIn(prose(slide));
+      const [value, verdict, again, times] = slide.answer.map(unwrap);
+      expect(Number(value), where).toBe(at(slide.subject, a));
+      expect(verdict, where).toBe(Number(value) === 0 ? 'Yes' : 'No');
+      if (verdict === 'Yes') {
+        const q = /leaves \$q\(x\) = ([^$]+)\$/.exec(slide.steps.find((s) => s.id === 'again')!.ask)![1];
+        expectDivision(slide.subject, a, q, 0, where);
+        expect(Number(again), where).toBe(at(q, a));
+        expect(times, where).toBe(timesDivides(coefficientsOf(slide.subject), a) > 1 ? 'At least twice' : 'Once only');
+      }
+    }
+    for (const { slide, seed, difficulty } of slides('poly-multiplicity')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const a = rootIn(prose(slide));
+      expect(Number(slide.answer), `multiplicity seed ${seed} d${difficulty}`).toBe(timesDivides(coefficientsOf(display(slide)), a));
+    }
+    for (const { slide, seed, difficulty } of slides('poly-repeat-factor-steps')) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      const where = `steps seed ${seed} d${difficulty}`;
+      const a = rootIn(prose(slide));
+      const last = slide.reductions[slide.reductions.length - 1].value;
+      for (const x of POINTS) expect(at(last, x), `${where} at x = ${x}`).toBeCloseTo(at(display(slide), x), 9);
+      expect(timesDivides(coefficientsOf(display(slide)), a), where).toBe(2);
+    }
+  });
+
+  it('quartics in x²: the factors, the values of u and x, and the count agree with p(x)', () => {
+    for (const { slide, seed, difficulty } of slides('poly-biquad-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const where = `tiles seed ${seed} d${difficulty}`;
+      const filled = filledTemplate(slide);
+      for (const x of POINTS) expect(at(filled, x), `${where} at x = ${x}`).toBeCloseTo(at(display(slide), x), 9);
+      if (difficulty > 1) {
+        // "Fully": no quadratic left in the answer has a whole-number root.
+        for (const bracket of slide.answer.filter((t) => t.includes('x^{2}'))) expect(wholeRoots(bracket), `${where}: ${bracket}`).toEqual([]);
+      }
+    }
+    for (const { slide, seed, difficulty } of slides('poly-in-u-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const where = `tree seed ${seed} d${difficulty}`;
+      const expr = toMath(slide.expression);
+      const [u1, u2, ...xs] = slide.answer.map(Number);
+      expect(u1, where).toBeLessThanOrEqual(u2);
+      for (const u of [u1, u2]) expect(math.abs(math.evaluate(expr, { x: math.sqrt(u) })) as number, `${where}: u = ${u}`).toBeLessThan(1e-9);
+      expect([...new Set(xs)].sort((x, y) => x - y), where).toEqual(wholeRoots(expr));
+    }
+    for (const { slide, seed, difficulty } of slides('poly-biquad-count')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const [one, , b, , c] = coefficientsOf(display(slide));
+      expect(one, `count seed ${seed} d${difficulty}`).toBe(1);
+      const disc = b * b - 4 * c;
+      const us = disc < 0 ? [] : [...new Set([(-b - Math.sqrt(disc)) / 2, (-b + Math.sqrt(disc)) / 2])];
+      const count = us.reduce((n, u) => n + (u > 0 ? 2 : u === 0 ? 1 : 0), 0);
+      expect(Number(correctLabel(slide)), `count seed ${seed} d${difficulty}`).toBe(count);
+    }
+    for (const { slide, seed, difficulty } of slides('poly-biquad-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const where = `flow seed ${seed} d${difficulty}`;
+      const p = slide.subject;
+      const [inU, which, full] = slide.answer.map(unwrap);
+      const backInX = inU.replace(/u/g, '(x^2)');
+      for (const x of POINTS) expect(at(backInX, x), `${where} at x = ${x}`).toBeCloseTo(at(p, x), 9);
+      const brackets = [...inU.matchAll(/\(u ([+-] \d+)\)/g)].map((m) => `x^{2} ${m[1]}`);
+      const splits = brackets.filter((t) => wholeRoots(t).length > 0);
+      const expected = splits.length === 2 ? 'Both' : splits.length === 1 ? `Only $(${splits[0]})$` : 'Neither';
+      expect(which, where).toBe(expected);
+      if (full) {
+        for (const x of POINTS) expect(at(full, x), `${where} full at x = ${x}`).toBeCloseTo(at(p, x), 9);
+        for (const [, bracket] of full.matchAll(/\((x\^\{2\}[^)]*)\)/g)) expect(wholeRoots(bracket), `${where}: ${bracket}`).toEqual([]);
+      } else {
+        expect(splits, where).toEqual([]);
+      }
+    }
+  });
+
+  it('solving a quartic: the roots found by trial and division are every root of p(x)', () => {
+    for (const { slide, seed, difficulty } of slides('poly-quartic-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const where = `flow seed ${seed} d${difficulty}`;
+      const p = slide.subject;
+      const [first, cubic, second, all] = slide.answer.map(unwrap);
+      const r0 = Number(first.replace('x = ', ''));
+      const r1 = Number(second.replace('x = ', ''));
+      expect(at(p, r0), where).toBeCloseTo(0, 9);
+      expectDivision(p, r0, cubic, 0, where);
+      expect(at(cubic, r1), where).toBeCloseTo(0, 9);
+      const listed = all.replace('x = ', '').split(',\\ ').map(Number);
+      expect(listed, where).toEqual(wholeRoots(p));
+      expect(timesDivides(coefficientsOf(p), 0) + listed.reduce((n, r) => n + timesDivides(coefficientsOf(p), r), 0), where).toBe(4);
+    }
+    for (const { slide, seed, difficulty } of slides('poly-quartic-divide-steps')) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      const where = `steps seed ${seed} d${difficulty}`;
+      const a = rootIn(prose(slide));
+      const dividend = slide.start.join(' ');
+      const values = slide.reductions.map((step) => step.value);
+      const quotient = [coefficientsOf(dividend)[0], ...values.slice(0, -1).map((v, i) => {
+        const c = coefficientsOf(v);
+        return c.length - 1 === 3 - i ? c[0] : 0;
+      })];
+      expectDivision(dividend, a, polyOf(quotient), Number(values[values.length - 1]), where);
+      expect(values[values.length - 1], where).toBe('0');
+    }
+    for (const { slide, seed, difficulty } of slides('poly-quartic-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const filled = filledTemplate(slide);
+      for (const x of POINTS) expect(at(filled, x), `tiles seed ${seed} d${difficulty} at x = ${x}`).toBeCloseTo(at(display(slide), x), 9);
+    }
+    for (const { slide, seed, difficulty } of slides('poly-quartic-root')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const roots = wholeRoots(display(slide));
+      const largest = (slide.lead ?? '').includes('largest');
+      expect(Number(slide.answer), `root seed ${seed} d${difficulty}`).toBe(largest ? roots[roots.length - 1] : roots[0]);
     }
   });
 });

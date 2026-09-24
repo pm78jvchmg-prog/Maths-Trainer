@@ -13,6 +13,7 @@ import { compile } from 'mathjs';
 import { describe, expect, it } from 'vitest';
 import { makeRng } from '../../engine/rng';
 import { registry } from '../registry';
+import { valueOf } from '../expr';
 import type { Block, Generator as SlideGenerator, Slide } from '../types';
 
 const SEEDS = 150;
@@ -401,6 +402,346 @@ describe('lesson 5: how close, how soon', () => {
       const terms = iterate(f, start!, 40);
       const first = terms.findIndex((t) => Math.abs(t - L) < tolerance) + 1;
       expect(Number(slide.answer), `seed ${seed}`).toBe(first);
+    }
+  });
+});
+
+/*
+ * Level 4: sums of powers and the method of differences. Every total below is
+ * checked by adding the terms up one at a time, read off the rendered slide,
+ * never through the standard results the generators use. Every split a slide
+ * gives is checked by putting numbers into both sides.
+ */
+
+/** The TeX these sums use, as mathjs reads it: also `\frac12`, roots, logs and `r(r + 1)`. */
+function sumMath(tex: string): string {
+  return texToMath(tex)
+    .replace(/\\frac(\d)(\d)/g, '($1/$2)')
+    .replace(/\\sqrt\{([^{}]*)\}/g, 'sqrt($1)')
+    .replace(/\\ln (\d+)/g, 'log($1)')
+    .replace(/\\ln/g, 'log')
+    .replace(/(?<![a-z\\])r\(/g, 'r*(')
+    .replace(/\)\s*\(/g, ')*(');
+}
+
+function termFn(tex: string): (scope: Record<string, number>) => number {
+  const code = compile(sumMath(tex));
+  return (scope) => Number(code.evaluate({ ...scope }));
+}
+
+/** A number written in TeX: `7`, `\frac{7}{8}`. */
+const valueTex = (tex: string) => termFn(tex)({});
+
+/** A sigma read off a slide: its two ends and its general term. */
+function sigmaParts(tex: string): { lo: string; hi: string; term: string } {
+  const match = tex.match(/^\\sum_\{r=([^}]*)\}\^\{([^}]*)\} (.*)$/);
+  if (!match) throw new Error(`not a sum: ${tex}`);
+  return { lo: match[1], hi: match[2], term: match[3] };
+}
+
+/** Add the terms up one at a time, the check every total is held to. An infinite sum stops at `far`. */
+function addTerms(tex: string, scope: Record<string, number> = {}, far = 4000): number {
+  const { lo, hi, term } = sigmaParts(tex);
+  const end = (text: string) => (text === '\\infty' ? far : termFn(text)(scope));
+  const f = termFn(term);
+  let total = 0;
+  for (let r = end(lo); r <= end(hi); r += 1) total += f({ ...scope, r });
+  return total;
+}
+
+/** 1^k + 2^k + … + n^k, added up from the written-out line. */
+function writtenTotal(tex: string): number {
+  const match = tex.match(/^1(\^\d)? \+ 2\1 \+ 3\1 \+ \\dots \+ (\d+)\1$/);
+  if (!match) throw new Error(`not written out: ${tex}`);
+  const k = match[1] ? Number(match[1].slice(1)) : 1;
+  let total = 0;
+  for (let r = 1; r <= Number(match[2]); r += 1) total += r ** k;
+  return total;
+}
+
+/** The template with each blank filled by its answer tile. */
+function filled(slide: Extract<Slide, { kind: 'tiles' }>): string {
+  // Split first, as the widget does: a tile such as `\frac{1}{2}` holds a `{1}` of its own.
+  return slide.template.split(/\{(\d+)\}/g).map((piece, i) => (i % 2 === 1 ? slide.answer[Number(piece)] : piece)).join('');
+}
+
+/** Two expressions in r that a slide says are equal, compared at r = 1 to 6. */
+function sameInR(left: string, right: string, where: string) {
+  const [f, g] = [termFn(left), termFn(right)];
+  for (let r = 1; r <= 6; r += 1) expect(g({ r }), `${where}: ${left} = ${right} at r = ${r}`).toBeCloseTo(f({ r }), 12);
+}
+
+/** Every identity in r a prompt states inline holds; returns how many were checked. */
+function splitsHold(text: string, where: string): number {
+  let checked = 0;
+  for (const tex of text.split(/\$([^$]+)\$/g).filter((_, i) => i % 2 === 1)) {
+    if (tex.includes('\\sum') || tex.includes('S_') || !tex.includes(' = ')) continue;
+    const sides = tex.replace(/^u_r = /, '').split(' = ');
+    if (!sides.every((side) => /(?<![a-z\\])r(?![a-z])/.test(side))) continue;
+    for (const side of sides.slice(1)) sameInR(sides[0], side, where);
+    checked += 1;
+  }
+  return checked;
+}
+
+/** Fewer draws, for the sweeps that add an infinite sum up to thousands of terms. */
+function* someDraws(id: string, count: number): Generator<{ slide: Slide; seed: number }> {
+  for (const difficulty of DIFFICULTIES) {
+    for (let seed = 0; seed < count; seed += 1) yield { slide: draw(id, seed, difficulty), seed };
+  }
+}
+
+/** The gap from a partial sum far out to a claimed limit: positive, and inside the tail. */
+function closesOn(limit: number, partial: number, tail: number, where: string) {
+  expect(limit - partial, `${where}: the partial sums pass the limit`).toBeGreaterThan(0);
+  expect(limit - partial, `${where}: the partial sums stop short of the limit`).toBeLessThan(tail);
+}
+
+describe('level 4, lesson 1: the standard results', () => {
+  it('seq-power-sum: the typed total is the terms added up', () => {
+    for (const { slide, seed } of draws('seq-power-sum')) {
+      if (slide.kind !== 'expression') throw new Error('not typed');
+      const shown = displays(slide.prompt)[0];
+      const total = shown.startsWith('\\sum') ? addTerms(shown) : writtenTotal(shown);
+      expect(Number(slide.answer), `seed ${seed}`).toBe(total);
+    }
+  });
+
+  it('seq-power-sum-tiles: the placed factors multiply to the sum, for every n', () => {
+    for (const { slide, seed } of draws('seq-power-sum-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('not tiles');
+      const shown = displays(slide.prompt)[0];
+      const factors = slide.answer.map(termFn);
+      for (const n of [2, 3, 5, 8]) {
+        const v = factors.map((f) => f({ n }));
+        const product = slide.template.startsWith('\\frac16')
+          ? (v[0] * v[1] * v[2]) / 6
+          : slide.template.startsWith('\\frac14')
+            ? (v[0] * v[1]) ** 2 / 4
+            : (v[0] * v[1]) / 2;
+        expect(product, `seed ${seed}, n = ${n}`).toBe(addTerms(shown, { n }));
+      }
+    }
+  });
+
+  it('seq-power-sum-table: every term is n^k and every total the terms from 1 added up', () => {
+    for (const { slide, seed } of draws('seq-power-sum-table')) {
+      if (slide.kind !== 'table') throw new Error('not a table');
+      const k = slide.columns.length === 3 ? Number(slide.columns[1].slice(2)) : 1;
+      const table = merged(slide);
+      const first = Number(table[0][0]);
+      table.forEach((row, i) => {
+        const n = Number(row[0]);
+        expect(n, `seed ${seed}`).toBe(first + i);
+        if (slide.columns.length === 3) expect(Number(row[1]), `seed ${seed}`).toBe(n ** k);
+        let total = 0;
+        for (let r = 1; r <= n; r += 1) total += r ** k;
+        expect(Number(row[row.length - 1]), `seed ${seed}, n = ${n}`).toBe(total);
+      });
+    }
+  });
+
+  it('seq-formula-reduce: the line comes to the sum at that n', () => {
+    for (const { slide, seed } of draws('seq-formula-reduce')) {
+      if (slide.kind !== 'reduce') throw new Error('not a reduce');
+      const text = prose(slide.prompt);
+      const n = stated(text, /at \$n = (\d+)\$/);
+      const k = Number(text.match(/\\sum_\{r=1\}\^\{n\} r(?:\^(\d))? =/)![1] ?? 1);
+      let total = 0;
+      for (let r = 1; r <= n; r += 1) total += r ** k;
+      expect(valueOf(slide.expr), `seed ${seed}`).toBe(total);
+    }
+  });
+});
+
+describe('level 4, lesson 2: sums built from the standard results', () => {
+  it('seq-split-tree: the total is the sum added up, and the tree starts from the standard sum it names', () => {
+    for (const { slide, seed } of draws('seq-split-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree');
+      const n = Number(sigmaParts(slide.expression).hi);
+      const k = /Fill the tree: \$\\sum r\^2\$/.test(prose(slide.prompt)) ? 2 : 1;
+      let first = 0;
+      for (let r = 1; r <= n; r += 1) first += r ** k;
+      expect(Number(slide.answer[0]), `seed ${seed}`).toBe(first);
+      expect(Number(slide.answer[slide.answer.length - 1]), `seed ${seed}`).toBe(addTerms(slide.expression));
+    }
+  });
+
+  it('seq-split-tiles: the placed split adds up to the sum, for every n', () => {
+    for (const { slide, seed } of draws('seq-split-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('not tiles');
+      const shown = displays(slide.prompt)[0];
+      for (let n = 1; n <= 6; n += 1) {
+        let squares = 0;
+        let plain = 0;
+        for (let r = 1; r <= n; r += 1) [squares, plain] = [squares + r * r, plain + r];
+        const split = filled(slide).replace(/\\sum r\^2/g, `(${squares})`).replace(/\\sum r/g, `(${plain})`);
+        expect(Number(compile(split).evaluate({ n })), `seed ${seed}, n = ${n}: ${filled(slide)}`).toBe(addTerms(shown, { n }));
+      }
+    }
+  });
+
+  it('seq-built-sum: the typed total is the terms added up', () => {
+    for (const { slide, seed } of draws('seq-built-sum')) {
+      if (slide.kind !== 'expression') throw new Error('not typed');
+      expect(Number(slide.answer), `seed ${seed}`).toBe(addTerms(displays(slide.prompt)[0]));
+    }
+  });
+
+  it('seq-factor-tiles: the factorised form equals the sum, for every n', () => {
+    for (const { slide, seed } of draws('seq-factor-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('not tiles');
+      const shown = displays(slide.prompt)[0];
+      const form = termFn(filled(slide));
+      for (let n = 1; n <= 6; n += 1) {
+        expect(form({ n }), `seed ${seed}, n = ${n}: ${filled(slide)}`).toBeCloseTo(addTerms(shown, { n }), 9);
+      }
+    }
+  });
+});
+
+describe('level 4, lesson 3: sums that do not start at 1', () => {
+  it('seq-subtract-flow: the total taken away leaves exactly the sum, and its value is right', () => {
+    for (const { slide, seed } of draws('seq-subtract-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow');
+      const { hi, term } = sigmaParts(slide.subject);
+      const upTo = (x: number | string) => addTerms(`\\sum_{r=1}^{${x}} ${term}`);
+      const x = Number(slide.answer[0].match(/S_\{(\d+)\}/)![1]);
+      expect(upTo(hi) - upTo(x), `seed ${seed}`).toBe(addTerms(slide.subject));
+      expect(Number(slide.answer[1].replace(/\$/g, '')), `seed ${seed}`).toBe(upTo(x));
+      expect(stated(prose(slide.prompt), /\$S_\{\d+\} = (\d+)\$/), `seed ${seed}`).toBe(upTo(hi));
+    }
+  });
+
+  it('seq-from-m: the typed total is the terms added up', () => {
+    for (const { slide, seed } of draws('seq-from-m')) {
+      if (slide.kind !== 'expression') throw new Error('not typed');
+      expect(Number(slide.answer), `seed ${seed}`).toBe(addTerms(displays(slide.prompt)[0]));
+    }
+  });
+
+  it('seq-drop-tree: the difference is the sum, and the top total runs from 1', () => {
+    for (const { slide, seed } of draws('seq-drop-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree');
+      const { hi, term } = sigmaParts(slide.expression);
+      const [top, drop, sum] = slide.answer.map(Number);
+      expect(top, `seed ${seed}`).toBe(addTerms(`\\sum_{r=1}^{${hi}} ${term}`));
+      expect(sum, `seed ${seed}`).toBe(addTerms(slide.expression));
+      expect(top - drop, `seed ${seed}`).toBe(sum);
+    }
+  });
+
+  it('seq-from-m-slip: exactly the right option is the sum, for every n', () => {
+    for (const { slide, seed } of draws('seq-from-m-slip')) {
+      if (slide.kind !== 'choice') throw new Error('not a choice');
+      const shown = displays(slide.prompt)[0];
+      const { term } = sigmaParts(shown);
+      for (const n of [6, 7, 9]) {
+        const S = (sub: string) => addTerms(`\\sum_{r=1}^{${sub}} ${term}`, { n });
+        const right = slide.options.filter((option) => {
+          const [, top, bottom] = option.label.match(/^S_\{([^}]*)\} - S_\{([^}]*)\}$/)!;
+          return S(top) - S(bottom) === addTerms(shown, { n });
+        });
+        expect(right.map((option) => option.id), `seed ${seed}, n = ${n}`).toEqual([slide.correctId]);
+      }
+    }
+  });
+});
+
+describe('level 4, lesson 4: the method of differences', () => {
+  it('seq-telescope-steps: the split is right, and each line is a partial sum', () => {
+    for (const { slide, seed } of draws('seq-telescope-steps')) {
+      if (slide.kind !== 'steps') throw new Error('not steps');
+      const text = prose(slide.prompt);
+      const [, sum, split] = text.match(/\$(\\sum_\{r=1\}\^\{\d+\} \\frac\{\d\}\{[^$]*\})\$ splits as \$([^$]*)\$/)!;
+      const { hi, term } = sigmaParts(sum);
+      sameInR(term, split, `seed ${seed}`);
+      const upTo = (x: number) => addTerms(`\\sum_{r=1}^{${x}} ${term}`);
+      const values = slide.reductions.map((step) => valueTex(step.value));
+      [upTo(2), upTo(3), upTo(Number(hi)), upTo(Number(hi))].forEach((expected, i) =>
+        expect(values[i], `seed ${seed}, step ${i}`).toBeCloseTo(expected, 12),
+      );
+      expect(valueTex(slide.start[0]), `seed ${seed}`).toBeCloseTo(upTo(1), 12);
+    }
+  });
+
+  it('seq-telescope-tiles: what is left equals the sum, for every n', () => {
+    for (const { slide, seed } of draws('seq-telescope-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('not tiles');
+      const shown = displays(slide.prompt)[0];
+      const left = termFn(filled(slide));
+      for (const n of [6, 9, 13]) {
+        expect(left({ n }), `seed ${seed}, n = ${n}: ${filled(slide)}`).toBeCloseTo(addTerms(shown, { n }), 12);
+      }
+    }
+  });
+
+  it('seq-telescope-table: every term follows the rule and every partial sum is the terms added up', () => {
+    for (const { slide, seed } of draws('seq-telescope-table')) {
+      if (slide.kind !== 'table') throw new Error('not a table');
+      const text = prose(slide.prompt);
+      expect(splitsHold(text, `seed ${seed}`)).toBe(1);
+      const rule = text.match(/\$u_r = (\\frac\{\d+\}\{[^$=]*\}) =/)![1];
+      for (const [n, u, S] of merged(slide)) {
+        expect(valueTex(u), `seed ${seed}, n = ${n}`).toBeCloseTo(termFn(rule)({ r: Number(n) }), 12);
+        expect(valueTex(S), `seed ${seed}, n = ${n}`).toBeCloseTo(addTerms(`\\sum_{r=1}^{${n}} ${rule}`), 12);
+      }
+    }
+  });
+
+  it('seq-telescope-sum: the split is right, and the typed fraction is the terms added up', () => {
+    for (const { slide, seed } of draws('seq-telescope-sum')) {
+      if (slide.kind !== 'expression') throw new Error('not typed');
+      expect(splitsHold(prose(slide.prompt), `seed ${seed}`)).toBe(1);
+      expect(Number(compile(slide.answer).evaluate()), `seed ${seed}`).toBeCloseTo(addTerms(displays(slide.prompt)[0]), 12);
+    }
+  });
+});
+
+describe('level 4, lesson 5: sums to infinity by differences', () => {
+  it('seq-leftover-flow: the path says whether S_n settles, and where', () => {
+    for (const { slide, seed } of draws('seq-leftover-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow');
+      const S = termFn(slide.subject.replace(/^S_n = /, ''));
+      const [near, far] = [S({ n: 1e6 }), S({ n: 1e12 })];
+      if (Math.abs(far - near) < 1e-4) {
+        expect(slide.answer[0], `seed ${seed}`).toBe('It tends to $0$');
+        expect(valueTex(slide.answer[1].replace(/\$/g, '')), `seed ${seed}`).toBeCloseTo(far, 6);
+      } else {
+        expect(slide.answer, `seed ${seed}`).toEqual(['It grows without limit']);
+      }
+    }
+  });
+
+  it('seq-infinity-sum: the split is right, and the partial sums close in on the typed sum', () => {
+    for (const { slide, seed } of someDraws('seq-infinity-sum', 40)) {
+      if (slide.kind !== 'expression') throw new Error('not typed');
+      expect(splitsHold(prose(slide.prompt), `seed ${seed}`)).toBe(1);
+      const limit = Number(compile(slide.answer).evaluate());
+      closesOn(limit, addTerms(displays(slide.prompt)[0]), 6 / 4000, `seed ${seed}`);
+    }
+  });
+
+  it('seq-survivor-tree: the split is right, the leaves add to the total, and the sum is the limit', () => {
+    for (const { slide, seed } of someDraws('seq-survivor-tree', 40)) {
+      if (slide.kind !== 'tree') throw new Error('not a tree');
+      expect(splitsHold(prose(slide.prompt), `seed ${seed}`)).toBe(1);
+      const values = slide.answer.map(valueTex);
+      const leaves = values.slice(0, -2);
+      expect(values[values.length - 2], `seed ${seed}`).toBeCloseTo(leaves.reduce((x, y) => x + y, 0), 12);
+      // The sum sits on the first line of a two-line display, its split below.
+      const sum = slide.expression.replace(/^\\begin\{gathered\} /, '').split(' \\\\ = ')[0];
+      closesOn(values[values.length - 1], addTerms(sum), 6 / 4000, `seed ${seed}`);
+    }
+  });
+
+  it('seq-telescope-slider: the split is right, and the answer is where the partial sums go', () => {
+    for (const { slide, seed } of someDraws('seq-telescope-slider', 40)) {
+      if (slide.kind !== 'slider') throw new Error('not a slider');
+      const text = prose(slide.prompt);
+      expect(splitsHold(text, `seed ${seed}`)).toBe(1);
+      const sum = text.match(/\$(\\sum_\{r=1\}\^\{\\infty\} \\frac\{\d+\}\{[^$]*?\})\$, where/)![1];
+      closesOn(slide.answer, addTerms(sum, {}, 20000), 96 / 20000, `seed ${seed}`);
     }
   });
 });

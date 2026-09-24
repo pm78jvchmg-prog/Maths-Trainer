@@ -9,7 +9,10 @@
  * the expanded form, and tangents and chords. Level 3 puts a line into a
  * circle: the quadratic that substituting gives, the discriminant deciding
  * whether the line cuts, touches or misses, the tangent condition, the two
- * tangents from a point outside, and chords cut off by a line.
+ * tangents from a point outside, and chords cut off by a line. Level 4 is
+ * circle theorems on axes: the angle in a semicircle, a circle from its
+ * diameter, the circle through three points from two perpendicular
+ * bisectors, chords and tangents together, and choosing between them.
  *
  * Several things this course leans on are taught elsewhere and only pointed
  * at here: solving two equations at once (Linear Equations `le-l2`),
@@ -690,6 +693,250 @@ export const coordinateGeometry: Course = {
         ask('coord-chord-half-tree', 2),
         ask('coord-chord-midpoint-steps', 2),
         ask('coord-chord-radius+choice', 2),
+      ],
+    },
+    {
+      id: 'cg-l4',
+      title: 'Circle Theorems on Axes',
+      lessons: [
+        {
+          id: 'cg-l4-semicircle',
+          title: 'The Angle in a Semicircle',
+          slides: [
+            teach(
+              prose(
+                'If $AB$ is a **diameter** of a circle and $P$ is any other point on the circle, the angle $APB$ is a right angle. This is the **angle in a semicircle**.',
+              ),
+              grid(
+                6,
+                [segment(-5, 0, 3, 4), segment(5, 0, 3, 4)],
+                [{ x: -5, y: 0 }, { x: 5, y: 0 }, { x: 3, y: 4 }, { x: 0, y: 0, hollow: true }],
+                'The circle x^2 + y^2 = 25 with the diameter from (-5, 0) to (5, 0) and lines from both ends to P(3, 4)',
+                [{ h: 0, k: 0, r2: 25 }],
+              ),
+              prose('On axes a right angle is two gradients that multiply to $-1$, as in level 1. With $A(-5, 0)$, $B(5, 0)$ and $P(3, 4)$:'),
+              maths('\\begin{aligned} m_{AP} &= \\frac{4}{8} = \\frac{1}{2} \\\\ m_{BP} &= \\frac{4}{-2} = -2 \\end{aligned}'),
+              prose('and $\\frac{1}{2} \\times (-2) = -1$.'),
+            ),
+            ask('coord-semicircle-tree'),
+            ask('coord-right-angle-point'),
+            ask('coord-semicircle-tree', 2),
+            teach(
+              prose(
+                'It works backwards as well. If the gradients of $AP$ and $BP$ multiply to $-1$, then $P$ is on the circle with diameter $AB$; if they multiply to anything else, it is not.',
+              ),
+              prose('With the same $A$ and $B$, try $P(4, 2)$:'),
+              maths('\\begin{aligned} m_{AP} &= \\frac{2}{9} \\\\ m_{BP} &= \\frac{2}{-1} = -2 \\\\ m_{AP} m_{BP} &= -\\frac{4}{9} \\end{aligned}'),
+              prose('That is not $-1$, so $P$ is not on the circle. The distance agrees: $4^2 + 2^2 = 20$, not $25$.'),
+            ),
+            ask('coord-right-angle-flow'),
+            ask('coord-right-angle-point', 2),
+            ask('coord-right-angle-flow', 2),
+            teach(
+              prose(
+                'The right angle can find a missing coordinate. Say $A(-5, 0)$ and $B(5, k)$ are the ends of a diameter and $P(3, 4)$ is on the circle. The centre depends on $k$, but the right angle at $P$ does not:',
+              ),
+              maths('\\begin{aligned} m_{AP} &= \\tfrac{1}{2}, \\quad m_{BP} = -2 \\\\ \\frac{k - 4}{5 - 3} &= -2 \\\\ k &= 0 \\end{aligned}'),
+            ),
+            ask('coord-semicircle-missing'),
+            ask('coord-semicircle-missing+choice', 2),
+          ],
+          skillCheck: [ask('coord-semicircle-tree', 2), ask('coord-right-angle-flow', 2), ask('coord-semicircle-missing', 2)],
+        },
+        {
+          id: 'cg-l4-diameter',
+          title: 'A Circle from Its Diameter',
+          slides: [
+            teach(
+              prose(
+                'Given the two ends of a **diameter**, the whole circle follows. The centre is the midpoint of $AB$, and the radius is half of $AB$, so $r^2$ is a **quarter** of $AB^2$.',
+              ),
+              grid(
+                8,
+                [segment(-1, -2, 5, 6)],
+                [{ x: -1, y: -2 }, { x: 5, y: 6 }, { x: 2, y: 2, hollow: true }],
+                'A circle with centre (2, 2) and the diameter from (-1, -2) to (5, 6)',
+                [{ h: 2, k: 2, r2: 25 }],
+              ),
+              prose('For $A(-1, -2)$ and $B(5, 6)$ the centre is $(2, 2)$ and $AB^2 = 6^2 + 8^2 = 100$:'),
+              maths('r^2 = \\frac{100}{4} = 25'),
+              prose('So the circle is $(x - 2)^2 + (y - 2)^2 = 25$.'),
+            ),
+            ask('coord-diameter-tiles'),
+            ask('coord-diameter-slider'),
+            ask('coord-diameter-r2'),
+            teach(
+              prose(
+                'The slip to watch is using $AB^2$ itself as $r^2$. That is the circle of radius $AB$, twice the size. Halving the length quarters its square:',
+              ),
+              maths('r^2 = \\left(\\tfrac{1}{2}AB\\right)^2 = \\tfrac{1}{4}AB^2'),
+              prose('Another way in is to find the centre first and then measure from it to either end: $CB^2 = 3^2 + 4^2 = 25$, the same answer.'),
+            ),
+            ask('coord-diameter-steps'),
+            ask('coord-diameter-tiles', 2),
+            ask('coord-diameter-slider', 2),
+            teach(
+              prose('Multiplied out, the circle carries the centre in its $x$ and $y$ terms and $r^2$ inside its number:'),
+              maths('\\begin{aligned} (x - 2)^2 + (y - 2)^2 &= 25 \\\\ x^2 + y^2 - 4x - 4y - 17 &= 0 \\end{aligned}'),
+              prose('The number is $a^2 + b^2 - r^2 = 4 + 4 - 25 = -17$.'),
+            ),
+            ask('coord-diameter-r2+choice', 2),
+            ask('coord-diameter-steps', 2),
+          ],
+          skillCheck: [ask('coord-diameter-tiles', 2), ask('coord-diameter-r2', 2), ask('coord-diameter-steps', 2)],
+        },
+        {
+          id: 'cg-l4-three-points',
+          title: 'A Circle Through Three Points',
+          slides: [
+            teach(
+              prose(
+                'The perpendicular bisector of **any** chord passes through the centre, since every point on it is as far from one end of the chord as from the other. So two chords give two bisectors, and the centre is where they cross.',
+              ),
+              grid(
+                6,
+                [line(-2, 3), line(1, 0), segment(-2, 2, 2, 4), segment(2, 4, 4, 2)],
+                [{ x: -2, y: 2 }, { x: 2, y: 4 }, { x: 4, y: 2 }, { x: 1, y: 1, hollow: true }],
+                'A circle through P(-2, 2), Q(2, 4) and R(4, 2), with the bisectors of PQ and QR crossing at its centre (1, 1)',
+                [{ h: 1, k: 1, r2: 10 }],
+              ),
+              prose(
+                'For $P(-2, 2)$, $Q(2, 4)$ and $R(4, 2)$: $PQ$ has gradient $\\frac{1}{2}$, so its bisector has gradient $-2$ through the midpoint $(0, 3)$, which is $y = -2x + 3$. $QR$ has gradient $-1$, so its bisector is $y = x$.',
+              ),
+            ),
+            ask('coord-three-bisector-steps'),
+            ask('coord-three-points-r2'),
+            ask('coord-three-bisector-steps', 2),
+            teach(
+              prose('Where the bisectors cross, both equations hold at once:'),
+              maths('\\begin{aligned} -2x + 3 &= x \\\\ x &= 1, \\quad y = 1 \\end{aligned}'),
+              prose(
+                'So the centre is $C(1, 1)$, and $r^2 = CP^2 = 3^2 + 1^2 = 10$. The circle is $(x - 1)^2 + (y - 1)^2 = 10$. Measuring to $Q$ or $R$ instead gives $10$ too, which is a check.',
+              ),
+            ),
+            ask('coord-circumcentre-tree'),
+            ask('coord-three-points-r2+choice', 2),
+            ask('coord-circumcentre-tree', 2),
+            teach(
+              prose(
+                'A chord straight across has a straight-up bisector, $x$ equal to its midpoint\'s $x$; a chord straight up has a level one. When two of the chords are like that, the centre can be read off at once.',
+              ),
+              prose(
+                'Then the angle between those two chords is a right angle, so by the angle in a semicircle the third side is a **diameter**: the centre is its midpoint too.',
+              ),
+            ),
+            ask('coord-three-points-tiles'),
+            ask('coord-three-points-tiles', 2),
+          ],
+          skillCheck: [ask('coord-three-points-tiles', 2), ask('coord-circumcentre-tree', 2), ask('coord-three-points-r2', 2)],
+        },
+        {
+          id: 'cg-l4-chord-tangent',
+          title: 'Chords and Tangents Together',
+          slides: [
+            teach(
+              prose(
+                'Three right angles do most of the work on a circle: a **tangent** meets the radius square on, the line from the centre to the **midpoint of a chord** meets the chord square on, and a **diameter** is seen at a right angle from the circle. Each turns one gradient into the negative reciprocal of another.',
+              ),
+              grid(
+                6,
+                [segment(-3, 4, 5, 0), segment(0, 0, 1, 2)],
+                [{ x: -3, y: 4 }, { x: 5, y: 0 }, { x: 1, y: 2 }, { x: 0, y: 0, hollow: true }],
+                'The circle x^2 + y^2 = 25 with a chord from (-3, 4) to (5, 0) and the line from the centre to its midpoint (1, 2)',
+                [{ h: 0, k: 0, r2: 25 }],
+              ),
+              prose(
+                'The chord from $A(-3, 4)$ to $B(5, 0)$ has midpoint $M(1, 2)$. $CM$ has gradient $2$ and $AB$ has gradient $-\\frac{1}{2}$. The distance from the centre to the chord is $CM = \\sqrt{5}$.',
+              ),
+            ),
+            ask('coord-chord-fact-flow'),
+            ask('coord-chord-distance'),
+            ask('coord-chord-fact-flow', 2),
+            teach(
+              prose(
+                'Run it the other way to find a chord from its midpoint: the chord is the line through $M$ perpendicular to $CM$.',
+              ),
+              prose('In $x^2 + y^2 = 25$ the chord with midpoint $M(3, -1)$: $CM$ has gradient $-\\frac{1}{3}$, so the chord has gradient $3$.'),
+              maths('\\begin{aligned} -1 &= 3 \\times 3 + c \\\\ c &= -10 \\end{aligned}'),
+              prose('So the chord is $y = 3x - 10$.'),
+            ),
+            ask('coord-chord-from-midpoint-tree'),
+            ask('coord-chord-distance+choice', 2),
+            ask('coord-chord-from-midpoint-tree', 2),
+            teach(
+              prose(
+                'When the centre is not given, a chord still points to it. If the centre is known to lie on a line, such as the $y$-axis, call it $C(0, t)$: it is as far from $A$ as from $B$, and $CA^2 = CB^2$ is linear in $t$.',
+              ),
+              prose('For $A(3, 4)$ and $B(-1, 6)$:'),
+              maths('\\begin{aligned} 9 + (4 - t)^2 &= 1 + (6 - t)^2 \\\\ 4t &= 12 \\\\ t &= 3 \\end{aligned}'),
+              prose('The radius $CA$ from $C(0, 3)$ has gradient $\\frac{1}{3}$, so the tangent at $A$ has gradient $-3$: it is $y = -3x + 13$.'),
+            ),
+            ask('coord-chord-tangent-tiles'),
+            ask('coord-chord-tangent-tiles', 2),
+          ],
+          skillCheck: [ask('coord-chord-fact-flow', 2), ask('coord-chord-tangent-tiles', 2), ask('coord-chord-distance', 2)],
+        },
+        {
+          id: 'cg-l4-together',
+          title: 'Putting It Together',
+          slides: [
+            teach(
+              prose('Four facts, and the question each one answers:'),
+              prose(
+                'The **angle in a semicircle** is a right angle: is $P$ on the circle with diameter $AB$? A **chord\'s perpendicular bisector** passes through the centre: where is the centre? The **tangent** is perpendicular to the radius: what is its gradient? The **centre is the midpoint** of a diameter: where is the other end?',
+              ),
+              prose('For the last one, $B$ is as far past the centre as $A$ is short of it, so $B = 2C - A$. On $(x - 1)^2 + (y - 1)^2 = 10$ with $A(-2, 0)$:'),
+              maths('\\begin{aligned} x_B &= 2 \\times 1 + 2 = 4 \\\\ y_B &= 2 \\times 1 - 0 = 2 \\end{aligned}'),
+            ),
+            ask('coord-which-theorem'),
+            ask('coord-other-end-steps'),
+            ask('coord-other-end-slider'),
+            teach(
+              prose(
+                'The tangents at the two ends of a diameter are both perpendicular to it, so they are **parallel**: the same gradient, a different $c$.',
+              ),
+              grid(
+                6,
+                [segment(-2, 0, 4, 2), line(-3, -6, true), line(-3, 14, true)],
+                [{ x: -2, y: 0 }, { x: 4, y: 2 }, { x: 1, y: 1, hollow: true }],
+                'The circle centred at (1, 1) with the diameter from (-2, 0) to (4, 2) and the parallel tangents at its ends',
+                [{ h: 1, k: 1, r2: 10 }],
+              ),
+              prose(
+                'The radius to $A(-2, 0)$ has gradient $\\frac{1}{3}$, so both tangents have gradient $-3$. At $A$ it is $y = -3x - 6$; through $B(4, 2)$, $2 = -12 + c$, so the other is $y = -3x + 14$.',
+              ),
+            ),
+            ask('coord-parallel-tangent'),
+            ask('coord-which-theorem', 2),
+            ask('coord-other-end-steps', 2),
+            teach(
+              prose(
+                'When the circle comes multiplied out, complete the square first, as in level 2, to find the centre and $r^2$. After that every fact works as before.',
+              ),
+              prose('$x^2 + y^2 - 2x - 2y - 8 = 0$ is $(x - 1)^2 + (y - 1)^2 = 10$: the same circle as above.'),
+            ),
+            ask('coord-parallel-tangent+choice', 2),
+            ask('coord-other-end-slider', 2),
+          ],
+          skillCheck: [ask('coord-other-end-steps', 2), ask('coord-parallel-tangent', 2), ask('coord-which-theorem', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('coord-semicircle-tree', 2),
+        ask('coord-right-angle-flow', 2),
+        ask('coord-semicircle-missing', 2),
+        ask('coord-diameter-tiles', 2),
+        ask('coord-diameter-r2', 2),
+        ask('coord-diameter-slider', 2),
+        ask('coord-three-bisector-steps', 2),
+        ask('coord-circumcentre-tree', 2),
+        ask('coord-three-points-tiles', 2),
+        ask('coord-chord-fact-flow', 2),
+        ask('coord-chord-distance', 2),
+        ask('coord-chord-tangent-tiles', 2),
+        ask('coord-which-theorem', 2),
+        ask('coord-other-end-steps', 2),
+        ask('coord-parallel-tangent+choice', 2),
       ],
     },
   ],

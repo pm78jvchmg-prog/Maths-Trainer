@@ -11,6 +11,8 @@
  * arms go, its y-intercept and sign, and back from a sketch to a formula.
  * Then roots to coefficients: the sums and products of the roots, a cubic
  * built from them, a missing root, and symmetric functions of the roots.
+ * Then quartics: dividing by a quadratic, two factors at once, repeated
+ * factors, quartics in x², and solving a quartic by dividing twice.
  *
  * Each level closes with a level check: fifteen questions, no teaching
  * slides, one attempt each.
@@ -888,6 +890,172 @@ export const polynomials: Course = {
         ask('poly-missing-coeff-steps', 2),
         ask('poly-sum-squares', 2),
         ask('poly-reciprocal-sum', 2),
+      ],
+    },
+    {
+      id: 'pl-l5',
+      title: 'Quartics and Repeated Factors',
+      lessons: [
+        {
+          id: 'pl-l5-divide',
+          title: 'Dividing by a Quadratic',
+          slides: [
+            teach(
+              prose('Level 2 divided by $(x - a)$ one term at a time. Dividing by a quadratic works the same way: take away the multiple of the divisor that clears the first term, and repeat. Each step now changes the two terms after the first.'),
+              working('&x^{3} - 7x^{2} + 5x + 15', '&\\quad - x(x^{2} - 3x - 3)', '=\\;&-4x^{2} + 8x + 15'),
+              prose('Then take away $-4(x^{2} - 3x - 3)$ to clear the $-4x^{2}$, which leaves $-4x + 3$. That has no $x^{2}$ term, so it is the remainder.'),
+            ),
+            ask('poly-long-quad-steps'),
+            ask('poly-quad-quotient-tiles'),
+            ask('poly-quad-remainder'),
+            teach(
+              prose('A remainder always has a lower power than the divisor. Dividing by a quadratic it can keep an $x$ term, so it is written $rx + s$:'),
+              working('&x^{3} - 7x^{2} + 5x + 15', '=\\;&(x^{2} - 3x - 3)(x - 4)', '&\\quad - 4x + 3'),
+              prose('The same answer comes from comparing coefficients. Write the quotient with unknowns, $ax^{2} + bx + c$ for a quartic, and match the powers from the top down: $a$ from $x^{4}$, then $b$, then $c$. What is left over in the $x$ and constant terms is $r$ and $s$.'),
+            ),
+            ask('poly-quad-quotient-tree'),
+            ask('poly-long-quad-steps', 2),
+            ask('poly-quad-remainder+choice', 2),
+            teach(
+              prose('A quartic divided by a quadratic leaves a quadratic quotient, and the remainder is still no more than $rx + s$. When the remainder is $0$, the divisor is a factor.'),
+            ),
+            ask('poly-quad-quotient-tree', 2),
+            ask('poly-quad-quotient-tiles', 2),
+          ],
+          skillCheck: [ask('poly-long-quad-steps', 2), ask('poly-quad-quotient-tiles', 2), ask('poly-quad-remainder', 2)],
+        },
+        {
+          id: 'pl-l5-pairs',
+          title: 'Two Factors at Once',
+          slides: [
+            teach(
+              prose('If $p(a) = 0$ and $p(b) = 0$, the factor theorem makes both $(x - a)$ and $(x - b)$ factors, so their product is a factor too.'),
+              prose('$p(-3) = 0$ and $p(-2) = 0$, so $(x + 3)(x + 2)$ divides $p(x)$:'),
+              maths('(x + 3)(x + 2) = x^{2} + 5x + 6'),
+              prose('Dividing a quartic by that quadratic leaves another quadratic, which may factorise again.'),
+            ),
+            ask('poly-pair-flow'),
+            ask('poly-two-roots-tree'),
+            ask('poly-other-factor-tiles'),
+            teach(
+              prose('The other factor can be found without dividing, by comparing coefficients.'),
+              prose('For $p(x) = x^{4} + 2x^{3} - 11x^{2} - 28x - 12$, with the factor $x^{2} + 5x + 6$, write $p(x)$ as'),
+              maths('(x^{2} + 5x + 6)(x^{2} + ex + f)'),
+              prose('The $x^{3}$ terms give $5 + e = 2$, so $e = -3$. The constants give $6f = -12$, so $f = -2$.'),
+            ),
+            ask('poly-two-roots-tree', 2),
+            ask('poly-other-factor-tiles', 2),
+            ask('poly-pair-flow', 2),
+            teach(
+              prose('With unknown coefficients, each known factor gives one equation, so two factors are enough for two unknowns. If $(x - 1)$ and $(x + 2)$ are factors of $f(x) = x^{4} + px^{3} - 3x^{2} + qx + 6$:'),
+              working('f(1) = 0: &\\quad p + q = -4', 'f(-2) = 0: &\\quad 4p + q = 5'),
+              prose('Taking one from the other, $3p = 9$, so $p = 3$ and $q = -7$.'),
+            ),
+            ask('poly-pair-unknown'),
+            ask('poly-pair-unknown+choice', 2),
+          ],
+          skillCheck: [ask('poly-pair-flow', 2), ask('poly-other-factor-tiles', 2), ask('poly-pair-unknown', 2)],
+        },
+        {
+          id: 'pl-l5-repeated',
+          title: 'Repeated Factors',
+          slides: [
+            teach(
+              prose('Level 3 showed a curve touching the axis at a repeated root. To test for one, divide by $(x - a)$, then check whether the quotient is still zero at $a$.'),
+              prose('$p(x) = x^{3} + 5x^{2} + 3x - 9$ has $p(-3) = 0$. Dividing by $(x + 3)$ leaves $q(x) = x^{2} + 2x - 3$, and $q(-3) = 0$ too, so $(x + 3)^{2}$ is a factor.'),
+              prose('The number of times $(x - a)$ divides $p(x)$ is how often the root $a$ is repeated.'),
+            ),
+            ask('poly-twice-tree'),
+            ask('poly-repeat-flow'),
+            ask('poly-multiplicity'),
+            teach(
+              prose('Synthetic division makes the second test quick: run the quotient row through again with the same $a$.'),
+              maths('\\begin{array}{r|rrrr} -3 & 1 & 5 & 3 & -9 \\\\ & & -3 & -6 & 9 \\\\ \\hline & 1 & 2 & -3 & 0 \\end{array}'),
+              prose('Again with $-3$: $1$, then $2 - 3 = -1$, then $-3 + 3 = 0$. A second zero, so $(x + 3)$ is repeated. Gathering the brackets, $p(x) = (x + 3)^{2}(x - 1)$.'),
+            ),
+            ask('poly-repeat-factor-steps'),
+            ask('poly-twice-tree', 2),
+            ask('poly-multiplicity+choice', 2),
+            teach(
+              prose('In a quartic a root can repeat three times: the cubic left after one division is zero at $a$, and so is the quadratic left after the next. Keep dividing until the value at $a$ is not $0$.'),
+            ),
+            ask('poly-repeat-flow', 2),
+            ask('poly-repeat-factor-steps', 2),
+          ],
+          skillCheck: [ask('poly-twice-tree', 2), ask('poly-repeat-flow', 2), ask('poly-multiplicity', 2)],
+        },
+        {
+          id: 'pl-l5-even',
+          title: 'Quartics in x²',
+          slides: [
+            teach(
+              prose('Quadratics in Disguise solved $x^{4} - 5x^{2} + 4 = 0$ as a quadratic in $u = x^{2}$. The same substitution factorises it:'),
+              working('&x^{4} - 5x^{2} + 4', '=\\;&u^{2} - 5u + 4', '=\\;&(u - 1)(u - 4)', '=\\;&(x^{2} - 1)(x^{2} - 4)'),
+              prose('Each positive $u$ gives two values of $x$, $\\pm\\sqrt{u}$. A negative $u$ gives none, since a square is never negative.'),
+            ),
+            ask('poly-biquad-tiles'),
+            ask('poly-in-u-tree'),
+            ask('poly-biquad-count'),
+            teach(
+              prose('To factorise fully, look at each bracket. $x^{2} - m^{2}$ is a difference of two squares and splits again. $x^{2} + m$, or $x^{2} - n$ with $n$ not a square, does not split with whole numbers.'),
+              working('&(x^{2} - 1)(x^{2} - 4)', '=\\;&(x - 1)(x + 1)', '&\\quad \\times (x - 2)(x + 2)'),
+            ),
+            ask('poly-biquad-flow'),
+            ask('poly-biquad-tiles', 2),
+            ask('poly-in-u-tree', 2),
+            teach(
+              prose('Counting real solutions needs only the values of $u$: two for each positive $u$, one for $u = 0$ and none for a negative $u$. If the quadratic in $u$ has no real roots at all, neither has the quartic.'),
+            ),
+            ask('poly-biquad-count', 2),
+            ask('poly-biquad-flow', 2),
+          ],
+          skillCheck: [ask('poly-biquad-tiles', 2), ask('poly-in-u-tree', 2), ask('poly-biquad-count', 2)],
+        },
+        {
+          id: 'pl-l5-solve',
+          title: 'Solving a Quartic',
+          slides: [
+            teach(
+              prose('A quartic with whole-number roots falls to the level 2 method used twice. Find a root by trying divisors of the constant, divide, then do the same to the cubic that is left.'),
+              prose('$p(x) = x^{4} - x^{3} - 11x^{2} + 9x + 18$ has $p(3) = 0$, and the cubic left is zero at $x = 2$:'),
+              working('&(x - 3)(x^{3} + 2x^{2} - 5x - 6)', '=\\;&(x - 3)(x - 2)(x^{2} + 4x + 3)'),
+              prose('The quadratic factorises too, $x^{2} + 4x + 3 = (x + 1)(x + 3)$, so the solutions are $x = -3,\\ -1,\\ 2,\\ 3$.'),
+            ),
+            ask('poly-quartic-flow'),
+            ask('poly-quartic-divide-steps'),
+            ask('poly-quartic-tiles'),
+            teach(
+              prose('The division is the level 2 layout with one more column. A missing power gets a $0$, so every column lines up:'),
+              working('&x^{4} - 10x^{2} + 9', '=\\;&x^{4} + 0x^{3} - 10x^{2} + 0x + 9'),
+            ),
+            ask('poly-quartic-root'),
+            ask('poly-quartic-divide-steps', 2),
+            ask('poly-quartic-flow', 2),
+            teach(
+              prose('A leading coefficient stays in front: $-x^{4} + \\dots$ factorises as $-(x - a)(x - b)(x - c)(x - d)$. A root found twice is a repeated factor, written with a square, and it is one solution, not two.'),
+            ),
+            ask('poly-quartic-root+choice', 2),
+            ask('poly-quartic-tiles', 2),
+          ],
+          skillCheck: [ask('poly-quartic-flow', 2), ask('poly-quartic-tiles', 2), ask('poly-quartic-root', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('poly-long-quad-steps', 2),
+        ask('poly-quad-quotient-tree', 2),
+        ask('poly-quad-remainder', 2),
+        ask('poly-pair-flow', 2),
+        ask('poly-two-roots-tree', 2),
+        ask('poly-pair-unknown', 2),
+        ask('poly-twice-tree', 2),
+        ask('poly-repeat-flow', 2),
+        ask('poly-multiplicity', 2),
+        ask('poly-biquad-tiles', 2),
+        ask('poly-in-u-tree', 2),
+        ask('poly-biquad-count', 2),
+        ask('poly-quartic-flow', 2),
+        ask('poly-quartic-tiles', 2),
+        ask('poly-quartic-root', 2),
       ],
     },
   ],

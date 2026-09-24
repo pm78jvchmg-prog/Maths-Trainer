@@ -21,15 +21,23 @@ const SEEDS = 200;
 
 const ids = Object.keys(registry).filter((id) => /^lin-(overlap|read|corner|lattice|story)-/.test(id));
 
-function draws(id: string): { slide: Slide; where: string }[] {
-  const generator = registry[id] as unknown as Generator<unknown>;
-  return [1, 2].flatMap((difficulty) =>
-    Array.from({ length: SEEDS }, (_, seed) => ({
-      slide: generator.render(generator.sample(makeRng(seed), difficulty)),
-      where: `${id} difficulty ${difficulty} seed ${seed}`,
-    })),
-  );
-}
+/** Drawn once at collection, which is untimed, and shared by both checks. */
+const DRAWS: Record<string, { slide: Slide; where: string }[]> = Object.fromEntries(
+  ids.map((id) => {
+    const generator = registry[id] as unknown as Generator<unknown>;
+    return [
+      id,
+      [1, 2].flatMap((difficulty) =>
+        Array.from({ length: SEEDS }, (_, seed) => ({
+          slide: generator.render(generator.sample(makeRng(seed), difficulty)),
+          where: `${id} difficulty ${difficulty} seed ${seed}`,
+        })),
+      ),
+    ];
+  }),
+);
+
+const draws = (id: string) => DRAWS[id];
 
 /* ---------- Reading what is on the screen ---------- */
 
@@ -46,8 +54,9 @@ interface Rel {
 function relation(tex: string): Rel {
   const plain = tex.replace(/\\le\b/g, '<=').replace(/\\ge\b/g, '>=').trim();
   const [, left, op, right] = /^(.*?)(<=|>=|<|>|=)(.*)$/.exec(plain)!;
-  const l = math.parse(left.trim());
-  const r = math.parse(right.trim());
+  // Compiled once: `node.evaluate` recompiles on every call, and `sameRegion` asks thousands of times.
+  const l = math.parse(left.trim()).compile();
+  const r = math.parse(right.trim()).compile();
   return {
     tex,
     op: op as Op,
@@ -231,11 +240,26 @@ function storyRelations(story: Story): Rel[] {
 
 const QUADRANT = Array.from({ length: 31 }, (_, x) => Array.from({ length: 31 }, (_, y) => [x, y] as [number, number])).flat();
 
+/** The whole points of the first quadrant, and a little either side. */
+const PROBES = QUADRANT.flatMap(([x, y]) => [0, 0.5].map((h) => [x + h, y + h] as [number, number]));
+
+/**
+ * Where one relation holds across `PROBES`, worked out once per relation as written.
+ * The same TeX always reads as the same relation, and the stories repeat, so this is
+ * what keeps `sameRegion` from putting every probe through mathjs again for every option.
+ */
+const HOLDS = new Map<string, boolean[]>();
+const holdsAcross = (rel: Rel): boolean[] => {
+  let holds = HOLDS.get(rel.tex);
+  if (!holds) HOLDS.set(rel.tex, (holds = PROBES.map(([x, y]) => holdsAt(rel, x, y))));
+  return holds;
+};
+
 /** Two systems describe the same region of whole points in the first quadrant, and a little either side. */
-const sameRegion = (one: Rel[], two: Rel[]): boolean =>
-  QUADRANT.every(([x, y]) =>
-    [0, 0.5].every((h) => one.every((r) => holdsAt(r, x + h, y + h)) === two.every((r) => holdsAt(r, x + h, y + h))),
-  );
+const sameRegion = (one: Rel[], two: Rel[]): boolean => {
+  const [a, b] = [one.map(holdsAcross), two.map(holdsAcross)];
+  return PROBES.every((_, i) => a.every((holds) => holds[i]) === b.every((holds) => holds[i]));
+};
 
 /* ---------- The checks ---------- */
 

@@ -9,7 +9,16 @@
  * model: the distribution of the sample mean, the z statistic, the critical
  * values 1.645, 1.96, 2.326 and 2.576, the decision in context, and the level
  * as the chance of rejecting a true `H_0`, with how the sample size moves the
- * verdict.
+ * verdict. Level 3 is the two errors: which mistake an outcome is, the size of
+ * a test as P(Type I), P(Type II) and the power for a stated alternative, the
+ * trade between the errors at a fixed sample size, and both errors in the test
+ * of a mean, where a bigger sample shrinks P(Type II) at a fixed level.
+ *
+ * Level 4 tests a correlation: `H_0: \rho = 0` against a direction or none,
+ * the critical value of the product-moment correlation coefficient read from
+ * a quoted table, one- and two-tailed decisions, and how the sample size and
+ * the level move the verdict, with rejecting read as association, not cause.
+ * The table's values are always quoted, never taught to memorise.
  *
  * Binomial probabilities, the normal curve and standardising belong to the
  * Binomial & Normal Distributions course and nCr to Binomial Expansion's
@@ -39,10 +48,44 @@ const working = (...lines: string[]): Block => display(`\\begin{aligned} ${lines
 
 const figure = (options: Parameters<typeof plotSvg>[0]): Block => ({ kind: 'diagram', svg: plotSvg(options) });
 
+const diagram = (svg: string): Block => ({ kind: 'diagram', svg });
+
 /** A normal density with standard deviation `sd`, centred on zero. */
 const density = (sd: number) => (x: number) => Math.exp(-(x * x) / (2 * sd * sd)) / (sd * Math.sqrt(2 * Math.PI));
 
 const phi = density(1);
+
+/** The density of r from a sample of n when rho = 0: proportional to (1 - r^2)^((n - 4)/2). */
+function rDensity(n: number): (r: number) => number {
+  const shape = (r: number) => (Math.abs(r) >= 1 ? 0 : (1 - r * r) ** ((n - 4) / 2));
+  let area = 0;
+  for (let i = 0; i < 400; i += 1) area += shape(-1 + (i + 0.5) / 200) / 200;
+  return (r: number) => shape(r) / area;
+}
+
+const r10 = rDensity(10);
+
+/** The 5% column of the critical values of r, n = 4 to 30, for a picture of how it falls. */
+const PMCC_5 = [
+  0.9, 0.8054, 0.7293, 0.6694, 0.6215, 0.5822, 0.5494, 0.5214, 0.4973, 0.4762, 0.4575, 0.4409, 0.4259, 0.4124, 0.4, 0.3887,
+  0.3783, 0.3687, 0.3598, 0.3515, 0.3438, 0.3365, 0.3297, 0.3233, 0.3172, 0.3115, 0.3061,
+];
+
+/** A scatter diagram: marks on a grid, the same window as Data, Averages and Spread's. */
+function scatterSvg(points: [number, number][], label: string): string {
+  return plotSvg({
+    xMin: -0.4,
+    xMax: 10.4,
+    yMin: -0.4,
+    yMax: 10.4,
+    height: 200,
+    grid: true,
+    curves: [],
+    marks: points.map(([x, y]) => ({ x, y })),
+    label,
+  });
+}
+
 
 export const hypothesisTesting: Course = {
   id: 'hypothesis-testing',
@@ -445,6 +488,395 @@ export const hypothesisTesting: Course = {
         ask('hyp-false-alarms', 2),
         ask('hyp-levels-flow', 2),
         ask('hyp-n-table', 2),
+      ],
+    },
+    {
+      id: 'ht-l3',
+      title: 'Type I and Type II Errors',
+      lessons: [
+        {
+          id: 'ht-l3-two-mistakes',
+          title: 'The Two Mistakes',
+          slides: [
+            teach(
+              prose('A test decides from a sample, so it can be wrong. There are two ways, depending on whether $H_0$ is really true:'),
+              display(
+                '\\begin{array}{c|c|c} & H_0 \\text{ true} & H_0 \\text{ false} \\\\ \\hline \\text{reject} & \\text{Type I} & \\text{correct} \\\\ \\text{keep} & \\text{correct} & \\text{Type II} \\end{array}',
+              ),
+              prose('A **Type I error** rejects a true $H_0$: a false alarm. A **Type II error** keeps a false $H_0$: a real change missed.'),
+            ),
+            ask('hyp-error-choice'),
+            ask('hyp-error-flow'),
+            ask('hyp-error-tiles'),
+            teach(
+              prose('A Type I error needs $H_0$ to be true and $X$ to land in the critical region. For the seeds, with region $X \\ge 10$:'),
+              display('\\text{Type I: } X \\ge 10 \\text{ when } p = 0.3'),
+              prose('The region was chosen to hold at most the level when $H_0$ is true. So the probability of a Type I error is at most the significance level: at most $0.05$ at 5%.'),
+            ),
+            ask('hyp-error-line'),
+            ask('hyp-error-choice', 2),
+            ask('hyp-error-flow', 2),
+            teach(
+              prose('A Type II error needs $H_0$ to be false and $X$ to land outside the region, so the test keeps $H_0$ anyway. If the seeds really germinate at 50%:'),
+              display('\\text{Type II: } X \\le 9 \\text{ when } p = 0.5'),
+              prose('How likely that is depends on what $p$ really is, which the level does not control.'),
+            ),
+            ask('hyp-error-tiles', 2),
+            ask('hyp-error-line'),
+          ],
+          skillCheck: [ask('hyp-error-flow', 2), ask('hyp-error-tiles', 2), ask('hyp-error-choice', 2)],
+        },
+        {
+          id: 'ht-l3-size',
+          title: 'The Size of a Test',
+          slides: [
+            teach(
+              prose(
+                'The probability of a Type I error is the probability of the critical region when $H_0$ is true. It is the **size** of the test: the actual significance level from Testing a Proportion.',
+              ),
+              prose('For the seeds, $X \\sim B(20, 0.3)$ under $H_0$ and the region is $X \\ge 10$:'),
+              working('& P(\\text{Type I})', '&= P(X \\ge 10 \\mid p = 0.3)', '&= 1 - 0.9520', '&= 0.0480'),
+            ),
+            ask('hyp-size'),
+            ask('hyp-size-choice'),
+            ask('hyp-size-table'),
+            teach(
+              prose('A rule need not come from a level. Someone might decide in advance to reject when $X \\le 2$ or $X \\ge 11$. Its size is both tails added, under $H_0$:'),
+              working('& P(X \\le 2) + P(X \\ge 11)', '&= 0.0355 + (1 - 0.9829)', '&= 0.0355 + 0.0171', '&= 0.0526'),
+            ),
+            ask('hyp-size-sum'),
+            ask('hyp-size', 2),
+            ask('hyp-size-choice', 2),
+            teach(
+              prose('A stricter level pushes the region further out, so the size falls with it. For the seeds, $1 - 0.9520 = 0.0480$ at 5% and $1 - 0.9949 = 0.0051$ at 1%:'),
+              display('\\begin{array}{c|c|c} \\text{level} & \\text{region} & P(\\text{Type I}) \\\\ \\hline 5\\% & X \\ge 10 & 0.0480 \\\\ 1\\% & X \\ge 12 & 0.0051 \\end{array}'),
+            ),
+            ask('hyp-size-table', 2),
+            ask('hyp-size-sum', 2),
+          ],
+          skillCheck: [ask('hyp-size', 2), ask('hyp-size-sum', 2), ask('hyp-size-table', 2)],
+        },
+        {
+          id: 'ht-l3-type-two',
+          title: 'Type II Errors',
+          slides: [
+            teach(
+              prose('A Type II error happens when $H_0$ is false but $X$ lands outside the critical region. Its probability needs a stated alternative: what $p$ really is.'),
+              prose('For the seeds, the region is $X \\ge 10$. If $p$ is really $0.5$, then $X \\sim B(20, 0.5)$ and'),
+              working('& P(\\text{Type II})', '&= P(X \\le 9 \\mid p = 0.5)', '&= 0.4119'),
+            ),
+            ask('hyp-beta'),
+            ask('hyp-beta-choice'),
+            ask('hyp-beta-flow'),
+            teach(
+              prose('Two things change from a Type I error: the event is **outside** the region, and the model uses the **true** $p$, not the claimed one.'),
+              prose('For a lower-tail region $X \\le c$, outside is $X \\ge c + 1$, which is one minus a cumulative:'),
+              working('& P(X \\ge c + 1)', '&= 1 - P(X \\le c)'),
+            ),
+            ask('hyp-error-line', 2),
+            ask('hyp-beta', 2),
+            ask('hyp-beta-choice', 2),
+            teach(
+              prose('The level fixes the size, but not P(Type II): that depends on how far the truth is from the claim. A true $p$ close to $0.3$ is easy to miss:'),
+              working('P(X \\le 9 \\mid p = 0.4) &= 0.7553', 'P(X \\le 9 \\mid p = 0.5) &= 0.4119'),
+            ),
+            ask('hyp-beta-flow', 2),
+            ask('hyp-error-line', 2),
+          ],
+          skillCheck: [ask('hyp-beta', 2), ask('hyp-beta-flow', 2), ask('hyp-beta-choice', 2)],
+        },
+        {
+          id: 'ht-l3-power',
+          title: 'Power',
+          slides: [
+            teach(
+              prose('The **power** of a test is the probability that it rejects $H_0$ when $H_0$ is false, for a stated alternative: the chance of catching a real change.'),
+              display('\\text{power} = 1 - P(\\text{Type II})'),
+              prose('For the seeds, with region $X \\ge 10$ and $p$ really $0.5$: $1 - 0.4119 = 0.5881$.'),
+            ),
+            ask('hyp-power'),
+            ask('hyp-power-pair-tree'),
+            ask('hyp-power-choice'),
+            teach(
+              prose('The further the truth is from the claim, the more likely the count lands in the region, so the power rises:'),
+              display(
+                '\\begin{array}{c|c|c} p & P(\\text{Type II}) & \\text{power} \\\\ \\hline 0.4 & 0.7553 & 0.2447 \\\\ 0.5 & 0.4119 & 0.5881 \\\\ 0.6 & 0.1275 & 0.8725 \\end{array}',
+              ),
+            ),
+            ask('hyp-trade-table'),
+            ask('hyp-power', 2),
+            ask('hyp-power-pair-tree', 2),
+            teach(
+              prose(
+                'At a fixed sample size the two errors trade against each other. A stricter level shrinks the region: fewer Type I errors, but less power. At 5% the seed test rejects when $X \\ge 10$, at 1% when $X \\ge 12$. With $p$ really $0.5$:',
+              ),
+              display('\\begin{array}{c|c|c} \\text{level} & \\alpha & \\beta \\\\ \\hline 5\\% & 0.0480 & 0.4119 \\\\ 1\\% & 0.0051 & 0.7483 \\end{array}'),
+              prose('Only a bigger sample can cut both at once.'),
+            ),
+            ask('hyp-power-choice', 2),
+            ask('hyp-trade-table', 2),
+          ],
+          skillCheck: [ask('hyp-power', 2), ask('hyp-power-pair-tree', 2), ask('hyp-trade-table', 2)],
+        },
+        {
+          id: 'ht-l3-mean-errors',
+          title: 'Errors in the Mean Test',
+          slides: [
+            teach(
+              prose('For the flour, $H_0: \\mu = 500$ against $H_1: \\mu > 500$, with $\\sigma = 12$ and $n = 16$, so $\\bar{X}$ has standard deviation $3$. At 5% the test rejects when'),
+              working('\\bar{x} &> 500 + 1.645 \\times 3', '&= 504.935'),
+              prose('$\\bar{X}$ is continuous, so this region holds exactly 5% when $H_0$ is true: P(Type I) is the level itself.'),
+            ),
+            ask('hyp-mean-beta'),
+            ask('hyp-mean-miss-tree'),
+            ask('hyp-beta-n-table'),
+            teach(
+              prose('If the mean is really $507.5$ g, a Type II error is $\\bar{x}$ falling short of the boundary. Standardise the boundary under the true mean:'),
+              working('z &= \\frac{504.935 - 507.5}{3}', '&= -0.855'),
+              working('& P(\\text{Type II})', '&= P(Z < -0.855)', '&= 1 - \\Phi(0.855)', '&= 0.1963'),
+              prose('The dashed curve is $\\bar{X}$ under $H_0$, the solid one under the truth; the shaded part of it falls short of the line.'),
+              figure({
+                xMin: 492,
+                xMax: 518,
+                yMin: 0,
+                yMax: 0.15,
+                curves: [{ f: (x) => density(3)(x - 500), dashed: true }, { f: (x) => density(3)(x - 507.5) }],
+                verticals: [{ x: 504.935, dashed: true }],
+                shade: { f: (x) => density(3)(x - 507.5), from: 492, to: 504.935 },
+                label: 'Two normal curves for the sample mean, centred on 500 and 507.5, with the part of the second below the critical value shaded',
+              }),
+            ),
+            ask('hyp-mean-error-choice'),
+            ask('hyp-mean-beta', 2),
+            ask('hyp-mean-miss-tree', 2),
+            teach(
+              prose('A bigger sample narrows both curves, so less of the truth\'s curve falls short. With $n = 64$ the standard deviation of $\\bar{X}$ is $1.5$:'),
+              working('\\bar{x}_c &= 500 + 1.645 \\times 1.5', '&= 502.4675', 'z &= \\frac{502.4675 - 507.5}{1.5}', '&= -3.355'),
+              working('& P(\\text{Type II})', '&= 1 - \\Phi(3.355)', '&= 0.0004'),
+              prose('At a fixed level, P(Type II) falls as $n$ grows.'),
+            ),
+            ask('hyp-beta-n-table', 2),
+            ask('hyp-mean-error-choice', 2),
+          ],
+          skillCheck: [ask('hyp-mean-beta', 2), ask('hyp-mean-miss-tree', 2), ask('hyp-beta-n-table', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('hyp-error-flow', 2),
+        ask('hyp-error-tiles', 2),
+        ask('hyp-error-line', 2),
+        ask('hyp-size', 2),
+        ask('hyp-size-sum', 2),
+        ask('hyp-size-table', 2),
+        ask('hyp-beta', 2),
+        ask('hyp-beta-flow', 2),
+        ask('hyp-beta-choice', 2),
+        ask('hyp-power', 2),
+        ask('hyp-power-pair-tree', 2),
+        ask('hyp-trade-table', 2),
+        ask('hyp-mean-beta', 2),
+        ask('hyp-mean-miss-tree', 2),
+        ask('hyp-beta-n-table', 2),
+      ],
+    },
+    {
+      id: 'ht-l4',
+      title: 'Testing a Correlation',
+      lessons: [
+        {
+          id: 'ht-l4-hypotheses',
+          title: 'Hypotheses about Rho',
+          slides: [
+            teach(
+              prose('The **product-moment correlation coefficient**, $r$, measures how closely a sample\'s points follow a straight line. It runs from $-1$ to $1$, with $0$ for no linear link.'),
+              diagram(
+                scatterSvg(
+                  [[1, 3], [2, 2], [3, 5], [4, 3], [4, 6], [5, 6], [6, 4], [7, 7], [8, 5], [9, 8]],
+                  'Ten points rising from left to right, loosely around a line',
+                ),
+              ),
+              prose('These ten points give $r = 0.7350$. It estimates $\\rho$ (rho), the correlation in the whole population the sample came from.'),
+            ),
+            ask('hyp-rho-flow'),
+            ask('hyp-rho-tiles'),
+            ask('hyp-rho-choice'),
+            teach(
+              prose('A test of correlation starts from none at all in the population:'),
+              display('H_0: \\rho = 0'),
+              prose('The suspicion gives $H_1$. Positive correlation is $\\rho > 0$ and negative is $\\rho < 0$, both one-tailed. A link either way is $\\rho \\ne 0$, two-tailed.'),
+            ),
+            ask('hyp-rho-h1-table'),
+            ask('hyp-rho-flow', 2),
+            ask('hyp-rho-tiles', 2),
+            teach(
+              prose('Both hypotheses are about $\\rho$. The sample\'s $r$ is the evidence, never part of a hypothesis.'),
+              prose('The direction of $H_1$ comes from the suspicion, not from the sign of $r$. A suspected positive correlation is tested with $H_1: \\rho > 0$ even when the sample gives $r = -0.3100$.'),
+            ),
+            ask('hyp-rho-choice', 2),
+            ask('hyp-rho-h1-table', 2),
+          ],
+          skillCheck: [ask('hyp-rho-flow', 2), ask('hyp-rho-tiles', 2), ask('hyp-rho-choice', 2)],
+        },
+        {
+          id: 'ht-l4-critical',
+          title: 'The Critical Value',
+          slides: [
+            teach(
+              prose('How far from $0$ must $r$ be to count? A table of **critical values** answers it: a row for $n$, the number of pairs, and a column for the one-tailed level.'),
+              display(
+                '\\small \\begin{array}{c|ccc} n & 10\\% & 5\\% & 2.5\\% \\\\ \\hline 9 & 0.4716 & 0.5822 & 0.6664 \\\\ 10 & 0.4428 & 0.5494 & 0.6319 \\\\ 11 & 0.4187 & 0.5214 & 0.6021 \\end{array}',
+              ),
+              prose('For $10$ pairs at the 5% level, the critical value is $0.5494$.'),
+            ),
+            ask('hyp-pmcc-lookup'),
+            ask('hyp-pmcc-table'),
+            ask('hyp-pmcc-flow'),
+            teach(
+              prose('Down a column the values fall: a bigger sample needs a weaker $r$ to be convincing.'),
+              prose('Along a row they rise: a stricter level needs a stronger $r$.'),
+              working('n = 10, \\; 5\\% &: \\quad 0.5494', 'n = 11, \\; 5\\% &: \\quad 0.5214', 'n = 10, \\; 2.5\\% &: \\quad 0.6319'),
+            ),
+            ask('hyp-pmcc-trend-choice'),
+            ask('hyp-pmcc-lookup', 2),
+            ask('hyp-pmcc-table', 2),
+            teach(
+              prose('$n$ counts pairs, not values. Twelve students, each giving a revision time and a mark, is $n = 12$, not $24$.'),
+              prose('The table\'s own values are always quoted: finding the right row and column is the skill, not remembering the numbers.'),
+            ),
+            ask('hyp-pmcc-flow', 2),
+            ask('hyp-pmcc-trend-choice', 2),
+          ],
+          skillCheck: [ask('hyp-pmcc-lookup', 2), ask('hyp-pmcc-table', 2), ask('hyp-pmcc-trend-choice', 2)],
+        },
+        {
+          id: 'ht-l4-one-tailed',
+          title: 'Testing One Way',
+          slides: [
+            teach(
+              prose('With one tail, the whole level sits on the side $H_1$ points to. With $c$ the critical value from the table, reject $H_0$ when'),
+              working('H_1: \\rho > 0 &: \\quad r > c', 'H_1: \\rho < 0 &: \\quad r < -c'),
+            ),
+            ask('hyp-rho-region-choice'),
+            ask('hyp-rho-region-tiles'),
+            ask('hyp-rho-decision-flow'),
+            teach(
+              prose('If $\\rho = 0$, the $r$ from $10$ pairs spreads around $0$ like this. The shaded tail holds the least likely 5%, beyond $0.5494$.'),
+              figure({
+                xMin: -1,
+                xMax: 1,
+                yMin: 0,
+                yMax: r10(0) * 1.15,
+                curves: [{ f: r10 }],
+                verticals: [{ x: 0, dashed: true }],
+                shade: { f: r10, from: 0.5494, to: 1 },
+                label: 'How r from ten pairs spreads if there is no correlation, with the upper 5% shaded',
+              }),
+            ),
+            ask('hyp-rho-critical-slider'),
+            ask('hyp-rho-region-choice', 2),
+            ask('hyp-rho-region-tiles', 2),
+            teach(
+              prose('An $r$ of the wrong sign never rejects, however large: $r = -0.8000$ is no evidence at all for $\\rho > 0$.'),
+              prose('The ten points in the first lesson gave $r = 0.7350 > 0.5494$, so: "There is evidence at the 5% level of positive correlation."'),
+            ),
+            ask('hyp-rho-decision-flow', 2),
+            ask('hyp-rho-critical-slider', 2),
+          ],
+          skillCheck: [ask('hyp-rho-decision-flow', 2), ask('hyp-rho-region-tiles', 2), ask('hyp-rho-critical-slider', 2)],
+        },
+        {
+          id: 'ht-l4-two-tailed',
+          title: 'Testing Either Way',
+          slides: [
+            teach(
+              prose('With $H_1: \\rho \\ne 0$, correlation either way counts. The level is split, half in each tail, so a 5% test reads the 2.5% column. For $10$ pairs the critical region is'),
+              display('r < -0.6319 \\; \\text{or} \\; r > 0.6319'),
+            ),
+            ask('hyp-rho-column'),
+            ask('hyp-rho-two-tiles'),
+            ask('hyp-rho-two-flow'),
+            teach(
+              prose('On a line from $-1$ to $1$ the region is both ends, each holding 2.5% if $\\rho = 0$.'),
+              figure({
+                xMin: -1,
+                xMax: 1,
+                yMin: 0,
+                yMax: r10(0) * 1.15,
+                curves: [{ f: r10 }, { f: (r) => (Math.abs(r) > 0.6319 ? r10(r) : NaN), accent: true, breaks: true }],
+                verticals: [
+                  { x: -0.6319, dashed: true },
+                  { x: 0.6319, dashed: true },
+                ],
+                label: 'How r from ten pairs spreads if there is no correlation, with both tails beyond 0.6319 marked',
+              }),
+            ),
+            ask('hyp-rho-two-table'),
+            ask('hyp-rho-column', 2),
+            ask('hyp-rho-two-tiles', 2),
+            teach(
+              prose('So compare $|r|$ with the value. $r = -0.7000$ rejects $H_0$ here just as $0.7000$ would.'),
+              prose('The conclusion names no direction: "There is evidence at the 5% level of correlation between the two."'),
+            ),
+            ask('hyp-rho-two-flow', 2),
+            ask('hyp-rho-two-table', 2),
+          ],
+          skillCheck: [ask('hyp-rho-two-flow', 2), ask('hyp-rho-two-tiles', 2), ask('hyp-rho-two-table', 2)],
+        },
+        {
+          id: 'ht-l4-size-and-level',
+          title: 'Sample Size and Level',
+          slides: [
+            teach(
+              prose('The same $r$ can fail with one sample size and pass with another. Take $r = 0.5000$ against $H_1: \\rho > 0$ at 5%:'),
+              working('n = 10 &: \\quad 0.5000 < 0.5494', 'n = 12 &: \\quad 0.5000 > 0.4973'),
+              prose('Not enough evidence from $10$ pairs; evidence from $12$.'),
+            ),
+            ask('hyp-rho-shift-flow'),
+            ask('hyp-rho-which-rejects'),
+            ask('hyp-rho-n-slider'),
+            teach(
+              prose('A stricter level raises the bar. At $n = 12$, $r = 0.5000$ clears $0.4973$ at 5% but not $0.6581$ at 1%.'),
+              prose('The dots are the 5% column for every $n$, falling; the line is at $0.5$. The first dot below the line is the smallest sample that would reject.'),
+              figure({
+                xMin: 3,
+                xMax: 31,
+                yMin: 0,
+                yMax: 1,
+                curves: [],
+                marks: PMCC_5.map((y, i) => ({ x: i + 4, y })),
+                horizontals: [0.5],
+                label: 'The 5% critical values of r for n from 4 to 30, falling below a line at 0.5 from n = 12',
+              }),
+            ),
+            ask('hyp-rho-cause-choice'),
+            ask('hyp-rho-shift-flow', 2),
+            ask('hyp-rho-which-rejects', 2),
+            teach(
+              prose('Rejecting $H_0$ shows **association**, not cause. Ice-cream sales and sunburn are correlated because hot weather drives both.'),
+              prose('And not rejecting never shows $\\rho = 0$, only that the evidence is not strong enough.'),
+            ),
+            ask('hyp-rho-n-slider', 2),
+            ask('hyp-rho-cause-choice', 2),
+          ],
+          skillCheck: [ask('hyp-rho-shift-flow', 2), ask('hyp-rho-n-slider', 2), ask('hyp-rho-cause-choice', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('hyp-rho-tiles', 2),
+        ask('hyp-rho-choice', 2),
+        ask('hyp-rho-h1-table', 2),
+        ask('hyp-pmcc-lookup', 2),
+        ask('hyp-pmcc-trend-choice', 2),
+        ask('hyp-pmcc-table', 2),
+        ask('hyp-rho-decision-flow', 2),
+        ask('hyp-rho-region-tiles', 2),
+        ask('hyp-rho-critical-slider', 2),
+        ask('hyp-rho-two-flow', 2),
+        ask('hyp-rho-two-tiles', 2),
+        ask('hyp-rho-two-table', 2),
+        ask('hyp-rho-n-slider', 2),
+        ask('hyp-rho-which-rejects', 2),
+        ask('hyp-rho-cause-choice', 2),
       ],
     },
   ],

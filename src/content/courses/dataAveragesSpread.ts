@@ -8,19 +8,35 @@
  * is spread: the range and what one extreme value does to it, quartiles and
  * the interquartile range, outliers by the 1.5 times IQR rule, variance from
  * `\sum x^2 / n - \bar{x}^2`, and the standard deviation, with two sets of
- * data compared by their means and spreads.
+ * data compared by their means and spreads. Level 3 is representing data:
+ * stem-and-leaf diagrams with the quartiles counted off the leaves, box plots
+ * read on their own and compared in pairs, and histograms of unequal classes
+ * by frequency density, with frequencies read back as areas.
+ * Level 4 is cumulative frequency: running totals, the curve through the
+ * upper class boundaries, the median, quartiles and percentiles read off it,
+ * and the same readings by interpolating inside a class.
  *
  * Sigma notation belongs to Sequences & Series (`sq-l2-sigma`) and
  * rearranging a formula to Linear Equations (`le-l3-subject`); both are
- * pointed at here, not taught again. Quartiles are taught for lists of
- * length 4k + 3 only, where they sit at whole positions, and no other length
- * is ever asked. Later levels are in `docs/roadmap/levels/data-averages-spread.md`.
+ * pointed at here, not taught again. Quartiles of a list are taught for
+ * lists of length 4k + 3 only, where they sit at whole positions, and no
+ * other length is ever asked; on a cumulative frequency curve they are read
+ * at n/4, n/2 and 3n/4, and level 4 says why the two rules differ. Later
+ * levels are in `docs/roadmap/levels/data-averages-spread.md`.
  *
  * Each level closes with a level check: fifteen questions, no teaching
  * slides, one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
 import { plotSvg } from '../figures';
+import {
+  boxPlotSvg,
+  cumulativeSvg,
+  histogramSvg,
+  type Box,
+  type BoxScale,
+  type HistFigure,
+} from '../generators/dataAveragesSpread';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -55,6 +71,17 @@ const scatter = (points: [number, number][], label: string, line?: (x: number) =
     label,
   });
 
+/** Box plots drawn the way the generated questions draw them. */
+const boxes = (rows: { name?: string; box: Box }[], scale: BoxScale, label: string): Block => ({
+  kind: 'diagram',
+  svg: boxPlotSvg(rows, scale, label),
+});
+
+/** The fine scale level 3's teaching pictures use: a mark every 2, a number every 10. */
+const FINE: BoxScale = { lo: 10, hi: 50, tick: 2, every: 10 };
+
+const bars = (fig: HistFigure): Block => ({ kind: 'diagram', svg: histogramSvg(fig) });
+
 const risingPoints: [number, number][] = [
   [1, 2],
   [2, 3],
@@ -66,13 +93,29 @@ const risingPoints: [number, number][] = [
   [8, 9],
 ];
 
+/**
+ * The journeys every level 4 teaching slide uses: forty journey times in
+ * minutes, drawn so the median, quartiles and the readings taught all land
+ * on whole numbers (median 25, quartiles 16 and 34).
+ */
+const EXAMPLE = { bounds: [0, 10, 20, 30, 40, 50], fs: [4, 10, 12, 10, 4] };
+
+/** A grouped table with its running totals, written out by hand for teaching. */
+function cfTableTex({ bounds, fs }: typeof EXAMPLE): string {
+  let t = 0;
+  const rows = fs.map((f, i) => `${bounds[i]} \\le x < ${bounds[i + 1]} & ${f} & ${(t += f)}`).join(' \\\\ ');
+  return `\\begin{array}{c|c|c} \\text{Minutes} & f & \\text{cf} \\\\ \\hline ${rows} \\end{array}`;
+}
+
+const cf = (opts: Parameters<typeof cumulativeSvg>[1] = {}): Block => ({ kind: 'diagram', svg: cumulativeSvg(EXAMPLE, opts) });
+
 export const dataAveragesSpread: Course = {
   id: 'data-averages-spread',
   category: 'statistics',
   // After Probability (10), which opens the tab.
   position: 20,
   title: 'Data, Averages and Spread',
-  blurb: 'Summing up a set of data: its averages, frequency tables and scatter diagrams, then its range, quartiles, outliers and standard deviation.',
+  blurb: 'Summing up a set of data: its averages, frequency tables and scatter diagrams, then its range, quartiles, outliers and standard deviation, and cumulative frequency curves.',
   levels: [
     {
       id: 'da-l1',
@@ -479,6 +522,438 @@ export const dataAveragesSpread: Course = {
         ask('dat-sd', 2),
         ask('dat-sd-tiles', 2),
         ask('dat-compare-flow', 2),
+      ],
+    },
+    {
+      id: 'da-l3',
+      title: 'Representing Data',
+      lessons: [
+        {
+          id: 'da-l3-stem',
+          title: 'Stem-and-Leaf Diagrams',
+          slides: [
+            teach(
+              prose(
+                'A **stem-and-leaf diagram** lists every value but groups them as it goes. Each value splits into a **stem**, its leading digits, and a **leaf**, its last digit. Marks of $23, 25, 25, 31, 36, 38, 42$:',
+              ),
+              display('\\begin{array}{r|l} 2 & 3\\;5\\;5 \\\\ 3 & 1\\;6\\;8 \\\\ 4 & 2 \\end{array}'),
+              prose(
+                'Key: $2 \\mid 3$ means $23$. Every diagram needs a key, since the same picture could stand for $2.3$ or $230$. The leaves go in order, smallest first, and a value that appears twice keeps both its leaves.',
+              ),
+            ),
+            ask('dat-stem-leaves'),
+            ask('dat-stem-key'),
+            ask('dat-stem-read'),
+            teach(
+              prose('Reading a diagram back, each leaf is one value. With the key $4 \\mid 7$ means $4.7$, the row $5 \\mid 1\\;2\\;2\\;9$ stands for four values:'),
+              display('5.1, \\ 5.2, \\ 5.2, \\ 5.9'),
+              prose(
+                'With two-digit stems the leaf is still the last digit: if $12 \\mid 5$ means $125$, then $13 \\mid 0\\;4$ is $130$ and $134$. The smallest value is the first leaf on the top row, and the largest the last leaf on the bottom row.',
+              ),
+            ),
+            ask('dat-stem-key', 2),
+            ask('dat-stem-read', 2),
+            ask('dat-stem-leaves', 2),
+            teach(
+              prose(
+                'The leaves are already in order, so the median and the quartiles can be counted straight off them, top row first. With $n = 4k + 3$ values, as in Measures of Spread, they sit at position $\\frac{n + 1}{4}$, twice that, and three times that.',
+              ),
+              display('\\begin{array}{r|l} 1 & 2\\;5\\;8 \\\\ 2 & 1\\;1\\;4\\;7 \\\\ 3 & 0\\;3\\;5\\;8 \\end{array}'),
+              prose(
+                'Key: $1 \\mid 2$ means $12$. Here $n = 11$, so count to the 3rd, 6th and 9th leaves: $Q_1 = 18$, the median is $24$ and $Q_3 = 33$, so the IQR is $33 - 18 = 15$.',
+              ),
+            ),
+            ask('dat-stem-quartiles'),
+            ask('dat-stem-quartiles', 2),
+          ],
+          skillCheck: [ask('dat-stem-leaves', 2), ask('dat-stem-quartiles', 2), ask('dat-stem-read', 2)],
+        },
+        {
+          id: 'da-l3-box',
+          title: 'Box Plots',
+          slides: [
+            teach(
+              prose(
+                'A **box plot** draws five values on a scale: the smallest, the lower quartile $Q_1$, the median, the upper quartile $Q_3$, and the largest.',
+              ),
+              boxes([{ box: { min: 12, q1: 20, q2: 26, q3: 34, max: 46, outliers: [] } }], FINE, 'A box plot from 12 to 46, the box from 20 to 34 with the median at 26'),
+              prose(
+                'The box runs from $Q_1 = 20$ to $Q_3 = 34$, with a line at the median, $26$. The **whiskers** reach out to the smallest value, $12$, and the largest, $46$.',
+              ),
+            ),
+            ask('dat-box-five'),
+            ask('dat-box-read'),
+            ask('dat-box-slider'),
+            teach(
+              prose(
+                'Each of the four parts, whisker, half of the box, the other half and the other whisker, holds a quarter of the values. So half the values lie inside the box, and a quarter lie above $Q_3$.',
+              ),
+              prose(
+                'To read one, first work out what a small division is worth: from $10$ to $20$ in five divisions is $2$ each. In the plot above the IQR is the length of the box, $34 - 20 = 14$, and the range the whole length, $46 - 12 = 34$.',
+              ),
+              prose('A cross out beyond a whisker marks an outlier. That comes next.'),
+            ),
+            ask('dat-box-slider', 2),
+            ask('dat-box-five', 2),
+            teach(
+              prose(
+                'An outlier, more than $1.5 \\times \\text{IQR}$ beyond a quartile as in Outliers, is plotted on its own as a cross. The whisker then stops at the furthest value that is **not** an outlier.',
+              ),
+              boxes(
+                [{ box: { min: 14, q1: 20, q2: 24, q3: 28, max: 36, outliers: [48] } }],
+                FINE,
+                'A box plot from 14 to 36, the box from 20 to 28 with the median at 24, and a cross at 48',
+              ),
+              prose(
+                'Here the IQR is $8$, so the upper fence is $28 + 12 = 40$. The cross at $48$ is beyond it, and the whisker ends at $36$, the largest value inside. The cross is still one of the values, so the range is $48 - 14 = 34$.',
+              ),
+            ),
+            ask('dat-box-whisker'),
+            ask('dat-box-fence'),
+            ask('dat-box-read', 2),
+          ],
+          skillCheck: [ask('dat-box-five', 2), ask('dat-box-read', 2), ask('dat-box-whisker', 2)],
+        },
+        {
+          id: 'da-l3-compare',
+          title: 'Comparing Box Plots',
+          slides: [
+            teach(
+              prose(
+                'Two box plots on one scale compare two sets of data at a glance. As with a mean and a standard deviation, compare an **average**, here the medians, and a **spread**, here the interquartile ranges.',
+              ),
+              boxes(
+                [
+                  { name: 'Class A', box: { min: 40, q1: 55, q2: 65, q3: 70, max: 85, outliers: [] } },
+                  { name: 'Class B', box: { min: 35, q1: 45, q2: 55, q3: 70, max: 80, outliers: [] } },
+                ],
+                { lo: 30, hi: 90, tick: 5, every: 10 },
+                'Two box plots on one scale: Class A with its box from 55 to 70 and median 65, Class B with its box from 45 to 70 and median 55',
+              ),
+              prose(
+                'Class A has the higher median, $65$ against $55$. Class B has the larger IQR, $70 - 45 = 25$ against $70 - 55 = 15$, so its marks are more spread out.',
+              ),
+            ),
+            ask('dat-boxes-choice'),
+            ask('dat-boxes-tree'),
+            ask('dat-boxes-flow'),
+            teach(
+              prose(
+                'Use the IQR for spread, not the length of the whiskers. One extreme value can stretch a whisker a long way, while the box holds the middle half and hardly moves.',
+              ),
+              prose(
+                'And, as with means, higher is not always better. For lap times or journey times the lower median did better, and the smaller IQR is the more consistent.',
+              ),
+            ),
+            ask('dat-boxes-choice', 2),
+            ask('dat-boxes-flow', 2),
+            ask('dat-boxes-tree', 2),
+            teach(
+              prose('Each part of a box plot holds a quarter of the values, and that lets one plot be read against the other.'),
+              prose(
+                'Above, the median of Class B is $55$, which is exactly the lower quartile of Class A. A quarter of Class A lies below its lower quartile, so about $75\\%$ of Class A scored more than Class B\'s median. If Class A has $40$ pupils, that is about $30$ of them.',
+              ),
+            ),
+            ask('dat-boxes-percent'),
+            ask('dat-boxes-percent', 2),
+          ],
+          skillCheck: [ask('dat-boxes-choice', 2), ask('dat-boxes-flow', 2), ask('dat-boxes-percent', 2)],
+        },
+        {
+          id: 'da-l3-histogram',
+          title: 'Histograms',
+          slides: [
+            teach(
+              prose(
+                'When classes have different widths, their frequencies cannot be compared as they stand: a class twice as wide collects about twice as many values. So divide each by its width, to get its **frequency density**.',
+              ),
+              display('\\text{density} = \\frac{\\text{frequency}}{\\text{width}}'),
+              prose('These classes are $10$, $5$ and $20$ wide:'),
+              display(
+                '\\begin{array}{c|c|c} \\text{Class} & f & \\text{Density} \\\\ \\hline 0 \\le x < 10 & 30 & 3 \\\\ 10 \\le x < 15 & 40 & 8 \\\\ 15 \\le x < 35 & 60 & 3 \\end{array}',
+              ),
+              prose('The middle class has the most tightly packed values, even though the last class holds more of them.'),
+            ),
+            ask('dat-fd-table'),
+            ask('dat-fd-tiles'),
+            ask('dat-fd-slider'),
+            teach(
+              prose(
+                'A **histogram** draws each class as a bar as wide as the class and as tall as its frequency density, with no gaps between the bars. The same table:',
+              ),
+              bars({ bounds: [0, 10, 15, 35], heights: [3, 8, 3], yMax: 8, yStep: 1, yEvery: 2, label: 'A histogram of bars 3, 8 and 3 high over 0 to 10, 10 to 15 and 15 to 35' }),
+              prose(
+                'Height is density, so a bar\'s **area**, its density times its width, is its frequency: $8 \\times 5 = 40$ for the middle bar. How many values a bar holds is its area, not its height.',
+              ),
+            ),
+            ask('dat-fd-tiles', 2),
+            ask('dat-fd-area'),
+            ask('dat-fd-table', 2),
+            teach(
+              prose('Densities need not be whole. $36$ values in a class $15$ wide have a density of $36 \\div 15 = 2.4$.'),
+              prose(
+                'On a finer scale, count the lines. With a number at every $1$ and five lines to each, a line is worth $0.2$, so a bar reaching two lines past $2$ is $2.4$ high.',
+              ),
+            ),
+            ask('dat-fd-slider', 2),
+            ask('dat-fd-area', 2),
+          ],
+          skillCheck: [ask('dat-fd-table', 2), ask('dat-fd-slider', 2), ask('dat-fd-area', 2)],
+        },
+        {
+          id: 'da-l3-reading',
+          title: 'Reading a Histogram',
+          slides: [
+            teach(
+              prose('Every bar\'s area is its frequency, so the total number of values is the total area.'),
+              bars({ bounds: [10, 20, 40, 50], heights: [2, 3, 5], yMax: 6, yStep: 1, yEvery: 2, label: 'A histogram of bars 2, 3 and 5 high over 10 to 20, 20 to 40 and 40 to 50' }),
+              working('2 \\times 10 &= 20', '3 \\times 20 &= 60', '5 \\times 10 &= 50'),
+              prose(
+                'That is $130$ values. The tallest bar, $40 \\le x < 50$, does not hold the most of them: the wider, lower bar $20 \\le x < 40$ does.',
+              ),
+            ),
+            ask('dat-hist-total'),
+            ask('dat-hist-tallest'),
+            ask('dat-hist-part'),
+            teach(
+              prose(
+                'A range that cuts through a bar takes the share of the bar it covers, as though the values were spread evenly across the class.',
+              ),
+              prose(
+                'In the histogram above, how many values lie between $30$ and $45$? The part of $20 \\le x < 40$ from $30$ is $10$ wide at height $3$, and the part of $40 \\le x < 50$ up to $45$ is $5$ wide at height $5$:',
+              ),
+              working('3 \\times 10 &= 30', '5 \\times 5 &= 25', '30 + 25 &= 55'),
+              prose('About $55$. It is an estimate, since the values inside a class are rarely spread exactly evenly.'),
+            ),
+            ask('dat-hist-part', 2),
+            ask('dat-hist-total', 2),
+            ask('dat-hist-tallest', 2),
+            teach(
+              prose('Sometimes the vertical scale has no numbers. Frequency is still area, so count squares, and let one bar whose frequency is known set the scale.'),
+              prose('If a bar covering $6$ squares has a frequency of $18$, each square stands for $18 \\div 6 = 3$ values, and a bar covering $10$ squares holds $30$.'),
+            ),
+            ask('dat-hist-scale'),
+            ask('dat-hist-scale', 2),
+          ],
+          skillCheck: [ask('dat-hist-part', 2), ask('dat-hist-tallest', 2), ask('dat-hist-scale', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('dat-stem-leaves', 2),
+        ask('dat-stem-quartiles', 2),
+        ask('dat-stem-key', 2),
+        ask('dat-box-five', 2),
+        ask('dat-box-read', 2),
+        ask('dat-box-whisker', 2),
+        ask('dat-boxes-percent', 2),
+        ask('dat-boxes-flow', 2),
+        ask('dat-boxes-choice', 2),
+        ask('dat-fd-table', 2),
+        ask('dat-fd-slider', 2),
+        ask('dat-fd-area', 2),
+        ask('dat-hist-part', 2),
+        ask('dat-hist-tallest', 2),
+        ask('dat-hist-scale', 2),
+      ],
+    },
+    {
+      id: 'da-l4',
+      title: 'Cumulative Frequency',
+      lessons: [
+        {
+          id: 'da-l4-tables',
+          title: 'Cumulative Frequency Tables',
+          slides: [
+            teach(
+              prose(
+                'A **cumulative frequency** is a running total: how many values have been counted by the end of each class. Add each frequency to the total above it.',
+              ),
+              display(cfTableTex(EXAMPLE)),
+              prose('The last running total is every value counted, so it is always $n$: here $40$ journeys.'),
+            ),
+            ask('dat-cf-table'),
+            ask('dat-cf-back'),
+            ask('dat-cf-count'),
+            teach(
+              prose(
+                'Each class gives one point to plot. By the end of $10 \\le x < 20$, all $14$ journeys under $20$ minutes have been counted, and not before. So the point goes at the **upper class boundary**:',
+              ),
+              display('(20, 14)'),
+              prose('Not at the midpoint, $15$: halfway through the class only some of its journeys have been counted.'),
+            ),
+            ask('dat-cf-point'),
+            ask('dat-cf-table', 2),
+            ask('dat-cf-point', 2),
+            teach(
+              prose('A running total is a count of values below a boundary: $26$ journeys took less than $30$ minutes.'),
+              prose('So the rest took at least $30$ minutes: $40 - 26 = 14$. And a table of running totals gives back its frequencies by taking each total from the next: $26 - 14 = 12$.'),
+            ),
+            ask('dat-cf-back', 2),
+            ask('dat-cf-count', 2),
+          ],
+          skillCheck: [ask('dat-cf-table', 2), ask('dat-cf-point', 2), ask('dat-cf-count', 2)],
+        },
+        {
+          id: 'da-l4-curve',
+          title: 'The Cumulative Frequency Curve',
+          slides: [
+            teach(
+              prose(
+                'Plot each running total at its upper boundary, and join the points in order. Start at the **lowest boundary, at zero**: no journey took less than $0$ minutes.',
+              ),
+              cf(),
+              prose(
+                'Here the points are joined with straight lines. The curve only ever rises, since a running total can never go down, and it ends at $n = 40$.',
+              ),
+            ),
+            ask('dat-cf-check'),
+            ask('dat-cf-below-slider'),
+            ask('dat-cf-above'),
+            teach(
+              prose('To read how many values lie below $35$, go **up** from $35$ to the curve, then **across**:'),
+              cf({ down: [35], across: [31] }),
+              prose(
+                '$31$ journeys took less than $35$ minutes, so $40 - 31 = 9$ took more. Between two values, take one reading from the other: below $15$ there are $9$, so $31 - 9 = 22$ lie between $15$ and $35$.',
+              ),
+            ),
+            ask('dat-cf-between'),
+            ask('dat-cf-below-slider', 2),
+            ask('dat-cf-check', 2),
+            teach(
+              prose(
+                'Between two points the curve is a straight join, so a reading inside a class is a share of it. $35$ is halfway through $30 \\le x < 40$, which holds $10$ journeys on top of the $26$ below it:',
+              ),
+              display('26 + \\tfrac{1}{2} \\times 10 = 31'),
+              prose('Two tenths of the way through would add two tenths of the $10$, and so on.'),
+            ),
+            ask('dat-cf-above', 2),
+            ask('dat-cf-between', 2),
+          ],
+          skillCheck: [ask('dat-cf-below-slider', 2), ask('dat-cf-between', 2), ask('dat-cf-check', 2)],
+        },
+        {
+          id: 'da-l4-quartiles',
+          title: 'Median and Quartiles from the Curve',
+          slides: [
+            teach(
+              prose(
+                'The median is the value halfway up the data, so read it **across** from a cumulative frequency of $\\frac{n}{2}$ and then **down**. With $n = 40$, across from $20$:',
+              ),
+              cf({ across: [20], down: [25] }),
+              prose(
+                'The median is $25$ minutes. On a curve the position is $\\frac{n}{2}$, not $\\frac{n + 1}{2}$: the $4k + 3$ rule of Measures of Spread counts places along a list, and a curve has no places to count.',
+              ),
+            ),
+            ask('dat-cf-rule'),
+            ask('dat-cf-quartile-slider'),
+            ask('dat-cf-positions'),
+            teach(
+              prose('The quartiles are read the same way, a quarter and three quarters of the way up:'),
+              working('Q_1 &: \\tfrac{40}{4} = 10 \\to 16', 'Q_3 &: \\tfrac{3 \\times 40}{4} = 30 \\to 34'),
+              prose('Across from $10$ the curve comes down at $16$, and across from $30$ at $34$.'),
+              prose('The interquartile range is $34 - 16 = 18$ minutes: the spread of the middle half of the journeys.'),
+            ),
+            ask('dat-cf-iqr'),
+            ask('dat-cf-rule', 2),
+            ask('dat-cf-quartile-slider', 2),
+            teach(
+              prose(
+                'A reading will not always land on a grid line. Each class is two squares wide, so count how far between the lines the curve crosses, and use the table to check the arithmetic.',
+              ),
+              prose('The median and IQR go together, as in Measures of Spread: neither is moved much by a few extreme values.'),
+            ),
+            ask('dat-cf-positions', 2),
+            ask('dat-cf-iqr', 2),
+          ],
+          skillCheck: [ask('dat-cf-quartile-slider', 2), ask('dat-cf-positions', 2), ask('dat-cf-iqr', 2)],
+        },
+        {
+          id: 'da-l4-percentiles',
+          title: 'Percentiles',
+          slides: [
+            teach(
+              prose(
+                'The quartiles cut the data into quarters. **Percentiles** cut it into hundredths: the $p$th percentile $P_p$ is read across from a cumulative frequency of',
+              ),
+              display('\\frac{p}{100} \\times n'),
+              prose(
+                'For the journeys, $P_{20}$ is read at $\\frac{20}{100} \\times 40 = 8$, which is $14$ minutes. The median is $P_{50}$ and the quartiles are $P_{25}$ and $P_{75}$.',
+              ),
+            ),
+            ask('dat-pct-position'),
+            ask('dat-pct-slider'),
+            ask('dat-pct-position', 2),
+            teach(
+              prose(
+                'The **10th to 90th interpercentile range** is $P_{90} - P_{10}$: the spread of the middle $80\\%$ of the data. It leaves out the top and bottom tenths, so one extreme value cannot stretch it the way it stretches the range.',
+              ),
+              working('P_{10} &: \\tfrac{10}{100} \\times 40 = 4 \\to 10', 'P_{90} &: \\tfrac{90}{100} \\times 40 = 36 \\to 40'),
+              prose('So for the journeys $P_{90} - P_{10} = 40 - 10 = 30$ minutes.'),
+            ),
+            ask('dat-pct-range'),
+            ask('dat-pct-slider', 2),
+            ask('dat-pct-range', 2),
+            teach(
+              prose(
+                'Reading the other way round says where a value stands. $31$ of the $40$ journeys took less than $35$ minutes:',
+              ),
+              display('\\frac{31}{40} \\times 100 = 77.5\\%'),
+              prose('So a $35$ minute journey is at about the $78$th percentile: slower than most.'),
+            ),
+            ask('dat-pct-rank'),
+            ask('dat-pct-rank', 2),
+          ],
+          skillCheck: [ask('dat-pct-slider', 2), ask('dat-pct-range', 2), ask('dat-pct-rank', 2)],
+        },
+        {
+          id: 'da-l4-interpolation',
+          title: 'Interpolating Inside a Class',
+          slides: [
+            teach(
+              prose(
+                'A reading off the straight-line curve can be done by arithmetic instead, with no drawing. First find the class by the running totals. For the median of the journeys, at position $20$: the totals run $4, 14, 26$, so $14$ come before $20 \\le x < 30$ and $26$ by its end.',
+              ),
+              prose('Then go the right share of the way through it: $20 - 14 = 6$ of its $12$ journeys, across a width of $10$.'),
+              display('20 + \\frac{20 - 14}{12} \\times 10 = 25'),
+            ),
+            ask('dat-interp-class'),
+            ask('dat-interp-tiles'),
+            ask('dat-interp-steps'),
+            teach(
+              prose('In general, with $L$ the class\'s lower boundary, $F$ the running total before it, $f$ its frequency and $w$ its width:'),
+              display('L + \\frac{\\text{position} - F}{f} \\times w'),
+              prose('The same works for any quartile or percentile once its position is known. Take care where classes differ in width: $w$ is the width of this class, not the one above.'),
+            ),
+            ask('dat-interp-value'),
+            ask('dat-interp-class', 2),
+            ask('dat-interp-tiles', 2),
+            teach(
+              prose(
+                'It is an estimate. The table hides where in each class the values really are, so this assumes they are spread evenly through it, which is exactly what joining the points with straight lines assumes too.',
+              ),
+            ),
+            ask('dat-interp-steps', 2),
+            ask('dat-interp-value', 2),
+          ],
+          skillCheck: [ask('dat-interp-class', 2), ask('dat-interp-tiles', 2), ask('dat-interp-value', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('dat-cf-table', 2),
+        ask('dat-cf-point', 2),
+        ask('dat-cf-count', 2),
+        ask('dat-cf-below-slider', 2),
+        ask('dat-cf-between', 2),
+        ask('dat-cf-check', 2),
+        ask('dat-cf-quartile-slider', 2),
+        ask('dat-cf-iqr', 2),
+        ask('dat-cf-rule', 2),
+        ask('dat-pct-position', 2),
+        ask('dat-pct-slider', 2),
+        ask('dat-pct-range', 2),
+        ask('dat-interp-class', 2),
+        ask('dat-interp-tiles', 2),
+        ask('dat-interp-value', 2),
       ],
     },
   ],

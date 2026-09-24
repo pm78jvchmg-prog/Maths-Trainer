@@ -62,6 +62,7 @@ import { canonicalForces, type Direction, type ForceArrow, type ForceScene } fro
 import { markerWindow, plotSvg, vectorSvg } from '../figures';
 import { fmt } from './numericalMethods';
 import { mix, stepBank, steered, turned } from './parametricImplicit';
+import { WORKING_KEYS } from './workingKeys';
 
 /* ================================================================
  * Shared helpers
@@ -287,7 +288,7 @@ function choiceSlide(prompt: Block[], opts: ChoiceOption[], tex = true): Slide {
 
 /** A typed number: the base keypad already holds the digits, minus and the point. */
 function typed(prompt: Block[], lead: string, value: number): Slide {
-  return { kind: 'expression', prompt, lead, keypad: [], answer: fmt(value), domain: 'real', mode: 'exact' };
+  return { kind: 'expression', prompt, lead, keypad: WORKING_KEYS, answer: fmt(value), domain: 'real', mode: 'exact' };
 }
 
 /* ================================================================

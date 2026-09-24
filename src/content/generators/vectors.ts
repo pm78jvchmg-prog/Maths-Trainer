@@ -20,6 +20,7 @@ import {
   signedOffer,
   VECTOR_TEMPLATE,
 } from './vectorFormat';
+import { WORKING_KEYS } from './workingKeys';
 
 /** Magnitudes are surds. */
 const SURD_KEYS: KeypadKey[] = [...ALGEBRA_KEYS, { insert: 'sqrt(' }];
@@ -6673,7 +6674,7 @@ const mechWhen: Generator<WhenParams> = {
         { kind: 'display', tex: motionTex(whenStart(params), v) },
       ],
       lead: '\\text{time } t =',
-      keypad: [],
+      keypad: WORKING_KEYS,
       answer: `${params.t}`,
       domain: 'real',
       mode: 'exact',
@@ -6882,7 +6883,7 @@ const mechSpeed: Generator<SpeedParams> = {
           },
         ],
     lead: '\\text{speed} =',
-    keypad: [],
+    keypad: WORKING_KEYS,
     answer: `${c}`,
     domain: 'real',
     mode: 'exact',
@@ -7197,7 +7198,7 @@ const mechParallelTime: Generator<ParallelTimeParams> = {
       },
     ],
     lead: '\\text{time } t =',
-    keypad: [],
+    keypad: WORKING_KEYS,
     answer: `${t}`,
     domain: 'real',
     mode: 'exact',
@@ -7597,7 +7598,7 @@ const mechForceK: Generator<ForceKParams> = {
       })),
     ],
     lead: '\\text{the unknown } k =',
-    keypad: [],
+    keypad: WORKING_KEYS,
     answer: `${forces[1][pos]}`,
     domain: 'real',
     mode: 'exact',
@@ -7834,7 +7835,7 @@ const mechMeetTime: Generator<MeetParamsMotion> = {
       ...twoDisplays(collisionLines(params)),
     ],
     lead: '\\text{they collide at } t =',
-    keypad: [],
+    keypad: WORKING_KEYS,
     answer: `${params.time}`,
     domain: 'real',
     mode: 'exact',

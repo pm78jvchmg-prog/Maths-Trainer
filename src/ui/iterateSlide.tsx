@@ -16,6 +16,7 @@ import { Tex, Blocks } from './Math';
 import type { Slide } from '../content/types';
 import { frameClass, isLocked, type SlideProps } from './slides';
 import { swapSlots, useSlotDrag } from './slotDrag';
+import { Calculator } from './Calculator';
 
 type IterateSlideData = Extract<Slide, { kind: 'iterate' }>;
 
@@ -101,6 +102,8 @@ function IterateBody({
       <div className="prompt">
         <Blocks blocks={slide.prompt} />
       </div>
+
+      <Calculator start={Number(slide.start)} />
 
       <div className={`${frameClass(feedback)} iterate`} data-slot-group="">
         <table className="iterate-table">

@@ -2681,3 +2681,81 @@ button {
     height: 54px;
   }
 }
+
+/* ---------- Calculator ---------- */
+
+/* Folded away under a quiet button above the table, so a question that does
+   not need it looks as it did. Open, it is a compact five-column pad. */
+.calculator {
+  margin: -6px 0 14px;
+}
+
+.calculator-toggle {
+  margin: 0;
+  padding: 8px 14px;
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.calculator-panel {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--lift);
+}
+
+.calculator-display {
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.calculator-line {
+  min-height: 22px;
+  color: var(--text-soft);
+  font-size: 16px;
+}
+
+.calculator-result {
+  min-height: 28px;
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.calculator-keys {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.calculator-key {
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.calculator-key:active {
+  transform: scale(0.97);
+}
+
+.calculator-key.equals {
+  grid-column: 1 / -1;
+  border-color: var(--accent-strong);
+  background: var(--accent-strong);
+  color: #fff;
+}

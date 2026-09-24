@@ -12,26 +12,18 @@
  * Then roots to coefficients: the sums and products of the roots, a cubic
  * built from them, a missing root, and symmetric functions of the roots.
  * Then quartics: dividing by a quadratic, two factors at once, repeated
- * factors, quartics in x², and solving a quartic by dividing twice.
+ * factors, quartics in x², and solving a quartic by dividing twice. Then
+ * inequalities: the sign diagram, cubic sets on a number line, the hole or
+ * lone point a squared factor leaves, rearranging and factorising first, and
+ * reading a set back off a sketch or a shaded line.
  *
  * Each level closes with a level check: fifteen questions, no teaching
  * slides, one attempt each.
  */
-import type { Course, SlideRef } from '../types';
+import type { Block, Course, SlideRef } from '../types';
+import { plotSvg } from '../figures';
 
-const teach = (
-  ...blocks: { kind: 'prose' | 'display'; text?: string; tex?: string }[]
-): SlideRef => ({
-  type: 'literal',
-  slide: {
-    kind: 'teach',
-    body: blocks.map((b) =>
-      b.kind === 'prose'
-        ? ({ kind: 'prose', text: b.text ?? '' } as const)
-        : ({ kind: 'display', tex: b.tex ?? '' } as const),
-    ),
-  },
-});
+const teach = (...body: Block[]): SlideRef => ({ type: 'literal', slide: { kind: 'teach', body } });
 
 const ask = (generatorId: string, difficulty = 1): SlideRef => ({
   type: 'generated',
@@ -48,6 +40,26 @@ const maths = (tex: string) => ({ kind: 'display' as const, tex });
  */
 const working = (...lines: string[]) =>
   maths(`\\begin{aligned} ${lines.join(' \\\\ ')} \\end{aligned}`);
+
+/**
+ * A sketch of y = f(x) on squared paper with the roots ringed, for a teach
+ * slide. `f` is already scaled to fit three squares up and down; the grid
+ * clips the arms at its edge.
+ */
+const graph = (f: (x: number) => number, roots: number[], label: string): Block => ({
+  kind: 'diagram',
+  svg: plotSvg({
+    xMin: -5,
+    xMax: 5,
+    yMin: -3,
+    yMax: 3,
+    height: 178,
+    grid: true,
+    curves: [{ f: (x) => Math.max(-9, Math.min(9, f(x))) }],
+    marks: roots.map((x) => ({ x, y: 0 })),
+    label,
+  }),
+});
 
 export const polynomials: Course = {
   id: 'polynomials',
@@ -1056,6 +1068,183 @@ export const polynomials: Course = {
         ask('poly-quartic-flow', 2),
         ask('poly-quartic-tiles', 2),
         ask('poly-quartic-root', 2),
+      ],
+    },
+    {
+      id: 'pl-l6',
+      title: 'Polynomial Inequalities',
+      lessons: [
+        {
+          id: 'pl-l6-diagram',
+          title: 'The Sign Diagram',
+          slides: [
+            teach(
+              prose('$(x + 2)(x - 1)(x - 3) > 0$ asks where a product is positive. A product can only change sign where one of its factors is zero, so the places to look are $x = -2$, $1$ and $3$: the critical values.'),
+              prose('They cut the number line into four stretches. Inside a stretch no factor is zero, so every factor keeps its sign, and one test value tells you the sign all along it. At $x = 0$:'),
+              working('p(0) &= (2)(-1)(-3)', '&= 6'),
+              prose('Positive, so $p(x) > 0$ on the whole of $-2 < x < 1$.'),
+            ),
+            ask('poly-critical-tiles'),
+            ask('poly-stretch-sign-flow'),
+            ask('poly-sign-table'),
+            teach(
+              prose('A sign diagram records every stretch at once. For large $x$ every bracket is positive, so the far right has the sign of the leading coefficient, here $+$. Moving left, the sign changes at each critical value:'),
+              maths('{-}\\quad{+}\\quad{-}\\quad{+}'),
+              graph((x) => ((x + 2) * (x - 1) * (x - 3)) / 4, [-2, 1, 3], 'The cubic y = (x + 2)(x - 1)(x - 3), below the axis left of -2, above it from -2 to 1, below from 1 to 3 and above after 3'),
+              prose('The sketch agrees: below, above, below, above.'),
+            ),
+            ask('poly-sign-pattern'),
+            ask('poly-critical-tiles', 2),
+            ask('poly-stretch-sign-flow', 2),
+            teach(
+              prose('A number in front, or a bracket written the other way round, can make the leading coefficient negative. $3 - x$ is $-(x - 3)$, so'),
+              maths('(x + 2)(x - 1)(3 - x) = -(x + 2)(x - 1)(x - 3)'),
+              prose('and every sign in its diagram is turned round: $+\\;-\\;+\\;-$. A positive number in front, such as $2$, changes no sign at all.'),
+            ),
+            ask('poly-sign-table', 2),
+            ask('poly-sign-pattern', 2),
+          ],
+          skillCheck: [ask('poly-critical-tiles', 2), ask('poly-sign-table', 2), ask('poly-sign-pattern', 2)],
+        },
+        {
+          id: 'pl-l6-cubic',
+          title: 'Solving a Cubic Inequality',
+          slides: [
+            teach(
+              prose('With the sign diagram done, the inequality picks the stretches. $(x + 2)(x - 1)(x - 3) > 0$ asks for positive, and the signs are $-\\;+\\;-\\;+$, so'),
+              maths('-2 < x < 1 \\quad\\text{or}\\quad x > 3'),
+              prose('On a number line, shade those two stretches. At the critical values $p(x) = 0$, which is not greater than $0$, so the dots there are hollow.'),
+            ),
+            ask('poly-cubic-line'),
+            ask('poly-cubic-set-tiles'),
+            ask('poly-ineq-flow'),
+            teach(
+              prose('Strict or not decides only the ends. $<$ and $>$ leave the critical values out: hollow dots. $\\le$ and $\\ge$ let $p(x) = 0$ in: filled dots.'),
+              maths('(x + 2)(x - 1)(x - 3) \\le 0'),
+              prose('has the negative stretches and the critical values themselves:'),
+              maths('x \\le -2 \\quad\\text{or}\\quad 1 \\le x \\le 3'),
+              prose('The largest whole number in that set is $3$; with $< 0$ instead it would be $2$. The set runs off to the left, so it has no smallest.'),
+            ),
+            ask('poly-ineq-integer'),
+            ask('poly-cubic-line', 2),
+            ask('poly-cubic-set-tiles', 2),
+            teach(
+              prose('A cubic with a negative leading coefficient is negative on the far right, so its signs start from the other end. For $-(x + 1)(x - 2)(x - 4) \\ge 0$ the signs are $+\\;-\\;+\\;-$, and'),
+              maths('x \\le -1 \\quad\\text{or}\\quad 2 \\le x \\le 4'),
+              prose('Its set runs off to the left instead, so it has a largest whole number, $4$, and no smallest.'),
+            ),
+            ask('poly-ineq-flow', 2),
+            ask('poly-ineq-integer+choice', 2),
+          ],
+          skillCheck: [ask('poly-cubic-line', 2), ask('poly-cubic-set-tiles', 2), ask('poly-ineq-integer', 2)],
+        },
+        {
+          id: 'pl-l6-repeated',
+          title: 'Touching Roots',
+          slides: [
+            teach(
+              prose('A squared factor such as $(x - 1)^{2}$ is never negative: it is $0$ at $x = 1$ and positive either side. So it never changes the sign of a product, and the curve touches the axis there instead of crossing.'),
+              graph((x) => ((x - 1) ** 2 * (x + 2)) / 2, [-2, 1], 'The cubic y = (x - 1) squared times (x + 2), crossing at -2 and touching the axis at 1'),
+              prose('$(x - 1)^{2}(x + 2)$ is negative left of $-2$ and positive on both sides of $1$. Only a factor to an odd power makes a sign change.'),
+            ),
+            ask('poly-sign-changes'),
+            ask('poly-hole-flow'),
+            ask('poly-touch-line'),
+            teach(
+              prose('A touching root leaves a hole or a lone point in a set. $(x - 1)^{2}(x + 2) > 0$ is positive for all $x > -2$ except at $x = 1$, where it is $0$:'),
+              maths('x > -2 \\quad\\text{and}\\quad x \\ne 1'),
+              prose('That is shading from $-2$ onwards with a hollow dot at $1$. With $\\ge 0$ the point is back in, and the set is simply $x \\ge -2$.'),
+            ),
+            ask('poly-touch-tiles'),
+            ask('poly-sign-changes+choice', 2),
+            ask('poly-hole-flow', 2),
+            teach(
+              prose('The other way round, $(x - 1)^{2}(x + 2) \\le 0$ wants negative or zero. Left of $-2$ it is negative, and at $x = 1$ it is zero, though positive either side:'),
+              maths('x \\le -2 \\quad\\text{or}\\quad x = 1'),
+              prose('A lone filled dot at $1$. With $< 0$ that point drops out, and only $x < -2$ is left.'),
+            ),
+            ask('poly-touch-line', 2),
+            ask('poly-touch-tiles', 2),
+          ],
+          skillCheck: [ask('poly-touch-line', 2), ask('poly-hole-flow', 2), ask('poly-touch-tiles', 2)],
+        },
+        {
+          id: 'pl-l6-rearrange',
+          title: 'Rearranging First',
+          slides: [
+            teach(
+              prose('A sign diagram needs $0$ on one side. Subtracting from both sides never turns an inequality round:'),
+              working('x^{3} + 2x^{2} &> 5x + 6', 'x^{3} + 2x^{2} - 5x - 6 &> 0'),
+              prose('Then factorise as level 2 did. Call the cubic $f(x)$: $f(2) = 8 + 8 - 10 - 6 = 0$, so $(x - 2)$ is a factor, and dividing leaves $x^{2} + 4x + 3 = (x + 1)(x + 3)$.'),
+            ),
+            ask('poly-one-side-steps'),
+            ask('poly-rearrange-flow'),
+            ask('poly-rearrange-line'),
+            teach(
+              prose('Now it is a factorised cubic against $0$:'),
+              maths('(x + 3)(x + 1)(x - 2) > 0'),
+              prose('with critical values $-3$, $-1$ and $2$, and the set $-3 < x < -1$ or $x > 2$. Never divide both sides by a bracket to simplify: its sign changes with $x$, so you cannot tell whether to turn the inequality round.'),
+            ),
+            ask('poly-flip-choice'),
+            ask('poly-one-side-steps', 2),
+            ask('poly-rearrange-line', 2),
+            teach(
+              prose('If the cubic leads with $-x^{3}$, take the minus out and multiply by $-1$, which turns the inequality round:'),
+              working('-(x + 1)(x - 2)(x - 4) &\\ge 0', '(x + 1)(x - 2)(x - 4) &\\le 0'),
+              prose('A bracket written $3 - x$ is $-(x - 3)$ and counts the same way. Two minuses make a plus, so with an even number of them nothing turns round.'),
+            ),
+            ask('poly-flip-choice', 2),
+            ask('poly-rearrange-flow', 2),
+          ],
+          skillCheck: [ask('poly-one-side-steps', 2), ask('poly-rearrange-line', 2), ask('poly-flip-choice', 2)],
+        },
+        {
+          id: 'pl-l6-reading',
+          title: 'Reading and Counting',
+          slides: [
+            teach(
+              prose('A sketch answers an inequality at a glance: $p(x) > 0$ is where the curve is above the $x$-axis, and $p(x) < 0$ where it is below.'),
+              graph((x) => ((x + 3) * (x + 1) * (x - 1) * (x - 3)) / 6, [-3, -1, 1, 3], 'The quartic y = (x + 3)(x + 1)(x - 1)(x - 3), below the axis between -3 and -1 and between 1 and 3'),
+              prose('This quartic is below the axis for $-3 < x < -1$ and for $1 < x < 3$, so that is where $p(x) < 0$. A shaded line reads back the same way: the dots are the roots, and which stretches are shaded gives the sign.'),
+            ),
+            ask('poly-read-graph'),
+            ask('poly-read-line-tiles'),
+            ask('poly-quartic-line'),
+            teach(
+              prose('A quartic has up to four critical values and five stretches. With a positive leading coefficient it is positive at both ends, so $p(x) < 0$ or $p(x) \\le 0$ stops at both ends, and its whole numbers can be counted:'),
+              maths('(x + 3)(x + 1)(x - 1)(x - 3) \\le 0'),
+              prose('is solved by'),
+              maths('-3 \\le x \\le -1 \\quad\\text{or}\\quad 1 \\le x \\le 3'),
+              prose('That holds $-3, -2, -1, 1, 2$ and $3$: six whole numbers. With $< 0$ the ends go, leaving only $-2$ and $2$.'),
+            ),
+            ask('poly-integer-count'),
+            ask('poly-read-graph', 2),
+            ask('poly-quartic-line', 2),
+            teach(
+              prose('Reading a shaded line back needs the leading coefficient. If it is negative, the far right is negative, so shading on the far right means the inequality asks for $< 0$ or $\\le 0$. Filled dots mean $\\le$ or $\\ge$; hollow ones mean $<$ or $>$.'),
+            ),
+            ask('poly-read-line-tiles', 2),
+            ask('poly-integer-count+choice', 2),
+          ],
+          skillCheck: [ask('poly-read-graph', 2), ask('poly-integer-count', 2), ask('poly-read-line-tiles', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('poly-critical-tiles', 2),
+        ask('poly-sign-table', 2),
+        ask('poly-sign-pattern', 2),
+        ask('poly-cubic-line', 2),
+        ask('poly-cubic-set-tiles', 2),
+        ask('poly-ineq-integer', 2),
+        ask('poly-touch-line', 2),
+        ask('poly-hole-flow', 2),
+        ask('poly-touch-tiles', 2),
+        ask('poly-one-side-steps', 2),
+        ask('poly-rearrange-line', 2),
+        ask('poly-flip-choice', 2),
+        ask('poly-read-graph', 2),
+        ask('poly-integer-count', 2),
+        ask('poly-quartic-line', 2),
       ],
     },
   ],

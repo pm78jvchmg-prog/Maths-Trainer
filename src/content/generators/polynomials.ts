@@ -7,7 +7,9 @@
  * remainder is p(a), and (x - a) is a factor exactly when p(a) = 0 — and what
  * they are for: finding a factor by trial, factorising a cubic fully and
  * solving it. Level 3 reads a graph off the factors, and level 4 goes from
- * roots back to coefficients through the sums of the roots.
+ * roots back to coefficients through the sums of the roots. Level 5 divides
+ * quartics, by a quadratic or twice over, and level 6 solves cubic and quartic
+ * inequalities from their sign diagrams.
  *
  * Everything starts at degree 3, since two brackets and the quadratic formula
  * belong to Quadratics, and top-heavy division and partial fractions belong to
@@ -32,7 +34,10 @@ import { hashSeed } from '../../engine/rng';
 import { bankFor, bin, num, pow, valueOf, type Expr } from '../expr';
 import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
+import { canonicalPieces, formatSet, type Piece } from '../numberLine';
 import { sumTex, termTex } from './calculus';
+import { numberLineSvg } from './inequalitiesModulus';
+import { windowFor } from './numberLine';
 
 /* ---------- polynomial arithmetic ---------- */
 
@@ -7210,6 +7215,1324 @@ const polyQuarticRoot: Generator<QuarticRootParams> = {
   },
 };
 
+/* ================================================================
+ * Level 6: polynomial inequalities
+ *
+ * A cubic or a quartic against zero, solved from its sign diagram: the
+ * critical values come from the factors, each factor's sign on each stretch
+ * between them from a test value, and the product's sign is what the
+ * inequality asks about. Then repeated factors, which touch rather than cross
+ * and so leave a hole or a lone point in a set; an inequality that has to be
+ * brought to one side and factorised first; and a set read back off a sketch
+ * or a shaded line, or counted in whole numbers.
+ *
+ * Every polynomial is built outward from small whole roots in -4 to 4, so every
+ * critical value is whole and sits on a tick of a ten-step number line drawn
+ * after it. A set is shaded on a `numberLine`, placed as tiles, or chosen; it
+ * is never typed, since the checker compares values. Nothing here is calculus,
+ * so no slide declares `source`, `integrand` or `limits`.
+ * ================================================================ */
+
+type Op = '<' | '<=' | '>' | '>=';
+
+const INEQ_OPS: Op[] = ['<', '<=', '>', '>='];
+const OP_TEX: Record<Op, string> = { '<': '<', '<=': '\\le', '>': '>', '>=': '\\ge' };
+/** The other direction, same strictness: what multiplying by -1 does. */
+const FLIP_OP: Record<Op, Op> = { '<': '>', '<=': '>=', '>': '<', '>=': '<=' };
+/** Same direction, the other strictness. */
+const TOGGLE_OP: Record<Op, Op> = { '<': '<=', '<=': '<', '>': '>=', '>=': '>' };
+
+const isStrict = (op: Op): boolean => op === '<' || op === '>';
+const wantsPositive = (op: Op): boolean => op === '>' || op === '>=';
+
+/** Whether a value of p satisfies p op 0. */
+function satisfies(value: number, op: Op): boolean {
+  if (op === '<') return value < 0;
+  if (op === '<=') return value <= 0;
+  if (op === '>') return value > 0;
+  return value >= 0;
+}
+
+/** The stretches' ends: minus infinity, the critical values, infinity. */
+const stretchEnds = (roots: number[]): number[] => [-Infinity, ...roots, Infinity];
+
+/** A value strictly inside stretch i, for testing its sign. */
+function insideStretch(roots: number[], i: number): number {
+  if (i === 0) return roots[0] - 1;
+  if (i === roots.length) return roots[roots.length - 1] + 1;
+  return (roots[i - 1] + roots[i]) / 2;
+}
+
+/** The sign of p on each stretch, left to right: one more sign than roots. */
+function stretchSigns(p: Poly, roots: number[]): number[] {
+  return stretchEnds(roots)
+    .slice(1)
+    .map((_, i) => Math.sign(valueAt(p, insideStretch(roots, i))));
+}
+
+/**
+ * The solution set of p op 0, canonical: the stretches whose sign the
+ * inequality asks for, and every critical value too when it allows p = 0.
+ * A critical value on neither side of which the sign is right is a lone point.
+ */
+function solutionPieces(p: Poly, roots: number[], op: Op): Piece[] {
+  const ends = stretchEnds(roots);
+  const closed = !isStrict(op);
+  const pieces: Piece[] = [];
+  stretchSigns(p, roots).forEach((sign, i) => {
+    if (!satisfies(sign, op) || sign === 0) return;
+    pieces.push({
+      lo: ends[i],
+      hi: ends[i + 1],
+      loClosed: closed && Number.isFinite(ends[i]),
+      hiClosed: closed && Number.isFinite(ends[i + 1]),
+    });
+  });
+  if (closed) for (const r of roots) pieces.push({ lo: r, hi: r, loClosed: true, hiClosed: true });
+  return canonicalPieces(pieces);
+}
+
+const setAnswer = (pieces: Piece[]): string => formatSet(canonicalPieces(pieces));
+
+/** One piece as an inequality: x < 2, 1 \le x \le 3, x = 2. */
+function pieceTex(piece: Piece): string {
+  const lower = piece.loClosed ? '\\le' : '<';
+  const upper = piece.hiClosed ? '\\le' : '<';
+  if (piece.lo === piece.hi) return `x = ${piece.lo}`;
+  if (piece.lo === -Infinity) return `x ${upper} ${piece.hi}`;
+  if (piece.hi === Infinity) return `x ${piece.loClosed ? '\\ge' : '>'} ${piece.lo}`;
+  return `${piece.lo} ${lower} x ${upper} ${piece.hi}`;
+}
+
+/** A whole set as inequalities joined by "or". */
+const setTex = (pieces: Piece[]): string => canonicalPieces(pieces).map(pieceTex).join(' \\text{ or } ');
+
+/** The open stretch i, as the learner reads it: x < -2, -2 < x < 1, x > 3. */
+function stretchTex(roots: number[], i: number): string {
+  const ends = stretchEnds(roots);
+  return pieceTex({ lo: ends[i], hi: ends[i + 1], loClosed: false, hiClosed: false });
+}
+
+/** A sign as a table cell or a tile. */
+const signToken = (sign: number): string => (sign > 0 ? '+' : '-');
+/** A sign in a row of them, braced so KaTeX never reads it as an operator. */
+const signCell = (sign: number): string => (sign > 0 ? '{+}' : '{-}');
+const signWord = (sign: number): string => (sign > 0 ? 'positive' : 'negative');
+const POSITIVE = 'Positive';
+const NEGATIVE = 'Negative';
+const signLabel = (sign: number): string => (sign > 0 ? POSITIVE : NEGATIVE);
+
+/** A factor's value at x, its power included. */
+const factorAt = (f: Factor, x: number): number => (factorLead(f) * (x - f.root)) ** f.power;
+
+/** The inequality as the learner reads it, factorised against zero. */
+const ineqTex = (form: Form, op: Op): string => `${formTex(form)} ${OP_TEX[op]} 0`;
+
+/** A number line window ten steps wide, a tick to spare beyond the outer critical values. */
+function lineWindow(rng: Rng, roots: number[]): { min: number; max: number } {
+  return windowFor(rng, Math.min(...roots), Math.max(...roots), 10, 1);
+}
+
+/**
+ * Distinct whole roots in -4 to 4 with these powers, as plain factors. Roots
+ * a single unit apart are allowed: the sign diagram does not care how close
+ * they are, and a stretch with no whole number inside is a thing to notice.
+ */
+function ineqForm(rng: Rng, powers: number[], lead = 1): Form {
+  return rootsForm(sampleRoots(rng, powers.length, 4), powers, lead);
+}
+
+/** Difficulty 2's cubic: a lead, and some factors written r - x or kx - kr. */
+function hardCubic(rng: Rng): Form {
+  const form = ineqForm(rng, [1, 1, 1], rng.pick([1, -1, 2, -2]));
+  return { ...form, factors: dressed(rng, form.factors) };
+}
+
+/** A power pattern with one squared factor, in a random place. */
+function withSquare(rng: Rng, count: number): number[] {
+  const at = rng.int(0, count - 1);
+  return Array.from({ length: count }, (_, i) => (i === at ? 2 : 1));
+}
+
+/** The one squared root of a form. */
+const squaredRoot = (form: Form): number => form.factors.find((f) => f.power === 2)!.root;
+
+/** The usual working: critical values, the signs, which stretches and ends. */
+function ineqSolution(form: Form, op: Op): SolutionStep[] {
+  const p = formPoly(form);
+  const roots = formRoots(form);
+  const signs = stretchSigns(p, roots);
+  const repeated = form.factors.some((f) => f.power % 2 === 0);
+  return [
+    { text: `The critical values are where a factor is zero: $x = ${roots.join(',\\ ')}$.` },
+    {
+      text: `On the far right $p(x)$ has the sign of its leading coefficient, $${formLead(form)}$. Moving left it changes sign at each single factor${
+        repeated ? ' and keeps it at a squared one' : ''
+      }, so left to right the signs are $${signs.map(signCell).join('\\;')}$.`,
+    },
+    {
+      text: `$${OP_TEX[op]} 0$ asks for the ${wantsPositive(op) ? 'positive' : 'negative'} stretches, with the critical values ${
+        isStrict(op) ? 'left out, since there $p(x) = 0$' : 'included, since $p(x) = 0$ is allowed'
+      }.`,
+    },
+    { tex: setTex(solutionPieces(p, roots, op)) },
+  ];
+}
+
+interface IneqParams {
+  form: Form;
+  op: Op;
+}
+
+interface IneqLineParams extends IneqParams {
+  min: number;
+  max: number;
+}
+
+/* ================================================================
+ * Level 6, lesson 1: the sign diagram
+ * ================================================================ */
+
+/**
+ * The critical values of a factorised inequality, smallest first. Difficulty
+ * 2 writes factors as r - x or kx - kr, puts a number in front, or squares
+ * one factor of a quartic, none of which adds a critical value.
+ */
+const polyCriticalTiles: Generator<IneqParams> = {
+  id: 'poly-critical-tiles',
+  sample: (rng, difficulty) => {
+    const op = rng.pick(INEQ_OPS);
+    if (difficulty > 1) {
+      if (rng.chance(0.5)) return { form: hardCubic(rng), op };
+      return { form: ineqForm(rng, withSquare(rng, 3), rng.pick([1, -1, 2])), op };
+    }
+    return { form: ineqForm(rng, [1, 1, 1]), op };
+  },
+  render: ({ form, op }): Slide => {
+    const roots = formRoots(form);
+    const slips = [
+      ...form.factors.map((f) => -f.root),
+      ...form.factors.filter((f) => f.form === 'scaled').flatMap((f) => [-f.k! * f.root, f.k! * f.root]),
+      ...(Math.abs(form.lead) > 1 ? [form.lead] : []),
+    ];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(`Solving $${ineqTex(form, op)}$ starts from the critical values, where a factor is zero. Place them, smallest first.`),
+      ],
+      template: 'x = {0},\\ {1},\\ {2}',
+      bank: numberBank(roots, slips),
+      answer: roots.map(String),
+    };
+  },
+  solution: ({ form }) => [
+    { text: 'A product is zero only when one of its factors is, so set each bracket to zero:' },
+    {
+      tex: chain(
+        ...form.factors.map((f) => `${factorTex(f, false).slice(1, -1)} = 0 &\\implies x = ${f.root}`),
+      ),
+    },
+    {
+      text: `${Math.abs(form.lead) > 1 || form.lead < 0 ? `The $${form.lead}$ in front is never zero, so it adds no critical value. ` : ''}${
+        form.factors.some((f) => f.power > 1) ? 'A squared bracket is zero at one value, so it gives one critical value, not two. ' : ''
+      }Smallest first: $${formRoots(form).join(',\\ ')}$.`,
+    },
+  ],
+};
+
+interface SignTableParams {
+  form: Form;
+  /** The factor whose column is left blank. */
+  blank: number;
+}
+
+/**
+ * A sign diagram as a table, one row per stretch: one factor's column and
+ * the product's are blank. Difficulty 2 writes the blank factor as r - x,
+ * whose sign runs the other way.
+ */
+const polySignTable: Generator<SignTableParams> = {
+  id: 'poly-sign-table',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const form = ineqForm(rng, [1, 1, 1]);
+      const blank = rng.int(0, 2);
+      if (difficulty > 1) {
+        if (form.factors[blank].root <= 0) continue;
+        form.factors[blank] = { ...form.factors[blank], form: 'reversed' };
+      }
+      return { form, blank };
+    }
+  },
+  render: ({ form, blank }): Slide => {
+    const roots = formRoots(form);
+    const answer: string[] = [];
+    const rows = stretchEnds(roots)
+      .slice(1)
+      .map((_, i) => {
+        const t = insideStretch(roots, i);
+        const signs = form.factors.map((f) => Math.sign(factorAt(f, t)));
+        answer.push(signToken(signs[blank]), signToken(signs.reduce((a, b) => a * b, form.lead)));
+        return [stretchTex(roots, i), ...signs.map((s, j) => (j === blank ? null : signToken(s))), null];
+      });
+    return {
+      kind: 'table',
+      prompt: [
+        say(
+          `Complete the sign diagram of $p(x) = ${formTex(form)}$. Each row is a stretch between critical values: fill in the sign of the factor that is missing, then the sign of $p(x)$, their product.`,
+        ),
+      ],
+      columns: ['x', ...form.factors.map((f) => factorTex(f).slice(1, -1)), 'p(x)'],
+      rows,
+      bank: [...answer, '+', '-'].sort(),
+      answer,
+    };
+  },
+  solution: ({ form, blank }) => {
+    const roots = formRoots(form);
+    const f = form.factors[blank];
+    return [
+      { text: 'Take one value inside each stretch and put it into every factor: only the signs matter.' },
+      ...stretchEnds(roots)
+        .slice(1)
+        .map((_, i) => {
+          const t = i === 0 ? roots[0] - 1 : i === roots.length ? roots[roots.length - 1] + 1 : roots[i - 1] + 0.5;
+          const signs = form.factors.map((g) => Math.sign(factorAt(g, t)));
+          const product = signs.reduce((a, b) => a * b, 1);
+          return {
+            text: `$${stretchTex(roots, i)}$: at $x = ${t}$, $${factorTex(f, false).slice(1, -1)}$ is ${signWord(signs[blank])}, and ${
+              signs.filter((s) => s < 0).length
+            } negative ${signs.filter((s) => s < 0).length === 1 ? 'factor makes' : 'factors make'} $p(x)$ ${signWord(product)}.`,
+          };
+        }),
+    ];
+  },
+};
+
+interface StretchParams {
+  form: Form;
+  /** Which stretch, counting from the left from 0. */
+  stretch: number;
+}
+
+/** Where a stretch is, in words: "for x < -2", "between x = -2 and x = 1". */
+function whereStretch(roots: number[], i: number): string {
+  if (i === 0) return `for $x < ${roots[0]}$`;
+  if (i === roots.length) return `for $x > ${roots[roots.length - 1]}$`;
+  return `between $x = ${roots[i - 1]}$ and $x = ${roots[i]}$`;
+}
+
+/**
+ * The sign of p on one stretch, a factor at a time, then the product. Each
+ * step remembers whether an odd number of factors so far were negative, so
+ * the last fork is only right one way. Difficulty 2 squares one factor of a
+ * quartic, which is positive either side of its root, and writes another as
+ * r - x.
+ */
+const polyStretchSignFlow: Generator<StretchParams> = {
+  id: 'poly-stretch-sign-flow',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1) {
+      const form = ineqForm(rng, withSquare(rng, 3));
+      const factors = form.factors.map((f) => (f.power === 1 && f.root > 0 && rng.chance(0.5) ? { ...f, form: 'reversed' as const } : f));
+      return { form: { ...form, factors }, stretch: rng.int(0, 3) };
+    }
+    return { form: ineqForm(rng, [1, 1, 1]), stretch: rng.int(0, 3) };
+  },
+  render: ({ form, stretch }): Slide => {
+    const roots = formRoots(form);
+    const t = insideStretch(roots, stretch);
+    const signs = form.factors.map((f) => Math.sign(factorAt(f, t)));
+    const n = form.factors.length;
+    const steps: Extract<Slide, { kind: 'flow' }>['steps'] = [];
+    for (let j = 0; j < n; j += 1) {
+      for (const odd of j === 0 ? [0] : [0, 1]) {
+        const next = (flip: number) => (j + 1 < n ? `f${j + 1}-${(odd + flip) % 2}` : `p-${(odd + flip) % 2}`);
+        steps.push({
+          id: `f${j}-${odd}`,
+          ask: `${j === 0 ? 'On this stretch, is' : 'And'} $${factorTex(form.factors[j])}$ positive or negative?`,
+          branches: [
+            { label: POSITIVE, to: next(0) },
+            { label: NEGATIVE, to: next(1) },
+          ],
+        });
+      }
+    }
+    for (const odd of [0, 1]) {
+      steps.push({
+        id: `p-${odd}`,
+        ask: `So ${whereStretch(roots, stretch)}, $p(x)$ is`,
+        branches: [
+          { label: POSITIVE, outcome: 'Positive: $p(x) > 0$ all along this stretch.' },
+          { label: NEGATIVE, outcome: 'Negative: $p(x) < 0$ all along this stretch.' },
+        ],
+      });
+    }
+    return {
+      kind: 'flow',
+      prompt: [say(`Find the sign of $p(x)$ ${whereStretch(roots, stretch)}, one factor at a time. Each answer chooses what gets asked next.`)],
+      subject: `p(x) = ${formTex(form)}`,
+      steps,
+      answer: [...signs.map(signLabel), signLabel(signs.reduce((a, b) => a * b, form.lead))],
+    };
+  },
+  solution: ({ form, stretch }) => {
+    const roots = formRoots(form);
+    const t = stretch === 0 ? roots[0] - 1 : stretch === roots.length ? roots[roots.length - 1] + 1 : roots[stretch - 1] + 0.5;
+    const signs = form.factors.map((f) => Math.sign(factorAt(f, t)));
+    const negatives = signs.filter((s) => s < 0).length;
+    return [
+      { text: `No factor changes sign inside a stretch, so any value there will do: take $x = ${t}$.` },
+      {
+        text: form.factors
+          .map((f, j) => `$${factorTex(f)}$ is ${signWord(signs[j])}`)
+          .join(', ')
+          .concat('.'),
+      },
+      ...(form.factors.some((f) => f.power === 2) ? [{ text: 'A squared factor is positive everywhere except at its own root.' }] : []),
+      { text: `${negatives} negative ${negatives === 1 ? 'factor' : 'factors'}: ${negatives % 2 === 0 ? 'an even number, so the product is positive' : 'an odd number, so the product is negative'}.` },
+    ];
+  },
+};
+
+/** Four sign rows for a pick-one, the right one first. */
+function signRows(right: number[], lead: number): number[][] {
+  const flipAt = (at: number) => right.map((s, i) => (i === at ? -s : s));
+  const alternating = right.map((_, i) => (Math.sign(lead) * ((right.length - 1 - i) % 2 === 0 ? 1 : -1)));
+  return [right, right.map((s) => -s), alternating, alternating.map((s) => -s), flipAt(right.length - 1), flipAt(0), flipAt(1)];
+}
+
+/**
+ * Which row of signs is the sign diagram. The right one comes from the
+ * leading coefficient on the far right and a change at each single factor.
+ * Difficulty 2 is a quartic with a squared factor, which does not change
+ * sign, and factors written r - x, which put a -1 into the lead.
+ */
+const polySignPattern: Generator<{ form: Form }> = {
+  id: 'poly-sign-pattern',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1) {
+      const form = ineqForm(rng, withSquare(rng, 3), rng.pick([1, -1, 2, -2]));
+      return { form: { ...form, factors: dressed(rng, form.factors) } };
+    }
+    return { form: ineqForm(rng, [1, 1, 1], rng.pick([1, -1])) };
+  },
+  render: ({ form }): Slide => {
+    const roots = formRoots(form);
+    const [right, ...wrong] = signRows(stretchSigns(formPoly(form), roots), form.lead);
+    const row = (signs: number[]) => signs.map(signCell).join('\\quad ');
+    return choiceSlide(
+      [
+        say('Which row gives the signs of $p(x)$ on the stretches between its critical values, reading from left to right?'),
+        show(`p(x) = ${formTex(form)}`),
+      ],
+      options({ tex: row(right) }, ...wrong.map((signs) => ({ tex: row(signs) }))).slice(0, 4),
+    );
+  },
+  solution: ({ form }) => {
+    const roots = formRoots(form);
+    const lead = formLead(form);
+    return [
+      {
+        text: `Multiplied out, $p(x)$ starts $${termTex(lead, formDegree(form))}$, so for large $x$ it is ${signWord(lead)}: that is the rightmost sign.`,
+      },
+      {
+        text: `The critical values are $${roots.join(',\\ ')}$. Moving left past each one the sign changes${
+          form.factors.some((f) => f.power === 2) ? `, except at $x = ${squaredRoot(form)}$, where the squared factor keeps it` : ''
+        }.`,
+      },
+      { tex: stretchSigns(formPoly(form), roots).map(signCell).join('\\quad ') },
+    ];
+  },
+};
+
+/* ================================================================
+ * Level 6, lesson 2: solving a cubic inequality
+ * ================================================================ */
+
+/** A cubic inequality at either difficulty: plain and monic, or with a lead and dressed factors. */
+function sampleCubicIneq(rng: Rng, difficulty: number): IneqParams {
+  return { form: difficulty > 1 ? hardCubic(rng) : ineqForm(rng, [1, 1, 1]), op: rng.pick(INEQ_OPS) };
+}
+
+/** Shade the solution set of a factorised cubic against zero. */
+const polyCubicLine: Generator<IneqLineParams> = {
+  id: 'poly-cubic-line',
+  sample: (rng, difficulty) => {
+    const params = sampleCubicIneq(rng, difficulty);
+    return { ...params, ...lineWindow(rng, formRoots(params.form)) };
+  },
+  render: ({ form, op, min, max }): Slide => ({
+    kind: 'numberLine',
+    prompt: [say('Solve the inequality, then shade its solution set on the number line.'), show(ineqTex(form, op))],
+    min,
+    max,
+    step: 1,
+    answer: setAnswer(solutionPieces(formPoly(form), formRoots(form), op)),
+  }),
+  solution: ({ form, op }) => ineqSolution(form, op),
+};
+
+/**
+ * The set written as two inequalities from tiles. The bank holds the other
+ * two stretches and the right two with their ends the other way, so strict
+ * against non-strict is decided, not read off.
+ */
+const polyCubicSetTiles: Generator<IneqParams> = {
+  id: 'poly-cubic-set-tiles',
+  sample: sampleCubicIneq,
+  render: ({ form, op }): Slide => {
+    const p = formPoly(form);
+    const roots = formRoots(form);
+    const answer = solutionPieces(p, roots, op).map(pieceTex);
+    const others = solutionPieces(p, roots, FLIP_OP[op]).map(pieceTex);
+    const toggled = solutionPieces(p, roots, TOGGLE_OP[op]).map(pieceTex);
+    return {
+      kind: 'tiles',
+      prompt: [say(`Complete the solution of $${ineqTex(form, op)}$.`)],
+      template: '{0} \\quad\\text{or}\\quad {1}',
+      bank: fillBank(answer, [...others, ...toggled]),
+      answer,
+      unordered: true,
+    };
+  },
+  solution: ({ form, op }) => ineqSolution(form, op),
+};
+
+/** A list of critical values as a branch label. */
+const valuesLabel = (values: number[]): string => `$x = ${[...values].sort((a, b) => a - b).join(',\\ ')}$`;
+
+/**
+ * The whole method as forks: the critical values, the sign on the far right,
+ * which stretches, and whether the ends are in. Each wrong branch says what
+ * went wrong.
+ */
+const polyIneqFlow: Generator<IneqParams> = {
+  id: 'poly-ineq-flow',
+  sample: sampleCubicIneq,
+  render: ({ form, op }): Slide => {
+    const p = formPoly(form);
+    const roots = formRoots(form);
+    const lead = formLead(form);
+    const key = `${ineqTex(form, op)}`;
+    const right = valuesLabel(roots);
+    const negated = valuesLabel(roots.map((r) => -r));
+    const oneFlipped = valuesLabel([-roots[1], roots[0], roots[2]]);
+    const wrongValues = [negated, ...(new Set([-roots[1], roots[0], roots[2]]).size === 3 ? [oneFlipped] : [])].filter(
+      (label, i, all) => label !== right && all.indexOf(label) === i,
+    );
+    const open = (pieces: Piece[]) => pieces.map((piece) => ({ ...piece, loClosed: false, hiClosed: false }));
+    const stretches = (want: Op) =>
+      open(solutionPieces(p, roots, isStrict(want) ? want : TOGGLE_OP[want]))
+        .map((piece) => `$${pieceTex(piece)}$`)
+        .join(' and ');
+    const chosen = stretches(op);
+    const otherStretches = stretches(FLIP_OP[op]);
+    const IN = 'Included: filled dots';
+    const OUT = 'Left out: hollow dots';
+    return {
+      kind: 'flow',
+      prompt: [say('Solve the inequality one decision at a time. Each answer chooses what gets asked next.')],
+      subject: ineqTex(form, op),
+      steps: [
+        {
+          id: 'critical',
+          ask: 'Where are the critical values?',
+          branches: turned(
+            [
+              { label: right, to: 'far-right' },
+              ...wrongValues.map((label) => ({
+                label,
+                outcome: 'A bracket $(x - a)$ is zero at $x = a$: the number in the bracket with its sign turned round.',
+              })),
+            ],
+            key,
+          ),
+        },
+        {
+          id: 'far-right',
+          ask: 'For large $x$, beyond every critical value, is the cubic positive or negative?',
+          branches: [
+            { label: POSITIVE, ...(lead > 0 ? { to: 'stretches' } : { outcome: `Multiplied out, the cubic starts $${termTex(lead, 3)}$, which is negative for large $x$.` }) },
+            { label: NEGATIVE, ...(lead < 0 ? { to: 'stretches' } : { outcome: `Multiplied out, the cubic starts $${termTex(lead, 3)}$, which is positive for large $x$.` }) },
+          ],
+        },
+        {
+          id: 'stretches',
+          ask: `The sign changes at each critical value. Which stretches make it ${wantsPositive(op) ? 'positive' : 'negative'}?`,
+          branches: turned(
+            [
+              { label: chosen, to: 'ends' },
+              { label: otherStretches, outcome: `Those are where it is ${wantsPositive(op) ? 'negative' : 'positive'}.` },
+            ],
+            `${key}|stretches`,
+          ),
+        },
+        {
+          id: 'ends',
+          ask: `And the critical values themselves, where the cubic is $0$?`,
+          branches: [
+            { label: IN, outcome: `$${OP_TEX[op]}$ ${isStrict(op) ? 'does not allow' : 'allows'} $0$.` },
+            { label: OUT, outcome: `$${OP_TEX[op]}$ ${isStrict(op) ? 'does not allow' : 'allows'} $0$.` },
+          ],
+        },
+      ],
+      answer: [right, signLabel(lead), chosen, isStrict(op) ? OUT : IN],
+    };
+  },
+  solution: ({ form, op }) => ineqSolution(form, op),
+};
+
+/** The integers from -30 to 30 that satisfy p op 0. */
+function wholeSolutions(p: Poly, op: Op): number[] {
+  return Array.from({ length: 61 }, (_, i) => i - 30).filter((x) => satisfies(valueAt(p, x), op));
+}
+
+/** Whether the set runs off to the right, so has no largest member. */
+const unboundedAbove = (p: Poly, op: Op): boolean => satisfies(valueAt(p, 1000), op);
+
+/**
+ * The largest whole number in the set, or the smallest when the set runs off
+ * to the right. Where the end is a critical value, strictness decides whether
+ * it is the answer or the number next to it.
+ */
+const polyIneqInteger: Generator<IneqParams> = {
+  id: 'poly-ineq-integer',
+  sample: sampleCubicIneq,
+  choices: ({ form, op }) => {
+    const p = formPoly(form);
+    const whole = wholeSolutions(p, op);
+    const largest = !unboundedAbove(p, op);
+    const answer = largest ? Math.max(...whole) : Math.min(...whole);
+    const roots = formRoots(form);
+    const edge = largest ? Math.max(...roots.filter((r) => r >= answer)) : Math.min(...roots.filter((r) => r <= answer));
+    return intOptions(answer, [edge, edge + 1, edge - 1, largest ? answer - 1 : answer + 1, ...roots]);
+  },
+  render: ({ form, op }): Slide => {
+    const p = formPoly(form);
+    const whole = wholeSolutions(p, op);
+    const largest = !unboundedAbove(p, op);
+    return {
+      kind: 'expression',
+      prompt: [say(`What is the ${largest ? 'largest' : 'smallest'} whole number that satisfies this inequality?`), show(ineqTex(form, op))],
+      lead: 'x =',
+      keypad: [],
+      answer: String(largest ? Math.max(...whole) : Math.min(...whole)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ form, op }) => {
+    const p = formPoly(form);
+    const whole = wholeSolutions(p, op);
+    const largest = !unboundedAbove(p, op);
+    const answer = largest ? Math.max(...whole) : Math.min(...whole);
+    return [
+      ...ineqSolution(form, op),
+      {
+        text: `The set runs off to the ${largest ? 'left' : 'right'}, so it has no ${largest ? 'smallest' : 'largest'} member; its ${
+          largest ? 'largest' : 'smallest'
+        } whole number is $${answer}$.`,
+      },
+    ];
+  },
+};
+
+/* ================================================================
+ * Level 6, lesson 3: repeated factors
+ * ================================================================ */
+
+/**
+ * A form with exactly one squared factor. Difficulty 1 is a cubic, (x - a)^2
+ * times one single factor; difficulty 2 a quartic with two single factors, or
+ * the cubic with a negative lead or its single factor written b - x.
+ */
+function sampleTouchForm(rng: Rng, difficulty: number): Form {
+  if (difficulty > 1) {
+    if (rng.chance(0.5)) return ineqForm(rng, withSquare(rng, 3), rng.pick([1, -1]));
+    const form = ineqForm(rng, withSquare(rng, 2), rng.pick([1, -1, 2, -2]));
+    return { ...form, factors: form.factors.map((f) => (f.power === 1 && f.root > 0 && rng.chance(0.5) ? { ...f, form: 'reversed' as const } : f)) };
+  }
+  return ineqForm(rng, withSquare(rng, 2));
+}
+
+/** Shade a set whose polynomial touches the axis at a squared factor. */
+const polyTouchLine: Generator<IneqLineParams> = {
+  id: 'poly-touch-line',
+  sample: (rng, difficulty) => {
+    const form = sampleTouchForm(rng, difficulty);
+    return { form, op: rng.pick(INEQ_OPS), ...lineWindow(rng, formRoots(form)) };
+  },
+  render: ({ form, op, min, max }): Slide => ({
+    kind: 'numberLine',
+    prompt: [say('Solve the inequality, then shade its solution set on the number line.'), show(ineqTex(form, op))],
+    min,
+    max,
+    step: 1,
+    answer: setAnswer(solutionPieces(formPoly(form), formRoots(form), op)),
+  }),
+  solution: ({ form, op }) => {
+    const a = squaredRoot(form);
+    const p = formPoly(form);
+    const side = Math.sign(valueAt(p, a + 0.5));
+    const sidesIn = satisfies(side, op);
+    return [
+      ...ineqSolution(form, op).slice(0, 3),
+      {
+        text: `At $x = ${a}$ the squared factor touches: $p(x)$ is ${signWord(side)} on both sides, so ${
+          sidesIn
+            ? isStrict(op)
+              ? `the shading runs up to $${a}$ from both sides with a hollow dot there, a hole`
+              : `the shading runs straight through $${a}$`
+            : isStrict(op)
+              ? `nothing near $${a}$ is in the set`
+              : `$${a}$ itself is in the set as a lone filled dot`
+        }.`,
+      },
+      { tex: setTex(solutionPieces(p, formRoots(form), op)) },
+    ];
+  },
+};
+
+const HOLE = 'Shaded both sides, with a hollow dot at the root';
+const THROUGH = 'Shaded straight through the root';
+const LONE = 'A lone filled dot at the root';
+const NOTHING = 'No dot and no shading near the root';
+
+/** What the set looks like around a touching root. */
+function touchPicture(sidesIn: boolean, atIn: boolean): string {
+  if (sidesIn) return atIn ? THROUGH : HOLE;
+  return atIn ? LONE : NOTHING;
+}
+
+/**
+ * Around a squared factor's root: the sign just left, just right (the same),
+ * and so what the set does there. The four pictures are all offered, so the
+ * hole and the lone point are told apart by reasoning, not by the options.
+ */
+const polyHoleFlow: Generator<IneqParams> = {
+  id: 'poly-hole-flow',
+  sample: (rng, difficulty) => ({ form: sampleTouchForm(rng, difficulty), op: rng.pick(INEQ_OPS) }),
+  render: ({ form, op }): Slide => {
+    const a = squaredRoot(form);
+    const side = Math.sign(valueAt(formPoly(form), a + 0.5));
+    const picture = touchPicture(satisfies(side, op), !isStrict(op));
+    const bothSides = (id: string): Extract<Slide, { kind: 'flow' }>['steps'][number] => ({
+      id,
+      ask: `And just to the right of $x = ${a}$?`,
+      branches: [
+        { label: POSITIVE, to: 'set' },
+        { label: NEGATIVE, to: 'set' },
+      ],
+    });
+    return {
+      kind: 'flow',
+      prompt: [say(`$${factorTex(form.factors.find((f) => f.power === 2)!)}$ is a squared factor. Decide what the solution set does at $x = ${a}$.`)],
+      subject: ineqTex(form, op),
+      steps: [
+        {
+          id: 'left',
+          ask: `Just to the left of $x = ${a}$, is the polynomial positive or negative?`,
+          branches: [
+            { label: POSITIVE, to: 'right-p' },
+            { label: NEGATIVE, to: 'right-n' },
+          ],
+        },
+        bothSides('right-p'),
+        bothSides('right-n'),
+        {
+          id: 'set',
+          ask: `So around $x = ${a}$ the solution set is`,
+          branches: turned(
+            [HOLE, THROUGH, LONE, NOTHING].map((label) => ({
+              label,
+              outcome:
+                label === picture
+                  ? 'That is how it is drawn.'
+                  : `Near $x = ${a}$ the polynomial is ${signWord(side)}, and $${OP_TEX[op]} 0$ ${isStrict(op) ? 'leaves out' : 'allows'} $0$.`,
+            })),
+            `${ineqTex(form, op)}|set`,
+          ),
+        },
+      ],
+      answer: [signLabel(side), signLabel(side), picture],
+    };
+  },
+  solution: ({ form, op }) => {
+    const a = squaredRoot(form);
+    const side = Math.sign(valueAt(formPoly(form), a + 0.5));
+    return [
+      { text: `The squared factor is positive on both sides of $x = ${a}$, so the polynomial has the same sign either side: ${signWord(side)}.` },
+      {
+        text: `$${OP_TEX[op]} 0$ asks for ${wantsPositive(op) ? 'positive' : 'negative'} values, so the stretches either side are ${
+          satisfies(side, op) ? 'shaded' : 'not shaded'
+        }. At $x = ${a}$ itself the value is $0$, which $${OP_TEX[op]}$ ${isStrict(op) ? 'leaves out' : 'allows'}.`,
+      },
+      { text: `${touchPicture(satisfies(side, op), !isStrict(op))}.` },
+    ];
+  },
+};
+
+/**
+ * How many times the sign changes from left to right: once at each root of
+ * odd power. Difficulty 1 is a cubic, three single roots or one squared;
+ * difficulty 2 a quartic, which may have two squares, a cube, or none.
+ */
+const polySignChanges: Generator<{ form: Form }> = {
+  id: 'poly-sign-changes',
+  sample: (rng, difficulty) => {
+    const patterns = difficulty > 1 ? [[2, 1, 1], [1, 2, 1], [2, 2], [3, 1], [1, 3], [1, 1, 1, 1]] : [[1, 1, 1], [2, 1], [1, 2]];
+    const powers = rng.pick(patterns);
+    const form = ineqForm(rng, powers, difficulty > 1 ? rng.pick([1, -1]) : 1);
+    return { form: { ...form, factors: form.factors.map((f) => (difficulty > 1 && f.power === 1 && f.root > 0 && rng.chance(0.3) ? { ...f, form: 'reversed' as const } : f)) } };
+  },
+  choices: ({ form }) => {
+    const changes = form.factors.filter((f) => f.power % 2 === 1).length;
+    return intOptions(changes, [form.factors.length, formDegree(form), changes + 1, changes - 1], 0);
+  },
+  render: ({ form }): Slide => ({
+    kind: 'expression',
+    prompt: [say('As $x$ runs from left to right, how many times does this polynomial change sign?'), show(`p(x) = ${formTex(form)}`)],
+    lead: '\\text{sign changes} =',
+    keypad: [],
+    answer: String(form.factors.filter((f) => f.power % 2 === 1).length),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ form }) => {
+    const odd = form.factors.filter((f) => f.power % 2 === 1);
+    const even = form.factors.filter((f) => f.power % 2 === 0);
+    return [
+      { text: 'A factor to an odd power changes sign at its root, so the curve crosses there. A factor to an even power does not, so the curve touches.' },
+      ...(odd.length > 0 ? [{ text: `Odd: $${odd.map((f) => factorTex(f)).join(',\\ ')}$.` }] : []),
+      ...(even.length > 0 ? [{ text: `Even: $${even.map((f) => factorTex(f)).join(',\\ ')}$, which never change the sign.` }] : []),
+      { text: `So the sign changes $${odd.length}$ ${odd.length === 1 ? 'time' : 'times'}.` },
+    ];
+  },
+};
+
+const AND = '\\text{and}';
+const OR = '\\text{or}';
+
+/**
+ * A cubic with a squared factor, written as a ray and the touching point: the
+ * ray "and x \ne a" when the point is a hole, "or x = a" when it is a lone
+ * dot. Only those two cases are drawn, so the point always matters.
+ */
+const polyTouchTiles: Generator<IneqParams> = {
+  id: 'poly-touch-tiles',
+  sample: (rng, difficulty) => {
+    const form =
+      difficulty > 1
+        ? (() => {
+            const f = ineqForm(rng, withSquare(rng, 2), rng.pick([1, -1, 2, -2]));
+            return { ...f, factors: f.factors.map((g) => (g.power === 1 && g.root > 0 && rng.chance(0.5) ? { ...g, form: 'reversed' as const } : g)) };
+          })()
+        : ineqForm(rng, withSquare(rng, 2));
+    const side = Math.sign(valueAt(formPoly(form), squaredRoot(form) + 0.5));
+    // A hole needs the sides in and the point out; a lone dot the reverse.
+    const ops = INEQ_OPS.filter((op) => satisfies(side, op) === isStrict(op));
+    return { form, op: rng.pick(ops) };
+  },
+  render: ({ form, op }): Slide => {
+    const a = squaredRoot(form);
+    const b = form.factors.find((f) => f.power === 1)!.root;
+    const hole = isStrict(op);
+    // Apart from the touching point, the set is the ray from the single root
+    // on whichever side has the right sign.
+    const ray = (right: boolean, closed: boolean): Piece =>
+      right ? { lo: b, hi: Infinity, loClosed: closed, hiClosed: false } : { lo: -Infinity, hi: b, loClosed: false, hiClosed: closed };
+    const right = satisfies(valueAt(formPoly(form), b + 0.5), op);
+    const answer = [pieceTex(ray(right, !hole)), hole ? AND : OR, hole ? `x \\ne ${a}` : `x = ${a}`];
+    const toggledRay = ray(right, hole);
+    const oppositeRay = ray(!right, !hole);
+    return {
+      kind: 'tiles',
+      prompt: [say(`Complete the solution of $${ineqTex(form, op)}$: the stretch first, then the point $x = ${a}$.`)],
+      template: '{0} \\quad {1} \\quad {2}',
+      bank: fillBank(answer, [pieceTex(toggledRay), pieceTex(oppositeRay), hole ? OR : AND, hole ? `x = ${a}` : `x \\ne ${a}`]),
+      answer,
+    };
+  },
+  solution: ({ form, op }) => {
+    const a = squaredRoot(form);
+    const hole = isStrict(op);
+    return [
+      ...ineqSolution(form, op).slice(0, 3),
+      {
+        text: hole
+          ? `The stretch runs through $x = ${a}$, but there $p(x) = 0$, which $${OP_TEX[op]}$ leaves out: a hole, written "and $x \\ne ${a}$".`
+          : `Either side of $x = ${a}$ has the wrong sign, but at $x = ${a}$ itself $p(x) = 0$, which $${OP_TEX[op]}$ allows: a lone point, written "or $x = ${a}$".`,
+      },
+    ];
+  },
+};
+
+/* ================================================================
+ * Level 6, lesson 4: rearranging first
+ * ================================================================ */
+
+interface RearrangeParams {
+  /** The one-sided cubic's roots, smallest first. */
+  roots: number[];
+  /** Its leading coefficient, 1 or -1. */
+  lead: number;
+  /** What sits on the right before rearranging; the left is the cubic plus this. */
+  q: Poly;
+  op: Op;
+}
+
+/** The cubic once everything is on the left. */
+const oneSided = ({ roots, lead }: RearrangeParams): Poly => fromRoots(roots, lead);
+/** The left side as first written. */
+const leftSide = (params: RearrangeParams): Poly => addPoly(oneSided(params), params.q);
+
+/**
+ * p(x) > q(x) with p - q a cubic of whole roots. Difficulty 1's cubic leads
+ * with x^3; difficulty 2's often leads with -x^3, which is what comes of an
+ * x^3 on the right, and then the brackets carry a minus.
+ */
+function sampleRearrange(rng: Rng, difficulty: number): RearrangeParams {
+  for (;;) {
+    const roots = sampleRoots(rng, 3, 4).sort((a, b) => a - b);
+    const lead = difficulty > 1 && rng.chance(0.6) ? -1 : 1;
+    const q: Poly =
+      lead < 0 && rng.chance(0.5)
+        ? [2, 0, nonZero(rng, 5), rng.int(-6, 6)]
+        : rng.chance(0.5)
+          ? [nonZero(rng, 3), rng.int(-5, 5), rng.int(-8, 8)]
+          : [nonZero(rng, 6), nonZero(rng, 8)];
+    const params = { roots, lead, q, op: rng.pick(INEQ_OPS) };
+    const left = leftSide(params);
+    if (left.some((c) => Math.abs(c) > 30) || q.filter((c) => c !== 0).length < 2) continue;
+    return params;
+  }
+}
+
+/** The inequality as first written, broken over two lines if it will not fit a phone. */
+function rearrangedTex(params: RearrangeParams): string {
+  const left = polyTex(leftSide(params));
+  const right = polyTex(params.q);
+  const whole = `${left} ${OP_TEX[params.op]} ${right}`;
+  return texWidth(whole) <= FITS + 6 ? whole : chain(`${left} &`, `&${OP_TEX[params.op]} ${right}`);
+}
+
+/** Its solution: subtract, factorise, and turn round if the cubic leads with a minus. */
+function rearrangeSolution(params: RearrangeParams): SolutionStep[] {
+  const { roots, lead, op } = params;
+  const p = oneSided(params);
+  const monic = rootsForm(roots, [1, 1, 1]);
+  const finalOp = lead < 0 ? FLIP_OP[op] : op;
+  return [
+    { text: `Take $${polyTex(params.q)}$ from both sides, which never turns an inequality round:` },
+    { tex: `${polyTex(p)} ${OP_TEX[op]} 0` },
+    {
+      text: `Trying small divisors of $${p[3]}$, $x = ${roots[0]}$ makes it zero, so $(${linTex(roots[0])})$ is a factor; dividing leaves a quadratic that factorises:`,
+    },
+    { tex: `${formTex(rootsForm(roots, [1, 1, 1], lead))} ${OP_TEX[op]} 0` },
+    ...(lead < 0
+      ? [{ text: 'Multiply by $-1$ to clear the minus, turning the inequality round:' }, { tex: `${formTex(monic)} ${OP_TEX[finalOp]} 0` }]
+      : []),
+    { tex: setTex(solutionPieces(p, roots, op)) },
+  ];
+}
+
+/**
+ * The rearrangement as a line of working: to one side, factorised, and at
+ * difficulty 2 multiplied by -1 with the sign turned.
+ */
+const polyOneSideSteps: Generator<RearrangeParams> = {
+  id: 'poly-one-side-steps',
+  sample: sampleRearrange,
+  render: (params): Slide => {
+    const { roots, lead, q, op } = params;
+    const p = oneSided(params);
+    const left = leftSide(params);
+    const value = `${polyTex(p)} ${OP_TEX[op]} 0`;
+    // Moving the constant across without turning its sign.
+    const qc = q[q.length - 1];
+    const constantSlip = qc !== 0 ? addPoly(p, [2 * qc]) : addPoly(p, [2 * q[q.length - 2], 0]);
+    const factorised = (rs: number[], l: number, o: Op) => `${formTex(rootsForm(rs, [1, 1, 1], l))} ${OP_TEX[o]} 0`;
+    const flipped = roots.map((r, i) => (i === 0 ? -r : r));
+    const reductions: Extract<Slide, { kind: 'steps' }>['reductions'] = [
+      {
+        span: [0, 3],
+        operator: 1,
+        value,
+        bank: stepBank(value, `${polyTex(addPoly(left, q))} ${OP_TEX[op]} 0`, `${polyTex(p)} ${OP_TEX[FLIP_OP[op]]} 0`, `${polyTex(constantSlip)} ${OP_TEX[op]} 0`),
+      },
+      {
+        span: [0, 1],
+        value: factorised(roots, lead, op),
+        bank: stepBank(
+          factorised(roots, lead, op),
+          factorised(roots.map((r) => -r), lead, op),
+          ...(new Set(flipped).size === 3 ? [factorised(flipped, lead, op)] : []),
+          factorised(roots, -lead, op),
+        ),
+      },
+    ];
+    if (lead < 0) {
+      const last = factorised(roots, 1, FLIP_OP[op]);
+      reductions.push({
+        span: [0, 1],
+        value: last,
+        bank: stepBank(last, factorised(roots, 1, op), factorised(roots, 1, TOGGLE_OP[FLIP_OP[op]]), factorised(roots.map((r) => -r), 1, FLIP_OP[op])),
+      });
+    }
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `Bring everything to one side, then factorise${
+            lead < 0 ? ', then multiply by $-1$ so the cubic leads with $x^{3}$' : ''
+          }. Tap the part you would do **next**, then choose what it becomes.`,
+        ),
+      ],
+      start: [polyTex(left), OP_TEX[op], polyTex(q)],
+      reductions,
+    };
+  },
+  solution: rearrangeSolution,
+};
+
+/** The first few candidates for a whole root that are not roots, for the trial step. */
+function nonRoots(p: Poly, count: number): number[] {
+  return [1, -1, 2, -2, 3, -3, 4, -4, 5, -5].filter((k) => valueAt(p, k) !== 0).slice(0, count);
+}
+
+/**
+ * The method as forks: to one side, a root by the factor theorem, the
+ * quotient, and the set. A wrong branch ends with what went wrong.
+ */
+const polyRearrangeFlow: Generator<RearrangeParams> = {
+  id: 'poly-rearrange-flow',
+  sample: sampleRearrange,
+  render: (params): Slide => {
+    const { roots, q, op } = params;
+    const p = oneSided(params);
+    const left = leftSide(params);
+    const key = `${polyTex(left)}|${op}|${polyTex(q)}`;
+    // The root a person finds first: the smallest in size.
+    const r = [...roots].sort((a, b) => Math.abs(a) - Math.abs(b) || b - a)[0];
+    const quotient = divideBy(p, r).quotient;
+    const slipQuotients = [
+      [quotient[0], -quotient[1], quotient[2]],
+      [quotient[0], quotient[1], -quotient[2]],
+      [quotient[0], -quotient[1], -quotient[2]],
+    ]
+      .map((c) => `$${polyTex(c)}$`)
+      .filter((label, i, all) => label !== `$${polyTex(quotient)}$` && all.indexOf(label) === i)
+      .slice(0, 2);
+    const set = `$${setTex(solutionPieces(p, roots, op))}$`;
+    const wrongSets = [
+      `$${setTex(solutionPieces(p, roots, FLIP_OP[op]))}$`,
+      `$${setTex(solutionPieces(p, roots, TOGGLE_OP[op]))}$`,
+    ];
+    return {
+      kind: 'flow',
+      prompt: [say('Solve the inequality one decision at a time. Each answer chooses what gets asked next.')],
+      subject: `${polyTex(left)} ${OP_TEX[op]} ${polyTex(q)}`,
+      steps: [
+        {
+          id: 'side',
+          ask: 'First bring everything to one side. Which inequality do you get?',
+          branches: turned(
+            [
+              { label: `$${polyTex(p)} ${OP_TEX[op]} 0$`, to: 'root' },
+              { label: `$${polyTex(addPoly(left, q))} ${OP_TEX[op]} 0$`, outcome: 'That adds the right side on; it has to be taken away.' },
+              { label: `$${polyTex(p)} ${OP_TEX[FLIP_OP[op]]} 0$`, outcome: 'Taking the same thing from both sides never turns an inequality round.' },
+            ],
+            key,
+          ),
+        },
+        {
+          id: 'root',
+          ask: 'Call that cubic $f(x)$. Which of these makes $f(x) = 0$, and so gives a factor?',
+          branches: turned(
+            [
+              { label: `$x = ${r}$`, to: 'divide' },
+              ...nonRoots(p, 2).map((k) => ({ label: `$x = ${k}$`, outcome: `$f(${k}) = ${valueAt(p, k)}$, not $0$, so $(${linTex(k)})$ is not a factor.` })),
+            ],
+            `${key}|root`,
+          ),
+        },
+        {
+          id: 'divide',
+          ask: `Dividing $f(x)$ by $(${linTex(r)})$ leaves which quadratic?`,
+          branches: turned(
+            [
+              { label: `$${polyTex(quotient)}$`, to: 'set' },
+              ...slipQuotients.map((label) => ({ label, outcome: `Multiply it back by $(${linTex(r)})$: it does not give $f(x)$.` })),
+            ],
+            `${key}|divide`,
+          ),
+        },
+        {
+          id: 'set',
+          ask: 'The quadratic factorises, giving the other critical values. So the solution set is',
+          branches: turned(
+            [
+              { label: set, outcome: 'That is the set.' },
+              ...wrongSets.filter((label) => label !== set).map((label) => ({ label, outcome: `Check the signs on each stretch and whether $${OP_TEX[op]}$ allows $0$.` })),
+            ],
+            `${key}|set`,
+          ),
+        },
+      ],
+      answer: [`$${polyTex(p)} ${OP_TEX[op]} 0$`, `$x = ${r}$`, `$${polyTex(quotient)}$`, set],
+    };
+  },
+  solution: rearrangeSolution,
+};
+
+interface RearrangeLineParams extends RearrangeParams {
+  /** Name a root to start from. */
+  hint: boolean;
+  min: number;
+  max: number;
+}
+
+/**
+ * The same kind of inequality shaded on a number line. Difficulty 1 names a
+ * root to start the factorising from; difficulty 2 leaves the trial to the
+ * learner.
+ */
+const polyRearrangeLine: Generator<RearrangeLineParams> = {
+  id: 'poly-rearrange-line',
+  sample: (rng, difficulty) => {
+    const params = sampleRearrange(rng, difficulty);
+    return { ...params, hint: difficulty < 2, ...lineWindow(rng, params.roots) };
+  },
+  render: (params): Slide => {
+    const { roots, op, min, max, hint } = params;
+    return {
+      kind: 'numberLine',
+      prompt: [
+        say(`Solve the inequality, then shade its solution set.${hint ? ` Once everything is on one side, $x = ${roots[1]}$ is a root.` : ''}`),
+        show(rearrangedTex(params)),
+      ],
+      min,
+      max,
+      step: 1,
+      answer: setAnswer(solutionPieces(oneSided(params), roots, op)),
+    };
+  },
+  solution: rearrangeSolution,
+};
+
+/**
+ * Which inequality has the same solutions once every factor is written
+ * x - r: each minus taken out, from the lead or from an r - x, turns the sign
+ * round, and an even number of them leaves it.
+ */
+const polyFlipChoice: Generator<IneqParams> = {
+  id: 'poly-flip-choice',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      if (difficulty < 2) return { form: ineqForm(rng, [1, 1, 1], rng.pick([-1, -2])), op: rng.pick(INEQ_OPS) };
+      const form = ineqForm(rng, [1, 1, 1], rng.pick([1, -1, 2]));
+      const factors = form.factors.map((f) => (f.root > 0 && rng.chance(0.6) ? { ...f, form: 'reversed' as const } : f));
+      if (!factors.some((f) => f.form === 'reversed')) continue;
+      return { form: { ...form, factors }, op: rng.pick(INEQ_OPS) };
+    }
+  },
+  render: ({ form, op }): Slide => {
+    const plain = rootsForm(
+      form.factors.map((f) => f.root),
+      [1, 1, 1],
+    );
+    const negated = rootsForm(
+      form.factors.map((f) => -f.root),
+      [1, 1, 1],
+    );
+    const right = formLead(form) < 0 ? FLIP_OP[op] : op;
+    return choiceSlide(
+      [say('Which inequality has exactly the same solutions as this one?'), show(ineqTex(form, op))],
+      options(
+        { tex: ineqTex(plain, right) },
+        { tex: ineqTex(plain, FLIP_OP[right]) },
+        { tex: ineqTex(plain, TOGGLE_OP[right]) },
+        { tex: ineqTex(negated, right) },
+      ),
+    );
+  },
+  solution: ({ form, op }) => {
+    const minuses = (form.lead < 0 ? 1 : 0) + form.factors.filter((f) => f.form === 'reversed').length;
+    const plain = rootsForm(
+      form.factors.map((f) => f.root),
+      [1, 1, 1],
+    );
+    return [
+      ...(form.factors.some((f) => f.form === 'reversed') ? [{ text: 'Write each $r - x$ as $-(x - r)$, which takes out a $-1$.' }] : []),
+      {
+        text: `That makes $${minuses}$ ${minuses === 1 ? 'minus sign' : 'minus signs'} in front${
+          Math.abs(form.lead) > 1 ? `, and a positive $${Math.abs(form.lead)}$ that can be divided out without changing anything` : ''
+        }. ${minuses % 2 === 1 ? 'An odd number: multiplying by $-1$ clears it and turns the inequality round.' : 'An even number, which multiply to $+1$: nothing turns round.'}`,
+      },
+      { tex: ineqTex(plain, formLead(form) < 0 ? FLIP_OP[op] : op) },
+    ];
+  },
+};
+
+/* ================================================================
+ * Level 6, lesson 5: reading and counting
+ * ================================================================ */
+
+/**
+ * The set read off a sketch: the curve, where it meets the axis, and the
+ * inequality, with four sets offered: the right one, the other sign, and each
+ * with its ends the other way. Difficulty 2 is a quartic, sometimes touching.
+ */
+const polyReadGraph: Generator<IneqParams> = {
+  id: 'poly-read-graph',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const powers = difficulty > 1 ? rng.pick([[1, 1, 1, 1], withSquare(rng, 3)]) : [1, 1, 1];
+      const roots = sampleRoots(rng, powers.length, 4).sort((a, b) => a - b);
+      const form = rootsForm(roots, powers, rng.pick([1, -1]));
+      if (!spaced(roots, powers) || !readable(formPoly(form), roots)) continue;
+      return { form, op: rng.pick(INEQ_OPS) };
+    }
+  },
+  render: ({ form, op }): Slide => {
+    const p = formPoly(form);
+    const roots = formRoots(form);
+    const set = (o: Op) => setTex(solutionPieces(p, roots, o));
+    return choiceSlide(
+      [
+        say(`The curve $y = p(x)$ meets the $x$-axis at $x = ${roots.join(',\\ ')}$, ringed. Which set solves $p(x) ${OP_TEX[op]} 0$?`),
+        diagram(graphSvg(p, roots, 'A polynomial curve on squared paper with the points where it meets the x-axis ringed')),
+      ],
+      options({ tex: set(op) }, { tex: set(FLIP_OP[op]) }, { tex: set(TOGGLE_OP[op]) }, { tex: set(TOGGLE_OP[FLIP_OP[op]]) }),
+    );
+  },
+  solution: ({ form, op }) => {
+    const p = formPoly(form);
+    const roots = formRoots(form);
+    return [
+      { text: `$p(x) ${OP_TEX[op]} 0$ asks where the curve is ${wantsPositive(op) ? 'above' : 'below'} the $x$-axis${isStrict(op) ? '' : ', or on it'}.` },
+      {
+        text: `Reading the sketch left to right, the curve is ${stretchSigns(p, roots)
+          .map((s) => (s > 0 ? 'above' : 'below'))
+          .join(', then ')}.`,
+      },
+      { tex: setTex(solutionPieces(p, roots, op)) },
+    ];
+  },
+};
+
+/**
+ * How many whole numbers are in a bounded set: a quartic whose lead and sign
+ * make the set a stretch or two between roots. Strictness moves the count by
+ * the critical values. Difficulty 2 adds a negative lead or a squared factor.
+ */
+const polyIntegerCount: Generator<IneqParams> = {
+  id: 'poly-integer-count',
+  sample: (rng, difficulty) => {
+    const form = difficulty > 1 ? ineqForm(rng, rng.pick([[1, 1, 1, 1], withSquare(rng, 3)]), rng.pick([1, -1])) : ineqForm(rng, [1, 1, 1, 1]);
+    const ops: Op[] = formLead(form) > 0 ? ['<', '<='] : ['>', '>='];
+    return { form, op: rng.pick(ops) };
+  },
+  choices: ({ form, op }) => {
+    const p = formPoly(form);
+    const count = wholeSolutions(p, op).length;
+    return intOptions(count, [wholeSolutions(p, TOGGLE_OP[op]).length, count + 1, count - 1, formRoots(form).length], 0);
+  },
+  render: ({ form, op }): Slide => ({
+    kind: 'expression',
+    prompt: [say('How many whole numbers satisfy this inequality?'), show(ineqTex(form, op))],
+    lead: '\\text{whole numbers} =',
+    keypad: [],
+    answer: String(wholeSolutions(formPoly(form), op).length),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ form, op }) => {
+    const whole = wholeSolutions(formPoly(form), op);
+    return [
+      ...ineqSolution(form, op),
+      { text: `The whole numbers in it are $${whole.join(',\\ ')}$: $${whole.length}$ of them.` },
+    ];
+  },
+};
+
+interface ReadLineParams {
+  roots: number[];
+  lead: number;
+  op: Op;
+  min: number;
+  max: number;
+}
+
+/**
+ * From a shaded line back to the inequality: the brackets from the dots and
+ * the sign from which stretches are shaded and whether the dots are filled.
+ * Difficulty 2 puts a minus in front, which turns the sign.
+ */
+const polyReadLineTiles: Generator<ReadLineParams> = {
+  id: 'poly-read-line-tiles',
+  sample: (rng, difficulty) => {
+    const roots = sampleRoots(rng, 3, 4).sort((a, b) => a - b);
+    return { roots, lead: difficulty > 1 && rng.chance(0.5) ? -1 : 1, op: rng.pick(INEQ_OPS), ...lineWindow(rng, roots) };
+  },
+  render: ({ roots, lead, op, min, max }): Slide => {
+    const pieces = solutionPieces(fromRoots(roots, lead), roots, op);
+    const answer = [...roots.map((r) => signedNum(-r)), OP_TEX[op]];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(`The shading is the solution set of a cubic inequality, the cubic against $0$. Complete it, with the brackets in order of their roots, smallest first.`),
+        diagram(numberLineSvg(min, max, pieces, 'A solution set shaded on a number line')),
+      ],
+      template: `${lead < 0 ? '-' : ''}(x {0})(x {1})(x {2}) \\; {3} \\; 0`,
+      bank: fillBank(answer, [...roots.map((r) => signedNum(r)), ...INEQ_OPS.map((o) => OP_TEX[o])]),
+      answer,
+    };
+  },
+  solution: ({ roots, lead, op }) => {
+    const pieces = solutionPieces(fromRoots(roots, lead), roots, op);
+    const form = rootsForm(roots, [1, 1, 1], lead);
+    return [
+      { text: `The dots are at $${roots.join(',\\ ')}$, so the brackets are $${formTex(rootsForm(roots, [1, 1, 1]))}$.` },
+      {
+        text: `${lead < 0 ? 'With the minus in front the' : 'The'} cubic is ${signWord(lead)} on the far right, so left to right it is $${stretchSigns(fromRoots(roots, lead), roots)
+          .map(signCell)
+          .join('\\;')}$. The shading is on the ${wantsPositive(op) ? 'positive' : 'negative'} stretches.`,
+      },
+      { text: `The dots are ${isStrict(op) ? 'hollow, so the ends are left out' : 'filled, so the ends are included'}: $${setTex(pieces)}$.` },
+      { tex: ineqTex(form, op) },
+    ];
+  },
+};
+
+/**
+ * Shade a quartic's set: two, three or four critical values, so up to five
+ * stretches. Difficulty 2 adds a negative lead, a squared factor or an r - x.
+ */
+const polyQuarticLine: Generator<IneqLineParams> = {
+  id: 'poly-quartic-line',
+  sample: (rng, difficulty) => {
+    let form: Form;
+    if (difficulty > 1) {
+      const base = ineqForm(rng, rng.pick([[1, 1, 1, 1], withSquare(rng, 3)]), rng.pick([1, -1]));
+      form = { ...base, factors: base.factors.map((f) => (f.power === 1 && f.root > 0 && rng.chance(0.3) ? { ...f, form: 'reversed' as const } : f)) };
+    } else {
+      form = ineqForm(rng, [1, 1, 1, 1]);
+    }
+    return { form, op: rng.pick(INEQ_OPS), ...lineWindow(rng, formRoots(form)) };
+  },
+  render: ({ form, op, min, max }): Slide => ({
+    kind: 'numberLine',
+    prompt: [say('Solve the inequality, then shade its solution set on the number line.'), show(ineqTex(form, op))],
+    min,
+    max,
+    step: 1,
+    answer: setAnswer(solutionPieces(formPoly(form), formRoots(form), op)),
+  }),
+  solution: ({ form, op }) => ineqSolution(form, op),
+};
+
 export const polynomialGenerators = [
   polyDegree,
   polyNameFlow,
@@ -7306,4 +8629,24 @@ export const polynomialGenerators = [
   polyQuarticDivideSteps,
   polyQuarticTiles,
   polyQuarticRoot,
+  polyCriticalTiles,
+  polySignTable,
+  polyStretchSignFlow,
+  polySignPattern,
+  polyCubicLine,
+  polyCubicSetTiles,
+  polyIneqFlow,
+  polyIneqInteger,
+  polyTouchLine,
+  polyHoleFlow,
+  polySignChanges,
+  polyTouchTiles,
+  polyOneSideSteps,
+  polyRearrangeFlow,
+  polyRearrangeLine,
+  polyFlipChoice,
+  polyReadGraph,
+  polyIntegerCount,
+  polyReadLineTiles,
+  polyQuarticLine,
 ];

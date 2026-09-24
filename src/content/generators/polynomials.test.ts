@@ -12,6 +12,7 @@
 import { describe, expect, it } from 'vitest';
 import { math } from '../../engine/expression';
 import { makeRng } from '../../engine/rng';
+import { parseSet } from '../numberLine';
 import { registry } from '../registry';
 import type { Generator, Slide } from '../types';
 
@@ -773,6 +774,335 @@ describe('quartics and repeated factors, checked from what the learner sees', ()
       const roots = wholeRoots(display(slide));
       const largest = (slide.lead ?? '').includes('largest');
       expect(Number(slide.answer), `root seed ${seed} d${difficulty}`).toBe(largest ? roots[roots.length - 1] : roots[0]);
+    }
+  });
+});
+
+/* ---------- level 6: inequalities ---------- */
+
+/** Half-steps from -6 to 6: every critical value, and a point inside every stretch between them. */
+const HALF_STEPS = Array.from({ length: 25 }, (_, i) => -6 + i / 2);
+
+/** Whether a value stands in the relation a TeX sign names to 0. */
+function relation(sign: string, left: number, right: number): boolean {
+  const gap = left - right;
+  if (sign === '<') return gap < -1e-9;
+  if (sign === '\\le') return gap <= 1e-9;
+  if (sign === '>') return gap > 1e-9;
+  if (sign === '\\ge') return gap >= -1e-9;
+  if (sign === '=') return Math.abs(gap) <= 1e-9;
+  if (sign === '\\ne') return Math.abs(gap) > 1e-9;
+  throw new Error(`no relation ${sign}`);
+}
+
+/** An inequality as shown, `left sign right`, as a test on x worked out from the TeX alone. */
+function inequality(tex: string): (x: number) => boolean {
+  const match = /^(.+?)\s*(\\le|\\ge|<|>)\s*(.+)$/.exec(flat(tex).replace(/\\;/g, ' ').trim());
+  if (!match) throw new Error(`no inequality in ${tex}`);
+  const [, left, sign, right] = match;
+  return (x) => relation(sign, at(left, x), at(right, x));
+}
+
+/** The first inline maths in a slide's prose, which is where these prompts put the inequality. */
+function firstMaths(slide: Slide): string {
+  return /\$([^$]+)\$/.exec(prose(slide))![1];
+}
+
+/**
+ * A set written the way the slides write one: pieces such as `x < 2`,
+ * `-1 \le x < 3`, `x = 1` or `x \ne 1`, joined by "or" or "and".
+ */
+function setHolds(tex: string): (x: number) => boolean {
+  const clean = tex
+    .replace(/\\quad|\\;/g, ' ')
+    .replace(/\\text\{\s*(and|or)\s*\}/g, ' |$1| ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const parts = clean.split(/\s*\|(and|or)\|\s*/);
+  const piece = (text: string): ((x: number) => boolean) => {
+    const num = '(-?\\d+(?:\\.\\d+)?)';
+    const sign = '(<|\\\\le|>|\\\\ge|=|\\\\ne)';
+    const ray = new RegExp(`^x ${sign} ${num}$`).exec(text);
+    if (ray) return (x) => relation(ray[1], x, Number(ray[2]));
+    const span = new RegExp(`^${num} ${sign} x ${sign} ${num}$`).exec(text);
+    if (span) return (x) => relation(span[2], Number(span[1]), x) && relation(span[3], x, Number(span[4]));
+    throw new Error(`unreadable piece ${text}`);
+  };
+  let holds = piece(parts[0]);
+  for (let i = 1; i < parts.length; i += 2) {
+    const before = holds;
+    const next = piece(parts[i + 1]);
+    holds = parts[i] === 'and' ? (x) => before(x) && next(x) : (x) => before(x) || next(x);
+  }
+  return holds;
+}
+
+/** Membership of the canonical set a number line slide stores. */
+function inAnswer(answer: string): (x: number) => boolean {
+  const pieces = parseSet(answer)!;
+  return (x) =>
+    pieces.some((p) => (x > p.lo || (x === p.lo && p.loClosed)) && (x < p.hi || (x === p.hi && p.hiClosed)));
+}
+
+/** Two sets agree at every half-step, and far out either side. */
+function expectSameSet(expected: (x: number) => boolean, actual: (x: number) => boolean, where: string) {
+  for (const x of [-40, ...HALF_STEPS, 40]) expect(actual(x), `${where} at x = ${x}`).toBe(expected(x));
+}
+
+/** Whole x in -6..6 where a polynomial, read from TeX, is zero. */
+function zerosOf(tex: string): number[] {
+  return Array.from({ length: 13 }, (_, i) => i - 6).filter((x) => Math.abs(curveAt(tex, x)) < 1e-9);
+}
+
+/** A test point inside the stretch a row label names: `x < a`, `a < x < b` or `x > b`. */
+function insideLabel(label: string): number {
+  const values = (label.match(/-?\d+/g) ?? []).map(Number);
+  if (values.length === 2) return (values[0] + values[1]) / 2;
+  return label.includes('<') ? values[0] - 0.5 : values[0] + 0.5;
+}
+
+const signOf = (value: number): string => (value > 0 ? '+' : '-');
+const signName = (value: number): string => (value > 0 ? 'Positive' : 'Negative');
+const unwrapMaths = (label: string): string => label.replace(/^\$|\$$/g, '');
+
+describe('polynomial inequalities, checked from what the learner sees', () => {
+  it('every shaded set is where the inequality shown holds', () => {
+    for (const id of ['poly-cubic-line', 'poly-touch-line', 'poly-quartic-line', 'poly-rearrange-line']) {
+      for (const { slide, seed, difficulty } of slides(id)) {
+        if (slide.kind !== 'numberLine') throw new Error('expected numberLine');
+        const where = `${id} seed ${seed} d${difficulty}`;
+        const holds = inequality(display(slide));
+        const drawn = inAnswer(slide.answer);
+        expectSameSet(holds, drawn, where);
+        // Every end the learner has to place sits inside the window they are given.
+        for (const x of HALF_STEPS.filter((v) => v <= slide.min || v >= slide.max)) {
+          if (x < slide.min) expect(drawn(x), `${where}: ray at ${x}`).toBe(drawn(slide.min));
+          if (x > slide.max) expect(drawn(x), `${where}: ray at ${x}`).toBe(drawn(slide.max));
+        }
+      }
+    }
+  });
+
+  it('the critical values placed are every zero of the polynomial, smallest first', () => {
+    for (const { slide, seed, difficulty } of slides('poly-critical-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const left = firstMaths(slide).replace(/\s*(\\le|\\ge|<|>)\s*0$/, '');
+      expect(slide.answer.map(Number), `seed ${seed} d${difficulty}`).toEqual(zerosOf(left));
+    }
+  });
+
+  it('every cell of a sign table is the sign at a point inside its row', () => {
+    for (const { slide, seed, difficulty } of slides('poly-sign-table')) {
+      if (slide.kind !== 'table') throw new Error('expected table');
+      const where = `seed ${seed} d${difficulty}`;
+      const p = /\$p\(x\) = ([^$]+)\$/.exec(prose(slide))![1];
+      const answers = [...slide.answer];
+      for (const row of slide.rows) {
+        const t = insideLabel(row[0]!);
+        row.slice(1).forEach((cell, j) => {
+          const header = slide.columns[j + 1];
+          const expected = signOf(header === 'p(x)' ? curveAt(p, t) : at(header, t));
+          expect(cell ?? answers.shift(), `${where}: ${header} on ${row[0]}`).toBe(expected);
+        });
+      }
+    }
+  });
+
+  it('a stretch walked factor by factor ends in the sign of p there', () => {
+    for (const { slide, seed, difficulty } of slides('poly-stretch-sign-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const where = `seed ${seed} d${difficulty}`;
+      const text = prose(slide);
+      const between = /between \$x = (-?\d+)\$ and \$x = (-?\d+)\$/.exec(text);
+      const t = between
+        ? (Number(between[1]) + Number(between[2])) / 2
+        : insideLabel(/for \$(x [<>] -?\d+)\$/.exec(text)![1]);
+      const factors = slide.steps.filter((step) => step.id.endsWith('-0') && step.id.startsWith('f')).map((step) => /\$([^$]+)\$/.exec(step.ask)![1]);
+      const p = slide.subject.replace(/^p\(x\) = /, '');
+      expect(slide.answer, where).toEqual([...factors.map((f) => signName(at(f, t))), signName(curveAt(p, t))]);
+    }
+  });
+
+  it('the sign row chosen is the signs of p on its stretches', () => {
+    for (const { slide, seed, difficulty } of slides('poly-sign-pattern')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const p = display(slide).replace(/^p\(x\) = /, '');
+      const roots = zerosOf(p);
+      const tests = [roots[0] - 0.5, ...roots.slice(1).map((r, i) => (roots[i] + r) / 2), roots[roots.length - 1] + 0.5];
+      const chosen = [...correctLabel(slide).matchAll(/\{([+-])\}/g)].map((m) => m[1]);
+      expect(chosen, `seed ${seed} d${difficulty}`).toEqual(tests.map((x) => signOf(curveAt(p, x))));
+    }
+  });
+
+  it('a set placed from tiles is where the inequality shown holds', () => {
+    for (const id of ['poly-cubic-set-tiles', 'poly-touch-tiles']) {
+      for (const { slide, seed, difficulty } of slides(id)) {
+        if (slide.kind !== 'tiles') throw new Error('expected tiles');
+        expectSameSet(inequality(firstMaths(slide)), setHolds(filledTemplate(slide)), `${id} seed ${seed} d${difficulty}`);
+      }
+    }
+  });
+
+  it('the solve flow: zeros, far-right sign, stretches and ends all agree with the inequality', () => {
+    for (const { slide, seed, difficulty } of slides('poly-ineq-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const where = `seed ${seed} d${difficulty}`;
+      const holds = inequality(slide.subject);
+      const left = slide.subject.replace(/\s*(\\le|\\ge|<|>)\s*0$/, '');
+      const [values, far, stretches, ends] = slide.answer;
+      const roots = unwrapMaths(values).replace('x = ', '').split(',\\ ').map(Number);
+      expect(roots, where).toEqual(zerosOf(left));
+      expect(far, where).toBe(signName(curveAt(left, 100)));
+      const inStretch = stretches.split(' and ').map((piece) => setHolds(unwrapMaths(piece)));
+      for (const x of HALF_STEPS.filter((v) => !roots.includes(v))) {
+        expect(inStretch.some((f) => f(x)), `${where} at x = ${x}`).toBe(holds(x));
+      }
+      expect(ends.startsWith('Included'), where).toBe(holds(roots[0]));
+    }
+  });
+
+  it('the largest or smallest whole solution is the extreme whole number that satisfies it', () => {
+    for (const id of ['poly-ineq-integer', 'poly-ineq-integer+choice']) {
+      for (const { slide, seed, difficulty } of slides(id)) {
+        const holds = inequality(display(slide));
+        const whole = Array.from({ length: 61 }, (_, i) => i - 30).filter(holds);
+        const expected = prose(slide).includes('largest') ? Math.max(...whole) : Math.min(...whole);
+        const given = slide.kind === 'expression' ? slide.answer : slide.kind === 'choice' ? correctLabel(slide) : '';
+        expect(Number(given), `${id} seed ${seed} d${difficulty}`).toBe(expected);
+      }
+    }
+  });
+
+  it('around a touching root: the same sign both sides, and the picture the inequality makes', () => {
+    for (const { slide, seed, difficulty } of slides('poly-hole-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const where = `seed ${seed} d${difficulty}`;
+      const a = Number(/at \$x = (-?\d+)\$\./.exec(prose(slide))![1]);
+      const holds = inequality(slide.subject);
+      const left = slide.subject.replace(/\s*(\\le|\\ge|<|>)\s*0$/, '');
+      const [l, r, picture] = slide.answer;
+      expect(l, where).toBe(signName(curveAt(left, a - 0.5)));
+      expect(r, where).toBe(signName(curveAt(left, a + 0.5)));
+      expect(curveAt(left, a), where).toBeCloseTo(0, 9);
+      const sides = holds(a - 0.5) && holds(a + 0.5);
+      const kind = picture.includes('hollow') ? 'hole' : picture.includes('straight') ? 'through' : picture.includes('lone') ? 'lone' : 'nothing';
+      expect(kind, where).toBe(sides ? (holds(a) ? 'through' : 'hole') : holds(a) ? 'lone' : 'nothing');
+    }
+  });
+
+  it('the count of sign changes is what the polynomial does across the line', () => {
+    for (const id of ['poly-sign-changes', 'poly-sign-changes+choice']) {
+      for (const { slide, seed, difficulty } of slides(id)) {
+        const p = display(slide).replace(/^p\(x\) = /, '');
+        const signs = HALF_STEPS.map((x) => curveAt(p, x)).filter((v) => Math.abs(v) > 1e-9).map(Math.sign);
+        const changes = signs.filter((s, i) => i > 0 && s !== signs[i - 1]).length;
+        const given = slide.kind === 'expression' ? slide.answer : slide.kind === 'choice' ? correctLabel(slide) : '';
+        expect(Number(given), `${id} seed ${seed} d${difficulty}`).toBe(changes);
+      }
+    }
+  });
+
+  it('every line of the rearranging has the same solutions as the inequality first written', () => {
+    for (const { slide, seed, difficulty } of slides('poly-one-side-steps')) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      const where = `seed ${seed} d${difficulty}`;
+      const first = inequality(slide.start.join(' '));
+      for (const step of slide.reductions) expectSameSet(first, inequality(step.value), `${where}: ${step.value}`);
+      // Ending factorised, with a positive lead: the form a sign diagram reads.
+      const last = slide.reductions[slide.reductions.length - 1].value;
+      expect(last.startsWith('('), `${where}: ${last}`).toBe(true);
+    }
+  });
+
+  it('the rearranging flow: one side, a root, the quotient and the set all follow from the inequality', () => {
+    for (const { slide, seed, difficulty } of slides('poly-rearrange-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const where = `seed ${seed} d${difficulty}`;
+      const first = inequality(slide.subject);
+      const [side, root, quotient, set] = slide.answer.map(unwrapMaths);
+      expectSameSet(first, inequality(side), `${where}: ${side}`);
+      const f = side.replace(/\s*(\\le|\\ge|<|>)\s*0$/, '');
+      const r = Number(root.replace('x = ', ''));
+      expect(at(f, r), where).toBeCloseTo(0, 9);
+      expectDivision(f, r, quotient, 0, where);
+      expectSameSet(first, setHolds(set), `${where}: ${set}`);
+    }
+  });
+
+  it('the inequality chosen has the same solutions, and no distractor does', () => {
+    for (const { slide, seed, difficulty } of slides('poly-flip-choice')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const where = `seed ${seed} d${difficulty}`;
+      const shown = inequality(display(slide));
+      for (const option of slide.options) {
+        const same = HALF_STEPS.every((x) => inequality(option.label)(x) === shown(x));
+        expect(same, `${where}: ${option.label}`).toBe(option.id === slide.correctId);
+      }
+    }
+  });
+
+  it('the set read off a sketch is where the drawn curve is on the side asked for', () => {
+    for (const { slide, seed, difficulty } of slides('poly-read-graph')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const where = `seed ${seed} d${difficulty}`;
+      const text = prose(slide);
+      const roots = /at \$x = ([^$]+)\$, ringed/.exec(text)![1].split(',\\ ').map(Number);
+      const sign = /\$p\(x\) (\\le|\\ge|<|>) 0\$/.exec(text)![1];
+      const svg = slide.prompt.find((b) => b.kind === 'diagram')!;
+      if (svg.kind !== 'diagram') throw new Error('expected a diagram');
+      // The ringed marks sit on the axis at the roots, which fixes both the
+      // pixel height of y = 0 and the scale along x.
+      const marks = [...svg.svg.matchAll(/<circle cx="([\d.]+)" cy="([\d.]+)"/g)].map((m) => [Number(m[1]), Number(m[2])]);
+      const axis = marks[0][1];
+      const scale = (marks[marks.length - 1][0] - marks[0][0]) / (roots[roots.length - 1] - roots[0]);
+      const pixelX = (x: number) => marks[0][0] + (x - roots[0]) * scale;
+      const path = /<path [^>]*d="M ([^"]+)"/.exec(svg.svg)![1];
+      const points = path.split(/ L | M /).map((pair) => pair.split(',').map(Number));
+      const heightAt = (x: number) => {
+        const target = pixelX(x);
+        const nearest = points.reduce((best, pt) => (Math.abs(pt[0] - target) < Math.abs(best[0] - target) ? pt : best));
+        return axis - nearest[1];
+      };
+      const chosen = setHolds(correctLabel(slide));
+      for (const x of HALF_STEPS.filter((v) => v > -4.6 && v < 4.6)) {
+        const drawn = roots.includes(x) ? 0 : heightAt(x);
+        if (!roots.includes(x)) expect(Math.abs(drawn), `${where}: curve too flat to read at ${x}`).toBeGreaterThan(0.5);
+        expect(chosen(x), `${where} at x = ${x}`).toBe(relation(sign, drawn, 0));
+      }
+    }
+  });
+
+  it('the count of whole solutions is every whole number that satisfies it', () => {
+    for (const id of ['poly-integer-count', 'poly-integer-count+choice']) {
+      for (const { slide, seed, difficulty } of slides(id)) {
+        const holds = inequality(display(slide));
+        // Bounded both ways, so the count is finite.
+        expect(holds(-40) || holds(40), `${id} seed ${seed} d${difficulty}: unbounded`).toBe(false);
+        const count = Array.from({ length: 61 }, (_, i) => i - 30).filter(holds).length;
+        const given = slide.kind === 'expression' ? slide.answer : slide.kind === 'choice' ? correctLabel(slide) : '';
+        expect(Number(given), `${id} seed ${seed} d${difficulty}`).toBe(count);
+      }
+    }
+  });
+
+  it('the inequality built from a shaded line has exactly the set drawn', () => {
+    for (const { slide, seed, difficulty } of slides('poly-read-line-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const where = `seed ${seed} d${difficulty}`;
+      const svg = slide.prompt.find((b) => b.kind === 'diagram')!;
+      if (svg.kind !== 'diagram') throw new Error('expected a diagram');
+      // Read the drawing: tick labels fix the scale, shaded lines the
+      // stretches (an arrowhead past the last tick is a ray), dots the ends.
+      const ticks = [...svg.svg.matchAll(/<text class="nl-label" x="([\d.]+)"[^>]*>([^<]+)</g)].map((m) => [
+        Number(m[1]),
+        Number(m[2].replace('&#8722;', '-')),
+      ]);
+      const valueAt = (px: number) => ticks[0][1] + ((px - ticks[0][0]) * (ticks[1][1] - ticks[0][1])) / (ticks[1][0] - ticks[0][0]);
+      const edge = (px: number) => (px < ticks[0][0] ? -Infinity : px > ticks[ticks.length - 1][0] ? Infinity : Math.round(valueAt(px)));
+      const shaded = [...svg.svg.matchAll(/<g class="nl-shade"><line x1="([\d.]+)" y1="[\d.]+" x2="([\d.]+)"/g)].map((m) => [edge(Number(m[1])), edge(Number(m[2]))]);
+      const filled = [...svg.svg.matchAll(/<circle class="nl-dot closed" cx="([\d.]+)"/g)].map((m) => Math.round(valueAt(Number(m[1]))));
+      const drawn = (x: number) => filled.includes(x) || shaded.some(([lo, hi]) => x > lo && x < hi);
+      expectSameSet(inequality(filledTemplate(slide)), drawn, where);
     }
   });
 });

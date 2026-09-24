@@ -8,6 +8,10 @@
  * Level 2 moves the centre: Taylor series about x = a, estimating a value and
  * the error from the first term left out, limits of the form 0/0, integrating
  * term by term, and finding the values of x a series is valid for.
+ * Level 3 is error terms: the Lagrange form of the remainder, bounding it,
+ * how that bound compares with the first term left out, choosing a degree
+ * for a tolerance (and how far x may go for a given degree), and remainders
+ * about a centre other than 0.
  *
  * Differentiation, the sum to infinity and the binomial expansion are used
  * here, not taught again: the derivatives of e^x and ln x belong to
@@ -45,7 +49,7 @@ export const seriesExpansions: Course = {
   // After Parametric and Implicit (25), Integration (30), Vectors (40) and Matrices (50); before Differential Equations (70).
   position: 60,
   title: 'Series Expansions',
-  blurb: 'Functions as never-ending polynomials: Maclaurin and Taylor series, the standard series, estimates and their errors, limits, and where a series is valid.',
+  blurb: 'Functions as never-ending polynomials: Maclaurin and Taylor series, the standard series, estimates and their errors, limits, where a series is valid, and bounding the error.',
   levels: [
     {
       id: 'se-l1',
@@ -453,6 +457,200 @@ export const seriesExpansions: Course = {
         ask('ser-estimate-pick', 2),
         ask('ser-limit', 2),
         ask('ser-valid-tiles', 2),
+      ],
+    },
+    {
+      id: 'se-l3',
+      title: 'Error Terms',
+      lessons: [
+        {
+          id: 'se-l3-remainder',
+          title: 'The Remainder',
+          slides: [
+            teach(
+              prose('$P_{n}(x)$ is the series stopped at $x^{n}$. What it leaves out is the **remainder**, $R_{n}(x) = f(x) - P_{n}(x)$.'),
+              prose(
+                'Lagrange showed the remainder is the next term of the series with one change: the derivative is taken at some point $c$ between $0$ and $x$, not at $0$.',
+              ),
+              display('R_{n}(x) = \\frac{f^{(n+1)}(c)}{(n+1)!}x^{n+1}'),
+            ),
+            ask('ser-rem-tiles'),
+            ask('ser-rem-exact'),
+            ask('ser-rem-flow'),
+            teach(
+              prose('For $e^{x}$ every derivative is $e^{x}$, so after $P_{3}$:'),
+              display('R_{3}(x) = \\frac{e^{c}}{4!}x^{4}'),
+              prose("For $\\sin x$ after $P_{2}$, the next derivative is $f'''(x) = -\\cos x$:"),
+              display('R_{2}(x) = \\frac{-\\cos c}{3!}x^{3}'),
+              prose('Nobody knows $c$ exactly. Knowing it lies between $0$ and $x$ is enough to put a bound on the error, which is the next lesson.'),
+            ),
+            ask('ser-rem-pick'),
+            ask('ser-rem-tiles', 2),
+            ask('ser-rem-flow', 2),
+            teach(
+              prose('A polynomial such as $(1 + x)^{4}$ is its own series, so its remainder is exact: just the terms after $x^{n}$.'),
+              working('(1 + x)^{4} &= 1 + 4x + 6x^{2}', '&\\quad + 4x^{3} + x^{4}', 'R_{2}(x) &= 4x^{3} + x^{4}'),
+              prose('At $x = \\frac{1}{2}$ that is $\\frac{1}{2} + \\frac{1}{16} = \\frac{9}{16}$.'),
+            ),
+            ask('ser-rem-exact+choice', 2),
+            ask('ser-rem-pick', 2),
+          ],
+          skillCheck: [ask('ser-rem-tiles', 2), ask('ser-rem-exact', 2), ask('ser-rem-flow', 2)],
+        },
+        {
+          id: 'se-l3-bound',
+          title: 'Bounding the Error',
+          slides: [
+            teach(
+              prose('$c$ is unknown, so bound what it could do. If $|f^{(n+1)}(c)| \\le M$ for every $c$ between $0$ and $x$, then'),
+              display('|R_{n}(x)| \\le M \\times \\frac{|x|^{n+1}}{(n+1)!}'),
+              prose('For $\\sin x$ and $\\cos x$ take $M = 1$: every derivative is a sine or cosine, and those never pass $1$ in size. After $P_{3}$ at $x = \\frac{1}{2}$:'),
+              display('|R_{3}| \\le \\frac{(\\frac{1}{2})^{4}}{4!} = \\frac{1}{384}'),
+            ),
+            ask('ser-bound-tree'),
+            ask('ser-bound-m-flow'),
+            ask('ser-bound-tiles'),
+            teach(
+              prose(
+                '$e^{c}$ grows as $c$ grows, so for $0 \\le c \\le b$ it is largest at $c = b$: take $M = e^{b}$. For a negative $x$, $e^{c} \\le 1$, so $M = 1$.',
+              ),
+              prose('For $e^{0.5}$ by $P_{2}$, to 3 significant figures:'),
+              display('|R_{2}| \\le e^{0.5} \\times \\frac{0.5^{3}}{3!} = 0.0343'),
+            ),
+            ask('ser-bound-dec'),
+            ask('ser-bound-m-flow', 2),
+            ask('ser-bound-tree', 2),
+            teach(
+              prose(
+                'A multiplier and a $k$ carry through every derivative. For $2\\sin 3x$, $f^{(n+1)}$ is $2 \\times 3^{n+1}$ times a sine or cosine, so $M = 2 \\times 3^{n+1}$.',
+              ),
+              prose('Where $M$ is exact, give the bound as a fraction; where it holds an $e$, as a decimal.'),
+            ),
+            ask('ser-bound-tiles', 2),
+            ask('ser-bound-dec+choice', 2),
+          ],
+          skillCheck: [ask('ser-bound-tree', 2), ask('ser-bound-dec', 2), ask('ser-bound-m-flow', 2)],
+        },
+        {
+          id: 'se-l3-compare',
+          title: 'Bound against Estimate',
+          slides: [
+            teach(
+              prose(
+                'Level 2 estimated the error by the first term left out; call its size $D$. The Lagrange bound $B$ is a guarantee. When the terms **alternate** and shrink, the two agree.',
+              ),
+              prose('For $e^{-x}$ at $x = \\frac{1}{2}$ after $P_{2}$, with $M = 1$:'),
+              display('D = \\frac{(\\frac{1}{2})^{3}}{3!} = \\frac{1}{48}, \\quad B = \\frac{1}{48}'),
+              prose('The true error, about $0.0185$, is below both.'),
+            ),
+            ask('ser-compare-flow'),
+            ask('ser-compare-tree'),
+            ask('ser-compare-exact'),
+            teach(
+              prose(
+                'For $e^{x}$ with $x > 0$ every term is positive, so all the terms left out add up and the error is **more** than $D$. Only Lagrange covers it.',
+              ),
+              prose('At $x = \\frac{1}{2}$, $e^{c} < 2$, so $B = 2D = \\frac{1}{24}$. The true error, about $0.0237$, sits between $D$ and $B$.'),
+            ),
+            ask('ser-compare-pick'),
+            ask('ser-compare-flow', 2),
+            ask('ser-compare-tree', 2),
+            teach(
+              prose('$\\frac{1}{1 - x}$ can be checked exactly. After $P_{n}$ the error is the first term left out divided by $1 - x$:'),
+              display('\\frac{1}{1 - x} - P_{n}(x) = \\frac{x^{n+1}}{1 - x}'),
+              prose('For $0 < x < 1$ that is larger than $x^{n+1}$; for $-1 < x < 0$ it is smaller, as the terms alternate.'),
+            ),
+            ask('ser-compare-exact+choice', 2),
+            ask('ser-compare-pick', 2),
+          ],
+          skillCheck: [ask('ser-compare-tree', 2), ask('ser-compare-flow', 2), ask('ser-compare-pick', 2)],
+        },
+        {
+          id: 'se-l3-degree',
+          title: 'Choosing a Degree',
+          slides: [
+            teach(
+              prose('To reach an accuracy, find the smallest $n$ whose bound is under the tolerance. For $\\cos x$ at $x = 1$ to within $0.001$, $M = 1$:'),
+              working('n = 5: &\\; \\frac{1}{6!} \\approx 0.00139', 'n = 6: &\\; \\frac{1}{7!} \\approx 0.000198'),
+              prose('So $n = 6$ is the first that is small enough.'),
+            ),
+            ask('ser-degree-table'),
+            ask('ser-degree-n'),
+            ask('ser-degree-table', 2),
+            teach(
+              prose('Turned round: for a fixed $n$, how far can $x$ go? For $\\sin x$ with $P_{3}$ and a tolerance of $0.001$:'),
+              working('\\frac{x^{4}}{4!} &\\le 0.001', 'x^{4} &\\le 0.024', 'x &\\le 0.39'),
+              figure({
+                xMin: 0,
+                xMax: 0.6,
+                yMin: 0,
+                yMax: 0.002,
+                curves: [{ f: (x: number) => x ** 4 / 24, accent: true }],
+                horizontals: [0.001],
+                label: 'The bound x to the fourth over 24 rising from 0 to meet a dashed line at 0.001 near x = 0.39',
+              }),
+            ),
+            ask('ser-degree-reach'),
+            ask('ser-degree-slider'),
+            ask('ser-degree-n+choice', 2),
+            teach(
+              prose('For $e^{x}$ with $x > 0$, $M = e^{x}$ grows along with the power, so the bound $\\frac{e^{x}x^{n+1}}{(n+1)!}$ rises faster and the reach is shorter.'),
+              prose('A multiplier or a $k$ in the function raises $M$ and shortens the reach too.'),
+            ),
+            ask('ser-degree-slider', 2),
+            ask('ser-degree-reach', 2),
+          ],
+          skillCheck: [ask('ser-degree-n', 2), ask('ser-degree-reach', 2), ask('ser-degree-slider', 2)],
+        },
+        {
+          id: 'se-l3-centre',
+          title: 'Remainders about a Centre',
+          slides: [
+            teach(
+              prose('About $x = a$ everything is in powers of $(x - a)$, and $c$ lies between $a$ and $x$:'),
+              display('R_{n}(x) = \\frac{f^{(n+1)}(c)}{(n+1)!}(x - a)^{n+1}'),
+              prose("For $\\ln x$ about $1$, $f'''(x) = \\frac{2}{x^{3}}$, so"),
+              display('R_{2}(x) = \\frac{2}{c^{3}} \\times \\frac{(x - 1)^{3}}{3!}'),
+            ),
+            ask('ser-centre-tiles'),
+            ask('ser-centre-flow'),
+            ask('ser-centre-tree'),
+            teach(
+              prose(
+                'The derivatives of $\\ln x$, $\\sqrt{x}$ and $\\frac{1}{x}$ are negative powers of $x$, so they shrink as $c$ grows: take $M$ at the end nearer $0$.',
+              ),
+              prose('For $\\ln 1.2$ by $P_{2}$ about $1$, $M = |f\'\'\'(1)| = 2$:'),
+              display('|R_{2}| \\le 2 \\times \\frac{0.2^{3}}{3!} = \\frac{1}{375}'),
+            ),
+            ask('ser-centre-dec'),
+            ask('ser-centre-tiles', 2),
+            ask('ser-centre-flow', 2),
+            teach(
+              prose("Choose a centre where the function is easy: $4$ or $9$ for $\\sqrt{x}$. For $\\sqrt{4.5}$ by $P_{1}$ about $4$, $f''(x) = -\\frac{1}{4}x^{-\\frac{3}{2}}$, largest in size at $c = 4$:"),
+              display('M = \\frac{1}{4} \\times \\frac{1}{8} = \\frac{1}{32}'),
+              display('|R_{1}| \\le \\frac{1}{32} \\times \\frac{0.5^{2}}{2!} = \\frac{1}{256}'),
+            ),
+            ask('ser-centre-tree', 2),
+            ask('ser-centre-dec+choice', 2),
+          ],
+          skillCheck: [ask('ser-centre-tiles', 2), ask('ser-centre-tree', 2), ask('ser-centre-dec', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('ser-rem-tiles', 2),
+        ask('ser-bound-tree', 2),
+        ask('ser-compare-flow', 2),
+        ask('ser-degree-n', 2),
+        ask('ser-centre-tiles', 2),
+        ask('ser-rem-exact', 2),
+        ask('ser-bound-dec', 2),
+        ask('ser-compare-tree', 2),
+        ask('ser-degree-slider', 2),
+        ask('ser-centre-dec', 2),
+        ask('ser-rem-flow', 2),
+        ask('ser-bound-m-flow', 2),
+        ask('ser-compare-pick', 2),
+        ask('ser-degree-reach', 2),
       ],
     },
   ],

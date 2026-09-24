@@ -19,6 +19,7 @@ import { reduce, startSession } from '../../engine/session';
 import type { Answer } from '../../engine/session';
 import { registry } from '../registry';
 import type { Generator, Slide } from '../types';
+import { defaultSliderValue } from '../../ui/sliderValue';
 
 const SEEDS = 150;
 const DIFFICULTIES = [1, 2];
@@ -553,5 +554,354 @@ describe('comparing two groups', () => {
       expect(params.squared).toBe(true);
       expect(Math.sign(params.sB * params.sB - params.sA)).not.toBe(Math.sign(params.sB - params.sA));
     }
+  });
+});
+
+/* ---------- level 4: cumulative frequency ---------- */
+
+type Pt = [number, number];
+
+/** The corners of the curve: the lowest boundary at nought, then each upper boundary at everything counted so far. */
+function corners({ bounds, fs }: Grouped): Pt[] {
+  const pts: Pt[] = [[bounds[0], 0]];
+  fs.forEach((f, i) => pts.push([bounds[i + 1], pts[i][1] + f]));
+  return pts;
+}
+
+/** Across at height `h` to the first straight join that reaches it, then down. */
+function xAtHeight(pts: Pt[], h: number): number {
+  for (let j = 0; j + 1 < pts.length; j += 1) {
+    const [x0, y0] = pts[j];
+    const [x1, y1] = pts[j + 1];
+    if (h > y0 && h <= y1) return x0 + ((x1 - x0) * (h - y0)) / (y1 - y0);
+  }
+  throw new Error(`no join reaches ${h}`);
+}
+
+/** Up at `x` to the straight join above it, then across. */
+function heightAtX(pts: Pt[], x: number): number {
+  for (let j = 0; j + 1 < pts.length; j += 1) {
+    const [x0, y0] = pts[j];
+    const [x1, y1] = pts[j + 1];
+    if (x >= x0 && x <= x1) return y0 + ((y1 - y0) * (x - x0)) / (x1 - x0);
+  }
+  throw new Error(`${x} is off the curve`);
+}
+
+/** The class each value of a grouped table falls in, one entry per value. */
+const classOfEach = (fs: number[]) => expand(fs.map((_, i) => i), fs);
+
+/** How many values sit in classes wholly below `b`, by walking the expanded list. */
+function countUnder({ bounds, fs }: Grouped, b: number): number {
+  return classOfEach(fs).filter((i) => bounds[i + 1] <= b).length;
+}
+
+/**
+ * Reads a curve back off its own picture: the scale's numbers give the
+ * mapping from pixels to data, and every ringed point is turned back into
+ * data by it. So a curve that plots midpoints, or the wrong totals, or a
+ * scale that does not match where plotSvg drew, all show up here.
+ */
+function readFigure(svg: string) {
+  const texts = [...svg.matchAll(/<text data-axis="(\w)" x="([\d.-]+)" y="([\d.-]+)"[^>]*text-anchor="(\w+)">([\d.]+)<\/text>/g)];
+  // The corner label stands aside from its tick, so only centred labels set the scale.
+  const across = texts.filter((t) => t[1] === 'x' && t[4] === 'middle').map((t) => ({ at: Number(t[2]), value: Number(t[5]) }));
+  const up = texts.filter((t) => t[1] === 'y').map((t) => ({ at: Number(t[3]) - 3.5, value: Number(t[5]) }));
+  const map = (scale: { at: number; value: number }[]) => {
+    const a = scale[0];
+    const b = scale[scale.length - 1];
+    return { toData: (px: number) => a.value + ((px - a.at) * (b.value - a.value)) / (b.at - a.at), toPx: (v: number) => a.at + ((v - a.value) * (b.at - a.at)) / (b.value - a.value) };
+  };
+  const x = map(across);
+  const y = map(up);
+  const rings = [...svg.matchAll(/<circle cx="([\d.]+)" cy="([\d.]+)"/g)].map((m): Pt => [x.toData(Number(m[1])), y.toData(Number(m[2]))]);
+  return { x, y, rings, labels: texts.filter((t) => t[1] === 'x').map((t) => Number(t[5])) };
+}
+
+const diagramOf = (slide: Slide): string => {
+  const block = (slide as { prompt: { kind: string; svg?: string }[] }).prompt.find((b) => b.kind === 'diagram');
+  if (block?.svg) return block.svg;
+  if (slide.kind === 'slider' && slide.figure) return slide.figure.svg;
+  throw new Error('no curve on this slide');
+};
+
+/** Whether a drawn curve's rings are the table's corners, to within a fifth of a square. */
+function ringsMatch(svg: string, g: Grouped) {
+  const { rings, labels } = readFigure(svg);
+  const pts = corners(g);
+  expect(labels).toEqual(g.bounds);
+  expect(rings.length).toBe(pts.length);
+  const across = Math.min(...g.bounds.slice(1).map((b, i) => b - g.bounds[i])) / 2;
+  rings.forEach(([rx, ry], j) => {
+    expect(Math.abs(rx - pts[j][0])).toBeLessThan(across / 5);
+    expect(Math.abs(ry - pts[j][1])).toBeLessThan(pts[pts.length - 1][1] / 60 + 0.2);
+  });
+}
+
+/** Where a slider's marker sits for its answer, as a fraction across or down the picture. */
+function markerAt(slide: Slide): number {
+  if (slide.kind !== 'slider' || !slide.figure) throw new Error('not a slider with a figure');
+  const { xMin, xMax } = slide.figure;
+  return (slide.answer - xMin) / (xMax - xMin);
+}
+
+const VIEW = { width: 280, height: 220 };
+
+describe('the curve sliders', () => {
+  it('never rest their handle within reach of the answer', () => {
+    for (const id of ['dat-cf-below-slider', 'dat-cf-quartile-slider', 'dat-pct-slider']) {
+      for (const { slide, seed, difficulty } of draws<Grouped>(id)) {
+        if (slide.kind !== 'slider') throw new Error('not a slider slide');
+        const rest = defaultSliderValue(slide.min, slide.max, slide.step);
+        expect(Math.abs(rest - slide.answer), `${id} seed ${seed} d${difficulty}`).toBeGreaterThan(slide.tolerance ?? slide.step / 2);
+      }
+    }
+  });
+});
+
+describe('cumulative frequency tables', () => {
+  it('fills the running totals by adding down, with a hidden frequency as the difference at difficulty 2', () => {
+    type P = Grouped & { hidden: number };
+    for (const { params, slide, difficulty, seed } of draws<P>('dat-cf-table')) {
+      if (slide.kind !== 'table') throw new Error('not a table slide');
+      let t = 0;
+      const expected = params.fs.map((f, i) => {
+        t += f;
+        return i === params.hidden ? t - (t - f) : t;
+      });
+      expect(slide.answer.map(num), `seed ${seed}`).toEqual(expected);
+      expect(t).toBe(add(params.fs));
+      expect(params.hidden >= 0).toBe(difficulty === 2);
+      expect(verdict(slide, slide.answer)).toBe('correct');
+    }
+  });
+
+  it('plots each class at its upper boundary against its running total', () => {
+    type P = Grouped & { at: number; given: boolean };
+    for (const { params, slide, seed } of draws<P>('dat-cf-point')) {
+      if (slide.kind !== 'choice') throw new Error('not a choice slide');
+      const upper = params.bounds[params.at + 1];
+      const counted = countUnder(params, upper);
+      expect(correctLabel(slide), `seed ${seed}`).toBe(`(${upper}, ${counted})`);
+      expect(new Set(slide.options.map((o) => o.label)).size).toBe(4);
+    }
+  });
+
+  it('recovers each frequency as the growth in the printed running totals', () => {
+    for (const { params, slide, seed } of draws<Grouped>('dat-cf-back')) {
+      if (slide.kind !== 'table') throw new Error('not a table slide');
+      const printed = slide.rows.map((row) => Number(row[2]));
+      const growth = printed.map((c, i) => c - (i === 0 ? 0 : printed[i - 1]));
+      expect(slide.answer.map(num), `seed ${seed}`).toEqual(growth);
+      expect(growth).toEqual(params.fs);
+    }
+  });
+
+  it('counts the values below a boundary, or at least it at difficulty 2', () => {
+    type P = Grouped & { at: number; above: boolean };
+    for (const { params, slide, difficulty, seed } of draws<P>('dat-cf-count')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const b = params.bounds[params.at];
+      const below = countUnder(params, b);
+      const atLeast = classOfEach(params.fs).filter((i) => params.bounds[i] >= b).length;
+      expect(num(slide.answer), `seed ${seed}`).toBe(difficulty === 2 ? atLeast : below);
+    }
+  });
+});
+
+describe('reading the curve', () => {
+  // Drawn while the file is collected, which is untimed: six generators at
+  // every seed are more rendering than one test's budget should carry.
+  const pictured = ['dat-cf-between', 'dat-cf-above', 'dat-cf-positions', 'dat-cf-iqr', 'dat-pct-range', 'dat-pct-rank'].flatMap(
+    (id) => draws<Grouped>(id),
+  );
+
+  it('draws every ring at an upper boundary and its running total, under a scale that matches', () => {
+    for (const { params, slide } of pictured) ringsMatch(diagramOf(slide), params);
+  });
+
+  it('slides up to the height of the curve at x, halfway along a class at difficulty 1', () => {
+    type P = Grouped & { x: number; guided: boolean };
+    for (const { params, slide, difficulty, seed } of draws<P>('dat-cf-below-slider')) {
+      if (slide.kind !== 'slider') throw new Error('not a slider slide');
+      const pts = corners(params);
+      const h = heightAtX(pts, params.x);
+      expect(slide.answer, `seed ${seed}`).toBe(h);
+      expect(Number.isInteger(h)).toBe(true);
+      const j = params.bounds.findIndex((b) => b > params.x) - 1;
+      const halfway = (params.bounds[j] + params.bounds[j + 1]) / 2 === params.x;
+      expect(halfway, `seed ${seed}`).toBe(difficulty === 1);
+      expect(params.bounds.includes(params.x)).toBe(false);
+      // The marker, as a fraction down the picture, sits where the curve is at that height.
+      const { y } = readFigure(slide.figure!.svg);
+      expect(Math.abs((1 - markerAt(slide)) * VIEW.height - y.toPx(h))).toBeLessThan(0.6);
+      ringsMatch(slide.figure!.svg, params);
+    }
+  });
+
+  it('takes the reading at the bottom from the reading at the top', () => {
+    type P = Grouped & { a: number; b: number };
+    for (const { params, slide, seed } of draws<P>('dat-cf-between')) {
+      if (slide.kind !== 'tiles') throw new Error('not a tiles slide');
+      const pts = corners(params);
+      const [hb, ha] = [heightAtX(pts, params.b), heightAtX(pts, params.a)];
+      expect(slide.answer.map(num), `seed ${seed}`).toEqual([hb, ha, hb - ha]);
+      expect(params.a).toBeLessThan(params.b);
+    }
+  });
+
+  it('takes the reading from n for how many are more', () => {
+    type P = Grouped & { x: number };
+    for (const { params, slide, seed } of draws<P>('dat-cf-above')) {
+      const n = add(params.fs);
+      expect(num(correctLabel(slide)), `seed ${seed}`).toBe(n - heightAtX(corners(params), params.x));
+    }
+  });
+
+  it('names the mistake the picture actually shows', () => {
+    type P = Grouped & { plot: string };
+    for (const { params, slide, seed } of draws<P>('dat-cf-check')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const { rings } = readFigure(diagramOf(slide));
+      const width = params.bounds[1] - params.bounds[0];
+      const falls = rings.some(([, ry], j) => j > 0 && ry < rings[j - 1][1] - 0.5);
+      const offBoundary = rings.some(([rx]) => params.bounds.every((b) => Math.abs(rx - b) > width / 10));
+      const fromZero = Math.abs(rings[0][0] - params.bounds[0]) < width / 10 && Math.abs(rings[0][1]) < 0.5;
+      const verdictFromPicture = falls ? ['No'] : offBoundary ? ['Yes', 'No'] : fromZero ? ['Yes', 'Yes', 'Yes'] : ['Yes', 'Yes', 'No'];
+      expect(slide.answer, `seed ${seed} ${params.plot}`).toEqual(verdictFromPicture);
+    }
+  });
+});
+
+describe('median, quartiles and percentiles from the curve', () => {
+  type Q = Grouped & { pct: number; guided: boolean };
+
+  /** Checks an x slider against the corners and its own picture. */
+  function slidesAcross(id: string, grid: (d: number) => boolean) {
+    for (const { params, slide, difficulty, seed } of draws<Q>(id)) {
+      if (slide.kind !== 'slider') throw new Error('not a slider slide');
+      const n = add(params.fs);
+      const x = xAtHeight(corners(params), (params.pct * n) / 100);
+      expect(slide.answer, `seed ${seed}`).toBeCloseTo(x, 9);
+      const squares = (x - params.bounds[0]) / ((params.bounds[1] - params.bounds[0]) / 2);
+      expect(close(squares, Math.round(squares)), `seed ${seed}: on a grid line`).toBe(grid(difficulty));
+      const { x: scale } = readFigure(slide.figure!.svg);
+      expect(Math.abs(markerAt(slide) * VIEW.width - scale.toPx(x))).toBeLessThan(0.6);
+      ringsMatch(slide.figure!.svg, params);
+    }
+  }
+
+  it('slides to the median on a grid line at difficulty 1, and to any quartile between the lines at 2', () => {
+    slidesAcross('dat-cf-quartile-slider', (d) => d === 1);
+    for (const { params, difficulty } of draws<Q>('dat-cf-quartile-slider')) {
+      expect(add(params.fs) % 4).toBe(0);
+      if (difficulty === 1) expect(params.pct).toBe(50);
+    }
+  });
+
+  it('reads quartiles at n/4, n/2 and 3n/4, never the list rule', () => {
+    for (const { params, slide, seed } of draws<Grouped>('dat-cf-positions')) {
+      if (slide.kind !== 'table') throw new Error('not a table slide');
+      const n = add(params.fs);
+      const pts = corners(params);
+      const expected = [1, 2, 3].flatMap((q) => [(q * n) / 4, xAtHeight(pts, (q * n) / 4)]);
+      slide.answer.map(num).forEach((v, j) => expect(v, `seed ${seed}`).toBeCloseTo(expected[j], 9));
+    }
+    for (const { params, slide, seed } of draws<Grouped>('dat-cf-iqr')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const n = add(params.fs);
+      const pts = corners(params);
+      const [q1, q3] = [xAtHeight(pts, n / 4), xAtHeight(pts, (3 * n) / 4)];
+      const expected = [n / 4, (3 * n) / 4, q1, q3, q3 - q1];
+      slide.answer.map(num).forEach((v, j) => expect(v, `seed ${seed}`).toBeCloseTo(expected[j], 9));
+    }
+    for (const { params, slide, seed } of draws<{ n: number; pct: number }>('dat-cf-rule')) {
+      if (slide.kind !== 'choice') throw new Error('not a choice slide');
+      const q = params.pct / 25;
+      expect(num(correctLabel(slide)), `seed ${seed}`).toBe((q * params.n) / 4);
+      expect(slide.options.map((o) => num(o.label))).toContain((q * (params.n + 1)) / 4);
+    }
+  });
+
+  it('puts the pth percentile at pn/100, and slides to it', () => {
+    for (const { params, slide, seed } of draws<{ n: number; pct: number }>('dat-pct-position')) {
+      if (slide.kind !== 'tiles') throw new Error('not a tiles slide');
+      const expected = [params.pct, params.n, (params.pct / 100) * params.n];
+      slide.answer.map(num).forEach((v, j) => expect(v, `seed ${seed}`).toBeCloseTo(expected[j], 9));
+    }
+    slidesAcross('dat-pct-slider', (d) => d === 1);
+  });
+
+  it('finds the 10th to 90th range from both readings', () => {
+    for (const { params, slide, seed } of draws<Grouped>('dat-pct-range')) {
+      if (slide.kind !== 'table') throw new Error('not a table slide');
+      const n = add(params.fs);
+      const pts = corners(params);
+      const [a, b] = [xAtHeight(pts, n / 10), xAtHeight(pts, (9 * n) / 10)];
+      const expected = [n / 10, a, (9 * n) / 10, b, b - a];
+      slide.answer.map(num).forEach((v, j) => expect(v, `seed ${seed}`).toBeCloseTo(expected[j], 9));
+    }
+  });
+
+  it('turns a reading into a percentage of n', () => {
+    for (const { params, slide, seed } of draws<Grouped & { x: number }>('dat-pct-rank')) {
+      const h = heightAtX(corners(params), params.x);
+      expect(num(correctLabel(slide)), `seed ${seed}`).toBeCloseTo((h / add(params.fs)) * 100, 9);
+    }
+  });
+});
+
+describe('interpolating inside a class', () => {
+  type I = Grouped & { pct: number };
+
+  it('names the class holding the value at that position, counted along the expanded data', () => {
+    for (const { params, slide, seed } of draws<I>('dat-interp-class')) {
+      const pos = (params.pct * add(params.fs)) / 100;
+      const i = classOfEach(params.fs)[Math.ceil(pos) - 1];
+      expect(correctLabel(slide), `seed ${seed}`).toBe(`${params.bounds[i]} \\le x < ${params.bounds[i + 1]}`);
+    }
+  });
+
+  it('fills lower boundary, position, count before, frequency, width and the estimate', () => {
+    for (const { params, slide, seed } of draws<I>('dat-interp-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('not a tiles slide');
+      const pos = (params.pct * add(params.fs)) / 100;
+      const i = classOfEach(params.fs)[Math.ceil(pos) - 1];
+      const before = countUnder(params, params.bounds[i]);
+      const expected = [params.bounds[i], pos, before, params.fs[i], params.bounds[i + 1] - params.bounds[i], xAtHeight(corners(params), pos)];
+      slide.answer.map(num).forEach((v, j) => expect(v, `seed ${seed}`).toBeCloseTo(expected[j], 9));
+      expect(verdict(slide, slide.answer)).toBe('correct');
+    }
+  });
+
+  it('works the estimate one operation at a time, each step the arithmetic of the line before', () => {
+    for (const { params, slide, seed } of draws<I>('dat-interp-steps')) {
+      if (slide.kind !== 'steps') throw new Error('not a steps slide');
+      const [lo, , , pos, , before, , , width, , f] = slide.start.map(Number);
+      const d = pos - before;
+      const expected = [d, d * width, (d * width) / f, lo + (d * width) / f];
+      slide.reductions.forEach((r, j) => expect(num(r.value), `seed ${seed} step ${j}`).toBeCloseTo(expected[j], 9));
+      expect(expected[3]).toBeCloseTo(xAtHeight(corners(params), (params.pct * add(params.fs)) / 100), 9);
+      for (const r of slide.reductions) expect(r.bank).toContain(r.value);
+    }
+  });
+
+  it('types the estimate, exact, with the median over equal classes at difficulty 1', () => {
+    for (const { params, slide, difficulty, seed } of draws<I>('dat-interp-value')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const x = xAtHeight(corners(params), (params.pct * add(params.fs)) / 100);
+      expect(num(slide.answer), `seed ${seed}`).toBeCloseTo(x, 9);
+      expect(close(Math.round(x * 100) / 100, x)).toBe(true);
+      const widths = params.bounds.slice(1).map((b, i) => b - params.bounds[i]);
+      if (difficulty === 1) {
+        expect(params.pct).toBe(50);
+        expect(new Set(widths).size).toBe(1);
+      }
+    }
+    // Difficulty 2 has one class twice as wide, so a width cannot be carried down the table.
+    const mixed = draws<I>('dat-interp-value').filter(
+      ({ params, difficulty }) => difficulty === 2 && new Set(params.bounds.slice(1).map((b, i) => b - params.bounds[i])).size === 2,
+    );
+    expect(mixed.length).toBe(SEEDS);
   });
 });

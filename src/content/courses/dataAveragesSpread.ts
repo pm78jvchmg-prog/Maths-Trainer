@@ -8,19 +8,25 @@
  * is spread: the range and what one extreme value does to it, quartiles and
  * the interquartile range, outliers by the 1.5 times IQR rule, variance from
  * `\sum x^2 / n - \bar{x}^2`, and the standard deviation, with two sets of
- * data compared by their means and spreads.
+ * data compared by their means and spreads. Level 4 is cumulative
+ * frequency: running totals, the curve through the upper class boundaries,
+ * the median, quartiles and percentiles read off it, and the same readings
+ * by interpolating inside a class. Level 3, Representing Data, is on its own
+ * branch; level ids are fixed, so it slots in between when it lands.
  *
  * Sigma notation belongs to Sequences & Series (`sq-l2-sigma`) and
  * rearranging a formula to Linear Equations (`le-l3-subject`); both are
- * pointed at here, not taught again. Quartiles are taught for lists of
- * length 4k + 3 only, where they sit at whole positions, and no other length
- * is ever asked. Later levels are in `docs/roadmap/levels/data-averages-spread.md`.
+ * pointed at here, not taught again. Quartiles of a list are taught for
+ * lists of length 4k + 3 only, where they sit at whole positions, and no
+ * other length is ever asked; on a cumulative frequency curve they are read
+ * at n/4, n/2 and 3n/4, and level 4 says why the two rules differ. Later levels are in `docs/roadmap/levels/data-averages-spread.md`.
  *
  * Each level closes with a level check: fifteen questions, no teaching
  * slides, one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
 import { plotSvg } from '../figures';
+import { cumulativeSvg } from '../generators/dataAveragesSpread';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -66,13 +72,29 @@ const risingPoints: [number, number][] = [
   [8, 9],
 ];
 
+/**
+ * The journeys every level 4 teaching slide uses: forty journey times in
+ * minutes, drawn so the median, quartiles and the readings taught all land
+ * on whole numbers (median 25, quartiles 16 and 34).
+ */
+const EXAMPLE = { bounds: [0, 10, 20, 30, 40, 50], fs: [4, 10, 12, 10, 4] };
+
+/** A grouped table with its running totals, written out by hand for teaching. */
+function cfTableTex({ bounds, fs }: typeof EXAMPLE): string {
+  let t = 0;
+  const rows = fs.map((f, i) => `${bounds[i]} \\le x < ${bounds[i + 1]} & ${f} & ${(t += f)}`).join(' \\\\ ');
+  return `\\begin{array}{c|c|c} \\text{Minutes} & f & \\text{cf} \\\\ \\hline ${rows} \\end{array}`;
+}
+
+const cf = (opts: Parameters<typeof cumulativeSvg>[1] = {}): Block => ({ kind: 'diagram', svg: cumulativeSvg(EXAMPLE, opts) });
+
 export const dataAveragesSpread: Course = {
   id: 'data-averages-spread',
   category: 'statistics',
   // After Probability (10), which opens the tab.
   position: 20,
   title: 'Data, Averages and Spread',
-  blurb: 'Summing up a set of data: its averages, frequency tables and scatter diagrams, then its range, quartiles, outliers and standard deviation.',
+  blurb: 'Summing up a set of data: its averages, frequency tables and scatter diagrams, then its range, quartiles, outliers and standard deviation, and cumulative frequency curves.',
   levels: [
     {
       id: 'da-l1',
@@ -479,6 +501,206 @@ export const dataAveragesSpread: Course = {
         ask('dat-sd', 2),
         ask('dat-sd-tiles', 2),
         ask('dat-compare-flow', 2),
+      ],
+    },
+    {
+      id: 'da-l4',
+      title: 'Cumulative Frequency',
+      lessons: [
+        {
+          id: 'da-l4-tables',
+          title: 'Cumulative Frequency Tables',
+          slides: [
+            teach(
+              prose(
+                'A **cumulative frequency** is a running total: how many values have been counted by the end of each class. Add each frequency to the total above it.',
+              ),
+              display(cfTableTex(EXAMPLE)),
+              prose('The last running total is every value counted, so it is always $n$: here $40$ journeys.'),
+            ),
+            ask('dat-cf-table'),
+            ask('dat-cf-back'),
+            ask('dat-cf-count'),
+            teach(
+              prose(
+                'Each class gives one point to plot. By the end of $10 \\le x < 20$, all $14$ journeys under $20$ minutes have been counted, and not before. So the point goes at the **upper class boundary**:',
+              ),
+              display('(20, 14)'),
+              prose('Not at the midpoint, $15$: halfway through the class only some of its journeys have been counted.'),
+            ),
+            ask('dat-cf-point'),
+            ask('dat-cf-table', 2),
+            ask('dat-cf-point', 2),
+            teach(
+              prose('A running total is a count of values below a boundary: $26$ journeys took less than $30$ minutes.'),
+              prose('So the rest took at least $30$ minutes: $40 - 26 = 14$. And a table of running totals gives back its frequencies by taking each total from the next: $26 - 14 = 12$.'),
+            ),
+            ask('dat-cf-back', 2),
+            ask('dat-cf-count', 2),
+          ],
+          skillCheck: [ask('dat-cf-table', 2), ask('dat-cf-point', 2), ask('dat-cf-count', 2)],
+        },
+        {
+          id: 'da-l4-curve',
+          title: 'The Cumulative Frequency Curve',
+          slides: [
+            teach(
+              prose(
+                'Plot each running total at its upper boundary, and join the points in order. Start at the **lowest boundary, at zero**: no journey took less than $0$ minutes.',
+              ),
+              cf(),
+              prose(
+                'Here the points are joined with straight lines. The curve only ever rises, since a running total can never go down, and it ends at $n = 40$.',
+              ),
+            ),
+            ask('dat-cf-check'),
+            ask('dat-cf-below-slider'),
+            ask('dat-cf-above'),
+            teach(
+              prose('To read how many values lie below $35$, go **up** from $35$ to the curve, then **across**:'),
+              cf({ down: [35], across: [31] }),
+              prose(
+                '$31$ journeys took less than $35$ minutes, so $40 - 31 = 9$ took more. Between two values, take one reading from the other: below $15$ there are $9$, so $31 - 9 = 22$ lie between $15$ and $35$.',
+              ),
+            ),
+            ask('dat-cf-between'),
+            ask('dat-cf-below-slider', 2),
+            ask('dat-cf-check', 2),
+            teach(
+              prose(
+                'Between two points the curve is a straight join, so a reading inside a class is a share of it. $35$ is halfway through $30 \\le x < 40$, which holds $10$ journeys on top of the $26$ below it:',
+              ),
+              display('26 + \\tfrac{1}{2} \\times 10 = 31'),
+              prose('Two tenths of the way through would add two tenths of the $10$, and so on.'),
+            ),
+            ask('dat-cf-above', 2),
+            ask('dat-cf-between', 2),
+          ],
+          skillCheck: [ask('dat-cf-below-slider', 2), ask('dat-cf-between', 2), ask('dat-cf-check', 2)],
+        },
+        {
+          id: 'da-l4-quartiles',
+          title: 'Median and Quartiles from the Curve',
+          slides: [
+            teach(
+              prose(
+                'The median is the value halfway up the data, so read it **across** from a cumulative frequency of $\\frac{n}{2}$ and then **down**. With $n = 40$, across from $20$:',
+              ),
+              cf({ across: [20], down: [25] }),
+              prose(
+                'The median is $25$ minutes. On a curve the position is $\\frac{n}{2}$, not $\\frac{n + 1}{2}$: the $4k + 3$ rule of Measures of Spread counts places along a list, and a curve has no places to count.',
+              ),
+            ),
+            ask('dat-cf-rule'),
+            ask('dat-cf-quartile-slider'),
+            ask('dat-cf-positions'),
+            teach(
+              prose('The quartiles are read the same way, a quarter and three quarters of the way up:'),
+              working('Q_1 &: \\tfrac{40}{4} = 10 \\to 16', 'Q_3 &: \\tfrac{3 \\times 40}{4} = 30 \\to 34'),
+              prose('Across from $10$ the curve comes down at $16$, and across from $30$ at $34$.'),
+              prose('The interquartile range is $34 - 16 = 18$ minutes: the spread of the middle half of the journeys.'),
+            ),
+            ask('dat-cf-iqr'),
+            ask('dat-cf-rule', 2),
+            ask('dat-cf-quartile-slider', 2),
+            teach(
+              prose(
+                'A reading will not always land on a grid line. Each class is two squares wide, so count how far between the lines the curve crosses, and use the table to check the arithmetic.',
+              ),
+              prose('The median and IQR go together, as in Measures of Spread: neither is moved much by a few extreme values.'),
+            ),
+            ask('dat-cf-positions', 2),
+            ask('dat-cf-iqr', 2),
+          ],
+          skillCheck: [ask('dat-cf-quartile-slider', 2), ask('dat-cf-positions', 2), ask('dat-cf-iqr', 2)],
+        },
+        {
+          id: 'da-l4-percentiles',
+          title: 'Percentiles',
+          slides: [
+            teach(
+              prose(
+                'The quartiles cut the data into quarters. **Percentiles** cut it into hundredths: the $p$th percentile $P_p$ is read across from a cumulative frequency of',
+              ),
+              display('\\frac{p}{100} \\times n'),
+              prose(
+                'For the journeys, $P_{20}$ is read at $\\frac{20}{100} \\times 40 = 8$, which is $14$ minutes. The median is $P_{50}$ and the quartiles are $P_{25}$ and $P_{75}$.',
+              ),
+            ),
+            ask('dat-pct-position'),
+            ask('dat-pct-slider'),
+            ask('dat-pct-position', 2),
+            teach(
+              prose(
+                'The **10th to 90th interpercentile range** is $P_{90} - P_{10}$: the spread of the middle $80\\%$ of the data. It leaves out the top and bottom tenths, so one extreme value cannot stretch it the way it stretches the range.',
+              ),
+              working('P_{10} &: \\tfrac{10}{100} \\times 40 = 4 \\to 10', 'P_{90} &: \\tfrac{90}{100} \\times 40 = 36 \\to 40'),
+              prose('So for the journeys $P_{90} - P_{10} = 40 - 10 = 30$ minutes.'),
+            ),
+            ask('dat-pct-range'),
+            ask('dat-pct-slider', 2),
+            ask('dat-pct-range', 2),
+            teach(
+              prose(
+                'Reading the other way round says where a value stands. $31$ of the $40$ journeys took less than $35$ minutes:',
+              ),
+              display('\\frac{31}{40} \\times 100 = 77.5\\%'),
+              prose('So a $35$ minute journey is at about the $78$th percentile: slower than most.'),
+            ),
+            ask('dat-pct-rank'),
+            ask('dat-pct-rank', 2),
+          ],
+          skillCheck: [ask('dat-pct-slider', 2), ask('dat-pct-range', 2), ask('dat-pct-rank', 2)],
+        },
+        {
+          id: 'da-l4-interpolation',
+          title: 'Interpolating Inside a Class',
+          slides: [
+            teach(
+              prose(
+                'A reading off the straight-line curve can be done by arithmetic instead, with no drawing. First find the class by the running totals. For the median of the journeys, at position $20$: the totals run $4, 14, 26$, so $14$ come before $20 \\le x < 30$ and $26$ by its end.',
+              ),
+              prose('Then go the right share of the way through it: $20 - 14 = 6$ of its $12$ journeys, across a width of $10$.'),
+              display('20 + \\frac{20 - 14}{12} \\times 10 = 25'),
+            ),
+            ask('dat-interp-class'),
+            ask('dat-interp-tiles'),
+            ask('dat-interp-steps'),
+            teach(
+              prose('In general, with $L$ the class\'s lower boundary, $F$ the running total before it, $f$ its frequency and $w$ its width:'),
+              display('L + \\frac{\\text{position} - F}{f} \\times w'),
+              prose('The same works for any quartile or percentile once its position is known. Take care where classes differ in width: $w$ is the width of this class, not the one above.'),
+            ),
+            ask('dat-interp-value'),
+            ask('dat-interp-class', 2),
+            ask('dat-interp-tiles', 2),
+            teach(
+              prose(
+                'It is an estimate. The table hides where in each class the values really are, so this assumes they are spread evenly through it, which is exactly what joining the points with straight lines assumes too.',
+              ),
+            ),
+            ask('dat-interp-steps', 2),
+            ask('dat-interp-value', 2),
+          ],
+          skillCheck: [ask('dat-interp-class', 2), ask('dat-interp-tiles', 2), ask('dat-interp-value', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('dat-cf-table', 2),
+        ask('dat-cf-point', 2),
+        ask('dat-cf-count', 2),
+        ask('dat-cf-below-slider', 2),
+        ask('dat-cf-between', 2),
+        ask('dat-cf-check', 2),
+        ask('dat-cf-quartile-slider', 2),
+        ask('dat-cf-iqr', 2),
+        ask('dat-cf-rule', 2),
+        ask('dat-pct-position', 2),
+        ask('dat-pct-slider', 2),
+        ask('dat-pct-range', 2),
+        ask('dat-interp-class', 2),
+        ask('dat-interp-tiles', 2),
+        ask('dat-interp-value', 2),
       ],
     },
   ],

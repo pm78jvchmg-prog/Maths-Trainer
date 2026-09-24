@@ -9,8 +9,16 @@
  * stepped through time, areas are summed by Simpson's rule over the graph as
  * drawn, gradients are read by difference, equations are chosen by reading
  * which letters they hold, and meetings are found by watching the gap close.
+ *
+ * Level 3 is calculus in t, which the oracles in `generators.test.ts` cannot
+ * reach: they differentiate in x. So the formula each question displays is
+ * read back off the slide and differentiated here by mathjs in t, integrals
+ * are Simpson's rule over that same formula, and speeding up is watched
+ * happen a moment later rather than decided from signs.
  */
 import { describe, it, expect } from 'vitest';
+import { checkAnswer } from '../../engine/equivalence';
+import { math } from '../../engine/expression';
 import { makeRng } from '../../engine/rng';
 import { reduce, startSession } from '../../engine/session';
 import type { Answer } from '../../engine/session';
@@ -84,7 +92,9 @@ describe('every kinematics answer', () => {
     for (const id of ids) {
       for (const { slide, seed } of draws<unknown>(id)) {
         const where = `${id} seed ${seed}`;
-        if (slide.kind === 'expression') expect(tenth(slide.answer), `${where}: ${slide.answer}`).toBe(true);
+        // Level 3 asks for v, a or s as a function of t: those answers are formulas, not numbers.
+        const inT = slide.kind === 'expression' && slide.keypad.some((key) => key.insert.trim() === 't');
+        if (slide.kind === 'expression' && !inT) expect(tenth(slide.answer), `${where}: ${slide.answer}`).toBe(true);
         if (slide.kind === 'slider') expect(slide.answer * 10 === Math.round(slide.answer * 10), where).toBe(true);
         if (slide.kind === 'tree' || slide.kind === 'table') {
           for (const token of slide.answer) expect(tenth(token), `${where}: ${token}`).toBe(true);
@@ -519,6 +529,261 @@ describe('two stages and catching up', () => {
       const second = (time: number) => (kind === 'head' ? stepped(0, w2, time).s : w2 * time);
       expect(Math.abs(first(t) - second(t)), `seed ${seed}`).toBeLessThan(1e-6);
       expect(first(t * 0.9) - second(t * 0.9), `seed ${seed}`).toBeGreaterThan(0);
+    }
+  });
+});
+
+/* ---------- level 3 ---------- */
+
+/** The formula a question displays, `s = ...`, as mathjs reads it: TeX braces become brackets. */
+function shown(slide: Slide): string {
+  if (!('prompt' in slide)) throw new Error(`no prompt on a ${slide.kind} slide`);
+  const block = slide.prompt.find((b) => b.kind === 'display');
+  if (!block || block.kind !== 'display') throw new Error('no formula displayed');
+  return block.tex.split(' = ')[1].replace(/\{/g, '(').replace(/\}/g, ')');
+}
+
+const dt = (expr: string): string => math.derivative(expr, 't').toString();
+const valueAt = (expr: string, t: number): number => math.evaluate(expr, { t }) as number;
+const agrees = (typed: string, expected: string, seed: number) =>
+  checkAnswer(typed, expected, { domain: 'real', mode: 'exact', seed }).status === 'correct';
+
+/** A tiles template with its blanks filled, `v = 3t^2 + 4t - 1`, less the letter in front. */
+function placedFormula(slide: Slide): string {
+  if (slide.kind !== 'tiles') throw new Error('not a tiles slide');
+  const filled = slide.template.replace(/\{(\d)\}/g, (_, k: string) => ` ${slide.answer[Number(k)]} `);
+  return filled.split(' = ')[1];
+}
+
+/** The rows of a table with its blanks filled in reading order. */
+function filledRows(slide: Slide): number[][] {
+  if (slide.kind !== 'table') throw new Error('not a table slide');
+  let next = 0;
+  return slide.rows.map((row) => row.map((cell) => Number(cell ?? slide.answer[next++])));
+}
+
+describe('velocity and acceleration by differentiating', { timeout: 60_000 }, () => {
+  it('kin-ds-dt and kin-a-dt type the derivative of the formula shown', () => {
+    for (const { slide, seed } of draws('kin-ds-dt')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      expect(agrees(slide.answer, dt(shown(slide)), seed), `seed ${seed}: ${shown(slide)}`).toBe(true);
+    }
+    for (const { params, slide, seed } of draws<{ from: 'v' | 's' }>('kin-a-dt')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const once = dt(shown(slide));
+      expect(agrees(slide.answer, params.from === 'v' ? once : dt(once), seed), `seed ${seed}: ${shown(slide)}`).toBe(true);
+    }
+  });
+
+  it('kin-ds-tiles and kin-a-tiles place the terms of the derivative', () => {
+    for (const { slide, seed } of draws('kin-ds-tiles')) {
+      expect(agrees(placedFormula(slide), dt(shown(slide)), seed), `seed ${seed}`).toBe(true);
+    }
+    for (const { slide, seed } of draws('kin-a-tiles')) {
+      expect(agrees(placedFormula(slide), dt(dt(shown(slide))), seed), `seed ${seed}`).toBe(true);
+    }
+  });
+
+  it('kin-v-at and kin-a-at give the derivative at the time asked', () => {
+    for (const { params, slide, seed } of draws<{ at: number }>('kin-v-at')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      expect(close(Number(slide.answer), valueAt(dt(shown(slide)), params.at)), `seed ${seed}`).toBe(true);
+    }
+    for (const { params, slide, seed } of draws<{ at: number; from: 'v' | 's' }>('kin-a-at')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const once = dt(shown(slide));
+      expect(close(Number(slide.answer), valueAt(params.from === 'v' ? once : dt(once), params.at)), `seed ${seed}`).toBe(true);
+    }
+  });
+
+  it('kin-v-table and kin-va-table fill every row from the formula', () => {
+    for (const { slide, seed } of draws('kin-v-table')) {
+      if (slide.kind !== 'table') throw new Error('not a table slide');
+      const s = shown(slide);
+      for (const row of filledRows(slide)) {
+        const [t, ...cells] = row;
+        const expected = slide.columns.length === 3 ? [valueAt(s, t), valueAt(dt(s), t)] : [valueAt(dt(s), t)];
+        expect(cells.every((cell, k) => close(cell, expected[k])), `seed ${seed} t = ${t}`).toBe(true);
+      }
+    }
+    for (const { params, slide, seed } of draws<{ from: 'v' | 's' }>('kin-va-table')) {
+      const v = params.from === 'v' ? shown(slide) : dt(shown(slide));
+      for (const [t, vt, at] of filledRows(slide)) {
+        expect(close(vt, valueAt(v, t)) && close(at, valueAt(dt(v), t)), `seed ${seed} t = ${t}`).toBe(true);
+      }
+    }
+  });
+
+  it('kin-v-slider stops at the time v reaches the value asked', () => {
+    for (const { params, slide, seed } of draws<{ target: number }>('kin-v-slider')) {
+      if (slide.kind !== 'slider') throw new Error('not a slider slide');
+      expect(close(valueAt(dt(shown(slide)), slide.answer), params.target), `seed ${seed}`).toBe(true);
+      expect(slide.answer).toBeGreaterThan(slide.min);
+      expect(slide.answer).toBeLessThan(slide.max);
+    }
+  });
+
+  it('kin-accel-flow says speeding up exactly when the speed grows a moment later', () => {
+    for (const { params, slide, seed } of draws<{ at: number; from: 'v' | 's' }>('kin-accel-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const v = params.from === 'v' ? shown(slide) : dt(shown(slide));
+      const now = valueAt(v, params.at);
+      const soon = valueAt(v, params.at + 1e-4);
+      expect(slide.answer[0], `seed ${seed}`).toBe(now > 0 ? 'Positive' : 'Negative');
+      const speedingUp = Math.abs(soon) > Math.abs(now);
+      expect(slide.answer[0] === slide.answer[1], `seed ${seed}`).toBe(speedingUp);
+    }
+  });
+});
+
+describe('exponential motion', { timeout: 60_000 }, () => {
+  it('kin-exp-v differentiates the exponential shown, once or twice', () => {
+    for (const { params, slide, seed } of draws<{ ask: 'v' | 'a' }>('kin-exp-v')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const once = dt(shown(slide));
+      expect(agrees(slide.answer, params.ask === 'v' ? once : dt(once), seed), `seed ${seed}: ${shown(slide)}`).toBe(true);
+    }
+  });
+
+  it('kin-exp-start reads s, v or a at t = 0', () => {
+    for (const { params, slide, seed } of draws<{ ask: 's' | 'v' | 'a' }>('kin-exp-start')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const s = shown(slide);
+      const f = { s, v: dt(s), a: dt(dt(s)) }[params.ask];
+      expect(close(Number(slide.answer), valueAt(f, 0)), `seed ${seed}`).toBe(true);
+    }
+  });
+
+  it('kin-exp-tree gives v and a at a real moment when s is the value stated', () => {
+    for (const { params, slide, seed } of draws<{ A: number; k: number; B: number; S: number }>('kin-exp-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const { A, k, B, S } = params;
+      const t = Math.log((S - B) / A) / k;
+      expect(t, `seed ${seed}`).toBeGreaterThan(0);
+      const s = shown(slide);
+      expect(Math.abs(valueAt(s, t) - S), `seed ${seed}`).toBeLessThan(1e-6);
+      expect(Math.abs(Number(slide.answer[1]) - valueAt(dt(s), t)), `seed ${seed}`).toBeLessThan(1e-6);
+      expect(Math.abs(Number(slide.answer[2]) - valueAt(dt(dt(s)), t)), `seed ${seed}`).toBeLessThan(1e-6);
+    }
+  });
+
+  it('kin-exp-flow says speeding up exactly when the speed grows', () => {
+    for (const { slide, seed } of draws('kin-exp-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const v = dt(shown(slide));
+      for (const t of [0, 0.5, 1]) {
+        const now = valueAt(v, t);
+        expect(slide.answer[0], `seed ${seed}`).toBe(now > 0 ? 'Positive' : 'Negative');
+        expect(slide.answer[0] === slide.answer[1], `seed ${seed}`).toBe(Math.abs(valueAt(v, t + 0.01)) > Math.abs(now));
+      }
+    }
+  });
+});
+
+describe('back by integrating', { timeout: 60_000 }, () => {
+  it('kin-int-v and kin-int-s-tiles differentiate back to the rate, and meet the condition', () => {
+    for (const id of ['kin-int-v', 'kin-int-s-tiles']) {
+      for (const { params, slide, seed } of draws<{ at: number; value: number }>(id)) {
+        const found = slide.kind === 'tiles' ? placedFormula(slide) : slide.kind === 'expression' ? slide.answer : '';
+        expect(agrees(dt(found), shown(slide), seed), `${id} seed ${seed}`).toBe(true);
+        expect(close(valueAt(found, params.at), params.value), `${id} seed ${seed}`).toBe(true);
+      }
+    }
+  });
+
+  it('kin-int-c-tree finds c from the area under the rate up to the time given', () => {
+    for (const { params, slide, seed } of draws<{ at: number; value: number }>('kin-int-c-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const rate = shown(slide);
+      const gained = simpson((t) => valueAt(rate, t), 0, params.at);
+      const values = slide.answer.map(Number);
+      const c = values[values.length - 1];
+      const terms = values.slice(0, -1).reduce((sum, term) => sum + term, 0);
+      expect(close(terms, gained), `seed ${seed}`).toBe(true);
+      expect(close(c, params.value - gained), `seed ${seed}`).toBe(true);
+    }
+  });
+
+  it('kin-int-v-at and kin-int-s-table add the area under the rate to the start', () => {
+    for (const { params, slide, seed } of draws<{ u: number; at: number }>('kin-int-v-at')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const a = shown(slide);
+      expect(close(Number(slide.answer), params.u + simpson((t) => valueAt(a, t), 0, params.at)), `seed ${seed}`).toBe(true);
+    }
+    for (const { slide, seed } of draws('kin-int-s-table')) {
+      const v = shown(slide);
+      const [[, s0], ...rows] = filledRows(slide);
+      for (const [t, s] of rows) expect(close(s, s0 + simpson((x) => valueAt(v, x), 0, t)), `seed ${seed} t = ${t}`).toBe(true);
+    }
+  });
+});
+
+describe('displacement over an interval', { timeout: 60_000 }, () => {
+  type Interval = { from: number; to: number };
+
+  /** v sampled across the interval: every drawn interval keeps one sign, never touching zero. */
+  function signThroughout(v: string, { from, to }: Interval): number {
+    const values = Array.from({ length: 201 }, (_, k) => valueAt(v, from + ((to - from) * k) / 200));
+    if (values.every((value) => value > 0)) return 1;
+    if (values.every((value) => value < 0)) return -1;
+    return 0;
+  }
+
+  const area = (v: string, { from, to }: Interval) => simpson((t) => valueAt(v, t), from, to);
+
+  it('keeps v one sign on every interval it draws', () => {
+    for (const id of ['kin-disp-int', 'kin-interval-tree', 'kin-dist-choice', 'kin-dist-int']) {
+      for (const { params, slide, seed } of draws<Interval>(id)) {
+        expect(signThroughout(shown(slide), params), `${id} seed ${seed}`).not.toBe(0);
+      }
+    }
+  });
+
+  it('kin-disp-int and kin-dist-int are the area, signed and unsigned', () => {
+    for (const { params, slide, seed } of draws<Interval>('kin-disp-int')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      expect(close(Number(slide.answer), area(shown(slide), params)), `seed ${seed}`).toBe(true);
+    }
+    for (const { params, slide, seed } of draws<Interval>('kin-dist-int')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const v = shown(slide);
+      expect(signThroughout(v, params), `seed ${seed}`).toBe(-1);
+      expect(close(Number(slide.answer), simpson((t) => Math.abs(valueAt(v, t)), params.from, params.to)), `seed ${seed}`).toBe(true);
+    }
+  });
+
+  it('kin-interval-tree takes the bottom from the top, and gives the distance as its size', () => {
+    for (const { params, slide, seed } of draws<Interval>('kin-interval-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const [top, bottom, d, distance] = slide.answer.map(Number);
+      const v = shown(slide);
+      expect(close(top - bottom, d) && close(d, area(v, params)), `seed ${seed}`).toBe(true);
+      if (distance !== undefined) expect(close(distance, simpson((t) => Math.abs(valueAt(v, t)), params.from, params.to)), `seed ${seed}`).toBe(true);
+      expect(distance !== undefined, `seed ${seed}: a distance node exactly when v is negative`).toBe(d < 0);
+    }
+  });
+
+  it('kin-dist-choice marks the integral that comes to what is asked', () => {
+    for (const { params, slide, seed } of draws<Interval & { ask: 'distance' | 'displacement' }>('kin-dist-choice')) {
+      if (slide.kind !== 'choice') throw new Error('not a choice slide');
+      const v = shown(slide);
+      const target = params.ask === 'distance' ? simpson((t) => Math.abs(valueAt(v, t)), params.from, params.to) : area(v, params);
+      const label = slide.options.find((option) => option.id === slide.correctId)!.label;
+      const integral = `\\int_{${params.from}}^{${params.to}} v \\, dt`;
+      expect([integral, `-${integral}`], `seed ${seed}`).toContain(label);
+      const value = (label.startsWith('-') ? -1 : 1) * area(v, params);
+      expect(close(value, target), `seed ${seed}: ${label}`).toBe(true);
+    }
+  });
+
+  it('kin-area-slider stops where the area from the start reaches the distance stated', () => {
+    for (const { params, slide, seed } of draws<{ start: number }>('kin-area-slider')) {
+      if (slide.kind !== 'slider') throw new Error('not a slider slide');
+      const v = shown(slide);
+      const stated = slide.prompt.map((b) => (b.kind === 'prose' ? b.text : '')).join(' ').match(/travelled \$(-?[\d.]+)\$ m/);
+      expect(stated, `seed ${seed}`).not.toBeNull();
+      expect(signThroughout(v, { from: 0, to: slide.max }), `seed ${seed}`).toBe(1);
+      expect(close(simpson((t) => valueAt(v, t), params.start, slide.answer), Number(stated![1])), `seed ${seed}`).toBe(true);
     }
   });
 });

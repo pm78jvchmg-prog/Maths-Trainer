@@ -15,6 +15,9 @@
  * readings. Level 5 is Euler's method: one tangent step, stepping on in a
  * table, recomputing the gradient when f has y in it, the error against an
  * exact solution and which way it misses, and how the error follows h.
+ * Level 6 is choosing a method: interval bisection, one root chased by
+ * bisection, iteration and Newton-Raphson side by side, speed of
+ * convergence, when each breaks, and which to reach for.
  *
  * The tangent's equation belongs to Differentiation (`df-l1-tangent`) and
  * rectangle sums to Integration (`in-l8`); both are pointed at, not taught
@@ -151,6 +154,24 @@ const parabolaFigure: Block = {
       { x: 2, y: 2 },
     ],
     label: 'The curve y = 6 over x plus 1 from 0 to 2, with a parabola through its heights at 0, 1 and 2',
+  }),
+};
+
+/** x^3 - 2x - 5 on [2, 3], with the first two midpoints marked. */
+const bisectionFigure: Block = {
+  kind: 'diagram',
+  svg: plotSvg({
+    xMin: 1.8,
+    xMax: 3.1,
+    yMin: -3,
+    yMax: 17,
+    curves: [{ f: (x) => x * x * x - 2 * x - 5 }],
+    verticals: [{ x: 2 }, { x: 3 }, { x: 2.5 }, { x: 2.25 }],
+    marks: [
+      { x: 2.5, y: 5.625 },
+      { x: 2.25, y: 1.890625 },
+    ],
+    label: 'The curve y = x cubed minus 2x minus 5 between x = 2 and x = 3, with lines at the midpoints 2.5 and 2.25, where the curve is above the axis',
   }),
 };
 
@@ -1162,6 +1183,208 @@ export const numericalMethods: Course = {
         ask('numer-euler-ytable', 2),
         ask('numer-euler-exact-steps', 2),
         ask('numer-euler-needed-value', 2),
+      ],
+    },
+    {
+      id: 'nm-l6',
+      title: 'Choosing a Method',
+      lessons: [
+        {
+          id: 'nm-l6-bisection',
+          title: 'Interval Bisection',
+          slides: [
+            teach(
+              prose(
+                'A change of sign on $[a, b]$ traps a root (level 1, The Change of Sign). **Bisection** tightens the trap: work out $f$ at the midpoint $m = \\frac{a + b}{2}$, and keep the half whose ends still differ in sign.',
+              ),
+              bisectionFigure,
+              prose('Each halving keeps the root trapped and halves the interval. It cannot fail once it has started.'),
+            ),
+            ask('numer-bisect-flow'),
+            ask('numer-bisect-table'),
+            ask('numer-bisect-choice'),
+            teach(
+              prose('$f(x) = x^{3} - 2x - 5$ with $f(2) = -1$ and $f(3) = 16$:'),
+              maths(
+                '\\begin{array}{c|c|c|c|c} n & a & b & m & f(m) \\\\ \\hline 0 & 2 & 3 & 2.5 & + \\\\ 1 & 2 & 2.5 & 2.25 & + \\\\ 2 & 2 & 2.25 & 2.125 & + \\end{array}',
+              ),
+              prose(
+                'Every midpoint was positive, so $b$ moved in each time and the root is in $[2, 2.125]$. After $k$ halvings the width is $\\frac{b - a}{2^{k}}$: here $\\frac{1}{8}$.',
+              ),
+            ),
+            ask('numer-bisect-halvings'),
+            ask('numer-bisect-table', 2),
+            ask('numer-bisect-flow', 2),
+            teach(
+              prose(
+                'To know how many halvings a job needs, solve $\\frac{b - a}{2^{k}} < \\varepsilon$. From width $1$ to below $0.001$: $2^{k} > 1000$, and $2^{10} = 1024$, so ten halvings.',
+              ),
+              prose(
+                'The midpoint of the last interval is at most half its width from the root, so a midpoint within $\\varepsilon$ only needs a width below $2\\varepsilon$: one halving fewer.',
+              ),
+            ),
+            ask('numer-bisect-halvings', 2),
+            ask('numer-bisect-choice', 2),
+          ],
+          skillCheck: [ask('numer-bisect-table', 2), ask('numer-bisect-halvings', 2), ask('numer-bisect-choice', 2)],
+        },
+        {
+          id: 'nm-l6-side',
+          title: 'Side by Side',
+          slides: [
+            teach(
+              prose(
+                'Three ways to chase one root: bisection on a bracket, the iteration $x_{n+1} = g(x_n)$ (level 1, Rearranging to x = g(x)), and Newton-Raphson, $x_{n+1} = x_n - \\frac{f(x_n)}{f\'(x_n)}$ (level 2, The Tangent Step).',
+              ),
+              prose(
+                'For $f(x) = x^{3} - 2x - 5$: bisection on $[2, 3]$, the iteration $x_{n+1} = \\sqrt[3]{2x_n + 5}$, and Newton-Raphson, both from $x_0 = 2$.',
+              ),
+            ),
+            ask('numer-side-flow'),
+            ask('numer-side-steps'),
+            ask('numer-side-table'),
+            teach(
+              prose('Steps 1 to 3 of each:'),
+              maths(
+                '\\begin{array}{c|c|c} \\text{Bis.} & \\text{Iter.} & \\text{N-R} \\\\ \\hline 2.5 & 2.0801 & 2.1 \\\\ 2.25 & 2.0924 & 2.0946 \\\\ 2.125 & 2.0942 & 2.0946 \\end{array}',
+              ),
+              prose(
+                'The root is $2.0946$ to four places. Newton-Raphson has it after two steps and stops moving; the iteration is still creeping up; bisection is still $0.03$ away.',
+              ),
+            ),
+            ask('numer-nearest-method'),
+            ask('numer-side-table', 2),
+            ask('numer-side-flow', 2),
+            teach(
+              prose(
+                'Without knowing the root, how much a column is still moving is the clue. A value that has stopped changing to four places has settled; one still changing in the second place has not.',
+              ),
+              prose('Bisection only ever says which interval the root is in, so its midpoints jump by half the last width however close they are.'),
+            ),
+            ask('numer-side-steps', 2),
+            ask('numer-nearest-method', 2),
+          ],
+          skillCheck: [ask('numer-side-table', 2), ask('numer-side-flow', 2), ask('numer-nearest-method', 2)],
+        },
+        {
+          id: 'nm-l6-speed',
+          title: 'Speed of Convergence',
+          slides: [
+            teach(
+              prose('The three methods close in at very different rates. Each step:'),
+              prose('**Bisection** halves its error bound.'),
+              prose("**Iteration** multiplies its error by about $|g'(\\alpha)|$."),
+              prose('**Newton-Raphson** roughly doubles its correct decimal places.'),
+              prose(
+                'Halving is one binary place a step, so about $3.3$ steps for each decimal place. The iteration factor is level 3, The Error After k Steps.',
+              ),
+            ),
+            ask('numer-speed-flow'),
+            ask('numer-speed-table'),
+            ask('numer-k-count'),
+            teach(
+              prose('From an error of $0.1$ to below $10^{-6}$:'),
+              prose('Bisection: $\\frac{0.1}{2^{k}} < 10^{-6}$ needs $2^{k} > 100\\,000$, so $k = 17$.'),
+              prose("Iteration with $|g'| = 0.2$: $0.2^{k} \\times 0.1 < 10^{-6}$ needs $k = 8$."),
+              prose('Newton-Raphson: $1, 2, 4, 8$ correct places, so $k = 3$.'),
+              prose('A small $|g\'(\\alpha)|$ makes iteration quick; one near $1$ makes it slower than bisection.'),
+            ),
+            ask('numer-speed-tree'),
+            ask('numer-speed-flow', 2),
+            ask('numer-speed-table', 2),
+            teach(
+              prose(
+                'Newton-Raphson squares the error, $e_{n+1} \\approx Ce_n^{2}$, which is why the places double. That only holds once it is close: from a poor start its first steps can wander.',
+              ),
+            ),
+            ask('numer-k-count', 2),
+            ask('numer-speed-tree', 2),
+          ],
+          skillCheck: [ask('numer-speed-table', 2), ask('numer-speed-tree', 2), ask('numer-speed-flow', 2)],
+        },
+        {
+          id: 'nm-l6-breaks',
+          title: 'When Each Breaks',
+          slides: [
+            teach(
+              prose('Each method has its own way of failing:'),
+              prose('**Bisection** cannot start without a change of sign on $[a, b]$.'),
+              prose("**Iteration** runs away when $|g'(\\alpha)| > 1$."),
+              prose("**Newton-Raphson** has no next value when $f'(x_0) = 0$: the tangent is flat."),
+              prose(
+                'These are level 1, Where the Sign Test Fails and When Iteration Fails, and level 2, When Newton-Raphson Fails. Here all three are set up on one $f$, and the question is which fails.',
+              ),
+            ),
+            ask('numer-breaks-flow'),
+            ask('numer-breaks-tree'),
+            ask('numer-breaks-picture'),
+            teach(
+              prose('$f(x) = x^{3} - 12x + 5$ turns at $x = \\pm 2$ and has roots near $-3.7$, $0.4$ and $3.2$. After the largest:'),
+              working('f(0)\\,f(4) &= 5 \\times 21 > 0', "f'(2) &= 12 - 12 = 0"),
+              prose("For $g(x) = \\frac{x^{3} + 5}{12}$, $g'(3.2) \\approx 2.6$."),
+              prose('Bisection on $[0, 4]$ has no sign change though two roots are inside, that $g$ runs away, and $x_0 = 2$ gives a flat tangent. $[3, 4]$, $\\sqrt[3]{12x - 5}$ and $x_0 = 4$ all work.'),
+            ),
+            ask('numer-diverge-flow'),
+            ask('numer-breaks-picture', 2),
+            ask('numer-breaks-tree', 2),
+            teach(
+              prose(
+                'Which rearrangement converges is decided at $\\alpha$, not at $x_0$: $\\sqrt[3]{12x - 5}$ has $g\'(\\alpha) = \\frac{4}{\\alpha^{2}}$, below $1$ for any root past $2$, while $\\frac{x^{3} + 5}{12}$ has $\\frac{\\alpha^{2}}{4}$, above it.',
+              ),
+            ),
+            ask('numer-breaks-flow', 2),
+            ask('numer-nr-fail-picture', 2),
+          ],
+          skillCheck: [ask('numer-breaks-flow', 2), ask('numer-breaks-picture', 2), ask('numer-breaks-tree', 2)],
+        },
+        {
+          id: 'nm-l6-choosing',
+          title: 'Which to Reach For',
+          slides: [
+            teach(
+              prose('Reach for the fastest method that will work with what is in hand:'),
+              prose('A formula for $f$ and a start where the tangent is steep: **Newton-Raphson**.'),
+              prose("Otherwise, a rearrangement with $|g'| < 1$ near the root: **iteration**."),
+              prose('Otherwise, a change of sign is all it takes: **bisection**.'),
+            ),
+            ask('numer-reach-flow'),
+            ask('numer-reach-choice'),
+            ask('numer-reach-value'),
+            teach(
+              prose(
+                'Newton-Raphson needs $f\'(x)$, so it is out when $f$ is only known from readings, or when the only start has a flat tangent. Iteration needs a rearrangement that converges. Bisection needs only the sign change, which is why it is the one that always works and the slowest.',
+              ),
+            ),
+            ask('numer-speed-tree', 2),
+            ask('numer-reach-flow', 2),
+            ask('numer-reach-choice', 2),
+            teach(
+              prose(
+                'In practice they are used together: a few halvings to get close safely, then Newton-Raphson to finish in two or three steps, and a sign change either side of the answer to prove it is right (level 2, A Root to a Set Accuracy).',
+              ),
+            ),
+            ask('numer-reach-value', 2),
+            ask('numer-side-table', 2),
+          ],
+          skillCheck: [ask('numer-reach-flow', 2), ask('numer-reach-choice', 2), ask('numer-reach-value', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('numer-bisect-table', 2),
+        ask('numer-side-flow', 2),
+        ask('numer-speed-tree', 2),
+        ask('numer-breaks-flow', 2),
+        ask('numer-reach-choice', 2),
+        ask('numer-bisect-halvings', 2),
+        ask('numer-side-table', 2),
+        ask('numer-speed-flow', 2),
+        ask('numer-breaks-picture', 2),
+        ask('numer-reach-value', 2),
+        ask('numer-bisect-choice', 2),
+        ask('numer-nearest-method', 2),
+        ask('numer-speed-table', 2),
+        ask('numer-breaks-tree', 2),
+        ask('numer-reach-flow', 2),
       ],
     },
   ],

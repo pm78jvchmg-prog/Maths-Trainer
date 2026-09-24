@@ -1255,3 +1255,308 @@ describe("Euler's method, stepped again from what each slide shows", () => {
     }
   });
 });
+
+/* ---------- Choosing a method ---------- */
+
+/**
+ * f, g and the plans as the learner reads them: TeX turned into mathjs, the
+ * bracket, the start. Each method is then run again here, bisection by its
+ * own loop, Newton-Raphson with a gradient by central difference, so nothing
+ * leans on the generator's own stepping.
+ */
+function texFunction(tex: string): (x: number) => number {
+  const expr = tex
+    .replace(/x_n/g, 'x')
+    .replace(/\^\{(\d+)\}/g, '^$1')
+    .replace(/\\sqrt\[3\]\{([^}]*)\}/g, 'cbrt($1)')
+    .replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, '($1)/($2)');
+  const node = math.compile(expr);
+  return (x) => Number(node.evaluate({ x }));
+}
+
+const readF = (text: string) => texFunction(text.match(/\$f\(x\) = ([^$]*)\$/)![1]);
+
+/** A plan's slide, read: f, the largest root, the bracket, g and the start. */
+function readPlans(slide: Slide) {
+  const text = slideText(slide);
+  const f = readF(text);
+  const [lo, hi] = text.match(/bisection on \$\[(-?\d+), (-?\d+)\]\$/)!.slice(1).map(Number);
+  const g = texFunction(text.match(/with \$g\(x\) = (.*?)\$; and/)![1]);
+  const x0 = Number(text.match(/from \$x_0 = (-?\d+)\$/)![1]);
+  const near = Number(text.match(/\\alpha \\approx (-?[\d.]+)/)![1]);
+  const alpha = bisect(f, near - 0.2, near + 0.2);
+  const works = {
+    bisection: f(lo) * f(hi) < 0,
+    iteration: Math.abs(gradient(g, alpha)) < 1,
+    newton: Math.abs(gradient(f, x0)) > 1e-6,
+  };
+  return { text, f, lo, hi, g, x0, alpha, works };
+}
+
+/** Bisection's midpoints and the interval it leaves, halving `count` times. */
+function midpoints(f: (x: number) => number, a: number, b: number, count: number) {
+  let [lo, hi] = [a, b];
+  const mids: number[] = [];
+  const kept: [number, number][] = [];
+  for (let i = 0; i < count; i += 1) {
+    const m = (lo + hi) / 2;
+    mids.push(m);
+    if (f(m) * f(lo) > 0) lo = m;
+    else hi = m;
+    kept.push([lo, hi]);
+  }
+  return { mids, kept };
+}
+
+/** `steps` values of a scheme from x0. */
+function iterates(step: (x: number) => number, x0: number, steps: number): number[] {
+  const out: number[] = [];
+  let x = x0;
+  for (let n = 0; n < steps; n += 1) out.push((x = step(x)));
+  return out;
+}
+
+const newtonFor = (f: (x: number) => number) => (x: number) => x - f(x) / gradient(f, x);
+
+/** What a side-by-side slide states: f, the bracket, g and the shared start. */
+function readSide(slide: Slide) {
+  const text = slideText(slide);
+  const f = readF(text);
+  const lo = Number(text.match(/root \$\\alpha\$ in \$\[(-?\d+), /)![1]);
+  const g = texFunction(text.match(/x_\{n\+1\} = (.*?)\$, and/)![1]);
+  const x0 = Number(text.match(/from \$x_0 = (-?\d+)\$/)![1]);
+  const mids = midpoints(f, lo, lo + 1, 3).mids;
+  return { text, f, lo, g, x0, mids, iter: iterates(g, x0, 3), newton: iterates(newtonFor(f), x0, 3), alpha: bisect(f, lo, lo + 1) };
+}
+
+describe('Numerical Methods level 6: every method run again from what the slide shows', () => {
+  it('numer-bisect-table halves the stated bracket, keeping the half that changes sign', () => {
+    for (const { slide, seed } of draws<unknown>('numer-bisect-table')) {
+      if (slide.kind !== 'table') throw new Error('not a table slide');
+      const text = slideText(slide);
+      const f = readF(text);
+      const [, a, fa, b, fb] = text.match(/\$f\((-?[\d.]+)\) = (-?[\d.]+)\$ and \$f\((-?[\d.]+)\) = (-?[\d.]+)\$/)!.map(Number);
+      expect(fa, `seed ${seed}`).toBeCloseTo(f(a), 9);
+      expect(fb, `seed ${seed}`).toBeCloseTo(f(b), 9);
+      const { mids, kept } = midpoints(f, a, b, 3);
+      const expected = [mids[0], ...kept[0], mids[1], ...kept[1], mids[2]];
+      expected.forEach((v, i) => near(slide.answer[i], v, `seed ${seed}, blank ${i}`));
+      mids.forEach((m, i) => expect(slide.rows[i][4], `seed ${seed}, row ${i}`).toBe(f(m) < 0 ? '-' : '+'));
+      expect(verdict(slide, slide.answer), `seed ${seed}`).toBe('correct');
+    }
+  });
+
+  it('numer-bisect-flow takes the midpoint, keeps the half that changes sign, and moves to its middle', () => {
+    for (const { slide, seed } of draws<unknown>('numer-bisect-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const text = slideText(slide);
+      const f = readF(text);
+      const [a, b] = text.match(/midpoint of \$\[(-?[\d.]+), (-?[\d.]+)\]\$/)!.slice(1).map(Number);
+      const { mids, kept } = midpoints(f, a, b, 2);
+      near(slide.answer[0], mids[0], `seed ${seed}`);
+      expect(numbersIn(slide.answer[1]), `seed ${seed}`).toEqual(kept[0]);
+      near(slide.answer[2], mids[1], `seed ${seed}`);
+      const stated = Number(text.match(/\$f\(-?[\d.]+\) = (-?[\d.]+)\$\. The root/)![1]);
+      expect(stated, `seed ${seed}`).toBeCloseTo(f(mids[0]), 9);
+    }
+  });
+
+  it('numer-bisect-halvings is the width after k halvings, or the fewest halvings for the target', () => {
+    for (const { slide, seed } of draws<unknown>('numer-bisect-halvings')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const text = slideText(slide);
+      const [W, x] = numbersIn(text);
+      if (slide.lead!.includes('width')) {
+        near(slide.answer, W / 2 ** x, `seed ${seed}`);
+      } else {
+        const midpoint = text.includes('midpoint');
+        let k = 0;
+        while ((midpoint ? W / 2 ** (k + 1) : W / 2 ** k) >= x) k += 1;
+        expect(slide.answer, `seed ${seed}`).toBe(String(k));
+      }
+      expect(slide.source ?? slide.integrand ?? slide.limits, 'declares an oracle field').toBeUndefined();
+      expect(verdict(slide, slide.answer), `seed ${seed}`).toBe('correct');
+    }
+  });
+
+  it('numer-bisect-choice marks the interval that many halvings leave', () => {
+    for (const { slide, seed } of draws<unknown>('numer-bisect-choice')) {
+      if (slide.kind !== 'choice') throw new Error('not a choice slide');
+      const text = slideText(slide);
+      const f = readF(text);
+      const [, a, , b] = text.match(/\$f\((-?[\d.]+)\) = (-?[\d.]+)\$ and \$f\((-?[\d.]+)\)/)!.map(Number);
+      const count = text.includes('three halvings') ? 3 : 2;
+      const right = slide.options.find((o) => o.id === slide.correctId)!.label;
+      expect(numbersIn(right), `seed ${seed}`).toEqual(midpoints(f, a, b, count).kept[count - 1]);
+    }
+  });
+
+  it('numer-side-table fills all three columns as each method gives them', () => {
+    for (const { slide, seed } of draws<unknown>('numer-side-table')) {
+      if (slide.kind !== 'table') throw new Error('not a table slide');
+      const { mids, iter, newton, x0, lo } = readSide(slide);
+      expect(slide.rows[0].slice(2).map(Number), `seed ${seed}`).toEqual([x0, x0]);
+      expect(numbersIn(slide.rows[0][1]!), `seed ${seed}`).toEqual([lo, lo + 1]);
+      const cells = [1, 2, 3].flatMap((n) => [String(Number(mids[n - 1].toFixed(6))), rounded(iter[n - 1], 4), rounded(newton[n - 1], 4)]);
+      const given = slide.rows.slice(1).flatMap((row) => row.slice(1));
+      given.forEach((cell, i) => {
+        if (cell !== null) expect(cell, `seed ${seed}, cell ${i}`).toBe(cells[i]);
+      });
+      expect(slide.answer, `seed ${seed}`).toEqual(cells.filter((_, i) => given[i] === null));
+      expect(verdict(slide, slide.answer), `seed ${seed}`).toBe('correct');
+    }
+  });
+
+  it('numer-side-flow picks each method\'s next value, first or second', () => {
+    for (const { slide, seed } of draws<unknown>('numer-side-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const { mids, iter, newton } = readSide(slide);
+      const n = slideText(slide).includes('second value') ? 2 : 1;
+      near(slide.answer[0], mids[n - 1], `seed ${seed}`);
+      expect(slide.answer[1], `seed ${seed}`).toBe(`$${rounded(iter[n - 1], 4)}$`);
+      expect(slide.answer[2], `seed ${seed}`).toBe(`$${rounded(newton[n - 1], 4)}$`);
+    }
+  });
+
+  it('numer-nearest-method names the column whose third value is truly closest to the root', () => {
+    for (const { slide, seed } of draws<unknown>('numer-nearest-method')) {
+      if (slide.kind !== 'choice') throw new Error('not a choice slide');
+      const { mids, iter, newton, alpha } = readSide(slide);
+      const errors: [string, number][] = [
+        ['Bisection', Math.abs(mids[2] - alpha)],
+        ['Iteration', Math.abs(iter[2] - alpha)],
+        ['Newton-Raphson', Math.abs(newton[2] - alpha)],
+      ];
+      const closest = errors.sort((p, q) => p[1] - q[1])[0][0];
+      expect(slide.options.find((o) => o.id === slide.correctId)!.label, `seed ${seed}`).toBe(closest);
+    }
+  });
+
+  it('numer-side-steps ends on Newton-Raphson\'s first step', () => {
+    for (const { slide, seed } of draws<unknown>('numer-side-steps')) {
+      if (slide.kind !== 'steps') throw new Error('not a steps slide');
+      const text = slideText(slide);
+      const f = readF(text);
+      const x0 = Number(text.match(/from \$x_0 = (-?\d+)\$/)![1]);
+      near(slide.reductions[0].value, f(x0), `seed ${seed}`);
+      expect(Number(slide.reductions[1].value), `seed ${seed}`).toBeCloseTo(gradient(f, x0), 5);
+      expect(Number(slide.reductions.at(-1)!.value), `seed ${seed}`).toBeCloseTo(newtonFor(f)(x0), 6);
+    }
+  });
+
+  it('numer-speed-flow halves the width, multiplies the error by |g\'|, and doubles the places', () => {
+    for (const { slide, seed } of draws<unknown>('numer-speed-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const [W, e, p] = numbersIn(slide.subject);
+      const r = numbersIn(slide.steps[1].ask)[0];
+      near(slide.answer[0], W / 2, `seed ${seed}`);
+      near(slide.answer[1], r * e, `seed ${seed}`);
+      expect(slide.answer[2], `seed ${seed}`).toBe(String(2 * p));
+    }
+  });
+
+  it('numer-speed-table steps each column on from row 0', () => {
+    for (const { slide, seed } of draws<unknown>('numer-speed-table')) {
+      if (slide.kind !== 'table') throw new Error('not a table slide');
+      const r = Number(slideText(slide).match(/\\approx ([\d.]+)/)![1]);
+      const [W, e, p] = slide.rows[0].slice(1).map(Number);
+      const expected = slide.rows.slice(1).flatMap((_, i) => [W / 2 ** (i + 1), e * r ** (i + 1), p * 2 ** (i + 1)]);
+      expected.forEach((v, i) => near(slide.answer[i], v, `seed ${seed}, blank ${i}`));
+    }
+  });
+
+  it('numer-speed-tree counts the steps each needs to the stated error, and the fewest', () => {
+    for (const { slide, seed } of draws<unknown>('numer-speed-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const text = slideText(slide);
+      const e0 = Number(text.match(/at most \$([\d.]+)\$/)![1]);
+      const r = Number(text.match(/about \$([\d.]+)\$/)![1]);
+      const P = Number(text.match(/below \$10\^\{-(\d+)\}\$/)![1]);
+      const count = (next: (error: number) => number) => {
+        let [k, error] = [0, e0];
+        while (error >= 10 ** -P * (1 - 1e-9)) [k, error] = [k + 1, next(error)];
+        return k;
+      };
+      const bisection = count((error) => error / 2);
+      const iteration = count((error) => error * r);
+      let newton = 0;
+      while (Math.round(-Math.log10(e0)) * 2 ** newton < P) newton += 1;
+      expect(slide.answer, `seed ${seed}`).toEqual([bisection, iteration, newton, Math.min(bisection, iteration, newton)].map(String));
+    }
+  });
+
+  it('numer-breaks-flow names the one plan that fails, and its reason', () => {
+    for (const { slide, seed } of draws<unknown>('numer-breaks-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const { works, lo, hi, x0 } = readPlans(slide);
+      const failed = (Object.keys(works) as (keyof typeof works)[]).filter((plan) => !works[plan]);
+      expect(failed, `seed ${seed}`).toHaveLength(1);
+      const names = { bisection: 'Bisection', iteration: 'Iteration', newton: 'Newton-Raphson' };
+      expect(slide.answer[0], `seed ${seed}`).toBe(names[failed[0]]);
+      const reason = { bisection: `$f(${lo})$ and $f(${hi})$`, iteration: "|g'(x)| > 1", newton: `$f'(${x0}) = 0$` }[failed[0]];
+      expect(slide.answer[1].includes(reason), `seed ${seed}: ${slide.answer[1]}`).toBe(true);
+    }
+  });
+
+  it('numer-breaks-picture marks bisection, Newton-Raphson or neither as the curve decides', () => {
+    for (const { slide, seed } of draws<unknown>('numer-breaks-picture')) {
+      if (slide.kind !== 'choice') throw new Error('not a choice slide');
+      const text = slideText(slide);
+      const f = readF(text);
+      const [lo, hi] = text.match(/interval \$\[(-?\d+), (-?\d+)\]\$/)!.slice(1).map(Number);
+      const x0 = Number(text.match(/from \$x_0 = (-?\d+)\$/)![1]);
+      const bisectFails = f(lo) * f(hi) > 0;
+      const newtonFails = Math.abs(gradient(f, x0)) < 1e-6;
+      expect(bisectFails && newtonFails, `seed ${seed}`).toBe(false);
+      const right = slide.options.find((o) => o.id === slide.correctId)!.label;
+      expect(right.split(' ')[0].replace(':', ''), `seed ${seed}`).toBe(bisectFails ? 'Bisection' : newtonFails ? 'Newton-Raphson' : 'Neither');
+    }
+  });
+
+  it('numer-breaks-tree is f at both ends, their product, and f\'(x_0)', () => {
+    for (const { slide, seed } of draws<unknown>('numer-breaks-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const text = slideText(slide);
+      const f = readF(text);
+      const [lo, hi] = text.match(/bisecting \$\[(-?\d+), (-?\d+)\]\$/)!.slice(1).map(Number);
+      const x0 = Number(text.match(/at \$x_0 = (-?\d+)\$/)![1]);
+      [f(lo), f(hi), gradient(f, x0), f(lo) * f(hi)].forEach((v, i) => expect(Number(slide.answer[i]), `seed ${seed}, node ${i}`).toBeCloseTo(v, 4));
+    }
+  });
+
+  it('numer-reach-choice and reach-value take the fastest plan that works, and its first step', () => {
+    const names = { bisection: 'Bisection', iteration: 'Iteration', newton: 'Newton-Raphson' };
+    for (const id of ['numer-reach-choice', 'numer-reach-value']) {
+      for (const { slide, seed } of draws<unknown>(id)) {
+        const { works, lo, hi, g, f, x0, alpha, text } = readPlans(slide);
+        const plan = works.newton ? 'newton' : works.iteration ? 'iteration' : 'bisection';
+        expect(works[plan], `${id} seed ${seed}`).toBe(true);
+        const stated = text.match(/\$g'\(\\alpha\) \\approx (-?[\d.]+)\$ and \$f'\((-?\d+)\) = (-?[\d.]+)\$/);
+        if (stated) {
+          expect(Number(stated[1]), `${id} seed ${seed}`).toBeCloseTo(gradient(g, alpha), 2);
+          expect(Number(stated[3]), `${id} seed ${seed}`).toBeCloseTo(gradient(f, x0), 4);
+        }
+        if (slide.kind === 'choice') {
+          expect(slide.options.find((o) => o.id === slide.correctId)!.label, `${id} seed ${seed}`).toBe(names[plan]);
+        } else if (slide.kind === 'expression') {
+          const first = plan === 'bisection' ? (lo + hi) / 2 : plan === 'iteration' ? g(x0) : newtonFor(f)(x0);
+          if (plan === 'iteration') expect(slide.answer, `${id} seed ${seed}`).toBe(rounded(first, 4));
+          else expect(Number(slide.answer), `${id} seed ${seed}`).toBeCloseTo(first, 6);
+          expect(verdict(slide, slide.answer), `${id} seed ${seed}`).toBe('correct');
+        } else throw new Error(`${id}: unexpected ${slide.kind}`);
+      }
+    }
+  });
+
+  it('numer-reach-flow reaches for Newton-Raphson when it can start, then a converging g, then bisection', () => {
+    for (const { slide, seed } of draws<unknown>('numer-reach-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const text = slideText(slide);
+      const flat = /f'\(-?\d+\) = 0\$/.test(text);
+      const table = text.includes('table of readings');
+      const rate = text.match(/\|g'\| \\approx ([\d.]+)/);
+      const plan = table ? 'Bisection' : !flat ? 'Newton-Raphson' : rate && Number(rate[1]) < 1 ? 'Iteration' : 'Bisection';
+      expect(slide.answer[0], `seed ${seed}`).toBe(plan);
+    }
+  });
+});

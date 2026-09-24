@@ -15,6 +15,9 @@
  * method: one tangent step, stepping on in a table, a gradient recomputed
  * from the new y, the error against the exact solution of an equation in x
  * alone and which way it misses, and the error roughly proportional to h.
+ * Level 6 is choosing a method: interval bisection, one root chased by
+ * bisection, iteration and Newton-Raphson side by side, how fast each
+ * closes in, when each breaks on the f shown, and which to reach for.
  *
  * Three rules hold everywhere in this file.
  *
@@ -8195,6 +8198,1196 @@ const eulerSizeSlider: Generator<SizeSliderParams> = {
   },
 };
 
+/* ================================================================
+ * Level 6: choosing a method
+ * ================================================================ */
+
+/*
+ * Nothing in this level types a derivative, so no slide declares `source`,
+ * `integrand` or `limits`. A midpoint, an iterate, an error, a step count or
+ * a verdict is not a function of x for the oracle in generators.test.ts to
+ * differentiate. Their checks live in numericalMethods.test.ts, which reads f,
+ * the bracket, g and the start off each slide and runs every method itself.
+ */
+
+/** The sign of f(m) as a bisection table writes it. */
+const signOf = (y: number) => (y < 0 ? '-' : '+');
+
+interface Halving {
+  a: number;
+  b: number;
+  m: number;
+  fm: number;
+}
+
+/** Bisection written out: each row's interval, its midpoint, f there, and the interval it leaves. */
+function halvings(poly: Poly, a: number, b: number, count: number): { rows: Halving[]; next: [number, number] } {
+  const rows: Halving[] = [];
+  let [lo, hi] = [a, b];
+  for (let i = 0; i < count; i += 1) {
+    const m = (lo + hi) / 2;
+    const fm = valueAt(poly, m);
+    rows.push({ a: lo, b: hi, m, fm });
+    if (Math.sign(fm) === Math.sign(valueAt(poly, lo))) lo = m;
+    else hi = m;
+  }
+  return { rows, next: [lo, hi] };
+}
+
+/** f(m) for a working line: exact when it is short, else to three places. */
+function fmTex(fm: number): string {
+  return terminates(fm) ? `= ${fmt(fm)}` : `\\approx ${fmt(Number(fm.toFixed(3)))}`;
+}
+
+function halvingLines(poly: Poly, a: number, b: number, count: number): SolutionStep[] {
+  const { rows, next } = halvings(poly, a, b, count);
+  return [
+    ...rows.map(({ a: lo, b: hi, m, fm }, i) => {
+      const [nlo, nhi] = i + 1 < rows.length ? [rows[i + 1].a, rows[i + 1].b] : next;
+      return {
+        text: `$m = ${fmt(m)}$, $f(${fmt(m)}) ${fmTex(fm)}$, the same sign as $f(${fmt(nlo === lo ? hi : lo)})$, so keep $[${fmt(nlo)}, ${fmt(nhi)}]$.`,
+      };
+    }),
+  ];
+}
+
+interface BisectParams {
+  /** A cubic with whole coefficients. */
+  poly: Poly;
+  /** The bracket is [a, a + 1]: whole ends at difficulty 1, half ends at 2. */
+  a: number;
+}
+
+/**
+ * A cubic with exactly one root in [a, a + 1] and a sign change across it,
+ * whose midpoints through three halvings are all clear of zero. Half ends at
+ * difficulty 2 keep every midpoint within three places.
+ */
+function sampleBracket(rng: Rng, difficulty: number): BisectParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const poly = hard ? [1, nonZero(rng, 3), nonZero(rng, 6), nonZero(rng, 9)] : [1, 0, nonZero(rng, 8), nonZero(rng, 9)];
+    const f = (x: number) => valueAt(poly, x);
+    const roots = rootsIn(f, -5, 5);
+    if (roots.length === 0) continue;
+    const root = rng.pick(roots);
+    const a = hard ? Math.floor(root - 0.5) + 0.5 : Math.floor(root);
+    if (f(a) * f(a + 1) >= 0 || rootsIn(f, a, a + 1).length !== 1) continue;
+    if (Math.abs(f(a)) > 40 || Math.abs(f(a + 1)) > 40) continue;
+    if (halvings(poly, a, a + 1, 3).rows.some((row) => Math.abs(row.fm) < 0.01)) continue;
+    return { poly, a };
+  }
+}
+
+const bracketText = ({ poly, a }: BisectParams) =>
+  `$f(x) = ${polyTex(poly)}$ has $f(${fmt(a)}) = ${fmt(valueAt(poly, a))}$ and $f(${fmt(a + 1)}) = ${fmt(valueAt(poly, a + 1))}$`;
+
+/* ---------- Level 6, lesson 1: interval bisection ---------- */
+
+/**
+ * Three halvings as the table is written on paper: a, b, the midpoint m and
+ * the sign of f(m), which says which half keeps the root.
+ */
+const bisectTable: Generator<BisectParams> = {
+  id: 'numer-bisect-table',
+  sample: sampleBracket,
+  render: (params): Slide => {
+    const { poly, a } = params;
+    const { rows } = halvings(poly, a, a + 1, 3);
+    const cells = rows.map((row, i) => [String(i), i === 0 ? fmt(row.a) : null, i === 0 ? fmt(row.b) : null, null, signOf(row.fm)]);
+    const answer = rows.flatMap((row, i) => [...(i > 0 ? [row.a, row.b] : []), row.m]).map(fmt);
+    // The other half's midpoint each time, the half-width for the midpoint, and a stray quarter.
+    const slips = [
+      ...rows.slice(1).map((row, i) => (row.a === rows[i].a ? rows[i].m + (rows[i].b - rows[i].m) / 2 : rows[i].a + (rows[i].m - rows[i].a) / 2)),
+      0.5,
+      a + 0.25,
+    ].map(fmt);
+    return {
+      kind: 'table',
+      prompt: [
+        say(
+          `${bracketText(params)}, so a root lies between. Bisect three times: each row's midpoint $m$, then the half whose ends still differ in sign is the next row. The last column is the sign of $f(m)$.`,
+        ),
+      ],
+      columns: ['n', 'a', 'b', 'm', 'f(m)'],
+      rows: cells,
+      bank: numberBank(answer, slips, around([rows[2].m], 0.125)),
+      answer,
+    };
+  },
+  solution: ({ poly, a }) => [
+    { text: `$f(${fmt(a)})$ and $f(${fmt(a + 1)})$ differ in sign, so each midpoint keeps the half whose ends still differ.` },
+    ...halvingLines(poly, a, a + 1, 3),
+  ],
+};
+
+/** One halving decided a step at a time: the midpoint, the half that keeps the root, the next midpoint. */
+const bisectFlow: Generator<BisectParams> = {
+  id: 'numer-bisect-flow',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = sampleBracket(rng, difficulty);
+      const m = params.a + 0.5;
+      if (new Set([m, 0.5, 2 * params.a + 1]).size === 3) return params;
+    }
+  },
+  render: (params): Slide => {
+    const { poly, a } = params;
+    const b = a + 1;
+    const { rows, next } = halvings(poly, a, b, 1);
+    const { m, fm } = rows[0];
+    const key = `${poly.join(',')}|${a}`;
+    const [lo, hi] = next;
+    const halves = [`$[${fmt(lo)}, ${fmt(hi)}]$`, `$[${fmt(lo === a ? m : a)}, ${fmt(lo === a ? b : m)}]$`, `$[${fmt(a)}, ${fmt(b)}]$`];
+    const nextMid = (lo + hi) / 2;
+    const otherMid = lo === a ? (m + b) / 2 : (a + m) / 2;
+    return {
+      kind: 'flow',
+      prompt: [say(`${bracketText(params)}. Take one step of bisection, then say where the next one goes.`)],
+      subject: `f(x) = ${polyTex(poly)}`,
+      steps: [
+        {
+          id: 'mid',
+          ask: `The midpoint of $[${fmt(a)}, ${fmt(b)}]$ is`,
+          branches: turned([m, 0.5, 2 * a + 1].map((v) => `$${fmt(v)}$`), key).map((label) => ({ label, to: 'half' })),
+        },
+        {
+          id: 'half',
+          ask: `$f(${fmt(m)}) = ${fmt(fm)}$. The root is now in`,
+          branches: turned(halves, key).map((label) => ({ label, to: 'next' })),
+        },
+        {
+          id: 'next',
+          ask: 'So the next midpoint is',
+          branches: turned(
+            [
+              { label: `$${fmt(nextMid)}$`, outcome: 'The middle of the half that kept its sign change.' },
+              { label: `$${fmt(otherMid)}$`, outcome: 'That is the middle of the half the root is not in.' },
+              { label: `$${fmt(m)}$`, outcome: 'That is the midpoint already used.' },
+            ],
+            key,
+          ),
+        },
+      ],
+      answer: [`$${fmt(m)}$`, halves[0], `$${fmt(nextMid)}$`],
+    };
+  },
+  solution: ({ poly, a }) => {
+    const [lo, hi] = halvings(poly, a, a + 1, 1).next;
+    return [
+      { tex: `m = \\frac{${fmt(a)} + ${fmt(a + 1)}}{2} = ${fmt(a + 0.5)}` },
+      ...halvingLines(poly, a, a + 1, 1),
+      { text: `The next midpoint is the middle of that interval, $${fmt((lo + hi) / 2)}$.` },
+    ];
+  },
+};
+
+type HalvingsMode = 'width' | 'count' | 'mid';
+
+interface HalvingsParams {
+  mode: HalvingsMode;
+  /** The starting interval's width. */
+  W: number;
+  /** Halvings, for `width`; the target, for the counts. */
+  k: number;
+  eps: number;
+}
+
+const HALVING_WIDTHS = [1, 2, 3, 4, 5, 0.5, 1.5, 2.5];
+const HALVING_EPS = [0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001, 0.0005];
+
+/** The quotient a count has to pass: log2 of W over the width wanted. */
+const halvingsQuotient = ({ mode, W, eps }: HalvingsParams) => Math.log2(mode === 'mid' ? W / (2 * eps) : W / eps);
+
+/** The halvings needed, or the width after k of them. */
+const halvingsAnswer = (params: HalvingsParams) =>
+  params.mode === 'width' ? fmt(params.W / 2 ** params.k) : String(Math.ceil(halvingsQuotient(params)));
+
+/**
+ * The width (b - a)/2^k after k halvings, and the halvings a target needs:
+ * at difficulty 1 the width itself or a width below ε, at 2 a midpoint
+ * certain to be within ε, which needs half the width below ε. A count is
+ * drawn again when the logarithm sits near a whole number.
+ */
+const bisectHalvings: Generator<HalvingsParams> = {
+  id: 'numer-bisect-halvings',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const mode: HalvingsMode = difficulty > 1 ? 'mid' : rng.pick(['width', 'count']);
+      const params = { mode, W: rng.pick(HALVING_WIDTHS), k: rng.int(2, 5), eps: rng.pick(HALVING_EPS) };
+      if (mode === 'width') {
+        if (terminates(params.W / 2 ** params.k, 6)) return params;
+        continue;
+      }
+      const q = halvingsQuotient(params);
+      const part = q - Math.floor(q);
+      if (q > 1 && part > 0.1 && part < 0.9) return params;
+    }
+  },
+  render: (params): Slide => {
+    const { mode, W, k, eps } = params;
+    const start = `Bisection starts on an interval of width $${fmt(W)}$.`;
+    const ask =
+      mode === 'width'
+        ? `How wide is the interval after $${k}$ halvings?`
+        : mode === 'count'
+          ? `How many halvings until its width is first less than $${fmt(eps)}$?`
+          : `The root is estimated by the midpoint of the last interval. How many halvings until that midpoint is certain to be within $${fmt(eps)}$ of the root?`;
+    return {
+      kind: 'expression',
+      prompt: [say(`${start} ${ask}`)],
+      lead: mode === 'width' ? '\\text{width} =' : 'k =',
+      keypad: [],
+      answer: halvingsAnswer(params),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { mode, W, k, eps } = params;
+    if (mode === 'width') {
+      return [
+        { text: 'Each halving halves the width, so after $k$ of them it is $\\frac{b - a}{2^{k}}$.' },
+        { tex: `\\frac{${fmt(W)}}{2^{${k}}} = ${fmt(W / 2 ** k)}` },
+      ];
+    }
+    const target = mode === 'mid' ? 2 * eps : eps;
+    const answer = Number(halvingsAnswer(params));
+    return [
+      ...(mode === 'mid' ? [{ text: `The midpoint is at most half the width from the root, so the width must be below $${fmt(target)}$.` }] : []),
+      { tex: aligned(`\\frac{${fmt(W)}}{2^{k}} &< ${fmt(target)}`, `2^{k} &> ${fmt(W / target)}`) },
+      { text: `$2^{${answer - 1}} = ${2 ** (answer - 1)}$ is not enough and $2^{${answer}} = ${2 ** answer}$ is, so $k = ${answer}$.` },
+    ];
+  },
+};
+
+interface BisectChoiceParams extends BisectParams {
+  /** Halvings: two at difficulty 1, three at 2. */
+  k: number;
+}
+
+/** Which interval holds the root after k halvings: the right one and three of the same width. */
+const bisectChoice: Generator<BisectChoiceParams> = {
+  id: 'numer-bisect-choice',
+  sample: (rng, difficulty) => ({ ...sampleBracket(rng, difficulty), k: difficulty > 1 ? 3 : 2 }),
+  render: (params): Slide => {
+    const { poly, a, k } = params;
+    const width = 1 / 2 ** k;
+    const [lo] = halvings(poly, a, a + 1, k).next;
+    const at = Math.round((lo - a) / width);
+    const count = 2 ** k;
+    const others = [at - 1, at + 1, count - 1 - at, at + 2, at - 2].filter((i) => i >= 0 && i < count && i !== at);
+    const picks = [...new Set(others)].slice(0, 3);
+    const label = (i: number) => `[${fmt(a + i * width)}, ${fmt(a + (i + 1) * width)}]`;
+    return choiceSlide(
+      [say(`${bracketText(params)}. After ${k === 2 ? 'two' : 'three'} halvings by bisection, which interval holds the root?`)],
+      [at, ...picks].map((i) => ({ tex: label(i), correct: i === at })),
+    );
+  },
+  solution: ({ poly, a, k }) => halvingLines(poly, a, a + 1, k),
+};
+
+/* ---------- Level 6, lesson 2: side by side ---------- */
+
+interface SideParams {
+  /** x^3 + rx^2 + px + q, drawn so Newton-Raphson's first step is a short decimal. */
+  poly: Poly;
+  /** The start shared by the iteration and Newton-Raphson. */
+  x0: number;
+  /** Bisection's bracket is [lo, lo + 1], and holds the root nearest x0. */
+  lo: number;
+}
+
+/** The places iterates are written to. */
+const SIDE_DP = 4;
+
+/** x = the cube root of -(rx^2 + px + q), the rearrangement of f(x) = 0. */
+function sideG({ poly }: Pick<SideParams, 'poly'>): (x: number) => number {
+  const rest = poly.slice(1).map((c) => -c);
+  return (x) => Math.cbrt(valueAt(rest, x));
+}
+
+const sideGTex = ({ poly }: Pick<SideParams, 'poly'>, variable = 'x') => `\\sqrt[3]{${polyTex(poly.slice(1).map((c) => -c), variable)}}`;
+
+const newtonOf = (poly: Poly) => (x: number) => x - valueAt(poly, x) / valueAt(derivative(poly), x);
+
+/**
+ * `steps` values of `step` from x0 written to `dp` places, or undefined when
+ * a value sits near a rounding boundary or carrying the written value forward
+ * would change a later row.
+ */
+function writtenRun(step: (x: number) => number, x0: number, steps: number, dp: number): { full: number[]; tokens: string[] } | undefined {
+  const full: number[] = [];
+  const tokens: string[] = [];
+  let [x, carried] = [x0, x0];
+  for (let n = 0; n < steps; n += 1) {
+    x = step(x);
+    const token = written(x, dp);
+    if (token === undefined || written(step(carried), dp) !== token) return undefined;
+    full.push(x);
+    tokens.push(token);
+    carried = Number(token);
+  }
+  return { full, tokens };
+}
+
+/** Every column of the side-by-side table: three midpoints, three iterates, three Newton-Raphson values. */
+function sideColumns(params: SideParams) {
+  const { poly, x0, lo } = params;
+  const f = (x: number) => valueAt(poly, x);
+  const mids = halvings(poly, lo, lo + 1, 3).rows.map((row) => row.m);
+  const iter = writtenRun(sideG(params), x0, 3, SIDE_DP);
+  const newton = writtenRun(newtonOf(poly), x0, 3, SIDE_DP);
+  if (!iter || !newton) return undefined;
+  return { f, mids, iter, newton, alpha: bisect(f, lo, lo + 1) };
+}
+
+/** Whole starts from 1 to 3 at difficulty 1, an x^2 term or a negative start at 2. */
+function sampleSide(rng: Rng, difficulty: number): SideParams {
+  for (;;) {
+    const { poly, x0 } = sampleNewtonStep(rng, difficulty > 1 ? 2 : rng.pick([1, 2]));
+    if (difficulty === 1 && x0 < 1) continue;
+    const f = (x: number) => valueAt(poly, x);
+    const lo = f(x0) * f(x0 + 1) < 0 ? x0 : f(x0 - 1) * f(x0) < 0 ? x0 - 1 : undefined;
+    if (lo === undefined || rootsIn(f, lo, lo + 1).length !== 1) continue;
+    const params = { poly, x0, lo };
+    const columns = sideColumns(params);
+    if (!columns) continue;
+    const { alpha, iter, newton, mids } = columns;
+    if (Math.abs(slope(sideG(params), alpha)) > 0.7) continue;
+    if (Math.abs(newton.full[2] - alpha) > 1e-3 || Math.abs(iter.full[2] - alpha) > Math.abs(x0 - alpha)) continue;
+    if (halvings(poly, lo, lo + 1, 3).rows.some((row) => Math.abs(row.fm) < 0.01) || mids.includes(x0)) continue;
+    return params;
+  }
+}
+
+const sideText = (params: SideParams) =>
+  `$f(x) = ${polyTex(params.poly)}$ has a root $\\alpha$ in $[${params.lo}, ${params.lo + 1}]$. Three methods chase it: bisection on that interval, the iteration $x_{n+1} = ${sideGTex(params, 'x_n')}$, and Newton-Raphson, the last two from $x_0 = ${params.x0}$.`;
+
+/** The three columns as a display, rows 1 to 3 filled in, for the slides that compare them. */
+function sideDisplay(params: SideParams): string {
+  const { mids, iter, newton } = sideColumns(params)!;
+  const rows = [0, 1, 2].map((i) => `${fmt(mids[i])} & ${iter.tokens[i]} & ${newton.tokens[i]}`);
+  return `\\begin{array}{c|c|c} \\text{Bis.} & \\text{Iter.} & \\text{N-R} \\\\ \\hline ${rows.join(' \\\\ ')} \\end{array}`;
+}
+
+function sideSolution(params: SideParams): SolutionStep[] {
+  const { mids, iter, newton } = sideColumns(params)!;
+  return [
+    { text: `Bisection halves $[${params.lo}, ${params.lo + 1}]$: $${mids.map(fmt).join(',\\ ')}$.` },
+    { text: `Iteration puts each value back into $${sideGTex(params)}$: $${iter.tokens.join(',\\ ')}$.` },
+    { text: `Newton-Raphson takes $x - \\frac{f(x)}{f'(x)}$ with $f'(x) = ${polyTex(derivative(params.poly))}$: $${newton.tokens.join(',\\ ')}$.` },
+  ];
+}
+
+interface SideTableParams extends SideParams {
+  /** The first blank row: 3 at difficulty 1, 2 at difficulty 2. */
+  from: number;
+}
+
+/** One root chased three ways in three columns, iterates to four places. */
+const sideTable: Generator<SideTableParams> = {
+  id: 'numer-side-table',
+  sample: (rng, difficulty) => ({ ...sampleSide(rng, difficulty), from: difficulty > 1 ? 2 : 3 }),
+  render: (params): Slide => {
+    const { lo, x0, from, poly } = params;
+    const { mids, iter, newton } = sideColumns(params)!;
+    const cell = (value: string, row: number) => (row >= from ? null : value);
+    const rows = [
+      ['0', `[${lo}, ${lo + 1}]`, fmt(x0), fmt(x0)],
+      ...[1, 2, 3].map((n) => [String(n), cell(fmt(mids[n - 1]), n), cell(iter.tokens[n - 1], n), cell(newton.tokens[n - 1], n)]),
+    ];
+    const answer = [1, 2, 3].filter((n) => n >= from).flatMap((n) => [fmt(mids[n - 1]), iter.tokens[n - 1], newton.tokens[n - 1]]);
+    const last = newton.full[2];
+    const slips = [
+      fmt(mids[1] + (mids[2] - mids[1]) * -1),
+      written(2 * newton.full[1] - last, SIDE_DP),
+      written(sideG(params)(iter.full[2]), SIDE_DP),
+      written(newton.full[1] + valueAt(poly, newton.full[1]) / valueAt(derivative(poly), newton.full[1]), SIDE_DP),
+      written(iter.full[2] + 0.001, SIDE_DP),
+    ];
+    return {
+      kind: 'table',
+      prompt: [say(`${sideText(params)} Fill in the table, iterates to $${SIDE_DP}$ decimal places.`)],
+      columns: ['n', '\\text{Bis.}', '\\text{Iter.}', '\\text{N-R}'],
+      rows,
+      bank: numberBank(answer, slips, around([mids[2]], 0.125)),
+      answer,
+    };
+  },
+  solution: sideSolution,
+};
+
+interface SideFlowParams extends SideParams {
+  /** Which step is asked: the first at difficulty 1, the second at 2. */
+  n: number;
+}
+
+/** The labels of the side flow, right one first, or none when two coincide. */
+function sideFlowLabels(params: SideFlowParams) {
+  const { poly, x0, lo, n } = params;
+  const { mids, iter, newton } = sideColumns(params)!;
+  const prevIter = n === 1 ? x0 : iter.full[0];
+  const prevNewton = n === 1 ? x0 : newton.full[0];
+  const [f, df] = [valueAt(poly, prevNewton), valueAt(derivative(poly), prevNewton)];
+  const bis = [mids[n - 1], n === 1 ? lo + 0.25 : mids[0] + (mids[0] - mids[1]), lo + 1];
+  const it = [iter.tokens[n - 1], written(Math.cbrt(poly[2] * prevIter + poly[3]), SIDE_DP), written(Math.cbrt(-poly[2] * prevIter) - poly[3], SIDE_DP)];
+  const nr = [newton.tokens[n - 1], written(prevNewton + f / df, SIDE_DP), written(prevNewton - f, SIDE_DP)];
+  const groups = [bis.map(fmt), it, nr];
+  if (groups.some((group) => group.some((label) => label === undefined) || new Set(group).size !== 3)) return undefined;
+  return groups as string[][];
+}
+
+/**
+ * Each method's next value from the same start, one question each. At
+ * difficulty 2 the first values are given and the second is asked.
+ */
+const sideFlow: Generator<SideFlowParams> = {
+  id: 'numer-side-flow',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = { ...sampleSide(rng, difficulty), n: difficulty > 1 ? 2 : 1 };
+      if (sideFlowLabels(params)) return params;
+    }
+  },
+  render: (params): Slide => {
+    const { n, x0, poly, lo } = params;
+    const { mids, iter, newton } = sideColumns(params)!;
+    const [bis, it, nr] = sideFlowLabels(params)!.map((group) => group.map((label) => `$${label}$`));
+    const key = `${poly.join(',')}|${x0}|${lo}|${n}`;
+    const given =
+      n === 1
+        ? ''
+        : ` Their first values were $m_1 = ${fmt(mids[0])}$, $x_1 = ${iter.tokens[0]}$ by iteration and $x_1 = ${newton.tokens[0]}$ by Newton-Raphson.`;
+    const which = n === 1 ? 'first' : 'second';
+    return {
+      kind: 'flow',
+      prompt: [say(`${sideText(params)}${given} Find each method's ${which} value, iterates to $${SIDE_DP}$ decimal places.`)],
+      subject: `f(x) = ${polyTex(poly)}`,
+      steps: [
+        { id: 'bis', ask: `Bisection's ${which} midpoint is`, branches: turned(bis, key).map((label) => ({ label, to: 'it' })) },
+        { id: 'it', ask: `The iteration's $x_${n}$ is`, branches: turned(it, key).map((label) => ({ label, to: 'nr' })) },
+        {
+          id: 'nr',
+          ask: `Newton-Raphson's $x_${n}$ is`,
+          branches: turned(
+            nr.map((label, i) => ({
+              label,
+              outcome: ['The tangent step: $f$ over $f\'$, taken away.', 'That adds $\\frac{f}{f\'}$ instead of taking it away.', "That forgets to divide by $f'$."][i],
+            })),
+            key,
+          ),
+        },
+      ],
+      answer: [bis[0], it[0], nr[0]],
+    };
+  },
+  solution: sideSolution,
+};
+
+type Method = 'bisection' | 'iteration' | 'newton';
+
+const METHOD_NAMES: Record<Method, string> = { bisection: 'Bisection', iteration: 'Iteration', newton: 'Newton-Raphson' };
+
+/** Each method's third value, how far it is from the root, and how much it last moved. */
+function sideRace(params: SideParams) {
+  const { mids, iter, newton, alpha } = sideColumns(params)!;
+  const race = {
+    bisection: { error: Math.abs(mids[2] - alpha), moved: Math.abs(mids[2] - mids[1]) },
+    iteration: { error: Math.abs(iter.full[2] - alpha), moved: Math.abs(iter.full[2] - iter.full[1]) },
+    newton: { error: Math.abs(newton.full[2] - alpha), moved: Math.abs(newton.full[2] - newton.full[1]) },
+  };
+  const methods = Object.keys(race) as Method[];
+  const byError = [...methods].sort((m, n) => race[m].error - race[n].error);
+  const byMoved = [...methods].sort((m, n) => race[m].moved - race[n].moved);
+  return { race, closest: byError[0], clear: race[byError[0]].error < race[byError[1]].error / 2 && byError[0] === byMoved[0] };
+}
+
+/**
+ * Which column is closest to the root after three steps, from how much each
+ * is still moving. Only asked when the closest is also the one moving least.
+ */
+const nearestMethod: Generator<SideParams> = {
+  id: 'numer-nearest-method',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = sampleSide(rng, difficulty);
+      if (sideRace(params).clear) return params;
+    }
+  },
+  render: (params): Slide =>
+    keyedChoice(
+      [
+        say(`${sideText(params)} Steps 1 to 3 of each:`),
+        show(sideDisplay(params)),
+        say('Which is closest to $\\alpha$ now?'),
+      ],
+      (Object.keys(METHOD_NAMES) as Method[]).map((method) => ({ tex: METHOD_NAMES[method], correct: method === sideRace(params).closest })),
+      `${params.poly.join(',')}|${params.x0}`,
+      false,
+    ),
+  solution: (params) => {
+    const { mids, iter, newton } = sideColumns(params)!;
+    const closest = sideRace(params).closest;
+    return [
+      { text: `Bisection's last midpoint moved $${fmt(Math.abs(mids[2] - mids[1]))}$, and the root is somewhere in an interval $${fmt(0.125)}$ wide.` },
+      { text: `The iteration moved from $${iter.tokens[1]}$ to $${iter.tokens[2]}$; Newton-Raphson from $${newton.tokens[1]}$ to $${newton.tokens[2]}$.` },
+      { text: `A method still moving a lot is still a long way off, so ${METHOD_NAMES[closest]} is closest.` },
+    ];
+  },
+};
+
+/**
+ * Newton-Raphson's first step as a line to reduce: f(x_0), f'(x_0), their
+ * quotient, then x_1. The cubic has an x^2 term and the start may be
+ * negative at difficulty 2.
+ */
+const sideSteps: Generator<NewtonStepParams> = {
+  id: 'numer-side-steps',
+  sample: sampleNewtonStep,
+  render: ({ poly, x0 }): Slide => {
+    const { fa, da, ratio, x1 } = newtonStep({ poly, x0 });
+    const X = fmt(x0);
+    const bank = (value: number, ...slips: number[]) => stepBank(fmt(value), ...slips.map(fmt));
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `Bisection needs a bracket and iteration a rearrangement; Newton-Raphson needs $f'(x)$. For $f(x) = ${polyTex(poly)}$ from $x_0 = ${X}$, work out $x_1$: tap the part you would work out next, then choose what it comes to.`,
+        ),
+      ],
+      start: [X, '-', `f(${X})`, '\\div', `f'(${X})`],
+      reductions: [
+        { span: [2, 3], value: fmt(fa), bank: bank(fa, -fa, fa + 1, valueAt(poly, -x0)) },
+        { span: [4, 5], value: fmt(da), bank: bank(da, -da, da + 1, valueAt(poly.slice(0, -1), x0)) },
+        { span: [2, 5], operator: 3, value: fmt(ratio), bank: bank(ratio, -ratio, fa - da, fa * da) },
+        { span: [0, 3], operator: 1, value: fmt(x1), bank: bank(x1, x0 + ratio, x0 - fa, x1 + 1) },
+      ],
+    };
+  },
+  solution: ({ poly, x0 }) => {
+    const { fa, da, ratio, x1 } = newtonStep({ poly, x0 });
+    return [
+      { text: `$f'(x) = ${polyTex(derivative(poly))}$.` },
+      { tex: aligned(`f(${fmt(x0)}) &= ${fmt(fa)}`, `f'(${fmt(x0)}) &= ${fmt(da)}`) },
+      { tex: aligned(`x_1 &= ${fmt(x0)} - \\frac{${fmt(fa)}}{${fmt(da)}}`, `&= ${fmt(x0)} - ${paren(ratio)}`, `&= ${fmt(x1)}`) },
+    ];
+  },
+};
+
+/* ---------- Level 6, lesson 3: speed of convergence ---------- */
+
+interface SpeedParams {
+  /** Bisection's interval width now. */
+  W: number;
+  /** Iteration: |g'(α)|, and the error now. */
+  r: number;
+  e: number;
+  /** Newton-Raphson's correct decimal places now. */
+  p: number;
+}
+
+const SPEED_WIDTHS = [1, 0.5, 0.4, 0.2, 0.1, 2];
+const SPEED_ERRORS = [0.1, 0.2, 0.4, 0.5, 0.05, 1];
+
+/** The three one-step labels, right one first, or none when two agree or one runs long. */
+function speedLabels({ W, r, e, p }: SpeedParams) {
+  const bis = [W / 2, W / 4, W / 10];
+  const it = [r * e, e * (1 - r), r * r * e];
+  const nr = [2 * p, p + 1, 3 * p];
+  const ok = [bis, it].every((group) => group.every((v) => terminates(v, 6)) && new Set(group.map(fmt)).size === 3);
+  return ok ? { bis: bis.map(fmt), it: it.map(fmt), nr: nr.map(String) } : undefined;
+}
+
+/**
+ * What one more step does to each method: bisection halves the width,
+ * iteration multiplies the error by |g'(α)|, Newton-Raphson roughly doubles
+ * the correct places.
+ */
+const speedFlow: Generator<SpeedParams> = {
+  id: 'numer-speed-flow',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = {
+        W: rng.pick(SPEED_WIDTHS),
+        r: rng.pick(difficulty > 1 ? K_RATES_HARD : K_RATES),
+        e: rng.pick(SPEED_ERRORS),
+        p: rng.int(2, difficulty > 1 ? 6 : 4),
+      };
+      if (speedLabels(params)) return params;
+    }
+  },
+  render: (params): Slide => {
+    const { W, r, e, p } = params;
+    const { bis, it, nr } = speedLabels(params)!;
+    const key = `${W}|${r}|${e}|${p}`;
+    return {
+      kind: 'flow',
+      prompt: [say('Three methods are part way to the same root. What does one more step of each do?')],
+      subject: `\\begin{aligned} \\text{bisection width} &= ${fmt(W)} \\\\ \\text{iteration error} &\\approx ${fmt(e)} \\\\ \\text{N-R correct places} &= ${p} \\end{aligned}`,
+      steps: [
+        {
+          id: 'bis',
+          ask: `One more halving leaves bisection's interval how wide?`,
+          branches: turned(bis, key).map((v) => ({ label: `$${v}$`, to: 'it' })),
+        },
+        {
+          id: 'it',
+          ask: `The iteration has $|g'(\\alpha)| \\approx ${fmt(r)}$. One more step leaves an error of about`,
+          branches: turned(it, key).map((v) => ({ label: `$${v}$`, to: 'nr' })),
+        },
+        {
+          id: 'nr',
+          ask: 'One more step of Newton-Raphson gives about how many correct places?',
+          branches: turned(
+            nr.map((label, i) => ({
+              label,
+              outcome: ['Close to the root, the correct places roughly double.', 'That is one place a step, which is bisection-slow.', 'Tripling is faster than Newton-Raphson manages.'][i],
+            })),
+            key,
+          ),
+        },
+      ],
+      answer: [`$${bis[0]}$`, `$${it[0]}$`, nr[0]],
+    };
+  },
+  solution: ({ W, r, e, p }) => [
+    { text: `Bisection halves its interval: $\\frac{${fmt(W)}}{2} = ${fmt(W / 2)}$.` },
+    { text: `Iteration multiplies the error by about $|g'(\\alpha)|$: $${fmt(r)} \\times ${fmt(e)} = ${fmt(r * e)}$.` },
+    { text: `Newton-Raphson roughly squares the error, which doubles the correct places: $${p}$ becomes about $${2 * p}$.` },
+  ],
+};
+
+interface SpeedTableParams extends SpeedParams {
+  /** Rows after row 0: two at difficulty 1, three at 2. */
+  steps: number;
+}
+
+/** The three methods step by step: w_n = W/2^n, e_n = r^n e, d_n = 2^n p. */
+function speedRows({ W, r, e, p, steps }: SpeedTableParams): number[][] {
+  return Array.from({ length: steps + 1 }, (_, n) => [W / 2 ** n, e * r ** n, p * 2 ** n]);
+}
+
+/** Row 0 given, the rest filled from a bank: widths halve, errors shrink by r, places double. */
+const speedTable: Generator<SpeedTableParams> = {
+  id: 'numer-speed-table',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = {
+        W: rng.pick(SPEED_WIDTHS),
+        r: rng.pick(difficulty > 1 ? K_RATES_HARD : K_RATES),
+        e: rng.pick(SPEED_ERRORS),
+        p: rng.int(1, 3),
+        steps: difficulty > 1 ? 3 : 2,
+      };
+      if (speedRows(params).every((row) => row.every((v) => terminates(v, 6)))) return params;
+    }
+  },
+  render: (params): Slide => {
+    const values = speedRows(params);
+    const rows = values.map((row, n) => [String(n), ...row.map((v) => (n === 0 ? fmt(v) : null))]);
+    const answer = values.slice(1).flatMap((row) => row.map(fmt));
+    const last = values[values.length - 1];
+    const slips = [last[0] / 2, last[1] * params.r, last[1] * 2, last[2] + 1, last[2] / 2 + 1, params.p + params.steps].map(fmt);
+    return {
+      kind: 'table',
+      prompt: [
+        say(
+          `Three methods close in on one root. $w_n$ is the width of bisection's interval, $e_n$ the iteration's error with $|g'(\\alpha)| \\approx ${fmt(params.r)}$, and $d_n$ the correct decimal places of Newton-Raphson. Fill in the next ${params.steps === 2 ? 'two' : 'three'} rows.`,
+        ),
+      ],
+      columns: ['n', 'w_n', 'e_n', 'd_n'],
+      rows,
+      bank: numberBank(answer, slips, around([last[2]], 1)),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const values = speedRows(params);
+    return [
+      { text: `Bisection halves: $${values.map((row) => fmt(row[0])).join(',\\ ')}$.` },
+      { text: `Iteration multiplies by $${fmt(params.r)}$: $${values.map((row) => fmt(row[1])).join(',\\ ')}$.` },
+      { text: `Newton-Raphson doubles its places: $${values.map((row) => row[2]).join(',\\ ')}$.` },
+    ];
+  },
+};
+
+interface SpeedCountParams {
+  /** The error all three start with: 0.1 or 0.01, so Newton-Raphson has 1 or 2 places. */
+  e0: number;
+  /** The target is an error below 10^-P. */
+  P: number;
+  r: number;
+}
+
+const placesOf = (e0: number) => Math.round(-Math.log10(e0));
+
+/** The quotient each count has to pass, where the method has one. */
+function speedQuotients({ e0, P, r }: SpeedCountParams) {
+  return { bisection: Math.log2(e0 * 10 ** P), iteration: Math.log(10 ** -P / e0) / Math.log(r) };
+}
+
+function speedCounts(params: SpeedCountParams) {
+  const q = speedQuotients(params);
+  let newton = 0;
+  while (placesOf(params.e0) * 2 ** newton < params.P) newton += 1;
+  const counts = { bisection: Math.ceil(q.bisection), iteration: Math.ceil(q.iteration), newton };
+  return { ...counts, fewest: Math.min(counts.bisection, counts.iteration, counts.newton) };
+}
+
+/**
+ * The steps each method needs from the same error to a stated one, and the
+ * fewest of the three. Drawn again when a logarithm sits near a whole number.
+ */
+const speedTree: Generator<SpeedCountParams> = {
+  id: 'numer-speed-tree',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = {
+        e0: difficulty > 1 ? rng.pick([0.1, 0.01]) : 0.1,
+        P: rng.int(4, 15),
+        r: rng.pick(difficulty > 1 ? K_RATES_HARD : [0.2, 0.25, 0.3, 0.4, 0.5]),
+      };
+      const fair = Object.values(speedQuotients(params)).every((q) => q > 1 && q - Math.floor(q) > 0.1 && q - Math.floor(q) < 0.9);
+      if (fair && params.P > placesOf(params.e0)) return params;
+    }
+  },
+  render: (params): Slide => {
+    const { e0, P, r } = params;
+    const counts = speedCounts(params);
+    const answer = [counts.bisection, counts.iteration, counts.newton, counts.fewest].map(String);
+    const slips = [counts.bisection - 1, counts.bisection + 1, counts.iteration + 1, counts.iteration - 1, counts.newton + 1, P].map(String);
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `Three methods each have an error of at most $${fmt(e0)}$, so Newton-Raphson has $${placesOf(e0)}$ correct place${placesOf(e0) > 1 ? 's' : ''}. Bisection halves its error bound each step, the iteration multiplies its error by about $${fmt(r)}$, and Newton-Raphson doubles its correct places. Top row: the steps each needs to get the error below $10^{-${P}}$, bisection, iteration, then Newton-Raphson. Below: the fewest.`,
+        ),
+      ],
+      expression: `\\text{error} < 10^{-${P}}`,
+      nodes: [
+        { id: 'bis', from: [] },
+        { id: 'it', from: [] },
+        { id: 'nr', from: [] },
+        { id: 'fewest', from: ['bis', 'it', 'nr'] },
+      ],
+      bank: numberBank(answer, slips, around([counts.bisection], 1)),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { e0, P, r } = params;
+    const q = speedQuotients(params);
+    const counts = speedCounts(params);
+    const places = Array.from({ length: counts.newton + 1 }, (_, n) => placesOf(e0) * 2 ** n);
+    return [
+      { text: `Bisection: $\\frac{${fmt(e0)}}{2^{k}} < 10^{-${P}}$ needs $k > ${q.bisection.toFixed(2)}$, so $${counts.bisection}$ steps.` },
+      { text: `Iteration: $${fmt(r)}^{k} \\times ${fmt(e0)} < 10^{-${P}}$ needs $k > ${q.iteration.toFixed(2)}$, so $${counts.iteration}$ steps.` },
+      { text: `Newton-Raphson: places $${places.join(', ')}$, so $${counts.newton}$ steps.` },
+      { text: `The fewest is $${counts.fewest}$.` },
+    ];
+  },
+};
+
+/* ---------- Level 6, lessons 4 and 5: when each breaks, and which to reach for ---------- */
+
+type Plan = 'bisection' | 'iteration' | 'newton';
+
+interface Kit {
+  /** f(x) = x^3 - 3s^2 x + q, turning at x = ±s, with three roots. */
+  s: number;
+  q: number;
+  /** Which plans are set up to work on α, the largest root. */
+  ok: Record<Plan, boolean>;
+  /** Newton-Raphson's start: s itself when it is set up to fail. */
+  x0: number;
+}
+
+const kitPoly = ({ s, q }: Pick<Kit, 's' | 'q'>): Poly => [1, 0, -3 * s * s, q];
+
+/**
+ * The three plans for one cubic. Bisection works on [⌊α⌋, ⌊α⌋ + 1] and fails
+ * on an interval that also holds the middle root, where both ends share a
+ * sign. Iteration works through the cube root, whose gradient at α is
+ * s^2/α^2 < 1, and fails through (x^3 + q)/3s^2, whose gradient is α^2/s^2.
+ * Newton-Raphson fails from the turning point x = s, where f'(s) = 0.
+ */
+function kitFacts(kit: Kit) {
+  const { s, q, ok, x0 } = kit;
+  const poly = kitPoly(kit);
+  const f = (x: number) => valueAt(poly, x);
+  const [, middle, alpha] = rootsIn(f, -3 * s, 3 * s);
+  const bracket: [number, number] = ok.bisection ? [Math.floor(alpha), Math.floor(alpha) + 1] : [Math.floor(middle), Math.ceil(alpha)];
+  const k = 3 * s * s;
+  const g = ok.iteration
+    ? { g: (x: number) => Math.cbrt(k * x - q), tex: `\\sqrt[3]{${polyTex([k, -q])}}` }
+    : { g: (x: number) => (x ** 3 + q) / k, tex: `\\frac{${polyTex([1, 0, 0, q])}}{${k}}` };
+  return { poly, f, alpha, bracket, ...g, x0, df: valueAt(derivative(poly), x0) };
+}
+
+function sampleKit(rng: Rng, difficulty: number, ok: Record<Plan, boolean>): Kit {
+  const s = difficulty > 1 ? 3 : 2;
+  for (;;) {
+    const q = nonZero(rng, 2 * s ** 3 - 1);
+    const f = (x: number) => valueAt(kitPoly({ s, q }), x);
+    const roots = rootsIn(f, -3 * s, 3 * s);
+    if (roots.length !== 3) continue;
+    if (Array.from({ length: 6 * s + 1 }, (_, i) => i - 3 * s).some((n) => f(n) === 0)) continue;
+    const alpha = roots[2];
+    if (alpha < 1.15 * s) continue;
+    return { s, q, ok, x0: ok.newton ? Math.ceil(alpha) + rng.int(0, 1) : s };
+  }
+}
+
+const kitKey = ({ s, q, ok, x0 }: Kit) => `${s}|${q}|${ok.bisection}|${ok.iteration}|${ok.newton}|${x0}`;
+
+/** The three plans in words, for a prompt. */
+function kitText(kit: Kit): string {
+  const { poly, alpha, bracket, tex, x0 } = kitFacts(kit);
+  return `$f(x) = ${polyTex(poly)}$ has a root $\\alpha \\approx ${alpha.toFixed(1)}$. Three plans to find it: bisection on $[${bracket[0]}, ${bracket[1]}]$; the iteration $x_{n+1} = g(x_n)$ with $g(x) = ${tex}$; and Newton-Raphson from $x_0 = ${x0}$.`;
+}
+
+/** Why each plan fails when it does. */
+function failReasons(kit: Kit): Record<Plan, string> {
+  const { bracket, x0 } = kitFacts(kit);
+  return {
+    bisection: `$f(${bracket[0]})$ and $f(${bracket[1]})$ have the same sign`,
+    iteration: `$|g'(x)| > 1$ near $\\alpha$`,
+    newton: `$f'(${x0}) = 0$, so the tangent is flat`,
+  };
+}
+
+/** The working behind each plan's verdict. */
+function kitLines(kit: Kit): SolutionStep[] {
+  const { f, alpha, bracket, x0, df } = kitFacts(kit);
+  const s2 = kit.s * kit.s;
+  const gradient = kit.ok.iteration ? `\\frac{${s2}}{\\alpha^{2}}` : `\\frac{\\alpha^{2}}{${s2}}`;
+  return [
+    {
+      text: `$f(${bracket[0]}) = ${fmt(f(bracket[0]))}$ and $f(${bracket[1]}) = ${fmt(f(bracket[1]))}$: ${kit.ok.bisection ? 'a change of sign, so bisection can start' : 'no change of sign, so bisection cannot start, though two roots lie between'}.`,
+    },
+    {
+      text: `$g'(\\alpha) = ${gradient} \\approx ${fmt(Number((kit.ok.iteration ? s2 / alpha ** 2 : alpha ** 2 / s2).toFixed(2)))}$: ${kit.ok.iteration ? 'below 1, so the iteration closes in' : 'above 1, so the iteration runs away'}.`,
+    },
+    { text: `$f'(${x0}) = ${fmt(df)}$: ${kit.ok.newton ? 'the tangent is steep, so Newton-Raphson homes in' : 'the tangent is flat and never meets the axis'}.` },
+  ];
+}
+
+const PLANS: Plan[] = ['bisection', 'iteration', 'newton'];
+const PLAN_NAMES: Record<Plan, string> = { bisection: 'Bisection', iteration: 'Iteration', newton: 'Newton-Raphson' };
+
+const failing = (plan: Plan): Record<Plan, boolean> => ({ bisection: plan !== 'bisection', iteration: plan !== 'iteration', newton: plan !== 'newton' });
+
+/** One of the three plans on f is set up to fail: which, and why. */
+const breaksFlow: Generator<Kit & { fails: Plan }> = {
+  id: 'numer-breaks-flow',
+  sample: (rng, difficulty) => {
+    const fails = rng.pick(PLANS);
+    return { ...sampleKit(rng, difficulty, failing(fails)), fails };
+  },
+  render: (kit): Slide => {
+    const key = kitKey(kit);
+    const reasons = failReasons(kit);
+    const whole = '$\\alpha$ is not a whole number';
+    const outcomes: Record<Plan, string> = {
+      bisection: 'Both ends are on the same side of the axis, so there is no sign change to follow.',
+      iteration: 'Each step multiplies the error by more than 1, so the iterates run away from $\\alpha$.',
+      newton: 'A flat tangent never meets the axis, so there is no $x_1$.',
+    };
+    return {
+      kind: 'flow',
+      prompt: [say(`${kitText(kit)} One plan fails.`)],
+      subject: `f(x) = ${polyTex(kitPoly(kit))}`,
+      steps: [
+        { id: 'which', ask: 'Which plan fails?', branches: turned(PLANS.map((plan) => PLAN_NAMES[plan]), key).map((label) => ({ label, to: 'why' })) },
+        {
+          id: 'why',
+          ask: 'Why?',
+          branches: turned(
+            [
+              ...PLANS.map((plan) => ({ label: reasons[plan], outcome: outcomes[plan] })),
+              { label: whole, outcome: 'Every method here finds roots that are not whole; that is what they are for.' },
+            ],
+            key,
+          ),
+        },
+      ],
+      answer: [PLAN_NAMES[kit.fails], reasons[kit.fails]],
+    };
+  },
+  solution: kitLines,
+};
+
+type PictureVerdict = 'bisection' | 'newton' | 'neither';
+
+/**
+ * The curve with bisection's interval dashed and the tangent at Newton-Raphson's
+ * start drawn: which fails, read off the picture.
+ */
+const breaksPicture: Generator<Kit & { verdict: PictureVerdict }> = {
+  id: 'numer-breaks-picture',
+  sample: (rng, difficulty) => {
+    const verdict = rng.pick<PictureVerdict>(['bisection', 'newton', 'neither']);
+    const ok = { bisection: verdict !== 'bisection', iteration: true, newton: verdict !== 'newton' };
+    return { ...sampleKit(rng, difficulty, ok), verdict };
+  },
+  render: (kit): Slide => {
+    const { f, bracket, x0, df, poly } = kitFacts(kit);
+    const span = 3 * kit.s + 0.5;
+    const limit = 3 * kit.s ** 3;
+    const svg = plotSvg({
+      xMin: -span,
+      xMax: span,
+      yMin: -limit,
+      yMax: limit,
+      curves: [{ f: clamped(f, limit * 2) }, { f: clamped((x) => f(x0) + df * (x - x0), limit * 2), accent: true }],
+      verticals: [{ x: bracket[0] }, { x: bracket[1] }],
+      marks: [{ x: x0, y: f(x0) }],
+      label: `The curve y = f(x), dashed lines at x = ${bracket[0]} and x = ${bracket[1]}, and the tangent at x = ${x0}`,
+    });
+    return choiceSlide(
+      [
+        say(
+          `$f(x) = ${polyTex(poly)}$. Bisection is to start on the dashed interval $[${bracket[0]}, ${bracket[1]}]$, and Newton-Raphson from $x_0 = ${x0}$, where the tangent is drawn. Both are after the largest root. Which fails?`,
+        ),
+        { kind: 'diagram', svg },
+      ],
+      [
+        { tex: `Bisection on [${bracket[0]}, ${bracket[1]}]: no change of sign`, correct: kit.verdict === 'bisection' },
+        { tex: `Newton-Raphson from ${x0}: the tangent is flat`, correct: kit.verdict === 'newton' },
+        { tex: 'Neither: both close in on the root', correct: kit.verdict === 'neither' },
+      ],
+      false,
+    );
+  },
+  solution: (kit) => kitLines(kit).filter((_, i) => i !== 1),
+};
+
+/** The numbers that decide whether bisection and Newton-Raphson can start. */
+const breaksTree: Generator<Kit> = {
+  id: 'numer-breaks-tree',
+  sample: (rng, difficulty) => {
+    const verdict = rng.pick<PictureVerdict>(['bisection', 'newton', 'neither']);
+    return sampleKit(rng, difficulty, { bisection: verdict !== 'bisection', iteration: true, newton: verdict !== 'newton' });
+  },
+  render: (kit): Slide => {
+    const { f, bracket, x0, df, poly } = kitFacts(kit);
+    const [fa, fb] = bracket.map(f);
+    const answer = [fa, fb, df, fa * fb].map(fmt);
+    const s2 = kit.s * kit.s;
+    const slips = [-fa, -fb, df + 3 * s2, 3 * x0 * x0, -fa * fb, fa + fb].map(fmt);
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `$f(x) = ${polyTex(poly)}$. Before bisecting $[${bracket[0]}, ${bracket[1]}]$ or starting Newton-Raphson at $x_0 = ${x0}$, check both can start. Top row: $f(${bracket[0]})$, $f(${bracket[1]})$ and $f'(${x0})$. Below: $f(${bracket[0]})\\,f(${bracket[1]})$, negative when the sign changes.`,
+        ),
+      ],
+      expression: `f(${bracket[0]})\\,f(${bracket[1]}) \\text{ and } f'(${x0})`,
+      nodes: [
+        { id: 'fa', from: [] },
+        { id: 'fb', from: [] },
+        { id: 'df', from: [] },
+        { id: 'prod', from: ['fa', 'fb'] },
+      ],
+      bank: numberBank(answer, slips, around([fa * fb], 2)),
+      answer,
+    };
+  },
+  solution: (kit) => [{ text: `$f'(x) = ${polyTex(derivative(kitPoly(kit)))}$.` }, ...kitLines(kit).filter((_, i) => i !== 1)],
+};
+
+/** The fastest plan that works: Newton-Raphson, then iteration, then bisection. */
+const reachFor = ({ ok }: Pick<Kit, 'ok'>): Plan => (ok.newton ? 'newton' : ok.iteration ? 'iteration' : 'bisection');
+
+/** A kit whose fastest working plan is `plan`, the slower ones set up either way. */
+function sampleReach(rng: Rng, difficulty: number, plan: Plan): Kit {
+  const ok = {
+    newton: plan === 'newton',
+    iteration: plan === 'iteration' || (plan === 'newton' && rng.chance(0.5)),
+    bisection: plan === 'bisection' || rng.chance(0.5),
+  };
+  return sampleKit(rng, difficulty, ok);
+}
+
+/** The values the learner checks, stated at difficulty 1 and left to work out at 2. */
+function kitValues(kit: Kit): string {
+  const { f, alpha, bracket, x0, df, g } = kitFacts(kit);
+  return ` Here $f(${bracket[0]}) = ${fmt(f(bracket[0]))}$, $f(${bracket[1]}) = ${fmt(f(bracket[1]))}$, $g'(\\alpha) \\approx ${fmt(Number(slope(g, alpha).toFixed(2)))}$ and $f'(${x0}) = ${fmt(df)}$.`;
+}
+
+/** Which plan to reach for: the fastest of the three that will work on this f. */
+const reachChoice: Generator<Kit & { stated: boolean }> = {
+  id: 'numer-reach-choice',
+  sample: (rng, difficulty) => ({ ...sampleReach(rng, difficulty, rng.pick(PLANS)), stated: difficulty === 1 }),
+  render: (kit): Slide =>
+    keyedChoice(
+      [say(`${kitText(kit)}${kit.stated ? kitValues(kit) : ''} Which should you reach for: the fastest plan that will work?`)],
+      PLANS.map((plan) => ({ tex: PLAN_NAMES[plan], correct: plan === reachFor(kit) })),
+      kitKey(kit),
+      false,
+    ),
+  solution: (kit) => [
+    ...kitLines(kit),
+    { text: `Newton-Raphson is fastest when it can start, then iteration, then bisection, so ${PLAN_NAMES[reachFor(kit)]}.` },
+  ],
+};
+
+/** The first value the chosen plan gives: exact for bisection and Newton-Raphson, four places for iteration. */
+function reachFirst(kit: Kit): string | undefined {
+  const { poly, bracket, g, x0 } = kitFacts(kit);
+  switch (reachFor(kit)) {
+    case 'bisection':
+      return fmt((bracket[0] + bracket[1]) / 2);
+    case 'iteration':
+      return written(g(x0), SIDE_DP);
+    case 'newton': {
+      const { ratio, x1 } = newtonStep({ poly, x0 });
+      return terminates(ratio) ? fmt(x1) : undefined;
+    }
+  }
+}
+
+/** Reach for the plan that fits, then take its first step. */
+const reachValue: Generator<Kit & { stated: boolean }> = {
+  id: 'numer-reach-value',
+  sample: (rng, difficulty) => {
+    const plan = rng.pick(PLANS);
+    for (;;) {
+      const kit = { ...sampleReach(rng, difficulty, plan), stated: difficulty === 1 };
+      if (reachFirst(kit) !== undefined) return kit;
+    }
+  },
+  render: (kit): Slide => ({
+    kind: 'expression',
+    prompt: [
+      say(
+        `${kitText(kit)}${kit.stated ? kitValues(kit) : ''} Take the fastest plan that will work, iteration also starting from $x_0 = ${kit.x0}$, and give its first estimate of $\\alpha$, to $${SIDE_DP}$ decimal places where it is not exact.`,
+      ),
+    ],
+    lead: '\\text{first estimate} =',
+    keypad: [],
+    answer: reachFirst(kit)!,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (kit) => {
+    const { poly, bracket, tex, x0 } = kitFacts(kit);
+    const plan = reachFor(kit);
+    const first =
+      plan === 'bisection'
+        ? { tex: `m = \\frac{${bracket[0]} + ${bracket[1]}}{2} = ${reachFirst(kit)}` }
+        : plan === 'iteration'
+          ? { tex: aligned(`x_1 &= g(${x0})`, `&= ${tex.replace(/x/g, `(${x0})`)}`, `&= ${reachFirst(kit)}`) }
+          : { tex: `x_1 = ${x0} - \\frac{${fmt(valueAt(poly, x0))}}{${fmt(valueAt(derivative(poly), x0))}} = ${reachFirst(kit)}` };
+    return [...kitLines(kit), { text: `So ${PLAN_NAMES[plan]}, and its first step:` }, first];
+  },
+};
+
+type Scenario = 'table' | 'steep' | 'flatG' | 'flatNoG';
+
+interface ReachFlowParams {
+  scenario: Scenario;
+  a: number;
+  fa: number;
+  fb: number;
+  /** |g'| near the root, when a rearrangement is in hand. */
+  r: number;
+  x0: number;
+  /** f'(x_0), when a formula is in hand. */
+  d: number;
+}
+
+const REACH_REASONS = {
+  sign: 'It needs nothing but the change of sign, and always closes in',
+  fast: 'The tangent is steep at the start, and the correct places roughly double each step',
+  g: "|g'| is below 1 near the root, so the iterates close in without a derivative",
+  wrongFast: 'It always takes the fewest steps',
+  wrongDiverge: "|g'| above 1 means it closes in faster",
+};
+
+/** The method a scenario calls for, and the reason. */
+function reachAnswer({ scenario }: ReachFlowParams): { plan: Plan; reason: keyof typeof REACH_REASONS } {
+  switch (scenario) {
+    case 'table':
+      return { plan: 'bisection', reason: 'sign' };
+    case 'steep':
+      return { plan: 'newton', reason: 'fast' };
+    case 'flatG':
+      return { plan: 'iteration', reason: 'g' };
+    case 'flatNoG':
+      return { plan: 'bisection', reason: 'sign' };
+  }
+}
+
+/** What is in hand, one fact a line. */
+function reachFacts({ scenario, a, fa, fb, r, x0, d }: ReachFlowParams): string[] {
+  const sign = `$f(${a}) = ${fa}$ and $f(${a + 1}) = ${fb}$.`;
+  switch (scenario) {
+    case 'table':
+      return [sign, '$f$ is only known from a table of readings, so there is no formula to differentiate or rearrange.'];
+    case 'steep':
+      return [sign, `$f$ is a polynomial, and $f'(${x0}) = ${d}$ at the first guess $x_0 = ${x0}$.`, `A rearrangement $x = g(x)$ has $|g'| \\approx ${fmt(r)}$ near the root.`];
+    case 'flatG':
+      return [sign, `$f$ is a polynomial, but $f'(${x0}) = 0$ at the only first guess, $x_0 = ${x0}$.`, `A rearrangement $x = g(x)$ has $|g'| \\approx ${fmt(r)}$ near the root.`];
+    case 'flatNoG':
+      return [sign, `$f$ is a polynomial, but $f'(${x0}) = 0$ at the only first guess, $x_0 = ${x0}$.`, `A rearrangement $x = g(x)$ has $|g'| \\approx ${fmt(r)}$ near the root.`];
+  }
+}
+
+/** From what is in hand, which method, and why. */
+const reachFlow: Generator<ReachFlowParams> = {
+  id: 'numer-reach-flow',
+  sample: (rng, difficulty) => {
+    const scenario = rng.pick<Scenario>(difficulty > 1 ? ['steep', 'flatG', 'flatNoG'] : ['table', 'steep', 'flatG']);
+    const converging = scenario === 'flatG' || (scenario === 'steep' && rng.chance(0.5));
+    const a = rng.int(-3, 4);
+    const fa = nonZero(rng, 9);
+    return {
+      scenario,
+      a,
+      fa,
+      fb: -Math.sign(fa) * rng.int(1, 9),
+      r: converging ? rng.pick([0.2, 0.3, 0.4, 0.5, 0.6, 0.7]) : rng.pick([1.4, 1.6, 1.8, 2.2, 2.5, 3]),
+      x0: a + rng.pick([0, 1]),
+      d: scenario === 'steep' ? rng.int(4, 20) * rng.sign() : 0,
+    };
+  },
+  render: (params): Slide => {
+    const key = `${params.scenario}|${params.a}|${params.fa}|${params.fb}|${params.r}|${params.x0}|${params.d}`;
+    const { plan, reason } = reachAnswer(params);
+    const others = (Object.keys(REACH_REASONS) as (keyof typeof REACH_REASONS)[]).filter((k) => k !== reason);
+    const picks = [reason, ...turned(others, key).slice(0, 2)];
+    return {
+      kind: 'flow',
+      prompt: [say(`A root of $f(x) = 0$ is wanted. In hand: ${reachFacts(params).join(' ')}`)],
+      subject: `f(${params.a}) = ${params.fa}, \\quad f(${params.a + 1}) = ${params.fb}`,
+      steps: [
+        { id: 'plan', ask: 'Which method do you reach for?', branches: turned(PLANS.map((p) => PLAN_NAMES[p]), key).map((label) => ({ label, to: 'why' })) },
+        {
+          id: 'why',
+          ask: 'Why that one?',
+          branches: turned(
+            picks.map((k) => ({ label: REACH_REASONS[k], outcome: k === reason ? 'That is what makes it the one to use here.' : 'That is not what decides it.' })),
+            key,
+          ),
+        },
+      ],
+      answer: [PLAN_NAMES[plan], REACH_REASONS[reason]],
+    };
+  },
+  solution: (raw) => {
+    const { plan } = reachAnswer(raw);
+    const lines: Record<Scenario, string> = {
+      table: 'With no formula there is no derivative for Newton-Raphson and nothing to rearrange; the sign change is all there is.',
+      steep: `A steep tangent at $x_0 = ${raw.x0}$ means Newton-Raphson can start, and it is the fastest of the three.`,
+      flatG: `$f'(${raw.x0}) = 0$ rules Newton-Raphson out, and $|g'| \\approx ${fmt(raw.r)} < 1$ means the iteration converges.`,
+      flatNoG: `$f'(${raw.x0}) = 0$ rules Newton-Raphson out, and $|g'| \\approx ${fmt(raw.r)} > 1$ means the iteration diverges, so only the sign change is left.`,
+    };
+    return [{ text: lines[raw.scenario] }, { text: `So ${PLAN_NAMES[plan]}.` }];
+  },
+};
+
 export const numericalMethodsGenerators = [
   signTree,
   signInterval,
@@ -8297,4 +9490,21 @@ export const numericalMethodsGenerators = [
   eulerHalveChoice,
   eulerSizeFlow,
   eulerSizeSlider,
+  bisectTable,
+  bisectFlow,
+  bisectHalvings,
+  bisectChoice,
+  sideTable,
+  sideFlow,
+  nearestMethod,
+  sideSteps,
+  speedFlow,
+  speedTable,
+  speedTree,
+  breaksFlow,
+  breaksPicture,
+  breaksTree,
+  reachChoice,
+  reachValue,
+  reachFlow,
 ];

@@ -23,6 +23,17 @@
  * `generators.test.ts` has nothing to check, and `seriesExpansions.test.ts`
  * recomputes every remainder and bound from mathjs's derivatives instead.
  *
+ * Level 4 is the radius of convergence. A series is held as `Power`: `k^n`
+ * times a growth (nothing, `1/n`, `n`, `1/n!` or `n/n!`) against
+ * `(x - a)^(mn)`, and each is the series of a known function (`powerSource`),
+ * so the radius is `(1/|k|)^(1/m)` and an end is included only where `1/n`
+ * alternates. Functions with real breaks (`SingParams`) and `b/(c^2 + k^2 x^2)`
+ * carry the nearest-singularity lesson. Every radius is whole or a fraction
+ * when it is typed; a root is only ever picked from a choice. Again no slide
+ * declares `source`, since nothing here is a derivative answer:
+ * `seriesExpansions.test.ts` reads each radius off the coefficients mathjs's
+ * own derivatives give, and each end off the size and sign of the terms there.
+ *
  * A series is a *form*, and the checker compares values (PITFALLS 3.4), so a
  * whole series is only ever asked through tiles, steps, a tree or a choice;
  * `expression` is kept for a single coefficient, term or limit.
@@ -4561,6 +4572,1134 @@ const centreDec: Generator<CentreAtParams> = {
   },
 };
 
+/* ================================================================
+ * Level 4: the radius of convergence
+ * ================================================================ */
+
+/**
+ * What a coefficient carries beside `k^n`: nothing, `1/n`, `n`, `1/n!` or
+ * `n/n!`. Each is the series of a function mathjs can differentiate
+ * (`powerSource`), which is what lets the tests recompute every radius and
+ * every end from the function rather than from these formulas.
+ */
+export type Growth = 'plain' | 'overN' | 'timesN' | 'fact' | 'factN';
+
+const GROWTHS: Growth[] = ['plain', 'overN', 'timesN', 'fact', 'factN'];
+
+/** `sum a_n (x - a)^(mn)`, with `a_n` being `k^n` times its growth. */
+export interface Power {
+  k: Q;
+  growth: Growth;
+  m: number;
+  a: number;
+}
+
+const powerOf = (k: Q, growth: Growth, extra: Partial<Pick<Power, 'm' | 'a'>> = {}): Power => ({ k, growth, m: 1, a: 0, ...extra });
+
+const hasFactorial = (s: Power): boolean => s.growth === 'fact' || s.growth === 'factN';
+
+/** Where the sum starts: at 0, unless the n-th term needs n to be at least 1. */
+const startOf = (growth: Growth): number => (growth === 'plain' || growth === 'fact' ? 0 : 1);
+
+/** L, the limit of |a_(n+1)/a_n|: |k|, or 0 with a factorial underneath. */
+const limitL = (s: Power): Q => (hasFactorial(s) ? ZERO : abs(s.k));
+
+/** The radius in u = k(x - a)^m, which is 1/L; undefined when it is infinite. */
+const radiusIn = (s: Power): Q | undefined => (hasFactorial(s) ? undefined : div(ONE, abs(s.k)));
+
+/** The m-th root of a positive fraction, when its top and bottom are both perfect powers. */
+function rootQ(a: Q, m: number): Q | undefined {
+  const root = (v: number) => {
+    const r = Math.round(v ** (1 / m));
+    return r ** m === v ? r : undefined;
+  };
+  const n = root(a.n);
+  const d = root(a.d);
+  return n === undefined || d === undefined ? undefined : q(n, d);
+}
+
+/** The radius in x: the m-th root of the radius in u. */
+function radiusOf(s: Power): Q | undefined {
+  const r = radiusIn(s);
+  return r && rootQ(r, s.m);
+}
+
+/** The coefficient as the learner reads it: `\frac{(-2)^{n}}{3^{n} \cdot n}`, `n \cdot 4^{n}`, `\frac{1}{n!}`. */
+function coefTex({ k, growth }: Power): string {
+  const top: string[] = [];
+  const bottom: string[] = [];
+  if (growth === 'timesN' || growth === 'factN') top.push('n');
+  if (k.n < 0) top.push(`(${k.n})^{n}`);
+  else if (k.n !== 1) top.push(`${k.n}^{n}`);
+  if (k.d !== 1) bottom.push(`${k.d}^{n}`);
+  if (growth === 'overN') bottom.push('n');
+  if (growth === 'fact' || growth === 'factN') bottom.push('n!');
+  const t = top.join(' \\cdot ');
+  return bottom.length === 0 ? t : `\\frac{${t || '1'}}{${bottom.join(' \\cdot ')}}`;
+}
+
+/** The power the coefficient multiplies: `x^{n}`, `x^{2n}`, `(x - 3)^{n}`. */
+function varTex({ m, a }: Power): string {
+  const base = a === 0 ? 'x' : `(${xPlus(-a)})`;
+  return `${base}^{${m === 1 ? 'n' : `${m}n`}}`;
+}
+
+/** The whole series as the learner reads it. */
+export function seriesSumTex(s: Power): string {
+  const coef = coefTex(s);
+  return `\\sum_{n = ${startOf(s.growth)}}^{\\infty} ${coef ? `${coef} ` : ''}${varTex(s)}`;
+}
+
+/** The function the series sums to, for mathjs. Never displayed. */
+export function powerSource(s: Power): string {
+  const x = s.a === 0 ? 'x' : `(x - (${s.a}))`;
+  const u = `((${s.k.n})/(${s.k.d}))*${x}^${s.m}`;
+  return {
+    plain: `1/(1 - ${u})`,
+    overN: `-log(1 - ${u})`,
+    timesN: `(${u})/(1 - ${u})^2`,
+    fact: `exp(${u})`,
+    factN: `(${u})*exp(${u})`,
+  }[s.growth];
+}
+
+/** |a_(n+1)/a_n| with the powers taken out: what the n's and factorials leave. */
+const N_PART: Record<Growth, string> = {
+  plain: '1',
+  overN: '\\frac{n}{n + 1}',
+  timesN: '\\frac{n + 1}{n}',
+  fact: '\\frac{1}{n + 1}',
+  factN: '\\frac{1}{n}',
+};
+
+/** What that part tends to. */
+const nLimit = (growth: Growth): Q => (growth === 'fact' || growth === 'factN' ? ZERO : ONE);
+
+const RATIO_TEX = '\\left|\\frac{a_{n + 1}}{a_{n}}\\right|';
+
+const saltPower = (s: Power, ...more: number[]): number => mix(s.k.n, s.k.d, GROWTHS.indexOf(s.growth), s.m, s.a, ...more);
+
+/** The sentence every level 4 solution opens with. */
+const coefSay = (s: Power): string => `Here $a_{n} = ${coefTex(s) || '1'}$, the coefficient of $${varTex(s)}$.`;
+
+/** The ratio of consecutive coefficients, as the size of the powers' part times the rest. */
+const ratioWorking = (s: Power): string => `${RATIO_TEX} = ${qTex(abs(s.k))} \\times ${N_PART[s.growth]}`;
+
+/** Why L comes out as it does. */
+function limitSay(s: Power): string {
+  if (s.growth === 'plain') return `Nothing else changes, so $L = ${qTex(limitL(s))}$.`;
+  const why = hasFactorial(s) ? 'the factorial underneath wins' : 'an extra $n$ changes nothing in the limit';
+  return `As $n \\to \\infty$, $${N_PART[s.growth]} \\to ${qTex(nLimit(s.growth))}$: ${why}. So $L = ${qTex(limitL(s))}$.`;
+}
+
+const radiusTexOf = (s: Power): string => {
+  const r = radiusOf(s);
+  return r ? qTex(r) : '\\infty';
+};
+
+/** Up to three distinct non-negative values, the right one first. */
+function threeValues(right: Q, slips: Q[]): Q[] {
+  const kept = [right];
+  for (const slip of [...slips, add(right, ONE), add(right, q(2)), mul(right, q(3))]) {
+    if (kept.length === 3) break;
+    if (val(slip) < 0 || kept.some((k) => eq(k, slip))) continue;
+    kept.push(slip);
+  }
+  return kept;
+}
+
+/** Where the series converges: out to R either side of a, with the end where u = -1 kept for a 1/n. */
+function intervalOf(s: Power): Interval {
+  const r = radiusIn(s)!;
+  const alt = s.growth === 'overN';
+  return { lo: sub(q(s.a), r), hi: add(q(s.a), r), loIn: alt && s.k.n > 0, hiIn: alt && s.k.n < 0 };
+}
+
+/** The n-th term at an end, where u is 1 or -1. */
+function endTermTex(growth: Growth, alternating: boolean): string {
+  const sign = alternating ? '(-1)^{n}' : '';
+  if (growth === 'overN') return `\\frac{${sign || '1'}}{n}`;
+  if (growth === 'timesN') return sign ? `${sign}\\,n` : 'n';
+  return sign || '1';
+}
+
+/** What the series does at an end: its term there, whether it converges, and why in words. */
+function endVerdict(s: Power, x: Q): { term: string; alternating: boolean; converges: boolean; why: string } {
+  const u = mul(s.k, pow(sub(x, q(s.a)), s.m));
+  const alternating = u.n < 0;
+  const why =
+    s.growth === 'plain'
+      ? 'the terms stay the same size, so they do not tend to $0$'
+      : s.growth === 'timesN'
+        ? 'the terms grow, so they do not tend to $0$'
+        : alternating
+          ? 'the terms shrink to $0$ and alternate in sign, like $-1 + \\frac{1}{2} - \\frac{1}{3} + \\cdots$'
+          : 'that is the harmonic series $1 + \\frac{1}{2} + \\frac{1}{3} + \\cdots$, which diverges';
+  return { term: endTermTex(s.growth, alternating), alternating, converges: s.growth === 'overN' && alternating, why };
+}
+
+/** The radius, then each end on its own, then the interval. */
+function intervalSolution(s: Power): SolutionStep[] {
+  const range = intervalOf(s);
+  const at = (x: Q) => {
+    const v = endVerdict(s, x);
+    return `At $x = ${qTex(x)}$ the terms are $${v.term}$: ${v.why}, so that end is ${v.converges ? 'included' : 'left out'}.`;
+  };
+  return [
+    { text: `${coefSay(s)} So $L = ${qTex(limitL(s))}$ and $R = ${qTex(radiusIn(s)!)}$${s.a === 0 ? '' : `, either side of the centre $x = ${s.a}$`}.` },
+    { text: at(range.lo) },
+    { text: at(range.hi) },
+    { tex: rangeTex(range) },
+  ];
+}
+
+const K_EASY: Q[] = [
+  ...[2, -2, 3, -3, 4, -4, 5, -5].map((v) => q(v)),
+  ...[2, 3, 4, 5].flatMap((d) => [q(1, d), q(-1, d)]),
+];
+
+const K_HARD: Q[] = [
+  [2, 3],
+  [3, 2],
+  [3, 4],
+  [4, 3],
+  [2, 5],
+  [5, 2],
+  [3, 5],
+  [5, 3],
+  [4, 5],
+  [5, 4],
+].flatMap(([n, d]) => [q(n, d), q(-n, d)]);
+
+/** Radii that land on a whole tick of a number line. */
+const LINE_K_WHOLE: Q[] = [q(1), q(-1), q(1, 2), q(-1, 2), q(1, 3), q(-1, 3), q(1, 4), q(-1, 4)];
+
+/** Radii that land on a half tick. */
+const LINE_K_HALF: Q[] = [q(2), q(-2), q(2, 3), q(-2, 3), q(2, 5), q(-2, 5)];
+
+interface PowerParams {
+  s: Power;
+}
+
+/** Tiles: the ratio of consecutive terms, as the powers' part times what the n's leave. */
+const ratioTiles: Generator<PowerParams> = {
+  id: 'ser-ratio-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return { s: powerOf(rng.pick(hard ? K_HARD : K_EASY), rng.pick<Growth>(hard ? ['overN', 'timesN', 'fact', 'factN'] : ['overN', 'timesN', 'fact'])) };
+  },
+  render: ({ s }): Slide => {
+    const answer = [qTex(abs(s.k)), N_PART[s.growth]];
+    const slips = [qTex(div(ONE, abs(s.k))), qTex(s.k), N_PART.overN, N_PART.timesN, N_PART.fact, N_PART.factN, 'n + 1'];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say("Write the size of one term over the one before as two parts: what the powers of numbers leave, times what the $n$'s and factorials leave."),
+        show(seriesSumTex(s)),
+      ],
+      template: '\\left|\\frac{a_{n + 1}x^{n + 1}}{a_{n}x^{n}}\\right| = {0} \\times {1} \\times |x|',
+      bank: termBank(answer, slips, 4),
+      answer,
+    };
+  },
+  solution: ({ s }) => [
+    { text: coefSay(s) },
+    {
+      text: `Going from $n$ to $n + 1$ multiplies the powers by $${qTex(s.k)}$, of size $${qTex(abs(s.k))}$, and the rest becomes $${N_PART[s.growth]}$. The $x$'s leave one more $|x|$.`,
+    },
+    { tex: `\\left|\\frac{a_{n + 1}x^{n + 1}}{a_{n}x^{n}}\\right| = ${qTex(abs(s.k))} \\times ${N_PART[s.growth]} \\times |x|` },
+  ],
+};
+
+interface RatioFlowParams {
+  s: Power;
+  x: Q;
+}
+
+/** Multiples of R a point is drawn at. */
+const R_MULTIPLES = [q(1, 2), q(1), q(2), q(3, 2), q(1, 3), q(2, 3), q(3), q(3, 4)];
+
+/** Points for a series that converges everywhere. */
+const ANY_X = [q(1), q(2), q(3), q(5), q(10), q(-2), q(-4), q(1, 2), q(-1, 3)];
+
+const CMP_LABELS = ['less than $1$', 'equal to $1$', 'more than $1$'];
+
+/** Flow: L, then L|x| against 1, at one given x. */
+const ratioFlow: Generator<RatioFlowParams> = {
+  id: 'ser-ratio-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const s = powerOf(
+      rng.pick(hard ? K_HARD : K_EASY),
+      rng.pick<Growth>(hard ? ['overN', 'timesN', 'plain', 'fact', 'factN'] : ['plain', 'overN', 'plain', 'overN', 'fact']),
+    );
+    const r = radiusIn(s);
+    return { s, x: r ? mul(mul(r, rng.pick(R_MULTIPLES)), q(rng.sign())) : rng.pick(ANY_X) };
+  },
+  render: ({ s, x }): Slide => {
+    const L = limitL(s);
+    const lx = mul(L, abs(x));
+    const cmp = Math.sign(lx.n - lx.d);
+    const labels = threeValues(L, [hasFactorial(s) ? abs(s.k) : div(ONE, L), ONE]).map((v) => `$L = ${qTex(v)}$`);
+    return {
+      kind: 'flow',
+      prompt: [say('Use the ratio test to decide whether this series converges at the value of $x$ given.')],
+      subject: `${seriesSumTex(s)}, \\quad x = ${qTex(x)}`,
+      steps: [
+        {
+          id: 'limit',
+          ask: `As $n \\to \\infty$, what does $${RATIO_TEX}$ tend to?`,
+          branches: turned(labels, saltPower(s, x.n, x.d)).map((label) => ({ label, to: 'compare' })),
+        },
+        {
+          id: 'compare',
+          ask: `So at $x = ${qTex(x)}$ the ratio of one term to the one before tends to $L|x|$, which is`,
+          branches: [
+            { label: CMP_LABELS[0], outcome: 'Then the terms shrink at least as fast as a geometric series, and the series converges there.' },
+            { label: CMP_LABELS[1], outcome: 'Then the ratio test says nothing: this $x$ is an end, and has to be checked on its own.' },
+            { label: CMP_LABELS[2], outcome: 'Then the terms grow, and the series diverges there.' },
+          ],
+        },
+      ],
+      answer: [labels[0], CMP_LABELS[cmp + 1]],
+    };
+  },
+  solution: ({ s, x }) => {
+    const L = limitL(s);
+    const lx = mul(L, abs(x));
+    const cmp = Math.sign(lx.n - lx.d);
+    return [
+      { text: coefSay(s) },
+      { tex: `${ratioWorking(s)} \\to ${qTex(L)}` },
+      { tex: `L|x| = ${qTex(L)} \\times ${qTex(abs(x))} = ${qTex(lx)}` },
+      {
+        text:
+          cmp < 0
+            ? 'That is less than $1$, so the series converges at this $x$.'
+            : cmp > 0
+              ? 'That is more than $1$, so the series diverges at this $x$.'
+              : 'That is exactly $1$, where the ratio test gives no answer.',
+      },
+    ];
+  },
+};
+
+/** Expression: L itself. */
+const ratioLimit: Generator<PowerParams> = {
+  id: 'ser-ratio-limit',
+  sample: (rng, difficulty) =>
+    difficulty > 1
+      ? { s: powerOf(rng.pick(K_HARD), rng.pick<Growth>(['overN', 'timesN', 'fact', 'factN', 'plain'])) }
+      : { s: powerOf(rng.pick(K_EASY), rng.pick<Growth>(['plain', 'overN', 'timesN'])) },
+  render: ({ s }): Slide => ({
+    kind: 'expression',
+    prompt: [
+      say(`For this series, find $L = \\lim_{n \\to \\infty} ${RATIO_TEX}$, where $a_{n}$ is the coefficient of $x^{n}$.`),
+      show(seriesSumTex(s)),
+    ],
+    lead: 'L =',
+    keypad: FRACTION_KEYS,
+    answer: qAns(limitL(s)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ s }) => [{ text: coefSay(s) }, { tex: ratioWorking(s) }, { text: limitSay(s) }],
+  choices: ({ s }) =>
+    qChoices(
+      limitL(s),
+      hasFactorial(s) ? [abs(s.k), div(ONE, abs(s.k)), ONE] : [div(ONE, abs(s.k)), s.k, ONE, mul(abs(s.k), q(2))],
+      saltPower(s),
+    ),
+};
+
+const SLIDE_R_EASY = [q(1, 4), q(1, 2), q(1), q(2), q(3)];
+const SLIDE_R_HARD = [q(3, 4), q(5, 4), q(3, 2), q(7, 4), q(9, 4), q(5, 2), q(11, 4)];
+
+/** Slider: where the line y = L|x| crosses 1. */
+const radiusSlider: Generator<PowerParams> = {
+  id: 'ser-radius-slider',
+  sample: (rng, difficulty) => {
+    const r = rng.pick(difficulty > 1 ? SLIDE_R_HARD : SLIDE_R_EASY);
+    return { s: powerOf(mul(div(ONE, r), q(rng.sign())), rng.pick<Growth>(['plain', 'overN', 'timesN'])) };
+  },
+  render: ({ s }): Slide => {
+    const L = val(limitL(s));
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          'By the ratio test this series converges where $L|x| < 1$. The solid line is $y = L|x|$ for $x \\ge 0$, and the dashed line is $y = 1$. Slide to the radius of convergence.',
+        ),
+        show(seriesSumTex(s)),
+      ],
+      min: 0,
+      max: 3,
+      step: 0.25,
+      answer: val(radiusIn(s)!),
+      readout: 'R = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: 3,
+          yMin: 0,
+          yMax: 2,
+          grid: true,
+          curves: [{ f: (x: number) => L * x, accent: true }],
+          horizontals: [1],
+          label: `The line y = ${dec(L)} x for x from 0 to 3, rising through the dashed line y = 1`,
+        }),
+        ...markerWindow(0, 3),
+      },
+    };
+  },
+  solution: ({ s }) => [
+    { text: coefSay(s) },
+    { text: limitSay(s) },
+    { tex: `L|x| < 1 \\iff |x| < \\frac{1}{L} = ${qTex(radiusIn(s)!)}` },
+  ],
+};
+
+/** Expression: the radius, from the coefficients. */
+const radiusTyped: Generator<PowerParams> = {
+  id: 'ser-radius-typed',
+  sample: (rng, difficulty) => ({ s: powerOf(rng.pick(difficulty > 1 ? K_HARD : K_EASY), rng.pick<Growth>(['plain', 'overN', 'timesN'])) }),
+  render: ({ s }): Slide => ({
+    kind: 'expression',
+    prompt: [say('Find the radius of convergence of this power series.'), show(seriesSumTex(s))],
+    lead: 'R =',
+    keypad: FRACTION_KEYS,
+    answer: qAns(radiusIn(s)!),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ s }) => [
+    { text: coefSay(s) },
+    { tex: ratioWorking(s) },
+    { text: limitSay(s) },
+    { tex: `R = \\frac{1}{L} = ${qTex(radiusIn(s)!)}` },
+  ],
+  choices: ({ s }) => {
+    const r = radiusIn(s)!;
+    return qChoices(r, [abs(s.k), mul(r, q(2)), ONE, add(r, ONE)], saltPower(s));
+  },
+};
+
+/** The pieces of |a_(n+1)/a_n|: the top's power, the bottom's power, then the n's. */
+function ratioPieces(s: Power): { tex: string; value: Q; bank: string[] }[] {
+  const out: { tex: string; value: Q; bank: string[] }[] = [];
+  const top = Math.abs(s.k.n);
+  const bottom = s.k.d;
+  if (top !== 1) {
+    out.push({ tex: `\\frac{${top}^{n + 1}}{${top}^{n}}`, value: q(top), bank: stepBank(`${top}`, `${top}^{n}`, `\\frac{1}{${top}}`, `${top + 1}`) });
+  }
+  if (bottom !== 1) {
+    out.push({
+      tex: `\\frac{${bottom}^{n}}{${bottom}^{n + 1}}`,
+      value: q(1, bottom),
+      bank: stepBank(`\\frac{1}{${bottom}}`, `${bottom}`, `\\frac{1}{${bottom}^{n}}`, `\\frac{1}{${bottom + 1}}`),
+    });
+  }
+  const tail = {
+    plain: '1',
+    overN: '\\frac{n}{n + 1}',
+    timesN: '\\frac{n + 1}{n}',
+    fact: '\\frac{n!}{(n + 1)!}',
+    factN: '\\frac{n + 1}{n} \\cdot \\frac{n!}{(n + 1)!}',
+  }[s.growth];
+  const limit = nLimit(s.growth);
+  out.push({ tex: tail, value: limit, bank: stepBank(qTex(limit), '0', '1', 'n', '\\infty') });
+  return out;
+}
+
+/** Steps: each piece of the ratio to its value or its limit, then their product, L. */
+const ratioSteps: Generator<PowerParams> = {
+  id: 'ser-ratio-steps',
+  sample: (rng, difficulty) =>
+    difficulty > 1
+      ? { s: powerOf(rng.pick(K_HARD), rng.pick<Growth>(['overN', 'timesN', 'fact', 'factN'])) }
+      : { s: powerOf(rng.pick(K_EASY), rng.pick<Growth>(['overN', 'timesN', 'fact'])) },
+  render: ({ s }): Slide => {
+    const pieces = ratioPieces(s);
+    const reductions: Extract<Slide, { kind: 'steps' }>['reductions'] = pieces.map((piece, i) => ({
+      span: [2 * i, 2 * i + 1],
+      value: qTex(piece.value),
+      bank: piece.bank,
+    }));
+    let acc = pieces[0].value;
+    for (const piece of pieces.slice(1)) {
+      const next = mul(acc, piece.value);
+      reductions.push({
+        span: [0, 3],
+        operator: 1,
+        value: qTex(next),
+        bank: stepBank(qTex(next), qTex(add(acc, piece.value)), qTex(acc), qTex(piece.value), qTex(add(next, ONE))),
+      });
+      acc = next;
+    }
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `Find $L = \\lim_{n \\to \\infty} ${RATIO_TEX}$ for this series. The ratio is written out below with the signs dropped, since only its size matters. Tap each piece and give its value, or for a piece in $n$ what it tends to, then multiply.`,
+        ),
+        show(seriesSumTex(s)),
+      ],
+      start: pieces.flatMap((piece, i) => (i === 0 ? [piece.tex] : ['\\times', piece.tex])),
+      reductions,
+    };
+  },
+  solution: ({ s }) => {
+    const pieces = ratioPieces(s);
+    const r = radiusIn(s);
+    return [
+      { text: coefSay(s) },
+      { tex: `${RATIO_TEX} = ${pieces.map((piece) => piece.tex).join(' \\times ')}` },
+      { tex: `L = ${pieces.map((piece) => qTex(piece.value)).join(' \\times ')} = ${qTex(limitL(s))}` },
+      { text: r ? `So the radius of convergence is $\\frac{1}{L} = ${qTex(r)}$.` : 'With $L = 0$ the radius is infinite: the series converges for every $x$.' },
+    ];
+  },
+};
+
+const RATIO_BRANCHES = ['tends to $0$', 'tends to a number $L > 0$', 'grows without bound'];
+
+/** Flow: what the ratio does, then L, then R. */
+const radiusFlow: Generator<PowerParams> = {
+  id: 'ser-radius-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      s: powerOf(rng.pick(hard ? K_HARD : K_EASY), rng.pick<Growth>(hard ? ['overN', 'timesN', 'fact', 'factN', 'plain'] : ['plain', 'overN', 'timesN', 'fact'])),
+    };
+  },
+  render: ({ s }): Slide => {
+    const size = abs(s.k);
+    const r = radiusIn(s);
+    // The L and R steps are only reached when a factorial is not underneath.
+    const lValues = threeValues(size, [div(ONE, size), ONE]);
+    const rValues = threeValues(div(ONE, size), [size, mul(div(ONE, size), q(2)), ONE]);
+    const lLabels = lValues.map((v) => `$L = ${qTex(v)}$`);
+    const salt = saltPower(s);
+    return {
+      kind: 'flow',
+      prompt: [say('Find the radius of convergence of this series with the ratio test.')],
+      subject: seriesSumTex(s),
+      steps: [
+        {
+          id: 'ratio',
+          ask: `As $n \\to \\infty$, $${RATIO_TEX}$`,
+          branches: [
+            { label: RATIO_BRANCHES[0], outcome: 'Then $L|x| = 0 < 1$ for every $x$: the radius is infinite, and the series converges for all $x$.' },
+            { label: RATIO_BRANCHES[1], to: 'L' },
+            { label: RATIO_BRANCHES[2], outcome: 'Then $L|x|$ is more than $1$ for every $x \\ne 0$: the radius is $0$, and the series converges only at $x = 0$.' },
+          ],
+        },
+        { id: 'L', ask: 'What is $L$?', branches: turned(lLabels, salt).map((label) => ({ label, to: 'R' })) },
+        {
+          id: 'R',
+          ask: 'So the radius of convergence is',
+          branches: turned(rValues, salt + 1).map((v) => ({
+            label: `$R = ${qTex(v)}$`,
+            outcome: `So the series converges for $|x| < ${qTex(v)}$ and diverges beyond it.`,
+          })),
+        },
+      ],
+      answer: r ? [RATIO_BRANCHES[1], lLabels[0], `$R = ${qTex(r)}$`] : [RATIO_BRANCHES[0]],
+    };
+  },
+  solution: ({ s }) => [
+    { text: coefSay(s) },
+    { tex: ratioWorking(s) },
+    { text: limitSay(s) },
+    { text: radiusIn(s) ? `So $R = \\frac{1}{L} = ${qTex(radiusIn(s)!)}$.` : 'So the radius is infinite.' },
+  ],
+};
+
+interface MatchParams {
+  target: Power;
+  others: Power[];
+}
+
+/** Choice: which of four series has the radius named. */
+const radiusMatch: Generator<MatchParams> = {
+  id: 'ser-radius-match',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const pool = hard ? K_HARD : K_EASY;
+    const growths: Growth[] = hard ? GROWTHS : ['plain', 'overN', 'timesN', 'fact'];
+    const bounded = growths.filter((g) => g !== 'fact' && g !== 'factN');
+    const target = powerOf(rng.pick(pool), rng.pick(growths));
+    const radii = new Set([radiusTexOf(target)]);
+    const labels = new Set([seriesSumTex(target)]);
+    const others: Power[] = [];
+    const offer = (s: Power) => {
+      if (others.length >= 3 || radii.has(radiusTexOf(s)) || labels.has(seriesSumTex(s))) return;
+      radii.add(radiusTexOf(s));
+      labels.add(seriesSumTex(s));
+      others.push(s);
+    };
+    // The radius and |k| swapped; the same powers with or without a factorial; the powers squared.
+    offer(powerOf(mul(div(ONE, abs(target.k)), q(rng.sign())), rng.pick(bounded)));
+    offer(powerOf(target.k, hasFactorial(target) ? rng.pick(bounded) : 'fact'));
+    offer(powerOf(mul(target.k, target.k), rng.pick(bounded)));
+    while (others.length < 3) offer(powerOf(rng.pick(pool), rng.pick(growths)));
+    return { target, others };
+  },
+  render: ({ target, others }): Slide => {
+    const r = radiusOf(target);
+    const opt = (s: Power) => ({ tex: seriesSumTex(s), key: seriesSumTex(s) });
+    const opts = formChoices(opt(target), others.map(opt), saltPower(target));
+    return choiceSlide(
+      [say(r ? `Which of these series has radius of convergence $${qTex(r)}$?` : 'Which of these series converges for every value of $x$?')],
+      opts,
+    );
+  },
+  solution: ({ target, others }) => [
+    { text: `Find $L$ for each, the limit of $${RATIO_TEX}$, and then $R = \\frac{1}{L}$. A factorial underneath makes $L = 0$, and an extra $n$ changes nothing.` },
+    ...[target, ...others].map((s) => ({ tex: `${seriesSumTex(s)}: \\; R = ${radiusTexOf(s)}` })),
+  ],
+};
+
+interface EndParams {
+  s: Power;
+  /** Which end: 1 for x = R, -1 for x = -R. */
+  side: number;
+}
+
+/** Flow: the term at an end, whether it shrinks to 0, whether its signs alternate. */
+const endFlow: Generator<EndParams> = {
+  id: 'ser-end-flow',
+  sample: (rng, difficulty) => ({
+    s: powerOf(rng.pick(difficulty > 1 ? K_HARD : K_EASY), rng.pick<Growth>(['plain', 'overN', 'overN', 'timesN'])),
+    side: rng.sign(),
+  }),
+  render: ({ s, side }): Slide => {
+    const r = radiusIn(s)!;
+    const x = mul(r, q(side));
+    const v = endVerdict(s, x);
+    const other: Growth = s.growth === 'overN' ? 'plain' : 'overN';
+    const terms = [v.term, endTermTex(s.growth, !v.alternating), endTermTex(other, v.alternating)].map((t) => `$${t}$`);
+    return {
+      kind: 'flow',
+      prompt: [say(`This series has radius of convergence $${qTex(r)}$. Decide whether it converges at the end $x = ${qTex(x)}$.`)],
+      subject: seriesSumTex(s),
+      steps: [
+        {
+          id: 'term',
+          ask: `Put $x = ${qTex(x)}$ in. The $n$th term becomes`,
+          branches: turned(terms, saltPower(s, side)).map((label) => ({ label, to: 'zero' })),
+        },
+        {
+          id: 'zero',
+          ask: 'Do those terms tend to $0$?',
+          branches: [
+            { label: 'Yes', to: 'signs' },
+            { label: 'No', outcome: 'Then the series diverges at this end: terms that do not shrink to $0$ cannot add up to a limit.' },
+          ],
+        },
+        {
+          id: 'signs',
+          ask: 'Do their signs alternate?',
+          branches: [
+            { label: 'Yes', outcome: 'Then it converges at this end, as $-1 + \\frac{1}{2} - \\frac{1}{3} + \\cdots$ does.' },
+            { label: 'No', outcome: 'Then it diverges at this end, as the harmonic series $1 + \\frac{1}{2} + \\frac{1}{3} + \\cdots$ does.' },
+          ],
+        },
+      ],
+      answer: s.growth === 'overN' ? [terms[0], 'Yes', v.alternating ? 'Yes' : 'No'] : [terms[0], 'No'],
+    };
+  },
+  solution: ({ s, side }) => {
+    const x = mul(radiusIn(s)!, q(side));
+    const v = endVerdict(s, x);
+    return [
+      { tex: `${coefTex(s) || '1'} \\times \\left(${qTex(x)}\\right)^{n} = ${v.term}` },
+      { text: `So ${v.why}: the series ${v.converges ? 'converges' : 'diverges'} at $x = ${qTex(x)}$.` },
+    ];
+  },
+};
+
+interface IntervalLineParams {
+  s: Power;
+  /** Whether the prompt gives the radius, leaving only the ends to decide. */
+  told: boolean;
+  min: number;
+  max: number;
+  step: number;
+}
+
+/** A number line holding the interval, on whole ticks or half ticks as its ends need. */
+function lineWindow(rng: Rng, s: Power): { min: number; max: number; step: number } {
+  const range = intervalOf(s);
+  const half = range.lo.d !== 1 || range.hi.d !== 1;
+  const step = half ? 0.5 : 1;
+  return { ...windowFor(rng, val(range.lo), val(range.hi), half ? 6 : 10, step), step };
+}
+
+/** Number line: the interval of convergence about 0, ends and all. */
+const intervalLine: Generator<IntervalLineParams> = {
+  id: 'ser-interval-line',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const s = powerOf(rng.pick(hard ? [...LINE_K_HALF, ...LINE_K_WHOLE] : LINE_K_WHOLE), rng.pick<Growth>(['plain', 'overN', 'overN', 'timesN']));
+    return { s, told: !hard, ...lineWindow(rng, s) };
+  },
+  render: ({ s, told, min, max, step }): Slide => ({
+    kind: 'numberLine',
+    prompt: [
+      say(
+        told
+          ? `This series has radius of convergence $${qTex(radiusIn(s)!)}$. Draw its interval of convergence, checking each end on its own.`
+          : 'Draw the interval of convergence of this series. Mind which ends are included.',
+      ),
+      show(seriesSumTex(s)),
+    ],
+    min,
+    max,
+    step,
+    answer: setOf(intervalOf(s)),
+  }),
+  solution: ({ s }) => intervalSolution(s),
+};
+
+/** Tiles: the interval of convergence written out. */
+const intervalTiles: Generator<PowerParams> = {
+  id: 'ser-interval-tiles',
+  sample: (rng, difficulty) =>
+    difficulty > 1
+      ? { s: powerOf(rng.pick(K_HARD), rng.pick<Growth>(['overN', 'timesN', 'plain', 'overN'])) }
+      : { s: powerOf(rng.pick(K_EASY), rng.pick<Growth>(['plain', 'overN'])) },
+  render: ({ s }): Slide => {
+    const range = intervalOf(s);
+    const rel = (inside: boolean) => (inside ? '\\le' : '<');
+    const answer = [qTex(range.lo), rel(range.loIn), rel(range.hiIn), qTex(range.hi)];
+    const slips = [rel(!range.loIn), rel(!range.hiIn), qTex(abs(s.k)), qTex(neg(abs(s.k))), qTex(sub(range.lo, ONE)), '0'];
+    return {
+      kind: 'tiles',
+      prompt: [say('Complete the interval of convergence of this series, ends and all.'), show(seriesSumTex(s))],
+      template: '{0} {1} x {2} {3}',
+      bank: termBank(answer, slips, 3),
+      answer,
+    };
+  },
+  solution: ({ s }) => intervalSolution(s),
+};
+
+/** Choice: which of the four ways of closing the ends, or every x. */
+const intervalPick: Generator<PowerParams> = {
+  id: 'ser-interval-pick',
+  sample: (rng, difficulty) =>
+    difficulty > 1
+      ? { s: powerOf(rng.pick(K_HARD), rng.pick<Growth>(['overN', 'timesN', 'plain', 'fact', 'overN'])) }
+      : { s: powerOf(rng.pick(K_EASY), rng.pick<Growth>(['plain', 'overN', 'overN', 'timesN'])) },
+  render: ({ s }): Slide => {
+    const r = radiusIn(s) ?? div(ONE, abs(s.k));
+    const key = (i: Interval) => `${i.loIn} ${i.hiIn} ${i.hi.n}/${i.hi.d}`;
+    const ends = [false, true].flatMap((loIn) => [false, true].map((hiIn) => ({ lo: neg(r), hi: r, loIn, hiIn })));
+    const correct = radiusIn(s) ? { tex: rangeTex(intervalOf(s)), key: key(intervalOf(s)) } : { tex: ALL_X, key: 'all' };
+    const opts = formChoices(correct, [...ends.map((i) => ({ tex: rangeTex(i), key: key(i) })), { tex: ALL_X, key: 'all' }], saltPower(s));
+    return choiceSlide([say('Which is the interval of convergence of this series?'), show(seriesSumTex(s))], opts);
+  },
+  solution: ({ s }) =>
+    radiusIn(s)
+      ? intervalSolution(s)
+      : [{ text: coefSay(s) }, { text: limitSay(s) }, { text: 'So the radius is infinite, and there are no ends to check:' }, { tex: ALL_X }],
+};
+
+const SUB2_EASY: Q[] = [4, 9, 16, 25].flatMap((v) => [q(v), q(1, v)]);
+const SUB2_HARD: Q[] = [
+  [4, 9],
+  [9, 4],
+  [9, 16],
+  [16, 9],
+  [4, 25],
+  [25, 4],
+  [16, 25],
+  [25, 16],
+].map(([n, d]) => q(n, d));
+const SUB3: Q[] = [q(8), q(27), q(1, 8), q(1, 27), q(8, 27), q(27, 8)];
+
+/** `|u| < 1` turned into a bound on |x|, for u = k x^m. */
+function subWorking(s: Power, rootText: string): SolutionStep[] {
+  const u = uTex(s.k, s.m);
+  const ru = radiusIn(s)!;
+  return [
+    {
+      text: `Write it as a series in $u = ${u}$. Its coefficients are then ${s.growth === 'plain' ? '$1$' : '$\\frac{1}{n}$'}, so it converges for $|u| < 1$.`,
+    },
+    { tex: `|${u}| < 1 \\iff |x|^{${s.m}} < ${qTex(ru)}` },
+    { tex: `R = ${s.m === 2 ? `\\sqrt{${qTex(ru)}}` : `\\sqrt[3]{${qTex(ru)}}`} = ${rootText}` },
+  ];
+}
+
+/** Expression: the radius of a series in x^2 or x^3, which comes out exact. */
+const subRadius: Generator<PowerParams> = {
+  id: 'ser-sub-radius',
+  sample: (rng, difficulty) => {
+    const growth = rng.pick<Growth>(['plain', 'overN']);
+    if (difficulty > 1) {
+      const m = rng.chance(0.5) ? 3 : 2;
+      return { s: powerOf(mul(rng.pick(m === 3 ? SUB3 : SUB2_HARD), q(rng.sign())), growth, { m }) };
+    }
+    return { s: powerOf(mul(rng.pick(SUB2_EASY), q(rng.sign())), growth, { m: 2 }) };
+  },
+  render: ({ s }): Slide => ({
+    kind: 'expression',
+    prompt: [say('Find the radius of convergence of this power series.'), show(seriesSumTex(s))],
+    lead: 'R =',
+    keypad: FRACTION_KEYS,
+    answer: qAns(radiusOf(s)!),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ s }) => subWorking(s, qTex(radiusOf(s)!)),
+  choices: ({ s }) => {
+    const r = radiusOf(s)!;
+    return qChoices(r, [radiusIn(s)!, abs(s.k), div(ONE, r)], saltPower(s));
+  },
+};
+
+const SURD2_EASY: Q[] = [2, 3, 5, 6, 7, 10].flatMap((v) => [q(v), q(1, v)]);
+const SURD2_HARD: Q[] = [
+  [2, 3],
+  [3, 2],
+  [2, 5],
+  [5, 2],
+  [3, 5],
+  [5, 3],
+  [3, 7],
+  [7, 3],
+].map(([n, d]) => q(n, d));
+const SURD3: Q[] = [q(2), q(3), q(4), q(1, 2), q(1, 3)];
+
+/** The m-th root of a positive fraction as the learner reads it: `\sqrt{3}`, `\frac{1}{\sqrt{2}}`, `\sqrt{\frac{2}{3}}`, `\sqrt[3]{4}`. */
+function rootTex(a: Q, m: number): string {
+  const exact = rootQ(a, m);
+  if (exact) return qTex(exact);
+  const open = m === 2 ? '\\sqrt' : `\\sqrt[${m}]`;
+  if (a.d === 1) return `${open}{${a.n}}`;
+  if (a.n === 1) return `\\frac{1}{${open}{${a.d}}}`;
+  return `${open}{${qTex(a)}}`;
+}
+
+/** Choice: a radius that is a root, which is never typed. */
+const subPick: Generator<PowerParams> = {
+  id: 'ser-sub-pick',
+  sample: (rng, difficulty) => {
+    const growth = rng.pick<Growth>(['plain', 'overN']);
+    if (difficulty > 1) {
+      const m = rng.chance(0.4) ? 3 : 2;
+      return { s: powerOf(mul(rng.pick(m === 3 ? SURD3 : SURD2_HARD), q(rng.sign())), growth, { m }) };
+    }
+    return { s: powerOf(mul(rng.pick(SURD2_EASY), q(rng.sign())), growth, { m: 2 }) };
+  },
+  render: ({ s }): Slide => {
+    const ru = radiusIn(s)!;
+    const opt = (tex: string) => ({ tex, key: tex });
+    const slips = [rootTex(abs(s.k), s.m), qTex(ru), qTex(abs(s.k)), s.m === 3 ? rootTex(ru, 2) : qTex(mul(ru, ru))];
+    const opts = formChoices(opt(rootTex(ru, s.m)), slips.map(opt), saltPower(s));
+    return choiceSlide([say('Find the radius of convergence of this power series.'), show(seriesSumTex(s))], opts);
+  },
+  solution: ({ s }) => subWorking(s, rootTex(radiusIn(s)!, s.m)),
+};
+
+/** Tree: L, then R, then the two ends about the centre. */
+const shiftTree: Generator<PowerParams> = {
+  id: 'ser-shift-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const a = hard ? nonZero(rng, -5, 5) : nonZero(rng, -4, 4);
+    return { s: powerOf(rng.pick(hard ? K_HARD : K_EASY), rng.pick<Growth>(hard ? ['overN', 'timesN', 'plain'] : ['plain', 'overN']), { a }) };
+  },
+  render: ({ s }): Slide => {
+    const L = limitL(s);
+    const r = radiusIn(s)!;
+    const lo = sub(q(s.a), r);
+    const hi = add(q(s.a), r);
+    const slips = [sub(q(-s.a), r), add(q(-s.a), r), sub(q(s.a), L), add(q(s.a), L), neg(r), q(s.a)];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `For this series, find $L$, the limit of $${RATIO_TEX}$, then the radius $R$, then the ends of the interval it converges on. Top: $L$. Middle: $R$. Bottom, left to right: the left end and the right end.`,
+        ),
+      ],
+      expression: seriesSumTex(s),
+      nodes: [
+        { id: 'L', from: [] },
+        { id: 'R', from: ['L'] },
+        { id: 'lo', from: ['R'] },
+        { id: 'hi', from: ['R'] },
+      ],
+      bank: qBank([L, r, lo, hi], slips, 3),
+      answer: [L, r, lo, hi].map(qTex),
+    };
+  },
+  solution: ({ s }) => {
+    const r = radiusIn(s)!;
+    const centre = s.a < 0 ? `(${s.a})` : `${s.a}`;
+    return [
+      { text: `${coefSay(s)} The series is in powers of $${xPlus(-s.a)}$, so it is centred on $x = ${s.a}$.` },
+      { tex: `L = ${qTex(limitL(s))}, \\quad R = \\frac{1}{L} = ${qTex(r)}` },
+      { text: `It converges within $${qTex(r)}$ of the centre, so between` },
+      { tex: `${centre} - ${qTex(r)} = ${qTex(sub(q(s.a), r))}, \\quad ${centre} + ${qTex(r)} = ${qTex(add(q(s.a), r))}` },
+    ];
+  },
+};
+
+/** Number line: the interval of convergence of a series about another centre. */
+const shiftLine: Generator<IntervalLineParams> = {
+  id: 'ser-shift-line',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const s = powerOf(rng.pick(hard ? LINE_K_HALF : LINE_K_WHOLE), rng.pick<Growth>(hard ? ['overN', 'timesN', 'plain', 'overN'] : ['plain', 'overN']), {
+      a: nonZero(rng, -4, 4),
+    });
+    return { s, told: false, ...lineWindow(rng, s) };
+  },
+  render: ({ s, min, max, step }): Slide => ({
+    kind: 'numberLine',
+    prompt: [say('Draw the interval of convergence of this series. Find its centre and radius first, then check each end.'), show(seriesSumTex(s))],
+    min,
+    max,
+    step,
+    answer: setOf(intervalOf(s)),
+  }),
+  solution: ({ s }) => intervalSolution(s),
+};
+
+type SingKind = 'geo' | 'ln' | 'pair';
+
+/** A function with one or two real breaks, and the centre its series is taken about. */
+export interface SingParams {
+  kind: SingKind;
+  /** Where it breaks; a pair also breaks at `q`, and for the others `q` is `p`. */
+  p: number;
+  q: number;
+  /** 1 for `1/(p - x)` and `ln(p - x)`, -1 for `1/(x - p)` and `ln(x - p)`. */
+  turn: number;
+  a: number;
+  /** For a pair: the quadratic multiplied out, so its roots have to be found first. */
+  expanded: boolean;
+}
+
+/** `x^{2} - 2x - 3`. */
+function quadTex(b: number, c: number): string {
+  const bx = b === 0 ? '' : ` ${b < 0 ? '-' : '+'} ${Math.abs(b) === 1 ? '' : Math.abs(b)}x`;
+  return `x^{2}${bx} ${c < 0 ? '-' : '+'} ${Math.abs(c)}`;
+}
+
+function singTex({ kind, p, q: other, turn, expanded }: SingParams): string {
+  switch (kind) {
+    case 'geo':
+      return turn > 0 ? `\\frac{1}{${p} - x}` : `\\frac{1}{${xPlus(-p)}}`;
+    case 'ln':
+      return turn > 0 ? `\\ln(${p} - x)` : `\\ln(${xPlus(-p)})`;
+    case 'pair':
+      return expanded ? `\\frac{1}{${quadTex(-(p + other), p * other)}}` : `\\frac{1}{(${xPlus(-p)})(${xPlus(-other)})}`;
+  }
+}
+
+/** The function for mathjs. Never displayed. */
+export function singSource({ kind, p, q: other, turn }: SingParams): string {
+  if (kind === 'geo') return turn > 0 ? `1/((${p}) - x)` : `1/(x - (${p}))`;
+  if (kind === 'ln') return turn > 0 ? `log((${p}) - x)` : `log(x - (${p}))`;
+  return `1/((x - (${p}))*(x - (${other})))`;
+}
+
+function singFn({ kind, p, q: other, turn }: SingParams): (x: number) => number {
+  if (kind === 'geo') return (x) => 1 / (turn > 0 ? p - x : x - p);
+  if (kind === 'ln') return (x) => Math.log(turn > 0 ? p - x : x - p);
+  return (x) => 1 / ((x - p) * (x - other));
+}
+
+const singPoints = (s: SingParams): number[] => (s.kind === 'pair' ? [s.p, s.q].sort((m, n) => m - n) : [s.p]);
+
+const singRadius = (s: SingParams): number => Math.min(...singPoints(s).map((x) => Math.abs(x - s.a)));
+
+const aboutWords = (a: number): string => (a === 0 ? 'Maclaurin series' : `Taylor series about $x = ${a}$`);
+
+function sampleSing(rng: Rng, kinds: SingKind[], hard: boolean): SingParams {
+  for (;;) {
+    const kind = rng.pick(kinds);
+    const p = nonZero(rng, -5, 5);
+    const other = kind !== 'pair' ? p : hard ? nonZero(rng, -5, 5) : -p;
+    if (kind === 'pair' && other === p) continue;
+    const turn = rng.sign();
+    const a = rng.int(-4, 4);
+    if (a === p || a === other) continue;
+    // A logarithm's centre has to be where it is defined.
+    if (kind === 'ln' && (turn > 0 ? a >= p : a <= p)) continue;
+    const [near, far] = [Math.abs(p - a), Math.abs(other - a)].sort((m, n) => m - n);
+    // Two breaks level with the centre, or one at least twice as far as the
+    // other, so which is nearest is never a close call.
+    if (kind === 'pair' && near !== far && 2 * near > far) continue;
+    if (near > 6) continue;
+    return { kind, p, q: other, turn, a, expanded: kind === 'pair' && (hard || rng.chance(0.5)) };
+  }
+}
+
+/** Where it breaks, how far each break is, and the nearest. */
+function singSolution(s: SingParams): SolutionStep[] {
+  const points = singPoints(s);
+  const centre = s.a < 0 ? `(${s.a})` : `${s.a}`;
+  const steps: SolutionStep[] = [];
+  if (s.kind === 'pair' && s.expanded) {
+    steps.push({ tex: `${quadTex(-(s.p + s.q), s.p * s.q)} = (${xPlus(-s.p)})(${xPlus(-s.q)})` });
+  }
+  steps.push({
+    text: `$f$ breaks where ${s.kind === 'ln' ? 'the logarithm meets $0$' : 'the bottom is $0$'}: at ${points.map((x) => `$x = ${x}$`).join(' and ')}.`,
+  });
+  steps.push({ text: `Measure from the centre $x = ${s.a}$: ${points.map((x) => `$|${x} - ${centre}| = ${Math.abs(x - s.a)}$`).join(' and ')}.` });
+  steps.push({ tex: `R = ${singRadius(s)}` });
+  return steps;
+}
+
+/** Expression: the radius as the distance to the nearest break. */
+const singularTyped: Generator<SingParams> = {
+  id: 'ser-singular-typed',
+  sample: (rng, difficulty) => (difficulty > 1 ? sampleSing(rng, ['pair', 'pair', 'ln', 'geo'], true) : sampleSing(rng, ['geo', 'ln', 'pair'], false)),
+  render: (s): Slide => ({
+    kind: 'expression',
+    prompt: [say(`Find the radius of convergence of the ${aboutWords(s.a)} of`), show(`f(x) = ${singTex(s)}`)],
+    lead: 'R =',
+    keypad: [],
+    answer: `${singRadius(s)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (s) => singSolution(s),
+  choices: (s) => {
+    const points = singPoints(s);
+    const r = singRadius(s);
+    const far = Math.max(...points.map((x) => Math.abs(x - s.a)));
+    const nearest = points.find((x) => Math.abs(x - s.a) === r)!;
+    return qChoices(q(r), [q(far), q(Math.abs(nearest)), q(Math.abs(s.a)), q(r + 1)], mix(s.p, s.q, s.a, s.turn, points.length));
+  },
+};
+
+/** Flow: where it breaks, then how far the nearest break is. */
+const singularFlow: Generator<SingParams> = {
+  id: 'ser-singular-flow',
+  sample: (rng, difficulty) => (difficulty > 1 ? sampleSing(rng, ['pair', 'pair', 'ln'], true) : sampleSing(rng, ['geo', 'ln', 'pair'], false)),
+  render: (s): Slide => {
+    const points = singPoints(s);
+    const r = singRadius(s);
+    const setLabel = (xs: number[]) => {
+      const sorted = [...new Set(xs)].sort((m, n) => m - n);
+      return sorted.length === 1 ? `$x = ${sorted[0]}$ only` : `$x = ${sorted[0]}$ and $x = ${sorted[1]}$`;
+    };
+    const sets: string[] = [];
+    for (const xs of [points, points.map((x) => -x), [points[0], -points[points.length - 1]], [-points[0], points[points.length - 1]], points.map((x) => x + 1), [s.a]]) {
+      const label = setLabel(xs);
+      if (sets.length < 3 && !sets.includes(label)) sets.push(label);
+    }
+    const far = Math.max(...points.map((x) => Math.abs(x - s.a)));
+    const nearest = points.find((x) => Math.abs(x - s.a) === r)!;
+    const rValues = threeValues(q(r), [q(far), q(Math.abs(nearest)), q(Math.abs(s.a))]);
+    const salt = mix(s.p, s.q, s.a, s.turn, points.length);
+    return {
+      kind: 'flow',
+      prompt: [say(`Find the radius of convergence of the ${aboutWords(s.a)} of this function.`)],
+      subject: `f(x) = ${singTex(s)}`,
+      steps: [
+        { id: 'where', ask: 'Where does $f$ break?', branches: turned(sets, salt).map((label) => ({ label, to: 'near' })) },
+        {
+          id: 'near',
+          ask: `So how far is it from the centre $x = ${s.a}$ to the nearest break?`,
+          branches: turned(rValues, salt + 1).map((v) => ({
+            label: `$R = ${qTex(v)}$`,
+            outcome: `So the series is valid out to a distance $${qTex(v)}$ either side of $x = ${s.a}$.`,
+          })),
+        },
+      ],
+      answer: [sets[0], `$R = ${r}$`],
+    };
+  },
+  solution: (s) => singSolution(s),
+};
+
+/** Slider: the distance from the centre to the nearest break, on the graph. */
+const singularSlider: Generator<SingParams> = {
+  id: 'ser-singular-slider',
+  sample: (rng, difficulty) => (difficulty > 1 ? sampleSing(rng, ['pair'], true) : sampleSing(rng, ['geo', 'ln'], false)),
+  render: (s): Slide => {
+    const points = singPoints(s);
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          `This is $y = ${singTex(s)}$. The dot marks the centre $x = ${s.a}$ and the dashed lines are where it breaks. Slide out from the dot to the radius of convergence of its ${aboutWords(s.a)}.`,
+        ),
+      ],
+      min: 0,
+      max: 6,
+      step: 0.5,
+      answer: singRadius(s),
+      readout: 'R = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: s.a - 6,
+          xMax: s.a + 6,
+          yMin: -4,
+          yMax: 4,
+          curves: [{ f: singFn(s), breaks: true }],
+          verticals: points.map((x) => ({ x })),
+          marks: [{ x: s.a, y: 0 }],
+          label: `The curve with a dot on the axis at x = ${s.a} and dashed lines at ${points.map((x) => `x = ${x}`).join(' and ')}`,
+        }),
+        ...markerWindow(s.a - 6, s.a + 6),
+        origin: s.a,
+      },
+    };
+  },
+  solution: (s) => singSolution(s),
+};
+
+interface ComplexParams {
+  b: number;
+  c: number;
+  k: number;
+}
+
+/** `i`, `2i`, `\frac{3}{2}i`. */
+const iTex = (v: Q): string => (eq(v, ONE) ? 'i' : `${qTex(v)}i`);
+
+/** Choice: a curve that never breaks on the real line, and still has a finite radius. */
+const complexPick: Generator<ComplexParams> = {
+  id: 'ser-complex-pick',
+  sample: (rng, difficulty) => {
+    if (difficulty <= 1) return { b: rng.int(1, 5), c: rng.int(1, 6), k: 1 };
+    for (;;) {
+      const k = rng.int(2, 4);
+      const c = rng.int(1, 7);
+      if (c % k !== 0) return { b: rng.int(1, 3), c, k };
+    }
+  },
+  render: ({ b, c, k }): Slide => {
+    const r = q(c, k);
+    const opt = (v: Q | undefined) => (v ? { tex: qTex(v), key: qTex(v) } : { tex: '\\infty', key: 'inf' });
+    const opts = formChoices(opt(r), [opt(undefined), opt(mul(r, r)), opt(div(ONE, r)), opt(q(c, k * k)), opt(add(r, ONE)), opt(ZERO)], mix(b, c, k));
+    return choiceSlide(
+      [
+        say(
+          `The curve $y = \\frac{${b}}{${c * c} + ${k === 1 ? '' : k * k}x^{2}}$ is smooth for every real $x$: it never breaks. What is the radius of convergence of its Maclaurin series?`,
+        ),
+      ],
+      opts,
+    );
+  },
+  solution: ({ c, k }) => {
+    const r = q(c, k);
+    return [
+      { text: `The bottom is $0$ where $${k === 1 ? '' : k * k}x^{2} = -${c * c}$, which is at $x = \\pm ${iTex(r)}$: two points off the real line.` },
+      {
+        text: 'A power series converges inside a circle in the complex plane, and a break anywhere in that plane stops the circle growing. Both points are the same distance from $0$:',
+      },
+      { tex: `R = |${iTex(r)}| = ${qTex(r)}` },
+    ];
+  },
+};
+
 /** The generators by name, for `seriesExpansions.test.ts`. */
 export const seriesByName = {
   coefTree,
@@ -4623,6 +5762,26 @@ export const seriesByName = {
   centreFlow,
   centreTree,
   centreDec,
+  ratioTiles,
+  ratioFlow,
+  ratioLimit,
+  radiusSlider,
+  radiusTyped,
+  ratioSteps,
+  radiusFlow,
+  radiusMatch,
+  endFlow,
+  intervalLine,
+  intervalTiles,
+  intervalPick,
+  subRadius,
+  subPick,
+  shiftTree,
+  shiftLine,
+  singularTyped,
+  singularFlow,
+  singularSlider,
+  complexPick,
 };
 
 /* ---------- Fitting a phone ---------- */

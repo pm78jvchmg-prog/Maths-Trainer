@@ -12,6 +12,10 @@
  * how that bound compares with the first term left out, choosing a degree
  * for a tolerance (and how far x may go for a given degree), and remainders
  * about a centre other than 0.
+ * Level 4 is the radius of convergence: the ratio test on a power series,
+ * reading the radius off the coefficients, checking each end on its own for
+ * the interval of convergence, series in x^m and in (x - a), and the radius
+ * as the distance to the nearest singularity, complex ones included.
  *
  * Differentiation, the sum to infinity and the binomial expansion are used
  * here, not taught again: the derivatives of e^x and ln x belong to
@@ -651,6 +655,213 @@ export const seriesExpansions: Course = {
         ask('ser-bound-m-flow', 2),
         ask('ser-compare-pick', 2),
         ask('ser-degree-reach', 2),
+      ],
+    },
+
+    {
+      id: 'se-l4',
+      title: 'Radius of Convergence',
+      lessons: [
+        {
+          id: 'se-l4-ratio',
+          title: 'The Ratio Test',
+          slides: [
+            teach(
+              prose(
+                'A power series $\\sum a_{n}x^{n}$ only means something where its terms add up to a limit. The **ratio test** compares each term with the one before:',
+              ),
+              display('\\left|\\frac{a_{n + 1}x^{n + 1}}{a_{n}x^{n}}\\right| = \\left|\\frac{a_{n + 1}}{a_{n}}\\right| |x| \\to L|x|'),
+              prose(
+                'A power of a number gives a fixed factor. Anything in $n$, such as $\\frac{n}{n + 1}$ or $\\frac{n!}{(n + 1)!} = \\frac{1}{n + 1}$, is left to its limit as $n \\to \\infty$.',
+              ),
+              prose(
+                'If $L|x| < 1$ the terms shrink like a geometric series and the series converges; if $L|x| > 1$ they grow and it diverges. So it converges for $|x| < \\frac{1}{L}$, and $R = \\frac{1}{L}$ is its **radius of convergence**.',
+              ),
+            ),
+            ask('ser-ratio-tiles'),
+            ask('ser-ratio-flow'),
+            ask('ser-ratio-limit'),
+            teach(
+              prose(
+                'For $\\frac{1}{1 - 3x} = \\sum 3^{n}x^{n}$ the ratio is exactly $3|x|$, so $L = 3$ and the series converges for $|x| < \\frac{1}{3}$: the geometric series in $u = 3x$ again.',
+              ),
+              prose('For $\\ln(1 + 2x) = \\sum \\frac{(-1)^{n + 1}2^{n}}{n}x^{n}$ the signs drop out inside the size, and'),
+              display('\\left|\\frac{a_{n + 1}}{a_{n}}\\right| = 2 \\times \\frac{n}{n + 1} \\to 2'),
+              prose('so $R = \\frac{1}{2}$ as well. The $\\frac{n}{n + 1}$ tends to $1$ and changes nothing.'),
+            ),
+            ask('ser-radius-slider'),
+            ask('ser-ratio-tiles', 2),
+            ask('ser-ratio-flow', 2),
+            teach(
+              prose(
+                'The test only compares $L|x|$ with $1$. Where $L|x| = 1$, at $x = R$ and $x = -R$, it gives no answer at all: those two ends are checked on their own, in the third lesson.',
+              ),
+              prose('And if $L = 0$, as it is with a factorial underneath, then $L|x| < 1$ for every $x$: the series converges everywhere.'),
+            ),
+            ask('ser-ratio-limit+choice', 2),
+            ask('ser-radius-slider', 2),
+          ],
+          skillCheck: [ask('ser-ratio-tiles', 2), ask('ser-ratio-limit', 2), ask('ser-ratio-flow', 2)],
+        },
+        {
+          id: 'se-l4-coefficients',
+          title: 'Radius from the Coefficients',
+          slides: [
+            teach(
+              prose(
+                'Most of the work is seeing what each part of $a_{n}$ does to $\\left|\\frac{a_{n + 1}}{a_{n}}\\right|$ as $n$ grows. A power $k^{n}$ gives $|k|$. A factor of $n$ or $\\frac{1}{n}$ gives $\\frac{n + 1}{n}$ or its flip, which tends to $1$. A factorial underneath gives $\\frac{1}{n + 1}$, which tends to $0$.',
+              ),
+              prose(
+                'So $k^{n}$ gives $R = \\frac{1}{|k|}$, an extra $n$ or $\\frac{1}{n}$ leaves $R$ alone, and a factorial underneath makes $R$ infinite.',
+              ),
+            ),
+            ask('ser-radius-typed'),
+            ask('ser-ratio-steps'),
+            ask('ser-radius-flow'),
+            teach(
+              prose(
+                'A power underneath counts too. In $\\sum \\frac{2^{n}}{3^{n}}x^{n}$ the powers together are $\\left(\\frac{2}{3}\\right)^{n}$, so $L = \\frac{2}{3}$ and $R = \\frac{3}{2}$.',
+              ),
+              prose('A sign that alternates, $(-1)^{n}$, has size $1$ and changes nothing: the ratio test only looks at sizes.'),
+            ),
+            ask('ser-radius-match'),
+            ask('ser-ratio-steps', 2),
+            ask('ser-radius-flow', 2),
+            teach(
+              prose(
+                'A factorial beats any power: $\\frac{5^{n}}{n!}$ has ratio $\\frac{5}{n + 1} \\to 0$, so $\\sum \\frac{5^{n}}{n!}x^{n}$ converges for every $x$, just as $e^{5x}$ does.',
+              ),
+              prose("Two series with the same powers but different $n$'s in front share the same radius. Where they can differ is at the ends."),
+            ),
+            ask('ser-radius-typed+choice', 2),
+            ask('ser-radius-match', 2),
+          ],
+          skillCheck: [ask('ser-radius-typed', 2), ask('ser-ratio-steps', 2), ask('ser-radius-flow', 2)],
+        },
+        {
+          id: 'se-l4-ends',
+          title: 'Checking the Ends',
+          slides: [
+            teach(
+              prose(
+                'At $x = R$ and $x = -R$ the ratio test gives $L|x| = 1$ and says nothing, so each end is tried on its own: put the end in, and look at the series of numbers it gives.',
+              ),
+              prose(
+                'If those terms do not shrink to $0$, it diverges. $\\sum x^{n}$ at $x = 1$ is $1 + 1 + 1 + \\cdots$, and at $x = -1$ it is $1 - 1 + 1 - \\cdots$: neither settles.',
+              ),
+            ),
+            ask('ser-end-flow'),
+            ask('ser-interval-line'),
+            ask('ser-interval-tiles'),
+            teach(
+              prose(
+                'Terms shrinking to $0$ is not enough by itself. The **harmonic series** $1 + \\frac{1}{2} + \\frac{1}{3} + \\cdots$ grows without bound, however slowly. The **alternating harmonic series** $1 - \\frac{1}{2} + \\frac{1}{3} - \\cdots$ converges, to $\\ln 2$: shrinking terms with alternating signs always settle.',
+              ),
+              prose('So $\\sum \\frac{x^{n}}{n}$ diverges at $x = 1$ and converges at $x = -1$:'),
+              display('-1 \\le x < 1'),
+            ),
+            ask('ser-interval-pick'),
+            ask('ser-end-flow', 2),
+            ask('ser-interval-line', 2),
+            teach(
+              prose(
+                'The **interval of convergence** has a filled dot at an end that is included and a hollow one at an end that is not. Which end is filled depends on the signs: with $(-2)^{n}$ on top, the alternating end moves to $x = \\frac{1}{2}$.',
+              ),
+              prose('Squares underneath, as in $\\sum \\frac{x^{n}}{n^{2}}$, shrink fast enough for both ends to be included, and a series with a factorial underneath has no ends at all.'),
+            ),
+            ask('ser-interval-tiles', 2),
+            ask('ser-interval-pick', 2),
+          ],
+          skillCheck: [ask('ser-interval-line', 2), ask('ser-end-flow', 2), ask('ser-interval-tiles', 2)],
+        },
+        {
+          id: 'se-l4-shifted',
+          title: 'Substituted and Shifted Series',
+          slides: [
+            teach(
+              prose('A series in $x^{2}$ is a series in $u = kx^{2}$. Find where it converges in $u$, then turn that into $x$:'),
+              display('\\sum 4^{n}x^{2n} = \\sum u^{n}, \\quad u = 4x^{2}'),
+              prose(
+                'It needs $|u| < 1$, so $4x^{2} < 1$ and $|x| < \\frac{1}{2}$. In general $u = kx^{m}$ gives $R = \\left(\\frac{1}{|k|}\\right)^{\\frac{1}{m}}$: a square root for $x^{2}$, a cube root for $x^{3}$.',
+              ),
+              prose('The root need not come out whole: $\\sum 2^{n}x^{2n}$ needs $2x^{2} < 1$, so $R = \\frac{1}{\\sqrt{2}}$.'),
+            ),
+            ask('ser-sub-radius'),
+            ask('ser-sub-pick'),
+            teach(
+              prose(
+                'A series in powers of $(x - a)$ is centred on $x = a$ instead of $0$. The ratio test works just the same, with $|x - a|$ in place of $|x|$:',
+              ),
+              display('|x - a| < R \\iff a - R < x < a + R'),
+              prose('So $\\sum \\frac{(x - 3)^{n}}{2^{n}}$, with $R = 2$, converges for $1 < x < 5$.'),
+            ),
+            ask('ser-shift-tree'),
+            ask('ser-shift-line'),
+            ask('ser-sub-radius+choice', 2),
+            teach(
+              prose(
+                'The ends of a shifted series are checked as before, putting each one in. For $\\sum \\frac{(x - 3)^{n}}{2^{n} \\cdot n}$ at $x = 1$ the terms are $\\frac{(-2)^{n}}{2^{n} \\cdot n} = \\frac{(-1)^{n}}{n}$, which converges; at $x = 5$ they are $\\frac{1}{n}$, which does not:',
+              ),
+              display('1 \\le x < 5'),
+            ),
+            ask('ser-sub-pick', 2),
+            ask('ser-shift-tree', 2),
+            ask('ser-shift-line', 2),
+          ],
+          skillCheck: [ask('ser-sub-radius', 2), ask('ser-shift-tree', 2), ask('ser-shift-line', 2)],
+        },
+        {
+          id: 'se-l4-singularity',
+          title: 'The Nearest Singularity',
+          slides: [
+            teach(
+              prose(
+                'There is a quicker way to a radius. A Taylor series about $x = a$ converges out to the **nearest point where the function breaks**, and no further, so $R$ is the distance from $a$ to that point.',
+              ),
+              prose(
+                '$\\frac{1}{1 - x}$ breaks at $x = 1$, so its Maclaurin series has $R = 1$. $\\ln(1 + x)$ breaks at $x = -1$: $R = 1$ again. Both agree with the ratio test.',
+              ),
+            ),
+            ask('ser-singular-flow'),
+            ask('ser-singular-typed'),
+            ask('ser-singular-slider'),
+            teach(
+              prose('Measure from the centre, not from $0$. $\\frac{1}{x^{2} - 4}$ breaks at $x = 2$ and $x = -2$:'),
+              display('\\begin{aligned} \\text{about } 0: \\; R &= 2 \\\\ \\text{about } 1: \\; R &= |2 - 1| = 1 \\end{aligned}'),
+              prose('Only the nearest break counts: the series cannot reach past it, however far away the other one is.'),
+            ),
+            ask('ser-singular-typed+choice', 2),
+            ask('ser-singular-flow', 2),
+            ask('ser-singular-slider', 2),
+            teach(
+              prose(
+                '$\\frac{1}{1 + x^{2}}$ never breaks on the real line, yet its series $1 - x^{2} + x^{4} - \\cdots$ has $R = 1$. The break is off the line: the bottom is $0$ at $x = \\pm i$.',
+              ),
+              prose(
+                'A power series converges inside a circle in the complex plane, centred on its centre. The circle grows until it meets a singularity, real or complex, and $i$ is a distance $1$ from $0$.',
+              ),
+            ),
+            ask('ser-complex-pick'),
+            ask('ser-complex-pick', 2),
+          ],
+          skillCheck: [ask('ser-singular-typed', 2), ask('ser-singular-flow', 2), ask('ser-complex-pick', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('ser-ratio-tiles', 2),
+        ask('ser-radius-flow', 2),
+        ask('ser-interval-line', 2),
+        ask('ser-sub-radius', 2),
+        ask('ser-singular-slider', 2),
+        ask('ser-ratio-limit', 2),
+        ask('ser-radius-match', 2),
+        ask('ser-end-flow', 2),
+        ask('ser-shift-tree', 2),
+        ask('ser-complex-pick', 2),
+        ask('ser-radius-typed', 2),
+        ask('ser-interval-tiles', 2),
+        ask('ser-sub-pick', 2),
+        ask('ser-singular-flow', 2),
       ],
     },
   ],

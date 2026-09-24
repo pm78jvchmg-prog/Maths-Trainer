@@ -7803,6 +7803,1419 @@ const regionHighestTiles: Generator<HighestParams> = {
   },
 };
 
+/* ======================================================================
+ * Level 6: Piecewise Functions
+ *
+ * A rule in pieces, each piece a straight line on its own stretch of $x$.
+ * Every cut, every value at a cut, every jump, every k and every root is drawn
+ * whole first and the pieces are built outward from them. Nothing here is
+ * calculus, so no slide declares `source`: `inequalitiesModulus.test.ts`
+ * reads each rule off its `cases` block instead and works the answers out
+ * again from it.
+ *
+ * A typed answer is always one number. A rule, a piece or a stretch is tapped
+ * (tiles, choice, flow, steps), since the checker compares values and cannot
+ * grade a definition in pieces. A `cases` block is never split into tiles: it
+ * sits in the prompt, and a blank goes on a plain line of its own.
+ * ==================================================================== */
+
+/** A straight piece, $y = mx + q$. */
+interface Lin {
+  m: number;
+  q: number;
+}
+
+const linAt = ({ m, q }: Lin, x: number) => m * x + q;
+
+/**
+ * A piece as the learner reads it. A falling piece with a positive constant is
+ * written constant first, `6 - 2x`, the way the negative side of a modulus
+ * comes out; everything else `2x - 6`. Every tile and option goes through
+ * this, so one piece is never offered under two spellings.
+ */
+function ruleTex({ m, q }: Lin): string {
+  return m < 0 && q > 0 ? linTexFront(m, q) : linTex(m, q);
+}
+
+/** A piece with a number put in for $x$, written the way `ruleTex` writes the piece. */
+function subTex({ m, q }: Lin, x: number): string {
+  if (m === 0) return `${q}`;
+  const size = Math.abs(m) === 1 ? br(x) : `${Math.abs(m)} \\times ${br(x)}`;
+  if (m < 0 && q > 0) return `${q} - ${size}`;
+  const head = m < 0 ? `-${size}` : size;
+  return q === 0 ? head : `${head} ${signedTile(q)}`;
+}
+
+/**
+ * A function in pieces: `pieces[i]` holds between `cuts[i - 1]` and `cuts[i]`.
+ * `leftOwns[i]` gives cut `i` to the piece on its left ($x \le c$); otherwise
+ * it belongs to the piece on its right ($x \ge c$), the usual way round.
+ */
+export interface Piecewise {
+  pieces: Lin[];
+  cuts: number[];
+  leftOwns: boolean[];
+}
+
+/** Which piece $x$ belongs to. */
+function pieceOf({ cuts, leftOwns }: Piecewise, x: number): number {
+  let idx = 0;
+  while (idx < cuts.length && (x > cuts[idx] || (x === cuts[idx] && !leftOwns[idx]))) idx += 1;
+  return idx;
+}
+
+const pwAt = (f: Piecewise, x: number) => linAt(f.pieces[pieceOf(f, x)], x);
+/** The piece left of cut `i`, at the cut. */
+const leftAt = (f: Piecewise, i: number) => linAt(f.pieces[i], f.cuts[i]);
+/** The piece right of cut `i`, at the cut. */
+const rightAt = (f: Piecewise, i: number) => linAt(f.pieces[i + 1], f.cuts[i]);
+const jumpAt = (f: Piecewise, i: number) => rightAt(f, i) - leftAt(f, i);
+/** The piece that owns cut `i`. */
+const ownerAt = (f: Piecewise, i: number) => (f.leftOwns[i] ? i : i + 1);
+
+/** Where piece `i` holds: `x < 3`, `-1 \le x < 2`, `x \ge 2`. */
+function stretchTex({ cuts, leftOwns }: Piecewise, i: number): string {
+  const last = cuts.length;
+  if (i === 0) return `x ${leftOwns[0] ? '\\le' : '<'} ${cuts[0]}`;
+  if (i === last) return `x ${leftOwns[last - 1] ? '>' : '\\ge'} ${cuts[last - 1]}`;
+  return `${cuts[i - 1]} ${leftOwns[i - 1] ? '<' : '\\le'} x ${leftOwns[i] ? '\\le' : '<'} ${cuts[i]}`;
+}
+
+/** Whether $x$ is in piece `i`'s stretch. */
+const inStretch = (f: Piecewise, i: number, x: number) => pieceOf(f, x) === i;
+
+/**
+ * $f(x)$ as a `cases` block, a piece and its stretch on each row. `rules`
+ * replaces the pieces' TeX where one holds an unknown, and an empty `name`
+ * leaves off the `f(x) =` for an option.
+ */
+function pwTex(f: Piecewise, rules: string[] = f.pieces.map(ruleTex), name = 'f(x)'): string {
+  const rows = rules.map((rule, i) => `${rule} & ${stretchTex(f, i)}`);
+  return `${name ? `${name} = ` : ''}\\begin{cases} ${rows.join(' \\\\ ')} \\end{cases}`;
+}
+
+const pwBlock = (f: Piecewise, rules?: string[]): Block => ({ kind: 'display', tex: pwTex(f, rules) });
+
+/** The pictures of a function in pieces run from $x = -5$ to $5$. */
+const PW_SPAN = 5;
+const PW_HEIGHT = 220;
+
+/** A y window holding every value on the picture, the axis, and a square to spare. */
+function pwWindow(f: Piecewise, extra: number[] = []): { yMin: number; yMax: number } {
+  const values = [
+    0,
+    ...extra,
+    ...[-PW_SPAN, PW_SPAN].map((x) => pwAt(f, x)),
+    ...f.cuts.flatMap((_, i) => [leftAt(f, i), rightAt(f, i)]),
+  ];
+  return { yMin: Math.min(...values) - 1, yMax: Math.max(...values) + 1 };
+}
+
+/**
+ * $f$ drawn on squared paper, each piece stopping at its own ends. At a jump
+ * the owner's end is a filled dot and the other a hollow one; where the pieces
+ * meet there is no dot, as a V has none. `show` draws only some of the pieces,
+ * with the dots of their own ends.
+ */
+export function piecewiseSvg(
+  f: Piecewise,
+  opts: { label: string; show?: number[]; horizontal?: number; vertical?: number },
+): string {
+  const show = opts.show ?? f.pieces.map((_, i) => i);
+  const { yMin, yMax } = pwWindow(f, opts.horizontal === undefined ? [] : [opts.horizontal]);
+  const lo = (i: number) => (i === 0 ? -Infinity : f.cuts[i - 1]);
+  const hi = (i: number) => (i === f.cuts.length ? Infinity : f.cuts[i]);
+  const curves = show.map((i) => ({
+    f: (x: number) => (x >= lo(i) && x <= hi(i) ? linAt(f.pieces[i], x) : Number.NaN),
+    accent: true,
+    breaks: true,
+  }));
+  const marks = f.cuts.flatMap((c, i) => {
+    const sides = [i, i + 1].filter((p) => show.includes(p));
+    if (sides.length === 2 && jumpAt(f, i) === 0) return [];
+    return sides.map((p) => ({ x: c, y: linAt(f.pieces[p], c), hollow: p !== ownerAt(f, i) }));
+  });
+  return plotSvg({
+    xMin: -PW_SPAN,
+    xMax: PW_SPAN,
+    yMin,
+    yMax,
+    curves,
+    marks,
+    verticals: opts.vertical === undefined ? [] : [{ x: opts.vertical }],
+    horizontals: opts.horizontal === undefined ? [] : [opts.horizontal],
+    grid: true,
+    height: PW_HEIGHT,
+    label: opts.label,
+  });
+}
+
+const PW_EASY_SLOPES = [-2, -1, 1, 2];
+const PW_HARD_SLOPES = [-3, -2, -1, 0, 1, 2, 3];
+
+type Joins = 'meet' | 'jump' | 'either';
+
+/**
+ * One draw of a function in two or three pieces, built outward from the value
+ * at the first cut. Each later piece starts where the last one ended, plus a
+ * jump. Owners are mixed only when `mixed`; otherwise every cut belongs to the
+ * piece on its right.
+ */
+function drawPw(rng: Rng, count: 2 | 3, hard: boolean, joins: Joins, mixed = hard): Piecewise {
+  const slopes = hard ? PW_HARD_SLOPES : PW_EASY_SLOPES;
+  const start = rng.int(-3, 0);
+  const cuts = count === 2 ? [rng.int(hard ? -3 : -2, hard ? 3 : 2)] : [start, start + rng.int(2, 3)];
+  const first = rng.pick(slopes);
+  const pieces: Lin[] = [{ m: first, q: rng.int(-3, 3) - first * cuts[0] }];
+  for (let i = 1; i < count; i += 1) {
+    const c = cuts[i - 1];
+    const jump =
+      joins === 'meet' ? 0 : joins === 'jump' ? rng.pick(nonZero(-4, 4)) : rng.chance(0.5) ? 0 : rng.pick(nonZero(-3, 3));
+    const m = rng.pick(slopes);
+    pieces.push({ m, q: linAt(pieces[i - 1], c) + jump - m * c });
+  }
+  return { pieces, cuts, leftOwns: cuts.map(() => mixed && rng.chance(0.45)) };
+}
+
+/** Neighbouring pieces differ in gradient, and the whole picture fits a phone. */
+function pwFits(f: Piecewise): boolean {
+  const { yMin, yMax } = pwWindow(f);
+  return f.pieces.every((p, i) => i === 0 || p.m !== f.pieces[i - 1].m) && yMin >= -8 && yMax <= 8;
+}
+
+const PW_TWO: Piecewise = { pieces: [{ m: -1, q: 1 }, { m: 2, q: -2 }], cuts: [1], leftOwns: [false] };
+const pwCount = (hard: boolean): 2 | 3 => (hard ? 3 : 2);
+
+/** Every other piece's value at $x$: the slip of using the wrong rule. */
+const otherValues = (f: Piecewise, x: number) =>
+  f.pieces.filter((_, i) => i !== pieceOf(f, x)).map((p) => linAt(p, x));
+
+/** Why $x$ uses the piece it does, and its value. */
+function valueSteps(f: Piecewise, x: number): SolutionStep[] {
+  const i = pieceOf(f, x);
+  const p = f.pieces[i];
+  return [
+    {
+      text: f.cuts.includes(x)
+        ? `$x = ${x}$ is a join. It belongs to the piece whose stretch includes it, $${stretchTex(f, i)}$, so use $${ruleTex(p)}$.`
+        : `$x = ${x}$ is in the stretch $${stretchTex(f, i)}$, so use $${ruleTex(p)}$.`,
+    },
+    { tex: chain([`f(${x})`, subTex(p, x), `${linAt(p, x)}`]) },
+  ];
+}
+
+/* ---------- Lesson 1: defining and evaluating ---------- */
+
+interface PwPointParams {
+  f: Piecewise;
+  t: number;
+}
+
+function samplePwPoint(rng: Rng, difficulty: number, distinct: 'answer' | 'all'): PwPointParams {
+  const hard = difficulty > 1;
+  return drawUntil(
+    () => {
+      const f = drawPw(rng, pwCount(hard), hard, 'either');
+      return { f, t: rng.chance(0.35) ? rng.pick(f.cuts) : rng.int(-PW_SPAN, PW_SPAN) };
+    },
+    ({ f, t }) => {
+      if (!pwFits(f)) return false;
+      const values = f.pieces.map((p) => linAt(p, t));
+      return distinct === 'all' ? new Set(values).size === values.length : !otherValues(f, t).includes(pwAt(f, t));
+    },
+    { f: PW_TWO, t: 3 },
+  );
+}
+
+/**
+ * $f(t)$ from a rule in two pieces, or three at difficulty 2, which also moves
+ * some joins to the piece on their left. A third of the time $t$ is a join
+ * itself, and then only one piece owns it. Never a point where the wrong
+ * piece would happen to give the same number.
+ */
+const pieceValue: Generator<PwPointParams> = {
+  id: 'mod-piece-value',
+  choices: ({ f, t }) => numberChoices(pwAt(f, t), [...otherValues(f, t), -pwAt(f, t)], `${pwTex(f)}#${t}`),
+  sample: (rng, difficulty) => samplePwPoint(rng, difficulty, 'answer'),
+  render: ({ f, t }): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: `Use the piece whose stretch includes $x = ${t}$.` }, pwBlock(f)],
+    lead: `f(${t}) =`,
+    keypad: [],
+    answer: `${pwAt(f, t)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ f, t }) => valueSteps(f, t),
+};
+
+/**
+ * The same in two taps: which stretch $t$ is in, then the value. Every piece
+ * gives a different number at $t$, so the value branch offers each piece's
+ * answer and none of them is a giveaway.
+ */
+const pieceOwnerFlow: Generator<PwPointParams> = {
+  id: 'mod-piece-owner-flow',
+  sample: (rng, difficulty) => samplePwPoint(rng, difficulty, 'all'),
+  render: ({ f, t }): Slide => {
+    const values = f.pieces.map((p) => linAt(p, t));
+    const own = pieceOf(f, t);
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `Work out $f(${t})$: first the piece, then its value.` }, pwBlock(f)],
+      subject: `f(${t})`,
+      steps: [
+        {
+          id: 'where',
+          ask: `Which stretch does $x = ${t}$ belong to?`,
+          branches: f.pieces.map((_, i) => ({ label: `$${stretchTex(f, i)}$`, to: 'value' })),
+        },
+        {
+          id: 'value',
+          ask: `So what is $f(${t})$?`,
+          branches: [...values]
+            .sort((a, b) => a - b)
+            .map((v) => ({ label: `$${v}$`, outcome: `Then $f(${t}) = ${v}$.` })),
+        },
+      ],
+      answer: [`$${stretchTex(f, own)}$`, `$${values[own]}$`],
+    };
+  },
+  solution: ({ f, t }) => valueSteps(f, t),
+};
+
+interface PwPairParams {
+  f: Piecewise;
+  a: number;
+  b: number;
+  minus: boolean;
+}
+
+/**
+ * $f(a) + f(b)$ as a tree, $a$ and $b$ on different pieces so both rules are
+ * used. Difficulty 2 subtracts, on three pieces, and puts $a$ on a join.
+ */
+const pieceSumTree: Generator<PwPairParams> = {
+  id: 'mod-piece-sum-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return drawUntil(
+      () => {
+        const f = drawPw(rng, pwCount(hard), hard, 'either');
+        return {
+          f,
+          a: hard ? rng.pick(f.cuts) : rng.int(-PW_SPAN, PW_SPAN),
+          b: rng.int(-PW_SPAN, PW_SPAN),
+          minus: hard,
+        };
+      },
+      ({ f, a, b }) =>
+        pwFits(f) &&
+        pieceOf(f, a) !== pieceOf(f, b) &&
+        !otherValues(f, a).includes(pwAt(f, a)) &&
+        !otherValues(f, b).includes(pwAt(f, b)),
+      { f: PW_TWO, a: -2, b: 3, minus: hard },
+    );
+  },
+  render: ({ f, a, b, minus }): Slide => {
+    const fa = pwAt(f, a);
+    const fb = pwAt(f, b);
+    const total = minus ? fa - fb : fa + fb;
+    const answer = [`${fa}`, `${fb}`, `${total}`];
+    return {
+      kind: 'tree',
+      prompt: [
+        { kind: 'prose', text: `Fill the tree: $f(${a})$, then $f(${b})$, then the ${minus ? 'difference' : 'sum'}.` },
+        pwBlock(f),
+      ],
+      expression: `f(${a}) ${minus ? '-' : '+'} f(${b})`,
+      nodes: [
+        { id: 'fa', from: [] },
+        { id: 'fb', from: [] },
+        { id: 'total', from: ['fa', 'fb'] },
+      ],
+      bank: treeBank(answer, [...otherValues(f, a), ...otherValues(f, b), minus ? fa + fb : fa - fb], total),
+      answer,
+    };
+  },
+  solution: ({ f, a, b, minus }) => {
+    const fa = pwAt(f, a);
+    const fb = pwAt(f, b);
+    return [
+      ...valueSteps(f, a),
+      ...valueSteps(f, b),
+      { tex: `${br(fa)} ${minus ? '-' : '+'} ${br(fb)} = ${minus ? fa - fb : fa + fb}` },
+    ];
+  },
+};
+
+interface JoinParams {
+  f: Piecewise;
+  /** The cut asked about. */
+  i: number;
+}
+
+/** A function with a jump at cut `i`, owners mixed at both difficulties. */
+function sampleJump(rng: Rng, difficulty: number): JoinParams {
+  const hard = difficulty > 1;
+  return drawUntil(
+    () => {
+      const f = drawPw(rng, pwCount(hard), hard, hard ? 'either' : 'jump', true);
+      return { f, i: rng.int(0, f.cuts.length - 1) };
+    },
+    ({ f, i }) => pwFits(f) && jumpAt(f, i) !== 0,
+    { f: { ...PW_TWO, pieces: [{ m: -1, q: 1 }, { m: 2, q: 1 }], leftOwns: [true] }, i: 0 },
+  );
+}
+
+const jumpLabel = (f: Piecewise, i: number) =>
+  `The graph of f in ${f.pieces.length} straight pieces, jumping at x = ${f.cuts[i]} with a filled dot on one side and a hollow dot on the other`;
+
+/**
+ * Read $f(c)$ off the graph at a jump. The filled dot is the value; the hollow
+ * one is where the other piece stops short of it, and is the slip offered.
+ */
+const joinDotChoice: Generator<JoinParams> = {
+  id: 'mod-join-dot-choice',
+  sample: sampleJump,
+  render: ({ f, i }): Slide => {
+    const c = f.cuts[i];
+    const own = linAt(f.pieces[ownerAt(f, i)], c);
+    const other = linAt(f.pieces[ownerAt(f, i) === i ? i + 1 : i], c);
+    return pickOne(
+      [
+        { kind: 'prose', text: `This is the graph of $y = f(x)$. What is $f(${c})$?` },
+        { kind: 'diagram', svg: piecewiseSvg(f, { label: jumpLabel(f, i) }) },
+      ],
+      `${own}`,
+      offer(own, other, c, own + Math.sign(own - other)).filter((value) => value !== `${own}`),
+    );
+  },
+  solution: ({ f, i }) => {
+    const c = f.cuts[i];
+    const owner = ownerAt(f, i);
+    return [
+      { text: `At $x = ${c}$ the graph has two dots. The **filled** one is part of the graph; the hollow one only marks where the other piece stops.` },
+      { text: `The filled dot is at $(${c}, ${linAt(f.pieces[owner], c)})$, on the piece ${owner === i ? 'to the left' : 'to the right'}.`, tex: `f(${c}) = ${linAt(f.pieces[owner], c)}` },
+    ];
+  },
+};
+
+/* ---------- Lesson 2: a modulus written in pieces ---------- */
+
+interface AbsPwParams {
+  a: number;
+  /** Where the inside is zero. */
+  s: number;
+  /** Added outside the bars. */
+  c: number;
+  /** Ask about the right-hand piece rather than the left. */
+  right: boolean;
+}
+
+/** The inside, $a(x - s)$, written out. */
+const absInside = ({ a, s }: AbsPwParams): Lin => ({ m: a, q: -a * s });
+/** The piece where the inside is zero or positive. */
+const posPiece = (p: AbsPwParams): Lin => ({ m: p.a, q: -p.a * p.s + p.c });
+/** The piece where the inside is negative: minus the whole inside. */
+const negPiece = (p: AbsPwParams): Lin => ({ m: -p.a, q: p.a * p.s + p.c });
+/** The minus sign given to the $x$ term only, and to the number only. */
+const absSlips = (p: AbsPwParams): Lin[] => [
+  { m: -p.a, q: -p.a * p.s + p.c },
+  { m: p.a, q: p.a * p.s + p.c },
+];
+
+const absFnTex = (p: AbsPwParams) => `${absTex(ruleTex(absInside(p)))}${p.c === 0 ? '' : ` ${signedTile(p.c)}`}`;
+
+/** The same function as a `Piecewise`: left of $s$ the inside is negative when $a > 0$. */
+const absPw = (p: AbsPwParams): Piecewise => ({
+  pieces: p.a > 0 ? [negPiece(p), posPiece(p)] : [posPiece(p), negPiece(p)],
+  cuts: [p.s],
+  leftOwns: [false],
+});
+
+function sampleAbsPw(rng: Rng, difficulty: number): AbsPwParams {
+  const hard = difficulty > 1;
+  return {
+    a: rng.pick(hard ? [-4, -3, -2, -1, 2, 3, 4] : [1, 2, 3, 4]),
+    s: rng.pick(nonZero(-4, 4)),
+    c: hard && rng.chance(0.6) ? rng.pick(nonZero(-3, 3)) : 0,
+    right: rng.chance(0.5),
+  };
+}
+
+function absPwSolution(p: AbsPwParams): SolutionStep[] {
+  const inside = ruleTex(absInside(p));
+  const f = absPw(p);
+  const c = p.c === 0 ? '' : ` ${signedTile(p.c)}`;
+  return [
+    { text: `The inside, $${inside}$, is zero at $x = ${p.s}$: that is the split.` },
+    { text: `Where the inside is zero or positive the bars change nothing: $${absTex(inside)}${c} = ${ruleTex(posPiece(p))}$.` },
+    { text: `Where it is negative the modulus is minus the **whole** inside: $-(${inside})${c} = ${ruleTex(negPiece(p))}$.` },
+    { tex: pwTex(f) },
+  ];
+}
+
+/**
+ * One piece of $|ax + b|$, its stretch given. Difficulty 1 is a plain modulus
+ * with a positive $x$ coefficient; difficulty 2 lets the inside fall, adds a
+ * number outside the bars, and asks either side. The bank offers the other
+ * piece and the two half-done minus signs, all written by `ruleTex`.
+ */
+const splitTiles: Generator<AbsPwParams> = {
+  id: 'mod-split-tiles',
+  sample: sampleAbsPw,
+  render: (p): Slide => {
+    const f = absPw(p);
+    const side = p.right ? 1 : 0;
+    const answer = [ruleTex(f.pieces[side])];
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Write the piece of $f$ on the side of the split shown, without the modulus.' },
+        { kind: 'display', tex: `f(x) = ${absFnTex(p)}` },
+      ],
+      template: `f(x) = {0} \\text{ for } ${stretchTex(f, side)}`,
+      bank: bankOf(answer, [ruleTex(f.pieces[1 - side]), ...absSlips(p).map(ruleTex)]),
+      answer,
+    };
+  },
+  solution: absPwSolution,
+};
+
+/**
+ * Which `cases` block is $|ax + b|$? The wrong ones swap the pieces, split at
+ * $+\frac{b}{a}$ instead of $-\frac{b}{a}$, or give the minus sign to the $x$
+ * term alone.
+ */
+const absCasesChoice: Generator<AbsPwParams> = {
+  id: 'mod-abs-cases-choice',
+  sample: sampleAbsPw,
+  render: (p): Slide => {
+    const f = absPw(p);
+    const [left, right] = f.pieces;
+    const slipped: Lin[] = p.a > 0 ? [absSlips(p)[0], right] : [left, absSlips(p)[0]];
+    return pickOne(
+      [
+        { kind: 'prose', text: 'Which is the same function written in pieces?' },
+        { kind: 'display', tex: `f(x) = ${absFnTex(p)}` },
+      ],
+      pwTex(f, undefined, ''),
+      [
+        pwTex(f, [ruleTex(right), ruleTex(left)], ''),
+        pwTex({ ...f, cuts: [-p.s] }, undefined, ''),
+        pwTex(f, slipped.map(ruleTex), ''),
+      ],
+    );
+  },
+  solution: absPwSolution,
+};
+
+interface AbsPointParams extends AbsPwParams {
+  t: number;
+}
+
+const POSITIVE_INSIDE = 'Positive';
+const NEGATIVE_INSIDE = 'Negative';
+
+/**
+ * At a given $x$, is the inside positive or negative, and so which rule is
+ * $f$ there? The rules offered are the two pieces and the minus sign given to
+ * the $x$ term alone.
+ */
+const splitSignFlow: Generator<AbsPointParams> = {
+  id: 'mod-split-sign-flow',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => ({ ...sampleAbsPw(rng, difficulty), t: rng.int(-PW_SPAN, PW_SPAN) }),
+      (p) => p.t !== p.s,
+      { a: 2, s: 3, c: 0, right: false, t: 1 },
+    ),
+  render: (p): Slide => {
+    const inside = absInside(p);
+    const positive = linAt(inside, p.t) > 0;
+    const rules = [posPiece(p), negPiece(p), absSlips(p)[0]];
+    const labels = [...new Set(rules.map((rule) => `$${ruleTex(rule)}$`))].sort();
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `Which rule is $f(x)$ at $x = ${p.t}$? The sign of the inside decides.` }],
+      subject: `f(x) = ${absFnTex(p)}`,
+      steps: [
+        {
+          id: 'sign',
+          ask: `At $x = ${p.t}$, is the inside, $${ruleTex(inside)}$, positive or negative?`,
+          branches: [
+            { label: POSITIVE_INSIDE, to: 'rule' },
+            { label: NEGATIVE_INSIDE, to: 'rule' },
+          ],
+        },
+        {
+          id: 'rule',
+          ask: `So at $x = ${p.t}$, $f(x)$ is which rule?`,
+          branches: labels.map((label) => ({ label, outcome: `Then $f(x) = ${label.slice(1, -1)}$ there.` })),
+        },
+      ],
+      answer: [positive ? POSITIVE_INSIDE : NEGATIVE_INSIDE, `$${ruleTex(positive ? posPiece(p) : negPiece(p))}$`],
+    };
+  },
+  solution: (p) => {
+    const inside = absInside(p);
+    const value = linAt(inside, p.t);
+    const positive = value > 0;
+    return [
+      { text: `At $x = ${p.t}$ the inside is $${subTex(inside, p.t)} = ${value}$, which is ${positive ? 'positive' : 'negative'}.` },
+      {
+        text: positive
+          ? 'A positive inside comes out of the bars unchanged.'
+          : 'A negative inside comes out with its sign turned round: minus the **whole** inside.',
+        tex: `f(x) = ${ruleTex(positive ? posPiece(p) : negPiece(p))}`,
+      },
+    ];
+  },
+};
+
+interface TwoAbsParams {
+  p: number;
+  q: number;
+  /** $|x - p| - |x - q|$ rather than the sum. */
+  minus: boolean;
+  /** Which of the three pieces is asked. */
+  piece: number;
+}
+
+const twoAbsTex = ({ p, q, minus }: TwoAbsParams) => `${absLin(1, -p)} ${minus ? '-' : '+'} ${absLin(1, -q)}`;
+
+/** $|x - p| \pm |x - q|$ in its three pieces, with $p < q$. */
+const twoAbsPw = ({ p, q, minus }: TwoAbsParams): Piecewise => ({
+  pieces: minus
+    ? [
+        { m: 0, q: p - q },
+        { m: 2, q: -p - q },
+        { m: 0, q: q - p },
+      ]
+    : [
+        { m: -2, q: p + q },
+        { m: 0, q: q - p },
+        { m: 2, q: -p - q },
+      ],
+  cuts: [p, q],
+  leftOwns: [false, false],
+});
+
+/**
+ * One piece of $|x - p| + |x - q|$: two splits, three pieces. The middle one
+ * is a constant, the distance between $p$ and $q$. Difficulty 1 asks the
+ * middle or the right-hand piece of a sum; difficulty 2 the left-hand piece,
+ * or any piece of a difference.
+ */
+const twoAbsTiles: Generator<TwoAbsParams> = {
+  id: 'mod-two-abs-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return drawUntil(
+      () => {
+        const p = rng.int(-4, 2);
+        const minus = hard && rng.chance(0.5);
+        return { p, q: p + rng.int(2, 5), minus, piece: hard ? (minus ? rng.int(0, 2) : 0) : rng.int(1, 2) };
+      },
+      ({ q }) => q <= 5,
+      { p: -2, q: 1, minus: false, piece: 1 },
+    );
+  },
+  render: (params): Slide => {
+    const f = twoAbsPw(params);
+    const { p, q } = params;
+    const answer = [ruleTex(f.pieces[params.piece])];
+    const slips: Lin[] = [
+      ...f.pieces,
+      { m: 0, q: p + q },
+      { m: 0, q: p - q },
+      { m: 2, q: p + q },
+      { m: -2, q: -p - q },
+    ];
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Write the piece of $f$ on the stretch shown, without any modulus.' },
+        { kind: 'display', tex: `f(x) = ${twoAbsTex(params)}` },
+      ],
+      template: `f(x) = {0} \\text{ for } ${stretchTex(f, params.piece)}`,
+      bank: bankOf(answer, slips.map(ruleTex).filter((tex) => tex !== answer[0]).slice(0, 4)),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const f = twoAbsPw(params);
+    const { p, q, minus, piece } = params;
+    const x = piece === 0 ? p - 1 : piece === 1 ? p + 1 : q + 1;
+    const first: Lin = x < p ? { m: -1, q: p } : { m: 1, q: -p };
+    const second: Lin = x < q ? { m: -1, q } : { m: 1, q: -q };
+    return [
+      { text: `Each modulus splits where its inside is zero, at $x = ${p}$ and $x = ${q}$, which makes three stretches.` },
+      {
+        text: `On $${stretchTex(f, piece)}$ the first inside is ${x < p ? 'negative' : 'not negative'} and the second is ${x < q ? 'negative' : 'not negative'}, so each modulus comes out as:`,
+        tex: `(${ruleTex(first)}) ${minus ? '-' : '+'} (${ruleTex(second)})`,
+      },
+      { tex: `f(x) = ${ruleTex(f.pieces[piece])}` },
+    ];
+  },
+};
+
+/* ---------- Lesson 3: sketching ---------- */
+
+interface PwParams {
+  f: Piecewise;
+}
+
+function samplePw(rng: Rng, difficulty: number, joins: Joins, accept: (f: Piecewise) => boolean = () => true): PwParams {
+  const hard = difficulty > 1;
+  return {
+    f: drawUntil(
+      () => drawPw(rng, 2, hard, joins),
+      (f) => pwFits(f) && accept(f),
+      joins === 'jump' ? { ...PW_TWO, pieces: [{ m: -1, q: 1 }, { m: 2, q: 1 }] } : PW_TWO,
+    ),
+  };
+}
+
+const pwLabel = (f: Piecewise) =>
+  `The graph of f in ${f.pieces.length} straight pieces${f.cuts.some((_, i) => jumpAt(f, i) !== 0) ? ', with a jump shown by a filled and a hollow dot' : ''}`;
+
+/** How to read a rule off its picture. */
+function readRuleSteps(f: Piecewise): SolutionStep[] {
+  const c = f.cuts[0];
+  return [
+    { text: `The pieces change at $x = ${c}$.` },
+    ...f.pieces.map((p, i) => ({
+      text: `The ${i === 0 ? 'left' : 'right'} piece has gradient $${p.m}$ and reaches $(${c}, ${linAt(p, c)})$, so it is $${ruleTex(p)}$.`,
+    })),
+    ...(jumpAt(f, 0) === 0
+      ? []
+      : [{ text: `The filled dot is on the ${f.leftOwns[0] ? 'left' : 'right'} piece, so $x = ${c}$ goes in its stretch.` }]),
+    { tex: pwTex(f) },
+  ];
+}
+
+/**
+ * Which rule draws this graph? The wrong rules swap the two pieces, turn the
+ * left piece's gradient round through the same join, and, where there is a
+ * jump, give the join to the other piece; where there is none, bend the right
+ * piece one step more or less instead.
+ */
+const pieceRuleRead: Generator<PwParams> = {
+  id: 'mod-piece-rule-read',
+  sample: (rng, difficulty) => samplePw(rng, difficulty, difficulty > 1 ? 'either' : 'meet', (f) => f.pieces[0].m !== 0),
+  render: ({ f }): Slide => {
+    const [left, right] = f.pieces;
+    const c = f.cuts[0];
+    const turned: Lin = { m: -left.m, q: linAt(left, c) + left.m * c };
+    const bentM = right.m + 1 === left.m ? right.m - 1 : right.m + 1;
+    const bent: Lin = { m: bentM, q: linAt(right, c) - bentM * c };
+    return pickOne(
+      [
+        { kind: 'prose', text: 'Which rule draws this graph?' },
+        { kind: 'diagram', svg: piecewiseSvg(f, { label: pwLabel(f) }) },
+      ],
+      pwTex(f, undefined, ''),
+      [
+        pwTex(f, [ruleTex(right), ruleTex(left)], ''),
+        pwTex(f, [ruleTex(turned), ruleTex(right)], ''),
+        jumpAt(f, 0) !== 0
+          ? pwTex({ ...f, leftOwns: [!f.leftOwns[0]] }, undefined, '')
+          : pwTex(f, [ruleTex(left), ruleTex(bent)], ''),
+      ],
+    );
+  },
+  solution: ({ f }) => readRuleSteps(f),
+};
+
+interface GradientParams extends PwParams {
+  /** Ask for $f(0)$ rather than the corner. */
+  intercept: boolean;
+}
+
+/**
+ * The three numbers a sketch is drawn from: each piece's gradient and where
+ * they meet. Difficulty 2 asks for $f(0)$ instead, which means picking the
+ * right piece first, and has jumps, level pieces and steeper gradients.
+ */
+const pieceGradientsTiles: Generator<GradientParams> = {
+  id: 'mod-piece-gradients-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return { ...samplePw(rng, difficulty, hard ? 'either' : 'meet', (f) => !hard || (f.cuts[0] !== 0 && otherValues(f, 0)[0] !== pwAt(f, 0))), intercept: hard };
+  },
+  render: ({ f, intercept }): Slide => {
+    const [left, right] = f.pieces;
+    const c = f.cuts[0];
+    const last = intercept ? pwAt(f, 0) : linAt(left, c);
+    const answer = [`${left.m}`, `${right.m}`, `${last}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: intercept
+            ? 'To sketch $f$, give the gradient of each piece, left first, and where the graph crosses the $y$-axis.'
+            : 'To sketch $f$, give the gradient of each piece, left first, and the height where they meet.',
+        },
+        pwBlock(f),
+      ],
+      template: intercept
+        ? '\\text{gradients } {0} \\text{ and } {1}, \\ f(0) = {2}'
+        : `\\text{gradients } {0} \\text{ and } {1}, \\text{ corner } (${c}, {2})`,
+      bank: bankOf(answer, [
+        `${-left.m}`,
+        `${-right.m}`,
+        `${intercept ? otherValues(f, 0)[0] : left.q}`,
+        `${last + 1}`,
+        `${last - 1}`,
+        `${last + 2}`,
+        `${left.m - right.m}`,
+      ]),
+      answer,
+    };
+  },
+  solution: ({ f, intercept }) => {
+    const [left, right] = f.pieces;
+    const c = f.cuts[0];
+    return [
+      { text: `The gradient of each piece is its $x$ coefficient: $${left.m}$ on the left, $${right.m}$ on the right.` },
+      intercept
+        ? { text: `$x = 0$ is in the stretch $${stretchTex(f, pieceOf(f, 0))}$.`, tex: `f(0) = ${pwAt(f, 0)}` }
+        : { text: `Both pieces give $${linAt(left, c)}$ at $x = ${c}$, so they meet at $(${c}, ${linAt(left, c)})$.` },
+    ];
+  },
+};
+
+/**
+ * The left piece is drawn; where does the next one start? The height is the
+ * next piece's rule at the join, which the picture cannot tell you. Every draw
+ * has a jump there, or the answer would be the end already on the page.
+ * Difficulty 2 draws two pieces of three and asks for the third.
+ */
+const pieceStartSlider: Generator<PwParams> = {
+  id: 'mod-piece-start-slider',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      f: drawUntil(
+        () => drawPw(rng, pwCount(hard), hard, hard ? 'either' : 'jump', true),
+        (f) => pwFits(f) && jumpAt(f, f.cuts.length - 1) !== 0,
+        { ...PW_TWO, pieces: [{ m: -1, q: 1 }, { m: 2, q: 1 }] },
+      ),
+    };
+  },
+  render: ({ f }): Slide => {
+    const last = f.cuts.length - 1;
+    const c = f.cuts[last];
+    const { yMin, yMax } = pwWindow(f);
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The graph of $f$ is drawn as far as $x = ${c}$. Slide to the height where the next piece starts.`,
+        },
+        pwBlock(f),
+      ],
+      min: yMin,
+      max: yMax,
+      step: 1,
+      answer: rightAt(f, last),
+      readout: 'y = {v}',
+      figure: {
+        svg: piecewiseSvg(f, {
+          show: f.pieces.slice(0, -1).map((_, i) => i),
+          vertical: c,
+          label: `The first ${last === 0 ? 'piece' : 'two pieces'} of f, with a dashed line at x = ${c}`,
+        }),
+        axis: 'y',
+        ...markerWindow(yMin, yMax, 'y', PW_HEIGHT),
+      },
+    };
+  },
+  solution: ({ f }) => {
+    const last = f.cuts.length - 1;
+    const c = f.cuts[last];
+    const next = f.pieces[last + 1];
+    return [
+      { text: `The next piece is $${ruleTex(next)}$. It starts at $x = ${c}$.` },
+      { tex: chain([subTex(next, c), `${rightAt(f, last)}`]) },
+      {
+        text: `The drawn piece ends at $${leftAt(f, last)}$, so the graph jumps there. The dot on the new piece is ${ownerAt(f, last) === last + 1 ? 'filled' : 'hollow'}.`,
+      },
+    ];
+  },
+};
+
+const RISES = 'It rises';
+const FALLS = 'It falls';
+const LEVEL = 'It is level';
+const MEET = 'They meet';
+const JUMP = 'There is a jump';
+
+const direction = ({ m }: Lin) => (m > 0 ? RISES : m < 0 ? FALLS : LEVEL);
+
+/**
+ * A sketch in three decisions: which way each piece goes, then whether they
+ * meet. Two falling-then-rising pieces that meet are a V; the flow is the
+ * general case. Difficulty 2 has level pieces too.
+ */
+const pieceSketchFlow: Generator<PwParams> = {
+  id: 'mod-piece-sketch-flow',
+  sample: (rng, difficulty) => samplePw(rng, difficulty, 'either'),
+  render: ({ f }): Slide => {
+    const [left, right] = f.pieces;
+    const c = f.cuts[0];
+    const dirs = [RISES, FALLS, LEVEL];
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: 'Plan the sketch of $f$ before drawing it.' }, pwBlock(f)],
+      subject: `y = f(x)`,
+      steps: [
+        {
+          id: 'left',
+          ask: `Going left to right, what does the left piece, $${ruleTex(left)}$, do?`,
+          branches: dirs.map((label) => ({ label, to: 'right' })),
+        },
+        {
+          id: 'right',
+          ask: `And the right piece, $${ruleTex(right)}$?`,
+          branches: dirs.map((label) => ({ label, to: 'join' })),
+        },
+        {
+          id: 'join',
+          ask: `At $x = ${c}$, do the two pieces meet?`,
+          branches: [
+            { label: MEET, outcome: 'Then the graph is drawn without lifting the pen.' },
+            { label: JUMP, outcome: 'Then one end is a filled dot and the other a hollow one.' },
+          ],
+        },
+      ],
+      answer: [direction(left), direction(right), jumpAt(f, 0) === 0 ? MEET : JUMP],
+    };
+  },
+  solution: ({ f }) => {
+    const [left, right] = f.pieces;
+    const c = f.cuts[0];
+    return [
+      { text: `The left piece has gradient $${left.m}$ and the right $${right.m}$: the sign says which way each goes.` },
+      { text: `At $x = ${c}$ they give $${leftAt(f, 0)}$ and $${rightAt(f, 0)}$.`, tex: jumpAt(f, 0) === 0 ? '\\text{they meet}' : '\\text{a jump}' },
+    ];
+  },
+};
+
+/* ---------- Lesson 4: continuity at the joins ---------- */
+
+const UP = 'Up';
+const DOWN = 'Down';
+
+function sampleJoin(rng: Rng, difficulty: number, joins: Joins): JoinParams {
+  const hard = difficulty > 1;
+  return drawUntil(
+    () => {
+      const f = drawPw(rng, pwCount(hard), hard, joins, true);
+      return { f, i: rng.int(0, f.cuts.length - 1) };
+    },
+    ({ f, i }) => pwFits(f) && (joins !== 'jump' || jumpAt(f, i) !== 0),
+    { f: { ...PW_TWO, pieces: [{ m: -1, q: 1 }, { m: 2, q: 1 }] }, i: 0 },
+  );
+}
+
+function joinSteps(f: Piecewise, i: number): SolutionStep[] {
+  const c = f.cuts[i];
+  const [l, r] = [f.pieces[i], f.pieces[i + 1]];
+  return [
+    { text: `Put $x = ${c}$ into the pieces either side of the join.` },
+    { tex: chain([subTex(l, c), `${leftAt(f, i)}`]) },
+    { tex: chain([subTex(r, c), `${rightAt(f, i)}`]) },
+  ];
+}
+
+/**
+ * Do the pieces meet at a join, and if not, which way does the graph jump?
+ * Half the draws meet. Difficulty 2 has three pieces and asks about one join.
+ */
+const joinMeetFlow: Generator<JoinParams> = {
+  id: 'mod-join-meet-flow',
+  sample: (rng, difficulty) => sampleJoin(rng, difficulty, 'either'),
+  render: ({ f, i }): Slide => {
+    const c = f.cuts[i];
+    const jump = jumpAt(f, i);
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `Is $f$ continuous at $x = ${c}$?` }, pwBlock(f)],
+      subject: `x = ${c}`,
+      steps: [
+        {
+          id: 'same',
+          ask: `Put $x = ${c}$ into the pieces either side of it. Do they give the same value?`,
+          branches: [
+            { label: YES, outcome: `The pieces meet: $f$ is continuous at $x = ${c}$.` },
+            { label: NO, to: 'way' },
+          ],
+        },
+        {
+          id: 'way',
+          ask: `Going left to right, which way does the graph jump at $x = ${c}$?`,
+          branches: [
+            { label: UP, outcome: `$f$ jumps up at $x = ${c}$.` },
+            { label: DOWN, outcome: `$f$ jumps down at $x = ${c}$.` },
+          ],
+        },
+      ],
+      answer: jump === 0 ? [YES] : [NO, jump > 0 ? UP : DOWN],
+    };
+  },
+  solution: ({ f, i }) => {
+    const jump = jumpAt(f, i);
+    return [
+      ...joinSteps(f, i),
+      {
+        text:
+          jump === 0
+            ? 'The same value from both sides: the pieces meet and the graph is continuous there.'
+            : `Different values: the graph jumps ${jump > 0 ? 'up' : 'down'} by $${Math.abs(jump)}$.`,
+      },
+    ];
+  },
+};
+
+/**
+ * The size of the jump at a join: the gap between the two pieces' values
+ * there, always positive. Difficulty 2 has three pieces.
+ */
+const joinJump: Generator<JoinParams> = {
+  id: 'mod-jump',
+  choices: ({ f, i }) => {
+    const gap = Math.abs(jumpAt(f, i));
+    return numberChoices(gap, [leftAt(f, i), rightAt(f, i), Math.abs(leftAt(f, i) + rightAt(f, i))], pwTex(f));
+  },
+  sample: (rng, difficulty) => sampleJoin(rng, difficulty, 'jump'),
+  render: ({ f, i }): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `How far does the graph of $f$ jump at $x = ${f.cuts[i]}$? Give the gap between the two pieces there.`,
+      },
+      pwBlock(f),
+    ],
+    lead: '\\text{jump} =',
+    keypad: [],
+    answer: `${Math.abs(jumpAt(f, i))}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ f, i }) => [
+    ...joinSteps(f, i),
+    { tex: `${absTex(`${rightAt(f, i)} - ${br(leftAt(f, i))}`)} = ${Math.abs(jumpAt(f, i))}` },
+  ],
+};
+
+interface KParams {
+  /** Continuous at its one cut. */
+  f: Piecewise;
+  /** The piece holding k. */
+  side: number;
+  /** k is that piece's gradient rather than its constant. */
+  slope: boolean;
+}
+
+const kValue = ({ f, side, slope }: KParams) => (slope ? f.pieces[side].m : f.pieces[side].q);
+
+/** The piece with k in it, as TeX. */
+function kRuleTex({ f, side, slope }: KParams): string {
+  const { m, q } = f.pieces[side];
+  if (slope) return q === 0 ? 'kx' : `kx ${signedTile(q)}`;
+  return m === 0 ? 'k' : `${linTex(m, 0)} + k`;
+}
+
+const kRules = (p: KParams) => p.f.pieces.map((piece, i) => (i === p.side ? kRuleTex(p) : ruleTex(piece)));
+
+/** The k side at the cut, with the number put in and not yet tidied. */
+function kSubTex({ f, side, slope }: KParams): string {
+  const { m, q } = f.pieces[side];
+  const c = f.cuts[0];
+  if (slope) return `k \\times ${br(c)}${q === 0 ? '' : ` ${signedTile(q)}`}`;
+  return m === 0 ? 'k' : `${subTex({ m, q: 0 }, c)} + k`;
+}
+
+/** The k side at the cut, tidied: `12 + k`, `3k - 2`. */
+function kTidyTex({ f, side, slope }: KParams): string {
+  const { m, q } = f.pieces[side];
+  const c = f.cuts[0];
+  if (slope) {
+    const lead = c === 1 ? 'k' : c === -1 ? '-k' : `${c}k`;
+    return q === 0 ? lead : `${lead} ${signedTile(q)}`;
+  }
+  return m === 0 ? 'k' : `${m * c} + k`;
+}
+
+function sampleK(rng: Rng, difficulty: number): KParams {
+  const hard = difficulty > 1;
+  return drawUntil(
+    () => {
+      const f = drawPw(rng, 2, hard, 'meet');
+      return { f, side: hard ? rng.int(0, 1) : 1, slope: hard && rng.chance(0.5) };
+    },
+    (p) => pwFits(p.f) && (!p.slope || (p.f.cuts[0] !== 0 && p.f.pieces[p.side].m !== 0)) && kValue(p) !== 0,
+    { f: PW_TWO, side: 1, slope: false },
+  );
+}
+
+function kSolution(p: KParams): SolutionStep[] {
+  const c = p.f.cuts[0];
+  const other = p.f.pieces[1 - p.side];
+  const known = linAt(other, c);
+  return [
+    { text: `For $f$ to be continuous, both pieces must give the same value at $x = ${c}$.` },
+    { text: `The ${p.side === 0 ? 'right' : 'left'} piece gives $${subTex(other, c)} = ${known}$.` },
+    { tex: `${kTidyTex(p)} = ${known}` },
+    { tex: `k = ${kValue(p)}` },
+  ];
+}
+
+/**
+ * The k that makes $f$ continuous. Built from a continuous $f$ with one of its
+ * numbers hidden, so k is whole. Difficulty 1 hides the right piece's
+ * constant; difficulty 2 either piece's constant or gradient.
+ */
+const continuousK: Generator<KParams> = {
+  id: 'mod-continuous-k',
+  choices: (p) => {
+    const known = linAt(p.f.pieces[1 - p.side], p.f.cuts[0]);
+    return numberChoices(kValue(p), [-kValue(p), known, known + (p.slope ? 0 : p.f.pieces[p.side].m * p.f.cuts[0])], pwTex(p.f, kRules(p)));
+  },
+  sample: sampleK,
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: `Find the value of $k$ that makes $f$ continuous at $x = ${p.f.cuts[0]}$.` }, pwBlock(p.f, kRules(p))],
+    lead: 'k =',
+    keypad: [],
+    answer: `${kValue(p)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: kSolution,
+};
+
+/**
+ * The same k worked a line at a time: each side at the join, then k. The
+ * banks offer the join put into the wrong side, and k with its sign slipped.
+ */
+const kSolveSteps: Generator<KParams> = {
+  id: 'mod-k-solve-steps',
+  sample: sampleK,
+  render: (p): Slide => {
+    const c = p.f.cuts[0];
+    const other = p.f.pieces[1 - p.side];
+    const known = linAt(other, c);
+    const k = kValue(p);
+    const knownAt = p.side === 0 ? 2 : 0;
+    const kAt = 2 - knownAt;
+    const start = ['', '=', ''];
+    start[knownAt] = subTex(other, c);
+    start[kAt] = kSubTex(p);
+    const tidy = kTidyTex(p);
+    const reductions: Extract<Slide, { kind: 'steps' }>['reductions'] = [
+      {
+        span: [knownAt, knownAt + 1],
+        value: `${known}`,
+        bank: stepBank(`${known}`, `${linAt(other, -c)}`, `${known + 2 * other.q}`, `${-known}`),
+      },
+    ];
+    if (tidy !== start[kAt]) {
+      reductions.push({
+        span: [kAt, kAt + 1],
+        value: tidy,
+        bank: stepBank(tidy, tidy.startsWith('-') ? tidy.slice(1) : `-${tidy}`, p.slope ? `${-c}k${p.f.pieces[p.side].q === 0 ? '' : ` ${signedTile(p.f.pieces[p.side].q)}`}` : `${p.f.pieces[p.side].m + c} + k`),
+      });
+    }
+    reductions.push({
+      span: [0, 3],
+      operator: 1,
+      value: `k = ${k}`,
+      bank: stepBank(`k = ${k}`, `k = ${-k}`, `k = ${k + 1}`, `k = ${k - 1}`),
+    });
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Find $k$ so that $f$ is continuous at $x = ${c}$: both pieces give the same value there. ${HOW_TO_STEP}`,
+        },
+        pwBlock(p.f, kRules(p)),
+      ],
+      start,
+      reductions,
+    };
+  },
+  solution: kSolution,
+};
+
+/**
+ * Which end of a jump is filled and which hollow. The filled dot belongs to
+ * the piece whose stretch includes the join, the one with $\le$ or $\ge$.
+ */
+const joinDotsTiles: Generator<JoinParams> = {
+  id: 'mod-join-dots-tiles',
+  sample: sampleJump,
+  render: ({ f, i }): Slide => {
+    const c = f.cuts[i];
+    const owner = ownerAt(f, i);
+    const own = linAt(f.pieces[owner], c);
+    const other = linAt(f.pieces[owner === i ? i + 1 : i], c);
+    const answer = [`${own}`, `${other}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The graph of $f$ jumps at $x = ${c}$. Where is the filled dot, on the graph, and where the hollow one?`,
+        },
+        pwBlock(f),
+      ],
+      template: `\\text{filled } (${c}, {0}), \\ \\text{hollow } (${c}, {1})`,
+      bank: bankOf(answer, [`${c}`, `${-own}`, `${own + Math.sign(own - other)}`, `${other - Math.sign(own - other)}`]),
+      answer,
+    };
+  },
+  solution: ({ f, i }) => {
+    const c = f.cuts[i];
+    const owner = ownerAt(f, i);
+    return [
+      ...joinSteps(f, i),
+      {
+        text: `$x = ${c}$ is in the stretch $${stretchTex(f, owner)}$, so that piece's end is the filled dot, at $(${c}, ${linAt(f.pieces[owner], c)})$. The other end is hollow.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Lesson 5: solving with a piecewise function ---------- */
+
+interface SolveParams {
+  f: Piecewise;
+  k: number;
+}
+
+interface Candidate {
+  /** The piece whose rule was solved. */
+  i: number;
+  x: number;
+  /** Whether $x$ is in that piece's own stretch. */
+  kept: boolean;
+}
+
+/**
+ * Every piece's rule solved for $f(x) = k$, whether or not the root lands in
+ * its stretch, or undefined when a root is not whole or a level piece sits on
+ * the line.
+ */
+function candidates(f: Piecewise, k: number): Candidate[] | undefined {
+  const out: Candidate[] = [];
+  for (const [i, p] of f.pieces.entries()) {
+    if (p.m === 0) {
+      if (p.q === k) return undefined;
+      continue;
+    }
+    const x = (k - p.q) / p.m;
+    if (!Number.isInteger(x) || Math.abs(x) > 9) return undefined;
+    out.push({ i, x, kept: inStretch(f, i, x) });
+  }
+  return out;
+}
+
+const keptRoots = (f: Piecewise, k: number) => (candidates(f, k) ?? []).filter((c) => c.kept).map((c) => c.x);
+const thrownRoots = (f: Piecewise, k: number) => (candidates(f, k) ?? []).filter((c) => !c.kept).map((c) => c.x);
+
+function solveSteps(f: Piecewise, k: number): SolutionStep[] {
+  const steps: SolutionStep[] = [{ text: `Set each piece equal to $${k}$, then keep only a root in that piece's own stretch.` }];
+  for (const [i, p] of f.pieces.entries()) {
+    if (p.m === 0) {
+      steps.push({ text: `$${ruleTex(p)}$ is level and never equals $${k}$.` });
+      continue;
+    }
+    const x = (k - p.q) / p.m;
+    const kept = inStretch(f, i, x);
+    steps.push({
+      text: `$${ruleTex(p)} = ${k}$ gives $x = ${x}$, which is ${kept ? 'in' : '**not** in'} $${stretchTex(f, i)}$: ${kept ? 'keep it' : 'reject it'}.`,
+    });
+  }
+  return steps;
+}
+
+function sampleSolve(rng: Rng, difficulty: number, accept: (f: Piecewise, k: number) => boolean): SolveParams {
+  const hard = difficulty > 1;
+  return drawUntil(
+    () => {
+      const f = drawPw(rng, pwCount(hard), hard, 'either');
+      return { f, k: pwAt(f, rng.int(-PW_SPAN, PW_SPAN)) };
+    },
+    ({ f, k }) => pwFits(f) && candidates(f, k) !== undefined && accept(f, k),
+    { f: PW_TWO, k: 0 },
+  );
+}
+
+/**
+ * $f(x) = k$ with exactly one solution, and a second piece whose root lands
+ * off its own stretch: the root to throw out. Difficulty 2 has three pieces,
+ * and some roots land on a join the piece does not own.
+ */
+const pieceRoot: Generator<SolveParams> = {
+  id: 'mod-piece-root',
+  choices: ({ f, k }) =>
+    numberChoices(keptRoots(f, k)[0], [...thrownRoots(f, k), -keptRoots(f, k)[0]], `${pwTex(f)}=${k}`),
+  sample: (rng, difficulty) =>
+    sampleSolve(
+      rng,
+      difficulty,
+      (f, k) => keptRoots(f, k).length === 1 && thrownRoots(f, k).some((x) => !keptRoots(f, k).includes(x)),
+    ),
+  render: ({ f, k }): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: `Solve $f(x) = ${k}$. It has exactly one solution.` }, pwBlock(f)],
+    lead: 'x =',
+    keypad: [],
+    answer: `${keptRoots(f, k)[0]}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ f, k }) => solveSteps(f, k),
+};
+
+interface RejectPieceParams extends SolveParams {
+  /** The candidate asked about. */
+  i: number;
+}
+
+const IN_STRETCH = 'Yes, it is in that stretch';
+const OUT_STRETCH = 'No, it is outside it';
+
+/**
+ * Keep or throw out one piece's root. The piece's rule really does equal k
+ * there; what decides is whether the root is in that piece's own stretch.
+ * Difficulty 2 has three pieces, where a root on a join is in only one.
+ */
+const pieceRejectFlow: Generator<RejectPieceParams> = {
+  id: 'mod-piece-reject-flow',
+  sample: (rng, difficulty) => {
+    const want = rng.chance(0.5);
+    return drawUntil(
+      () => {
+        const { f, k } = sampleSolve(rng, difficulty, () => true);
+        // A root thrown out of one piece must not solve the equation through
+        // another, or "throw it out" would lose a real solution.
+        const found = (candidates(f, k) ?? []).filter((c) => c.kept === want && (c.kept || pwAt(f, c.x) !== k));
+        return { f, k, i: found.length > 0 ? rng.pick(found).i : -1 };
+      },
+      (p) => p.i >= 0,
+      { f: PW_TWO, k: 0, i: 1 },
+    );
+  },
+  render: ({ f, k, i }): Slide => {
+    const p = f.pieces[i];
+    const x = (k - p.q) / p.m;
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `Solving $${ruleTex(p)} = ${k}$ gave $x = ${x}$. Is it a solution of $f(x) = ${k}$?` }, pwBlock(f)],
+      subject: `x = ${x}`,
+      steps: [
+        {
+          id: 'stretch',
+          ask: `$${ruleTex(p)}$ is $f$ only where $${stretchTex(f, i)}$. Is $x = ${x}$ in that stretch?`,
+          branches: [
+            { label: IN_STRETCH, to: 'check' },
+            { label: OUT_STRETCH, outcome: `Throw $x = ${x}$ out: $f$ is a different rule there.` },
+          ],
+        },
+        {
+          id: 'check',
+          ask: `Check: is $f(${x}) = ${k}$?`,
+          branches: [
+            { label: YES, outcome: `Keep $x = ${x}$.` },
+            { label: NO, outcome: `Throw $x = ${x}$ out.` },
+          ],
+        },
+      ],
+      answer: inStretch(f, i, x) ? [IN_STRETCH, YES] : [OUT_STRETCH],
+    };
+  },
+  solution: ({ f, k, i }) => {
+    const p = f.pieces[i];
+    const x = (k - p.q) / p.m;
+    const own = pieceOf(f, x);
+    return own === i
+      ? [{ text: `$x = ${x}$ is in $${stretchTex(f, i)}$, and $f(${x}) = ${subTex(p, x)} = ${k}$: keep it.` }]
+      : [
+          { text: `$x = ${x}$ is not in $${stretchTex(f, i)}$; it is in $${stretchTex(f, own)}$.` },
+          { text: `There $f$ is $${ruleTex(f.pieces[own])}$, and $f(${x}) = ${pwAt(f, x)}$, not $${k}$: throw it out.` },
+        ];
+  },
+};
+
+const COUNT_OFFERED = ['None', 'One', 'Two', 'Three'];
+
+/**
+ * How many solutions $f(x) = k$ has, read off the sketch with the line
+ * $y = k$ dashed across it. Every root is whole and on the picture.
+ * Difficulty 2 has three pieces, and the line sometimes passes through a
+ * hollow dot, which is not a solution.
+ */
+const pieceCount: Generator<SolveParams> = {
+  id: 'mod-piece-count',
+  sample: (rng, difficulty) =>
+    sampleSolve(rng, difficulty, (f, k) => keptRoots(f, k).every((x) => Math.abs(x) < PW_SPAN) && k !== 0),
+  render: ({ f, k }): Slide => {
+    const n = keptRoots(f, k).length;
+    return pickOne(
+      [
+        { kind: 'prose', text: `The dashed line is $y = ${k}$. How many solutions has $f(x) = ${k}$?` },
+        pwBlock(f),
+        { kind: 'diagram', svg: piecewiseSvg(f, { horizontal: k, label: `${pwLabel(f)}, and a dashed line at y = ${k}` }) },
+      ],
+      COUNT_OFFERED[n],
+      COUNT_OFFERED.filter((_, idx) => idx !== n),
+      false,
+      `${pwTex(f)}=${k}`,
+    );
+  },
+  solution: ({ f, k }) => [
+    ...solveSteps(f, k),
+    { text: `That leaves ${COUNT_OFFERED[keptRoots(f, k).length].toLowerCase()}: one for each place the dashed line meets the graph itself, not a hollow dot.` },
+  ],
+};
+
+/**
+ * Both solutions of $f(x) = k$, in either order. The bank holds any root that
+ * lands off its stretch. Difficulty 2 has three pieces, one of whose roots is
+ * thrown out.
+ */
+const pieceRootsTiles: Generator<SolveParams> = {
+  id: 'mod-piece-roots-tiles',
+  sample: (rng, difficulty) =>
+    sampleSolve(
+      rng,
+      difficulty,
+      (f, k) => keptRoots(f, k).length === 2 && (difficulty < 2 || thrownRoots(f, k).length >= 1),
+    ),
+  render: ({ f, k }): Slide => {
+    const roots = keptRoots(f, k);
+    const answer = roots.map((x) => `${x}`);
+    return {
+      kind: 'tiles',
+      prompt: [{ kind: 'prose', text: `Solve $f(x) = ${k}$. It has two solutions.` }, pwBlock(f)],
+      template: 'x = {0} \\text{ or } x = {1}',
+      bank: bankOf(answer, [...thrownRoots(f, k), k, -roots[0], -roots[1], ...f.cuts].map((x) => `${x}`).filter((x) => !answer.includes(x)).slice(0, 3)),
+      answer,
+      unordered: true,
+    };
+  },
+  solution: ({ f, k }) => solveSteps(f, k),
+};
+
 export const inequalityGenerators = [
   linearLine,
   linearSteps,
@@ -7909,4 +9322,25 @@ export const inequalityGenerators = [
   regionCount,
   regionWidth,
   regionHighestTiles,
+  pieceValue,
+  pieceOwnerFlow,
+  pieceSumTree,
+  joinDotChoice,
+  splitTiles,
+  absCasesChoice,
+  splitSignFlow,
+  twoAbsTiles,
+  pieceRuleRead,
+  pieceGradientsTiles,
+  pieceStartSlider,
+  pieceSketchFlow,
+  joinMeetFlow,
+  joinJump,
+  continuousK,
+  kSolveSteps,
+  joinDotsTiles,
+  pieceRoot,
+  pieceRejectFlow,
+  pieceCount,
+  pieceRootsTiles,
 ];

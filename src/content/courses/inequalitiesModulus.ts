@@ -29,6 +29,12 @@
  * off its picture, and the lattice points, highest point and width of a
  * region.
  *
+ * Level 6 is piecewise functions, starting from the modulus: evaluating a rule
+ * in pieces and which piece owns a join, writing $|ax + b|$ and
+ * $|x - p| + |x - q|$ in pieces, sketching from the pieces, continuity and
+ * jumps at the joins, and solving $f(x) = c$ one piece at a time. Evaluating
+ * a rule in general is Functions & Transformations' `fn-l4-piecewise`.
+ *
  * Linear inequalities on their own are Linear Equations' `le-l4`; this
  * course's first lesson keeps to the number-line picture of them. Later
  * levels are in `docs/roadmap/levels/inequalities-modulus.md`.
@@ -39,7 +45,13 @@
 import type { Block, Course, SlideRef } from '../types';
 import type { Piece } from '../numberLine';
 import { plotSvg } from '../figures';
-import { modRegionSvg, numberLineSvg, type ModEdge } from '../generators/inequalitiesModulus';
+import {
+  modRegionSvg,
+  numberLineSvg,
+  piecewiseSvg,
+  type ModEdge,
+  type Piecewise,
+} from '../generators/inequalitiesModulus';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -85,6 +97,12 @@ const cap = (a: number, c: number, op: ModEdge['op'], m = 1): ModEdge => ({ s: -
 const region = (edges: ModEdge[], label: string, dot?: [number, number]): Block => ({
   kind: 'diagram',
   svg: modRegionSvg(edges, { label, dot, shade: true }),
+});
+
+/** A function in pieces on squared paper, dots at its jumps. */
+const pieces = (f: Piecewise, label: string, horizontal?: number): Block => ({
+  kind: 'diagram',
+  svg: piecewiseSvg(f, { label, horizontal }),
 });
 
 /** Curves on one set of axes, for the slides about graphs. */
@@ -1355,6 +1373,244 @@ export const inequalitiesModulus: Course = {
         ask('mod-between-corners-tiles', 2),
         ask('mod-region-picture-check', 2),
         ask('mod-pair-point-choice', 2),
+      ],
+    },
+    {
+      id: 'im-l6',
+      title: 'Piecewise Functions',
+      lessons: [
+        {
+          id: 'im-l6-evaluate',
+          title: 'Defining and Evaluating',
+          slides: [
+            teach(
+              prose(
+                'A **piecewise** function uses different rules on different stretches of $x$. You met them in Functions & Transformations; here they are the tool that takes a modulus apart.',
+              ),
+              maths('f(x) = \\begin{cases} 3 - x & x < 1 \\\\ 2x & x \\ge 1 \\end{cases}'),
+              prose(
+                'First find the stretch $x$ is in, then use that row\'s rule. $-2$ is in $x < 1$, so $f(-2) = 3 - (-2) = 5$; $4$ is in $x \\ge 1$, so $f(4) = 2 \\times 4 = 8$.',
+              ),
+            ),
+            ask('mod-piece-owner-flow'),
+            ask('mod-piece-value'),
+            ask('mod-piece-sum-tree'),
+            teach(
+              prose(
+                'Where the rule changes is a **join**. Exactly one row owns it: the one whose sign includes equality, $\\le$ or $\\ge$.',
+              ),
+              maths('f(x) = \\begin{cases} x + 3 & x < 1 \\\\ 2x - 3 & x \\ge 1 \\end{cases}'),
+              pieces(
+                { pieces: [{ m: 1, q: 3 }, { m: 2, q: -3 }], cuts: [1], leftOwns: [false] },
+                'Two straight pieces jumping at x = 1: a hollow dot at (1, 4) and a filled dot at (1, -1)',
+              ),
+              prose(
+                'So $f(1) = 2 \\times 1 - 3 = -1$. On the graph the owner\'s end is a **filled** dot and the other a **hollow** one: $x + 3$ comes up towards $4$ but never gets there.',
+              ),
+            ),
+            ask('mod-join-dot-choice'),
+            ask('mod-piece-value+choice', 2),
+            ask('mod-piece-owner-flow', 2),
+            teach(
+              prose(
+                'Three pieces work the same way, with two joins to watch. In a sum such as $f(-3) + f(2)$, each value comes from its own row, so the two halves may use different rules.',
+              ),
+              maths('f(x) = \\begin{cases} x + 4 & x < -1 \\\\ 1 - x & -1 \\le x \\le 2 \\\\ 2x - 5 & x > 2 \\end{cases}'),
+              prose('$f(-3) = 1$ from the first row and $f(2) = -1$ from the second, which owns $x = 2$: the sum is $0$.'),
+            ),
+            ask('mod-piece-sum-tree', 2),
+            ask('mod-join-dot-choice', 2),
+          ],
+          skillCheck: [ask('mod-piece-value', 2), ask('mod-piece-owner-flow', 2), ask('mod-piece-sum-tree', 2)],
+        },
+        {
+          id: 'im-l6-modulus',
+          title: 'Writing a Modulus in Pieces',
+          slides: [
+            teach(
+              prose(
+                '$\\lvert 2x - 6 \\rvert$ is two rules. Where the inside is zero or positive the bars change nothing; where it is negative they turn its sign round.',
+              ),
+              maths('\\lvert 2x - 6 \\rvert = \\begin{cases} 6 - 2x & x < 3 \\\\ 2x - 6 & x \\ge 3 \\end{cases}'),
+              prose(
+                'The split is where the inside is zero: $2x - 6 = 0$ at $x = 3$, and $x = -\\frac{b}{a}$ for $\\lvert ax + b \\rvert$ in general. The negative side is minus the **whole** inside, $-(2x - 6) = 6 - 2x$, never $-2x - 6$.',
+              ),
+            ),
+            ask('mod-split-sign-flow'),
+            ask('mod-split-tiles'),
+            ask('mod-abs-cases-choice'),
+            teach(
+              prose(
+                'Two moduli split in two places. $\\lvert x - 1 \\rvert + \\lvert x + 2 \\rvert$ splits at $x = -2$ and $x = 1$, making three stretches, and in each one every modulus comes out by the sign of its own inside.',
+              ),
+              maths('\\lvert x - 1 \\rvert + \\lvert x + 2 \\rvert = \\begin{cases} -2x - 1 & x < -2 \\\\ 3 & -2 \\le x < 1 \\\\ 2x + 1 & x \\ge 1 \\end{cases}'),
+              prose(
+                'In the middle, $(1 - x) + (x + 2) = 3$: the $x$ terms cancel, and the distances to $1$ and to $-2$ always add up to the gap between them.',
+              ),
+            ),
+            ask('mod-two-abs-tiles'),
+            ask('mod-split-sign-flow', 2),
+            ask('mod-split-tiles', 2),
+            teach(
+              prose(
+                'A number outside the bars goes on every piece: $\\lvert x + 1 \\rvert - 2$ is $-x - 3$ for $x < -1$ and $x - 1$ for $x \\ge -1$.',
+              ),
+              prose(
+                'For a **difference** of two moduli the $x$ terms cancel on the outside instead: $\\lvert x - 1 \\rvert - \\lvert x - 4 \\rvert$ is level at $-3$ on the left and at $3$ on the right, and $2x - 5$ in between.',
+              ),
+            ),
+            ask('mod-two-abs-tiles', 2),
+            ask('mod-abs-cases-choice', 2),
+          ],
+          skillCheck: [ask('mod-split-tiles', 2), ask('mod-two-abs-tiles', 2), ask('mod-abs-cases-choice', 2)],
+        },
+        {
+          id: 'im-l6-sketching',
+          title: 'Sketching in Pieces',
+          slides: [
+            teach(
+              prose(
+                'Sketch a piecewise function one piece at a time: each piece is a straight line, drawn only over its own stretch.',
+              ),
+              maths('f(x) = \\begin{cases} 1 - x & x < 2 \\\\ 2x - 5 & x \\ge 2 \\end{cases}'),
+              pieces(
+                { pieces: [{ m: -1, q: 1 }, { m: 2, q: -5 }], cuts: [2], leftOwns: [false] },
+                'A falling piece and a steeper rising piece meeting at (2, -1)',
+              ),
+              prose(
+                'The left piece falls with gradient $-1$ and the right rises with gradient $2$. Both give $-1$ at $x = 2$, so they meet at $(2, -1)$: a V like that of $y = \\lvert x - 2 \\rvert - 1$, but with arms of different steepness.',
+              ),
+            ),
+            ask('mod-piece-sketch-flow'),
+            ask('mod-piece-gradients-tiles'),
+            ask('mod-piece-rule-read'),
+            teach(
+              prose(
+                'Where the pieces do not meet there is a jump. Draw the owner\'s end as a filled dot and the other end as a hollow one.',
+              ),
+              maths('f(x) = \\begin{cases} x + 2 & x \\le 0 \\\\ 3 - x & x > 0 \\end{cases}'),
+              pieces(
+                { pieces: [{ m: 1, q: 2 }, { m: -1, q: 3 }], cuts: [0], leftOwns: [true] },
+                'A rising piece ending in a filled dot at (0, 2), and a falling piece starting from a hollow dot at (0, 3)',
+              ),
+              prose(
+                'The left piece owns $x = 0$, so $(0, 2)$ is filled. The right piece starts just after it, from a hollow dot at $(0, 3)$.',
+              ),
+            ),
+            ask('mod-piece-start-slider'),
+            ask('mod-piece-sketch-flow', 2),
+            ask('mod-piece-gradients-tiles', 2),
+            teach(
+              prose(
+                'The V of $y = \\lvert ax + b \\rvert$ is the case where two pieces of gradient $-a$ and $a$ meet on the axis. Three pieces make a sketch with two joins, and a level piece is a flat line.',
+              ),
+              pieces(
+                { pieces: [{ m: -2, q: -1 }, { m: 0, q: 3 }, { m: 2, q: 1 }], cuts: [-2, 1], leftOwns: [false, false] },
+                'y = |x - 1| + |x + 2|: falling, then level at 3 between x = -2 and 1, then rising',
+              ),
+            ),
+            ask('mod-piece-rule-read', 2),
+            ask('mod-piece-start-slider', 2),
+          ],
+          skillCheck: [
+            ask('mod-piece-rule-read', 2),
+            ask('mod-piece-gradients-tiles', 2),
+            ask('mod-piece-start-slider', 2),
+          ],
+        },
+        {
+          id: 'im-l6-continuity',
+          title: 'Continuity at the Joins',
+          slides: [
+            teach(
+              prose(
+                'A piecewise function is **continuous** at a join when the pieces meet there: both rules give the same value. Otherwise the graph **jumps**.',
+              ),
+              maths('f(x) = \\begin{cases} 2x + 1 & x < 1 \\\\ 5 - x & x \\ge 1 \\end{cases}'),
+              pieces(
+                { pieces: [{ m: 2, q: 1 }, { m: -1, q: 5 }], cuts: [1], leftOwns: [false] },
+                'A rising piece up to a hollow dot at (1, 3), and a falling piece from a filled dot at (1, 4)',
+              ),
+              prose('At $x = 1$ the left rule gives $3$ and the right gives $4$. They differ, so the graph jumps up by $1$.'),
+            ),
+            ask('mod-join-meet-flow'),
+            ask('mod-jump'),
+            ask('mod-join-dots-tiles'),
+            teach(
+              prose('An unknown in one piece can be chosen to close the gap. Put the join into both pieces and make them equal.'),
+              maths('f(x) = \\begin{cases} 3x - 2 & x < 2 \\\\ x + k & x \\ge 2 \\end{cases}'),
+              maths('\\begin{gathered} 3 \\times 2 - 2 = 2 + k \\\\ 4 = 2 + k \\\\ k = 2 \\end{gathered}'),
+            ),
+            ask('mod-continuous-k'),
+            ask('mod-k-solve-steps'),
+            ask('mod-join-meet-flow', 2),
+            teach(
+              prose(
+                'The size of a jump is the gap between the two values at the join, whichever is higher. Which end is filled has nothing to do with which is higher: it is decided only by which row owns the join.',
+              ),
+            ),
+            ask('mod-jump+choice', 2),
+            ask('mod-continuous-k', 2),
+          ],
+          skillCheck: [ask('mod-jump', 2), ask('mod-continuous-k', 2), ask('mod-join-dots-tiles', 2)],
+        },
+        {
+          id: 'im-l6-solving',
+          title: 'Solving with Pieces',
+          slides: [
+            teach(
+              prose(
+                'To solve $f(x) = c$, set **each** piece equal to $c$, then keep a root only if it lies in that piece\'s own stretch.',
+              ),
+              maths('f(x) = \\begin{cases} x + 4 & x < 0 \\\\ 2x - 1 & x \\ge 0 \\end{cases}'),
+              prose(
+                'For $f(x) = 5$: $x + 4 = 5$ gives $x = 1$, but $1$ is not in $x < 0$, so it is thrown out. $2x - 1 = 5$ gives $x = 3$, which is in $x \\ge 0$. One solution, $x = 3$.',
+              ),
+            ),
+            ask('mod-piece-root'),
+            ask('mod-piece-reject-flow'),
+            ask('mod-piece-count'),
+            teach(
+              prose(
+                'The sketch says how many to expect: each place the line $y = c$ meets the graph is one solution. A hollow dot on the line is not a point of the graph, so it does not count.',
+              ),
+              pieces(
+                { pieces: [{ m: 1, q: 4 }, { m: 2, q: -1 }], cuts: [0], leftOwns: [false] },
+                'Two rising pieces with a jump at x = 0, and a dashed line at y = 3 meeting both',
+                3,
+              ),
+              prose('$y = 3$ meets both pieces: $x + 4 = 3$ at $x = -1$ and $2x - 1 = 3$ at $x = 2$, two solutions.'),
+            ),
+            ask('mod-piece-roots-tiles'),
+            ask('mod-piece-root+choice', 2),
+            ask('mod-piece-reject-flow', 2),
+            teach(
+              prose(
+                'With three pieces, solve all three and keep what survives. A root landing exactly on a join belongs only to the piece that owns it, so check the $\\le$ and $<$ as well.',
+              ),
+            ),
+            ask('mod-piece-count', 2),
+            ask('mod-piece-roots-tiles', 2),
+          ],
+          skillCheck: [ask('mod-piece-root', 2), ask('mod-piece-roots-tiles', 2), ask('mod-piece-count', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('mod-piece-value', 2),
+        ask('mod-abs-cases-choice', 2),
+        ask('mod-piece-rule-read', 2),
+        ask('mod-jump', 2),
+        ask('mod-piece-owner-flow', 2),
+        ask('mod-two-abs-tiles', 2),
+        ask('mod-piece-start-slider', 2),
+        ask('mod-continuous-k', 2),
+        ask('mod-piece-count', 2),
+        ask('mod-piece-sum-tree', 2),
+        ask('mod-split-tiles', 2),
+        ask('mod-join-meet-flow', 2),
+        ask('mod-piece-root', 2),
+        ask('mod-piece-gradients-tiles', 2),
+        ask('mod-piece-roots-tiles', 2),
       ],
     },
   ],

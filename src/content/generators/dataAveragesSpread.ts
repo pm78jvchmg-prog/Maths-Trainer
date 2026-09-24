@@ -7,7 +7,15 @@
  * reading a scatter diagram. Level 2 is spread: the range and what an extreme
  * value does to it, quartiles and the interquartile range, outliers by the
  * 1.5 times IQR rule, variance from `\sum x^2 / n - \bar{x}^2`, and the
- * standard deviation, with two sets compared by mean and spread.
+ * standard deviation, with two sets compared by mean and spread. Level 3 is
+ * representing data: stem-and-leaf diagrams, box plots (one read on its own,
+ * then two compared on one scale), and histograms of unequal classes by
+ * frequency density, read back as areas.
+ *
+ * Level 3 draws its own pictures: `boxPlotSvg` and `histogramSvg` below, since
+ * `plotSvg` has curves and marks but no boxes or bars. No tappable box or
+ * histogram widget exists yet, so values are read off them through sliders,
+ * choices, tiles, tables, steps and trees.
  *
  * Three rules hold everywhere in this file.
  *
@@ -2552,6 +2560,1605 @@ const compareFlow: Generator<CompareParams> = {
   },
 };
 
+/* ================================================================
+ * Level 3, lesson 1: stem-and-leaf diagrams
+ * ================================================================ */
+
+/**
+ * What a stem and a leaf stand for. `tens` reads `4 | 7` as 47, `tenths` as
+ * 4.7, and `hundreds` has two-digit stems, so `12 | 5` is 125.
+ */
+type StemKey = 'tens' | 'tenths' | 'hundreds';
+
+/** A value held as its stem and leaf run together: 47 is stem 4, leaf 7. */
+const stemValue = (code: number, key: StemKey): number => (key === 'tenths' ? code / 10 : code);
+
+/** Things the values can be. Prose only: units never reach a template. */
+const STEM_CONTEXTS: Record<StemKey, string[]> = {
+  tens: [
+    'Marks in a test out of 100',
+    'Ages of the people on a coach trip',
+    'Pulse rates of some runners',
+    'Minutes some pupils spent on homework',
+    'Scores in a quiz',
+  ],
+  tenths: [
+    'Lengths of some worms, in centimetres',
+    'Masses of some parcels, in kilograms',
+    'Rainfall each day, in millimetres',
+    'Heights of some seedlings, in centimetres',
+    'Times to solve a puzzle, in minutes',
+  ],
+  hundreds: [
+    'Masses of some apples, in grams',
+    'Numbers of visitors to a museum each day',
+    'Heights of some trees, in centimetres',
+    'Points scored in a computer game',
+    'Numbers of steps up some towers',
+  ],
+};
+
+interface StemParams {
+  /** Stem and leaf as one whole number each, in the order the list gives them. */
+  codes: number[];
+  key: StemKey;
+  /** The key's own example, a stem of the diagram with a leaf of its choosing. */
+  keyCode: number;
+  context: number;
+}
+
+interface StemRow {
+  stem: number;
+  leaves: number[];
+}
+
+/** One row per stem from the smallest to the largest, leaves in order. */
+function stemRows(codes: readonly number[]): StemRow[] {
+  const s = ordered(codes);
+  const first = Math.floor(s[0] / 10);
+  const last = Math.floor(s[s.length - 1] / 10);
+  return Array.from({ length: last - first + 1 }, (_, i) => ({
+    stem: first + i,
+    leaves: s.filter((c) => Math.floor(c / 10) === first + i).map((c) => c % 10),
+  }));
+}
+
+/** A row's leaves as the diagram writes them, spaced apart. */
+const leavesTex = (leaves: readonly number[]): string => leaves.join('\\;');
+
+function stemTex(codes: readonly number[]): string {
+  const rows = stemRows(codes).map((r) => `${r.stem} & ${leavesTex(r.leaves)}`);
+  return `\\begin{array}{r|l} ${rows.join(' \\\\ ')} \\end{array}`;
+}
+
+const stemKeyProse = ({ keyCode, key }: StemParams): string =>
+  `Key: $${Math.floor(keyCode / 10)} \\mid ${keyCode % 10}$ means $${fmt(stemValue(keyCode, key))}$.`;
+
+const stemList = ({ codes, key }: StemParams): number[] => codes.map((c) => stemValue(c, key));
+
+/**
+ * `n` values over exactly `m` consecutive stems, none empty and none with more
+ * than six leaves, so a row fits a phone. Tenths never have a leaf of 0, which
+ * `fmt` would print as a whole number and hide the leaf.
+ */
+function sampleStem(rng: Rng, n: number, m: number, key: StemKey, sorted: boolean, accept: (p: StemParams) => boolean = () => true): StemParams {
+  const [lo, hi] = key === 'hundreds' ? [10, 39] : [1, 9];
+  for (;;) {
+    const first = rng.int(lo, hi - m + 1);
+    const raw = Array.from({ length: n }, () => (first + rng.int(0, m - 1)) * 10 + rng.int(key === 'tenths' ? 1 : 0, 9));
+    const rows = stemRows(raw);
+    if (rows.length !== m || rows.some((r) => r.leaves.length === 0 || r.leaves.length > 6)) continue;
+    const keyCode = rows[rng.int(0, m - 1)].stem * 10 + rng.int(key === 'tenths' ? 1 : 0, 9);
+    const params = { codes: sorted ? ordered(raw) : raw, key, keyCode, context: rng.int(0, STEM_CONTEXTS[key].length - 1) };
+    if (accept(params)) return params;
+  }
+}
+
+const stemPrompt = (p: StemParams, ask: string): Block[] => [
+  say(`${STEM_CONTEXTS[p.key][p.context]}, in a stem-and-leaf diagram.`),
+  show(stemTex(p.codes)),
+  say(`${stemKeyProse(p)} ${ask}`),
+];
+
+/** The diagram read back into its values, row by row. */
+function stemReadSolution(p: StemParams): SolutionStep[] {
+  const rows = stemRows(p.codes);
+  return [
+    { text: `${stemKeyProse(p)} Each leaf is one value, so a leaf written twice is two values.` },
+    // Prose rather than a display, so a row of six three-digit values wraps on a phone.
+    { text: `Row by row, the values are ${listProse(rows.flatMap((r) => r.leaves.map((l) => stemValue(r.stem * 10 + l, p.key))))}.` },
+  ];
+}
+
+interface StemDrawParams extends StemParams {
+  sorted: boolean;
+}
+
+/**
+ * Draw the diagram from a list: the leaves of each stem filled in, smallest
+ * first. The list comes in order at difficulty 1; at 2 it is jumbled, over
+ * four stems, with a key in tenths or with two-digit stems.
+ */
+const stemLeaves: Generator<StemDrawParams> = {
+  id: 'dat-stem-leaves',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const key: StemKey = hard ? rng.pick<StemKey>(['tenths', 'hundreds']) : 'tens';
+    // Some row repeats a leaf, so writing each leaf once is a wrong answer.
+    const params = sampleStem(rng, hard ? rng.int(11, 13) : rng.int(8, 10), hard ? 4 : 3, key, !hard, (p) =>
+      stemRows(p.codes).some((r) => new Set(r.leaves).size < r.leaves.length && r.leaves.length > 2),
+    );
+    return { ...params, sorted: !hard };
+  },
+  render: (params): Slide => {
+    const rows = stemRows(params.codes);
+    const answer = rows.map((r) => leavesTex(r.leaves));
+    const slips: string[] = [];
+    for (const r of rows) {
+      const given = params.codes.filter((c) => Math.floor(c / 10) === r.stem).map((c) => c % 10);
+      slips.push(leavesTex(given));
+      slips.push(leavesTex([...new Set(r.leaves)]));
+      slips.push(leavesTex([...r.leaves].reverse()));
+      slips.push(r.leaves.map((l) => fmt(stemValue(r.stem * 10 + l, params.key))).join('\\;'));
+    }
+    const extras: string[] = [];
+    for (const slip of slips) {
+      if (extras.length < 3 && !answer.includes(slip) && !extras.includes(slip)) extras.push(slip);
+    }
+    return {
+      kind: 'table',
+      prompt: [
+        say(
+          `${STEM_CONTEXTS[params.key][params.context]}: ${listProse(stemList(params))}.${params.sorted ? '' : ' They are not in order.'} Draw a stem-and-leaf diagram: fill in each stem's leaves, smallest first.`,
+        ),
+        say(stemKeyProse(params)),
+      ],
+      columns: ['\\text{Stem}', '\\text{Leaves}'],
+      rows: rows.map((r) => [`${r.stem}`, null]),
+      bank: [...answer, ...extras].sort((a, b) => a.localeCompare(b)),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const rows = stemRows(params.codes);
+    const steps: SolutionStep[] = [];
+    if (!params.sorted) steps.push({ text: `In order: ${listProse(ordered(stemList(params)))}.` });
+    steps.push(
+      { text: `${stemKeyProse(params)} So each value splits into its stem and its last digit, the leaf.` },
+      { tex: aligned(...rows.map((r) => `${r.stem} &\\mid ${leavesTex(r.leaves)}`)) },
+    );
+    const repeated = rows.find((r) => new Set(r.leaves).size < r.leaves.length);
+    if (repeated) steps.push({ text: `A value that appears twice keeps both its leaves, as on stem $${repeated.stem}$.` });
+    return steps;
+  },
+};
+
+interface StemReadParams extends StemParams {
+  ask: 'largest' | 'smallest' | 'range' | 'count';
+  /** For `count`: the line, as a code, that values must be above. */
+  above: number;
+}
+
+function stemReadAnswer(p: StemReadParams): number {
+  const s = ordered(p.codes);
+  const v = (c: number) => stemValue(c, p.key);
+  if (p.ask === 'largest') return v(s[s.length - 1]);
+  if (p.ask === 'smallest') return v(s[0]);
+  if (p.ask === 'range') return (s[s.length - 1] - s[0]) / (p.key === 'tenths' ? 10 : 1);
+  return s.filter((c) => c > p.above).length;
+}
+
+/**
+ * One fact read straight off a diagram: its largest or smallest value, or how
+ * many values lie above a line, at difficulty 1; the range or a count with a
+ * key in tenths or two-digit stems at 2.
+ */
+const stemRead: Generator<StemReadParams> = {
+  id: 'dat-stem-read',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const key: StemKey = hard ? rng.pick<StemKey>(['tenths', 'hundreds']) : 'tens';
+    const ask = rng.pick<StemReadParams['ask']>(hard ? ['range', 'count'] : ['largest', 'smallest', 'count']);
+    for (;;) {
+      const params = sampleStem(rng, hard ? rng.int(11, 14) : rng.int(8, 10), hard ? 4 : 3, key, true);
+      const s = ordered(params.codes);
+      const above = rng.int(s[0] + 1, s[s.length - 1] - 1);
+      if (key === 'tenths' && above % 10 === 0) continue;
+      if (params.codes.includes(above)) continue;
+      const count = s.filter((c) => c > above).length;
+      if (ask === 'count' && (count < 2 || count > s.length - 2)) continue;
+      return { ...params, ask, above };
+    }
+  },
+  render: (params): Slide => {
+    const question = {
+      largest: 'What is the largest value?',
+      smallest: 'What is the smallest value?',
+      range: 'What is the range?',
+      count: `How many values are more than $${fmt(stemValue(params.above, params.key))}$?`,
+    }[params.ask];
+    return {
+      kind: 'expression',
+      prompt: stemPrompt(params, question),
+      lead: params.ask === 'count' ? '\\text{how many} =' : `\\text{${params.ask}} =`,
+      keypad: NUMBER_KEYS,
+      answer: fmt(stemReadAnswer(params)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const s = ordered(params.codes);
+    const v = (c: number) => fmt(stemValue(c, params.key));
+    const steps = stemReadSolution(params);
+    if (params.ask === 'largest') steps.push({ text: `The largest is the last leaf on the bottom stem: $${v(s[s.length - 1])}$.` });
+    if (params.ask === 'smallest') steps.push({ text: `The smallest is the first leaf on the top stem: $${v(s[0])}$.` });
+    if (params.ask === 'range') {
+      steps.push({ tex: `\\text{range} = ${v(s[s.length - 1])} - ${v(s[0])} = ${fmt(stemReadAnswer(params))}` });
+    }
+    if (params.ask === 'count') {
+      const over = s.filter((c) => c > params.above);
+      steps.push({ text: `More than $${v(params.above)}$: ${over.map((c) => `$${v(c)}$`).join(', ')}. That is ${over.length} values.` });
+    }
+    return steps;
+  },
+};
+
+/**
+ * The median and both quartiles counted straight off the leaves, then the
+ * interquartile range. Lists of 4k + 3 values only, the one length the course
+ * finds quartiles for: 7 or 11 at difficulty 1, 11 or 15 with a key in tenths
+ * or two-digit stems at 2.
+ */
+const stemQuartiles: Generator<StemParams> = {
+  id: 'dat-stem-quartiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const key: StemKey = hard ? rng.pick<StemKey>(['tenths', 'hundreds']) : 'tens';
+    const n = rng.pick(hard ? [11, 15] : [7, 11]);
+    return sampleStem(rng, n, n === 7 ? 3 : rng.int(3, 4), key, true, (p) => {
+      const { q1, q2, q3 } = quartiles(p.codes);
+      return q1 < q2 && q2 < q3;
+    });
+  },
+  render: (params): Slide => {
+    const { s, k, q1, q2, q3 } = quartiles(params.codes);
+    const v = (c: number) => stemValue(c, params.key);
+    const unit = params.key === 'tenths' ? 0.1 : 1;
+    const answer = [v(q1), v(q2), v(q3), v(q3) - v(q1)];
+    const slips = [s[k - 1], s[k + 1], s[2 * k], s[2 * k + 2], s[3 * k + 1], s[3 * k + 3]]
+      .filter((c) => c !== undefined)
+      .map(v)
+      .concat([v(s[s.length - 1]) - v(s[0]), v(q2) - v(q1)]);
+    return {
+      kind: 'tree',
+      prompt: stemPrompt(params, 'Top row, left to right: the lower quartile, the median, the upper quartile. Underneath, the interquartile range.'),
+      expression: '\\text{IQR} = Q_3 - Q_1',
+      nodes: [
+        { id: 'q1', from: [] },
+        { id: 'q2', from: [] },
+        { id: 'q3', from: [] },
+        { id: 'iqr', from: ['q1', 'q3'] },
+      ],
+      bank: valueBank(answer, slips, 3, unit),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: (params) => {
+    const { s, k, q1, q2, q3 } = quartiles(params.codes);
+    const v = (c: number) => fmt(stemValue(c, params.key));
+    return [
+      { text: `The leaves are already in order, top to bottom. There are $${s.length}$, so the quartiles are the ${k + 1}th, ${2 * k + 2}th and ${3 * k + 3}th leaves.` },
+      { text: `${stemKeyProse(params)} Counting along:` },
+      { tex: aligned(`Q_1 &= ${v(q1)}`, `Q_2 &= ${v(q2)}`, `Q_3 &= ${v(q3)}`) },
+      { tex: `\\text{IQR} = ${v(q3)} - ${v(q1)} = ${fmt(stemValue(q3, params.key) - stemValue(q1, params.key))}` },
+    ];
+  },
+};
+
+interface StemKeyParams extends StemParams {
+  /** The stem whose row is asked about. */
+  stem: number;
+}
+
+const valuesTex = (values: readonly number[]): string => values.map(fmt).join(',\\ ');
+
+/**
+ * What one row stands for under the key: every leaf, a repeated leaf twice,
+ * at the key's scale. The distractors drop the repeat, misread the scale by
+ * ten either way, or add the stem to each leaf.
+ */
+const stemKeyChoice: Generator<StemKeyParams> = {
+  id: 'dat-stem-key',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const key: StemKey = hard ? rng.pick<StemKey>(['tenths', 'hundreds']) : 'tens';
+    const hasRepeat = (r: StemRow) => r.leaves.length >= 3 && new Set(r.leaves).size < r.leaves.length;
+    const params = sampleStem(rng, hard ? rng.int(10, 13) : rng.int(8, 10), hard ? rng.int(3, 4) : 3, key, true, (p) =>
+      stemRows(p.codes).some(hasRepeat),
+    );
+    const rows = stemRows(params.codes).filter(hasRepeat);
+    return { ...params, stem: rng.pick(rows).stem };
+  },
+  render: (params): Slide => {
+    const row = stemRows(params.codes).find((r) => r.stem === params.stem)!;
+    const values = row.leaves.map((l) => stemValue(params.stem * 10 + l, params.key));
+    const distinct = [...new Set(row.leaves)].map((l) => stemValue(params.stem * 10 + l, params.key));
+    const scaled = (by: number) => values.map((x) => x * by);
+    const slips = [
+      distinct,
+      params.key === 'tenths' ? scaled(10) : scaled(0.1),
+      row.leaves.map((l) => params.stem + l),
+      params.key === 'tenths' ? scaled(0.1) : scaled(10),
+    ];
+    return choiceSlide(
+      stemPrompt(params, `Which values does the row with stem $${params.stem}$ stand for?`),
+      options({ tex: valuesTex(values) }, ...slips.map((xs) => ({ tex: valuesTex(xs) }))).slice(0, 4),
+      `${params.codes.join(',')}|${params.key}|${params.stem}`,
+    );
+  },
+  solution: (params) => {
+    const row = stemRows(params.codes).find((r) => r.stem === params.stem)!;
+    const values = row.leaves.map((l) => stemValue(params.stem * 10 + l, params.key));
+    return [
+      { text: stemKeyProse(params) },
+      { text: `So each leaf on stem $${params.stem}$ joins onto it the same way, and every leaf is a value, repeats included:` },
+      { tex: `${params.stem} \\mid ${leavesTex(row.leaves)}` },
+      { text: `stands for ${listProse(values)}.` },
+    ];
+  },
+};
+
+/* ================================================================
+ * Level 3, lessons 2 and 3: box plots
+ * ================================================================ */
+
+/** The five values a box is drawn from, and any outliers plotted beyond the whiskers. */
+export interface Box {
+  min: number;
+  q1: number;
+  q2: number;
+  q3: number;
+  max: number;
+  outliers: number[];
+}
+
+/** A number line: every `tick` gets a mark and a faint line up, every `every` a number. */
+export interface BoxScale {
+  lo: number;
+  hi: number;
+  tick: number;
+  every: number;
+}
+
+/** The same width and inset as `plotSvg`, so `markerWindow` lines a slider up with it. */
+const FIG_WIDTH = 280;
+const FIG_PAD = 12;
+
+/**
+ * Box plots over one scale, one row each, named when there are two.
+ *
+ * Drawn here rather than by `plotSvg`, which has curves, marks and verticals
+ * but no boxes. Every value sits on a tick, so it can be read off exactly. The
+ * pieces carry class names (`box-body`, `box-median`, `box-whisker`,
+ * `box-outlier`, `box-label`) so the tests can read the picture back.
+ */
+export function boxPlotSvg(rows: { name?: string; box: Box }[], scale: BoxScale, label: string): string {
+  const named = rows.some((r) => r.name !== undefined);
+  const rowH = named ? 44 : 34;
+  const axis = FIG_PAD + rows.length * rowH + 6;
+  const height = axis + 22;
+  const x = (v: number) => (FIG_PAD + ((v - scale.lo) / (scale.hi - scale.lo)) * (FIG_WIDTH - 2 * FIG_PAD)).toFixed(1);
+  const parts = [`<svg viewBox="0 0 ${FIG_WIDTH} ${height}" width="100%" role="img" aria-label="${label}">`];
+  const ticks = Math.round((scale.hi - scale.lo) / scale.tick);
+  for (let i = 0; i <= ticks; i += 1) {
+    const v = scale.lo + i * scale.tick;
+    const major = whole(v / scale.every);
+    parts.push(
+      `<line x1="${x(v)}" y1="${FIG_PAD}" x2="${x(v)}" y2="${axis}" stroke="currentColor" stroke-width="0.5" opacity="${major ? 0.3 : 0.15}" />`,
+      `<line x1="${x(v)}" y1="${axis}" x2="${x(v)}" y2="${axis + (major ? 6 : 3)}" stroke="currentColor" stroke-width="1" opacity="0.7" />`,
+    );
+    if (major) {
+      parts.push(`<text class="box-label" x="${x(v)}" y="${axis + 17}" font-size="10" fill="currentColor" text-anchor="middle">${fmt(v)}</text>`);
+    }
+  }
+  parts.push(`<line x1="${FIG_PAD}" y1="${axis}" x2="${FIG_WIDTH - FIG_PAD}" y2="${axis}" stroke="currentColor" stroke-width="1" opacity="0.7" />`);
+  rows.forEach(({ name, box }, i) => {
+    const top = FIG_PAD + i * rowH + (named ? 14 : 2);
+    const mid = top + 10;
+    if (name !== undefined) parts.push(`<text x="${FIG_PAD}" y="${top - 4}" font-size="10" fill="currentColor">${name}</text>`);
+    parts.push(
+      `<line class="box-whisker" x1="${x(box.min)}" y1="${mid}" x2="${x(box.q1)}" y2="${mid}" stroke="currentColor" stroke-width="1.5" />`,
+      `<line class="box-whisker" x1="${x(box.q3)}" y1="${mid}" x2="${x(box.max)}" y2="${mid}" stroke="currentColor" stroke-width="1.5" />`,
+      `<line x1="${x(box.min)}" y1="${mid - 6}" x2="${x(box.min)}" y2="${mid + 6}" stroke="currentColor" stroke-width="1.5" />`,
+      `<line x1="${x(box.max)}" y1="${mid - 6}" x2="${x(box.max)}" y2="${mid + 6}" stroke="currentColor" stroke-width="1.5" />`,
+      `<rect class="plot-shade" x="${x(box.q1)}" y="${top}" width="${(Number(x(box.q3)) - Number(x(box.q1))).toFixed(1)}" height="20" />`,
+      `<rect class="box-body" x="${x(box.q1)}" y="${top}" width="${(Number(x(box.q3)) - Number(x(box.q1))).toFixed(1)}" height="20" fill="none" stroke="currentColor" stroke-width="1.5" />`,
+      `<line class="box-median" x1="${x(box.q2)}" y1="${top}" x2="${x(box.q2)}" y2="${top + 20}" stroke="currentColor" stroke-width="2.5" />`,
+    );
+    for (const o of box.outliers) {
+      const c = Number(x(o));
+      parts.push(
+        `<path class="box-outlier" d="M ${(c - 4).toFixed(1)},${mid - 4} L ${(c + 4).toFixed(1)},${mid + 4} M ${(c - 4).toFixed(1)},${mid + 4} L ${(c + 4).toFixed(1)},${mid - 4}" stroke="currentColor" stroke-width="1.5" />`,
+      );
+    }
+  });
+  parts.push('</svg>');
+  return parts.join('');
+}
+
+/**
+ * Ticks of 5 numbered every 10 at difficulty 1; ticks of 2 at 2, where a
+ * value has to be counted along from the nearest number.
+ */
+function boxScale(rng: Rng, hard: boolean): BoxScale {
+  const lo = 10 * rng.int(0, hard ? 6 : 4);
+  return hard ? { lo, hi: lo + 40, tick: 2, every: 10 } : { lo, hi: lo + 60, tick: 5, every: 10 };
+}
+
+/**
+ * Five values on the scale's ticks, the box at least two ticks wide. An
+ * outlier, where one is asked for, lies beyond its 1.5 IQR fence and the
+ * whisker stops inside it, as the rule of da-l2 draws it.
+ */
+function sampleBox(rng: Rng, scale: BoxScale, outlier: 'none' | 'upper' | 'lower'): Box {
+  const n = Math.round((scale.hi - scale.lo) / scale.tick);
+  const at = (i: number) => scale.lo + i * scale.tick;
+  const slots = Array.from({ length: n + 1 }, (_, i) => i);
+  for (;;) {
+    const [a, b, c, d, e] = ordered(rng.sample(slots, 5));
+    if (d - b < 2) continue;
+    // Both whiskers stay inside their fences, or the plot would be hiding an outlier.
+    const upper = d + 1.5 * (d - b);
+    const lower = b - 1.5 * (d - b);
+    if (e > upper || a < lower) continue;
+    const box = { min: at(a), q1: at(b), q2: at(c), q3: at(d), max: at(e), outliers: [] as number[] };
+    if (outlier === 'none') return box;
+    if (outlier === 'upper') {
+      if (Math.floor(upper) + 1 > n) continue;
+      return { ...box, outliers: [at(rng.int(Math.floor(upper) + 1, n))] };
+    }
+    if (Math.ceil(lower) - 1 < 0) continue;
+    return { ...box, outliers: [at(rng.int(0, Math.ceil(lower) - 1))] };
+  }
+}
+
+const boxLabel = (scale: BoxScale, outlier: boolean): string =>
+  `A box plot on a scale from ${scale.lo} to ${scale.hi}${outlier ? ', with one outlier marked by a cross' : ''}`;
+
+const boxFigure = (box: Box, scale: BoxScale): Block => ({
+  kind: 'diagram',
+  svg: boxPlotSvg([{ box }], scale, boxLabel(scale, box.outliers.length > 0)),
+});
+
+/** The smallest and largest values in the data: an outlier is still a value. */
+const boxEnds = (box: Box) => ({ lo: Math.min(box.min, ...box.outliers), hi: Math.max(box.max, ...box.outliers) });
+
+/** A list of 4k + 3 values whose ends lie outside its quartiles, so all five values differ. */
+function sampleFive(rng: Rng, lengths: number[], sorted: boolean): QuartileParams {
+  for (;;) {
+    const params = sampleQuartiles(rng, lengths, sorted);
+    const { s, q1, q3 } = quartiles(params.values);
+    if (s[0] < q1 && q3 < s[s.length - 1]) return params;
+  }
+}
+
+/** The five values a box plot is drawn from, found from a list: in order at difficulty 1, jumbled at 2. */
+const boxFive: Generator<QuartileParams> = {
+  id: 'dat-box-five',
+  sample: (rng, difficulty) => (difficulty > 1 ? sampleFive(rng, [11, 15], false) : sampleFive(rng, [7, 11], true)),
+  render: (params): Slide => {
+    const { s, k, q1, q2, q3 } = quartiles(params.values);
+    const n = s.length;
+    const answer = [s[0], q1, q2, q3, s[n - 1]];
+    const slips = [s[k + 1], s[k - 1], s[3 * k + 1], s[3 * k + 3], params.values[0], params.values[n - 1], params.values[2 * k + 1], q3 - q1, s[n - 1] - s[0]];
+    return {
+      kind: 'table',
+      prompt: quartilePrompt(params, 'Fill in the five values a box plot is drawn from.'),
+      columns: ['\\text{Summary}', '\\text{Value}'],
+      rows: [
+        ['\\text{Smallest}', null],
+        ['Q_1', null],
+        ['\\text{Median}', null],
+        ['Q_3', null],
+        ['\\text{Largest}', null],
+      ],
+      bank: valueBank(answer, slips),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: (params) => {
+    const { s } = quartiles(params.values);
+    const steps = quartileSolution(params).slice(0, -1);
+    steps.push({ text: `The ends of the whiskers are the smallest and largest values, $${s[0]}$ and $${s[s.length - 1]}$.` });
+    return steps;
+  },
+};
+
+interface BoxReadParams {
+  box: Box;
+  scale: BoxScale;
+  /** Difficulty 2 asks the range as well, and may plot an outlier that the range has to include. */
+  both: boolean;
+}
+
+/**
+ * The interquartile range read off a box plot at difficulty 1. At 2 the ticks
+ * are finer, the range is asked too, and a cross may mark an outlier: the
+ * range runs to it, since it is still one of the values.
+ */
+const boxRead: Generator<BoxReadParams> = {
+  id: 'dat-box-read',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const scale = boxScale(rng, hard);
+    const box = sampleBox(rng, scale, hard ? rng.pick(['none', 'upper', 'lower'] as const) : 'none');
+    return { box, scale, both: hard };
+  },
+  render: ({ box, scale, both }): Slide => {
+    const { lo, hi } = boxEnds(box);
+    const iqr = box.q3 - box.q1;
+    const answer = both ? [hi, lo, hi - lo, box.q3, box.q1, iqr] : [box.q3, box.q1, iqr];
+    const slips = [box.q2, box.max, box.min, box.max - box.min, box.q3 - box.q2, box.q2 - box.q1];
+    return {
+      kind: 'tiles',
+      prompt: [
+        boxFigure(box, scale),
+        say(both ? 'Read the box plot. Fill in the working for the range and the interquartile range.' : 'Read the box plot. Fill in the working for the interquartile range.'),
+      ],
+      template: both ? '\\text{range} = {0} - {1} = {2}, \\quad \\text{IQR} = {3} - {4} = {5}' : '\\text{IQR} = {0} - {1} = {2}',
+      bank: valueBank(answer, slips, 3, scale.tick),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: ({ box, scale, both }) => {
+    const { lo, hi } = boxEnds(box);
+    const steps: SolutionStep[] = [
+      { text: `Each small division on the scale is $${fmt(scale.tick)}$. The box runs from $Q_1 = ${fmt(box.q1)}$ to $Q_3 = ${fmt(box.q3)}$, with the median at $${fmt(box.q2)}$.` },
+    ];
+    if (both) {
+      if (box.outliers.length > 0) steps.push({ text: `The cross at $${fmt(box.outliers[0])}$ is an outlier, but still a value, so the range runs to it.` });
+      steps.push({ tex: `\\text{range} = ${fmt(hi)} - ${fmt(lo)} = ${fmt(hi - lo)}` });
+    }
+    steps.push({ tex: `\\text{IQR} = ${fmt(box.q3)} - ${fmt(box.q1)} = ${fmt(box.q3 - box.q1)}` });
+    return steps;
+  },
+};
+
+interface BoxSliderParams {
+  box: Box;
+  scale: BoxScale;
+  ask: 'q1' | 'q2' | 'q3';
+  /** Difficulty 2 names the value by what it means rather than by its name. */
+  worded: boolean;
+}
+
+const BOX_NAMES = { q1: 'lower quartile', q2: 'median', q3: 'upper quartile' } as const;
+const BOX_MEANINGS = {
+  q1: 'a quarter of the values lie below it',
+  q2: 'half the values lie above it and half below',
+  q3: 'a quarter of the values lie above it',
+} as const;
+
+/**
+ * Slide the marker along the scale to a quartile or the median of a box
+ * plot, named at difficulty 1 and described by what it means at 2, where the
+ * ticks are finer and an outlier may be plotted.
+ */
+const boxSlider: Generator<BoxSliderParams> = {
+  id: 'dat-box-slider',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const ask = rng.pick(['q1', 'q2', 'q3'] as const);
+    for (;;) {
+      const scale = boxScale(rng, hard);
+      const box = sampleBox(rng, scale, hard ? rng.pick(['none', 'upper', 'lower'] as const) : 'none');
+      // The handle starts in the middle, where an untouched answer must not score.
+      if (box[ask] === scale.lo + Math.round((scale.hi - scale.lo) / 2 / scale.tick) * scale.tick) continue;
+      return { box, scale, ask, worded: hard };
+    }
+  },
+  render: ({ box, scale, ask, worded }): Slide => ({
+    kind: 'slider',
+    prompt: [
+      say(
+        worded
+          ? `Slide the marker to the value where ${BOX_MEANINGS[ask]}.`
+          : `Slide the marker to the ${BOX_NAMES[ask]} of this box plot.`,
+      ),
+    ],
+    min: scale.lo,
+    max: scale.hi,
+    step: scale.tick,
+    answer: box[ask],
+    readout: '\\text{marker at } {v}',
+    figure: {
+      svg: boxPlotSvg([{ box }], scale, boxLabel(scale, box.outliers.length > 0)),
+      ...markerWindow(scale.lo, scale.hi),
+    },
+  }),
+  solution: ({ box, ask, worded }) => {
+    const steps: SolutionStep[] = [];
+    if (worded) steps.push({ text: `A box plot splits the values into quarters, so ${BOX_MEANINGS[ask]} at the ${BOX_NAMES[ask]}.` });
+    steps.push({
+      text: {
+        q1: `The lower quartile is the left-hand end of the box: $${fmt(box.q1)}$.`,
+        q2: `The median is the line inside the box: $${fmt(box.q2)}$.`,
+        q3: `The upper quartile is the right-hand end of the box: $${fmt(box.q3)}$.`,
+      }[ask],
+    });
+    return steps;
+  },
+};
+
+interface WhiskerParams {
+  values: number[];
+  sorted: boolean;
+  side: 'upper' | 'lower';
+}
+
+/**
+ * Where a whisker ends when a list holds an outlier: at the furthest value
+ * that is not one, not at the outlier, the fence or the quartile. The upper
+ * whisker of an ordered list with its quartiles given at difficulty 1; either
+ * whisker of a jumbled list at 2.
+ */
+const boxWhisker: Generator<WhiskerParams> = {
+  id: 'dat-box-whisker',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const side = hard ? rng.pick(['upper', 'lower'] as const) : 'upper';
+    for (;;) {
+      const n = hard ? rng.pick([11, 15]) : 11;
+      const lo = rng.int(15, 40);
+      const spread = rng.int(10, 24);
+      const body = ints(rng, n - 1, lo, lo + spread);
+      const stray = side === 'upper' ? lo + spread + rng.int(12, 40) : lo - rng.int(12, lo - 2);
+      const raw = rng.shuffle([...body, stray]);
+      const { q1, q2, q3 } = quartiles(raw);
+      if (!(q1 < q2 && q2 < q3)) continue;
+      const f = fences({ q1, q3 });
+      if (outliersIn(raw).length !== 1 || !(stray > f.upper || stray < f.lower)) continue;
+      if (raw.some((x) => Math.abs(x - f.lower) < 1 || Math.abs(x - f.upper) < 1)) continue;
+      const end = side === 'upper' ? Math.max(...body) : Math.min(...body);
+      if (end === (side === 'upper' ? q3 : q1)) continue;
+      return { values: hard ? raw : ordered(raw), sorted: !hard, side };
+    }
+  },
+  render: ({ values, sorted, side }): Slide => {
+    const { q1, q3 } = quartiles(values);
+    const f = fences({ q1, q3 });
+    const upper = side === 'upper';
+    const inside = values.filter((x) => x >= f.lower && x <= f.upper);
+    const end = upper ? Math.max(...inside) : Math.min(...inside);
+    const stray = upper ? Math.max(...values) : Math.min(...values);
+    const n = values.length;
+    const lead = sorted
+      ? `These ${n} values are in order: ${listProse(values)}. $Q_1 = ${q1}$ and $Q_3 = ${q3}$.`
+      : `Here are ${n} values: ${listProse(values)}.`;
+    return choiceSlide(
+      [say(`${lead} A box plot of them marks any outlier with a cross. Where does the ${upper ? 'right-hand' : 'left-hand'} whisker end?`)],
+      valueChoices(end, [stray, upper ? f.upper : f.lower, upper ? q3 : q1], mix(...values)),
+      values.join(','),
+    );
+  },
+  solution: ({ values, sorted, side }) => {
+    const { s, q1, q3 } = quartiles(values);
+    const f = fences({ q1, q3 });
+    const upper = side === 'upper';
+    const inside = values.filter((x) => x >= f.lower && x <= f.upper);
+    const stray = upper ? Math.max(...values) : Math.min(...values);
+    const steps: SolutionStep[] = [];
+    if (!sorted) steps.push({ text: `In order: ${listProse(s)}, so $Q_1 = ${q1}$ and $Q_3 = ${q3}$.` });
+    steps.push(
+      { text: `The IQR is $${q3 - q1}$, so the fences are $${fmt(f.lower)}$ and $${fmt(f.upper)}$.` },
+      { text: `$${stray}$ is beyond the ${side} fence: it is an outlier, and plotted as a cross.` },
+      { text: `The whisker stops at the ${upper ? 'largest' : 'smallest'} value that is not an outlier: $${upper ? Math.max(...inside) : Math.min(...inside)}$.` },
+    );
+    return steps;
+  },
+};
+
+interface BoxFenceParams {
+  box: Box;
+  scale: BoxScale;
+  side: 'upper' | 'lower';
+}
+
+/**
+ * Check a plotted outlier: the fence from quartiles read off the plot, one
+ * operation at a time. The line starts as symbols, so the first step is
+ * reading $Q_3$ and $Q_1$ off the box. The upper fence on the coarse scale at
+ * difficulty 1; either fence on the fine one at 2.
+ */
+const boxFence: Generator<BoxFenceParams> = {
+  id: 'dat-box-fence',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const side = hard ? rng.pick(['upper', 'lower'] as const) : 'upper';
+    const scale = boxScale(rng, hard);
+    return { box: sampleBox(rng, scale, side), scale, side };
+  },
+  render: ({ box, scale, side }): Slide => {
+    const upper = side === 'upper';
+    const iqr = box.q3 - box.q1;
+    const part = 1.5 * iqr;
+    const fence = upper ? box.q3 + part : box.q1 - part;
+    const t = scale.tick;
+    return {
+      kind: 'steps',
+      prompt: [
+        boxFigure(box, scale),
+        say(
+          `The cross at $${fmt(box.outliers[0])}$ is plotted as an outlier. Check it: read the quartiles off the box and work out the ${side} fence. Tap the part you would do next, then choose what it comes to.`,
+        ),
+      ],
+      start: [upper ? 'Q_3' : 'Q_1', upper ? '+' : '-', '1.5', '\\times', '(', 'Q_3', '-', 'Q_1', ')'],
+      reductions: [
+        { span: [4, 9], operator: 6, value: fmt(iqr), bank: stepBank(fmt(iqr), ...tidy([box.q3 + box.q1, box.max - box.min, iqr + t, box.q2 - box.q1]).map(fmt)) },
+        { span: [2, 5], operator: 3, value: fmt(part), bank: stepBank(fmt(part), ...tidy([iqr + 1.5, 2 * iqr, part + t]).map(fmt)) },
+        {
+          span: [0, 3],
+          operator: 1,
+          value: fmt(fence),
+          bank: stepBank(fmt(fence), ...tidy([upper ? box.q1 + part : box.q3 - part, fence + t, fence - t, upper ? box.max + part : box.min - part]).map(fmt)),
+        },
+      ],
+    };
+  },
+  solution: ({ box, side }) => {
+    const upper = side === 'upper';
+    const iqr = box.q3 - box.q1;
+    const fence = upper ? box.q3 + 1.5 * iqr : box.q1 - 1.5 * iqr;
+    return [
+      { text: `The box runs from $Q_1 = ${fmt(box.q1)}$ to $Q_3 = ${fmt(box.q3)}$, so the IQR is $${fmt(iqr)}$ and $1.5 \\times ${fmt(iqr)} = ${fmt(1.5 * iqr)}$.` },
+      { tex: upper ? `${fmt(box.q3)} + ${fmt(1.5 * iqr)} = ${fmt(fence)}` : `${fmt(box.q1)} - ${fmt(1.5 * iqr)} = ${fmt(fence)}` },
+      { text: `The cross at $${fmt(box.outliers[0])}$ is ${upper ? 'above' : 'below'} $${fmt(fence)}$, so it is an outlier, and the whisker stops at $${fmt(upper ? box.max : box.min)}$, inside the fence.` },
+    ];
+  },
+};
+
+/* ---------- comparing two box plots ---------- */
+
+interface TwoBoxParams {
+  context: number;
+  a: Box;
+  b: Box;
+  scale: BoxScale;
+}
+
+const iqrOf = (box: Box): number => box.q3 - box.q1;
+const rangeOfBox = (box: Box): number => box.max - box.min;
+
+/**
+ * Two box plots on one scale whose medians and IQRs both differ. At
+ * difficulty 2 the ticks are finer and the ranges compare the other way
+ * round from the IQRs, so reading spread off the whiskers gives the wrong
+ * group.
+ */
+function sampleTwoBoxes(rng: Rng, difficulty: number): TwoBoxParams {
+  const hard = difficulty > 1;
+  const context = rng.int(0, COMPARE_CONTEXTS.length - 1);
+  const scale = boxScale(rng, hard);
+  const gap = hard ? 1 : 2;
+  for (;;) {
+    const a = sampleBox(rng, scale, 'none');
+    const b = sampleBox(rng, scale, 'none');
+    if (Math.abs(a.q2 - b.q2) < gap * scale.tick || Math.abs(iqrOf(a) - iqrOf(b)) < gap * scale.tick) continue;
+    const r = Math.sign(rangeOfBox(a) - rangeOfBox(b));
+    if (hard && r !== -Math.sign(iqrOf(a) - iqrOf(b))) continue;
+    return { context, a, b, scale };
+  }
+}
+
+function twoBoxFigure({ context, a, b, scale }: TwoBoxParams): Block {
+  const [na, nb] = COMPARE_CONTEXTS[context].names;
+  return {
+    kind: 'diagram',
+    svg: boxPlotSvg(
+      [
+        { name: na, box: a },
+        { name: nb, box: b },
+      ],
+      scale,
+      `Two box plots on one scale from ${scale.lo} to ${scale.hi}: ${na} above, ${nb} below`,
+    ),
+  };
+}
+
+function twoBoxSolution({ context, a, b }: TwoBoxParams): SolutionStep[] {
+  const [na, nb] = COMPARE_CONTEXTS[context].names;
+  return [
+    { text: `Medians: ${na} $${fmt(a.q2)}$, ${nb} $${fmt(b.q2)}$. ${a.q2 > b.q2 ? na : nb} is higher on average.` },
+    {
+      text: `Interquartile ranges: ${na} $${fmt(a.q3)} - ${fmt(a.q1)} = ${fmt(iqrOf(a))}$, ${nb} $${fmt(b.q3)} - ${fmt(b.q1)} = ${fmt(iqrOf(b))}$. ${iqrOf(a) > iqrOf(b) ? na : nb} is more spread out.`,
+    },
+    { text: 'The IQR is the spread to compare, not the length of the whiskers: one extreme value can stretch a whisker.' },
+  ];
+}
+
+/** Which statement about two box plots is right: the higher median, and the larger IQR. */
+const boxesChoice: Generator<TwoBoxParams> = {
+  id: 'dat-boxes-choice',
+  sample: sampleTwoBoxes,
+  render: (params): Slide => {
+    const [na, nb] = COMPARE_CONTEXTS[params.context].names;
+    const higher = params.a.q2 > params.b.q2 ? na : nb;
+    const wider = iqrOf(params.a) > iqrOf(params.b) ? na : nb;
+    const opts = [na, nb].flatMap((x) =>
+      [na, nb].map((y) => ({
+        tex: `${x} has the higher median, and ${y} has the larger interquartile range.`,
+        correct: x === higher && y === wider ? true : undefined,
+      })),
+    );
+    return choiceSlide(
+      [twoBoxFigure(params), say(`${COMPARE_CONTEXTS[params.context].intro} Which statement is correct?`)],
+      opts,
+      JSON.stringify([params.a, params.b, params.scale.lo]),
+      false,
+    );
+  },
+  solution: twoBoxSolution,
+};
+
+interface BoxesFlowParams extends TwoBoxParams {
+  /** Difficulty 2 first asks whether a higher value is better here. */
+  better: boolean;
+}
+
+/**
+ * Two box plots compared as a walk: the higher median, then the larger IQR at
+ * difficulty 1. At 2, first whether a higher value is better in this context,
+ * then which group did better on average, then which was more consistent.
+ */
+const boxesFlow: Generator<BoxesFlowParams> = {
+  id: 'dat-boxes-flow',
+  sample: (rng, difficulty) => ({ ...sampleTwoBoxes(rng, difficulty), better: difficulty > 1 }),
+  render: (params): Slide => {
+    const ctx = COMPARE_CONTEXTS[params.context];
+    const [na, nb] = ctx.names;
+    const key = JSON.stringify([params.a, params.b, params.context]);
+    const higher = params.a.q2 > params.b.q2 ? na : nb;
+    const wider = iqrOf(params.a) > iqrOf(params.b) ? na : nb;
+    const steadier = wider === na ? nb : na;
+    const prompt = [twoBoxFigure(params), say(`${ctx.intro} Compare the two.`)];
+    const subject = `\\text{${na}} \\text{ and } \\text{${nb}}`;
+    if (!params.better) {
+      const spread = (id: string, high: string): Extract<Slide, { kind: 'flow' }>['steps'][number] => ({
+        id,
+        ask: 'Which has the larger interquartile range?',
+        branches: [na, nb].map((y) => ({ label: y, outcome: `${high} has the higher median, and ${y} is more spread out.` })),
+      });
+      return {
+        kind: 'flow',
+        prompt,
+        subject,
+        steps: [
+          {
+            id: 'med',
+            ask: 'Which has the higher median?',
+            branches: [
+              { label: na, to: 'sa' },
+              { label: nb, to: 'sb' },
+            ],
+          },
+          spread('sa', na),
+          spread('sb', nb),
+        ],
+        answer: [higher, wider],
+      };
+    }
+    const best = ctx.higher === params.a.q2 > params.b.q2 ? na : nb;
+    const verdict = (winner: string) =>
+      [na, nb].map((y) => ({
+        label: y,
+        outcome: winner === y ? `${winner} did better on average and was more consistent.` : `${winner} did better on average, but ${y} was more consistent.`,
+      }));
+    const pick = (ask: string, id: string): Extract<Slide, { kind: 'flow' }>['steps'][number] => ({
+      id,
+      ask,
+      branches: [
+        { label: na, to: 'ca' },
+        { label: nb, to: 'cb' },
+      ],
+    });
+    return {
+      kind: 'flow',
+      prompt,
+      subject,
+      steps: [
+        {
+          id: 'better',
+          ask: `Is a higher value better for ${ctx.what}?`,
+          branches: rotated(
+            [
+              { label: 'Yes', to: 'hi' },
+              { label: 'No', to: 'lo' },
+            ],
+            `${key}b`,
+          ),
+        },
+        pick('Which has the higher median?', 'hi'),
+        pick('Which has the lower median?', 'lo'),
+        { id: 'ca', ask: 'Which has the smaller interquartile range?', branches: verdict(na) },
+        { id: 'cb', ask: 'Which has the smaller interquartile range?', branches: verdict(nb) },
+      ],
+      answer: [ctx.higher ? 'Yes' : 'No', best, steadier],
+    };
+  },
+  solution: (params) => {
+    const ctx = COMPARE_CONTEXTS[params.context];
+    const steps = twoBoxSolution(params);
+    if (params.better) steps.unshift({ text: ctx.higher ? `For ${ctx.what}, higher is better.` : `For ${ctx.what}, lower is better, so the lower median did better.` });
+    return steps;
+  },
+};
+
+/** Both boxes' quartiles read off, and each IQR: coarse ticks at difficulty 1, fine at 2. */
+const boxesTree: Generator<TwoBoxParams> = {
+  id: 'dat-boxes-tree',
+  sample: sampleTwoBoxes,
+  render: (params): Slide => {
+    const { a, b, scale } = params;
+    const [na, nb] = COMPARE_CONTEXTS[params.context].names;
+    const answer = [a.q1, a.q3, b.q1, b.q3, iqrOf(a), iqrOf(b)];
+    const slips = [a.q2, b.q2, a.min, b.max, rangeOfBox(a), rangeOfBox(b), Math.abs(a.q2 - b.q2)];
+    return {
+      kind: 'tree',
+      prompt: [
+        twoBoxFigure(params),
+        say(`Top row, left to right: $Q_1$ and $Q_3$ of ${na}, then $Q_1$ and $Q_3$ of ${nb}. Underneath, the interquartile range of each.`),
+      ],
+      expression: '\\text{IQR} = Q_3 - Q_1',
+      nodes: [
+        { id: 'a1', from: [] },
+        { id: 'a3', from: [] },
+        { id: 'b1', from: [] },
+        { id: 'b3', from: [] },
+        { id: 'ia', from: ['a1', 'a3'] },
+        { id: 'ib', from: ['b1', 'b3'] },
+      ],
+      bank: valueBank(answer, slips, 3, scale.tick),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: (params) => {
+    const { a, b } = params;
+    const [na, nb] = COMPARE_CONTEXTS[params.context].names;
+    return [
+      { text: `Each box runs from $Q_1$ to $Q_3$. Each small division is $${fmt(params.scale.tick)}$.` },
+      { tex: aligned(`\\text{${na}}: ${fmt(a.q3)} - ${fmt(a.q1)} &= ${fmt(iqrOf(a))}`, `\\text{${nb}}: ${fmt(b.q3)} - ${fmt(b.q1)} &= ${fmt(iqrOf(b))}`) },
+    ];
+  },
+};
+
+type Quartile = 'q1' | 'q2' | 'q3';
+
+interface BoxesPercentParams extends TwoBoxParams {
+  /** The second group's value the question is about. */
+  stat: Quartile;
+  /** The first group's quartile it lines up with. */
+  match: Quartile;
+  above: boolean;
+  /** How many values the first group has, at difficulty 2; 0 asks for a percentage. */
+  count: number;
+}
+
+/** The share of a box plot's values above each of its quartiles. */
+const SHARE_ABOVE: Record<Quartile, number> = { q1: 0.75, q2: 0.5, q3: 0.25 };
+
+const boxesShare = ({ match, above }: BoxesPercentParams): number => (above ? SHARE_ABOVE[match] : 1 - SHARE_ABOVE[match]);
+
+/**
+ * What share of one group lies above or below a value of the other, where
+ * that value lines up with one of the first group's quartiles. A percentage
+ * at difficulty 1; at 2 a number of values out of a stated count.
+ */
+const boxesPercent: Generator<BoxesPercentParams> = {
+  id: 'dat-boxes-percent',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const context = rng.int(0, COMPARE_CONTEXTS.length - 1);
+    const scale = boxScale(rng, hard);
+    const stat = rng.pick(['q1', 'q2', 'q3'] as const);
+    const match = rng.pick(['q1', 'q2', 'q3'] as const);
+    for (;;) {
+      // Both boxes are redrawn: a fixed first box can leave no room for the second.
+      const a = sampleBox(rng, scale, 'none');
+      const b = sampleBox(rng, scale, 'none');
+      if (b[stat] !== a[match] || JSON.stringify(a) === JSON.stringify(b)) continue;
+      const count = hard ? rng.pick([20, 40, 60, 80, 100, 120, 200]) : 0;
+      return { context, a, b, scale, stat, match, above: rng.chance(0.5), count };
+    }
+  },
+  render: (params): Slide => {
+    const [na, nb] = COMPARE_CONTEXTS[params.context].names;
+    const share = boxesShare(params);
+    const way = params.above ? 'more' : 'less';
+    return {
+      kind: 'expression',
+      prompt: [
+        twoBoxFigure(params),
+        say(
+          params.count > 0
+            ? `${COMPARE_CONTEXTS[params.context].intro} ${na} has ${params.count} values. About how many of them are ${way} than the ${BOX_NAMES[params.stat]} of ${nb}?`
+            : `${COMPARE_CONTEXTS[params.context].intro} About what percentage of ${na}'s values are ${way} than the ${BOX_NAMES[params.stat]} of ${nb}?`,
+        ),
+      ],
+      lead: params.count > 0 ? '\\text{number} \\approx' : '\\text{percentage} \\approx',
+      keypad: NUMBER_KEYS,
+      answer: fmt(params.count > 0 ? params.count * share : 100 * share),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const [na, nb] = COMPARE_CONTEXTS[params.context].names;
+    const v = params.b[params.stat];
+    const share = boxesShare(params);
+    const steps: SolutionStep[] = [
+      { text: `The ${BOX_NAMES[params.stat]} of ${nb} is $${fmt(v)}$, which is where ${na}'s ${BOX_NAMES[params.match]} is.` },
+      { text: `Each part of a box plot holds a quarter of the values, so $${fmt(100 * share)}\\%$ of ${na} lies ${params.above ? 'above' : 'below'} it.` },
+    ];
+    if (params.count > 0) steps.push({ tex: `${fmt(share)} \\times ${params.count} = ${fmt(share * params.count)}` });
+    return steps;
+  },
+};
+
+/* ================================================================
+ * Level 3, lessons 4 and 5: histograms
+ * ================================================================ */
+
+export interface HistFigure {
+  bounds: readonly number[];
+  /** Each bar's height, a frequency density; `null` leaves the bar out. */
+  heights: readonly (number | null)[];
+  yMax: number;
+  /** A faint line across at every step. */
+  yStep: number;
+  /** A number up the side at every multiple of this; 0 leaves the scale unnumbered. */
+  yEvery: number;
+  /** Faint lines up at this spacing too, so squares can be counted. */
+  xGrid?: number;
+  label: string;
+}
+
+export const HIST_HEIGHT = 170;
+
+/**
+ * The bottom of the drawing as a density: below zero, to leave room for the
+ * class boundaries under the axis. A `y` slider over the figure declares its
+ * span from here to `yMax`, through `markerWindow`.
+ */
+export const histFloor = (yMax: number): number => (-12 * yMax) / (HIST_HEIGHT - 36);
+
+/**
+ * A histogram: bars as wide as their classes and as tall as their frequency
+ * densities, on squared lines so heights can be read off.
+ *
+ * Drawn here rather than by `plotSvg`, which has no bars. The bars carry the
+ * class `hist-bar` and the numbers along each axis `hist-x` and `hist-y`, so
+ * the tests can read the picture back.
+ */
+export function histogramSvg(fig: HistFigure): string {
+  const { bounds, heights, yMax, yStep, yEvery, xGrid, label } = fig;
+  const left = yEvery > 0 ? 30 : 14;
+  const right = FIG_WIDTH - 14;
+  const first = bounds[0];
+  const last = bounds[bounds.length - 1];
+  const floor = histFloor(yMax);
+  const x = (v: number) => left + ((v - first) / (last - first)) * (right - left);
+  const y = (v: number) => FIG_PAD + ((yMax - v) / (yMax - floor)) * (HIST_HEIGHT - 2 * FIG_PAD);
+  const f1 = (v: number) => v.toFixed(1);
+  const parts = [`<svg viewBox="0 0 ${FIG_WIDTH} ${HIST_HEIGHT}" width="100%" role="img" aria-label="${label}">`];
+  const rows = Math.round(yMax / yStep);
+  for (let j = 1; j <= rows; j += 1) {
+    parts.push(`<line x1="${left}" y1="${f1(y(j * yStep))}" x2="${right}" y2="${f1(y(j * yStep))}" stroke="currentColor" stroke-width="0.5" opacity="0.2" />`);
+  }
+  if (xGrid) {
+    for (let v = first + xGrid; v < last; v += xGrid) {
+      parts.push(`<line x1="${f1(x(v))}" y1="${f1(y(0))}" x2="${f1(x(v))}" y2="${f1(y(yMax))}" stroke="currentColor" stroke-width="0.5" opacity="0.2" />`);
+    }
+  }
+  if (yEvery > 0) {
+    for (let j = 0; j * yEvery <= yMax + 1e-9; j += 1) {
+      parts.push(
+        `<text class="hist-y" x="${left - 4}" y="${f1(y(j * yEvery) + 3.5)}" font-size="9" fill="currentColor" text-anchor="end">${fmt(j * yEvery)}</text>`,
+      );
+    }
+  }
+  heights.forEach((h, i) => {
+    if (h === null) return;
+    const at = `x="${f1(x(bounds[i]))}" y="${f1(y(h))}" width="${f1(x(bounds[i + 1]) - x(bounds[i]))}" height="${f1(y(0) - y(h))}"`;
+    parts.push(`<rect class="plot-shade" ${at} />`, `<rect class="hist-bar" ${at} fill="none" stroke="currentColor" stroke-width="1.5" />`);
+  });
+  parts.push(
+    `<line x1="${left}" y1="${f1(y(0))}" x2="${right}" y2="${f1(y(0))}" stroke="currentColor" stroke-width="1" opacity="0.7" />`,
+    `<line x1="${left}" y1="${f1(y(0))}" x2="${left}" y2="${FIG_PAD}" stroke="currentColor" stroke-width="1" opacity="0.7" />`,
+  );
+  for (const b of bounds) {
+    parts.push(`<text class="hist-x" x="${f1(x(b))}" y="${f1(y(0) + 13)}" font-size="9" fill="currentColor" text-anchor="middle">${fmt(b)}</text>`);
+  }
+  parts.push('</svg>');
+  return parts.join('');
+}
+
+interface HistParams {
+  /** Class boundaries, one more than there are classes. */
+  bounds: number[];
+  freqs: number[];
+  context: number;
+}
+
+const classWidths = ({ bounds, freqs }: HistParams): number[] => freqs.map((_, i) => bounds[i + 1] - bounds[i]);
+const densities = (p: HistParams): number[] => classWidths(p).map((w, i) => p.freqs[i] / w);
+
+/** How a draw is made: the widths on offer, and densities as whole numbers of `step`. */
+interface HistRule {
+  widths: number[];
+  step: number;
+  units: [number, number];
+  /** Numbers up the side every this much. */
+  every: number;
+}
+
+/** Whole densities up to 10 on classes of 5, 10 and 20. */
+const HIST_EASY: HistRule = { widths: [5, 10, 20], step: 1, units: [1, 10], every: 2 };
+/** Densities in fifths up to 3, on classes as awkward as 15, 25 and 40. Every frequency is still whole. */
+const HIST_HARD: HistRule = { widths: [5, 10, 15, 20, 25, 40], step: 0.2, units: [2, 15], every: 1 };
+
+const histRule = (difficulty: number): HistRule => (difficulty > 1 ? HIST_HARD : HIST_EASY);
+
+/** The rule a draw was made under: only difficulty 2 draws more than three classes. */
+const ruleOf = (p: { freqs: readonly number[] }): HistRule => histRule(p.freqs.length > 3 ? 2 : 1);
+
+/**
+ * `k` classes of at least two different widths, none narrower than a
+ * thirteenth of the whole so its boundary numbers do not collide, with a
+ * density on the rule's grid and so a whole frequency.
+ */
+function sampleHist(rng: Rng, k: number, rule: HistRule, accept: (p: HistParams) => boolean = () => true): HistParams {
+  for (;;) {
+    const ws = Array.from({ length: k }, () => rng.pick(rule.widths));
+    if (new Set(ws).size < 2 || Math.min(...ws) * 13 < total(ws)) continue;
+    const bounds = [10 * rng.int(0, 5)];
+    for (const w of ws) bounds.push(bounds[bounds.length - 1] + w);
+    const freqs = ws.map((w) => Math.round(rng.int(rule.units[0], rule.units[1]) * rule.step * w));
+    const params = { bounds, freqs, context: rng.int(0, GROUPED_CONTEXTS.length - 1) };
+    if (densities(params).some((d) => !exact(d / rule.step, 0))) continue;
+    if (accept(params)) return params;
+  }
+}
+
+/** The vertical scale for a histogram under a rule: its lines, its numbers and its top. */
+function histScale(p: HistParams, rule: HistRule) {
+  const top = Math.max(...densities(p));
+  return { yMax: Math.ceil(top / rule.every - 1e-9) * rule.every, yStep: rule.step, yEvery: rule.every };
+}
+
+const histLabel = (p: HistParams): string =>
+  `A histogram of ${p.freqs.length} classes from ${p.bounds[0]} to ${p.bounds[p.bounds.length - 1]}, with frequency density up the side`;
+
+function histFigure(p: HistParams, rule: HistRule, hide?: number): string {
+  return histogramSvg({
+    bounds: p.bounds,
+    heights: densities(p).map((d, i) => (i === hide ? null : d)),
+    ...histScale(p, rule),
+    label: histLabel(p),
+  });
+}
+
+const histPrompt = (p: HistParams, rule: HistRule, ask: string): Block[] => [
+  { kind: 'diagram', svg: histFigure(p, rule) },
+  say(`${GROUPED_CONTEXTS[p.context]} The histogram's vertical scale is frequency density. ${ask}`),
+];
+
+const classOf = (p: HistParams, i: number): string => classTex(p.bounds[i], p.bounds[i + 1]);
+
+/** Frequency density written out for one class. */
+const densityLine = (p: HistParams, i: number): string =>
+  `\\frac{${p.freqs[i]}}{${classWidths(p)[i]}} = ${fmt(densities(p)[i])}`;
+
+/**
+ * Each class's width and frequency density filled in from a grouped table:
+ * three classes with whole densities at difficulty 1, four with densities in
+ * fifths and awkward widths at 2.
+ */
+const fdTable: Generator<HistParams> = {
+  id: 'dat-fd-table',
+  sample: (rng, difficulty) => sampleHist(rng, difficulty > 1 ? 4 : 3, histRule(difficulty)),
+  render: (params): Slide => {
+    const ws = classWidths(params);
+    const ds = densities(params);
+    const answer = ws.flatMap((w, i) => [w, ds[i]]);
+    const slips = params.freqs.flatMap((f, i) => [ws[i] / f, params.bounds[i + 1], f - ws[i], f / 10]);
+    return {
+      kind: 'table',
+      prompt: [say(`${GROUPED_CONTEXTS[params.context]} The classes are different widths. Fill in each class's width, then its frequency density: the frequency divided by the width.`)],
+      columns: ['\\text{Class}', 'f', '\\text{Width}', '\\text{Density}'],
+      rows: params.freqs.map((f, i) => [classOf(params, i), `${f}`, null, null]),
+      bank: valueBank(answer, slips, 3, ruleOf(params).step),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: (params) => [
+    { text: 'Each width is the top of the class take the bottom. Each density is the frequency over the width:' },
+    { tex: aligned(...params.freqs.map((_, i) => `${classWidths(params)[i]}: \\quad ${densityLine(params, i).replace(' = ', ' &= ')}`)) },
+    { text: 'The density is how many values there are per unit of width, which is what makes unequal classes comparable.' },
+  ],
+};
+
+interface HistClassParams extends HistParams {
+  /** The class the question is about. */
+  at: number;
+}
+
+/**
+ * One class's frequency density as tiles, the frequency over the width. A
+ * whole density at difficulty 1; at 2 the width is 15, 20, 25 or 40 and the
+ * density a decimal.
+ */
+const fdTiles: Generator<HistClassParams> = {
+  id: 'dat-fd-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const params = sampleHist(rng, hard ? 4 : 3, histRule(difficulty));
+      const at = rng.int(0, params.freqs.length - 1);
+      const w = classWidths(params)[at];
+      if (hard && (w < 15 || whole(densities(params)[at]))) continue;
+      return { ...params, at };
+    }
+  },
+  render: (params): Slide => {
+    const { at } = params;
+    const f = params.freqs[at];
+    const w = classWidths(params)[at];
+    const d = densities(params)[at];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(GROUPED_CONTEXTS[params.context]),
+        show(groupedTableTex(params.bounds, params.freqs)),
+        say(`Fill in the working for the frequency density of $${classOf(params, at)}$.`),
+      ],
+      template: '\\text{density} = {0} \\div {1} = {2}',
+      bank: valueBank([f, w, d], [w / f, params.bounds[at + 1], params.bounds[at], f * w, 2 * d, f / 10]),
+      answer: [fmt(f), fmt(w), fmt(d)],
+    };
+  },
+  solution: (params) => [
+    { text: `The class $${classOf(params, params.at)}$ is $${params.bounds[params.at + 1]} - ${params.bounds[params.at]} = ${classWidths(params)[params.at]}$ wide.` },
+    { tex: `\\text{density} = ${densityLine(params, params.at)}` },
+  ],
+};
+
+/**
+ * Slide the marker up to the height a missing bar should be: its frequency
+ * over its width. Whole densities at difficulty 1, fifths at 2.
+ */
+const fdSlider: Generator<HistClassParams> = {
+  id: 'dat-fd-slider',
+  sample: (rng, difficulty) => {
+    const rule = histRule(difficulty);
+    for (;;) {
+      const params = sampleHist(rng, difficulty > 1 ? 4 : 3, rule);
+      const at = rng.int(0, params.freqs.length - 1);
+      const { yMax } = histScale(params, rule);
+      // The handle starts in the middle, where an untouched answer must not score.
+      if (Math.abs(densities(params)[at] - Math.round(yMax / 2 / rule.step) * rule.step) < 1e-9) continue;
+      return { ...params, at };
+    }
+  },
+  render: (params): Slide => {
+    const rule = ruleOf(params);
+    const { yMax } = histScale(params, rule);
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          `${GROUPED_CONTEXTS[params.context]} The histogram is missing the bar for $${classOf(params, params.at)}$, which has a frequency of $${params.freqs[params.at]}$. Slide the marker to the height that bar should be.`,
+        ),
+      ],
+      min: 0,
+      max: yMax,
+      step: rule.step,
+      answer: densities(params)[params.at],
+      readout: '\\text{density} = {v}',
+      figure: {
+        svg: histFigure(params, rule, params.at),
+        ...markerWindow(histFloor(yMax), yMax, 'y', HIST_HEIGHT),
+        axis: 'y',
+      },
+    };
+  },
+  solution: (params) => [
+    { text: 'A bar is as tall as its frequency density, the frequency over the class width.' },
+    { tex: `\\text{density} = ${densityLine(params, params.at)}` },
+  ],
+};
+
+interface HistAreaParams extends HistClassParams {
+  /** Two classes, `at` and the one after, at difficulty 2. */
+  two: boolean;
+}
+
+/**
+ * The frequency from a bar's area, density times width: one bar with a
+ * whole density at difficulty 1, two neighbouring bars in fifths at 2.
+ */
+const fdArea: Generator<HistAreaParams> = {
+  id: 'dat-fd-area',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const params = sampleHist(rng, hard ? 4 : 3, histRule(difficulty));
+    return { ...params, at: rng.int(0, params.freqs.length - (hard ? 2 : 1)), two: hard };
+  },
+  render: (params): Slide => {
+    const { at, two } = params;
+    const rule = ruleOf(params);
+    const end = two ? at + 2 : at + 1;
+    return {
+      kind: 'expression',
+      prompt: histPrompt(
+        params,
+        rule,
+        two
+          ? `How many values are in $${classTex(params.bounds[at], params.bounds[end])}$?`
+          : `How many values are in the class $${classOf(params, at)}$?`,
+      ),
+      lead: 'f =',
+      keypad: NUMBER_KEYS,
+      answer: fmt(total(params.freqs.slice(at, end))),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { at, two } = params;
+    const ds = densities(params);
+    const ws = classWidths(params);
+    const bars = two ? [at, at + 1] : [at];
+    const steps: SolutionStep[] = [
+      { text: 'The frequency is the area of the bar: its height, the density, times its width.' },
+      { tex: aligned(...bars.map((i) => `${fmt(ds[i])} \\times ${ws[i]} &= ${params.freqs[i]}`)) },
+    ];
+    if (two) steps.push({ tex: `${params.freqs[at]} + ${params.freqs[at + 1]} = ${params.freqs[at] + params.freqs[at + 1]}` });
+    return steps;
+  },
+};
+
+interface HistPartParams extends HistParams {
+  /** The range asked about runs from `p` in class `i` to `q` in class `i + 1`. */
+  i: number;
+  p: number;
+  q: number;
+}
+
+/** The two pieces of area a range covers: the end of bar `i` and the start of bar `i + 1`. */
+function histPieces({ i, p, q, ...h }: HistPartParams): [number, number] {
+  const ds = densities(h);
+  return [ds[i] * (h.bounds[i + 1] - p), ds[i + 1] * (q - h.bounds[i + 1])];
+}
+
+/**
+ * The frequency in a range that takes part of a bar, by the share of its
+ * width: a whole bar and part of the next at difficulty 1, part of each of two
+ * bars at 2. Every piece comes to a whole number.
+ */
+const histPart: Generator<HistPartParams> = {
+  id: 'dat-hist-part',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const h = sampleHist(rng, hard ? 4 : 3, histRule(difficulty));
+      const i = rng.int(0, h.freqs.length - 2);
+      const ws = classWidths(h);
+      const p = hard ? h.bounds[i + 1] - rng.int(1, ws[i] - 1) : h.bounds[i];
+      const q = h.bounds[i + 1] + rng.int(1, ws[i + 1] - 1);
+      const params = { ...h, i, p, q };
+      if (histPieces(params).some((piece) => !whole(piece) || piece === 0)) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const [a, b] = histPieces(params);
+    const ds = densities(params);
+    const answer = [a, b, a + b];
+    const slips = [params.freqs[params.i], params.freqs[params.i + 1], ds[params.i], ds[params.i + 1], params.q - params.p, params.freqs[params.i] + params.freqs[params.i + 1]];
+    return {
+      kind: 'tree',
+      prompt: histPrompt(
+        params,
+        ruleOf(params),
+        `Estimate how many values lie between $${params.p}$ and $${params.q}$. Top row: the part in the first bar, then the part in the second. Underneath, the total.`,
+      ),
+      expression: 'f = \\text{density} \\times \\text{width}',
+      nodes: [
+        { id: 'a', from: [] },
+        { id: 'b', from: [] },
+        { id: 't', from: ['a', 'b'] },
+      ],
+      bank: valueBank(answer, slips),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: (params) => {
+    const { i, p, q, bounds } = params;
+    const ds = densities(params);
+    const [a, b] = histPieces(params);
+    return [
+      { text: `From $${p}$ to $${q}$ takes $${bounds[i + 1] - p}$ of the width of the bar at height $${fmt(ds[i])}$, and $${q - bounds[i + 1]}$ of the next, at height $${fmt(ds[i + 1])}$.` },
+      { tex: aligned(`${fmt(ds[i])} \\times ${bounds[i + 1] - p} &= ${fmt(a)}`, `${fmt(ds[i + 1])} \\times ${q - bounds[i + 1]} &= ${fmt(b)}`) },
+      { text: `About $${fmt(a + b)}$ values. An estimate, since it takes the values in a class to be spread evenly across it.` },
+    ];
+  },
+};
+
+/**
+ * Every bar's frequency read off as its area, then the total: three classes
+ * with whole densities at difficulty 1, four or five in fifths at 2.
+ */
+const histTotal: Generator<HistParams> = {
+  id: 'dat-hist-total',
+  sample: (rng, difficulty) => sampleHist(rng, difficulty > 1 ? rng.int(4, 5) : 3, histRule(difficulty)),
+  render: (params): Slide => {
+    const ds = densities(params);
+    const answer = [...params.freqs, total(params.freqs)];
+    const slips = [...ds, total(ds), total(params.freqs) + classWidths(params)[0]];
+    return {
+      kind: 'table',
+      prompt: histPrompt(params, ruleOf(params), 'Fill in the frequency of each class, then the total.'),
+      columns: ['\\text{Class}', 'f'],
+      rows: [...params.freqs.map((_, i) => [classOf(params, i), null]), ['\\text{Total}', null]],
+      bank: valueBank(answer, slips),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: (params) => {
+    const ds = densities(params);
+    const ws = classWidths(params);
+    return [
+      { text: 'Each frequency is a bar\'s area, its height times its width:' },
+      { tex: aligned(...params.freqs.map((f, i) => `${fmt(ds[i])} \\times ${ws[i]} &= ${f}`)) },
+      { text: `Adding the areas: $${params.freqs.join(' + ')} = ${total(params.freqs)}$.` },
+    ];
+  },
+};
+
+interface HistTallestParams extends HistParams {
+  ask: 'most' | 'fewest';
+}
+
+/**
+ * Which class holds the most values, or the fewest, drawn so that the tallest
+ * bar (or the shortest) is not the answer: height is density, and a wide low
+ * bar can hold more. Three classes and the most at difficulty 1; four or five
+ * and either at 2.
+ */
+const histTallest: Generator<HistTallestParams> = {
+  id: 'dat-hist-tallest',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const ask = hard ? rng.pick(['most', 'fewest'] as const) : 'most';
+    const pickOf = (xs: number[]) => (ask === 'most' ? Math.max(...xs) : Math.min(...xs));
+    const params = sampleHist(rng, hard ? rng.int(4, 5) : 3, histRule(difficulty), (p) => {
+      const ds = densities(p);
+      const f = pickOf(p.freqs);
+      const d = pickOf(ds);
+      if (p.freqs.filter((x) => x === f).length > 1 || ds.filter((x) => x === d).length > 1) return false;
+      return p.freqs.indexOf(f) !== ds.indexOf(d);
+    });
+    return { ...params, ask };
+  },
+  render: (params): Slide => {
+    const pick = params.ask === 'most' ? Math.max(...params.freqs) : Math.min(...params.freqs);
+    const right = params.freqs.indexOf(pick);
+    const opts = params.freqs.map((_, i) => ({ tex: classOf(params, i), correct: i === right ? true : undefined }));
+    return choiceSlide(
+      histPrompt(params, ruleOf(params), `Which class has the ${params.ask} values?`),
+      opts,
+      `${params.bounds.join(',')}|${params.freqs.join(',')}|${params.ask}`,
+    );
+  },
+  solution: (params) => {
+    const ds = densities(params);
+    const ws = classWidths(params);
+    const pick = params.ask === 'most' ? Math.max(...params.freqs) : Math.min(...params.freqs);
+    const i = params.freqs.indexOf(pick);
+    const bar = params.ask === 'most' ? ds.indexOf(Math.max(...ds)) : ds.indexOf(Math.min(...ds));
+    return [
+      { text: `The ${params.ask === 'most' ? 'tallest' : 'shortest'} bar is $${classOf(params, bar)}$, but height is frequency density, not frequency. The frequency is the area, bar by bar from the left:` },
+      { tex: aligned(...params.freqs.map((f, j) => `${fmt(ds[j])} \\times ${ws[j]} &= ${f}`)) },
+      { text: `So $${classOf(params, i)}$ has the ${params.ask} values, $${pick}$.` },
+    ];
+  },
+};
+
+interface HistScaleParams {
+  bounds: number[];
+  /** Bar heights in squares of the grid. */
+  heights: number[];
+  /** The width of one square along the bottom. */
+  grid: number;
+  /** Values per square. */
+  per: number;
+  known: number;
+  asked: number;
+  context: number;
+}
+
+const squaresOf = ({ bounds, heights, grid }: HistScaleParams, i: number): number => ((bounds[i + 1] - bounds[i]) / grid) * heights[i];
+
+/**
+ * A histogram with no numbers up the side: one class's frequency is given,
+ * which fixes how many values a square of the grid stands for, and another
+ * class's frequency follows from its area in squares. Whole values per
+ * square at difficulty 1; a half at 2, over four classes.
+ */
+const histScaleGen: Generator<HistScaleParams> = {
+  id: 'dat-hist-scale',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const k = hard ? 4 : 3;
+    for (;;) {
+      const grid = hard ? rng.pick([5, 10]) : 5;
+      const spans = Array.from({ length: k }, () => rng.int(1, 4));
+      if (new Set(spans).size < 2 || total(spans) > 12) continue;
+      const bounds = [10 * rng.int(0, 5)];
+      for (const s of spans) bounds.push(bounds[bounds.length - 1] + s * grid);
+      const heights = Array.from({ length: k }, () => rng.int(1, 8));
+      const per = hard ? rng.pick([0.5, 1.5, 2.5]) : rng.int(1, 5);
+      const [known, asked] = rng.sample(Array.from({ length: k }, (_, i) => i), 2);
+      const params = { bounds, heights, grid, per, known, asked, context: rng.int(0, GROUPED_CONTEXTS.length - 1) };
+      const sk = squaresOf(params, known);
+      const sa = squaresOf(params, asked);
+      if (sk === sa || heights[known] === heights[asked] || !whole(per * sk) || !whole(per * sa)) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { bounds, heights, grid, known, asked, per } = params;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'diagram',
+          svg: histogramSvg({
+            bounds,
+            heights,
+            yMax: Math.max(...heights) + 1,
+            yStep: 1,
+            yEvery: 0,
+            xGrid: grid,
+            label: `A histogram of ${heights.length} classes on squared lines, with no numbers up the side`,
+          }),
+        },
+        say(
+          `${GROUPED_CONTEXTS[params.context]} The vertical scale is not numbered. The class $${classTex(bounds[known], bounds[known + 1])}$ has a frequency of $${fmt(per * squaresOf(params, known))}$. How many values are in $${classTex(bounds[asked], bounds[asked + 1])}$?`,
+        ),
+      ],
+      lead: 'f =',
+      keypad: NUMBER_KEYS,
+      answer: fmt(per * squaresOf(params, asked)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { bounds, heights, grid, known, asked, per } = params;
+    const sk = squaresOf(params, known);
+    const sa = squaresOf(params, asked);
+    const size = (i: number) => `${(bounds[i + 1] - bounds[i]) / grid} \\times ${heights[i]} = ${squaresOf(params, i)}`;
+    return [
+      { text: `Frequency is area, so count squares. The bar for $${classTex(bounds[known], bounds[known + 1])}$ covers $${size(known)}$ squares.` },
+      { text: `So one square stands for $${fmt(per * sk)} \\div ${sk} = ${fmt(per)}$ values.` },
+      { text: `The bar for $${classTex(bounds[asked], bounds[asked + 1])}$ covers $${size(asked)}$ squares.` },
+      { tex: `f = ${sa} \\times ${fmt(per)} = ${fmt(per * sa)}` },
+    ];
+  },
+};
+
 export const dataAveragesSpreadGenerators = [
   mean,
   medianMode,
@@ -2593,4 +4200,25 @@ export const dataAveragesSpreadGenerators = [
   sdTiles,
   compareChoice,
   compareFlow,
+  stemLeaves,
+  stemRead,
+  stemQuartiles,
+  stemKeyChoice,
+  boxFive,
+  boxRead,
+  boxSlider,
+  boxWhisker,
+  boxFence,
+  boxesChoice,
+  boxesFlow,
+  boxesTree,
+  boxesPercent,
+  fdTable,
+  fdTiles,
+  fdSlider,
+  fdArea,
+  histPart,
+  histTotal,
+  histTallest,
+  histScaleGen,
 ];

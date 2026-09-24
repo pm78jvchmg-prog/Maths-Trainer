@@ -10398,6 +10398,2007 @@ const storyMeetSteps: Generator<StoryRegionParams> = {
   },
 };
 
+/* ======================================================================
+ * Level 7: Modelling with Linear Equations
+ *
+ * Batch C1-l7. Stories turned into straight-line equations, and the answers
+ * read back into the story: naming the unknown and writing every quantity
+ * from it, break-even, rates of travel and of filling, two things blended to
+ * a target, and reading a model back — which equation fits, an answer that
+ * makes no sense, the effect of changing one number, a formula rearranged
+ * for the story's unknown. Level 1's two plans set equal, level 2's pairs
+ * from words and level 3's rearranging are pointed at, not re-asked, and
+ * curved models belong to Quadratics and Exponential Models.
+ *
+ * Every model is built outward from its answer. The count, time or amount
+ * is drawn first and multiplied up to the totals, so every price, distance
+ * and total a learner reads is whole, and so is every step on the way. The
+ * one exception is on purpose: the sense-check flow shows a model whose
+ * answer is half a cake or a negative time, and asks what is wrong.
+ *
+ * No slide here declares `source`, `integrand` or `limits`: nothing is
+ * calculus, so the oracle in `generators.test.ts` skips every one of them.
+ * `linearModelling.test.ts` is the independent check instead: it reads each
+ * prompt back as the learner sees it, solves the story again, and holds
+ * every tile, node, branch, option and typed answer against that.
+ * ==================================================================== */
+
+/** A sum of money in prose: `£$12$`. */
+const pounds = (value: number): string => `£$${value}$`;
+
+const plural = (count: number, one: string, many: string): string => (count === 1 ? one : many);
+
+/**
+ * Three amounts for a flow's last fork: the answer and two near misses, all
+ * whole, positive and different, smallest first so the order says nothing.
+ */
+function amountsNear(correct: number, ...near: number[]): number[] {
+  const out = [correct];
+  for (const value of near) {
+    if (out.length < 3 && Number.isInteger(value) && value > 0 && !out.includes(value)) out.push(value);
+  }
+  for (let gap = 1; out.length < 3; gap += 1) {
+    for (const value of [correct + gap, correct - gap]) {
+      if (out.length < 3 && value > 0 && !out.includes(value)) out.push(value);
+    }
+  }
+  return out.sort((a, b) => a - b);
+}
+
+/* ---------- Lesson 1: naming the unknown ---------- */
+
+const NAME_PEOPLE: readonly (readonly [string, string, string])[] = [
+  ['Amy', 'Ben', 'Cara'],
+  ['Dev', 'Ella', 'Finn'],
+  ['Gita', 'Hal', 'Isla'],
+  ['Jon', 'Kemi', 'Leo'],
+  ['Mia', 'Noor', 'Omar'],
+  ['Priya', 'Quinn', 'Rosa'],
+];
+
+const NAME_THINGS = ['stickers', 'marbles', 'stamps', 'cards', 'shells', 'badges'] as const;
+
+/** The six orders three names can be introduced in. */
+const LISTINGS: readonly (readonly [number, number, number])[] = [
+  [0, 1, 2],
+  [0, 2, 1],
+  [1, 0, 2],
+  [1, 2, 0],
+  [2, 0, 1],
+  [2, 1, 0],
+];
+
+interface NameParams {
+  people: number;
+  thing: number;
+  /** The order the three names are introduced in, so the one to call $x$ is not always named first. */
+  listing: number;
+  /** The first person's count: the one everything else is written from. */
+  x: number;
+  /** The second has `m` times as many as the first, and `d` more. */
+  m: number;
+  d: number;
+  /** The third is described from the second rather than the first. */
+  chain: boolean;
+  /** The third has `n` times as many as whoever it is described from, and `e` more. */
+  n: number;
+  e: number;
+  /** The third person's sentence comes first. */
+  flipped: boolean;
+  /** Who a question asks about: 1 the second person, 2 the third. */
+  target: 1 | 2;
+}
+
+/** Each person's count as a multiple of $x$ plus a number: [coefficient, constant]. */
+function nameTerms(p: NameParams): [number, number][] {
+  const third: [number, number] = p.chain ? [p.n * p.m, p.n * p.d + p.e] : [p.n, p.e];
+  return [[1, 0], [p.m, p.d], third];
+}
+
+const nameCounts = (p: NameParams): number[] => nameTerms(p).map(([k, c]) => k * p.x + c);
+
+/** The total collected: $Kx + C = T$. */
+function nameCollected(p: NameParams): { K: number; C: number; T: number } {
+  const terms = nameTerms(p);
+  const K = terms.reduce((sum, [k]) => sum + k, 0);
+  const C = terms.reduce((sum, [, c]) => sum + c, 0);
+  return { K, C, T: K * p.x + C };
+}
+
+/** "Ben has $3$ more than twice as many as Amy." */
+function relationText(who: string, of: string, m: number, d: number): string {
+  const more = `$${Math.abs(d)}$ ${d > 0 ? 'more' : 'fewer'} than`;
+  if (m === 1) return `${who} has ${more} ${of}.`;
+  const times = `${TIMES_WORD[m]} as many as ${of}`;
+  return d === 0 ? `${who} has ${times}.` : `${who} has ${more} ${times}.`;
+}
+
+function nameStory(p: NameParams): string {
+  const names = NAME_PEOPLE[p.people];
+  const listed = LISTINGS[p.listing].map((i) => names[i]);
+  const second = relationText(names[1], names[0], p.m, p.d);
+  const third = relationText(names[2], p.chain ? names[1] : names[0], p.n, p.e);
+  const sentences = p.flipped ? [third, second] : [second, third];
+  return `${listed[0]}, ${listed[1]} and ${listed[2]} collect ${NAME_THINGS[p.thing]}. ${sentences.join(' ')}`;
+}
+
+/** The third person's count as it is first written, before tidying: `2(2x + 3) - 1`. */
+function nameThirdRaw(p: NameParams): string {
+  if (!p.chain) return linTex(p.n, p.e);
+  const inner = linTex(p.m, p.d);
+  const outer = p.n === 1 ? inner : `${p.n}(${inner})`;
+  return p.e === 0 ? outer : `${outer} ${signedTile(p.e)}`;
+}
+
+/**
+ * Three people's counts, each whole, positive and different, and a total
+ * whose collected equation has a number on the left. Difficulty 2 lets the
+ * third be described from the second, allows three times as many, and may
+ * put the third's sentence first.
+ */
+function sampleName(rng: Rng, difficulty: number): NameParams {
+  const hard = difficulty > 1;
+  return drawUntil(
+    () => {
+      const m = rng.pick(hard ? [1, 2, 3] : [1, 2]);
+      const n = rng.pick(hard ? [1, 2, 3] : [1, 2]);
+      const chain = hard && rng.chance(0.5);
+      return {
+        people: rng.int(0, NAME_PEOPLE.length - 1),
+        thing: rng.int(0, NAME_THINGS.length - 1),
+        listing: rng.int(0, LISTINGS.length - 1),
+        x: rng.int(hard ? 4 : 3, hard ? 25 : 15),
+        m,
+        d: rng.pick(m === 1 ? nonZeroRange(-9, 9) : range(-9, 9)),
+        chain,
+        n,
+        e: rng.pick(n === 1 ? nonZeroRange(-9, 9) : range(-9, 9)),
+        flipped: hard && rng.chance(0.5),
+        target: chain ? 2 : rng.pick([1, 2] as const),
+      };
+    },
+    (p) => {
+      const counts = nameCounts(p);
+      return counts.every((count) => count >= 1) && new Set(counts).size === 3 && nameCollected(p).C !== 0;
+    },
+    { people: 0, thing: 0, listing: 2, x: 5, m: 2, d: 3, chain: false, n: 1, e: 4, flipped: false, target: 1 },
+  );
+}
+
+/** The working shared by every lesson 1 question: name, write, collect, solve, answer. */
+function nameWorking(p: NameParams): SolutionStep[] {
+  const names = NAME_PEOPLE[p.people];
+  const terms = nameTerms(p);
+  const { K, C, T } = nameCollected(p);
+  const counts = nameCounts(p);
+  const third = linTex(...terms[2]);
+  const raw = nameThirdRaw(p);
+  return [
+    {
+      text: `Call ${names[0]}'s number $x$. Then ${names[1]} has $${linTex(...terms[1])}$ and ${names[2]} has $${raw === third ? third : `${raw} = ${third}`}$.`,
+    },
+    { tex: `\\begin{aligned} &x + (${linTex(...terms[1])}) \\\\ &\\quad + (${third}) = ${T} \\end{aligned}` },
+    { tex: stackTex([`${linTex(K, C)} = ${T}`, `${leadTerm(K, 'x')} = ${T - C}`, `x = ${p.x}`]) },
+    {
+      text: `So ${names[0]} has $${counts[0]}$, ${names[1]} has $${counts[1]}$ and ${names[2]} has $${counts[2]}$: they add up to $${T}$.`,
+    },
+  ];
+}
+
+/**
+ * Which quantity to call $x$: the one every other count is written from.
+ * The names are introduced in a drawn order, so it is not always the first
+ * one met; difficulty 2 chains the third count off the second and may state
+ * it first, so the one to name has to be traced back.
+ */
+const nameLetter: Generator<NameParams> = {
+  id: 'lin-name-letter',
+  sample: sampleName,
+  render: (p): Slide => {
+    const names = NAME_PEOPLE[p.people];
+    const count = (who: string) => `\\text{the number ${who} has}`;
+    return sortedChoice(
+      [
+        {
+          kind: 'prose',
+          text: `${nameStory(p)} Which number is best called $x$, so that every other count can be written from it?`,
+        },
+      ],
+      labelChoices(count(names[0]), count(names[1]), count(names[2]), `\\text{the total number of ${NAME_THINGS[p.thing]}}`),
+    );
+  },
+  solution: (p) => {
+    const names = NAME_PEOPLE[p.people];
+    const terms = nameTerms(p);
+    return [
+      {
+        text: p.chain
+          ? `${names[2]} is described from ${names[1]}, and ${names[1]} from ${names[0]}, so everything starts from ${names[0]}.`
+          : `${names[1]} and ${names[2]} are both described from ${names[0]}, so everything starts from ${names[0]}.`,
+      },
+      {
+        text: `Call ${names[0]}'s number $x$: then ${names[1]} has $${linTex(...terms[1])}$ and ${names[2]} has $${linTex(...terms[2])}$, with no fractions anywhere.`,
+      },
+    ];
+  },
+};
+
+/**
+ * One person's count in terms of $x$, placed as tiles. Difficulty 2 chains
+ * the third off the second, so the bracket has to be multiplied out: the
+ * bank holds the constant left unmultiplied, and one more or one fewer $x$.
+ */
+const nameExpress: Generator<NameParams> = {
+  id: 'lin-name-express',
+  sample: sampleName,
+  render: (p): Slide => {
+    const names = NAME_PEOPLE[p.people];
+    const [k, c] = nameTerms(p)[p.target];
+    const answer = c === 0 ? [leadTerm(k, 'x')] : [leadTerm(k, 'x'), signedTile(c)];
+    const slip = p.chain ? p.d + p.e : p.target === 1 ? p.e : p.d;
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${nameStory(p)} Let $x$ be the number of ${NAME_THINGS[p.thing]} ${names[0]} has. Write the number ${names[p.target]} has in terms of $x$.`,
+        },
+      ],
+      template: c === 0 ? '{0}' : '{0} {1}',
+      bank: bankOf(answer, [
+        leadTerm(k + 1, 'x'),
+        ...(k > 1 ? [leadTerm(k - 1, 'x')] : []),
+        signedTile(c === 0 ? p.m + 1 : -c),
+        ...(slip === 0 ? [] : [signedTile(slip)]),
+      ]),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const names = NAME_PEOPLE[p.people];
+    const [k, c] = nameTerms(p)[p.target];
+    const raw = p.target === 1 ? linTex(p.m, p.d) : nameThirdRaw(p);
+    const tidy = linTex(k, c);
+    return [
+      {
+        text:
+          p.target === 2 && p.chain
+            ? `${names[1]} has $${linTex(p.m, p.d)}$, and ${names[2]} is written from ${names[1]}'s number.`
+            : `${names[p.target]} is written straight from ${names[0]}'s number, $x$.`,
+      },
+      { tex: raw === tidy ? tidy : `${raw} = ${tidy}` },
+    ];
+  },
+};
+
+/**
+ * The whole story as one equation, like terms collected, placed as tiles.
+ * The slips on offer are forgetting $x$ itself among the three, the number's
+ * sign, and the total with the number already moved across.
+ */
+const nameTotal: Generator<NameParams> = {
+  id: 'lin-name-total',
+  sample: sampleName,
+  render: (p): Slide => {
+    const names = NAME_PEOPLE[p.people];
+    const { K, C, T } = nameCollected(p);
+    const answer = [leadTerm(K, 'x'), signedTile(C), `${T}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${nameStory(p)} Together they have $${T}$ ${NAME_THINGS[p.thing]}. Let $x$ be the number ${names[0]} has. Write the equation for the total, with like terms collected.`,
+        },
+      ],
+      template: '{0} {1} = {2}',
+      bank: bankOf(answer, [leadTerm(K - 1, 'x'), leadTerm(K + 1, 'x'), signedTile(-C), numberTile(T - C), numberTile(T + C)]),
+      answer,
+    };
+  },
+  solution: (p) => nameWorking(p).slice(0, 3),
+};
+
+/**
+ * The story solved, and the question answered: the count asked for is never
+ * $x$ itself, so stopping at $x$ is the slip the options offer.
+ */
+const nameSolve: Generator<NameParams> = {
+  id: 'lin-name-solve',
+  choices: (p) => {
+    const counts = nameCounts(p);
+    const { T } = nameCollected(p);
+    return numberChoices(counts[p.target], p.x, counts[3 - p.target], Math.round(T / 3));
+  },
+  sample: sampleName,
+  render: (p): Slide => {
+    const names = NAME_PEOPLE[p.people];
+    const { T } = nameCollected(p);
+    const who = names[p.target];
+    const thing = NAME_THINGS[p.thing];
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: `${nameStory(p)} Together they have $${T}$ ${thing}. How many does ${who} have?` }],
+      lead: `\\text{${who}'s ${thing}} =`,
+      keypad: [],
+      answer: `${nameCounts(p)[p.target]}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (p) => [
+    ...nameWorking(p),
+    { text: `The question asks for ${NAME_PEOPLE[p.people][p.target]}'s, so the answer is $${nameCounts(p)[p.target]}$, not $x$.` },
+  ],
+};
+
+/**
+ * From the collected equation to every count, as a tree: the number moved
+ * across, $x$, then each person's count from the one it is written from.
+ */
+const nameTree: Generator<NameParams> = {
+  id: 'lin-name-tree',
+  sample: sampleName,
+  render: (p): Slide => {
+    const names = NAME_PEOPLE[p.people];
+    const { K, C, T } = nameCollected(p);
+    const counts = nameCounts(p);
+    const answer = [`${T - C}`, `${p.x}`, `${counts[1]}`, `${counts[2]}`];
+    const move = C > 0 ? `take $${C}$ off the total` : `put $${-C}$ back on the total`;
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${nameStory(p)} Together they have $${T}$ ${NAME_THINGS[p.thing]}. With $x$ for ${names[0]}'s, the equation collects to $${linTex(K, C)} = ${T}$. Fill the tree: ${move}, divide by $${K}$ for $x$, then find ${names[1]}'s and ${names[2]}'s.`,
+        },
+      ],
+      expression: `x = (${T} ${C > 0 ? '-' : '+'} ${Math.abs(C)}) \\div ${K}`,
+      nodes: [
+        { id: 'rest', from: [] },
+        { id: 'x', from: ['rest'] },
+        { id: 'second', from: ['x'] },
+        { id: 'third', from: [p.chain ? 'second' : 'x'] },
+      ],
+      bank: treeBank(answer, [T + C, (T + C) / K, p.x + 1, counts[1] + p.d], p.x),
+      answer,
+    };
+  },
+  solution: nameWorking,
+};
+
+/* ---------- Lesson 2: break-even ---------- */
+
+interface EvenStory {
+  who: string;
+  /** What the fixed cost pays for, after "pays £F". */
+  setup: string;
+  item: string;
+  items: string;
+}
+
+const EVEN_STORIES: readonly EvenStory[] = [
+  { who: 'A school stall', setup: 'to hire its table', item: 'cake', items: 'cakes' },
+  { who: 'A printer', setup: 'for a new press', item: 'poster', items: 'posters' },
+  { who: 'A florist', setup: 'to rent a market pitch', item: 'bunch of flowers', items: 'bunches' },
+  { who: 'A juice bar', setup: 'for a blender', item: 'smoothie', items: 'smoothies' },
+  { who: 'A craft seller', setup: 'for a stand at a fair', item: 'candle', items: 'candles' },
+];
+
+interface EvenParams {
+  story: number;
+  /** The break-even count. */
+  n: number;
+  /** Cost to make one. */
+  c: number;
+  /** What each one sold makes over its cost, so the price is `c + g`. */
+  g: number;
+  /** The price and cost come before the fixed cost. */
+  order: boolean;
+}
+
+const evenFixed = (p: EvenParams): number => p.n * p.g;
+const evenPrice = (p: EvenParams): number => p.c + p.g;
+
+/** The story's three numbers in words. Each has its own phrase, so the order can change. */
+function evenSentence(story: number, fixed: number, cost: number, price: number, order: boolean): string {
+  const s = EVEN_STORIES[story];
+  const pays = `${s.who} pays ${pounds(fixed)} ${s.setup}.`;
+  const each = order
+    ? `Each ${s.item} sells for ${pounds(price)} and costs ${pounds(cost)} to make.`
+    : `Each ${s.item} costs ${pounds(cost)} to make and sells for ${pounds(price)}.`;
+  return order ? `${each} ${pays}` : `${pays} ${each}`;
+}
+
+const evenText = (p: EvenParams): string => evenSentence(p.story, evenFixed(p), p.c, evenPrice(p), p.order);
+
+/**
+ * A break-even story, built from the count: the fixed cost is the count
+ * times what each sale makes over its cost. Difficulty 2 has larger numbers
+ * and may give the price first.
+ */
+function sampleEven(rng: Rng, difficulty: number, most?: number): EvenParams {
+  const hard = difficulty > 1;
+  return drawUntil(
+    () => ({
+      story: rng.int(0, EVEN_STORIES.length - 1),
+      n: rng.int(hard ? 8 : 4, most ?? (hard ? 40 : 20)),
+      c: rng.int(2, hard ? 15 : 6),
+      g: rng.int(hard ? 2 : 1, hard ? 12 : 6),
+      order: hard && rng.chance(0.5),
+    }),
+    (p) => evenFixed(p) !== evenPrice(p) && evenFixed(p) !== p.c && p.g !== p.c,
+    { story: 0, n: 6, c: 2, g: 3, order: false },
+  );
+}
+
+function evenWorking(p: EvenParams): SolutionStep[] {
+  const F = evenFixed(p);
+  const price = evenPrice(p);
+  return [
+    { text: `With $n$ sold, the income is $${price}n$ and the costs are $${F} + ${p.c}n$. At break-even they are equal.` },
+    { tex: `${price}n = ${F} + ${p.c}n` },
+    { tex: stackTex([`${p.g}n = ${F}`, `n = ${p.n}`]) },
+  ];
+}
+
+/** How many to sell to break even, typed. */
+const evenCount: Generator<EvenParams> = {
+  id: 'lin-even-count',
+  choices: (p) => {
+    const F = evenFixed(p);
+    return numberChoices(p.n, F / evenPrice(p), F / p.c, p.n + 1);
+  },
+  sample: (rng, difficulty) => sampleEven(rng, difficulty),
+  render: (p): Slide => {
+    const { items } = EVEN_STORIES[p.story];
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: `${evenText(p)} How many ${items} must it sell to break even?` }],
+      lead: `\\text{${items}} =`,
+      keypad: [],
+      answer: `${p.n}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (p) => [
+    ...evenWorking(p),
+    { text: `Each ${EVEN_STORIES[p.story].item} sold covers its own cost and ${pounds(p.g)} more, and $${p.n}$ lots of ${pounds(p.g)} is the ${pounds(evenFixed(p))}.` },
+  ],
+};
+
+/**
+ * The break-even equation placed as tiles: income on the left, costs on the
+ * right. The bank holds what each sale makes over its cost, which is the
+ * number the equation collects to rather than one in it.
+ */
+const evenTiles: Generator<EvenParams> = {
+  id: 'lin-even-tiles',
+  sample: (rng, difficulty) => sampleEven(rng, difficulty),
+  render: (p): Slide => {
+    const F = evenFixed(p);
+    const answer = [`${evenPrice(p)}`, `${F}`, `${p.c}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${evenText(p)} Let $n$ be the number sold. Write the equation that says the income equals the costs.`,
+        },
+      ],
+      template: '{0}n = {1} + {2}n',
+      bank: bankOf(answer, [`${p.g}`, `${p.n}`, `${F + p.c}`]),
+      answer,
+    };
+  },
+  solution: evenWorking,
+};
+
+/**
+ * Break-even as two lines crossing: the income rising from nothing, the
+ * costs starting at the fixed cost and rising more slowly.
+ */
+const evenSlider: Generator<EvenParams> = {
+  id: 'lin-even-slider',
+  sample: (rng, difficulty) => sampleEven(rng, difficulty, difficulty > 1 ? 18 : 10),
+  render: (p): Slide => {
+    const width = p.n > 10 ? 20 : 12;
+    const F = evenFixed(p);
+    const price = evenPrice(p);
+    const { items } = EVEN_STORIES[p.story];
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${evenText(p)} The solid line is the income and the dashed line the costs. Slide to the number of ${items} where they cross.`,
+        },
+      ],
+      min: 0,
+      max: width,
+      step: 1,
+      answer: p.n,
+      readout: `\\text{${items}} = {v}`,
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: width,
+          yMin: 0,
+          yMax: Math.max(price, F + p.c) * width + 2,
+          curves: [{ f: (t: number) => price * t }, { f: (t: number) => F + p.c * t, dashed: true }],
+          label: 'An income line rising from zero and a dashed cost line starting higher, crossing once',
+        }),
+        ...markerWindow(0, width),
+      },
+    };
+  },
+  solution: (p) => [
+    { text: 'The lines cross where the income equals the costs: the break-even point.' },
+    ...evenWorking(p),
+  ],
+};
+
+interface EvenTableParams extends EvenParams {
+  /** The step between the numbers sold in the rows. */
+  gap: number;
+  /** Which row is the break-even count. */
+  at: number;
+  /** The first row is filled in. */
+  given: boolean;
+}
+
+const evenRows = (p: EvenTableParams): number[] => [0, 1, 2].map((i) => p.n + (i - p.at) * p.gap);
+
+/**
+ * Costs and income for three numbers sold, one of them the break-even
+ * count, filled from a bank. Difficulty 1 gives the first row; difficulty 2
+ * leaves every cell blank and spaces the rows further apart.
+ */
+const evenTable: Generator<EvenTableParams> = {
+  id: 'lin-even-table',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return drawUntil(
+      () => ({
+        ...sampleEven(rng, difficulty),
+        gap: rng.int(hard ? 2 : 1, hard ? 6 : 3),
+        at: rng.int(hard ? 0 : 1, 2),
+        given: !hard,
+      }),
+      (p) => evenRows(p)[0] >= 0,
+      { story: 0, n: 6, c: 2, g: 3, order: false, gap: 2, at: 1, given: true },
+    );
+  },
+  render: (p): Slide => {
+    const F = evenFixed(p);
+    const price = evenPrice(p);
+    const given = p.given ? 0 : -1;
+    const rows = evenRows(p).map((k, i) =>
+      i === given ? [`${k}`, `${F + p.c * k}`, `${price * k}`] : [`${k}`, null, null],
+    );
+    const answer = evenRows(p).flatMap((k, i) => (i === given ? [] : [`${F + p.c * k}`, `${price * k}`]));
+    const middle = evenRows(p)[1];
+    return {
+      kind: 'table',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${evenText(p)} Fill in the costs and the income, in pounds, for each number sold. The row where they are equal is the break-even point.`,
+        },
+      ],
+      columns: ['n', '\\text{costs}', '\\text{income}'],
+      rows,
+      bank: treeBank(answer, [p.c * middle, F + price * middle, p.g * middle], F + p.c * p.n),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const F = evenFixed(p);
+    const price = evenPrice(p);
+    return [
+      { text: `The costs are $${F} + ${p.c}n$ and the income is $${price}n$.` },
+      ...evenRows(p).map((k) => ({
+        text: `Selling $${k}$: the costs are $${F} + ${p.c} \\times ${k} = ${F + p.c * k}$ and the income $${price} \\times ${k} = ${price * k}$.`,
+      })),
+      { text: `They are equal at $n = ${p.n}$, the break-even point.` },
+    ];
+  },
+};
+
+interface EvenFlowParams extends EvenParams {
+  /** How many were sold. */
+  k: number;
+  /** The income and costs are shown as expressions. */
+  shown: boolean;
+}
+
+const EVEN_MORE = 'Yes, more';
+const EVEN_LESS = 'No, less';
+const EVEN_SAME = 'Exactly the same';
+
+const evenProfit = (p: EvenFlowParams): number => p.g * (p.k - p.n);
+
+/** The three amounts on offer, the profit or loss among them. */
+function evenAmounts(p: EvenFlowParams): number[] {
+  const F = evenFixed(p);
+  const size = Math.abs(evenProfit(p));
+  return amountsNear(Math.max(size, 1), Math.abs(evenPrice(p) * p.k - F), p.g * p.k, size + p.c);
+}
+
+/**
+ * Profit or loss at a given number sold, either side of break-even. The
+ * amounts offered include the income less only the fixed cost, and what
+ * the sales make over their costs before the fixed cost comes off.
+ * Difficulty 1 shows the income and costs as expressions and sometimes
+ * lands on break-even itself; difficulty 2 shows only the number sold.
+ */
+const evenFlow: Generator<EvenFlowParams> = {
+  id: 'lin-even-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const base = sampleEven(rng, difficulty);
+    const offset = rng.pick(nonZeroRange(hard ? -15 : -5, hard ? 15 : 5));
+    const k = !hard && rng.chance(0.15) ? base.n : Math.max(1, base.n + offset);
+    return { ...base, k, shown: !hard };
+  },
+  render: (p): Slide => {
+    const { items } = EVEN_STORIES[p.story];
+    const F = evenFixed(p);
+    const price = evenPrice(p);
+    const profit = evenProfit(p);
+    const label = (v: number) => `£$${v}$`;
+    const amounts = evenAmounts(p);
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `${evenText(p)} It sells $${p.k}$ ${items}.` }],
+      subject: p.shown
+        ? stackTex([`\\text{income} = ${price}n`, `\\text{costs} = ${F} + ${p.c}n`])
+        : `n = ${p.k}`,
+      steps: [
+        {
+          id: 'compare',
+          ask: `Is the income from $${p.k}$ ${items} more than the costs?`,
+          branches: [
+            { label: EVEN_MORE, to: 'profit' },
+            { label: EVEN_LESS, to: 'loss' },
+            { label: EVEN_SAME, outcome: 'It breaks even: no profit and no loss.' },
+          ],
+        },
+        {
+          id: 'profit',
+          ask: 'How much profit does it make?',
+          branches: amounts.map((v) => ({ label: label(v), outcome: `A profit of £$${v}$.` })),
+        },
+        {
+          id: 'loss',
+          ask: 'How much does it lose?',
+          branches: amounts.map((v) => ({ label: label(v), outcome: `A loss of £$${v}$.` })),
+        },
+      ],
+      answer: profit === 0 ? [EVEN_SAME] : [profit > 0 ? EVEN_MORE : EVEN_LESS, label(Math.abs(profit))],
+    };
+  },
+  solution: (p) => {
+    const F = evenFixed(p);
+    const price = evenPrice(p);
+    const profit = evenProfit(p);
+    return [
+      { tex: `\\text{income} = ${price} \\times ${p.k} = ${price * p.k}` },
+      { tex: `\\text{costs} = ${F} + ${p.c} \\times ${p.k} = ${F + p.c * p.k}` },
+      {
+        text:
+          profit > 0
+            ? `The income is more by ${pounds(profit)}: a profit. It sold more than the $${p.n}$ needed to break even.`
+            : profit < 0
+              ? `The costs are more by ${pounds(-profit)}: a loss. It sold fewer than the $${p.n}$ needed to break even.`
+              : `They are equal: $${p.n}$ is exactly the break-even number.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Lesson 3: rates ---------- */
+
+interface Travel {
+  how: string;
+  /** Speeds in km/h, from `lo` to `hi` in steps of `step`. */
+  lo: number;
+  hi: number;
+  step: number;
+}
+
+const TRAVEL: readonly Travel[] = [
+  { how: 'walking', lo: 2, hi: 7, step: 1 },
+  { how: 'cycling', lo: 8, hi: 20, step: 1 },
+  { how: 'driving', lo: 30, hi: 80, step: 5 },
+];
+
+const TRAVELLERS: readonly (readonly [string, string])[] = [
+  ['Asha', 'Ben'],
+  ['Cal', 'Dina'],
+  ['Eve', 'Farid'],
+  ['Gus', 'Hana'],
+  ['Ivo', 'Jess'],
+];
+
+const speedIn = (rng: Rng, mode: number): number => {
+  const { lo, hi, step } = TRAVEL[mode];
+  return lo + step * rng.int(0, (hi - lo) / step);
+};
+
+interface ApproachParams {
+  pair: number;
+  mode: number;
+  /** The first traveller's speed, then the second's. */
+  u: number;
+  v: number;
+  /** Hours from when the second sets off until they meet. */
+  t: number;
+  /** Hours the first sets off before the second; 0 for together. */
+  h: number;
+}
+
+const meetGap = (p: ApproachParams): number => p.u * p.h + (p.u + p.v) * p.t;
+
+function meetText(p: ApproachParams): string {
+  const [a, b] = TRAVELLERS[p.pair];
+  const { how } = TRAVEL[p.mode];
+  return p.h === 0
+    ? `${a} and ${b} are $${meetGap(p)}$ km apart. They set off at the same time, ${how} towards each other: ${a} at $${p.u}$ km/h and ${b} at $${p.v}$ km/h.`
+    : `${a} and ${b} are $${meetGap(p)}$ km apart, ${how} towards each other. ${a} sets off first at $${p.u}$ km/h, and ${b} follows $${p.h}$ ${plural(p.h, 'hour', 'hours')} later at $${p.v}$ km/h.`;
+}
+
+/**
+ * Two travellers heading towards each other, built from the time they
+ * meet. Difficulty 2 adds driving speeds, and may give the first a head
+ * start in time, which covers some of the gap before the gap closes at
+ * both speeds together.
+ */
+function sampleMeet(rng: Rng, difficulty: number, delay: boolean, least = 1): ApproachParams {
+  const hard = difficulty > 1;
+  return drawUntil(
+    () => {
+      const mode = rng.int(0, hard ? 2 : 1);
+      return {
+        pair: rng.int(0, TRAVELLERS.length - 1),
+        mode,
+        u: speedIn(rng, mode),
+        v: speedIn(rng, mode),
+        t: rng.int(least, hard ? 6 : 5),
+        h: delay && hard && rng.chance(0.5) ? rng.int(1, 2) : 0,
+      };
+    },
+    (p) => p.u !== p.v,
+    { pair: 0, mode: 0, u: 3, v: 5, t: 2, h: 0 },
+  );
+}
+
+function meetWorking(p: ApproachParams): SolutionStep[] {
+  const D = meetGap(p);
+  const closing = p.u + p.v;
+  const [a] = TRAVELLERS[p.pair];
+  if (p.h === 0) {
+    return [
+      { text: `Heading towards each other, the gap closes at $${p.u} + ${p.v} = ${closing}$ km/h. With $t$ for the hours:` },
+      { tex: stackTex([`${p.u}t + ${p.v}t = ${D}`, `${closing}t = ${D}`]) },
+      { tex: `t = ${D} \\div ${closing} = ${p.t}` },
+    ];
+  }
+  return [
+    { text: `In the first $${p.h}$ ${plural(p.h, 'hour', 'hours')} ${a} covers $${p.u * p.h}$ km alone. After that the gap closes at $${closing}$ km/h.` },
+    { tex: stackTex([`${p.u * p.h} + ${closing}t = ${D}`, `${closing}t = ${D - p.u * p.h}`]) },
+    { tex: `t = ${p.t}` },
+  ];
+}
+
+/** When two travellers meet, typed in hours. */
+const rateMeet: Generator<ApproachParams> = {
+  id: 'lin-rate-meet',
+  choices: (p) => {
+    const D = meetGap(p);
+    return numberChoices(p.t, D / p.u, D / p.v, D / (p.u + p.v), p.t + p.h + 1);
+  },
+  sample: (rng, difficulty) => sampleMeet(rng, difficulty, true),
+  render: (p): Slide => {
+    const [, b] = TRAVELLERS[p.pair];
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${meetText(p)} ${p.h === 0 ? 'After how many hours do they meet?' : `How many hours after ${b} sets off do they meet?`}`,
+        },
+      ],
+      lead: '\\text{hours} =',
+      keypad: [],
+      answer: `${p.t}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: meetWorking,
+};
+
+/**
+ * Where two travellers meet, as a tree: how fast the gap closes, the time
+ * that takes, and how far each has gone. The two distances add back up to
+ * the gap, which is the check.
+ */
+const rateWhereTree: Generator<ApproachParams> = {
+  id: 'lin-rate-where-tree',
+  sample: (rng, difficulty) => sampleMeet(rng, difficulty, false),
+  render: (p): Slide => {
+    const [a, b] = TRAVELLERS[p.pair];
+    const D = meetGap(p);
+    const answer = [`${p.u + p.v}`, `${p.t}`, `${p.u * p.t}`, `${p.v * p.t}`];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${meetText(p)} Fill the tree: how fast the gap closes, the hours until they meet, then how far ${a} and ${b} have each gone.`,
+        },
+      ],
+      expression: `t = ${D} \\div (${p.u} + ${p.v})`,
+      nodes: [
+        { id: 'closing', from: [] },
+        { id: 'time', from: ['closing'] },
+        { id: 'first', from: ['time'] },
+        { id: 'second', from: ['time'] },
+      ],
+      bank: treeBank(answer, [Math.abs(p.v - p.u), D / Math.abs(p.v - p.u), p.u * p.t + p.u, D - p.u], p.t),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const [a, b] = TRAVELLERS[p.pair];
+    return [
+      ...meetWorking(p),
+      { text: `${a} has gone $${p.u} \\times ${p.t} = ${p.u * p.t}$ km and ${b} $${p.v} \\times ${p.t} = ${p.v * p.t}$ km, which add up to the $${meetGap(p)}$ km gap.` },
+    ];
+  },
+};
+
+interface CatchParams {
+  pair: number;
+  mode: number;
+  /** The one in front, then the one catching up. */
+  u: number;
+  v: number;
+  /** Hours from the start of the picture until the catch. */
+  t: number;
+  /** Hours the one in front sets off before the other, from the same place; 0 for a head start in distance. */
+  late: number;
+}
+
+/** The head start in km when both set off together. */
+const catchAhead = (p: CatchParams): number => (p.late === 0 ? (p.v - p.u) * p.t : 0);
+
+function catchText(p: CatchParams): string {
+  const [a, b] = TRAVELLERS[p.pair];
+  const { how } = TRAVEL[p.mode];
+  return p.late === 0
+    ? `${a} and ${b} set off at the same time along the same road, ${how}. ${a} starts $${catchAhead(p)}$ km ahead at $${p.u}$ km/h, and ${b} follows at $${p.v}$ km/h.`
+    : `${a} sets off along a road, ${how} at $${p.u}$ km/h. ${b} leaves the same place $${p.late}$ ${plural(p.late, 'hour', 'hours')} later at $${p.v}$ km/h.`;
+}
+
+function catchAsk(p: CatchParams): string {
+  const [a, b] = TRAVELLERS[p.pair];
+  return p.late === 0 ? `After how many hours does ${b} catch up?` : `How many hours after ${a} set off does ${b} catch up?`;
+}
+
+/**
+ * One traveller catching another, built from the time of the catch.
+ * Difficulty 1 gives a head start in distance; difficulty 2 mostly gives
+ * one in time, where the one behind sets off later from the same place, so
+ * the faster speed has to be one that makes the catch fall on a whole hour.
+ */
+function sampleCatch(rng: Rng, difficulty: number, allowLate: boolean): CatchParams {
+  const hard = difficulty > 1;
+  const late = allowLate && hard && rng.chance(0.7) ? rng.int(1, 3) : 0;
+  return drawUntil(
+    () => {
+      const mode = rng.int(0, hard ? 2 : 1);
+      const u = speedIn(rng, mode);
+      const t = rng.int(late + 1, hard ? 10 : 8);
+      const step = TRAVEL[mode].step;
+      return {
+        pair: rng.int(0, TRAVELLERS.length - 1),
+        mode,
+        u,
+        v: late === 0 ? u + step * rng.int(1, 5) : (u * t) / (t - late),
+        t,
+        late,
+      };
+    },
+    (p) => Number.isInteger(p.v) && p.v > p.u && p.v <= 2 * TRAVEL[p.mode].hi,
+    late === 0 ? { pair: 0, mode: 0, u: 3, v: 5, t: 3, late: 0 } : { pair: 0, mode: 0, u: 4, v: 8, t: 2, late: 1 },
+  );
+}
+
+function catchWorking(p: CatchParams): SolutionStep[] {
+  const [a, b] = TRAVELLERS[p.pair];
+  if (p.late === 0) {
+    const s = catchAhead(p);
+    return [
+      { text: `After $t$ hours ${a} is $${s} + ${p.u}t$ km from ${b}'s start and ${b} is $${p.v}t$ km. They are level when these are equal.` },
+      { tex: stackTex([`${p.v}t = ${s} + ${p.u}t`, `${leadTerm(p.v - p.u, 't')} = ${s}`]) },
+      { tex: `t = ${p.t}` },
+    ];
+  }
+  return [
+    { text: `After $t$ hours from ${a}'s start, ${a} has gone $${p.u}t$ km and ${b}, who has had $t - ${p.late}$ hours, has gone $${p.v}(t - ${p.late})$ km.` },
+    { tex: stackTex([`${p.v}(t - ${p.late}) = ${p.u}t`, `${p.v}t - ${p.v * p.late} = ${p.u}t`]) },
+    { tex: stackTex([`${leadTerm(p.v - p.u, 't')} = ${p.v * p.late}`, `t = ${p.t}`]) },
+  ];
+}
+
+/**
+ * Catching up, read off a distance-time graph: two straight lines, the one
+ * catching up steeper, crossing at the catch.
+ */
+const rateCatch: Generator<CatchParams> = {
+  id: 'lin-rate-catch',
+  sample: (rng, difficulty) => sampleCatch(rng, difficulty, true),
+  render: (p): Slide => {
+    const [a, b] = TRAVELLERS[p.pair];
+    const width = p.t > 8 ? 12 : 10;
+    const ahead = catchAhead(p);
+    const front = (s: number) => ahead + p.u * s;
+    const behind = (s: number) => p.v * Math.max(0, s - p.late);
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${catchText(p)} ${catchAsk(p)} The solid line is ${a} and the dashed line ${b}: distance against time in hours.`,
+        },
+      ],
+      min: 0,
+      max: width,
+      step: 1,
+      answer: p.t,
+      readout: '\\text{hours} = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: width,
+          yMin: 0,
+          yMax: Math.max(front(width), behind(width)) + 2,
+          curves: [{ f: front }, { f: behind, dashed: true }],
+          label: 'Two straight distance-time lines, the dashed one steeper, crossing once',
+        }),
+        ...markerWindow(0, width),
+      },
+    };
+  },
+  solution: catchWorking,
+};
+
+interface TankParams {
+  /** Litres in the tank at the start. */
+  v0: number;
+  /** Litres a minute in, and out. */
+  fill: number;
+  drain: number;
+  /** Minutes until the target. */
+  t: number;
+}
+
+const tankNet = (p: TankParams): number => p.fill - p.drain;
+const tankEnd = (p: TankParams): number => p.v0 + tankNet(p) * p.t;
+
+const tankText = (p: TankParams): string =>
+  `A tank has $${p.v0}$ litres in it. Water flows in at $${p.fill}$ litres a minute and drains out at $${p.drain}$ litres a minute.`;
+
+/**
+ * A tank filling as it drains, built from the minutes. Difficulty 1 always
+ * fills; difficulty 2 may drain faster than it fills, so the level falls.
+ * The net rate is never $0$ or $\pm 1$, so there is always a division left.
+ */
+function sampleTank(rng: Rng, difficulty: number): TankParams {
+  const hard = difficulty > 1;
+  return drawUntil(
+    () => {
+      const falling = hard && rng.chance(0.5);
+      const a = rng.int(hard ? 3 : 4, hard ? 20 : 12);
+      const b = rng.int(1, a - 2);
+      return {
+        v0: 10 * rng.int(falling ? 10 : 1, falling ? 40 : 10),
+        fill: falling ? b : a,
+        drain: falling ? a : b,
+        t: rng.int(2, hard ? 15 : 12),
+      };
+    },
+    (p) => Math.abs(tankNet(p)) >= 2 && tankEnd(p) >= 5,
+    { v0: 20, fill: 7, drain: 3, t: 5 },
+  );
+}
+
+function tankWorking(p: TankParams): SolutionStep[] {
+  const net = tankNet(p);
+  const V = tankEnd(p);
+  return [
+    {
+      text: `Each minute the level ${net > 0 ? 'rises' : 'falls'} by $${Math.abs(net)}$ litres, so after $t$ minutes it holds $${p.v0} ${signedTile(net, 't')}$.`,
+    },
+    { tex: `${p.v0} + (${p.fill} - ${p.drain})t = ${V}` },
+    { tex: stackTex([`${leadTerm(net, 't')} = ${V - p.v0}`, `t = ${p.t}`]) },
+  ];
+}
+
+/** The tank's equation solved a step at a time: the net rate, the number moved across, the division. */
+const rateTank: Generator<TankParams> = {
+  id: 'lin-rate-tank',
+  sample: sampleTank,
+  render: (p): Slide => {
+    const net = tankNet(p);
+    const V = tankEnd(p);
+    const term = leadTerm(net, 't');
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${tankText(p)} After how many minutes does it hold $${V}$ litres? ${HOW_TO_STEP}`,
+        },
+      ],
+      start: [`${p.v0}`, `+ (${p.fill} - ${p.drain})t`, '=', `${V}`],
+      reductions: [
+        {
+          span: [1, 2],
+          value: signedTile(net, 't'),
+          bank: stepBank(signedTile(net, 't'), signedTile(p.fill + p.drain, 't'), signedTile(-net, 't'), signedTile(p.fill, 't')),
+        },
+        {
+          span: [0, 4],
+          value: `${term} = ${V - p.v0}`,
+          bank: stepBank(`${term} = ${V - p.v0}`, `${term} = ${V + p.v0}`, `${term} = ${p.v0 - V}`, `${term} = ${V}`),
+        },
+        {
+          span: [0, 1],
+          value: `t = ${p.t}`,
+          bank: stepBank(`t = ${p.t}`, `t = ${p.t + 1}`, `t = ${-p.t}`, `t = ${V - p.v0 - net}`),
+        },
+      ],
+    };
+  },
+  solution: tankWorking,
+};
+
+type RateTilesParams =
+  | ({ kind: 'meet' } & ApproachParams)
+  | ({ kind: 'catch' } & CatchParams)
+  | ({ kind: 'tank' } & TankParams);
+
+/**
+ * The equation for a rates story, placed as tiles: meeting (the two
+ * distances add to the gap), catching up (level when the distances match),
+ * or a tank (start plus the net rate times the minutes). The bank holds the
+ * combined speed or rate, which the equation collects to rather than holds.
+ */
+const rateTiles: Generator<RateTilesParams> = {
+  id: 'lin-rate-tiles',
+  sample: (rng, difficulty) => {
+    const kind = rng.pick(['meet', 'catch', 'tank'] as const);
+    if (kind === 'meet') return { kind, ...sampleMeet(rng, difficulty, false) };
+    if (kind === 'catch') return { kind, ...sampleCatch(rng, difficulty, false) };
+    return { kind, ...sampleTank(rng, difficulty) };
+  },
+  render: (p): Slide => {
+    if (p.kind === 'meet') {
+      const answer = [`${p.u}`, `${p.v}`, `${meetGap(p)}`];
+      return {
+        kind: 'tiles',
+        prompt: [
+          {
+            kind: 'prose',
+            text: `${meetText(p)} Let $t$ be the hours until they meet. Write the equation that says their two distances make up the gap.`,
+          },
+        ],
+        template: '{0}t + {1}t = {2}',
+        bank: bankOf(answer, [`${p.u + p.v}`, `${Math.abs(p.v - p.u)}`, `${p.t}`]),
+        answer,
+      };
+    }
+    if (p.kind === 'catch') {
+      const [, b] = TRAVELLERS[p.pair];
+      const answer = [`${p.v}`, `${catchAhead(p)}`, `${p.u}`];
+      return {
+        kind: 'tiles',
+        prompt: [
+          {
+            kind: 'prose',
+            text: `${catchText(p)} Let $t$ be the hours until ${b} catches up. Write the equation that says they are then the same distance from ${b}'s start.`,
+          },
+        ],
+        template: '{0}t = {1} + {2}t',
+        bank: bankOf(answer, [`${p.v - p.u}`, `${p.u + p.v}`, `${p.t}`]),
+        answer,
+      };
+    }
+    const answer = [`${p.v0}`, `${p.fill}`, `${p.drain}`, `${tankEnd(p)}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${tankText(p)} Let $t$ be the minutes until it holds $${tankEnd(p)}$ litres. Write the equation.`,
+        },
+      ],
+      template: '{0} + ({1} - {2})t = {3}',
+      bank: bankOf(answer, [`${Math.abs(tankNet(p))}`, `${p.fill + p.drain}`, `${p.t}`]),
+      answer,
+    };
+  },
+  solution: (p) => {
+    if (p.kind === 'meet') return meetWorking(p);
+    if (p.kind === 'catch') return catchWorking(p);
+    return tankWorking(p);
+  },
+};
+
+/* ---------- Lesson 4: mixtures ---------- */
+
+interface MixPrice {
+  a: string;
+  b: string;
+  blend: string;
+  /** Each ingredient named in a lead, short. */
+  short: readonly [string, string];
+}
+
+const MIX_PRICE: readonly MixPrice[] = [
+  { a: 'Kenyan beans', b: 'Brazilian beans', blend: 'coffee', short: ['Kenyan', 'Brazilian'] },
+  { a: 'Assam tea', b: 'Ceylon tea', blend: 'tea', short: ['Assam', 'Ceylon'] },
+  { a: 'cashews', b: 'peanuts', blend: 'mixed nuts', short: ['cashews', 'peanuts'] },
+  { a: 'chocolates', b: 'toffees', blend: 'pick-and-mix', short: ['chocolates', 'toffees'] },
+  { a: 'sunflower seed', b: 'millet', blend: 'bird seed', short: ['sunflower', 'millet'] },
+];
+
+const MIX_STRENGTH: readonly { who: string; stuff: string }[] = [
+  { who: 'A lab', stuff: 'acid' },
+  { who: 'A chemist', stuff: 'salt' },
+  { who: 'A drinks maker', stuff: 'juice' },
+  { who: 'A gardener', stuff: 'plant feed' },
+];
+
+interface MixParams {
+  kind: 'price' | 'strength';
+  story: number;
+  /** The dearer or stronger one, then the other: pounds per kg, or per cent. */
+  a: number;
+  b: number;
+  /** How much of each goes in. */
+  x: number;
+  y: number;
+}
+
+const mixTotal = (p: MixParams): number => p.x + p.y;
+const mixTarget = (p: MixParams): number => (p.a * p.x + p.b * p.y) / mixTotal(p);
+const mixUnit = (p: MixParams): string => (p.kind === 'price' ? 'kg' : 'litres');
+
+function mixText(p: MixParams): string {
+  const M = mixTotal(p);
+  const m = mixTarget(p);
+  if (p.kind === 'price') {
+    const s = MIX_PRICE[p.story];
+    return `A shop blends ${s.a} at ${pounds(p.a)} per kg with ${s.b} at ${pounds(p.b)} per kg, to make $${M}$ kg of ${s.blend} at ${pounds(m)} per kg.`;
+  }
+  const s = MIX_STRENGTH[p.story];
+  return `${s.who} mixes a solution that is $${p.a}\\%$ ${s.stuff} with one that is $${p.b}\\%$ ${s.stuff}, to make $${M}$ litres that is $${m}\\%$ ${s.stuff}.`;
+}
+
+/** The first ingredient, then the second, as the prose names them. */
+function mixNames(p: MixParams): [string, string] {
+  if (p.kind === 'price') return [MIX_PRICE[p.story].a, MIX_PRICE[p.story].b];
+  return [`the $${p.a}\\%$ solution`, `the $${p.b}\\%$ one`];
+}
+
+function mixLetters(p: MixParams): string {
+  const [first, second] = mixNames(p);
+  return `Let $x$ ${mixUnit(p)} be ${first} and $y$ ${mixUnit(p)} be ${second}.`;
+}
+
+/** A lead or readout naming how much of one ingredient: `\text{kg of cashews}`. */
+function mixLead(p: MixParams, which: 0 | 1): string {
+  if (p.kind === 'price') return `\\text{kg of ${MIX_PRICE[p.story].short[which]}}`;
+  return `\\text{litres at } ${which === 0 ? p.a : p.b}\\%`;
+}
+
+/**
+ * A blend built from its amounts. The target has to be whole, so once the
+ * amount of the first is drawn, the gap between the two prices or strengths
+ * is a multiple of whatever makes the weighted average come out whole.
+ * Difficulty 1 blends by price; difficulty 2 may blend by strength, with
+ * per cents in fives, and has larger amounts.
+ */
+function sampleMix(rng: Rng, difficulty: number, most?: number): MixParams {
+  const hard = difficulty > 1;
+  const kind = hard && rng.chance(0.5) ? 'strength' : 'price';
+  return drawUntil(
+    () => {
+      const M = rng.int(hard ? 10 : 6, most ?? (hard ? 40 : 20));
+      const x = rng.int(1, M - 1);
+      const unit = M / gcd(M, x);
+      if (kind === 'price') {
+        const b = rng.int(2, hard ? 20 : 10);
+        return { kind, story: rng.int(0, MIX_PRICE.length - 1), a: b + unit * rng.int(1, 4), b, x, y: M - x };
+      }
+      const b = 5 * rng.int(1, 8);
+      return { kind, story: rng.int(0, MIX_STRENGTH.length - 1), a: b + lcm(unit, 5) * rng.int(1, 3), b, x, y: M - x };
+    },
+    (p) => p.a - p.b >= 2 && p.a - p.b <= (p.kind === 'price' ? (hard ? 20 : 12) : 60) && p.a <= 90,
+    { kind: 'price', story: 0, a: 9, b: 4, x: 6, y: 4 },
+  );
+}
+
+function mixWorking(p: MixParams): SolutionStep[] {
+  const M = mixTotal(p);
+  const total = mixTarget(p) * M;
+  const G = p.a - p.b;
+  return [
+    { text: `${mixLetters(p)} The amounts give $x + y = ${M}$, so $y = ${M} - x$.` },
+    {
+      text:
+        p.kind === 'price'
+          ? `The cost of the whole blend is $${mixTarget(p)} \\times ${M} = ${total}$ pounds:`
+          : `Counting per cent times litres, the mixture holds $${mixTarget(p)} \\times ${M} = ${total}$:`,
+      tex: `${p.a}x + ${p.b}(${M} - x) = ${total}`,
+    },
+    { tex: stackTex([`${leadTerm(G, 'x')} + ${p.b * M} = ${total}`, `${leadTerm(G, 'x')} = ${total - p.b * M}`]) },
+    { tex: `x = ${p.x}, \\quad y = ${p.y}` },
+  ];
+}
+
+type MixWrong = 'forgot' | 'swap' | 'total' | 'minus';
+
+interface MixPairParams extends MixParams {
+  /** The three wrong pairs: the target not multiplied up, prices swapped, totals swapped, a minus for a plus. */
+  wrong: MixWrong[];
+}
+
+/**
+ * Which pair of equations is the blend? The amounts give one and the cost
+ * (or the strength) gives the other. The two amounts always differ, or the
+ * pair with the prices swapped would be true as well.
+ */
+const mixPair: Generator<MixPairParams> = {
+  id: 'lin-mix-pair',
+  sample: (rng, difficulty) => ({
+    ...drawUntil(() => sampleMix(rng, difficulty), (p) => p.x !== p.y, { kind: 'price', story: 0, a: 9, b: 4, x: 6, y: 4 }),
+    wrong: rng.sample(['forgot', 'swap', 'total', 'minus'] as const, 3),
+  }),
+  render: (p): Slide => {
+    const M = mixTotal(p);
+    const m = mixTarget(p);
+    const pair = (change?: MixWrong) =>
+      stackTex([
+        change === 'total' ? `x + y = ${m * M}` : change === 'minus' ? `x - y = ${M}` : `x + y = ${M}`,
+        `${change === 'swap' ? `${p.b}x + ${p.a}y` : `${p.a}x + ${p.b}y`} = ${change === 'forgot' ? m : change === 'total' ? M : m * M}`,
+      ]);
+    return sortedChoice(
+      [
+        {
+          kind: 'prose',
+          text: `${mixText(p)} ${mixLetters(p)} Which pair of equations describes the ${p.kind === 'price' ? 'blend' : 'mixture'}?`,
+        },
+      ],
+      labelChoices(pair(), ...p.wrong.map(pair)),
+    );
+  },
+  solution: (p) => {
+    const M = mixTotal(p);
+    const m = mixTarget(p);
+    return [
+      { text: `The amounts add up to the whole: $x + y = ${M}$.` },
+      {
+        text:
+          p.kind === 'price'
+            ? `Each kg of the first costs ${pounds(p.a)} and each kg of the second ${pounds(p.b)}, and the whole $${M}$ kg costs $${m} \\times ${M}$:`
+            : `Each litre of the first carries $${p.a}$ per cent and each litre of the second $${p.b}$, and the whole $${M}$ litres carries $${m} \\times ${M}$:`,
+        tex: `${p.a}x + ${p.b}y = ${m * M}`,
+      },
+    ];
+  },
+};
+
+/**
+ * The cost (or strength) equation placed as tiles. The target itself is in
+ * the bank beside the target times the amount, since leaving it unmultiplied
+ * is the usual slip.
+ */
+const mixTiles: Generator<MixParams> = {
+  id: 'lin-mix-tiles',
+  sample: (rng, difficulty) => sampleMix(rng, difficulty),
+  render: (p): Slide => {
+    const M = mixTotal(p);
+    const m = mixTarget(p);
+    const answer = [`${p.a}`, `${p.b}`, `${m * M}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${mixText(p)} ${mixLetters(p)} Along with $x + y = ${M}$, write the equation for the ${p.kind === 'price' ? 'cost' : MIX_STRENGTH[p.story].stuff}.`,
+        },
+      ],
+      template: '{0}x + {1}y = {2}',
+      bank: bankOf(answer, [`${m}`, `${M}`, `${p.a + p.b}`]),
+      answer,
+    };
+  },
+  solution: (p) => mixWorking(p).slice(0, 2),
+};
+
+interface MixSolveParams extends MixParams {
+  /** Which amount is asked for: 0 the first, 1 the second. */
+  ask: 0 | 1;
+}
+
+/** How much of one ingredient, typed. Difficulty 2 may ask for the second. */
+const mixSolve: Generator<MixSolveParams> = {
+  id: 'lin-mix-solve',
+  choices: (p) => {
+    const value = p.ask === 0 ? p.x : p.y;
+    return numberChoices(value, p.ask === 0 ? p.y : p.x, Math.round(mixTotal(p) / 2), value + 1);
+  },
+  sample: (rng, difficulty) => ({ ...sampleMix(rng, difficulty), ask: difficulty > 1 ? rng.pick([0, 1] as const) : 0 }),
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: `${mixText(p)} How many ${mixUnit(p)} of ${mixNames(p)[p.ask]} go in?` }],
+    lead: `${mixLead(p, p.ask)} =`,
+    keypad: [],
+    answer: `${p.ask === 0 ? p.x : p.y}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (p) => [
+    ...mixWorking(p),
+    { text: `The question asks for ${mixNames(p)[p.ask]}: $${p.ask === 0 ? p.x : p.y}$ ${mixUnit(p)}.` },
+  ],
+};
+
+/**
+ * The blend solved by substitution, a step at a time: the bracket
+ * multiplied out, like terms collected, the number moved across, the
+ * division. The first step's slip is multiplying only the first term.
+ */
+const mixSubstituteSteps: Generator<MixParams> = {
+  id: 'lin-mix-substitute-steps',
+  sample: (rng, difficulty) => sampleMix(rng, difficulty),
+  render: (p): Slide => {
+    const M = mixTotal(p);
+    const total = mixTarget(p) * M;
+    const G = p.a - p.b;
+    const bM = p.b * M;
+    const term = leadTerm(G, 'x');
+    const [first, second] = mixNames(p);
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${mixText(p)} With $x$ ${mixUnit(p)} of ${first}, there are $${M} - x$ of ${second}, which gives the equation below. Solve it. ${HOW_TO_STEP}`,
+        },
+      ],
+      start: [`${p.a}x`, `+ ${p.b}(${M} - x)`, '=', `${total}`],
+      reductions: [
+        {
+          span: [1, 2],
+          value: `+ ${bM} - ${p.b}x`,
+          bank: stepBank(`+ ${bM} - ${p.b}x`, `+ ${bM} - x`, `+ ${M} - ${p.b}x`, `+ ${bM} + ${p.b}x`),
+        },
+        {
+          span: [0, 2],
+          value: `${term} + ${bM}`,
+          bank: stepBank(`${term} + ${bM}`, `${leadTerm(p.a + p.b, 'x')} + ${bM}`, `${term} - ${bM}`, `${leadTerm(p.a * p.b, 'x')} + ${bM}`),
+        },
+        {
+          span: [0, 3],
+          value: `${term} = ${total - bM}`,
+          bank: stepBank(`${term} = ${total - bM}`, `${term} = ${total + bM}`, `${term} = ${total}`, `${term} = ${bM - total}`),
+        },
+        {
+          span: [0, 1],
+          value: `x = ${p.x}`,
+          bank: stepBank(`x = ${p.x}`, `x = ${p.y}`, `x = ${p.x + 1}`, `x = ${total - bM - G}`),
+        },
+      ],
+    };
+  },
+  solution: (p) => mixWorking(p).slice(1),
+};
+
+/**
+ * The blend read off a graph: the price (or strength) of the whole as the
+ * amount of the first goes from none to all of it, a straight line from one
+ * price to the other, and the dashed target.
+ */
+const mixSlider: Generator<MixParams> = {
+  id: 'lin-mix-slider',
+  sample: (rng, difficulty) => sampleMix(rng, difficulty, difficulty > 1 ? 24 : 16),
+  render: (p): Slide => {
+    const M = mixTotal(p);
+    const G = p.a - p.b;
+    const [first] = mixNames(p);
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${mixText(p)} The line shows the ${p.kind === 'price' ? 'price per kg' : 'strength'} of the $${M}$ ${mixUnit(p)} for each amount of ${first} in it, and the dashed line is the target. Slide to the amount of ${first}.`,
+        },
+      ],
+      min: 0,
+      max: M,
+      step: 1,
+      answer: p.x,
+      readout: `${mixLead(p, 0)} = {v}`,
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: M,
+          yMin: Math.max(0, p.b - G / 4),
+          yMax: p.a + G / 4,
+          curves: [{ f: (s: number) => p.b + (G * s) / M }],
+          horizontals: [mixTarget(p)],
+          label: 'A straight line rising from one price to the other, and a dashed line at the target',
+        }),
+        ...markerWindow(0, M),
+      },
+    };
+  },
+  solution: (p) => [{ text: 'The line meets the target where the blend has the right amount of each.' }, ...mixWorking(p)],
+};
+
+const MIX_YES = 'Yes';
+const MIX_NO = 'No';
+
+type MixLean = 'even' | 'first' | 'second';
+
+const mixLean = (p: MixParams): MixLean => (p.x === p.y ? 'even' : p.x > p.y ? 'first' : 'second');
+
+/**
+ * Which is there more of, without solving: the target sits nearer the price
+ * (or strength) there is more of, and exactly halfway for equal amounts.
+ * The three cases are drawn equally.
+ */
+const mixFlow: Generator<MixParams> = {
+  id: 'lin-mix-flow',
+  sample: (rng, difficulty) => {
+    const lean = rng.pick(['even', 'first', 'second'] as const);
+    return drawUntil(
+      () => sampleMix(rng, difficulty),
+      (p) => mixLean(p) === lean,
+      lean === 'even'
+        ? { kind: 'price', story: 0, a: 9, b: 5, x: 4, y: 4 }
+        : lean === 'first'
+          ? { kind: 'price', story: 0, a: 9, b: 4, x: 6, y: 4 }
+          : { kind: 'price', story: 0, a: 9, b: 4, x: 4, y: 6 },
+    );
+  },
+  render: (p): Slide => {
+    const m = mixTarget(p);
+    const [first, second] = mixNames(p);
+    const pc = p.kind === 'price' ? '' : '\\%';
+    const lean = mixLean(p);
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `${mixText(p)} Without solving, which is there more of?` }],
+      subject: `${p.b}${pc} < ${m}${pc} < ${p.a}${pc}`,
+      steps: [
+        {
+          id: 'half',
+          ask: `Is $${m}${pc}$ exactly halfway between $${p.b}${pc}$ and $${p.a}${pc}$?`,
+          branches: [
+            { label: MIX_YES, outcome: 'Equal amounts of each.' },
+            { label: MIX_NO, to: 'near' },
+          ],
+        },
+        {
+          id: 'near',
+          ask: `Is $${m}${pc}$ nearer to $${p.a}${pc}$, the ${p.kind === 'price' ? 'dearer' : 'stronger'} one?`,
+          branches: [
+            { label: MIX_YES, outcome: `More of ${first}.` },
+            { label: MIX_NO, outcome: `More of ${second}.` },
+          ],
+        },
+      ],
+      answer: lean === 'even' ? [MIX_YES] : [MIX_NO, lean === 'first' ? MIX_YES : MIX_NO],
+    };
+  },
+  solution: (p) => {
+    const m = mixTarget(p);
+    const [first, second] = mixNames(p);
+    return [
+      { text: `The target is $${m - p.b}$ above the lower and $${p.a - m}$ below the higher.` },
+      {
+        text:
+          mixLean(p) === 'even'
+            ? 'That is exactly halfway, so there are equal amounts of each.'
+            : `It sits nearer ${mixLean(p) === 'first' ? first : second}, so there is more of that one.`,
+      },
+      { text: `Solving confirms it: $${p.x}$ ${mixUnit(p)} of ${first} and $${p.y}$ of ${second}.` },
+    ];
+  },
+};
+
+/* ---------- Lesson 5: reading the model back ---------- */
+
+interface ChargeStory {
+  who: string;
+  fee: string;
+  per: string;
+  letter: string;
+  units: string;
+}
+
+const CHARGE_STORIES: readonly ChargeStory[] = [
+  { who: 'A plumber', fee: 'to call out', per: 'an hour', letter: 'h', units: 'hours' },
+  { who: 'An electrician', fee: 'to call out', per: 'an hour', letter: 'h', units: 'hours' },
+  { who: 'A dog walker', fee: 'to sign up', per: 'a walk', letter: 'w', units: 'walks' },
+  { who: 'A gym', fee: 'to join', per: 'a class', letter: 'k', units: 'classes' },
+  { who: 'A van hire firm', fee: 'up front', per: 'a day', letter: 'd', units: 'days' },
+];
+
+interface ChargeParams {
+  story: number;
+  fee: number;
+  rate: number;
+  /** How many hours, walks, classes or days. */
+  n: number;
+}
+
+const chargeText = (p: ChargeParams): string => {
+  const s = CHARGE_STORIES[p.story];
+  return `${s.who} charges ${pounds(p.fee)} ${s.fee} plus ${pounds(p.rate)} ${s.per}.`;
+};
+
+function sampleCharge(rng: Rng, difficulty: number): ChargeParams {
+  const hard = difficulty > 1;
+  return drawUntil(
+    () => ({
+      story: rng.int(0, CHARGE_STORIES.length - 1),
+      fee: rng.int(5, hard ? 90 : 40),
+      rate: rng.int(2, hard ? 45 : 25),
+      n: rng.int(2, hard ? 12 : 8),
+    }),
+    (p) => p.fee !== p.rate,
+    { story: 0, fee: 30, rate: 20, n: 3 },
+  );
+}
+
+type BackWhichParams =
+  | { kind: 'charge'; charge: ChargeParams; wrong: number[] }
+  | { kind: 'meet'; meet: ApproachParams; wrong: number[] }
+  | { kind: 'even'; even: EvenParams; wrong: number[] }
+  | { kind: 'mix'; mix: MixParams; wrong: number[] };
+
+/** The story, the letter it uses, the equation that fits, and four that do not. */
+function whichModel(p: BackWhichParams): { text: string; right: string; wrong: string[] } {
+  if (p.kind === 'charge') {
+    const c = p.charge;
+    const s = CHARGE_STORIES[c.story];
+    const L = s.letter;
+    const T = c.fee + c.rate * c.n;
+    return {
+      text: `${chargeText(c)} One bill came to ${pounds(T)} for $${L}$ ${s.units}.`,
+      right: `${c.fee} + ${c.rate}${L} = ${T}`,
+      wrong: [
+        `(${c.fee} + ${c.rate})${L} = ${T}`,
+        `${c.fee}${L} + ${c.rate} = ${T}`,
+        `${c.rate}${L} - ${c.fee} = ${T}`,
+        `${c.rate}(${L} + ${c.fee}) = ${T}`,
+      ],
+    };
+  }
+  if (p.kind === 'meet') {
+    const m = p.meet;
+    const D = meetGap(m);
+    return {
+      text: `${meetText(m)} Let $t$ be the hours until they meet.`,
+      right: `(${m.u} + ${m.v})t = ${D}`,
+      wrong: [
+        `(${Math.max(m.u, m.v)} - ${Math.min(m.u, m.v)})t = ${D}`,
+        `${m.u}t = ${m.v}t + ${D}`,
+        `${m.u} + ${m.v} = ${D}t`,
+        `${D} - ${m.u}t = ${m.v}`,
+      ],
+    };
+  }
+  if (p.kind === 'even') {
+    const e = p.even;
+    const F = evenFixed(e);
+    const price = evenPrice(e);
+    return {
+      text: `${evenText(e)} Let $n$ be the number sold at break-even.`,
+      right: `${price}n = ${F} + ${e.c}n`,
+      wrong: [`${e.c}n = ${F} + ${price}n`, `${price}n + ${F} = ${e.c}n`, `${price}n = ${F} - ${e.c}n`, `${price}n - ${e.c}n = ${F}n`],
+    };
+  }
+  const x = p.mix;
+  const M = mixTotal(x);
+  const total = mixTarget(x) * M;
+  return {
+    text: `${mixText(x)} Let $x$ ${mixUnit(x)} be ${mixNames(x)[0]}.`,
+    right: `${x.a}x + ${x.b}(${M} - x) = ${total}`,
+    wrong: [
+      `${x.a}x + ${x.b}x = ${total}`,
+      `${x.a}x + ${x.b}(${M} - x) = ${mixTarget(x)}`,
+      `${x.b}x + ${x.a}(${M} - x) = ${total}`,
+      `${x.a}x + ${x.b}(x - ${M}) = ${total}`,
+    ],
+  };
+}
+
+/**
+ * Which equation fits the story? Every wrong one is a real slip — the
+ * bracket in the wrong place, the rates subtracted, the sides swapped — and
+ * none of them is true at the story's answer, which the story is built to
+ * make sure of. Difficulty 2 adds mixtures and has larger numbers.
+ */
+const backWhich: Generator<BackWhichParams> = {
+  id: 'lin-back-which',
+  sample: (rng, difficulty) => {
+    const kind = rng.pick(difficulty > 1 ? (['charge', 'meet', 'even', 'mix'] as const) : (['charge', 'meet', 'even'] as const));
+    const wrong = rng.sample([0, 1, 2, 3], 3);
+    if (kind === 'charge') return { kind, charge: sampleCharge(rng, difficulty), wrong };
+    if (kind === 'meet') return { kind, meet: sampleMeet(rng, difficulty, false, 2), wrong };
+    if (kind === 'even') return { kind, even: sampleEven(rng, difficulty), wrong };
+    return {
+      kind,
+      mix: drawUntil(() => sampleMix(rng, difficulty), (m) => m.x !== m.y, { kind: 'price', story: 0, a: 9, b: 4, x: 6, y: 4 }),
+      wrong,
+    };
+  },
+  render: (p): Slide => {
+    const model = whichModel(p);
+    return sortedChoice(
+      [{ kind: 'prose', text: `${model.text} Which equation fits the story?` }],
+      labelChoices(model.right, ...p.wrong.map((i) => model.wrong[i])),
+    );
+  },
+  solution: (p) => {
+    const model = whichModel(p);
+    const reason: Record<BackWhichParams['kind'], string> = {
+      charge: 'The fee is paid once and the rate once for each, so the total is the fee plus the rate times the number.',
+      meet: 'Heading towards each other, the two distances add up to the gap, so the speeds add.',
+      even: 'At break-even the income equals the fixed cost plus the cost of making each one.',
+      mix: 'The first ingredient is $x$ and the rest of the amount is the second, and their costs add up to the whole.',
+    };
+    return [{ text: reason[p.kind] }, { tex: model.right }];
+  },
+};
+
+type SenseParams =
+  | { kind: 'even'; story: number; c: number; g: number; n: number; half: boolean }
+  | { kind: 'catch'; catch: CatchParams; slower: boolean }
+  | { kind: 'mix'; mix: MixParams };
+
+const SENSE_YES = 'Yes';
+const SENSE_NO = 'No';
+const SENSE_WHOLE = 'A count has to be a whole number';
+const SENSE_NEGATIVE = 'A time cannot be negative';
+const SENSE_OVER = 'It is more than the whole amount';
+
+/** The story, the model and what solving it gave. */
+function senseModel(p: SenseParams): { text: string; letter: string; value: string; reason?: string } {
+  if (p.kind === 'even') {
+    const F = p.g * p.n + (p.half ? p.g / 2 : 0);
+    const price = p.c + p.g;
+    return {
+      text: `${evenSentence(p.story, F, p.c, price, false)} Solving $${price}n = ${F} + ${p.c}n$ for the break-even number gives`,
+      letter: 'n',
+      value: p.half ? `${p.n}.5` : `${p.n}`,
+      reason: p.half ? SENSE_WHOLE : undefined,
+    };
+  }
+  if (p.kind === 'catch') {
+    const c = p.catch;
+    const s = catchAhead(c);
+    const [a, b] = TRAVELLERS[c.pair];
+    const { how } = TRAVEL[c.mode];
+    const [front, back] = p.slower ? [c.v, c.u] : [c.u, c.v];
+    return {
+      text: `${a} and ${b} set off at the same time along the same road, ${how}. ${a} starts $${s}$ km ahead at $${front}$ km/h, and ${b} follows at $${back}$ km/h. Solving $${back}t = ${s} + ${front}t$ for when ${b} catches up gives`,
+      letter: 't',
+      value: `${p.slower ? -c.t : c.t}`,
+      reason: p.slower ? SENSE_NEGATIVE : undefined,
+    };
+  }
+  const x = p.mix;
+  const M = mixTotal(x);
+  const total = mixTarget(x) * M;
+  return {
+    text: `${mixText(x)} Solving $${x.a}x + ${x.b}(${M} - x) = ${total}$ for the ${mixUnit(x)} of ${mixNames(x)[0]} gives`,
+    letter: 'x',
+    value: `${x.x}`,
+    reason: x.y < 0 ? SENSE_OVER : undefined,
+  };
+}
+
+/**
+ * Does the answer make sense? A break-even count of a half, a catch-up time
+ * that is negative because the one behind is slower, or an amount of one
+ * ingredient more than the whole blend because the target is dearer than
+ * both. About a third of the answers are fine. Difficulty 2 adds mixtures.
+ */
+const backSenseFlow: Generator<SenseParams> = {
+  id: 'lin-back-sense-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const kind = rng.pick(hard ? (['even', 'catch', 'mix'] as const) : (['even', 'catch'] as const));
+    const fine = rng.chance(0.35);
+    if (kind === 'even') {
+      const base = sampleEven(rng, difficulty);
+      const g = fine ? base.g : 2 * rng.int(1, hard ? 6 : 3);
+      return { kind, story: base.story, c: base.c, g, n: base.n, half: !fine };
+    }
+    if (kind === 'catch') return { kind, catch: sampleCatch(rng, difficulty, false), slower: !fine };
+    if (fine) return { kind, mix: sampleMix(rng, difficulty) };
+    // The target dearer than both: the amount of the first comes out more than the whole.
+    const M = rng.int(6, 20);
+    const x = rng.int(M + 1, 2 * M);
+    const unit = M / gcd(M, x);
+    const b = rng.int(2, 12);
+    const a = b + unit * rng.int(1, Math.max(1, Math.floor(12 / unit)));
+    return { kind, mix: { kind: 'price', story: rng.int(0, MIX_PRICE.length - 1), a, b, x, y: M - x } };
+  },
+  render: (p): Slide => {
+    const model = senseModel(p);
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `${model.text} $${model.letter} = ${model.value}$.` }],
+      subject: `${model.letter} = ${model.value}`,
+      steps: [
+        {
+          id: 'sense',
+          ask: 'Does this answer make sense in the story?',
+          branches: [
+            { label: SENSE_YES, outcome: 'It stands as the answer.' },
+            { label: SENSE_NO, to: 'why' },
+          ],
+        },
+        {
+          id: 'why',
+          ask: 'What is wrong with it?',
+          branches: [
+            { label: SENSE_WHOLE, outcome: 'It cannot be a fraction of one.' },
+            { label: SENSE_NEGATIVE, outcome: 'It cannot have happened before the start.' },
+            { label: SENSE_OVER, outcome: 'One part cannot be more than the whole.' },
+          ],
+        },
+      ],
+      answer: model.reason ? [SENSE_NO, model.reason] : [SENSE_YES],
+    };
+  },
+  solution: (p) => {
+    const model = senseModel(p);
+    const said: Record<string, string> = {
+      [SENSE_WHOLE]: `Half an item cannot be sold. The model says $${model.value}$, so it takes $${Math.ceil(Number(model.value))}$ sales to cover the costs.`,
+      [SENSE_NEGATIVE]: 'The one behind is slower, so the gap only grows: the negative time says they were level before they set off, and there is no catch-up.',
+      [SENSE_OVER]: 'The target is dearer than both ingredients, so no blend can reach it: the amount of the first comes out more than the whole and the second negative.',
+    };
+    return [
+      { tex: `${model.letter} = ${model.value}` },
+      { text: model.reason ? said[model.reason] : 'It is whole, positive and no more than the whole amount, so it makes sense.' },
+    ];
+  },
+};
+
+type ChangeKind = 'price' | 'cost' | 'fixed' | 'cheaper';
+
+interface ChangeParams {
+  story: number;
+  /** Fixed cost, cost to make one, and what each sale makes over its cost. */
+  F: number;
+  c: number;
+  g: number;
+  change: ChangeKind;
+  /** How much the price or cost moves, or how many more sales the new fixed cost takes. */
+  j: number;
+  /** The old break-even count is stated. */
+  told: boolean;
+}
+
+/** The margin after the change, and the new fixed cost. */
+function changed(p: ChangeParams): { F: number; g: number } {
+  if (p.change === 'fixed') return { F: p.F + p.g * p.j, g: p.g };
+  return { F: p.F, g: p.change === 'cheaper' ? p.g - p.j : p.g + p.j };
+}
+
+function changeSentence(p: ChangeParams): string {
+  const { item, setup } = EVEN_STORIES[p.story];
+  const price = p.c + p.g;
+  if (p.change === 'price') return `Next time each ${item} sells for ${pounds(price + p.j)} instead.`;
+  if (p.change === 'cheaper') return `Next time each ${item} sells for ${pounds(price - p.j)} instead.`;
+  if (p.change === 'cost') return `Next time each ${item} costs ${pounds(p.c - p.j)} to make instead.`;
+  return `Next time it pays ${pounds(changed(p).F)} ${setup} instead.`;
+}
+
+/**
+ * The effect of changing one number on the break-even count. A dearer
+ * price or a cheaper cost widens what each sale makes, so fewer are needed;
+ * a bigger fixed cost needs more. Built so both counts are whole: the fixed
+ * cost is a multiple of both margins. Difficulty 1 states the old count;
+ * difficulty 2 does not, and may lower the price.
+ */
+const backChange: Generator<ChangeParams> = {
+  id: 'lin-back-change',
+  choices: (p) => {
+    const n = p.F / p.g;
+    const after = changed(p);
+    const n2 = after.F / after.g;
+    return numberChoices(n2, n, n + (n - n2), n2 + 1);
+  },
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return drawUntil(
+      () => {
+        const g = rng.int(2, hard ? 12 : 8);
+        const change = rng.pick(hard ? (['price', 'cost', 'fixed', 'cheaper'] as const) : (['price', 'cost', 'fixed'] as const));
+        const j = rng.int(1, hard ? 6 : 4);
+        const g2 = change === 'fixed' ? g : change === 'cheaper' ? g - j : g + j;
+        const L = g2 >= 1 ? lcm(g, g2) : g;
+        return {
+          story: rng.int(0, EVEN_STORIES.length - 1),
+          F: L * rng.int(1, 12),
+          c: rng.int(2, hard ? 15 : 8),
+          g,
+          change,
+          j,
+          told: !hard,
+        };
+      },
+      (p) => {
+        const after = changed(p);
+        const n = p.F / p.g;
+        return after.g >= 1 && n >= 3 && n <= (hard ? 60 : 30) && after.F % after.g === 0 && p.c - (p.change === 'cost' ? p.j : 0) >= 1;
+      },
+      { story: 0, F: 60, c: 3, g: 4, change: 'price', j: 1, told: true },
+    );
+  },
+  render: (p): Slide => {
+    const { items } = EVEN_STORIES[p.story];
+    const after = changed(p);
+    const n = p.F / p.g;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${evenSentence(p.story, p.F, p.c, p.c + p.g, false)}${p.told ? ` It breaks even at $${n}$ ${items}.` : ''} ${changeSentence(p)} How many must it sell now to break even?`,
+        },
+      ],
+      lead: `\\text{${items}} =`,
+      keypad: [],
+      answer: `${after.F / after.g}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (p) => {
+    const after = changed(p);
+    return [
+      { text: `Before, each sale makes ${pounds(p.g)} over its cost, and $${p.F} \\div ${p.g} = ${p.F / p.g}$ sales cover the ${pounds(p.F)}.` },
+      {
+        text:
+          p.change === 'fixed'
+            ? `Now there is ${pounds(after.F)} to cover at ${pounds(p.g)} a sale.`
+            : `Now each sale makes ${pounds(after.g)} over its cost, and there is still ${pounds(p.F)} to cover.`,
+      },
+      { tex: `n = ${after.F} \\div ${after.g} = ${after.F / after.g}` },
+    ];
+  },
+};
+
+type RearrangeKind = 'charge' | 'distance' | 'tank' | 'profit';
+
+interface RearrangeParams {
+  kind: RearrangeKind;
+  /** A charge story, a traveller or a break-even story, by kind. */
+  story: number;
+  /** The number added to or taken from the letter term, then its coefficient. */
+  a: number;
+  b: number;
+}
+
+/** The formula as given, the letter to make the subject, and the tiles. */
+function rearrangeModel(p: RearrangeParams): { text: string; formula: string; subject: string; answer: string[]; wrong: string[] } {
+  if (p.kind === 'charge') {
+    const s = CHARGE_STORIES[p.story];
+    return {
+      text: `${chargeText({ story: p.story, fee: p.a, rate: p.b, n: 1 })} So the bill $C$, in pounds, for $${s.letter}$ ${s.units} is`,
+      formula: `C = ${p.a} + ${p.b}${s.letter}`,
+      subject: s.letter,
+      answer: ['C', `- ${p.a}`, `${p.b}`],
+      wrong: [`+ ${p.a}`, `${p.a}`, `- ${p.b}`, s.letter],
+    };
+  }
+  if (p.kind === 'distance') {
+    const [a] = TRAVELLERS[p.story];
+    return {
+      text: `${a} starts $${p.a}$ km along a path and walks at $${p.b}$ km/h. So after $t$ hours ${a} is $d$ km along, where`,
+      formula: `d = ${p.a} + ${p.b}t`,
+      subject: 't',
+      answer: ['d', `- ${p.a}`, `${p.b}`],
+      wrong: [`+ ${p.a}`, `${p.a}`, `- ${p.b}`, 't'],
+    };
+  }
+  if (p.kind === 'tank') {
+    return {
+      text: `A tank has $${p.a}$ litres in it and drains at $${p.b}$ litres a minute. So after $t$ minutes it holds $V$ litres, where`,
+      formula: `V = ${p.a} - ${p.b}t`,
+      subject: 't',
+      answer: [`${p.a}`, '- V', `${p.b}`],
+      wrong: ['+ V', 'V', `- ${p.b}`],
+    };
+  }
+  const s = EVEN_STORIES[p.story];
+  return {
+    text: `${s.who} makes ${pounds(p.b)} on each ${s.item} over its cost, and pays ${pounds(p.a)} ${s.setup}. So selling $n$ ${s.items} makes a profit of $P$ pounds, where`,
+    formula: `P = ${p.b}n - ${p.a}`,
+    subject: 'n',
+    answer: ['P', `+ ${p.a}`, `${p.b}`],
+    wrong: [`- ${p.a}`, `${p.a}`, `- ${p.b}`],
+  };
+}
+
+/**
+ * A story's formula rearranged for its unknown, placed as tiles in
+ * $(\ldots) \div \ldots$. The bank never holds the pieces of a second
+ * correct arrangement, such as $(V - 120) \div (-7)$ for $(120 - V) \div 7$,
+ * so the one arrangement it grades is the only one possible. Difficulty 1 is
+ * take away then divide; difficulty 2 adds a draining tank and a profit,
+ * where the sign of the moved number is the trap.
+ */
+const backRearrange: Generator<RearrangeParams> = {
+  id: 'lin-back-rearrange',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const kind = rng.pick(hard ? (['charge', 'distance', 'tank', 'profit'] as const) : (['charge', 'distance'] as const));
+    return drawUntil(
+      () => {
+        if (kind === 'charge') return { kind, story: rng.int(0, CHARGE_STORIES.length - 1), a: rng.int(5, hard ? 90 : 40), b: rng.int(2, hard ? 45 : 25) };
+        if (kind === 'distance') return { kind, story: rng.int(0, TRAVELLERS.length - 1), a: rng.int(1, hard ? 30 : 12), b: rng.int(2, 7) };
+        if (kind === 'tank') return { kind, story: 0, a: 10 * rng.int(5, 40), b: rng.int(2, 15) };
+        return { kind, story: rng.int(0, EVEN_STORIES.length - 1), a: rng.int(20, 300), b: rng.int(2, 12) };
+      },
+      (p) => p.a !== p.b,
+      { kind, story: 0, a: 30, b: 4 },
+    );
+  },
+  render: (p): Slide => {
+    const model = rearrangeModel(p);
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: model.text },
+        { kind: 'display', tex: model.formula },
+        { kind: 'prose', text: `Rearrange it to make $${model.subject}$ the subject.` },
+      ],
+      template: `${model.subject} = ({0} {1}) \\div {2}`,
+      bank: bankOf(model.answer, model.wrong),
+      answer: model.answer,
+    };
+  },
+  solution: (p) => {
+    const model = rearrangeModel(p);
+    const [first, moved, by] = model.answer;
+    const letterTerm = `${by}${model.subject}`;
+    const undo = moved.startsWith('-') ? `Take $${moved.slice(2)}$ from both sides` : `Add $${moved.slice(2)}$ to both sides`;
+    return [
+      { tex: model.formula },
+      p.kind === 'tank'
+        ? { text: `Swap $V$ and the $${by}t$ across, so the letter term is positive.`, tex: `${letterTerm} = ${first} ${moved}` }
+        : { text: `${undo}, leaving the letter term alone.`, tex: `${letterTerm} = ${first} ${moved}` },
+      { text: `Divide by $${by}$.`, tex: `${model.subject} = (${first} ${moved}) \\div ${by}` },
+    ];
+  },
+};
+
 export const linearEquationsGenerators = [
   oneStep,
   twoStep,
@@ -10521,4 +12522,29 @@ export const linearEquationsGenerators = [
   storySystem,
   storyMost,
   storyMeetSteps,
+  nameLetter,
+  nameExpress,
+  nameTotal,
+  nameSolve,
+  nameTree,
+  evenCount,
+  evenTiles,
+  evenSlider,
+  evenTable,
+  evenFlow,
+  rateMeet,
+  rateWhereTree,
+  rateCatch,
+  rateTank,
+  rateTiles,
+  mixPair,
+  mixTiles,
+  mixSolve,
+  mixSubstituteSteps,
+  mixSlider,
+  mixFlow,
+  backWhich,
+  backSenseFlow,
+  backChange,
+  backRearrange,
 ] as unknown as Generator<unknown>[];

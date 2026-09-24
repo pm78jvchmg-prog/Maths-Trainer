@@ -3997,7 +3997,7 @@ const meanErrorChoice: Generator<MeanChangeParams> = {
     const c = MEAN_CONTEXTS[sc.ctx];
     if (sc.change === 'bigger' || sc.change === 'smaller') {
       return [
-        { text: `The level is still ${sc.level}%, so P(Type I) is still ${asProb(sc.level)}$: $\\bar{X}$ is continuous, so the region is drawn to hold exactly the level under $H_0$.` },
+        { text: `The level is still ${sc.level}%, so P(Type I) is still $${asProb(sc.level)}$: $\\bar{X}$ is continuous, so the region is drawn to hold exactly the level under $H_0$.` },
         {
           text: `With $n = ${sc.n2}$ the standard deviation of $\\bar{X}$ is $\\frac{${sigmaOf(sc)}}{\\sqrt{${sc.n2}}}$, ${sc.change === 'bigger' ? 'smaller, so the sample mean is less likely to fall short of the boundary when the mean really has moved: P(Type II) falls' : 'larger, so the sample mean is more likely to fall short of the boundary: P(Type II) rises'}.`,
         },

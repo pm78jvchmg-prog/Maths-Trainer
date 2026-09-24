@@ -775,7 +775,7 @@ const expTiles: Generator<ExpTilesParams> = {
     return [
       { text: `Put $u = ${u}$ into $e^{u} = 1 + u + \\frac{u^{2}}{2!} + \\frac{u^{3}}{3!} + \\cdots$. Each power of $u$ raises $${qTex(f.k)}$ to that power too.` },
       { tex: `e^{${u}} = 1 + (${u}) + \\frac{(${u})^{2}}{2!} + \\cdots` },
-      ...(eq(f.scale, ONE) ? [] : [{ text: `Then multiply every term by $${qTex(f.scale)}$.` }]),
+      ...(f.scale === 1 ? [] : [{ text: `Then multiply every term by $${f.scale}$.` }]),
       { tex: `${fnTex(f)} = ${seriesTex(terms)}` },
     ];
   },

@@ -15,7 +15,10 @@
  * factors, quartics in x², and solving a quartic by dividing twice. Then
  * inequalities: the sign diagram, cubic sets on a number line, the hole or
  * lone point a squared factor leaves, rearranging and factorising first, and
- * reading a set back off a sketch or a shaded line.
+ * reading a set back off a sketch or a shaded line. Then modelling: the
+ * open box folded from a sheet as a cubic, its values and the largest in a
+ * table, the cuts that give a stated volume, a cubic fitted through its roots
+ * and a point, and what a model's roots, values and signs say.
  *
  * Each level closes with a level check: fifteen questions, no teaching
  * slides, one attempt each.
@@ -60,6 +63,36 @@ const graph = (f: (x: number) => number, roots: number[], label: string): Block 
     label,
   }),
 });
+
+/**
+ * The volume of a box against its cut, for a teach slide: from 0 to where the
+ * base runs out, with head-room over the top of the hill.
+ */
+const volume = (f: (x: number) => number, end: number, top: number, label: string): Block => ({
+  kind: 'diagram',
+  svg: plotSvg({ xMin: 0, xMax: end, yMin: -top * 0.08, yMax: top * 1.2, height: 160, curves: [{ f }], verticals: [{ x: 0, dashed: false }], label }),
+});
+
+/** The 20 by 16 sheet with a square dashed in at each corner, for the first box. */
+const sheet: Block = {
+  kind: 'diagram',
+  svg: [
+    '<svg viewBox="0 0 240 200" width="100%" role="img" aria-label="A 20 by 16 sheet of card with a square of side x marked at each corner">',
+    '<rect x="20" y="24" width="200" height="160" fill="none" stroke="currentColor" stroke-width="1.5" />',
+    ...[
+      [20, 24],
+      [190, 24],
+      [20, 154],
+      [190, 154],
+    ].map(([x, y]) => `<rect x="${x}" y="${y}" width="30" height="30" fill="currentColor" fill-opacity="0.12" stroke="currentColor" stroke-dasharray="4 3" />`),
+    '<path d="M 50 54 H 190 V 154 H 50 Z" fill="none" stroke="currentColor" stroke-dasharray="2 3" opacity="0.6" />',
+    '<text x="120" y="16" text-anchor="middle" font-size="13" fill="currentColor">20 cm</text>',
+    '<text x="12" y="108" text-anchor="middle" font-size="13" fill="currentColor" transform="rotate(-90 12 108)">16 cm</text>',
+    '<text x="35" y="44" text-anchor="middle" font-size="13" font-style="italic" fill="currentColor">x</text>',
+    '<text x="120" y="108" text-anchor="middle" font-size="12" fill="currentColor">base</text>',
+    '</svg>',
+  ].join(''),
+};
 
 export const polynomials: Course = {
   id: 'polynomials',
@@ -1245,6 +1278,172 @@ export const polynomials: Course = {
         ask('poly-read-graph', 2),
         ask('poly-integer-count', 2),
         ask('poly-quartic-line', 2),
+      ],
+    },
+    {
+      id: 'pl-l7',
+      title: 'Modelling with Polynomials',
+      lessons: [
+        {
+          id: 'pl-l7-box',
+          title: 'The Open Box',
+          slides: [
+            teach(
+              prose('Take a sheet of card $20$ cm by $16$ cm, cut a square of side $x$ cm from each corner, and fold up the flaps. That makes an open box $x$ cm tall.'),
+              sheet,
+              prose('Each side of the base loses a square at both ends, so the base is $20 - 2x$ by $16 - 2x$. Volume is height times length times width:'),
+              maths('V = x(20 - 2x)(16 - 2x)'),
+            ),
+            ask('poly-box-sides-tiles'),
+            ask('poly-box-expand-steps'),
+            ask('poly-box-domain-flow'),
+            teach(
+              prose('Multiplied out, the model is a cubic. The base first, then every term times the height:'),
+              working('V &= x(320 - 72x + 4x^{2})', '&= 4x^{3} - 72x^{2} + 320x'),
+              prose('The $4x^{3}$ is $x$ times $-2x$ times $-2x$. There is no constant term, since every term carries the height $x$.'),
+            ),
+            ask('poly-box-coefficient'),
+            ask('poly-box-sides-tiles', 2),
+            ask('poly-box-expand-steps', 2),
+            teach(
+              prose('The formula gives a number for any $x$, but only some $x$ make a box. Every length has to be positive:'),
+              working('x &> 0', '20 - 2x > 0 &\\implies x < 10', '16 - 2x > 0 &\\implies x < 8'),
+              prose('The narrower side runs out first, so the model describes a box only for $0 < x < 8$.'),
+            ),
+            ask('poly-box-domain-flow', 2),
+            ask('poly-box-coefficient+choice', 2),
+          ],
+          skillCheck: [ask('poly-box-sides-tiles', 2), ask('poly-box-expand-steps', 2), ask('poly-box-domain-flow', 2)],
+        },
+        {
+          id: 'pl-l7-table',
+          title: 'Values and the Table',
+          slides: [
+            teach(
+              prose('A volume at one cut comes straight from the brackets. For the $20$ by $16$ sheet at $x = 2$, the base is $16$ by $12$:'),
+              maths('V = 2 \\times 16 \\times 12 = 384'),
+              prose('So a $2$ cm cut makes a box holding $384$ cm³.'),
+            ),
+            ask('poly-box-volume'),
+            ask('poly-box-value-tree'),
+            ask('poly-box-table'),
+            teach(
+              prose('A row for each whole-number cut shows how the volume changes:'),
+              maths('\\begin{array}{c|cccc} x & 1 & 2 & 3 & 4 \\\\ \\hline V & 252 & 384 & 420 & 384 \\end{array}'),
+              maths('\\begin{array}{c|ccc} x & 5 & 6 & 7 \\\\ \\hline V & 300 & 192 & 84 \\end{array}'),
+              prose('It rises, peaks and falls. A small cut makes a shallow box, a big one a narrow box, and the largest in the table is $420$, at $x = 3$.'),
+            ),
+            ask('poly-box-best-slider'),
+            ask('poly-box-volume+choice', 2),
+            ask('poly-box-value-tree', 2),
+            teach(
+              volume((x) => x * (20 - 2 * x) * (16 - 2 * x), 8, 420, 'Volume against the cut for the 20 by 16 sheet: a hill from zero at x = 0, highest near x = 3, back to zero at x = 8'),
+              prose('The graph is a hill from $0$ at $x = 0$ back to $0$ at $x = 8$. Finding its exact top means differentiating, which Differentiation does; for a whole-number cut, the table or the graph is enough.'),
+            ),
+            ask('poly-box-table', 2),
+            ask('poly-box-best-slider', 2),
+          ],
+          skillCheck: [ask('poly-box-volume', 2), ask('poly-box-table', 2), ask('poly-box-best-slider', 2)],
+        },
+        {
+          id: 'pl-l7-target',
+          title: 'A Given Volume',
+          slides: [
+            teach(
+              prose('Which cut makes the $20$ by $16$ box hold $384$ cm³? Set $V = 384$ and bring everything to one side:'),
+              working('4x^{3} - 72x^{2} + 320x - 384 &= 0', 'x^{3} - 18x^{2} + 80x - 96 &= 0'),
+              prose('Every coefficient was a multiple of $4$, so the second line divides through by $4$. Smaller numbers are easier to try roots with.'),
+            ),
+            ask('poly-box-cubic-steps'),
+            ask('poly-box-divide-tree'),
+            ask('poly-box-root-flow'),
+            teach(
+              prose('Call it $f(x)$ and try small whole numbers. $f(1) = 1 - 18 + 80 - 96 = -33$, but $f(2) = 8 - 72 + 160 - 96 = 0$, so $(x - 2)$ is a factor. Dividing leaves a quadratic, which factorises:'),
+              working('&(x - 2)(x^{2} - 16x + 48)', '=\\;&(x - 2)(x - 4)(x - 12)'),
+            ),
+            ask('poly-box-other-root'),
+            ask('poly-box-cubic-steps', 2),
+            ask('poly-box-divide-tree', 2),
+            teach(
+              prose('So $x = 2$, $4$ or $12$. A box needs $0 < x < 8$, so $x = 12$ is thrown out: two $12$ cm cuts cannot come off a $16$ cm side.'),
+              prose('Both $2$ cm and $4$ cm make a box holding $384$ cm³, one either side of the peak in the table. A volume below the largest usually has two cuts like this.'),
+            ),
+            ask('poly-box-root-flow', 2),
+            ask('poly-box-other-root+choice', 2),
+          ],
+          skillCheck: [ask('poly-box-cubic-steps', 2), ask('poly-box-root-flow', 2), ask('poly-box-other-root', 2)],
+        },
+        {
+          id: 'pl-l7-fit',
+          title: 'Fitting a Curve',
+          slides: [
+            teach(
+              prose('A model can also be fitted to what is known about a curve. If a cubic crosses the $x$-axis at $x = -1$, $2$ and $4$, each root gives a bracket, and a number $a$ in front moves none of them:'),
+              maths('y = a(x + 1)(x - 2)(x - 4)'),
+              prose('One more point fixes $a$. If the curve meets the $y$-axis at $y = 16$, then $16 = a(1)(-2)(-4) = 8a$, so $a = 2$.'),
+            ),
+            ask('poly-fit-tiles'),
+            ask('poly-fit-coefficient'),
+            ask('poly-fit-flow'),
+            teach(
+              prose('A point off the axes works the same way. The same curve passes through $(3, -8)$: the brackets at $x = 3$ are $(4)(1)(-1) = -4$, so $-8 = -4a$, and again $a = 2$.'),
+              prose('Multiplied out, it is $y = 2x^{3} - 10x^{2} + 4x + 16$, and its constant term is the $y$-intercept, $16$.'),
+            ),
+            ask('poly-find-lead', 2),
+            ask('poly-fit-tiles', 2),
+            ask('poly-fit-coefficient+choice', 2),
+            teach(
+              prose('A model written out with one unknown coefficient is fitted the same way: put the point in and solve. For $y = x^{3} + kx^{2} - 4x + 12$ through $(2, 8)$:'),
+              working('8 &= 8 + 4k - 8 + 12', '4k &= -4', 'k &= -1'),
+            ),
+            ask('poly-sketch-expand-steps'),
+            ask('poly-fit-flow', 2),
+          ],
+          skillCheck: [ask('poly-fit-tiles', 2), ask('poly-fit-coefficient', 2), ask('poly-fit-flow', 2)],
+        },
+        {
+          id: 'pl-l7-reading',
+          title: 'Reading a Model',
+          slides: [
+            teach(
+              prose('Every part of a model says something. For the box $V = x(20 - 2x)(16 - 2x)$:'),
+              prose('A root is a cut that leaves no box: at $x = 0$ nothing folds up, which is also the intercept $V(0) = 0$, and at $x = 8$ the base has no width. A value such as $V(3) = 420$ says a $3$ cm cut makes a box of $420$ cm³.'),
+            ),
+            ask('poly-model-meaning'),
+            ask('poly-model-sense-flow'),
+            ask('poly-model-count'),
+            teach(
+              prose('A model stops making sense outside its range. At $x = 9$, $V = 9 \\times 2 \\times (-2) = -36$: a negative width, and no box.'),
+              prose('At $x = 11$, $V = 11 \\times (-2) \\times (-6) = 132$, which is positive, yet both sides of the base are negative. The sign alone cannot say the model still applies; only the range $0 < x < 8$ can.'),
+            ),
+            ask('poly-model-which'),
+            ask('poly-model-meaning', 2),
+            ask('poly-model-sense-flow', 2),
+            teach(
+              prose('To pick a cubic from a table, the zeros in the $y$ row give roots, and one more point gives the number in front. Two different cubics agree at three points at most, so five points settle it: check each candidate against the table until only one fits.'),
+            ),
+            ask('poly-model-which', 2),
+            ask('poly-model-count', 2),
+          ],
+          skillCheck: [ask('poly-model-meaning', 2), ask('poly-model-sense-flow', 2), ask('poly-model-which', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('poly-box-sides-tiles', 2),
+        ask('poly-box-expand-steps', 2),
+        ask('poly-box-domain-flow', 2),
+        ask('poly-box-volume', 2),
+        ask('poly-box-table', 2),
+        ask('poly-box-best-slider', 2),
+        ask('poly-box-cubic-steps', 2),
+        ask('poly-box-root-flow', 2),
+        ask('poly-box-other-root', 2),
+        ask('poly-fit-tiles', 2),
+        ask('poly-fit-coefficient', 2),
+        ask('poly-fit-flow', 2),
+        ask('poly-model-meaning', 2),
+        ask('poly-model-sense-flow', 2),
+        ask('poly-model-which', 2),
       ],
     },
   ],

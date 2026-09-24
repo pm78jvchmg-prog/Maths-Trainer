@@ -1128,3 +1128,317 @@ describe('polynomial inequalities, checked from what the learner sees', () => {
     }
   });
 });
+
+/**
+ * Level 7 reads the sheet off the prompt and rebuilds the box's volume itself,
+ * V(x) = x(L - 2x)(W - 2x), so every expansion, table cell, root and reading
+ * is held to the model the learner was told about, not to the generator's own
+ * arithmetic. The range of cuts is found the same way: a whole x is a box when
+ * every length it makes is positive.
+ */
+describe('modelling with polynomials, checked from what the learner sees', () => {
+  interface Sheet {
+    L: number;
+    W: number;
+  }
+
+  function sheetOf(slide: Slide): Sheet {
+    const match = /card \$(\d+)\$ cm by \$(\d+)\$ cm/.exec(prose(slide));
+    if (!match) throw new Error(`no sheet in ${prose(slide)}`);
+    return { L: Number(match[1]), W: Number(match[2]) };
+  }
+
+  const volume = ({ L, W }: Sheet, x: number): number => x * (L - 2 * x) * (W - 2 * x);
+  const isBox = ({ L, W }: Sheet, x: number): boolean => x > 0 && L - 2 * x > 0 && W - 2 * x > 0;
+  /** Every whole cut that makes a box. */
+  const cuts = (sheet: Sheet): number[] => Array.from({ length: 40 }, (_, i) => i).filter((x) => isBox(sheet, x));
+  const WHOLE = Array.from({ length: 41 }, (_, i) => i - 10);
+
+  /** Learner-facing TeX with the products mathjs would read as calls written out. */
+  const modelAt = (tex: string, x: number, scope: Record<string, number> = {}): number =>
+    math.evaluate(
+      toMath(plainTex(tex).replace(/^[Vy]\s*=\s*/, ''))
+        .replace(/\)\s*\(/g, ')*(')
+        .replace(/([\dxk])\s*\(/g, '$1*(')
+        .replace(/\)\s*([\dx])/g, ')*$1')
+        .replace(/\bk\s*\*?\s*x/g, 'k*x'),
+      { x, ...scope },
+    ) as number;
+
+  const targetOf = (slide: Slide): number => Number(/hold(?:ing|s)? \$(\d+)\$ cm³/.exec(prose(slide))![1]);
+  const choiceOrTyped = (slide: Slide): string => (slide.kind === 'expression' ? slide.answer : slide.kind === 'choice' ? correctLabel(slide) : '');
+
+  it('the formula built from tiles is the volume of the box', () => {
+    for (const { slide, seed, difficulty } of slides('poly-box-sides-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const sheet = sheetOf(slide);
+      for (const x of WHOLE) expect(modelAt(filledTemplate(slide), x), `seed ${seed} d${difficulty} at ${x}`).toBeCloseTo(volume(sheet, x), 9);
+    }
+  });
+
+  it('each line of the expansion is the base, then the volume', () => {
+    for (const { slide, seed, difficulty } of slides('poly-box-expand-steps')) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      const sheet = sheetOf(slide);
+      const [base, whole] = slide.reductions.map((step) => step.value);
+      for (const x of WHOLE) {
+        expect(modelAt(base, x), `seed ${seed} d${difficulty} base at ${x}`).toBeCloseTo((sheet.L - 2 * x) * (sheet.W - 2 * x), 9);
+        expect(modelAt(whole, x), `seed ${seed} d${difficulty} volume at ${x}`).toBeCloseTo(volume(sheet, x), 9);
+      }
+    }
+  });
+
+  it('the range of cuts is exactly where every length is positive, and the count is its whole numbers', () => {
+    for (const { slide, seed, difficulty } of slides('poly-box-domain-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const where = `seed ${seed} d${difficulty}`;
+      const sheet = sheetOf(slide);
+      const top = Number(/^\$0 < x < (\d+)\$$/.exec(slide.answer[2])![1]);
+      for (let x = -2; x <= 40; x += 0.5) expect(x > 0 && x < top, `${where} at ${x}`).toBe(isBox(sheet, x));
+      if (difficulty > 1) expect(Number(unwrapMaths(slide.answer[3])), where).toBe(cuts(sheet).length);
+    }
+  });
+
+  it('a coefficient of the expanded volume is the one V itself has', () => {
+    for (const id of ['poly-box-coefficient', 'poly-box-coefficient+choice']) {
+      for (const { slide, seed, difficulty } of slides(id)) {
+        const sheet = sheetOf(slide);
+        // V = 4x^3 + bx^2 + cx: b and c from V(1) and V(-1).
+        const b = (volume(sheet, 1) + volume(sheet, -1)) / 2;
+        const c = (volume(sheet, 1) - volume(sheet, -1)) / 2 - 4;
+        const asked = prose(slide).includes('Find $b$') ? b : c;
+        expect(Number(choiceOrTyped(slide)), `${id} seed ${seed} d${difficulty}`).toBe(asked);
+      }
+    }
+  });
+
+  it('a volume at a whole cut is the box at that cut', () => {
+    for (const id of ['poly-box-volume', 'poly-box-volume+choice']) {
+      for (const { slide, seed, difficulty } of slides(id)) {
+        const sheet = sheetOf(slide);
+        const x = Number(/when \$x = (\d+)\$/.exec(prose(slide))![1]);
+        expect(isBox(sheet, x), `${id} seed ${seed}`).toBe(true);
+        expect(Number(choiceOrTyped(slide)), `${id} seed ${seed} d${difficulty}`).toBe(volume(sheet, x));
+      }
+    }
+    for (const { slide, seed, difficulty } of slides('poly-box-value-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const sheet = sheetOf(slide);
+      const x = Number(/when \$x = (\d+)\$/.exec(prose(slide))![1]);
+      const [a, b] = [sheet.L - 2 * x, sheet.W - 2 * x];
+      expect(slide.answer.map(Number), `tree seed ${seed} d${difficulty}`).toEqual([a, b, a * b, volume(sheet, x)]);
+    }
+  });
+
+  it('every cell of a table of volumes is the box at its row, and every row is a box', () => {
+    for (const { slide, seed, difficulty } of slides('poly-box-table')) {
+      if (slide.kind !== 'table') throw new Error('expected table');
+      const where = `seed ${seed} d${difficulty}`;
+      const sheet = sheetOf(slide);
+      const answers = [...slide.answer];
+      expect(slide.columns.slice(1, 3), where).toEqual([`{${sheet.L} - 2x}`, `{${sheet.W} - 2x}`]);
+      slide.rows.forEach((row, i) => {
+        const x = Number(row[0]);
+        expect(x, where).toBe(i + 1);
+        expect(isBox(sheet, x), `${where} row ${x}`).toBe(true);
+        const expected = [sheet.L - 2 * x, sheet.W - 2 * x, volume(sheet, x)];
+        row.slice(1).forEach((cell, j) => expect(Number(cell ?? answers.shift()), `${where} row ${x} column ${j + 1}`).toBe(expected[j]));
+      });
+      expect(answers, where).toEqual([]);
+    }
+  });
+
+  it('the best cut on the slider is the whole cut with the largest volume, and clearly so', () => {
+    for (const { slide, seed, difficulty } of slides('poly-box-best-slider')) {
+      if (slide.kind !== 'slider') throw new Error('expected slider');
+      const where = `seed ${seed} d${difficulty}`;
+      const sheet = sheetOf(slide);
+      expect(sheet.W, where).toBeLessThanOrEqual(30);
+      const whole = cuts(sheet);
+      const best = whole.reduce((a, b) => (volume(sheet, b) > volume(sheet, a) ? b : a));
+      expect(slide.answer, where).toBe(best);
+      expect(slide.max, where).toBe(sheet.W / 2);
+      // No neighbour within 1% of the best, so the top of the hill is not a tie.
+      for (const x of whole.filter((v) => v !== best)) expect(volume(sheet, x), `${where} at ${x}`).toBeLessThan(volume(sheet, best) * 0.99);
+    }
+  });
+
+  it('every line of forming the cubic has the same solutions as V = T', () => {
+    for (const { slide, seed, difficulty } of slides('poly-box-cubic-steps')) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      const where = `seed ${seed} d${difficulty}`;
+      const sheet = sheetOf(slide);
+      const T = targetOf(slide);
+      expect(Number(slide.start[2]), where).toBe(T);
+      expect(modelAt(slide.start[0], 3), where).toBeCloseTo(volume(sheet, 3), 9);
+      const lines = slide.reductions.map((step) => step.value).filter((value) => value.endsWith('= 0'));
+      // Each is V - T up to a constant factor, and the last is divided by 4.
+      for (const line of lines) {
+        const left = line.replace(/\s*=\s*0$/, '');
+        const scale = modelAt(left, 0) / -T;
+        for (const x of WHOLE) expect(modelAt(left, x), `${where}: ${line} at ${x}`).toBeCloseTo(scale * (volume(sheet, x) - T), 9);
+      }
+      const last = lines[lines.length - 1].replace(/\s*=\s*0$/, '');
+      expect(modelAt(last, 0) / -T, where).toBeCloseTo(0.25, 12);
+      expect(cuts(sheet).some((x) => volume(sheet, x) === T), `${where}: no whole cut gives ${T}`).toBe(true);
+    }
+  });
+
+  it('the division is of (V - T)/4 by a cut that gives T, leaving no remainder', () => {
+    for (const { slide, seed, difficulty } of slides('poly-box-divide-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const where = `seed ${seed} d${difficulty}`;
+      const sheet = sheetOf(slide);
+      const T = targetOf(slide);
+      const [, f, divisor] = /^\\frac\{(.+)\}\{(.+)\}$/.exec(slide.expression)!;
+      const k = rootIn(`(${divisor})`);
+      expect(volume(sheet, k), where).toBe(T);
+      for (const x of WHOLE) expect(modelAt(f, x), `${where} at ${x}`).toBeCloseTo((volume(sheet, x) - T) / 4, 9);
+      const [q2, q1, q0, r] = slide.answer.map(Number);
+      expectDivision(f, k, `(${q2})*x^2 + (${q1})*x + (${q0})`, r, where);
+      expect(r, where).toBe(0);
+    }
+  });
+
+  it('solving V = T finds every whole solution, and keeps exactly the ones that are boxes', () => {
+    for (const { slide, seed, difficulty } of slides('poly-box-root-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const where = `seed ${seed} d${difficulty}`;
+      const sheet = sheetOf(slide);
+      const T = targetOf(slide);
+      const solutions = WHOLE.filter((x) => volume(sheet, x) === T);
+      expect(solutions.length, where).toBe(3);
+      const f = slide.subject.replace(/\s*=\s*0$/, '');
+      for (const x of WHOLE) expect(modelAt(f, x), `${where} at ${x}`).toBeCloseTo((volume(sheet, x) - T) / 4, 9);
+      const labels = slide.answer.map(unwrapMaths);
+      const numbersIn = (label: string) => [...label.matchAll(/-?\d+/g)].map((m) => Number(m[0]));
+      const first = difficulty > 1 ? numbersIn(labels[0])[0] : Number(/One solution is \$x = (\d+)\$/.exec(prose(slide))![1]);
+      if (difficulty > 1) expect(first, where).toBe(Math.min(...solutions.filter((x) => x > 0)));
+      const [quotient, others, boxes] = labels.slice(-3);
+      expectDivision(f, first, quotient, 0, where);
+      expect(numbersIn(others).sort((a, b) => a - b), where).toEqual(solutions.filter((x) => x !== first));
+      expect(numbersIn(boxes), where).toEqual(solutions.filter((x) => isBox(sheet, x)));
+      expect(numbersIn(boxes).length, where).toBe(2);
+    }
+  });
+
+  it('the other cut gives the same volume and is a box', () => {
+    for (const id of ['poly-box-other-root', 'poly-box-other-root+choice']) {
+      for (const { slide, seed, difficulty } of slides(id)) {
+        const where = `${id} seed ${seed} d${difficulty}`;
+        const sheet = sheetOf(slide);
+        const T = targetOf(slide);
+        const boxes = cuts(sheet).filter((x) => volume(sheet, x) === T);
+        expect(boxes.length, where).toBe(2);
+        const text = prose(slide);
+        const given = /Cutting \$x = (\d+)\$/.exec(text);
+        const expected = given ? boxes.find((x) => x !== Number(given[1])) : text.includes('larger') ? boxes[1] : boxes[0];
+        expect(Number(choiceOrTyped(slide)), where).toBe(expected);
+      }
+    }
+  });
+
+  it('a cubic fitted from tiles meets the axes where the prompt says', () => {
+    for (const { slide, seed, difficulty } of slides('poly-fit-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const where = `seed ${seed} d${difficulty}`;
+      const text = prose(slide);
+      const y0 = Number(/\$y = (-?\d+)\$/.exec(text)![1]);
+      const touch = /touches the \$x\$-axis at \$x = (-?\d+)\$/.exec(text);
+      const cross = /(?:crosses the \$x\$-axis|crosses it) at \$x = ([^$]+)\$/.exec(text)!;
+      const roots = [...(touch ? [Number(touch[1])] : []), ...cross[1].split(',\\ ').map(Number)];
+      const y = (x: number) => modelAt(filledTemplate(slide), x);
+      expect(y(0), where).toBeCloseTo(y0, 9);
+      for (const r of roots) expect(y(r), `${where} at ${r}`).toBeCloseTo(0, 9);
+      if (text.includes('touches')) {
+        const r = roots[0];
+        expect(Math.sign(y(r - 0.25)), `${where}: touches at ${r}`).toBe(Math.sign(y(r + 0.25)));
+      }
+    }
+  });
+
+  it('a fitted coefficient puts the point on the curve', () => {
+    for (const id of ['poly-fit-coefficient', 'poly-fit-coefficient+choice']) {
+      for (const { slide, seed, difficulty } of slides(id)) {
+        const where = `${id} seed ${seed} d${difficulty}`;
+        const [, x0, y0] = /\$\((-?\d+), (-?\d+)\)\$/.exec(prose(slide))!.map(Number);
+        const k = Number(choiceOrTyped(slide));
+        expect(modelAt(display(slide), x0, { k }), where).toBeCloseTo(y0, 9);
+      }
+    }
+  });
+
+  it('the fitted cubic has the roots, passes through the point, and has the constant term claimed', () => {
+    for (const { slide, seed, difficulty } of slides('poly-fit-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const where = `seed ${seed} d${difficulty}`;
+      const [, list, px, py] = /^\\text\{roots \} (.+),\\ \\text\{point \} \((-?\d+),\\ (-?\d+)\)$/.exec(slide.subject)!;
+      const roots = list.split(',\\ ').map(Number);
+      expect(roots.length, where).toBe(3);
+      const form = unwrapMaths(slide.answer[0]).replace(/^y = a/, '');
+      const a = Number(unwrapMaths(slide.answer[2]).replace('a = ', ''));
+      const y = (x: number) => a * modelAt(form, x);
+      for (const r of roots) expect(y(r), `${where} at ${r}`).toBeCloseTo(0, 9);
+      expect(y(Number(px)), where).toBeCloseTo(Number(py), 9);
+      if (slide.answer[3]) expect(Number(unwrapMaths(slide.answer[3])), where).toBeCloseTo(y(0), 9);
+    }
+  });
+
+  it('what a reading claims about V is true of the box', () => {
+    for (const { slide, seed, difficulty } of slides('poly-model-meaning')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const where = `seed ${seed} d${difficulty}`;
+      const sheet = sheetOf(slide);
+      const text = prose(slide);
+      const value = /\$V\((\d+)\) = (\d+)\$/.exec(text);
+      const negative = /negative for \$(\d+) < x < (\d+)\$/.exec(text);
+      if (value) {
+        expect(volume(sheet, Number(value[1])), where).toBe(Number(value[2]));
+        if (Number(value[2]) === 0) expect(isBox(sheet, Number(value[1])), where).toBe(false);
+        else expect(correctLabel(slide), where).toBe(`Cutting ${value[1]} cm squares makes a box that holds ${value[2]} cm³.`);
+      } else if (negative) {
+        for (let x = Number(negative[1]) + 0.5; x < Number(negative[2]); x += 0.5) expect(volume(sheet, x), `${where} at ${x}`).toBeLessThan(0);
+        expect(isBox(sheet, Number(negative[1]) + 0.5), where).toBe(false);
+      } else {
+        expect(text, where).toContain('$V(0) = 0$');
+      }
+    }
+  });
+
+  it('a cut outside the range gives the volume stated, and is never a box', () => {
+    for (const { slide, seed, difficulty } of slides('poly-model-sense-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const where = `seed ${seed} d${difficulty}`;
+      const sheet = sheetOf(slide);
+      const x = Number(/puts \$x = (\d+)\$/.exec(prose(slide))![1]);
+      expect(Number(unwrapMaths(slide.answer[0])), where).toBe(volume(sheet, x));
+      expect(slide.answer[1], where).toBe('No');
+      expect(isBox(sheet, x), where).toBe(false);
+      if (difficulty > 1) expect(volume(sheet, x), `${where}: meant to look like a volume`).toBeGreaterThan(0);
+    }
+  });
+
+  it('exactly one cubic offered fits the table', () => {
+    for (const { slide, seed, difficulty } of slides('poly-model-which')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const where = `seed ${seed} d${difficulty}`;
+      const [, xRow, yRow] = /x & (.+) \\\\ \\hline y & (.+) \\end/.exec(display(slide))!;
+      const xs = xRow.split(' & ').map(Number);
+      const ys = yRow.split(' & ').map(Number);
+      for (const option of slide.options) {
+        const fits = xs.every((x, i) => Math.abs(modelAt(option.label, x) - ys[i]) < 1e-9);
+        expect(fits, `${where}: ${option.label}`).toBe(option.id === slide.correctId);
+      }
+    }
+  });
+
+  it('the count of whole cuts reaching a volume is every box that holds at least that much', () => {
+    for (const { slide, seed, difficulty } of slides('poly-model-count')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const sheet = sheetOf(slide);
+      const T = Number(/at least \$(\d+)\$/.exec(prose(slide))![1]);
+      const count = cuts(sheet).filter((x) => volume(sheet, x) >= T).length;
+      expect(Number(slide.answer), `seed ${seed} d${difficulty}`).toBe(count);
+    }
+  });
+});

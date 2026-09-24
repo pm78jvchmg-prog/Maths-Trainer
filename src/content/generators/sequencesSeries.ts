@@ -6,7 +6,9 @@
  * the differences between terms say about a sequence, and recurrence
  * relations. Level 2 is series: sigma notation, the arithmetic and geometric
  * sums, the sum to infinity, and series met in words (savings, a bouncing
- * ball, a rising salary).
+ * ball, a rising salary). Level 3 asks where a sequence goes, level 4 adds
+ * up powers and telescoping sums, and level 5 proves sum formulae and the
+ * closed forms of recurrences by induction (its own note is at its section).
  *
  * Every value a learner places or types is whole, apart from a common ratio
  * asked for as a fraction. A sum to infinity is built backwards from a whole
@@ -24,6 +26,7 @@ import type { Block, ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } f
 import { bin, num, pow, valueOf, type Expr } from '../expr';
 import { markerWindow, plotSvg } from '../figures';
 import { sumTex, termTex } from './calculus';
+import { lin, orderSlide, orderSolution, pickDistractors, polyTex as kPoly, type Distractor, type Proof } from './numberProof';
 
 /* ---------- shared ---------- */
 
@@ -5976,6 +5979,1748 @@ const telescopeSlider: Generator<SliderLimitParams> = {
   },
 };
 
+/* ---------- Level 5: proof by induction for series ---------- */
+
+/*
+ * Level 5 proves what levels 2 and 4 used. Every claim is a sum from r = 1
+ * with a closed form (or, in lesson 5, one starting later), or a recurrence
+ * with a closed form, and each is proved one way: a base case, an assumption
+ * at n = k, and a step. For a sum the step adds the (k + 1)th term,
+ * S_{k+1} = S_k + u_{k+1}, and tidies the result into the closed form at
+ * n = k + 1; for a recurrence it puts the assumed u_k into the rule.
+ *
+ * A closed form, or a line of the step, is never typed: the checker compares
+ * values, so it would accept any expression equal to the one asked for.
+ * Forms go through tiles, steps, order, flow or choice, and only whole numbers
+ * are typed. Every number on a slide is whole and under 1000.
+ *
+ * Nothing here is calculus, so no slide declares `source`. The claims are
+ * held to the terms added up, and the recurrences to their rules iterated
+ * from the start, in `sequencesSeries.test.ts`.
+ */
+
+type IndForm = 'nat' | 'odd' | 'lin' | 'rp' | 'cube' | 'geo';
+
+/**
+ * A sum with a closed form: Σ cr, Σ c(2r - 1), Σ(ar + b) with a odd,
+ * Σ cr(r + p), Σ cr^3, and Σ e(m - 1)m^{r-1} = e(m^n - 1).
+ */
+type SeriesClaim =
+  | { form: 'nat'; c: number }
+  | { form: 'odd'; c: number }
+  | { form: 'lin'; a: number; b: number }
+  | { form: 'rp'; c: number; p: number }
+  | { form: 'cube'; c: number }
+  | { form: 'geo'; m: number; e: number };
+
+type PolyClaim = Exclude<SeriesClaim, { form: 'geo' }>;
+
+/** A factor (an + b)^e of a closed form. */
+interface IndFactor {
+  a: number;
+  b: number;
+  e: number;
+}
+
+/** A closed form that is not geometric: P/Q times its factors. */
+interface IndShape {
+  P: number;
+  Q: number;
+  factors: IndFactor[];
+}
+
+const IND_LIMIT = 1000;
+
+/** A number bank whose distractors stay under 1000 too. */
+const smallBank = (answer: number[], slips: number[]) => numberBank(answer, slips.filter((value) => Math.abs(value) < IND_LIMIT));
+
+/** b for Σ(ar + b), keeping the first term and a + 2b positive. */
+const LIN_B: Record<number, number[]> = {
+  1: [1, 2, 3, 4, 5, 6, 7, 8],
+  3: [-1, 1, 2, 3, 4, 5, 6],
+  5: [-2, -1, 1, 2, 3, 4, 5],
+  7: [-3, -2, -1, 1, 2, 3, 4],
+  9: [-4, -3, -2, -1, 1, 2, 3],
+};
+
+/** (m, e) for Σ e(m - 1)m^{r-1}: the first term stays under 13. */
+const IND_GEO: [number, number][] = [
+  [2, 1], [2, 2], [2, 3], [2, 4], [2, 5], [2, 6], [2, 7], [2, 8], [2, 9],
+  [3, 1], [3, 2], [3, 3], [3, 4], [3, 5], [3, 6],
+  [4, 1], [4, 2], [4, 3],
+  [5, 1], [5, 2],
+];
+
+/**
+ * A claim of one of `forms`. `big` widens the ranges: larger a for Σ(ar + b),
+ * and c up to 6 with p up to 5 for Σ cr(r + p).
+ */
+function sampleClaim(rng: Rng, forms: IndForm[], big = false): SeriesClaim {
+  const form = rng.pick(forms);
+  if (form === 'lin') {
+    const a = rng.pick(big ? [5, 7, 9] : [1, 3, 5, 7]);
+    return { form, a, b: rng.pick(LIN_B[a]) };
+  }
+  if (form === 'rp') return { form, c: rng.int(1, big ? 6 : 3), p: rng.int(0, big ? 5 : 2) };
+  if (form === 'cube') return { form, c: rng.int(1, 4) };
+  if (form === 'geo') {
+    const [m, e] = rng.pick(IND_GEO);
+    return { form, m, e };
+  }
+  return { form, c: rng.int(1, 9) };
+}
+
+/** Draws until `ok` holds, which is how every value is kept under 1000. */
+function drawUntil<T>(draw: () => T, ok: (value: T) => boolean): T {
+  for (;;) {
+    const value = draw();
+    if (ok(value)) return value;
+  }
+}
+
+/** The rth term. */
+function indTerm(s: SeriesClaim, r: number): number {
+  switch (s.form) {
+    case 'nat':
+      return s.c * r;
+    case 'odd':
+      return s.c * (2 * r - 1);
+    case 'lin':
+      return s.a * r + s.b;
+    case 'rp':
+      return s.c * r * (r + s.p);
+    case 'cube':
+      return s.c * r ** 3;
+    case 'geo':
+      return s.e * (s.m - 1) * s.m ** (r - 1);
+  }
+}
+
+/** The closed form at n, which the tests hold to the terms added up. */
+function indSum(s: SeriesClaim, n: number): number {
+  if (s.form === 'geo') return s.e * (s.m ** n - 1);
+  const { P, Q, factors } = indShape(s);
+  return (P * factors.reduce((product, { a, b, e }) => product * (a * n + b) ** e, 1)) / Q;
+}
+
+function indShape(s: PolyClaim): IndShape {
+  const n: IndFactor = { a: 1, b: 0, e: 1 };
+  const next: IndFactor = { a: 1, b: 1, e: 1 };
+  let raw: IndShape;
+  if (s.form === 'nat') raw = { P: s.c, Q: 2, factors: [n, next] };
+  else if (s.form === 'odd') raw = { P: s.c, Q: 1, factors: [{ a: 1, b: 0, e: 2 }] };
+  else if (s.form === 'lin') raw = { P: 1, Q: 2, factors: [n, { a: s.a, b: s.a + 2 * s.b, e: 1 }] };
+  else if (s.form === 'rp') {
+    // Σ cr(r + p) = c/6 n(n + 1)(2n + 1 + 3p), and the last bracket halves when p is odd.
+    raw =
+      s.p % 2 === 0
+        ? { P: s.c, Q: 6, factors: [n, next, { a: 2, b: 1 + 3 * s.p, e: 1 }] }
+        : { P: s.c, Q: 3, factors: [n, next, { a: 1, b: (1 + 3 * s.p) / 2, e: 1 }] };
+  } else raw = { P: s.c, Q: 4, factors: [{ a: 1, b: 0, e: 2 }, { a: 1, b: 1, e: 2 }] };
+  const g = gcd(raw.P, raw.Q);
+  return { P: raw.P / g, Q: raw.Q / g, factors: raw.factors };
+}
+
+/** P/Q in front of a product: nothing, `3`, or `\frac16`, written without braces as tiles need. */
+function indCoef({ P, Q }: IndShape): string {
+  if (Q === 1) return P === 1 ? '' : `${P}`;
+  return P < 10 && Q < 10 ? `\\frac${P}${Q}` : `\\frac{${P}}{${Q}}`;
+}
+
+/** A factor at v + shift: `n`, `k^2`, `(k + 1)`, `(2k + 3)`. */
+function indFactorTex({ a, b, e }: IndFactor, v: string, shift: number): string {
+  const inner = lin(a, a * shift + b, v);
+  const body = inner === v ? v : `(${inner})`;
+  return e === 1 ? body : `${body}^${e}`;
+}
+
+/** A shape written out, each factor at its own shift. */
+function shapeTex(shape: IndShape, v: string, shifts: number[]): string {
+  const product = shape.factors.map((factor, i) => indFactorTex(factor, v, shifts[i])).join('');
+  const coef = indCoef(shape);
+  return coef.startsWith('\\frac') && !product.startsWith('(') ? `${coef} ${product}` : `${coef}${product}`;
+}
+
+/** The closed form at n = v + shift: `\frac12 n(n + 1)`, `\frac12(k + 1)(k + 2)`, `3(2^{k+1} - 1)`. */
+function closedTex(s: SeriesClaim, v: string, shift = 0): string {
+  if (s.form === 'geo') {
+    const power = shift === 0 ? `${s.m}^${v}` : `${s.m}^{${v}+${shift}}`;
+    return s.e === 1 ? `${power} - 1` : `${s.e}(${power} - 1)`;
+  }
+  const shape = indShape(s);
+  return shapeTex(shape, v, shape.factors.map(() => shift));
+}
+
+/** The closed form plus a constant, the constant folded into a geometric sum's `- 1`: `2^n + 2`, not `2^n - 1 + 3`. */
+function closedPlus(s: SeriesClaim, v: string, t: number, shift = 0): string {
+  if (t === 0) return closedTex(s, v, shift);
+  if (s.form === 'geo' && s.e === 1) {
+    const power = shift === 0 ? `${s.m}^${v}` : `${s.m}^{${v}+${shift}}`;
+    return t === 1 ? power : `${power} ${signed(t - 1)}`;
+  }
+  return `${closedTex(s, v, shift)} ${signed(t)}`;
+}
+
+/** A whole multiplier in front of a letter or a bracket: nothing for 1. */
+const multTex = (c: number) => (c === 1 ? '' : `${c}`);
+
+/** The first term of a geometric claim, as it sits in front of a power: nothing, or `3 \times `. */
+const geoLead = ({ m, e }: { m: number; e: number }) => (e * (m - 1) === 1 ? '' : `${e * (m - 1)} \\times `);
+
+/** The general term after the sigma, in r. */
+function indTermR(s: SeriesClaim): string {
+  switch (s.form) {
+    case 'nat':
+      return `${multTex(s.c)}r`;
+    case 'odd':
+      return `${multTex(s.c)}(2r - 1)`;
+    case 'lin':
+      return `(${lin(s.a, s.b, 'r')})`;
+    case 'rp':
+      return s.p === 0 ? `${multTex(s.c)}r^2` : `${multTex(s.c)}r(r + ${s.p})`;
+    case 'cube':
+      return `${multTex(s.c)}r^3`;
+    case 'geo':
+      return `${geoLead(s)}${s.m}^{r-1}`;
+  }
+}
+
+/** The term at r = k + shift, tidied: `u_{k+1}` is shift 1. Safe to write after a plus sign. */
+function indTermK(s: SeriesClaim, shift: number): string {
+  const at = (extra: number, e = 1) => indFactorTex({ a: 1, b: extra, e }, 'k', shift);
+  switch (s.form) {
+    case 'nat':
+      return `${multTex(s.c)}${at(0)}`;
+    case 'odd':
+      return `${multTex(s.c)}(${lin(2, 2 * shift - 1)})`;
+    case 'lin':
+      return `(${lin(s.a, s.a * shift + s.b)})`;
+    case 'rp':
+      return s.p === 0 ? `${multTex(s.c)}${at(0, 2)}` : `${multTex(s.c)}${at(0)}${at(s.p)}`;
+    case 'cube':
+      return `${multTex(s.c)}${at(0, 3)}`;
+    case 'geo': {
+      const power = shift === 1 ? `${s.m}^k` : shift === 0 ? `${s.m}^{k-1}` : `${s.m}^{k+${shift - 1}}`;
+      return `${geoLead(s)}${power}`;
+    }
+  }
+}
+
+/** u_{k+1} as first written, r = k + 1 put straight in, where that needs tidying. */
+function indRawNext(s: SeriesClaim): string | undefined {
+  switch (s.form) {
+    case 'odd':
+      return `${multTex(s.c)}(2(k + 1) - 1)`;
+    case 'lin':
+      return `(${multTex(s.a)}(k + 1) ${signed(s.b)})`;
+    case 'rp':
+      return s.p === 0 ? undefined : `${multTex(s.c)}(k + 1)(k + 1 + ${s.p})`;
+    case 'geo':
+      return `${geoLead(s)}${s.m}^{(k+1)-1}`;
+    default:
+      return undefined;
+  }
+}
+
+function indMul(p: number[], q: number[]): number[] {
+  const out: number[] = Array(p.length + q.length - 1).fill(0);
+  p.forEach((x, i) => q.forEach((y, j) => (out[i + j] += x * y)));
+  return out;
+}
+
+function indAdd(p: number[], q: number[]): number[] {
+  const size = Math.max(p.length, q.length);
+  const pad = (x: number[]) => [...Array(size - x.length).fill(0), ...x];
+  const [x, y] = [pad(p), pad(q)];
+  return x.map((value, i) => value + y[i]);
+}
+
+/** Factors at k + shift multiplied out, highest power first. */
+function indExpand(factors: IndFactor[], shift: number): number[] {
+  let out = [1];
+  for (const { a, b, e } of factors) for (let i = 0; i < e; i += 1) out = indMul(out, [a, a * shift + b]);
+  return out;
+}
+
+/** The common factor the step takes out: `(k + 1)`, or `(k + 1)^2` for cubes. */
+const commonTex = (s: SeriesClaim) => (s.form === 'cube' ? '(k + 1)^2' : '(k + 1)');
+
+/**
+ * What is left in the bracket once the common factor is out of S_k + u_{k+1},
+ * multiplied out: for Σr^2 it is 2k^2 + 7k + 6. Only for sums whose closed
+ * form carries n + 1.
+ */
+function indInner(s: PolyClaim): number[] {
+  return indExpand(indShape(s).factors.slice(1), 1);
+}
+
+/**
+ * The line between S_k + u_{k+1} and the closed form at k + 1, where there is
+ * one: the common factor taken out, the whole thing multiplied out, or the
+ * powers of m gathered. Σ cr goes straight to its answer.
+ */
+function indMiddle(s: SeriesClaim): string | undefined {
+  if (s.form === 'geo') return s.e === 1 ? `${s.m} \\times ${s.m}^k - 1` : `${s.e}(${s.m} \\times ${s.m}^k - 1)`;
+  if (s.form === 'nat') return undefined;
+  const shape = indShape(s);
+  const coef = indCoef(shape);
+  if (s.form === 'rp' || s.form === 'cube') return `${coef}${commonTex(s)}(${kPoly(indInner(s))})`;
+  const all = kPoly(indExpand(shape.factors, 1));
+  return coef === '' ? all : `${coef}(${all})`;
+}
+
+/** `\sum_{r=1}^{top} u_r`. */
+const upTo = (s: SeriesClaim, top: number | string) => `${sumFrom(1, top)} ${indTermR(s)}`;
+
+/** The claim, `\sum_{r=1}^{n} u_r = F(n)`. */
+const claimTex = (s: SeriesClaim) => `${upTo(s, 'n')} = ${closedTex(s, 'n')}`;
+
+/** The right side at n = 1, worked: `\frac16 \times 1 \times 2 \times 3 = 1`. */
+function indRightAtOne(s: SeriesClaim): string {
+  const value = indSum(s, 1);
+  if (s.form === 'geo') return s.e === 1 ? `${s.m} - 1 = ${value}` : `${s.e}(${s.m} - 1) = ${value}`;
+  const shape = indShape(s);
+  const parts = shape.factors.map(({ a, b, e }) => (e === 1 ? `${a + b}` : `${a + b}^${e}`));
+  return `${[indCoef(shape), ...parts].filter(Boolean).join(' \\times ')} = ${value}`;
+}
+
+/** A form in k with its value, for comparing a slip with the right answer. */
+interface KForm {
+  tex: string;
+  at: (k: number) => number;
+}
+
+/** Forms that differ from `right` at some k from 1 to 6, first of each spelling kept. */
+function wrongOnly(right: (k: number) => number, forms: KForm[]): KForm[] {
+  const seen = new Set<string>();
+  return forms.filter((form) => {
+    if (seen.has(form.tex)) return false;
+    seen.add(form.tex);
+    return [1, 2, 3, 4, 5, 6].some((k) => Math.abs(form.at(k) - right(k)) > 1e-9);
+  });
+}
+
+/**
+ * Where the step might wrongly think it has to arrive: the closed form at
+ * k + 1 with each bracket's constant raised by 1 instead of by its slope,
+ * with only the first n moved on, one place too far, or the sum up to k
+ * plus 1 or plus u_k.
+ */
+function targetSlips(s: SeriesClaim): KForm[] {
+  const sumTo = (k: number) => indSum(s, k);
+  const plain: KForm[] = [
+    { tex: `${closedTex(s, 'k')} + 1`, at: (k) => sumTo(k) + 1 },
+    { tex: closedTex(s, 'k', 2), at: (k) => sumTo(k + 2) },
+    { tex: `${closedTex(s, 'k')} + ${indTermK(s, 0)}`, at: (k) => sumTo(k) + indTerm(s, k) },
+  ];
+  if (s.form === 'geo') {
+    plain.push({ tex: s.e === 1 ? `${s.m}^{k+1}` : `${s.e} \\times ${s.m}^{k+1}`, at: (k) => s.e * s.m ** (k + 1) });
+    return wrongOnly((k) => sumTo(k + 1), plain);
+  }
+  const shape = indShape(s);
+  const valueOfShape = (factors: IndFactor[], shifts: number[], k: number) =>
+    (shape.P * factors.reduce((product, { a, b, e }, i) => product * (a * (k + shifts[i]) + b) ** e, 1)) / shape.Q;
+  // Each bracket's constant raised by 1: (2n + 1) becomes (2k + 2), not (2k + 3).
+  const raised = shape.factors.map(({ a, b, e }) => ({ a, b: b + 1 - a, e }));
+  const first = shape.factors.map((_, i) => (i === 0 ? 1 : 0));
+  return wrongOnly(
+    (k) => sumTo(k + 1),
+    [
+      { tex: shapeTex({ ...shape, factors: raised }, 'k', raised.map(() => 1)), at: (k) => valueOfShape(raised, raised.map(() => 1), k) },
+      { tex: shapeTex(shape, 'k', first), at: (k) => valueOfShape(shape.factors, first, k) },
+      ...plain,
+    ],
+  );
+}
+
+type RootClaim = Extract<SeriesClaim, { form: 'nat' | 'rp' | 'cube' }>;
+
+/**
+ * S_k = coef (k + 1)^E rest(k), and u_{k+1} = coef (k + 1)^E added(k): what
+ * each part leaves once the common factor is out. The bracket is their sum.
+ */
+function innerParts(s: RootClaim): { rest: number[]; added: number[]; perTerm: number[]; perTermK: number[] } {
+  const shape = indShape(s);
+  const rest = indExpand(shape.factors.filter((_, i) => i !== 1), 0);
+  // u_{k+1} over (k + 1)^E, and u_k's matching part, before the fraction is taken out.
+  const perTerm = s.form === 'nat' ? [s.c] : s.form === 'rp' ? [s.c, s.c * (1 + s.p)] : [s.c, s.c];
+  const perTermK = s.form === 'nat' ? [s.c] : s.form === 'rp' ? [s.c, s.c * s.p] : [s.c, 0];
+  return { rest, added: perTerm.map((x) => (x * shape.Q) / shape.P), perTerm, perTermK };
+}
+
+/** The forms in the bracket once the common factor is out, the right one first, then the slips. */
+function innerForms(s: RootClaim): number[][] {
+  const shape = indShape(s);
+  const { rest, perTerm, perTermK } = innerParts(s);
+  const over = (poly: number[]) => poly.map((x) => (x * shape.Q) / shape.P);
+  return [
+    indInner(s),
+    // u_{k+1} not multiplied up to match the fraction, or multiplied by the wrong number.
+    indAdd(rest, perTerm),
+    indAdd(rest, perTerm.map((x) => x * shape.Q)),
+    // Part of u_k in place of u_{k+1}.
+    indAdd(rest, over(perTermK)),
+    // S_{k+1}'s rest in place of S_k's.
+    indAdd(indExpand(shape.factors.filter((_, i) => i !== 1), 1), over(perTerm)),
+  ];
+}
+
+/** The inner forms as distinct TeX, the right one first, dropping any that are not whole or match it. */
+function innerTex(s: RootClaim): string[] {
+  const [right, ...slips] = innerForms(s);
+  const same = (p: number[], q: number[]) => p.length === q.length && p.every((x, i) => x === q[i]);
+  const kept = slips.filter((poly) => poly.every(Number.isInteger) && !same(poly, right));
+  return [...new Set([right, ...kept].map((poly) => kPoly(poly)))];
+}
+
+/** A proof of a sum's closed form, for the order widget. `hard` adds the middle line. */
+function seriesProof(s: SeriesClaim, hard: boolean): Proof {
+  const next = indTermK(s, 1);
+  const middle = hard ? indMiddle(s) : undefined;
+  const middleLine = () => {
+    if (s.form === 'geo') return `That is $${middle}$.`;
+    if (s.form === 'rp' || s.form === 'cube') return `Taking out $${commonTex(s)}$, that is $${middle}$.`;
+    return `Multiplying out, that is $${middle}$.`;
+  };
+  const pool: Distractor[] = [
+    {
+      text: `Assume $${upTo(s, 'k+1')} = ${closedTex(s, 'k', 1)}$ for some whole number $k \\ge 1$.`,
+      why: 'That assumes what the step has to show.',
+    },
+    {
+      text: `Then $${upTo(s, 'k+1')} = ${closedTex(s, 'k')} + ${indTermK(s, 0)}$.`,
+      why: `The term added at $n = k + 1$ is $${next}$, not $u_k$ again.`,
+    },
+    {
+      text: `Then $${upTo(s, 'k+1')} = ${closedTex(s, 'k', 1)} + ${next}$.`,
+      why: `The sum up to $k$ is $${closedTex(s, 'k')}$; $${closedTex(s, 'k', 1)}$ is where the step is heading.`,
+    },
+    { text: 'It also holds at $n = 2$ and at $n = 3$, so it holds for every $n$.', why: 'Checking more values is not a proof.' },
+  ];
+  return {
+    claim: `Prove by induction that $${claimTex(s)}$ for every whole number $n \\ge 1$.`,
+    steps: [
+      `Base case: at $n = 1$ the left side is $u_1 = ${indTerm(s, 1)}$, and the right side is $${indRightAtOne(s)}$.`,
+      `Assume $${upTo(s, 'k')} = ${closedTex(s, 'k')}$ for some whole number $k \\ge 1$.`,
+      `Then $${upTo(s, 'k+1')} = ${closedTex(s, 'k')} + ${next}$.`,
+      ...(middle ? [middleLine()] : []),
+      `${middle ? 'And that' : 'That'} is $${closedTex(s, 'k', 1)}$, the right side at $n = k + 1$.`,
+      'It holds at $n = 1$, and whenever it holds at $n = k$ it holds at $n = k + 1$: so it holds for every $n \\ge 1$.',
+    ],
+    pool,
+  };
+}
+
+interface SeriesOrderParams {
+  s: SeriesClaim;
+  hard: boolean;
+  picks: number[];
+}
+
+/** A proof-ordering generator over the claims of `easy` forms at difficulty 1 and `hard` at 2. */
+function seriesOrder(id: string, easy: IndForm[], hard: IndForm[]): Generator<SeriesOrderParams> {
+  return {
+    id,
+    sample: (rng, difficulty) => {
+      const isHard = difficulty > 1;
+      const s = sampleClaim(rng, isHard ? hard : easy, isHard);
+      return { s, hard: isHard, picks: pickDistractors(rng, seriesProof(s, isHard), difficulty) };
+    },
+    render: ({ s, hard, picks }) => orderSlide(seriesProof(s, hard), picks),
+    solution: ({ s, hard, picks }) => orderSolution(seriesProof(s, hard), picks),
+  };
+}
+
+/** The step's working in the solution: the sum up to k + 1, split, then each line after. */
+function stepWorking(s: SeriesClaim): SolutionStep[] {
+  const middle = indMiddle(s);
+  return [
+    { tex: `\\begin{gathered} ${upTo(s, 'k+1')} \\\\ = ${closedTex(s, 'k')} \\\\ + ${indTermK(s, 1)} \\end{gathered}` },
+    ...(middle ? [{ tex: `= ${middle}` }] : []),
+    { tex: `= ${closedTex(s, 'k', 1)}` },
+  ];
+}
+
+/* Level 5, lesson 1: the step for a series */
+
+interface ClaimParams {
+  s: SeriesClaim;
+}
+
+/**
+ * The step's first line: the sum up to k + 1 is the assumed sum up to k plus
+ * the (k + 1)th term. Two tiles, in either order, since they are added.
+ */
+const addedTerm: Generator<ClaimParams> = {
+  id: 'seq-ind-added-term',
+  sample: (rng, difficulty) => ({ s: sampleClaim(rng, difficulty > 1 ? ['rp', 'cube', 'geo'] : ['nat', 'odd', 'lin'], difficulty > 1) }),
+  render: ({ s }): Slide => {
+    const answer = [closedTex(s, 'k'), indTermK(s, 1)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The claim is $${claimTex(s)}$. The step assumes it at $n = k$. Then the sum up to $k + 1$ is the sum up to $k$ plus one more term: place both.`,
+        },
+        { kind: 'display', tex: upTo(s, 'k+1') },
+      ],
+      template: '= {0} + {1}',
+      bank: tileBank(answer, [closedTex(s, 'k', 1), indTermK(s, 0), indTermK(s, 2)], 3),
+      answer,
+      unordered: true,
+    };
+  },
+  solution: ({ s }) => [
+    { text: `The assumption gives the sum up to $k$: $${closedTex(s, 'k')}$.` },
+    { text: `The term added is $u_{k+1}$: put $r = k + 1$ into $${indTermR(s)}$ to get $${indTermK(s, 1)}$.` },
+    { tex: `\\begin{gathered} ${upTo(s, 'k+1')} \\\\ = ${closedTex(s, 'k')} \\\\ + ${indTermK(s, 1)} \\end{gathered}` },
+    { text: `$${closedTex(s, 'k', 1)}$ is where the step has to arrive, so it cannot be used on the way there.` },
+  ],
+};
+
+interface StepCheckParams {
+  s: SeriesClaim;
+  k: number;
+}
+
+/** The step in numbers at one k: the closed form at k, the next term, and their total. */
+const stepCheck: Generator<StepCheckParams> = {
+  id: 'seq-ind-step-check',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () =>
+        difficulty > 1
+          ? { s: sampleClaim(rng, ['rp', 'cube', 'geo'], true), k: rng.int(2, 6) }
+          : { s: sampleClaim(rng, ['nat', 'odd', 'lin']), k: rng.int(3, 10) },
+      ({ s, k }) => indSum(s, k + 2) < IND_LIMIT,
+    ),
+  render: ({ s, k }): Slide => {
+    const answer = [indSum(s, k), indTerm(s, k + 1), indSum(s, k + 1)];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The claim is $${claimTex(s)}$. Its step says the sum up to $k + 1$ is the sum up to $k$ plus the next term. Check that at $k = ${k}$: the formula at $n = ${k}$, the term $u_{${k + 1}}$, then their total.`,
+        },
+      ],
+      expression: `${closedTex(s, 'k')} + ${indTermK(s, 1)}`,
+      nodes: [
+        { id: 'sum', from: [] },
+        { id: 'term', from: [] },
+        { id: 'total', from: ['sum', 'term'] },
+      ],
+      bank: smallBank(answer, [indTerm(s, k), indTerm(s, k + 2), indSum(s, k - 1), indSum(s, k) + indTerm(s, k)]),
+      answer: answer.map(String),
+    };
+  },
+  solution: ({ s, k }) => [
+    { text: `At $k = ${k}$ the formula gives $${indSum(s, k)}$, the sum of the first $${k}$ terms.` },
+    { text: `The next term is $u_{${k + 1}} = ${indTerm(s, k + 1)}$.` },
+    { tex: `${indSum(s, k)} + ${indTerm(s, k + 1)} = ${indSum(s, k + 1)}` },
+    { text: `And the formula at $n = ${k + 1}$ gives $${indSum(s, k + 1)}$ as well: the step agrees with the claim.` },
+  ],
+};
+
+interface RunningParams {
+  s: SeriesClaim;
+  start: number;
+  sumBlanks: number[];
+  termBlank: number;
+}
+
+/**
+ * n, u_n and S_n in a table, each total the one above plus the next term: the
+ * step, in numbers. At difficulty 2 the first total is blank too, so it has
+ * to come from the closed form.
+ */
+const runningTable: Generator<RunningParams> = {
+  id: 'seq-ind-running',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () =>
+        difficulty > 1
+          ? { s: sampleClaim(rng, ['rp', 'geo', 'lin'], true), start: rng.int(1, 5), sumBlanks: [0, ...positions(rng, 1, 4, 2)], termBlank: rng.int(1, 4) }
+          : { s: sampleClaim(rng, ['nat', 'odd', 'lin']), start: rng.int(1, 7), sumBlanks: positions(rng, 1, 4, 2), termBlank: rng.int(1, 4) },
+      ({ s, start }) => indSum(s, start + 5) < IND_LIMIT,
+    ),
+  render: ({ s, start, sumBlanks, termBlank }): Slide => {
+    const answer: number[] = [];
+    const slips: number[] = [];
+    const rows = [0, 1, 2, 3, 4].map((i) => {
+      const n = start + i;
+      const term = indTerm(s, n);
+      const total = indSum(s, n);
+      if (i === termBlank) {
+        answer.push(term);
+        slips.push(indTerm(s, n + 1), indTerm(s, n - 1));
+      }
+      if (sumBlanks.includes(i)) {
+        answer.push(total);
+        slips.push(total + indTerm(s, n + 1) - term, total + term, total - 1);
+      }
+      return [`${n}`, i === termBlank ? null : `${term}`, sumBlanks.includes(i) ? null : `${total}`];
+    });
+    return {
+      kind: 'table',
+      prompt: [
+        {
+          kind: 'prose',
+          text: sumBlanks.includes(0)
+            ? `Here $S_n = ${upTo(s, 'n')}$, and the claim is $S_n = ${closedTex(s, 'n')}$. Use the claim for the first total; after that each total is the one above plus the next term.`
+            : `Here $S_n = ${upTo(s, 'n')}$ and $u_n$ is its $n$th term. Fill in the table: each total is the one above plus the next term.`,
+        },
+      ],
+      columns: ['n', 'u_n', 'S_n'],
+      rows,
+      bank: smallBank(answer, slips),
+      answer: answer.map(String),
+    };
+  },
+  solution: ({ s, start, sumBlanks }) => {
+    const ns = [0, 1, 2, 3, 4].map((i) => start + i);
+    return [
+      { text: `Each term is $${indTermR(s)}$ with $r = n$.` },
+      ...(sumBlanks.includes(0) ? [{ text: `The claim at $n = ${start}$ gives the first total, $S_{${start}} = ${indSum(s, start)}$.` }] : []),
+      { text: 'Then each total is the one above plus the next term, $S_{n} = S_{n-1} + u_{n}$:' },
+      { tex: chain(...ns.slice(1).map((n) => `S_{${n}} &= ${indSum(s, n - 1)} + ${indTerm(s, n)} = ${indSum(s, n)}`)) },
+    ];
+  },
+};
+
+interface NextSumParams {
+  s: SeriesClaim;
+  k: number;
+  /** One term on, two terms on, or one term back. */
+  mode: 'next' | 'two' | 'back';
+}
+
+const nextSumTop = ({ k, mode }: NextSumParams) => (mode === 'next' ? k + 1 : mode === 'two' ? k + 2 : k - 1);
+
+/** A sum given at k, and the sum one term on (or two on, or one back) typed. */
+const nextSum: Generator<NextSumParams> = {
+  id: 'seq-ind-next-sum',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () =>
+        difficulty > 1
+          ? { s: sampleClaim(rng, ['rp', 'cube', 'geo', 'lin'], true), k: rng.int(3, 8), mode: rng.pick<NextSumParams['mode']>(['two', 'back']) }
+          : { s: sampleClaim(rng, ['nat', 'odd', 'lin']), k: rng.int(4, 15), mode: 'next' as const },
+      (params) => indSum(params.s, params.k + 2) < IND_LIMIT,
+    ),
+  render: (params): Slide => {
+    const { s, k, mode } = params;
+    const top = nextSumTop(params);
+    const how =
+      mode === 'next'
+        ? 'The sum up to the next position is this one plus one more term.'
+        : mode === 'two'
+          ? 'Add terms on, one at a time.'
+          : 'Going back a place takes a term off.';
+    return typed(
+      [
+        { kind: 'prose', text: `You are given that` },
+        { kind: 'display', tex: `${upTo(s, k)} = ${indSum(s, k)}` },
+        { kind: 'prose', text: `${how} Find` },
+        { kind: 'display', tex: upTo(s, top) },
+      ],
+      '\\text{sum} =',
+      indSum(s, top),
+    );
+  },
+  solution: (params) => {
+    const { s, k, mode } = params;
+    const top = nextSumTop(params);
+    if (mode === 'back') {
+      return [
+        { text: `The sum up to $${k}$ includes $u_{${k}} = ${indTerm(s, k)}$, and the sum up to $${k - 1}$ does not.` },
+        { tex: `${indSum(s, k)} - ${indTerm(s, k)} = ${indSum(s, top)}` },
+      ];
+    }
+    const added = mode === 'next' ? [k + 1] : [k + 1, k + 2];
+    return [
+      { text: added.map((r) => `$u_{${r}} = ${indTerm(s, r)}$`).join(' and ') + '.' },
+      { tex: `${indSum(s, k)} + ${added.map((r) => indTerm(s, r)).join(' + ')} = ${indSum(s, top)}` },
+    ];
+  },
+};
+
+/** Whole-number, odd-number and arithmetic sums proved in full. */
+const orderSum = seriesOrder('seq-ind-order-sum', ['nat', 'odd', 'lin'], ['nat', 'odd', 'lin']);
+
+/* Level 5, lesson 2: the standard results */
+
+/** Where the step has to arrive, picked from the slips a substitution invites. */
+const stepTarget: Generator<ClaimParams> = {
+  id: 'seq-ind-target',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1) return { s: sampleClaim(rng, ['rp', 'rp', 'cube'], true) };
+    return { s: rng.chance(0.3) ? sampleClaim(rng, ['nat']) : { form: 'rp', c: rng.int(1, 6), p: rng.int(0, 2) } };
+  },
+  render: ({ s }): Slide => {
+    const labels = [closedTex(s, 'k', 1), ...targetSlips(s).slice(0, 3).map((form) => form.tex)];
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `To prove $${claimTex(s)}$ by induction, the step assumes it at $n = k$. What must the sum up to $k + 1$ come to?`,
+        },
+      ],
+      ...nativeChoice(labels, mix(claimTex(s))),
+    };
+  },
+  solution: ({ s }) => [
+    { text: 'It is the right side with every $n$ replaced by $k + 1$:' },
+    { tex: closedTex(s, 'k', 1) },
+    ...(s.form === 'rp' || s.form === 'nat'
+      ? [{ text: 'So $n + 1$ becomes $k + 2$, not $k + 1 + 1$ left untidied or $k + 1$ again.' }]
+      : [{ text: 'So $n^2$ becomes $(k + 1)^2$ and $(n + 1)^2$ becomes $(k + 2)^2$.' }]),
+  ],
+};
+
+/**
+ * The step's S_k + u_{k+1} with its common factor taken out: (k + 1), or
+ * (k + 1)^2 for cubes. One blank, the bracket that is left, multiplied out.
+ */
+const factorOut: Generator<ClaimParams> = {
+  id: 'seq-ind-factor-out',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1) return { s: rng.chance(0.8) ? { form: 'rp', c: rng.int(1, 6), p: rng.int(0, 5) } : sampleClaim(rng, ['cube']) };
+    return { s: rng.chance(0.35) ? sampleClaim(rng, ['nat']) : { form: 'rp', c: rng.int(1, 6), p: rng.int(0, 2) } };
+  },
+  render: ({ s }): Slide => {
+    const claim = s as RootClaim;
+    const [right, ...slips] = innerTex(claim);
+    const coef = indCoef(indShape(claim));
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `In the step for $${claimTex(s)}$, the sum up to $k + 1$ has reached the line below. Both parts have a factor $${commonTex(s)}$: take it out.`,
+        },
+        { kind: 'display', tex: `${closedTex(s, 'k')} + ${indTermK(s, 1)}` },
+      ],
+      template: `${coef}${commonTex(s)}({0})`,
+      bank: tileBank([right], slips, 4),
+      answer: [right],
+    };
+  },
+  solution: ({ s }) => {
+    const claim = s as RootClaim;
+    const coef = indCoef(indShape(claim));
+    const { rest, added } = innerParts(claim);
+    return [
+      {
+        text: `Take out $${coef}${commonTex(s)}$ from both parts. The first leaves $${kPoly(rest)}$; the second leaves $${kPoly(added)}$, since $${coef === '' ? '' : `${coef} \\times `}${commonTex(s)}${kPoly(added).includes(' ') ? `(${kPoly(added)})` : kPoly(added)} = ${indTermK(s, 1)}$.`,
+      },
+      { tex: `${coef}${commonTex(s)}(${kPoly(indInner(claim))})` },
+      { text: `That bracket factorises, which is how the step reaches $${closedTex(s, 'k', 1)}$.` },
+    ];
+  },
+};
+
+type Reduction = Extract<Slide, { kind: 'steps' }>['reductions'][number];
+
+/** The tidying of u_{k+1}, where the step starts from it as first written. */
+function tidyReduction(s: SeriesClaim): Reduction | undefined {
+  if (indRawNext(s) === undefined) return undefined;
+  const right = indTermK(s, 1);
+  return { span: [2, 3], value: right, bank: stepsBank([right, indTermK(s, 0), indTermK(s, 2)]) };
+}
+
+interface StepLineParams {
+  s: SeriesClaim;
+  hard: boolean;
+}
+
+/** The start of the step's line: S_k plus u_{k+1}, as first written when `hard` and there is tidying to do. */
+function stepStart({ s, hard }: StepLineParams): string[] {
+  return [closedTex(s, 'k'), '+', (hard ? indRawNext(s) : undefined) ?? indTermK(s, 1)];
+}
+
+/**
+ * The step for a standard result, a line at a time: tidy u_{k+1} (harder
+ * draws), take out (k + 1), then factorise what is left into the closed
+ * form at k + 1.
+ */
+const standardStep: Generator<StepLineParams> = {
+  id: 'seq-ind-standard-step',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1) return { s: rng.chance(0.85) ? { form: 'rp', c: rng.int(1, 6), p: rng.int(1, 5) } : sampleClaim(rng, ['cube']), hard: true };
+    return { s: rng.chance(0.3) ? sampleClaim(rng, ['nat', 'cube']) : { form: 'rp', c: rng.int(1, 6), p: rng.int(0, 2) }, hard: false };
+  },
+  render: (params): Slide => {
+    const { s, hard } = params;
+    const claim = s as RootClaim;
+    const coef = indCoef(indShape(claim));
+    const final = closedTex(s, 'k', 1);
+    const finalBank = stepsBank([final, ...targetSlips(s).slice(0, 3).map((form) => form.tex)]);
+    const tidy = hard ? tidyReduction(s) : undefined;
+    const reductions: Reduction[] = tidy ? [tidy] : [];
+    if (s.form === 'nat') {
+      reductions.push({ span: [0, 3], operator: 1, value: final, bank: finalBank });
+    } else {
+      const inner = innerTex(claim).slice(0, 4).map((poly) => `${coef}${commonTex(s)}(${poly})`);
+      reductions.push({ span: [0, 3], operator: 1, value: inner[0], bank: stepsBank(inner) });
+      reductions.push({ span: [0, 1], value: final, bank: finalBank });
+    }
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The claim is $${claimTex(s)}$. In the step, the sum up to $k + 1$ is the assumed sum plus the next term, below. Work it into the right side at $n = k + 1$: tap the part to work on next, then choose what it becomes.`,
+        },
+      ],
+      start: stepStart(params),
+      reductions,
+    };
+  },
+  solution: ({ s, hard }) => [
+    ...(hard && indRawNext(s) ? [{ text: `First tidy the new term: $${indRawNext(s)} = ${indTermK(s, 1)}$.` }] : []),
+    { text: s.form === 'nat' ? 'Take out the common factor $(k + 1)$:' : `Take out the common factor $${commonTex(s)}$, then factorise what is left:` },
+    ...stepWorking(s),
+  ],
+};
+
+/** The standard results proved in full. */
+const orderStandard = seriesOrder('seq-ind-order-standard', ['nat', 'rp', 'cube'], ['rp', 'cube']);
+
+/* Level 5, lesson 3: arithmetic and geometric sums */
+
+/**
+ * The last line of the step for an arithmetic or a geometric sum: the
+ * multiplied-out line put back into the closed form at k + 1. One blank.
+ */
+const seriesClose: Generator<ClaimParams> = {
+  id: 'seq-ind-ap-close',
+  sample: (rng, difficulty) => ({ s: difficulty > 1 ? sampleClaim(rng, ['geo', 'geo', 'lin'], true) : sampleClaim(rng, ['lin']) }),
+  render: ({ s }): Slide => {
+    let template: string;
+    let answer: string;
+    let slips: string[];
+    if (s.form === 'geo') {
+      template = s.e === 1 ? '{0} - 1' : `${s.e}({0} - 1)`;
+      answer = `${s.m}^{k+1}`;
+      slips = [`${s.m}^k`, `${s.m}^{k+2}`, `${s.m}^{2k}`, `${s.m * s.m}^k`, `${s.m + 1}^k`];
+    } else {
+      const { a, b } = s as Extract<SeriesClaim, { form: 'lin' }>;
+      const c = a + 2 * b;
+      template = '\\frac12(k + 1)({0})';
+      answer = lin(a, a + c);
+      slips = [lin(a, c), lin(a, a + c + 1), lin(a, 2 * a + c), lin(a + 1, c), lin(a, a + c - 1)];
+    }
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The claim is $${claimTex(s)}$. In the step, the sum up to $k + 1$ has come to the line below. Write it as the right side at $n = k + 1$.`,
+        },
+        { kind: 'display', tex: indMiddle(s)! },
+      ],
+      template,
+      bank: tileBank([answer], slips, 4),
+      answer: [answer],
+    };
+  },
+  solution: ({ s }) => [
+    ...(s.form === 'geo'
+      ? [{ text: `Multiplying by $${s.m}$ raises the power by one: $${s.m} \\times ${s.m}^k = ${s.m}^{k+1}$.` }]
+      : [{ text: 'The claim at $n = k + 1$ has a factor $(k + 1)$, so the bracket must factorise with it.' }]),
+    { tex: `${indMiddle(s)} = ${closedTex(s, 'k', 1)}` },
+    { text: 'That is the right side of the claim with $k + 1$ in place of $n$.' },
+  ],
+};
+
+/** Middle and final slips for an arithmetic or geometric step, each wrong at some k. */
+function seriesStepSlips(s: SeriesClaim): { middle: KForm[]; final: KForm[] } {
+  const right = (k: number) => indSum(s, k + 1);
+  if (s.form === 'geo') {
+    const { m, e } = s;
+    const E = (inside: string) => (e === 1 ? inside : `${e}(${inside})`);
+    const middle = wrongOnly(right, [
+      { tex: E(`${m + 1} \\times ${m}^k - 1`), at: (k) => e * ((m + 1) * m ** k - 1) },
+      { tex: E(`${m} \\times ${m}^k - ${m}`), at: (k) => e * (m ** (k + 1) - m) },
+      { tex: E(`${m}^{2k} - 1`), at: (k) => e * (m ** (2 * k) - 1) },
+    ]);
+    const final = wrongOnly(right, [
+      { tex: E(`${m}^{k+2} - 1`), at: (k) => e * (m ** (k + 2) - 1) },
+      { tex: E(`${m}^{2k} - 1`), at: (k) => e * (m ** (2 * k) - 1) },
+      { tex: E(`${m}^{k+1} - ${m}`), at: (k) => e * (m ** (k + 1) - m) },
+    ]);
+    return { middle, final };
+  }
+  const { a, b } = s as Extract<SeriesClaim, { form: 'lin' }>;
+  const c = a + 2 * b;
+  const half = (poly: number[]) => `\\frac12(${kPoly(poly)})`;
+  const middle = wrongOnly(right, [
+    // u_{k+1} not doubled, then u_k in place of u_{k+1}, then a slip in the constant.
+    { tex: half([a, a + c, a + b]), at: (k) => (a * k * k + (a + c) * k + a + b) / 2 },
+    { tex: half([a, 2 * a + c, 2 * b]), at: (k) => (a * k * k + (2 * a + c) * k + 2 * b) / 2 },
+    { tex: half([a, 2 * a + c, a + c + 2]), at: (k) => (a * k * k + (2 * a + c) * k + a + c + 2) / 2 },
+  ]);
+  const final = wrongOnly(right, [
+    { tex: `\\frac12(k + 1)(${lin(a, c)})`, at: (k) => ((k + 1) * (a * k + c)) / 2 },
+    { tex: `\\frac12 k(${lin(a, a + c)})`, at: (k) => (k * (a * k + a + c)) / 2 },
+    { tex: `\\frac12(k + 1)(${lin(a, a + c + 2)})`, at: (k) => ((k + 1) * (a * k + a + c + 2)) / 2 },
+  ]);
+  return { middle, final };
+}
+
+/**
+ * The step for an arithmetic or a geometric sum, a line at a time: tidy the
+ * new term (harder draws), combine, then write it as the closed form at k + 1.
+ */
+const seriesStep: Generator<StepLineParams> = {
+  id: 'seq-ind-series-step',
+  sample: (rng, difficulty) => ({ s: difficulty > 1 ? sampleClaim(rng, ['geo', 'lin'], true) : sampleClaim(rng, ['lin']), hard: difficulty > 1 }),
+  render: (params): Slide => {
+    const { s, hard } = params;
+    const middle = indMiddle(s)!;
+    const final = closedTex(s, 'k', 1);
+    const slips = seriesStepSlips(s);
+    const tidy = hard ? tidyReduction(s) : undefined;
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The claim is $${claimTex(s)}$. In the step, the sum up to $k + 1$ is the assumed sum plus the next term, below. Work it into the right side at $n = k + 1$: tap the part to work on next, then choose what it becomes.`,
+        },
+      ],
+      start: stepStart(params),
+      reductions: [
+        ...(tidy ? [tidy] : []),
+        { span: [0, 3], operator: 1, value: middle, bank: stepsBank([middle, ...slips.middle.map((form) => form.tex)]) },
+        { span: [0, 1], value: final, bank: stepsBank([final, ...slips.final.map((form) => form.tex)]) },
+      ],
+    };
+  },
+  solution: ({ s, hard }) => [
+    ...(hard && indRawNext(s) ? [{ text: `First tidy the new term: $${indRawNext(s)} = ${indTermK(s, 1)}$.` }] : []),
+    {
+      text:
+        s.form === 'geo'
+          ? `$${s.e === 1 ? '' : `${s.e} \\times `}${s.m}^k$ and $${indTermK(s, 1)}$ together make $${s.m}$ lots of ${s.e === 1 ? `$${s.m}^k$` : `$${s.e} \\times ${s.m}^k$`}:`
+          : 'Put both over $2$ and multiply out, then factorise:',
+    },
+    ...stepWorking(s),
+  ],
+};
+
+interface NextFlowParams {
+  s: SeriesClaim;
+}
+
+/** Which term the step adds, then what the sum comes to: a slip at either fork is its own branch. */
+const nextFlow: Generator<NextFlowParams> = {
+  id: 'seq-ind-next-flow',
+  sample: (rng, difficulty) => ({ s: difficulty > 1 ? sampleClaim(rng, ['geo', 'geo', 'lin'], true) : sampleClaim(rng, ['lin']) }),
+  render: ({ s }): Slide => {
+    const next = `$${indTermK(s, 1)}$`;
+    const again = `$${indTermK(s, 0)}$`;
+    const final = `$${closedTex(s, 'k', 1)}$`;
+    const slips = seriesStepSlips(s).final;
+    const wrong = slips.find((form) => Number.isInteger(form.at(1)) && form.at(1) !== indSum(s, 2)) ?? slips[0];
+    const slip = `$${wrong.tex}$`;
+    const salt = mix(claimTex(s));
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: 'Assume the claim holds at $n = k$, and follow the step to $n = k + 1$.' }],
+      subject: claimTex(s),
+      steps: [
+        {
+          id: 'which',
+          ask: 'Which term is added to the sum up to $k$?',
+          branches: turned(
+            [
+              { label: next, to: 'total' },
+              {
+                label: again,
+                outcome: `That is $u_k$, already in the sum up to $k$. The term added is $u_{k+1}$, from $r = k + 1$: $${indTermK(s, 1)}$.`,
+              },
+            ],
+            salt,
+          ),
+        },
+        {
+          id: 'total',
+          ask: `Added to $${closedTex(s, 'k')}$, what does it come to?`,
+          branches: turned(
+            [
+              { label: final, outcome: 'That is the right side at $n = k + 1$, so the step works.' },
+              {
+                label: slip,
+                outcome: `That is not it: at $k = 1$ it gives $${wrong.at(1)}$, but the sum up to $2$ is $${indSum(s, 2)}$.`,
+              },
+            ],
+            salt + 1,
+          ),
+        },
+      ],
+      answer: [next, final],
+    };
+  },
+  solution: ({ s }) => [
+    { text: `The term added is $u_{k+1}$: $r = k + 1$ in $${indTermR(s)}$ gives $${indTermK(s, 1)}$.` },
+    ...stepWorking(s),
+    { text: 'That is the claim at $n = k + 1$.' },
+  ],
+};
+
+/** Arithmetic and geometric sums proved in full. */
+const orderSeries = seriesOrder('seq-ind-order-series', ['lin', 'geo'], ['lin', 'geo']);
+
+interface ClaimValueParams {
+  s: SeriesClaim;
+  n: number;
+}
+
+/** The proved closed form at a number, as a reduce tree. */
+function claimValueExpr({ s, n }: ClaimValueParams): Expr {
+  if (s.form === 'geo') {
+    const inside = bin('-', pow(num(s.m), num(n)), num(1));
+    return s.e === 1 ? inside : bin('*', num(s.e), inside);
+  }
+  const { a, b } = s as Extract<SeriesClaim, { form: 'lin' }>;
+  const scaled = a === 1 ? num(n) : bin('*', num(a), num(n));
+  return bin('/', bin('*', num(n), bin('+', scaled, num(a + 2 * b))), num(2));
+}
+
+/** `banksFor`, with every distractor kept under 1000 as the values are. */
+function smallBanksFor(expr: Expr, path = 'r', out: Record<string, string[]> = {}): Record<string, string[]> {
+  if (expr.kind === 'num') return out;
+  const value = valueOf(expr);
+  const small = (...values: number[]) => values.filter((v) => Math.abs(v) < IND_LIMIT);
+  if (expr.kind === 'binary') {
+    const l = valueOf(expr.left);
+    const r = valueOf(expr.right);
+    const slips = expr.op === '*' ? [l + r, value + l, value - r] : expr.op === '+' ? [l - r, l * r, value + 1] : [l + r, r - l, value - 1];
+    out[path] = offer(value, ...small(...slips));
+    smallBanksFor(expr.left, `${path}.l`, out);
+    smallBanksFor(expr.right, `${path}.r`, out);
+  } else if (expr.kind === 'power') {
+    const b = valueOf(expr.base);
+    const e = valueOf(expr.exponent);
+    out[path] = offer(value, ...small(b * e, e ** b, b ** (e + 1)));
+    smallBanksFor(expr.base, `${path}.b`, out);
+    smallBanksFor(expr.exponent, `${path}.e`, out);
+  }
+  return out;
+}
+
+/** Using the proved formula: the sum of the first n terms, worked out a piece at a time. */
+const claimValue: Generator<ClaimValueParams> = {
+  id: 'seq-ind-claim-value',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => (difficulty > 1 ? { s: sampleClaim(rng, ['geo', 'geo', 'lin'], true), n: rng.int(3, 8) } : { s: sampleClaim(rng, ['lin']), n: rng.int(4, 12) }),
+      ({ s, n }) => 2 * indSum(s, n) < IND_LIMIT && (s.form !== 'geo' || s.e * s.m ** n < IND_LIMIT),
+    ),
+  render: (params): Slide => {
+    const expr = claimValueExpr(params);
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `It has been proved that $${claimTex(params.s)}$. So the sum of the first $${params.n}$ terms is the right side at $n = ${params.n}$, written out below. Tap the part you would work out next, then choose what it comes to.`,
+        },
+      ],
+      expr,
+      banks: smallBanksFor(expr),
+    };
+  },
+  solution: ({ s, n }) => {
+    if (s.form === 'geo') {
+      return [
+        { tex: `${s.m}^${n} = ${s.m ** n}` },
+        { tex: s.e === 1 ? `${s.m ** n} - 1 = ${indSum(s, n)}` : `${s.e}(${s.m ** n} - 1) = ${s.e} \\times ${s.m ** n - 1} = ${indSum(s, n)}` },
+      ];
+    }
+    const { a, b } = s as Extract<SeriesClaim, { form: 'lin' }>;
+    const c = a + 2 * b;
+    return [
+      { text: 'The bracket first, then multiply by $n$ and halve.' },
+      { tex: chain(`${a === 1 ? '' : `${a} \\times `}${n} + ${c} &= ${a * n + c}`, `${n} \\times ${a * n + c} &= ${n * (a * n + c)}`, `${n * (a * n + c)} \\div 2 &= ${indSum(s, n)}`) },
+    ];
+  },
+};
+
+/* Level 5, lesson 4: a recurrence's closed form */
+
+/** u_{n+1} = p u_n + q with closed form u_n = c p^n + d, so q = d(1 - p) and u_1 = cp + d. */
+interface Rec {
+  p: number;
+  c: number;
+  d: number;
+}
+
+const recQ = ({ p, d }: Rec) => d * (1 - p);
+const recAt = ({ p, c, d }: Rec, n: number) => c * p ** n + d;
+
+/** The rule and its start, `u_{n+1} = 2u_n + 1`, `u_1 = 1`. */
+const indRuleTex = (r: Rec) => `u_{n+1} = ${r.p}u_n ${signed(recQ(r))}`;
+const recStartTex = (r: Rec) => `u_1 = ${recAt(r, 1)}`;
+
+/** The closed form at v + shift: `3 \times 2^n + 1`, `2^{k+1} - 1`. */
+function recClosed({ p, c, d }: Rec, v: string, shift = 0): string {
+  const power = shift === 0 ? `${p}^${v}` : `${p}^{${v}+${shift}}`;
+  return `${c === 1 ? '' : `${c} \\times `}${power} ${signed(d)}`;
+}
+
+const RECS_D = [-5, -4, -3, -2, -1, 1, 2, 3, 4, 5];
+
+/**
+ * A recurrence whose terms up to `rows` stay under 1000 and start positive.
+ * Easier draws keep p to 2 or 3 and c to 1 or 2 (`plain` forces c = 1).
+ */
+function sampleRec(rng: Rng, hard: boolean, rows: number, plain = false): Rec {
+  return drawUntil(
+    () => ({
+      p: rng.pick(hard ? [2, 3, 4, 5] : [2, 3]),
+      c: plain ? 1 : rng.int(1, hard ? 4 : 2),
+      d: rng.pick(RECS_D),
+    }),
+    (r) => recAt(r, 1) >= 1 && recAt(r, rows) < IND_LIMIT,
+  );
+}
+
+/** Where the claim sits: `u_n = … for u_{n+1} = …, u_1 = …`, in prose. */
+const recClaimProse = (r: Rec) => `$u_n = ${recClosed(r, 'n')}$ for the sequence $${indRuleTex(r)}$, $${recStartTex(r)}$`;
+
+/** A proof of a recurrence's closed form, for the order widget. */
+function recProof(r: Rec, hard: boolean): Proof {
+  const { p, c, d } = r;
+  const q = recQ(r);
+  const cTimes = c === 1 ? '' : `${c} \\times `;
+  return {
+    claim: `Prove by induction that $u_n = ${recClosed(r, 'n')}$ for every $n \\ge 1$, where $${indRuleTex(r)}$ and $${recStartTex(r)}$.`,
+    steps: [
+      `Base case: the sequence starts at $u_1 = ${recAt(r, 1)}$, and the formula gives $${cTimes}${p}^1 ${signed(d)} = ${recAt(r, 1)}$.`,
+      `Assume $u_k = ${recClosed(r, 'k')}$ for some whole number $k \\ge 1$.`,
+      `Then $u_{k+1} = ${p}u_k ${signed(q)} = ${p}(${recClosed(r, 'k')}) ${signed(q)}$.`,
+      ...(hard ? [`That is $${cTimes}${p}^{k+1} ${signed(p * d)} ${signed(q)}$.`] : []),
+      `${hard ? 'And that' : 'That'} is $${recClosed(r, 'k', 1)}$, the formula at $n = k + 1$.`,
+      'It holds at $n = 1$, and whenever it holds at $n = k$ it holds at $n = k + 1$: so it holds for every $n \\ge 1$.',
+    ],
+    pool: [
+      { text: `Assume $u_{k+1} = ${recClosed(r, 'k', 1)}$ for some whole number $k \\ge 1$.`, why: 'That assumes what the step has to show.' },
+      { text: `Then $u_{k+1} = ${p}(${recClosed(r, 'k')})$.`, why: `After multiplying by $${p}$, the rule has $${signed(q)}$ too.` },
+      {
+        text: `Then $u_{k+1} = ${p}(${recClosed(r, 'k', 1)}) ${signed(q)}$.`,
+        why: `The assumption is about $u_k$, which is $${recClosed(r, 'k')}$; putting in the formula at $k + 1$ assumes the answer.`,
+      },
+      {
+        text: `It also works for $u_2 = ${recAt(r, 2)}$ and $u_3 = ${recAt(r, 3)}$, so it holds for every $n$.`,
+        why: 'Checking more values is not a proof.',
+      },
+    ],
+  };
+}
+
+interface IndRecTableParams {
+  r: Rec;
+  rows: number;
+  blanks: number[];
+}
+
+/**
+ * The claim tested against the rule: u_n found from the one above, beside
+ * the formula's value, blanks in the same rows of both columns.
+ */
+const indRecTable: Generator<IndRecTableParams> = {
+  id: 'seq-ind-rec-table',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const r = drawUntil(() => sampleRec(rng, hard, 4), (rec) => !hard || rec.p > 2 || rec.c > 1);
+    const rows = recAt(r, 5) < IND_LIMIT ? 5 : 4;
+    return { r, rows, blanks: positions(rng, 1, rows - 1, hard ? 3 : 2) };
+  },
+  render: ({ r, rows, blanks }): Slide => {
+    const answer: number[] = [];
+    const slips: number[] = [];
+    const cells = Array.from({ length: rows }, (_, i) => {
+      const n = i + 1;
+      const value = recAt(r, n);
+      if (!blanks.includes(i)) return [`${n}`, `${value}`, `${value}`];
+      answer.push(value, value);
+      slips.push(r.p * recAt(r, n - 1) - recQ(r), r.c * r.p ** (n - 1) + r.d, recAt(r, n + 1), value + r.d);
+      return [`${n}`, null, null];
+    });
+    return {
+      kind: 'table',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Test the claim ${recClaimProse(r)}. Fill in each $u_n$ from the one above it using the rule, and what the formula gives beside it.`,
+        },
+      ],
+      columns: ['n', 'u_n', recClosed(r, 'n')],
+      rows: cells,
+      bank: smallBank(answer, slips),
+      answer: answer.map(String),
+    };
+  },
+  solution: ({ r, rows }) => [
+    { text: `From the rule, each term is $${r.p}$ times the one before ${recQ(r) < 0 ? 'less' : 'plus'} $${Math.abs(recQ(r))}$:` },
+    {
+      tex: chain(...Array.from({ length: rows - 1 }, (_, i) => `u_{${i + 2}} &= ${r.p} \\times ${br(recAt(r, i + 1))} ${signed(recQ(r))} = ${recAt(r, i + 2)}`)),
+    },
+    { text: `The formula gives the same values, ${Array.from({ length: rows }, (_, i) => `$${recAt(r, i + 1)}$`).join(', ')}: the claim fits every row, which is evidence but not yet a proof.` },
+  ],
+};
+
+/**
+ * The step for a recurrence, a line at a time: put the assumed u_k in
+ * (harder draws), multiply out, then gather the constants into the formula
+ * at k + 1.
+ */
+const recStep: Generator<{ r: Rec; hard: boolean }> = {
+  id: 'seq-ind-rec-step',
+  sample: (rng, difficulty) => ({ r: sampleRec(rng, difficulty > 1, 1), hard: difficulty > 1 }),
+  render: ({ r, hard }): Slide => {
+    const { p, c, d } = r;
+    const q = recQ(r);
+    const cTimes = c === 1 ? '' : `${c} \\times `;
+    const closedK = `(${recClosed(r, 'k')})`;
+    const tail = [q < 0 ? '-' : '+', `${Math.abs(q)}`];
+    const multiplied = (constant: number, power = `${p}^{k+1}`) => `(${cTimes}${power} ${signed(constant)})`;
+    const gathered = (constant: number) => `${cTimes}${p}^{k+1} ${signed(constant)}`;
+    const reductions: Reduction[] = [];
+    if (hard) {
+      reductions.push({
+        span: [2, 3],
+        value: closedK,
+        bank: stepsBank([closedK, `(${recClosed(r, 'k', 1)})`, `(${cTimes}${p}^{k-1} ${signed(d)})`]),
+      });
+    }
+    reductions.push({
+      span: [0, 3],
+      operator: 1,
+      value: multiplied(p * d),
+      bank: stepsBank([multiplied(p * d), multiplied(d), multiplied(p * d, `${p}^{2k}`), multiplied(p * d, `${p}^k`)]),
+    });
+    // Slips on the constants: p d left alone, q alone, the sign of q turned, or one out.
+    const slipConstants = [...new Set([p * d, q, p * d - q, d + 1])].filter((value) => value !== 0 && value !== d);
+    reductions.push({ span: [0, 3], operator: 1, value: gathered(d), bank: stepsBank([d, ...slipConstants.slice(0, 3)].map(gathered)) });
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The claim is ${recClaimProse(r)}. Assume $u_k = ${recClosed(r, 'k')}$. The rule gives $u_{k+1}$ as below: work it into the formula at $n = k + 1$. Tap the part to work on next, then choose what it becomes.`,
+        },
+      ],
+      start: [`${p}`, '\\times', hard ? 'u_k' : closedK, ...tail],
+      reductions,
+    };
+  },
+  solution: ({ r }) => {
+    const { p, c, d } = r;
+    const q = recQ(r);
+    const cTimes = c === 1 ? '' : `${c} \\times `;
+    return [
+      { text: `Put the assumed $u_k$ into the rule, and multiply out: $${p} \\times ${p}^k = ${p}^{k+1}$.` },
+      { tex: `\\begin{gathered} u_{k+1} = ${p}(${recClosed(r, 'k')}) ${signed(q)} \\\\ = ${cTimes}${p}^{k+1} ${signed(p * d)} ${signed(q)} \\\\ = ${recClosed(r, 'k', 1)} \\end{gathered}` },
+      { text: `The constants come back to $${d}$ because $${d}$ is the value the rule leaves alone: $${p} \\times ${br(d)} ${signed(q)} = ${d}$.` },
+    ];
+  },
+};
+
+interface RecClosedParams {
+  r: Rec;
+}
+
+/**
+ * A recurrence's closed form found from its first terms and placed as tiles:
+ * the power of p and the constant d, or at difficulty 2 the multiple c, the
+ * base p and d.
+ */
+const recClosedTiles: Generator<RecClosedParams> = {
+  id: 'seq-ind-rec-closed',
+  sample: (rng, difficulty) =>
+    difficulty > 1
+      ? { r: drawUntil(() => sampleRec(rng, true, 4), (rec) => rec.c > 1) }
+      : { r: sampleRec(rng, true, 4, true) },
+  render: ({ r }): Slide => {
+    const { p, c, d } = r;
+    const multiple = c > 1;
+    // A signed tile in a number's place still reads as that number: `+3 \times 4^n`.
+    const constantSlips = [token(-d), token(recQ(r)), token(recAt(r, 1))].filter(
+      (t) => t !== token(d) && !(multiple && [token(c), token(p)].includes(t)),
+    );
+    // With c and p^n as two tiles, p^n \times c would be just as right and
+    // graded wrong, so at difficulty 2 the tiles are c and the base p.
+    const answer = multiple ? [`${c}`, `${p}`, token(d)] : [`${p}^n`, token(d)];
+    const slips = multiple
+      ? [`${p + 1}`, ...(p > 2 ? [`${p - 1}`] : []), ...constantSlips, `${c + 1}`, `${c * p}`]
+      : [`${p + 1}^n`, ...(p > 2 ? [`${p - 1}^n`] : []), `${p}^{n-1}`, ...constantSlips];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The sequence $${indRuleTex(r)}$, $${recStartTex(r)}$ starts as below. The rule multiplies by $${p}$ each time, so try a closed form ${multiple ? `$c \\times ${p}^n + d$` : `$${p}^n + d$`}. Place it.`,
+        },
+        { kind: 'display', tex: listTex([1, 2, 3, 4].map((n) => recAt(r, n))) },
+      ],
+      template: multiple ? 'u_n = {0} \\times {1}^n {2}' : 'u_n = {0} {1}',
+      bank: tileBank(answer, slips, multiple ? 5 : 4),
+      answer,
+    };
+  },
+  solution: ({ r }) => {
+    const { p, c, d } = r;
+    return [
+      { text: `The constant $d$ is the number the rule leaves alone: $d = ${p}d ${signed(recQ(r))}$ gives $d = ${d}$.` },
+      { text: `Then $u_1 = ${recAt(r, 1)}$ needs $${p}c ${signed(d)} = ${recAt(r, 1)}$, so $c = ${c}$.` },
+      { tex: `u_n = ${recClosed(r, 'n')}` },
+      { text: `Check: $u_2 = ${recAt(r, 2)}$ and $u_3 = ${recAt(r, 3)}$ fit too. Induction is what turns the pattern into a proof.` },
+    ];
+  },
+};
+
+interface RecOrderParams {
+  r: Rec;
+  hard: boolean;
+  picks: number[];
+}
+
+/** A recurrence's closed form proved in full. */
+const orderRec: Generator<RecOrderParams> = {
+  id: 'seq-ind-order-rec',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const r = sampleRec(rng, hard, 3);
+    return { r, hard, picks: pickDistractors(rng, recProof(r, hard), difficulty) };
+  },
+  render: ({ r, hard, picks }) => orderSlide(recProof(r, hard), picks),
+  solution: ({ r, hard, picks }) => orderSolution(recProof(r, hard), picks),
+};
+
+interface RecTermParams {
+  r: Rec;
+  n: number;
+  /** Find u_n, or find which n gives a value. */
+  which: boolean;
+}
+
+/** Using a proved closed form: a far term typed, or which term takes a value. */
+const recTerm: Generator<RecTermParams> = {
+  id: 'seq-ind-rec-term',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return drawUntil(
+      () => ({ r: sampleRec(rng, false, 1), n: rng.int(hard ? 4 : 5, 9), which: hard }),
+      ({ r, n }) => recAt(r, n) < IND_LIMIT,
+    );
+  },
+  render: ({ r, n, which }): Slide =>
+    typed(
+      [
+        { kind: 'prose', text: `It has been proved that ${recClaimProse(r)}.` },
+        {
+          kind: 'prose',
+          text: which ? `Which term of the sequence is $${recAt(r, n)}$?` : `Use the formula to find $u_{${n}}$, rather than running the rule ${n - 1} times.`,
+        },
+      ],
+      which ? 'n =' : `u_{${n}} =`,
+      which ? n : recAt(r, n),
+    ),
+  solution: ({ r, n, which }) => {
+    const { p, c, d } = r;
+    const cTimes = c === 1 ? '' : `${c} \\times `;
+    if (!which) {
+      return [
+        { text: `Put $n = ${n}$ into the formula:` },
+        { tex: `\\begin{gathered} u_{${n}} = ${cTimes}${p}^{${n}} ${signed(d)} \\\\ = ${recAt(r, n)} \\end{gathered}` },
+      ];
+    }
+    return [
+      { tex: `${recClosed(r, 'n')} = ${recAt(r, n)}` },
+      { tex: `${cTimes}${p}^n = ${recAt(r, n) - d}` },
+      ...(c === 1 ? [] : [{ tex: `${p}^n = ${p ** n}` }]),
+      { text: `$${p}^{${n}} = ${p ** n}$, so $n = ${n}$.` },
+    ];
+  },
+};
+
+/* Level 5, lesson 5: reading and checking */
+
+/** A claimed formula: the true one, the true one shifted, or a polynomial that fits the first few sums only. */
+type Verdict = 'true' | 'shift' | 'fit';
+
+interface TestedParams {
+  s: SeriesClaim;
+  kind: Verdict;
+  shift: number;
+}
+
+/**
+ * The polynomial in n through the first two sums (for a quadratic sum) or
+ * the first three (otherwise), or undefined if its coefficients are not whole.
+ */
+function fitPoly(s: SeriesClaim): number[] | undefined {
+  const [S1, S2, S3] = [1, 2, 3].map((n) => indSum(s, n));
+  const quadratic = s.form === 'nat' || s.form === 'odd' || s.form === 'lin';
+  if (quadratic) return [S2 - S1, 2 * S1 - S2];
+  const d2 = S3 - 2 * S2 + S1;
+  const d1 = S2 - S1;
+  const poly = [d2 / 2, d1 - (3 * d2) / 2, S1 - d1 + d2];
+  return poly.every(Number.isInteger) ? poly : undefined;
+}
+
+const polyAt = (poly: number[], n: number) => poly.reduce((total, x) => total * n + x, 0);
+
+/** The claimed right side as a function of n, and in TeX in `v`. */
+function claimed({ s, kind, shift }: TestedParams): { at: (n: number) => number; tex: (v: string) => string } {
+  if (kind === 'fit') {
+    const poly = fitPoly(s)!;
+    return { at: (n) => polyAt(poly, n), tex: (v) => kPoly(poly, v) };
+  }
+  const t = kind === 'shift' ? shift : 0;
+  return { at: (n) => indSum(s, n) + t, tex: (v) => closedPlus(s, v, t) };
+}
+
+function sampleTested(rng: Rng, hard: boolean): TestedParams {
+  return drawUntil(
+    () => ({
+      s: hard ? sampleClaim(rng, ['rp', 'cube', 'geo'], true) : sampleClaim(rng, ['nat', 'odd', 'lin']),
+      kind: rng.pick<Verdict>(['true', 'shift', 'fit']),
+      shift: rng.int(1, 5),
+    }),
+    (params) => (params.kind !== 'fit' || fitPoly(params.s) !== undefined) && indSum(params.s, 5) < IND_LIMIT && claimed(params).at(5) < IND_LIMIT,
+  );
+}
+
+/** The first n from 1 where the claim and the sum part, or undefined. */
+function firstFailure(params: TestedParams): number | undefined {
+  const { at } = claimed(params);
+  for (let n = 1; n <= 8; n += 1) if (at(n) !== indSum(params.s, n)) return n;
+  return undefined;
+}
+
+interface TestTableParams extends TestedParams {
+  sumBlanks: number[];
+  claimBlanks: number[];
+}
+
+/**
+ * A claim tested against the first five sums: S_n by adding, beside what the
+ * claim gives. The claim is true, off by a constant everywhere, or a formula
+ * that fits the first two or three sums and then parts from them.
+ */
+const testTable: Generator<TestTableParams> = {
+  id: 'seq-ind-test-table',
+  sample: (rng, difficulty) => {
+    const params = sampleTested(rng, difficulty > 1);
+    const fail = firstFailure(params);
+    // Blank the claim where it first fails, so the parting is worked out rather than read.
+    const claimBlanks = [...new Set([fail === undefined ? rng.int(2, 4) : fail - 1, rng.int(0, 4)])].sort((x, y) => x - y);
+    return { ...params, sumBlanks: positions(rng, 1, 4, difficulty > 1 ? 3 : 2), claimBlanks };
+  },
+  render: (params): Slide => {
+    const { s, sumBlanks, claimBlanks } = params;
+    const { at, tex } = claimed(params);
+    const answer: number[] = [];
+    const slips: number[] = [];
+    const rows = [1, 2, 3, 4, 5].map((n, i) => {
+      const row: (string | null)[] = [`${n}`];
+      if (sumBlanks.includes(i)) {
+        answer.push(indSum(s, n));
+        slips.push(indSum(s, n) + indTerm(s, n + 1) - indTerm(s, n), indSum(s, n - 1));
+      }
+      row.push(sumBlanks.includes(i) ? null : `${indSum(s, n)}`);
+      if (claimBlanks.includes(i)) {
+        answer.push(at(n));
+        slips.push(indSum(s, n), at(n + 1));
+      }
+      row.push(claimBlanks.includes(i) ? null : `${at(n)}`);
+      return row;
+    });
+    return {
+      kind: 'table',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Someone claims that $${upTo(s, 'n')} = ${tex('n')}$. Test it: fill in each true total $S_n$ by adding the terms, and what the claim gives beside it.`,
+        },
+      ],
+      columns: ['n', 'S_n', '\\text{claim}'],
+      rows,
+      bank: smallBank(answer, slips),
+      answer: answer.map(String),
+    };
+  },
+  solution: (params) => {
+    const { s, kind } = params;
+    const fail = firstFailure(params);
+    return [
+      { text: `The totals are the terms of $${indTermR(s)}$ added up: ${[1, 2, 3, 4, 5].map((n) => `$${indSum(s, n)}$`).join(', ')}.` },
+      { text: `The claim gives ${[1, 2, 3, 4, 5].map((n) => `$${claimed(params).at(n)}$`).join(', ')}.` },
+      {
+        text:
+          fail === undefined
+            ? 'They agree in every row. That is evidence, not proof: induction is what shows it holds for every $n$.'
+            : kind === 'fit'
+              ? `They agree at first, then part at $n = ${fail}$: a formula can fit the first few totals and still be wrong.`
+              : `They disagree from $n = ${fail}$, so the claim is false.`,
+      },
+    ];
+  },
+};
+
+
+/** u_{k+1} multiplied out in k, for the sums whose terms are polynomials. */
+function termPoly(s: SeriesClaim): number[] | undefined {
+  switch (s.form) {
+    case 'nat':
+      return [s.c, s.c];
+    case 'odd':
+      return [2 * s.c, s.c];
+    case 'lin':
+      return [s.a, s.a + s.b];
+    case 'rp':
+      return [s.c, s.c * (2 + s.p), s.c * (1 + s.p)];
+    case 'cube':
+      return [s.c, 3 * s.c, 3 * s.c, s.c];
+    case 'geo':
+      return undefined;
+  }
+}
+
+/** A polynomial in n rewritten at n = k + 1, leading zeros dropped. */
+function atNext(poly: number[]): number[] {
+  let out = [0];
+  for (const x of poly) out = indAdd(indMul(out, [1, 1]), [x]);
+  while (out.length > 1 && out[0] === 0) out = out.slice(1);
+  return out;
+}
+
+/** The claim at n = k + 1, as the learner would write it. */
+function claimedNext(params: TestedParams): string {
+  if (params.kind === 'fit') return kPoly(atNext(fitPoly(params.s)!));
+  return closedPlus(params.s, 'k', params.kind === 'shift' ? params.shift : 0, 1);
+}
+
+/**
+ * What the step comes to, G(k) + u_{k+1}. A fitted claim's is a polynomial,
+ * multiplied out. A true or shifted claim's is the closed form at k + 1, or,
+ * when `expanded`, the same multiplied out, so that it has to be compared
+ * rather than recognised.
+ */
+function stepResult(params: TestedParams, expanded: boolean): string {
+  const { s, kind, shift } = params;
+  if (kind === 'fit') return kPoly(indAdd(fitPoly(s)!, termPoly(s)!));
+  const t = kind === 'shift' ? shift : 0;
+  if (!expanded || s.form === 'geo') return closedPlus(s, 'k', t, 1);
+  const shape = indShape(s);
+  const coef = indCoef(shape);
+  const all = indExpand(shape.factors, 1);
+  if (coef === '' || shape.Q === 1) {
+    const whole = indAdd(all.map((x) => x * shape.P), [t]);
+    return kPoly(whole);
+  }
+  return `${coef}(${kPoly(all)})${t === 0 ? '' : ` ${signed(t)}`}`;
+}
+
+interface VerdictParams extends TestedParams {
+  /** Show the claim at k + 1 too, and the step's result multiplied out, so the check is a comparison. */
+  shown: boolean;
+}
+
+/**
+ * Is a claim proved? The step first: does G(k) + u_{k+1} come to G(k + 1)?
+ * Then the base case. A shifted claim passes the step and fails at n = 1; a
+ * fitted one fails the step, however well it matched the first totals.
+ */
+const verdictFlow: Generator<VerdictParams> = {
+  id: 'seq-ind-verdict',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    // A fitted geometric claim's step is not a polynomial, so it is not asked here.
+    const params = drawUntil(() => sampleTested(rng, hard), (p) => p.kind !== 'fit' || p.s.form !== 'geo');
+    return { ...params, shown: !hard };
+  },
+  render: (params): Slide => {
+    const { s, kind, shown } = params;
+    const { tex } = claimed(params);
+    const next = shown ? ` The claim at $n = k + 1$ is $${claimedNext(params)}$.` : '';
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Assume the claim at $n = k$. Then the sum up to $k + 1$ is $${tex('k')} + ${indTermK(s, 1)}$, which comes to $${stepResult(params, shown)}$.${next}`,
+        },
+      ],
+      subject: `${upTo(s, 'n')} = ${tex('n')}`,
+      steps: [
+        {
+          id: 'step',
+          ask: 'Does the step reach the claim at $n = k + 1$?',
+          branches: [
+            { label: 'Yes', to: 'base' },
+            { label: 'No', outcome: 'Then the claim is not proved: a formula whose step fails can match the first few totals and still be wrong.' },
+          ],
+        },
+        {
+          id: 'base',
+          ask: 'Does it hold at the base case, $n = 1$?',
+          branches: [
+            { label: 'Yes', outcome: 'Base case and step both hold, so the claim is proved for every $n \\ge 1$.' },
+            { label: 'No', outcome: 'Then the claim is false at $n = 1$: the step on its own proves nothing.' },
+          ],
+        },
+      ],
+      answer: kind === 'fit' ? ['No'] : kind === 'shift' ? ['Yes', 'No'] : ['Yes', 'Yes'],
+    };
+  },
+  solution: (params) => {
+    const { s, kind } = params;
+    const { at } = claimed(params);
+    if (kind === 'fit') {
+      const fail = firstFailure(params)!;
+      return [
+        { text: `The step gives $${stepResult(params, true)}$, but the claim at $n = k + 1$ is $${claimedNext(params)}$: they differ, so the step fails.` },
+        { text: `And the claim really is false: at $n = ${fail}$ the sum is $${indSum(s, fail)}$ but the claim gives $${at(fail)}$.` },
+      ];
+    }
+    return [
+      { text: `The step gives $${claimedNext(params)}$, the claim at $n = k + 1$: the step works.` },
+      {
+        text:
+          kind === 'shift'
+            ? `But at $n = 1$ the sum is $${indTerm(s, 1)}$ and the claim gives $${at(1)}$. Without a base case the step proves nothing, and this claim is false.`
+            : `At $n = 1$ both sides are $${indTerm(s, 1)}$, so the base case holds too: the claim is proved.`,
+      },
+    ];
+  },
+};
+
+type Flaw = 'base' | 'assume' | 'term' | 'none';
+
+const FLAWS: Flaw[] = ['base', 'assume', 'term', 'none'];
+
+const FLAW_LABEL: Record<Flaw, string> = {
+  base: 'The base case checks the wrong value of n',
+  assume: 'The step assumes what it has to prove',
+  term: 'The step adds the wrong term',
+  none: 'Nothing: the proof is sound',
+};
+
+interface FlawParams {
+  s: SeriesClaim;
+  flaw: Flaw;
+}
+
+/** A written proof with at most one flaw: a base case at n = 2, an assumption at k + 1, or u_k added in place of u_{k+1}. */
+function flawedLines({ s, flaw }: FlawParams): string[] {
+  return [
+    flaw === 'base'
+      ? `Base case: at $n = 2$ the left side is $u_1 + u_2 = ${indSum(s, 2)}$, and the right side is $${indSum(s, 2)}$ too.`
+      : `Base case: at $n = 1$ the left side is $u_1 = ${indTerm(s, 1)}$, and the right side is $${indRightAtOne(s)}$.`,
+    flaw === 'assume'
+      ? `Assume $${upTo(s, 'k+1')} = ${closedTex(s, 'k', 1)}$ for some whole number $k \\ge 1$.`
+      : `Assume $${upTo(s, 'k')} = ${closedTex(s, 'k')}$ for some whole number $k \\ge 1$.`,
+    `Then $${upTo(s, 'k+1')} = ${closedTex(s, 'k')} + ${indTermK(s, flaw === 'term' ? 0 : 1)}$, which is $${closedTex(s, 'k', 1)}$.`,
+    'So it holds at the start, and whenever it holds at $n = k$ it holds at $n = k + 1$: it holds for every $n \\ge 1$.',
+  ];
+}
+
+/** A written proof to read: which line, if any, is wrong. */
+const flawChoice: Generator<FlawParams> = {
+  id: 'seq-ind-flaw',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => ({
+        s: difficulty > 1 ? sampleClaim(rng, ['rp', 'cube', 'geo'], true) : sampleClaim(rng, ['nat', 'odd', 'lin']),
+        flaw: rng.pick(FLAWS),
+      }),
+      ({ s }) => indSum(s, 2) < IND_LIMIT,
+    ),
+  render: (params): Slide => {
+    const { s, flaw } = params;
+    const labels = [FLAW_LABEL[flaw], ...FLAWS.filter((other) => other !== flaw).map((other) => FLAW_LABEL[other])];
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: `Here is a proof by induction that $${claimTex(s)}$ for every $n \\ge 1$.` },
+        ...flawedLines(params).map((line, i): Block => ({ kind: 'prose', text: `${i + 1}. ${line}` })),
+        { kind: 'prose', text: 'What, if anything, is wrong with it?' },
+      ],
+      ...nativeChoice(labels, mix(claimTex(s), flaw), false),
+    };
+  },
+  solution: ({ s, flaw }) => {
+    if (flaw === 'base') {
+      return [
+        { text: 'The claim starts at $n = 1$, so that is where the base case must be. Checking $n = 2$ leaves $n = 1$ unproved, and the step only carries a truth forward.' },
+        { text: `At $n = 1$: the left side is $${indTerm(s, 1)}$ and the right side is $${indRightAtOne(s)}$.` },
+      ];
+    }
+    if (flaw === 'assume') {
+      return [{ text: `Line 2 assumes the claim at $n = k + 1$, which is what the step has to show. It should assume $${upTo(s, 'k')} = ${closedTex(s, 'k')}$.` }];
+    }
+    if (flaw === 'term') {
+      return [
+        { text: `Line 3 adds $${indTermK(s, 0)}$, which is $u_k$ and already in the sum up to $k$. The term added is $u_{k+1} = ${indTermK(s, 1)}$.` },
+        { text: `And the line is false: at $k = 1$ it gives $${indSum(s, 1) + indTerm(s, 1)}$, but the sum up to $2$ is $${indSum(s, 2)}$.` },
+      ];
+    }
+    return [{ text: 'Every line is right: the base case is at $n = 1$, the step assumes the claim at $n = k$ and adds $u_{k+1}$, and the algebra holds.' }];
+  },
+};
+
+interface StartParams {
+  s: SeriesClaim;
+  m: number;
+}
+
+/** A sum from r = m, its closed form the one from 1 less the terms before m. */
+function startRight({ s, m }: StartParams): string {
+  return closedPlus(s, 'n', -indSum(s, m - 1));
+}
+
+/** A claim that starts later than n = 1: the base case is there, and the sum there is a single term. */
+const startBase: Generator<StartParams> = {
+  id: 'seq-ind-start',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () =>
+        difficulty > 1
+          ? { s: sampleClaim(rng, ['rp', 'cube', 'geo'], true), m: rng.int(2, 5) }
+          : { s: sampleClaim(rng, ['nat', 'odd', 'lin']), m: rng.int(2, 6) },
+      ({ s, m }) => indSum(s, m) < IND_LIMIT,
+    ),
+  render: (params): Slide =>
+    typed(
+      [
+        {
+          kind: 'prose',
+          text: `Claim: $${sumFrom(params.m, 'n')} ${indTermR(params.s)} = ${startRight(params)}$ for every whole number $n \\ge ${params.m}$.`,
+        },
+        { kind: 'prose', text: 'The base case goes where the claim starts. There, what do both sides come to?' },
+      ],
+      '\\text{base case} =',
+      indTerm(params.s, params.m),
+    ),
+  solution: (params) => {
+    const { s, m } = params;
+    return [
+      { text: `The claim starts at $n = ${m}$, so that is the base case, not $n = 1$. The sum from $r = ${m}$ to $${m}$ is the single term $u_{${m}} = ${indTerm(s, m)}$.` },
+      { text: `The right side at $n = ${m}$ is $${indSum(s, m)} - ${indSum(s, m - 1)} = ${indTerm(s, m)}$ too.` },
+    ];
+  },
+};
+
+export const sequenceOrders = [orderSum, orderStandard, orderSeries, orderRec];
+
 export const sequenceGenerators = [
   ruleTable,
   ruleKind,
@@ -6058,4 +7803,27 @@ export const sequenceGenerators = [
   infinitySum,
   survivorTree,
   telescopeSlider,
+  addedTerm,
+  stepCheck,
+  runningTable,
+  nextSum,
+  orderSum,
+  stepTarget,
+  factorOut,
+  standardStep,
+  orderStandard,
+  seriesClose,
+  seriesStep,
+  nextFlow,
+  orderSeries,
+  claimValue,
+  indRecTable,
+  recStep,
+  recClosedTiles,
+  orderRec,
+  recTerm,
+  testTable,
+  verdictFlow,
+  flawChoice,
+  startBase,
 ];

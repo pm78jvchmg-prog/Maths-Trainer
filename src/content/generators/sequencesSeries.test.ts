@@ -745,3 +745,552 @@ describe('level 4, lesson 5: sums to infinity by differences', () => {
     }
   });
 });
+
+/*
+ * Level 5: proof by induction for series. Every claim a slide states as true is
+ * held to its terms added up one at a time, every line of working to that total
+ * at k = 1 to 8, and every recurrence's closed form to the rule run from u_1,
+ * all read off the rendered slide rather than the generator's own model.
+ */
+
+const KS = [1, 2, 3, 4, 5, 6, 7, 8];
+
+/** Inline maths in a line of prose, in order. */
+const inlineMaths = (text: string) => text.split(/\$([^$]+)\$/g).filter((_, i) => i % 2 === 1);
+
+const compiledInK = new Map<string, (scope: Record<string, number>) => number>();
+
+/** A TeX expression evaluated in k, n or r; also `k(k + 1)` and `n^2(n + 1)^2` as products. */
+function at(tex: string, scope: Record<string, number>): number {
+  let f = compiledInK.get(tex);
+  if (!f) {
+    f = termFn(tex.replace(/(?<![a-z\\])k\(/g, 'k*(').replace(/\^(\d)\(/g, '^$1*('));
+    compiledInK.set(tex, f);
+  }
+  // `\frac13` comes back a hair off a whole number through floats.
+  const value = f(scope);
+  return Math.abs(value - Math.round(value)) < 1e-9 ? Math.round(value) : value;
+}
+
+/** Two functions of k agreeing at k = 1 to 8. */
+const sameInK = (f: (k: number) => number, g: (k: number) => number) => KS.every((k) => Math.abs(f(k) - g(k)) < 1e-6);
+
+interface SumClaim {
+  lo: number;
+  term: string;
+  right: string;
+}
+
+/** `\sum_{r=a}^{n} term = right`. */
+function sumClaim(tex: string): SumClaim {
+  const match = tex.match(/^\\sum_\{r=(\d+)\}\^\{n\} (.*?) = (.*)$/);
+  if (!match) throw new Error(`not a claimed sum: ${tex}`);
+  return { lo: Number(match[1]), term: match[2], right: match[3] };
+}
+
+/** The first claimed sum stated inline anywhere in some prose. */
+const claimIn = (text: string) => sumClaim(inlineMaths(text).find((tex) => tex.startsWith('\\sum') && tex.includes('^{n}'))!);
+
+const termAt = (c: SumClaim, r: number) => at(c.term, { r });
+const rightAt = (c: SumClaim, n: number) => at(c.right, { n });
+function addedUp(c: SumClaim, n: number): number {
+  let total = 0;
+  for (let r = c.lo; r <= n; r += 1) total += termAt(c, r);
+  return total;
+}
+
+function claimHolds(c: SumClaim, where: string) {
+  for (let n = c.lo; n <= c.lo + 9; n += 1) expect(rightAt(c, n), `${where}: the claim at n = ${n}`).toBe(addedUp(c, n));
+}
+
+interface RecClaim {
+  rule: (x: number) => number;
+  start: number;
+  closed?: string;
+}
+
+/** A recurrence stated inline, `u_{n+1} = …` and `u_1 = s`, with its claimed `u_n = …` if there is one. */
+function recIn(text: string): RecClaim {
+  const maths = inlineMaths(text);
+  const rule = maths.find((tex) => tex.startsWith('u_{n+1} = '))!;
+  const start = maths.find((tex) => /^u_1 = -?\d+$/.test(tex))!;
+  const closed = maths.find((tex) => tex.startsWith('u_n = '));
+  return { rule: firstOrder(rule).f, start: Number(start.slice(6)), closed: closed?.slice(6) };
+}
+
+const recTerms = (rec: RecClaim, count: number) => iterate(rec.rule, rec.start, count);
+
+function closedHolds(rec: RecClaim, where: string) {
+  const terms = recTerms(rec, 10);
+  terms.forEach((u, i) => expect(at(rec.closed!, { n: i + 1 }), `${where}: the formula at n = ${i + 1}`).toBe(u));
+}
+
+/** Every way of filling a tiles slide's blanks from its bank, each tile used once. */
+function arrangements(slide: Extract<Slide, { kind: 'tiles' }>): string[][] {
+  const out: string[][] = [];
+  const grow = (picked: number[]) => {
+    if (picked.length === slide.answer.length) {
+      out.push(picked.map((i) => slide.bank[i]));
+      return;
+    }
+    slide.bank.forEach((_, i) => {
+      if (!picked.includes(i)) grow([...picked, i]);
+    });
+  };
+  grow([]);
+  return out;
+}
+
+const fillWith = (template: string, tiles: string[]) =>
+  template.split(/\{(\d+)\}/g).map((piece, i) => (i % 2 === 1 ? tiles[Number(piece)] : piece)).join('');
+
+/** Whether an arrangement, as text, agrees with `target` at every k; unreadable counts as no. */
+function fillAgrees(text: string, target: (k: number) => number, scope = 'k'): boolean {
+  try {
+    return sameInK((k) => at(text, { [scope]: k }), target);
+  } catch {
+    return false;
+  }
+}
+
+/** Only the answer's arrangement of tiles comes to `target`. */
+function onlyAnswerFits(slide: Extract<Slide, { kind: 'tiles' }>, strip: string, target: (k: number) => number, where: string, scope = 'k') {
+  const answer = slide.answer.join('|');
+  for (const tiles of arrangements(slide)) {
+    const text = fillWith(slide.template, tiles).replace(strip, '');
+    const same = tiles.join('|') === answer || (slide.unordered === true && [...tiles].sort().join('|') === [...slide.answer].sort().join('|'));
+    expect(fillAgrees(text, target, scope), `${where}: ${text}`).toBe(same);
+  }
+}
+
+/**
+ * Walk a steps slide as the widget does. Every line on the way comes to
+ * `target` at k = 1 to 8, and every bank value but the right one does not.
+ */
+function walkSteps(slide: Extract<Slide, { kind: 'steps' }>, target: (k: number) => number, where: string, uk?: string) {
+  const read = (tokens: string[]) => {
+    const tex = tokens.join(' ');
+    return uk === undefined ? tex : tex.replace(/u_k/g, `(${uk})`);
+  };
+  let line = [...slide.start];
+  expect(fillAgrees(read(line), target), `${where}: the opening line`).toBe(true);
+  for (const { span, value, bank } of slide.reductions) {
+    const put = (v: string) => [...line.slice(0, span[0]), v, ...line.slice(span[1])];
+    expect(bank, where).toContain(value);
+    for (const option of bank) expect(fillAgrees(read(put(option)), target), `${where}: ${option}`).toBe(option === value);
+    line = put(value);
+  }
+  expect(line, where).toHaveLength(1);
+}
+
+/**
+ * Whether one line of a written proof is sound. `left` is what the step
+ * assumes a value for, at k; `truth(k)` is the true value there, the sum up to
+ * k or the term u_k.
+ */
+function proofLineSound(line: string, left: string, truth: (k: number) => number, base: (text: string) => boolean): boolean {
+  if (line.startsWith('Base case:')) return base(line);
+  if (line.startsWith('It holds at $n = 1$, and whenever')) return true;
+  if (line.startsWith('It also')) return false;
+  const maths = inlineMaths(line);
+  if (line.startsWith('Assume')) {
+    const [lhs, rhs] = maths[0].split(' = ');
+    return lhs === left && sameInK((k) => at(rhs, { k }), truth);
+  }
+  const next = (k: number) => truth(k + 1);
+  if (line.startsWith('Then')) {
+    const sides = maths[0].split(' = ');
+    return sameInK((k) => at(sides[sides.length - 1], { k }), next);
+  }
+  const that = line.match(/that is \$([^$]+)\$/i);
+  if (!that) throw new Error(`an unread proof line: ${line}`);
+  return sameInK((k) => at(that[1], { k }), next);
+}
+
+/** Every step of the proof in the answer is sound, and every one left out is not. */
+function orderSound(slide: Slide, left: string, truth: (k: number) => number, base: (text: string) => boolean, where: string) {
+  if (slide.kind !== 'order') throw new Error('not an order slide');
+  for (const step of slide.steps) {
+    expect(proofLineSound(step.text, left, truth, base), `${where}: ${step.text}`).toBe(slide.answer.includes(step.id));
+  }
+}
+
+/** `Base case: at $n = 1$ the left side is $u_1 = X$, and the right side is $… = X$.` */
+function seriesBase(c: SumClaim) {
+  return (line: string) => {
+    const match = line.match(/^Base case: at \$n = (\d+)\$ the left side is \$u_1 = (-?\d+)\$, and the right side is \$(.*) = (-?\d+)\$\.$/);
+    if (!match) return false;
+    const [n, left, working, right] = [Number(match[1]), Number(match[2]), match[3], Number(match[4])];
+    return n === c.lo && left === termAt(c, 1) && at(working, {}) === right && right === left;
+  };
+}
+
+describe('level 5, lesson 1: the step for a series', () => {
+  it('seq-ind-added-term: one tile is the claim at k, the other u_{k+1}, and only that pair adds to the sum', () => {
+    for (const { slide, seed, difficulty } of draws('seq-ind-added-term')) {
+      if (slide.kind !== 'tiles') throw new Error('not tiles');
+      const where = `seed ${seed}, difficulty ${difficulty}`;
+      const c = claimIn(prose(slide.prompt));
+      claimHolds(c, where);
+      expect(displays(slide.prompt)[0], where).toBe(`\\sum_{r=1}^{k+1} ${c.term}`);
+      const [assumed, added] = slide.answer.map((tile) => (k: number) => at(tile, { k }));
+      expect(sameInK(assumed, (k) => rightAt(c, k)), `${where}: the sum up to k`).toBe(true);
+      expect(sameInK(added, (k) => termAt(c, k + 1)), `${where}: the next term`).toBe(true);
+      const both = slide.template.replace(/^= /, '');
+      onlyAnswerFits({ ...slide, template: both }, '', (k) => addedUp(c, k + 1), where);
+    }
+  });
+
+  it('seq-ind-step-check: the claim at k, the term u_{k+1} and their total, each added up', () => {
+    for (const { slide, seed, difficulty } of draws('seq-ind-step-check')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree');
+      const where = `seed ${seed}, difficulty ${difficulty}`;
+      const text = prose(slide.prompt);
+      const c = claimIn(text);
+      claimHolds(c, where);
+      const k = stated(text, /at \$k = (\d+)\$/);
+      expect(slide.answer.map(Number), where).toEqual([addedUp(c, k), termAt(c, k + 1), addedUp(c, k + 1)]);
+      expect(at(slide.expression, { k }), where).toBe(addedUp(c, k + 1));
+    }
+  });
+
+  it('seq-ind-running: every term is u_n and every total the terms added up', () => {
+    for (const { slide, seed, difficulty } of draws('seq-ind-running')) {
+      if (slide.kind !== 'table') throw new Error('not a table');
+      const where = `seed ${seed}, difficulty ${difficulty}`;
+      const maths = inlineMaths(prose(slide.prompt));
+      const c: SumClaim = { lo: 1, term: maths[0].match(/^S_n = \\sum_\{r=1\}\^\{n\} (.*)$/)![1], right: '' };
+      const claimed = maths.find((tex) => tex.startsWith('S_n = ') && !tex.includes('\\sum'));
+      if (claimed) claimHolds({ ...c, right: claimed.slice(6) }, where);
+      for (const [n, u, total] of merged(slide).map((row) => row.map(Number))) {
+        expect(u, `${where}, n = ${n}`).toBe(termAt(c, n));
+        expect(total, `${where}, n = ${n}`).toBe(addedUp(c, n));
+      }
+    }
+  });
+
+  it('seq-ind-next-sum: the given sum is the terms added up, and so is the answer', () => {
+    for (const { slide, seed, difficulty } of draws('seq-ind-next-sum')) {
+      if (slide.kind !== 'expression') throw new Error('not typed');
+      const [given, asked] = displays(slide.prompt);
+      const [sum, total] = given.split(' = ');
+      expect(Number(total), `seed ${seed}, difficulty ${difficulty}`).toBe(addTerms(sum));
+      expect(Number(slide.answer), `seed ${seed}, difficulty ${difficulty}`).toBe(addTerms(asked));
+    }
+  });
+
+  it('seq-ind-order-sum: every step of the proof holds, and every step left out does not', () => {
+    for (const { slide, seed, difficulty } of draws('seq-ind-order-sum')) {
+      if (slide.kind !== 'order') throw new Error('not an order slide');
+      const c = claimIn(prose(slide.prompt));
+      claimHolds(c, `seed ${seed}`);
+      orderSound(slide, `\\sum_{r=1}^{k} ${c.term}`, (k) => addedUp(c, k), seriesBase(c), `seed ${seed}, difficulty ${difficulty}`);
+    }
+  });
+});
+
+describe('level 5, lesson 2: proving the standard results', () => {
+  it('seq-ind-target: only the right option is the sum up to k + 1', () => {
+    for (const { slide, seed, difficulty } of draws('seq-ind-target')) {
+      if (slide.kind !== 'choice') throw new Error('not a choice');
+      const where = `seed ${seed}, difficulty ${difficulty}`;
+      const c = claimIn(prose(slide.prompt));
+      claimHolds(c, where);
+      for (const option of slide.options) {
+        expect(fillAgrees(option.label, (k) => addedUp(c, k + 1)), `${where}: ${option.label}`).toBe(option.id === slide.correctId);
+      }
+    }
+  });
+
+  it('seq-ind-factor-out: the line is the sum up to k + 1, and only the right tile keeps it so', () => {
+    for (const { slide, seed, difficulty } of draws('seq-ind-factor-out')) {
+      if (slide.kind !== 'tiles') throw new Error('not tiles');
+      const where = `seed ${seed}, difficulty ${difficulty}`;
+      const c = claimIn(prose(slide.prompt));
+      claimHolds(c, where);
+      const target = (k: number) => addedUp(c, k + 1);
+      expect(fillAgrees(displays(slide.prompt)[0], target), `${where}: the line`).toBe(true);
+      onlyAnswerFits(slide, '', target, where);
+    }
+  });
+
+  it('seq-ind-standard-step: every line of the working is the sum up to k + 1', () => {
+    for (const { slide, seed, difficulty } of draws('seq-ind-standard-step')) {
+      if (slide.kind !== 'steps') throw new Error('not steps');
+      const c = claimIn(prose(slide.prompt));
+      claimHolds(c, `seed ${seed}`);
+      walkSteps(slide, (k) => addedUp(c, k + 1), `seed ${seed}, difficulty ${difficulty}`);
+    }
+  });
+
+  it('seq-ind-order-standard: every step of the proof holds, and every step left out does not', () => {
+    for (const { slide, seed, difficulty } of draws('seq-ind-order-standard')) {
+      if (slide.kind !== 'order') throw new Error('not an order slide');
+      const c = claimIn(prose(slide.prompt));
+      claimHolds(c, `seed ${seed}`);
+      orderSound(slide, `\\sum_{r=1}^{k} ${c.term}`, (k) => addedUp(c, k), seriesBase(c), `seed ${seed}, difficulty ${difficulty}`);
+    }
+  });
+});
+
+describe('level 5, lesson 3: arithmetic and geometric sums', () => {
+  it('seq-ind-ap-close: the line is the sum up to k + 1, and only the right tile keeps it so', () => {
+    for (const { slide, seed, difficulty } of draws('seq-ind-ap-close')) {
+      if (slide.kind !== 'tiles') throw new Error('not tiles');
+      const where = `seed ${seed}, difficulty ${difficulty}`;
+      const c = claimIn(prose(slide.prompt));
+      claimHolds(c, where);
+      const target = (k: number) => addedUp(c, k + 1);
+      expect(fillAgrees(displays(slide.prompt)[0], target), `${where}: the line`).toBe(true);
+      onlyAnswerFits(slide, '', target, where);
+    }
+  });
+
+  it('seq-ind-series-step: every line of the working is the sum up to k + 1', () => {
+    for (const { slide, seed, difficulty } of draws('seq-ind-series-step')) {
+      if (slide.kind !== 'steps') throw new Error('not steps');
+      const c = claimIn(prose(slide.prompt));
+      claimHolds(c, `seed ${seed}`);
+      walkSteps(slide, (k) => addedUp(c, k + 1), `seed ${seed}, difficulty ${difficulty}`);
+    }
+  });
+
+  it('seq-ind-next-flow: the right branches are u_{k+1} and the sum up to k + 1, and the wrong ones are not', () => {
+    for (const { slide, seed, difficulty } of draws('seq-ind-next-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow');
+      const where = `seed ${seed}, difficulty ${difficulty}`;
+      const c = sumClaim(slide.subject);
+      claimHolds(c, where);
+      const [which, total] = slide.steps;
+      const bare = (label: string) => label.replace(/^\$|\$$/g, '');
+      for (const branch of which.branches) {
+        const target = branch.to ? (k: number) => termAt(c, k + 1) : (k: number) => termAt(c, k);
+        expect(fillAgrees(bare(branch.label), target), `${where}: ${branch.label}`).toBe(true);
+      }
+      const assumed = inlineMaths(total.ask)[0];
+      expect(fillAgrees(assumed, (k) => rightAt(c, k)), `${where}: ${assumed}`).toBe(true);
+      for (const branch of total.branches) {
+        const right = branch.label === slide.answer[1];
+        expect(fillAgrees(bare(branch.label), (k) => addedUp(c, k + 1)), `${where}: ${branch.label}`).toBe(right);
+        if (right) continue;
+        const [, given, , sum] = inlineMaths(branch.outcome!).map(Number);
+        expect(given, where).toBe(at(bare(branch.label), { k: 1 }));
+        expect(sum, where).toBe(addedUp(c, 2));
+        expect(given, where).not.toBe(sum);
+      }
+      expect(slide.answer[0], where).toBe(which.branches.find((branch) => branch.to)!.label);
+    }
+  });
+
+  it('seq-ind-claim-value: the line comes to the terms added up', () => {
+    for (const { slide, seed, difficulty } of draws('seq-ind-claim-value')) {
+      if (slide.kind !== 'reduce') throw new Error('not a reduce');
+      const text = prose(slide.prompt);
+      const c = claimIn(text);
+      claimHolds(c, `seed ${seed}`);
+      expect(valueOf(slide.expr), `seed ${seed}, difficulty ${difficulty}`).toBe(addedUp(c, stated(text, /at \$n = (\d+)\$/)));
+    }
+  });
+
+  it('seq-ind-order-series: every step of the proof holds, and every step left out does not', () => {
+    for (const { slide, seed, difficulty } of draws('seq-ind-order-series')) {
+      if (slide.kind !== 'order') throw new Error('not an order slide');
+      const c = claimIn(prose(slide.prompt));
+      claimHolds(c, `seed ${seed}`);
+      orderSound(slide, `\\sum_{r=1}^{k} ${c.term}`, (k) => addedUp(c, k), seriesBase(c), `seed ${seed}, difficulty ${difficulty}`);
+    }
+  });
+});
+
+describe("level 5, lesson 4: a recurrence's closed form", () => {
+  it('seq-ind-rec-table: every u_n is the rule run from u_1, and the formula column agrees with it', () => {
+    for (const { slide, seed, difficulty } of draws('seq-ind-rec-table')) {
+      if (slide.kind !== 'table') throw new Error('not a table');
+      const where = `seed ${seed}, difficulty ${difficulty}`;
+      const rec = recIn(prose(slide.prompt));
+      expect(slide.columns[2], where).toBe(rec.closed);
+      const table = merged(slide);
+      const terms = recTerms(rec, table.length);
+      table.forEach((row, i) => {
+        expect(row.map(Number), `${where}, row ${i + 1}`).toEqual([i + 1, terms[i], at(rec.closed!, { n: i + 1 })]);
+      });
+      closedHolds(rec, where);
+    }
+  });
+
+  it('seq-ind-rec-step: every line of the working is u_{k+1}, with u_k the formula assumed', () => {
+    for (const { slide, seed, difficulty } of draws('seq-ind-rec-step')) {
+      if (slide.kind !== 'steps') throw new Error('not steps');
+      const where = `seed ${seed}, difficulty ${difficulty}`;
+      const text = prose(slide.prompt);
+      const rec = recIn(text);
+      closedHolds(rec, where);
+      const assumed = inlineMaths(text).find((tex) => tex.startsWith('u_k = '))!.slice(6);
+      const terms = recTerms(rec, 10);
+      expect(fillAgrees(assumed, (k) => terms[k - 1]), where).toBe(true);
+      walkSteps(slide, (k) => terms[k], where, assumed);
+    }
+  });
+
+  it('seq-ind-rec-closed: the listed terms are the rule run from u_1, and only the answer tiles fit them', () => {
+    for (const { slide, seed, difficulty } of draws('seq-ind-rec-closed')) {
+      if (slide.kind !== 'tiles') throw new Error('not tiles');
+      const where = `seed ${seed}, difficulty ${difficulty}`;
+      const rec = recIn(prose(slide.prompt));
+      const terms = recTerms(rec, 10);
+      const shown = displays(slide.prompt)[0].split(', \\; ').filter((piece) => piece !== '\\dots').map(Number);
+      expect(shown, where).toEqual(terms.slice(0, shown.length));
+      onlyAnswerFits(slide, 'u_n = ', (n) => terms[n - 1], where, 'n');
+    }
+  });
+
+  it('seq-ind-order-rec: every step of the proof holds, and every step left out does not', () => {
+    for (const { slide, seed, difficulty } of draws('seq-ind-order-rec')) {
+      if (slide.kind !== 'order') throw new Error('not an order slide');
+      const where = `seed ${seed}, difficulty ${difficulty}`;
+      const rec = recIn(prose(slide.prompt));
+      closedHolds(rec, where);
+      const terms = recTerms(rec, 10);
+      const base = (line: string) => {
+        const match = line.match(/^Base case: the sequence starts at \$u_1 = (-?\d+)\$, and the formula gives \$(.*) = (-?\d+)\$\.$/);
+        return match !== null && Number(match[1]) === rec.start && at(match[2], {}) === rec.start && Number(match[3]) === rec.start;
+      };
+      orderSound(slide, 'u_k', (k) => terms[k - 1], base, where);
+    }
+  });
+
+  it('seq-ind-rec-term: the term asked for, or the position of the value given, from the rule run from u_1', () => {
+    for (const { slide, seed, difficulty } of draws('seq-ind-rec-term')) {
+      if (slide.kind !== 'expression') throw new Error('not typed');
+      const where = `seed ${seed}, difficulty ${difficulty}`;
+      const text = prose(slide.prompt);
+      const rec = recIn(text);
+      closedHolds(rec, where);
+      const terms = recTerms(rec, 40);
+      const asked = text.match(/find \$u_\{(\d+)\}\$/);
+      if (asked) {
+        expect(Number(slide.answer), where).toBe(terms[Number(asked[1]) - 1]);
+      } else {
+        const value = stated(text, /Which term of the sequence is \$(-?\d+)\$/);
+        const places = terms.flatMap((u, i) => (u === value ? [i + 1] : []));
+        expect(places, where).toEqual([Number(slide.answer)]);
+      }
+    }
+  });
+});
+
+describe('level 5, lesson 5: reading and checking a proof', () => {
+  it('seq-ind-test-table: every true total is the terms added up, and every claimed one the claim', () => {
+    for (const { slide, seed, difficulty } of draws('seq-ind-test-table')) {
+      if (slide.kind !== 'table') throw new Error('not a table');
+      const c = claimIn(prose(slide.prompt));
+      for (const [n, total, claimed] of merged(slide).map((row) => row.map(Number))) {
+        expect([total, claimed], `seed ${seed}, difficulty ${difficulty}, n = ${n}`).toEqual([addedUp(c, n), rightAt(c, n)]);
+      }
+    }
+  });
+
+  it('seq-ind-verdict: the path follows whether the step and the base case really hold', () => {
+    for (const difficulty of DIFFICULTIES) {
+      const seen = new Set<string>();
+      for (let seed = 0; seed < SEEDS; seed += 1) {
+        const slide = draw('seq-ind-verdict', seed, difficulty);
+        if (slide.kind !== 'flow') throw new Error('not a flow');
+        const where = `seed ${seed}, difficulty ${difficulty}`;
+        const c = sumClaim(slide.subject);
+        const reached = (k: number) => rightAt(c, k) + termAt(c, k + 1);
+        const text = prose(slide.prompt);
+        const working = text.match(/is \$([^$]+)\$, which comes to \$([^$]+)\$/)!;
+        expect(fillAgrees(working[1], reached), `${where}: ${working[1]}`).toBe(true);
+        expect(fillAgrees(working[2], reached), `${where}: ${working[2]}`).toBe(true);
+        const next = text.match(/claim at \$n = k \+ 1\$ is \$([^$]+)\$/);
+        if (next) expect(fillAgrees(next[1], (k) => rightAt(c, k + 1)), `${where}: ${next[1]}`).toBe(true);
+        const step = sameInK(reached, (k) => rightAt(c, k + 1));
+        const base = rightAt(c, 1) === termAt(c, 1);
+        const path = step ? ['Yes', base ? 'Yes' : 'No'] : ['No'];
+        expect(slide.answer, where).toEqual(path);
+        seen.add(path.join(' '));
+      }
+      expect([...seen].sort(), `difficulty ${difficulty}`).toEqual(['No', 'Yes No', 'Yes Yes']);
+    }
+  });
+
+  it('seq-ind-flaw: the right option names the one line that is really wrong, or none', () => {
+    const labels: Record<string, string> = {
+      base: 'The base case checks the wrong value of n',
+      assume: 'The step assumes what it has to prove',
+      term: 'The step adds the wrong term',
+      none: 'Nothing: the proof is sound',
+    };
+    for (const difficulty of DIFFICULTIES) {
+      const seen = new Set<string>();
+      for (let seed = 0; seed < SEEDS; seed += 1) {
+        const slide = draw('seq-ind-flaw', seed, difficulty);
+        if (slide.kind !== 'choice') throw new Error('not a choice');
+        const where = `seed ${seed}, difficulty ${difficulty}`;
+        const text = prose(slide.prompt);
+        const c = claimIn(text);
+        claimHolds(c, where);
+        const lines = slide.prompt.flatMap((block) => (block.kind === 'prose' && /^\d\. /.test(block.text) ? [block.text.slice(3)] : []));
+        expect(lines, where).toHaveLength(4);
+        const flaws: string[] = [];
+
+        const [baseAt] = inlineMaths(lines[0]);
+        if (baseAt === 'n = 1') {
+          expect(seriesBase(c)(lines[0].replace(/\$\.$/, '$.')), `${where}: ${lines[0]}`).toBe(true);
+        } else {
+          flaws.push('base');
+          const [, left, right] = inlineMaths(lines[0]);
+          const n = Number(baseAt.slice(4));
+          expect([Number(left.split(' = ')[1]), Number(right)], where).toEqual([addedUp(c, n), rightAt(c, n)]);
+        }
+
+        const [assumeLeft, assumeRight] = inlineMaths(lines[1])[0].split(' = ');
+        const shift = assumeLeft === `\\sum_{r=1}^{k} ${c.term}` ? 0 : 1;
+        if (shift) {
+          flaws.push('assume');
+          expect(assumeLeft, where).toBe(`\\sum_{r=1}^{k+1} ${c.term}`);
+        }
+        expect(fillAgrees(assumeRight, (k) => rightAt(c, k + shift)), `${where}: ${assumeRight}`).toBe(true);
+
+        const [stepLine, reached] = inlineMaths(lines[2]);
+        const added = stepLine.split(' = ').slice(1).join(' = ');
+        if (!fillAgrees(added, (k) => addedUp(c, k + 1))) flaws.push('term');
+        expect(fillAgrees(reached, (k) => rightAt(c, k + 1)), `${where}: ${reached}`).toBe(true);
+
+        expect(flaws.length, `${where}: more than one flaw`).toBeLessThanOrEqual(1);
+        const flaw = flaws[0] ?? 'none';
+        expect(choiceAnswer(slide), where).toBe(labels[flaw]);
+        seen.add(flaw);
+      }
+      expect([...seen].sort(), `difficulty ${difficulty}`).toEqual(['assume', 'base', 'none', 'term']);
+    }
+  });
+
+  it('seq-ind-start: the claim holds from where it starts, and the base case is the first term', () => {
+    for (const { slide, seed, difficulty } of draws('seq-ind-start')) {
+      if (slide.kind !== 'expression') throw new Error('not typed');
+      const where = `seed ${seed}, difficulty ${difficulty}`;
+      const text = prose(slide.prompt);
+      const c = claimIn(text);
+      expect(stated(text, /\$n \\ge (\d+)\$/), where).toBe(c.lo);
+      claimHolds(c, where);
+      expect(Number(slide.answer), where).toBe(termAt(c, c.lo));
+    }
+  });
+});
+
+describe('level 5: every number in a slide', () => {
+  it('is whole and under 1000', () => {
+    const ids = Object.keys(registry).filter((id) => id.startsWith('seq-ind-') && !id.includes('+'));
+    expect(ids).toHaveLength(23);
+    for (const id of ids) {
+      for (const { slide, seed, difficulty } of draws(id)) {
+        const { solution: _, ...question } = slide as Slide & { solution?: unknown };
+        const numbers = JSON.stringify(question).match(/\d+(\.\d+)?/g) ?? [];
+        for (const number of numbers) expect(Number(number), `${id}, seed ${seed}, difficulty ${difficulty}: ${number}`).toBeLessThan(1000);
+        expect(numbers.filter((number) => number.includes('.')), `${id}, seed ${seed}`).toEqual([]);
+      }
+    }
+  });
+});

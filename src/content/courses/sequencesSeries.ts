@@ -16,8 +16,14 @@
  * built from them, sums that do not start at 1, and the method of
  * differences, finite and to infinity, with the split always given.
  *
- * Later levels — proof by induction, series in context — are in the level
- * plan in `docs/roadmap/levels/sequences-series.md`.
+ * Level 5 proves sum formulae by induction: the step S_{k+1} = S_k + u_{k+1},
+ * the standard results tidied by their common factor (k + 1), arithmetic and
+ * geometric sums, the closed form of a recurrence, and reading and checking
+ * a proof: a claim tested on its first terms, the base case where the claim
+ * starts, and a step that assumes what it has to show.
+ *
+ * Later levels — series in context, harder arithmetic and geometric
+ * problems — are in the level plan in `docs/roadmap/levels/sequences-series.md`.
  *
  * Each level closes with a level check: fifteen questions, no teaching
  * slides, one attempt each.
@@ -853,6 +859,172 @@ export const sequencesSeries: Course = {
         ask('seq-leftover-flow', 2),
         ask('seq-infinity-sum', 2),
         ask('seq-survivor-tree', 2),
+      ],
+    },
+    {
+      id: 'sq-l5',
+      title: 'Proof by Induction for Series',
+      lessons: [
+        {
+          id: 'sq-l5-step',
+          title: 'The Step for a Series',
+          slides: [
+            teach(
+              prose('To prove a sum formula for every $n$ by induction: show it holds at $n = 1$, then assume it holds at $n = k$ and show it holds at $n = k + 1$.'),
+              prose('The step rests on one fact. The sum up to $k + 1$ is the sum up to $k$, which you have assumed, plus the next term:'),
+              maths('\\sum_{r=1}^{k+1} u_r = \\sum_{r=1}^{k} u_r + u_{k+1}'),
+            ),
+            ask('seq-ind-added-term'),
+            ask('seq-ind-step-check'),
+            ask('seq-ind-running'),
+            teach(
+              prose('For $\\sum_{r=1}^{n} (2r - 1) = n^2$, assume the sum up to $k$ is $k^2$. The next term is $2(k + 1) - 1 = 2k + 1$, so the sum up to $k + 1$ is'),
+              maths('k^2 + (2k + 1) = (k + 1)^2'),
+              prose('which is the claim at $n = k + 1$. The right side has to grow by exactly $u_{k+1}$ each time, and here it does.'),
+            ),
+            ask('seq-ind-next-sum'),
+            ask('seq-ind-order-sum'),
+            ask('seq-ind-added-term', 2),
+            teach(
+              prose('A proof is written in four parts: the **base case**, the **assumption** at $n = k$, the **step** to $n = k + 1$, and a **conclusion**.'),
+              prose('The conclusion ties them together: it holds at $n = 1$, and whenever it holds at $n = k$ it holds at $n = k + 1$, so it holds at $2$, then $3$, and so on for every $n \\ge 1$.'),
+            ),
+            ask('seq-ind-step-check', 2),
+            ask('seq-ind-order-sum', 2),
+          ],
+          skillCheck: [ask('seq-ind-next-sum', 2), ask('seq-ind-added-term', 2), ask('seq-ind-step-check', 2)],
+        },
+        {
+          id: 'sq-l5-standard',
+          title: 'Proving the Standard Results',
+          slides: [
+            teach(
+              prose('To prove $\\sum_{r=1}^{n} r^2 = \\frac16 n(n + 1)(2n + 1)$, the step starts from'),
+              maths('\\frac16 k(k + 1)(2k + 1) + (k + 1)^2'),
+              prose('Both parts have a factor $(k + 1)$. Take out $\\frac16(k + 1)$, so the second part leaves $6(k + 1)$:'),
+              maths('\\begin{aligned} &\\frac16(k + 1)\\big(k(2k + 1) + 6(k + 1)\\big) \\\\ &= \\frac16(k + 1)(2k^2 + 7k + 6) \\end{aligned}'),
+            ),
+            ask('seq-ind-target'),
+            ask('seq-ind-factor-out'),
+            ask('seq-ind-standard-step'),
+            teach(
+              prose('Know where the step is going. The claim at $n = k + 1$ puts $k + 1$ in place of every $n$:'),
+              maths('\\frac16(k + 1)(k + 2)(2k + 3)'),
+              prose('So $2k^2 + 7k + 6$ should factorise as $(k + 2)(2k + 3)$, and it does. The target tells you which factors to look for.'),
+            ),
+            ask('seq-ind-order-standard'),
+            ask('seq-ind-target', 2),
+            ask('seq-ind-factor-out', 2),
+            teach(
+              prose('For $\\sum_{r=1}^{n} r^3 = \\frac14 n^2(n + 1)^2$ the common factor is $(k + 1)^2$:'),
+              maths('\\begin{aligned} &\\frac14 k^2(k + 1)^2 + (k + 1)^3 \\\\ &= \\frac14(k + 1)^2\\big(k^2 + 4(k + 1)\\big) \\\\ &= \\frac14(k + 1)^2(k + 2)^2 \\end{aligned}'),
+            ),
+            ask('seq-ind-standard-step', 2),
+            ask('seq-ind-order-standard', 2),
+          ],
+          skillCheck: [ask('seq-ind-target', 2), ask('seq-ind-factor-out', 2), ask('seq-ind-standard-step', 2)],
+        },
+        {
+          id: 'sq-l5-ap-gp',
+          title: 'Arithmetic and Geometric Sums',
+          slides: [
+            teach(
+              prose('An arithmetic sum: $\\sum_{r=1}^{n} (3r + 2) = \\frac12 n(3n + 7)$. The next term is $3(k + 1) + 2 = 3k + 5$, so the step is'),
+              maths('\\begin{aligned} &\\frac12 k(3k + 7) + (3k + 5) \\\\ &= \\frac12(3k^2 + 13k + 10) \\\\ &= \\frac12(k + 1)(3k + 10) \\end{aligned}'),
+              prose('and $\\frac12(k + 1)(3(k + 1) + 7)$ is exactly that.'),
+            ),
+            ask('seq-ind-ap-close'),
+            ask('seq-ind-series-step'),
+            ask('seq-ind-next-flow'),
+            teach(
+              prose('A geometric sum: $\\sum_{r=1}^{n} 3 \\times 2^{r-1} = 3(2^n - 1)$. At $r = k + 1$ the power is $r - 1 = k$, so the next term is $3 \\times 2^k$:'),
+              maths('\\begin{aligned} &3(2^k - 1) + 3 \\times 2^k \\\\ &= 3(2 \\times 2^k - 1) \\\\ &= 3(2^{k+1} - 1) \\end{aligned}'),
+            ),
+            ask('seq-ind-claim-value'),
+            ask('seq-ind-order-series'),
+            ask('seq-ind-ap-close', 2),
+            teach(
+              prose('Any whole ratio works the same way. In $\\sum_{r=1}^{n} 2 \\times 3^{r-1} = 3^n - 1$, the new term $2 \\times 3^k$ joins the $3^k$ already there:'),
+              maths('3^k - 1 + 2 \\times 3^k = 3 \\times 3^k - 1 = 3^{k+1} - 1'),
+            ),
+            ask('seq-ind-series-step', 2),
+            ask('seq-ind-next-flow', 2),
+          ],
+          skillCheck: [ask('seq-ind-ap-close', 2), ask('seq-ind-series-step', 2), ask('seq-ind-next-flow', 2)],
+        },
+        {
+          id: 'sq-l5-recurrence',
+          title: "A Recurrence's Closed Form",
+          slides: [
+            teach(
+              prose('$u_{n+1} = 2u_n + 1$ with $u_1 = 1$ gives $1, 3, 7, 15, \\dots$: each one less than a power of $2$. The claim is $u_n = 2^n - 1$.'),
+              prose('Induction proves it. The base case is $u_1 = 2^1 - 1$. The step puts the assumed $u_k = 2^k - 1$ into the rule:'),
+              maths('u_{k+1} = 2(2^k - 1) + 1 = 2^{k+1} - 1'),
+            ),
+            ask('seq-ind-rec-table'),
+            ask('seq-ind-rec-closed'),
+            ask('seq-ind-rec-step'),
+            teach(
+              prose('To find the form for $u_{n+1} = pu_n + q$, try $u_n = c \\times p^n + d$. The constant $d$ is the value the rule leaves alone, $d = pd + q$; then $c$ comes from $u_1$.'),
+              prose('For $u_{n+1} = 3u_n - 4$, $u_1 = 5$: $d = 3d - 4$ gives $d = 2$, and $3c + 2 = 5$ gives $c = 1$. So $u_n = 3^n + 2$.'),
+            ),
+            ask('seq-ind-order-rec'),
+            ask('seq-ind-rec-term'),
+            ask('seq-ind-rec-table', 2),
+            teach(
+              prose('Once proved, the formula goes straight to any term: $u_9 = 2^9 - 1 = 511$, without the eight terms before it.'),
+              prose('It also runs backwards. Which term of $2^n - 1$ is $255$? $2^n = 256$, so $n = 8$.'),
+            ),
+            ask('seq-ind-rec-step', 2),
+            ask('seq-ind-rec-closed', 2),
+          ],
+          skillCheck: [ask('seq-ind-rec-step', 2), ask('seq-ind-rec-closed', 2), ask('seq-ind-rec-term', 2)],
+        },
+        {
+          id: 'sq-l5-checking',
+          title: 'Reading and Checking a Proof',
+          slides: [
+            teach(
+              prose('Test a claim on the first few terms before proving it. Is $\\sum_{r=1}^{n} r = n^2 - n + 1$?'),
+              prose('At $n = 1$: $1$ and $1$. At $n = 2$: $3$ and $3$. At $n = 3$: $6$, but the claim gives $7$. A formula can fit the first few totals and still be wrong, so fitting is evidence, never proof.'),
+            ),
+            ask('seq-ind-test-table'),
+            ask('seq-ind-verdict'),
+            ask('seq-ind-flaw'),
+            teach(
+              prose('Both halves are needed. For $\\sum_{r=1}^{n} r = \\frac12 n(n + 1) + 2$ the step works: adding $k + 1$ to $\\frac12 k(k + 1) + 2$ gives $\\frac12(k + 1)(k + 2) + 2$.'),
+              prose('But at $n = 1$ the sum is $1$ and the claim gives $3$. With no base case the step carries nothing forward, and the claim is false.'),
+            ),
+            ask('seq-ind-start'),
+            ask('seq-ind-test-table', 2),
+            ask('seq-ind-verdict', 2),
+            teach(
+              prose('Three slips to look for when reading a proof:'),
+              prose('A base case in the wrong place. It goes where the claim starts: a sum from $r = 4$ starts at $n = 4$, where the sum is the single term $u_4$.'),
+              prose('An assumption at $n = k + 1$, which assumes what the step has to show. And adding $u_k$ in the step, when the term added is $u_{k+1}$.'),
+            ),
+            ask('seq-ind-flaw', 2),
+            ask('seq-ind-start', 2),
+          ],
+          skillCheck: [ask('seq-ind-verdict', 2), ask('seq-ind-flaw', 2), ask('seq-ind-start', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('seq-ind-added-term', 2),
+        ask('seq-ind-step-check', 2),
+        ask('seq-ind-next-sum', 2),
+        ask('seq-ind-target', 2),
+        ask('seq-ind-factor-out', 2),
+        ask('seq-ind-standard-step', 2),
+        ask('seq-ind-ap-close', 2),
+        ask('seq-ind-next-flow', 2),
+        ask('seq-ind-order-series', 2),
+        ask('seq-ind-rec-closed', 2),
+        ask('seq-ind-rec-step', 2),
+        ask('seq-ind-rec-term', 2),
+        ask('seq-ind-test-table', 2),
+        ask('seq-ind-verdict', 2),
+        ask('seq-ind-flaw', 2),
       ],
     },
   ],

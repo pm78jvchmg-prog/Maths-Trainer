@@ -6852,6 +6852,44 @@ function solutionCurve({ rhs, x0, y0 }: Pick<Ivp, 'rhs' | 'x0' | 'y0'>): (x: num
   };
 }
 
+/**
+ * The solution curve over one window, marched once rather than from x_0 on
+ * every call: `solutionCurve` re-runs forty Runge-Kutta steps per point, and a
+ * plot asks for hundreds of points. Here one RK4 step per grid gap of
+ * `(xMax - xMin) / samples`, anchored on x_0, fills a table, and a point
+ * between two entries is read off the line joining them. For drawing only.
+ */
+function windowCurve(ivp: Pick<Ivp, 'rhs' | 'x0' | 'y0'>, xMin: number, xMax: number, samples = 160): (x: number) => number {
+  const { rhs, x0, y0 } = ivp;
+  if (!hasY(rhs)) return solutionCurve(ivp);
+  const f = (x: number, y: number) => valueAt(rhs.px, x) + rhs.q * y + rhs.r * x * y;
+  const dx = (xMax - xMin) / samples;
+  const first = Math.floor((xMin - x0) / dx) - 1;
+  const last = Math.ceil((xMax - x0) / dx) + 1;
+  const table = new Map<number, number>([[0, y0]]);
+  for (const dir of [1, -1]) {
+    let y = y0;
+    for (let k = 0; dir > 0 ? k < last : k > first; k += dir) {
+      const t = x0 + k * dx;
+      const d = dir * dx;
+      const k1 = f(t, y);
+      const k2 = f(t + d / 2, y + (d * k1) / 2);
+      const k3 = f(t + d / 2, y + (d * k2) / 2);
+      const k4 = f(t + d, y + d * k3);
+      y += (d * (k1 + 2 * k2 + 2 * k3 + k4)) / 6;
+      table.set(k + dir, y);
+    }
+  }
+  return (x) => {
+    const at = (x - x0) / dx;
+    const near = Math.round(at);
+    if (Math.abs(at - near) < 1e-9 && table.has(near)) return table.get(near)!;
+    const k = Math.max(first, Math.min(last - 1, Math.floor(at)));
+    const [a, b] = [table.get(k)!, table.get(k + 1)!];
+    return a + (b - a) * (at - k);
+  };
+}
+
 const H_EASY = [0.5, 0.2, 0.1];
 const H_HARD = [0.25, 0.2, 0.1, 0.5];
 
@@ -7073,10 +7111,10 @@ const eulerTangentSlider: Generator<Ivp> = {
     const { x0, y0, h } = ivp;
     const run = eulerRun(ivp);
     const [g] = run.gs;
-    const curve = clamped(solutionCurve(ivp), 200);
     const tangent = (x: number) => y0 + g * (x - x0);
     const xMin = x0 - h / 2;
     const xMax = x0 + 1.5 * h;
+    const curve = clamped(windowCurve(ivp, xMin, xMax), 200);
     const seen = Array.from({ length: 41 }, (_, i) => xMin + ((xMax - xMin) * i) / 40).flatMap((x) => [curve(x), tangent(x)]);
     const lo = Math.floor(Math.min(...seen)) - 1;
     const hi = Math.ceil(Math.max(...seen)) + 1;

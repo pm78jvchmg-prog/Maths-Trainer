@@ -226,3 +226,37 @@ export function FeedbackBar({
       );
   }
 }
+
+/**
+ * The verdict, said aloud.
+ *
+ * The bar above is rebuilt for every verdict, and a live region only speaks
+ * reliably when it is already in the page before its words change; one that
+ * arrives together with its text is often passed over. So this is a separate
+ * status line that is always present and holds nothing but the verdict, read
+ * out when a check lands without the learner having to find the footer. It is
+ * visually hidden, since the bar already shows the same words, and it says no
+ * more than the bar does: never the answer, never the worked steps.
+ */
+export function VerdictAnnouncer({ feedback }: { feedback: Feedback }) {
+  const said = (() => {
+    switch (feedback.kind) {
+      case 'correct':
+        return 'Correct';
+      case 'incorrect':
+        return 'Not quite.';
+      case 'invalid':
+        return feedback.message;
+      case 'revealed':
+        return 'Here is how';
+      case 'idle':
+        return '';
+    }
+  })();
+
+  return (
+    <div className="visually-hidden" role="status" aria-live="polite">
+      {said}
+    </div>
+  );
+}

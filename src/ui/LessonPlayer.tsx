@@ -21,7 +21,7 @@ import {
 import type { Answer } from '../engine/session';
 import type { Lesson, GeneratorRegistry } from '../content/types';
 import { SlideView, hasAnswer } from './slides';
-import { FeedbackBar } from './FeedbackBar';
+import { FeedbackBar, VerdictAnnouncer } from './FeedbackBar';
 import { tapOnQuestion } from './questionTap';
 
 interface Props {
@@ -290,6 +290,7 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
         />
       </main>
 
+      <VerdictAnnouncer feedback={session.feedback} />
       <FeedbackBar
         feedback={session.feedback}
         isTeach={isTeach}

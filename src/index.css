@@ -224,6 +224,21 @@ button {
   padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
 }
 
+/* Read by a screen reader, not drawn: the verdict's live region, whose words
+   the feedback bar already shows. Absolute, so it takes no room in a flex
+   column either. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* ---------- Lesson header ---------- */
 
 .lesson-header {

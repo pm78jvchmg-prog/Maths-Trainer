@@ -21,7 +21,12 @@
  * subtract, variances always add), aX + bY in general, a total of n copies
  * against one copy multiplied by n, and a probability from the combination,
  * P(X > Y) among them. Level 5 builds every combination from a Pythagorean
- * triple, so its variance is a perfect square and sigma is whole.
+ * triple, so its variance is a perfect square and sigma is whole. Level 6 is
+ * the distribution of the sample mean: a total divided by n, Xbar ~ N(mu,
+ * sigma^2 / n) and its standard deviation sigma / sqrt(n), how that spread
+ * shrinks with n, a probability for Xbar against one value, and working back
+ * to a value or to the smallest n. Level 6 takes n a perfect square whose
+ * root divides sigma, so sigma / sqrt(n) is whole.
  *
  * Nothing here is calculus, so no slide declares `source` or `integrand`;
  * `binomialNormal.test.ts` is the independent check.
@@ -5489,6 +5494,1004 @@ const diffPlan: Generator<BiggerParams> = {
   solution: biggerSolution,
 };
 
+/* ================================================================
+ * Level 6: the distribution of the sample mean
+ * ================================================================ */
+
+const XBAR = '\\bar{X}';
+
+/** A measurement sampled n times. `base` keeps a worded mean well clear of zero. */
+const SAMPLE_SETTINGS: { lead: string; sample: (n: number) => string; base: number }[] = [
+  { lead: 'The mass of a bag of flour, in grams,', sample: (n) => `A random sample of $${n}$ bags is weighed, and $\\bar{X}$ is their mean mass.`, base: 1000 },
+  { lead: 'The height of a sunflower, in cm,', sample: (n) => `A random sample of $${n}$ sunflowers is measured, and $\\bar{X}$ is their mean height.`, base: 180 },
+  { lead: 'The lifetime of a light bulb, in hours,', sample: (n) => `A random sample of $${n}$ bulbs is tested, and $\\bar{X}$ is their mean lifetime.`, base: 1200 },
+  { lead: 'The time a caller waits on a helpline, in seconds,', sample: (n) => `A random sample of $${n}$ calls is timed, and $\\bar{X}$ is their mean wait.`, base: 240 },
+  { lead: 'The length of a bolt cut by a machine, in mm,', sample: (n) => `A random sample of $${n}$ bolts is measured, and $\\bar{X}$ is their mean length.`, base: 120 },
+  { lead: 'The volume of juice in a carton, in ml,', sample: (n) => `A random sample of $${n}$ cartons is measured, and $\\bar{X}$ is their mean volume.`, base: 500 },
+];
+
+interface MeanParams {
+  mu: number;
+  sigma: number;
+  /** A perfect square from `SQUARE_COUNTS`, whose root divides sigma. */
+  n: number;
+  setting: number;
+  words: boolean;
+  ask: Ask;
+}
+
+const rootOf = (n: number): number => Math.round(Math.sqrt(n));
+
+/** The standard deviation of the sample mean, sigma / sqrt(n): whole, since sqrt(n) divides sigma. */
+const seOf = (p: { sigma: number; n: number }): number => p.sigma / rootOf(p.n);
+
+/** Var(Xbar) = sigma^2 / n, the square of `seOf`. */
+const xbarVar = (p: { sigma: number; n: number }): number => seOf(p) ** 2;
+
+const meanValue = (p: MeanParams, ask: Ask): number => (ask === 'mean' ? p.mu : ask === 'var' ? xbarVar(p) : seOf(p));
+
+/** n and sigma with sigma / sqrt(n) whole and at least `least`, so Var(Xbar) and sigma_Xbar never coincide. */
+function drawSpread(rng: Rng, counts: number[], least = 2): { n: number; sigma: number } {
+  for (;;) {
+    const n = rng.pick(counts);
+    const sigma = rng.pick(TOTAL_SIGMAS);
+    if (sigma % rootOf(n) === 0 && sigma / rootOf(n) >= least) return { n, sigma };
+  }
+}
+
+function sampleMean(rng: Rng, difficulty: number, words = difficulty > 1): MeanParams {
+  const hard = difficulty > 1;
+  const { n, sigma } = drawSpread(rng, hard ? SQUARE_COUNTS : SQUARE_COUNTS.slice(0, 2));
+  const setting = rng.int(0, SAMPLE_SETTINGS.length - 1);
+  const mu = words ? Math.max(SAMPLE_SETTINGS[setting].base, 5 * sigma) + rng.int(-20, 20) : drawMu(rng, sigma);
+  return { mu, sigma, n, setting: words ? setting : 0, words, ask: rng.pick<Ask>(hard ? ['var', 'sd'] : ['mean', 'var']) };
+}
+
+/** The sentence a level 6 question opens with: X in words or in N(mu, sigma^2), then the sample of n. */
+function meanOpening(p: MeanParams): string {
+  const { lead, sample } = SAMPLE_SETTINGS[p.setting];
+  return p.words
+    ? `${lead} is normally distributed with mean $${p.mu}$ and standard deviation $${p.sigma}$. ${sample(p.n)}`
+    : `$${nOf('X', p.mu, p.sigma)}$, and $\\bar{X}$ is the mean of a random sample of $${p.n}$ values of $X$.`;
+}
+
+/** Only the slips that are exact decimals, so a distractor is written the way an answer would be. */
+const exactSlips = (values: number[]): number[] => values.filter((v) => Number.isFinite(v) && v > 0 && terminates(v, 4));
+
+function meanSolution(p: MeanParams): SolutionStep[] {
+  const { mu, sigma, n } = p;
+  const v = sigma * sigma;
+  const s = seOf(p);
+  return [
+    {
+      text: `$\\bar{X} = \\frac{T}{${n}}$, where $T$ is the total of the $${n}$ values: $\\mathrm{E}(T) = ${n} \\times ${mu}$ and $\\mathrm{Var}(T) = ${n} \\times ${v}$. Dividing by $${n}$ divides the mean by $${n}$ and the variance by $${n}^2$.`,
+    },
+    { tex: aligned(`\\mathrm{E}(\\bar{X}) &= \\frac{${n * mu}}{${n}}`, `&= ${mu}`) },
+    { tex: aligned(`\\mathrm{Var}(\\bar{X}) &= \\frac{${n * v}}{${n}^2}`, `&= \\frac{${v}}{${n}}`, `&= ${s * s}`) },
+    { tex: aligned(`\\sigma_{\\bar{X}} &= \\frac{${sigma}}{\\sqrt{${n}}}`, `&= ${s}`) },
+  ];
+}
+
+/* ---------- Level 6, lesson 1: a total divided by n ---------- */
+
+const meanMoment: Generator<MeanParams> = {
+  id: 'dist-mean-moment',
+  sample: (rng, difficulty) => sampleMean(rng, difficulty),
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [say(`${meanOpening(p)} Find ${WANTED[p.ask](XBAR)}.`)],
+    lead: LEAD[p.ask](XBAR),
+    keypad: [],
+    answer: fmt(meanValue(p, p.ask)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: meanSolution,
+  choices: (p) => {
+    const { mu, sigma, n } = p;
+    const v = sigma * sigma;
+    const slips: Record<Ask, number[]> = {
+      mean: [n * mu, mu / n, mu + n],
+      var: [v, v / (n * n), seOf(p), n * v],
+      sd: [sigma / n, sigma, xbarVar(p)],
+    };
+    return decimalChoices(meanValue(p, p.ask), exactSlips(slips[p.ask]));
+  },
+};
+
+const meanFromTotal: Generator<MeanParams> = {
+  id: 'dist-mean-from-total-tree',
+  sample: (rng, difficulty) => sampleMean(rng, difficulty),
+  render: (p): Slide => {
+    const { mu, sigma, n } = p;
+    const v = sigma * sigma;
+    const answer = [fmt(n * mu), fmt(n * v), fmt(mu), fmt(xbarVar(p))];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `${meanOpening(p)} $T$ is the total of the sample, so $\\bar{X} = \\frac{T}{${n}}$. From the top: $\\mathrm{E}(T)$ and $\\mathrm{Var}(T)$, then $\\mathrm{E}(\\bar{X})$ and $\\mathrm{Var}(\\bar{X})$.`,
+        ),
+      ],
+      expression: `\\bar{X} = \\frac{T}{${n}}`,
+      nodes: [
+        { id: 'ET', from: [] },
+        { id: 'VT', from: [] },
+        { id: 'EX', from: ['ET'] },
+        { id: 'VX', from: ['VT'] },
+      ],
+      bank: decimalBank(answer, exactSlips([n * n * v, v, mu / n, seOf(p), v / (n * n), n * n * mu]), 3, false),
+      answer,
+    };
+  },
+  solution: meanSolution,
+};
+
+const meanTable: Generator<MeanParams> = {
+  id: 'dist-mean-table',
+  sample: (rng, difficulty) => sampleMean(rng, difficulty),
+  render: (p): Slide => {
+    const { mu, sigma, n } = p;
+    const v = sigma * sigma;
+    const s = seOf(p);
+    const hard = p.words;
+    const answer = hard
+      ? [fmt(n * mu), fmt(n * v), fmt(rootOf(n) * sigma), fmt(mu), fmt(s * s), fmt(s)]
+      : [fmt(n * mu), fmt(n * v), fmt(mu), fmt(s * s)];
+    const blanks = hard ? [null, null, null] : [null, null];
+    return {
+      kind: 'table',
+      prompt: [
+        say(
+          `${meanOpening(p)} $T$ is the total of the sample, so $\\bar{X} = \\frac{T}{${n}}$. Fill in ${hard ? 'the mean, the variance and the standard deviation' : 'the mean and the variance'} of each.`,
+        ),
+      ],
+      columns: hard ? ['', '\\mathrm{E}', '\\mathrm{Var}', '\\sigma'] : ['', '\\mathrm{E}', '\\mathrm{Var}'],
+      rows: [
+        ['T', ...blanks],
+        ['\\bar{X}', ...blanks],
+      ],
+      bank: decimalBank(answer, exactSlips([n * n * v, v, sigma / n, n * sigma, v / (n * n), n * n * mu]), 3, false),
+      answer,
+    };
+  },
+  solution: (p) => [
+    ...meanSolution(p),
+    ...(p.words ? [{ tex: aligned(`\\sigma_T &= \\sqrt{${p.n * p.sigma * p.sigma}}`, `&= ${rootOf(p.n) * p.sigma}`) }] : []),
+  ],
+};
+
+const meanScaleFlow: Generator<MeanParams> = {
+  id: 'dist-mean-scale-flow',
+  sample: (rng, difficulty) => sampleMean(rng, difficulty),
+  render: (p): Slide => {
+    const { mu, sigma, n } = p;
+    const v = sigma * sigma;
+    const s = seOf(p);
+    const key = `${mu}|${sigma}|${n}|${p.words}|${p.setting}|${p.ask}`;
+    const totals = [`$${n} \\times ${v} = ${n * v}$`, `$${n}^2 \\times ${v} = ${n * n * v}$`, `$${v}$, unchanged`];
+    const factors = [`$\\frac{1}{${n}^2}$`, `$\\frac{1}{${n}}$`, `$${n}^2$`];
+    const vars = [`$\\frac{${n * v}}{${n}^2} = ${s * s}$`, `$\\frac{${n * v}}{${n}} = ${v}$`, `$\\frac{${v}}{${n}^2}$`];
+    const sds = [`$\\sqrt{${s * s}} = ${s}$`, `$\\frac{${sigma}}{${n}}$`, `$${sigma}$, as for $X$`];
+    const withSd = p.ask === 'sd';
+    return {
+      kind: 'flow',
+      prompt: [say(`${meanOpening(p)} $T$ is the total of the sample. Work from $T$ to $\\bar{X}$ one step at a time.`)],
+      subject: `\\bar{X} = \\frac{T}{${n}}`,
+      steps: [
+        { id: 'total', ask: 'What is $\\mathrm{Var}(T)$?', branches: turned(totals.map((label) => ({ label, to: 'factor' })), `${key}t`) },
+        {
+          id: 'factor',
+          ask: `Dividing by $${n}$ multiplies the variance by what?`,
+          branches: turned(factors.map((label) => ({ label, to: 'var' })), `${key}f`),
+        },
+        {
+          id: 'var',
+          ask: 'So what is $\\mathrm{Var}(\\bar{X})$?',
+          branches: turned(
+            vars.map((label) => (withSd ? { label, to: 'sd' } : { label, outcome: `So $\\mathrm{Var}(\\bar{X})$ is ${label}.` })),
+            `${key}v`,
+          ),
+        },
+        ...(withSd
+          ? [
+              {
+                id: 'sd',
+                ask: 'And the standard deviation of $\\bar{X}$?',
+                branches: turned(sds.map((label) => ({ label, outcome: `So $\\sigma_{\\bar{X}}$ is ${label}.` })), `${key}s`),
+              },
+            ]
+          : []),
+      ],
+      answer: [totals[0], factors[0], vars[0], ...(withSd ? [sds[0]] : [])],
+    };
+  },
+  solution: meanSolution,
+};
+
+/* ---------- Level 6, lesson 2: Xbar ~ N(mu, sigma^2 / n) ---------- */
+
+const xbarNormal: Generator<MeanParams> = {
+  id: 'dist-xbar-normal',
+  sample: (rng, difficulty) => sampleMean(rng, difficulty),
+  render: (p): Slide => {
+    const { mu, sigma, n } = p;
+    const v = sigma * sigma;
+    const s = seOf(p);
+    return choiceSlide(
+      [say(`${meanOpening(p)} Which distribution does $\\bar{X}$ have?`)],
+      options(
+        { tex: `\\bar{X} \\sim N(${mu}, ${s * s})` },
+        { tex: `\\bar{X} \\sim N(${mu}, ${s})` },
+        { tex: `\\bar{X} \\sim N(${mu}, ${v})` },
+        ...exactSlips([v / (n * n)]).map((w) => ({ tex: `\\bar{X} \\sim N(${mu}, ${fmt(w)})` })),
+        { tex: `\\bar{X} \\sim N(${n * mu}, ${s * s})` },
+      ).slice(0, 4),
+    );
+  },
+  solution: (p) => [
+    { text: `A mean of independent normals is normal. Its mean is $\\mu$ and its variance $\\frac{\\sigma^2}{n}$; the second number in $N(\\,\\cdot\\,, \\,\\cdot\\,)$ is always the variance.` },
+    ...meanSolution(p).slice(1, 3),
+    { tex: `\\bar{X} \\sim N(${p.mu}, ${xbarVar(p)})` },
+  ],
+};
+
+const xbarBuild: Generator<MeanParams> = {
+  id: 'dist-xbar-build',
+  sample: (rng, difficulty) => sampleMean(rng, difficulty),
+  render: (p): Slide => {
+    const { mu, sigma, n } = p;
+    const s = seOf(p);
+    const answer = [fmt(mu), fmt(s * s), fmt(s)];
+    return {
+      kind: 'tiles',
+      prompt: [say(`${meanOpening(p)} Build the distribution of $\\bar{X}$, and its standard deviation.`)],
+      template: '\\bar{X} \\sim N({0}, {1}), \\quad \\sigma_{\\bar{X}} = {2}',
+      bank: tokenBank(answer, [fmt(sigma * sigma), fmt(sigma), fmt(n * mu), ...exactSlips([sigma / n]).map(fmt), fmt(n * sigma * sigma)], 3),
+      answer,
+    };
+  },
+  solution: meanSolution,
+};
+
+interface SdParams extends MeanParams {
+  /** Given Xbar's distribution, find sigma for one value. */
+  back: boolean;
+}
+
+function sdSolution(p: SdParams): SolutionStep[] {
+  const { sigma, n } = p;
+  const s = seOf(p);
+  const r = rootOf(n);
+  return p.back
+    ? [
+        { text: `$\\sigma_{\\bar{X}} = \\frac{\\sigma}{\\sqrt{n}}$, so $\\sigma = \\sigma_{\\bar{X}} \\sqrt{n}$. The standard deviation of $\\bar{X}$ is $\\sqrt{${s * s}} = ${s}$.` },
+        { tex: aligned(`\\sigma &= ${s} \\times \\sqrt{${n}}`, `&= ${s} \\times ${r}`, `&= ${sigma}`) },
+      ]
+    : [
+        { text: `The standard deviation of $\\bar{X}$ is $\\frac{\\sigma}{\\sqrt{n}}$, the square root of $\\frac{\\sigma^2}{n}$. Dividing by $n$ itself is the usual slip.` },
+        { tex: aligned(`\\sigma_{\\bar{X}} &= \\frac{${sigma}}{\\sqrt{${n}}}`, `&= \\frac{${sigma}}{${r}}`, `&= ${s}`) },
+      ];
+}
+
+const xbarSd: Generator<SdParams> = {
+  id: 'dist-xbar-sd',
+  sample: (rng, difficulty) => {
+    const back = difficulty > 1 && rng.chance(0.5);
+    return { ...sampleMean(rng, difficulty, difficulty > 1 && !back), back };
+  },
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [
+      say(
+        p.back
+          ? `$\\bar{X}$ is the mean of a random sample of $${p.n}$ values of a normal variable $X$, and $\\bar{X} \\sim N(${p.mu}, ${xbarVar(p)})$. Find the standard deviation of $X$ itself.`
+          : `${meanOpening(p)} Find the standard deviation of $\\bar{X}$.`,
+      ),
+    ],
+    lead: p.back ? '\\sigma =' : '\\sigma_{\\bar{X}} =',
+    keypad: [],
+    answer: fmt(p.back ? p.sigma : seOf(p)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: sdSolution,
+  choices: (p) => {
+    const { sigma, n } = p;
+    const s = seOf(p);
+    return p.back
+      ? decimalChoices(sigma, exactSlips([s * n, s * s * n, s * s, s * s * rootOf(n)]))
+      : decimalChoices(s, exactSlips([sigma / n, s * s, sigma, sigma / 2]));
+  },
+};
+
+const xbarSlipFlow: Generator<MeanParams> = {
+  id: 'dist-xbar-slip-flow',
+  sample: (rng, difficulty) => sampleMean(rng, difficulty),
+  render: (p): Slide => {
+    const { mu, sigma, n } = p;
+    const v = sigma * sigma;
+    const s = seOf(p);
+    const key = `${mu}|${sigma}|${n}|${p.words}|${p.setting}`;
+    const vars = [`$\\frac{${v}}{${n}} = ${s * s}$`, `$\\frac{${v}}{${n}^2}$`, `$${v}$, as for $X$`];
+    const sds = [`$\\frac{${sigma}}{\\sqrt{${n}}} = ${s}$`, `$\\frac{${sigma}}{${n}}$`, `$\\frac{${v}}{${n}} = ${s * s}$`];
+    const normals = [`$N(${mu}, ${s * s})$`, `$N(${mu}, ${s})$`, `$N(${n * mu}, ${s * s})$`];
+    return {
+      kind: 'flow',
+      prompt: [say(`${meanOpening(p)} Pin down the distribution of $\\bar{X}$ one step at a time.`)],
+      subject: XBAR,
+      steps: [
+        { id: 'var', ask: 'What is $\\mathrm{Var}(\\bar{X})$?', branches: turned(vars.map((label) => ({ label, to: 'sd' })), `${key}v`) },
+        { id: 'sd', ask: 'And its standard deviation?', branches: turned(sds.map((label) => ({ label, to: 'normal' })), `${key}s`) },
+        {
+          id: 'normal',
+          ask: 'So which distribution does $\\bar{X}$ have?',
+          branches: turned(normals.map((label) => ({ label, outcome: `So $\\bar{X} \\sim$ ${label}.` })), `${key}n`),
+        },
+      ],
+      answer: [vars[0], sds[0], normals[0]],
+    };
+  },
+  solution: (p) => [
+    ...meanSolution(p).slice(2),
+    { text: `The variance, $${xbarVar(p)}$, goes in the bracket: $\\bar{X} \\sim N(${p.mu}, ${xbarVar(p)})$. Writing $\\sigma_{\\bar{X}}$ there, or $\\frac{\\sigma}{n}$ for it, are the two slips.` },
+  ],
+};
+
+/* ---------- Level 6, lesson 3: how the spread shrinks with n ---------- */
+
+/** Standard deviations with many square roots dividing them, so a table has several whole rows. */
+const SHRINK_SIGMAS = [12, 20, 24, 30, 36, 40, 60];
+const SHRINK_COUNTS = [4, 9, 16, 25, 36, 64, 100, 144];
+
+/** X, then the curve of Xbar for each n, on one axis: X dashed, the largest sample in the accent colour. */
+export function sampleMeanSvg(mu: number, sigma: number, ns: number[], label: string): string {
+  const largest = Math.max(...ns);
+  return plotSvg({
+    xMin: mu - 3.6 * sigma,
+    xMax: mu + 3.6 * sigma,
+    yMin: 0,
+    yMax: 1.15 * density(mu, sigma / Math.sqrt(largest))(mu),
+    curves: [{ f: density(mu, sigma), dashed: true }, ...ns.map((n) => ({ f: density(mu, sigma / Math.sqrt(n)), accent: n === largest }))],
+    label,
+  });
+}
+
+interface ShrinkTableParams {
+  mu: number;
+  sigma: number;
+  ns: number[];
+  withVar: boolean;
+}
+
+const shrinkTable: Generator<ShrinkTableParams> = {
+  id: 'dist-shrink-table',
+  sample: (rng, difficulty) => {
+    const sigma = rng.pick(SHRINK_SIGMAS);
+    const fits = SHRINK_COUNTS.filter((n) => sigma % rootOf(n) === 0);
+    const size = difficulty > 1 ? 4 : 3;
+    const ns: number[] = [];
+    while (ns.length < size) {
+      const n = rng.pick(fits);
+      if (!ns.includes(n)) ns.push(n);
+    }
+    return { mu: drawMu(rng, sigma), sigma, ns: ns.sort((a, b) => a - b), withVar: difficulty > 1 };
+  },
+  render: (p): Slide => {
+    const { mu, sigma, ns, withVar } = p;
+    const answer = ns.flatMap((n) => (withVar ? [fmt((sigma * sigma) / n), fmt(sigma / rootOf(n))] : [fmt(sigma / rootOf(n))]));
+    return {
+      kind: 'table',
+      prompt: [
+        say(
+          `$${nOf('X', mu, sigma)}$, and $\\bar{X}$ is the mean of a random sample of $n$ values of $X$. Fill in ${withVar ? 'the variance and ' : ''}the standard deviation of $\\bar{X}$ for each sample size.`,
+        ),
+      ],
+      columns: withVar ? ['n', '\\mathrm{Var}(\\bar{X})', '\\sigma_{\\bar{X}}'] : ['n', '\\sigma_{\\bar{X}}'],
+      rows: ns.map((n) => [String(n), ...(withVar ? [null, null] : [null])]),
+      bank: decimalBank(answer, exactSlips([sigma, ...ns.map((n) => sigma / n), ...ns.map((n) => sigma / rootOf(n) + 1)]), 3),
+      answer,
+    };
+  },
+  solution: ({ sigma, ns, withVar }) => [
+    { text: `Each row is $\\frac{${sigma}}{\\sqrt{n}}$${withVar ? `, and its square, $\\frac{${sigma * sigma}}{n}$, is the variance` : ''}. Four times the sample halves the spread.` },
+    { tex: aligned(...ns.map((n) => `\\frac{${sigma}}{\\sqrt{${n}}} &= \\frac{${sigma}}{${rootOf(n)}} = ${fmt(sigma / rootOf(n))}`)) },
+  ],
+};
+
+interface FactorParams {
+  mu: number;
+  sigma: number;
+  n1: number;
+  n2: number;
+}
+
+/** sqrt(m) as the learner reads it: `2` for 4, `\sqrt{2}` for 2. */
+const rootTex = (m: number): string => (Number.isInteger(Math.sqrt(m)) ? String(Math.sqrt(m)) : `\\sqrt{${m}}`);
+
+const shrinkFactor: Generator<FactorParams> = {
+  id: 'dist-shrink-factor',
+  sample: (rng, difficulty) => {
+    const m = rng.pick(difficulty > 1 ? [2, 3, 5, 6, 4, 9] : [4, 9, 16, 25]);
+    const base = rng.int(2, difficulty > 1 ? 30 : 20);
+    const up = rng.chance(0.5);
+    const sigma = rng.pick(TOTAL_SIGMAS);
+    return { mu: drawMu(rng, sigma), sigma, n1: up ? base : base * m, n2: up ? base * m : base };
+  },
+  render: (p): Slide => {
+    const up = p.n2 > p.n1;
+    const m = up ? p.n2 / p.n1 : p.n1 / p.n2;
+    const k = rootTex(m);
+    const [right, wrong] = up ? ['divided', 'multiplied'] : ['multiplied', 'divided'];
+    return choiceSlide(
+      [
+        say(
+          `$${nOf('X', p.mu, p.sigma)}$, and $\\bar{X}$ is the mean of a random sample of $${p.n1}$ values of $X$. The sample size is changed to $${p.n2}$. What happens to the standard deviation of $\\bar{X}$?`,
+        ),
+      ],
+      options(
+        { tex: `\\text{${right} by } ${k}` },
+        { tex: `\\text{${right} by } ${m}` },
+        { tex: `\\text{${wrong} by } ${k}` },
+        { tex: `\\text{${wrong} by } ${m}` },
+      ),
+    );
+  },
+  solution: ({ n1, n2 }) => {
+    const up = n2 > n1;
+    const m = up ? n2 / n1 : n1 / n2;
+    return [
+      { text: `$\\sigma_{\\bar{X}} = \\frac{\\sigma}{\\sqrt{n}}$: the spread goes with $\\sqrt{n}$, not with $n$. The sample is ${up ? 'multiplied' : 'divided'} by $${m}$, so $\\sqrt{n}$ is ${up ? 'multiplied' : 'divided'} by $${rootTex(m)}$.` },
+      { tex: aligned(`\\frac{\\sigma / \\sqrt{${n2}}}{\\sigma / \\sqrt{${n1}}} &= \\sqrt{\\frac{${n1}}{${n2}}}`, `&= ${up ? `\\frac{1}{${rootTex(m)}}` : rootTex(m)}`) },
+    ];
+  },
+};
+
+interface TargetParams {
+  mu: number;
+  sigma: number;
+  /** A target for sigma_Xbar, or for Var(Xbar) when `byVar`. */
+  t: number;
+  byVar: boolean;
+}
+
+/** The smallest whole n with a <= b n, in whole numbers so no float decides a boundary. */
+const ceilDiv = (a: number, b: number): number => {
+  const q = Math.floor(a / b);
+  return q * b < a ? q + 1 : q;
+};
+
+/** sigma / sqrt(n) <= t needs n >= sigma^2 / t^2; sigma^2 / n <= w needs n >= sigma^2 / w. */
+const targetN = ({ sigma, t, byVar }: TargetParams): number => ceilDiv(sigma * sigma, byVar ? t : t * t);
+
+function targetText(p: TargetParams): string {
+  return p.byVar ? `$\\mathrm{Var}(\\bar{X}) \\le ${p.t}$` : `the standard deviation of $\\bar{X}$ is at most $${p.t}$`;
+}
+
+const shrinkN: Generator<TargetParams> = {
+  id: 'dist-shrink-n',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const sigma = rng.pick(TOTAL_SIGMAS);
+      const mu = drawMu(rng, sigma);
+      if (difficulty === 1) {
+        const k = rng.int(2, 6);
+        if (sigma % k === 0) return { mu, sigma, t: sigma / k, byVar: false };
+        continue;
+      }
+      const byVar = sigma >= 5 && rng.chance(0.5);
+      const t = byVar ? rng.int(2, Math.floor((sigma * sigma) / 5)) : rng.int(1, sigma - 1);
+      const p = { mu, sigma, t, byVar };
+      const exact = byVar ? (sigma * sigma) % t === 0 : sigma % t === 0;
+      if (!exact && targetN(p) >= 5 && targetN(p) <= 150) return p;
+    }
+  },
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [say(`$${nOf('X', p.mu, p.sigma)}$, and $\\bar{X}$ is the mean of a random sample of $n$ values of $X$. Find the smallest $n$ for which ${targetText(p)}.`)],
+    lead: 'n =',
+    keypad: [],
+    answer: String(targetN(p)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (p) => {
+    const { sigma, t, byVar } = p;
+    const v = sigma * sigma;
+    const n = targetN(p);
+    return byVar
+      ? [
+          { text: `$\\mathrm{Var}(\\bar{X}) = \\frac{${v}}{n}$, which falls as $n$ grows.` },
+          { tex: aligned(`\\frac{${v}}{n} &\\le ${t}`, `n &\\ge \\frac{${v}}{${t}}`) },
+          { text: `The smallest whole $n$ is $${n}$.` },
+        ]
+      : [
+          { text: `$\\sigma_{\\bar{X}} = \\frac{${sigma}}{\\sqrt{n}}$. Rearrange for $\\sqrt{n}$, then square.` },
+          { tex: aligned(`\\frac{${sigma}}{\\sqrt{n}} &\\le ${t}`, `\\sqrt{n} &\\ge \\frac{${sigma}}{${t}}`, `n &\\ge \\frac{${v}}{${t * t}}`) },
+          { text: `The smallest whole $n$ is $${n}$.` },
+        ];
+  },
+  choices: (p) => {
+    const n = targetN(p);
+    const { sigma, t, byVar } = p;
+    return decimalChoices(n, [byVar ? Math.ceil(Math.sqrt((sigma * sigma) / t)) : Math.ceil(sigma / t), n - 1, n + 1, byVar ? n * 2 : ceilDiv(sigma * sigma, t)]);
+  },
+};
+
+interface HalveParams {
+  mu: number;
+  sigma: number;
+  n1: number;
+  /** sigma_Xbar is to be divided by k. */
+  k: number;
+}
+
+const HALVE_SIGMAS = [12, 20, 24, 30, 36, 40, 48, 60];
+
+const shrinkFlow: Generator<HalveParams> = {
+  id: 'dist-shrink-flow',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const sigma = rng.pick(HALVE_SIGMAS);
+      const n1 = rng.pick([4, 9, 16, 25, 36]);
+      const k = difficulty > 1 ? rng.pick([3, 4]) : 2;
+      if (sigma % (rootOf(n1) * k) === 0) return { mu: drawMu(rng, sigma), sigma, n1, k };
+    }
+  },
+  render: (p): Slide => {
+    const { mu, sigma, n1, k } = p;
+    const a = sigma / rootOf(n1);
+    const key = `${mu}|${sigma}|${n1}|${k}`;
+    const words: Record<number, string> = { 2: 'half', 3: 'a third', 4: 'a quarter' };
+    const times = [`$${k * k}$`, `$${k}$`, `$${2 * k === k * k ? k * k * k : 2 * k}$`];
+    const sizes = [`$${n1 * k * k}$`, `$${n1 * k}$`, `$${rootOf(n1) * k}$`];
+    const checks = [`$${a / k}$`, `$${a * k}$`, `$${a}$, unchanged`];
+    return {
+      kind: 'flow',
+      prompt: [
+        say(
+          `$${nOf('X', mu, sigma)}$. A random sample of $${n1}$ gives $\\bar{X}$ a standard deviation of $${a}$. It is to be cut to $${a / k}$, ${words[k]} of that.`,
+        ),
+      ],
+      subject: `\\sigma_{\\bar{X}} = \\frac{${sigma}}{\\sqrt{n}}`,
+      steps: [
+        {
+          id: 'times',
+          ask: `To divide $\\sigma_{\\bar{X}}$ by $${k}$, the sample size is multiplied by what?`,
+          branches: turned(times.map((label) => ({ label, to: 'size' })), `${key}t`),
+        },
+        { id: 'size', ask: 'So what is the new sample size?', branches: turned(sizes.map((label) => ({ label, to: 'check' })), `${key}n`) },
+        {
+          id: 'check',
+          ask: 'Check it with the new sample size. What is $\\sigma_{\\bar{X}}$ now?',
+          branches: turned(checks.map((label) => ({ label, outcome: `So $\\sigma_{\\bar{X}}$ is ${label}.` })), `${key}c`),
+        },
+      ],
+      answer: [times[0], sizes[0], checks[0]],
+    };
+  },
+  solution: ({ sigma, n1, k }) => [
+    { text: `$\\sigma_{\\bar{X}}$ goes with $\\frac{1}{\\sqrt{n}}$, so dividing it by $${k}$ takes $${k}^2 = ${k * k}$ times the sample.` },
+    { tex: aligned(`n &= ${k * k} \\times ${n1}`, `&= ${n1 * k * k}`, `\\frac{${sigma}}{\\sqrt{${n1 * k * k}}} &= \\frac{${sigma}}{${rootOf(n1) * k}}`, `&= ${sigma / (rootOf(n1) * k)}`) },
+  ],
+};
+
+/* ---------- Level 6, lesson 4: a probability for a sample mean ---------- */
+
+interface XbarProbParams extends MeanParams {
+  op: 'lt' | 'gt' | 'between';
+  /** The boundary's distance from mu; the lower one for `between`. */
+  d1: number;
+  /** The upper boundary's distance, for `between`. */
+  d2: number;
+}
+
+function sampleXbarProb(rng: Rng, difficulty: number, between = true): XbarProbParams {
+  const base = sampleMean(rng, difficulty);
+  const s = seOf(base);
+  if (between && difficulty > 1 && rng.chance(0.4)) {
+    for (;;) {
+      const d1 = drawOffset(rng, s);
+      const d2 = drawOffset(rng, s);
+      if (d2 > d1 && Math.abs(d1) !== Math.abs(d2)) return { ...base, op: 'between', d1, d2 };
+    }
+  }
+  return { ...base, op: rng.pick<XbarProbParams['op']>(['lt', 'gt']), d1: drawOffset(rng, s), d2: 0 };
+}
+
+const xbarZ = (p: MeanParams, d: number): number => clean(d / seOf(p));
+
+function xbarEvent(p: XbarProbParams): string {
+  if (p.op === 'between') return `P(${p.mu + p.d1} < \\bar{X} < ${p.mu + p.d2})`;
+  return `P(\\bar{X} ${p.op === 'lt' ? '<' : '>'} ${p.mu + p.d1})`;
+}
+
+function xbarProbValue(p: XbarProbParams): number {
+  const lower = below(xbarZ(p, p.d1));
+  if (p.op === 'lt') return lower;
+  if (p.op === 'gt') return clean(1 - lower);
+  return clean(below(xbarZ(p, p.d2)) - lower);
+}
+
+/** The |z| a question quotes Phi at, smallest first. */
+function xbarQuotes(p: XbarProbParams): number[] {
+  const ds = p.op === 'between' ? [p.d1, p.d2] : [p.d1];
+  return [...new Set(ds.map((d) => Math.abs(xbarZ(p, d))))].sort((a, b) => a - b);
+}
+
+/** sigma_Xbar and the normal Xbar has, for the top of a solution. */
+function seLines(p: MeanParams): SolutionStep {
+  const s = seOf(p);
+  return { tex: aligned(`\\sigma_{\\bar{X}} &= \\frac{${p.sigma}}{\\sqrt{${p.n}}} = ${s}`, `\\bar{X} &\\sim N(${p.mu}, ${s * s})`) };
+}
+
+const zLine = (p: MeanParams, d: number): SolutionStep => ({
+  tex: aligned(`z &= \\frac{${p.mu + d} - ${p.mu}}{${seOf(p)}}`, `&= ${fmt(xbarZ(p, d))}`),
+});
+
+function xbarProbSolution(p: XbarProbParams): SolutionStep[] {
+  const value = xbarProbValue(p);
+  if (p.op === 'between') {
+    return [
+      seLines(p),
+      zLine(p, p.d1),
+      zLine(p, p.d2),
+      { tex: belowLine(p.d1, seOf(p)) },
+      { tex: belowLine(p.d2, seOf(p)) },
+      { tex: aligned(`& ${xbarEvent(p)}`, `&= ${fmt(below(xbarZ(p, p.d2)))} - ${fmt(below(xbarZ(p, p.d1)))}`, `&= ${fmt(value)}`) },
+    ];
+  }
+  return [seLines(p), zLine(p, p.d1), { tex: aligned(...sideLines(xbarZ(p, p.d1), p.op, value)) }];
+}
+
+const xbarProb: Generator<XbarProbParams> = {
+  id: 'dist-xbar-prob',
+  sample: (rng, difficulty) => sampleXbarProb(rng, difficulty),
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [say(`${meanOpening(p)} Find $${xbarEvent(p)}$ using`), show(quoteTex(xbarQuotes(p)))],
+    lead: `${xbarEvent(p)} =`,
+    keypad: [],
+    answer: fmt(xbarProbValue(p)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: xbarProbSolution,
+  choices: (p) => {
+    const value = xbarProbValue(p);
+    const quoted = xbarQuotes(p).map(phi);
+    // The same event for one value of X, standardised with sigma rather than sigma / sqrt(n).
+    const single = (d: number) => below(clean(d / p.sigma));
+    const oneValue =
+      p.op === 'lt' ? single(p.d1) : p.op === 'gt' ? clean(1 - single(p.d1)) : clean(single(p.d2) - single(p.d1));
+    return decimalChoices(value, [oneValue, clean(1 - value), ...quoted, clean(1 - quoted[0])]);
+  },
+};
+
+const xbarRouteTree: Generator<XbarProbParams> = {
+  id: 'dist-xbar-route-tree',
+  sample: (rng, difficulty) => sampleXbarProb(rng, difficulty, false),
+  render: (p): Slide => {
+    const s = seOf(p);
+    const z = xbarZ(p, p.d1);
+    const value = xbarProbValue(p);
+    const answer = [fmt(s), fmt(z), fmt(value)];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(`${meanOpening(p)} For $${xbarEvent(p)}$, from the top: the standard deviation of $\\bar{X}$, then the $z$ of $${p.mu + p.d1}$, then the probability. Use`),
+        show(quoteTex(xbarQuotes(p))),
+      ],
+      expression: xbarEvent(p),
+      nodes: [
+        { id: 'se', from: [] },
+        { id: 'z', from: ['se'] },
+        { id: 'P', from: ['z'] },
+      ],
+      bank: decimalBank(answer, [p.sigma, s * s, -z, clean(1 - value), ...exactSlips([Math.abs(p.d1) / p.sigma])], 3, false),
+      answer,
+    };
+  },
+  solution: xbarProbSolution,
+};
+
+const xbarStandardise: Generator<XbarProbParams> = {
+  id: 'dist-xbar-standardise',
+  sample: (rng, difficulty) => sampleXbarProb(rng, difficulty, false),
+  render: (p): Slide => {
+    const s = seOf(p);
+    const k = p.mu + p.d1;
+    const z = xbarZ(p, p.d1);
+    const answer = [fmt(k), fmt(p.mu), fmt(s), fmt(z)];
+    return {
+      kind: 'tiles',
+      prompt: [say(`${meanOpening(p)} Standardise $\\bar{X} = ${k}$: fill in the value, the mean and the standard deviation of $\\bar{X}$, then $z$.`)],
+      template: 'z = ({0} - {1}) \\div {2} = {3}',
+      bank: tokenBank(answer, [fmt(p.sigma), fmt(s * s), fmt(-z), ...exactSlips([p.sigma / p.n, Math.abs(p.d1) / p.sigma]).map(fmt)], 3),
+      answer,
+    };
+  },
+  solution: (p) => [seLines(p), zLine(p, p.d1)],
+};
+
+interface OneVsMeanParams extends MeanParams {
+  op: 'lt' | 'gt';
+  d: number;
+}
+
+/** P(. op mu + d) for a normal with standard deviation `sd`, from the table. */
+function sideValue(op: 'lt' | 'gt', d: number, sd: number): number {
+  const lower = below(clean(d / sd));
+  return op === 'lt' ? lower : clean(1 - lower);
+}
+
+const oneVsMean: Generator<OneVsMeanParams> = {
+  id: 'dist-one-vs-mean',
+  sample: (rng, difficulty) => {
+    const base = sampleMean(rng, difficulty);
+    for (;;) {
+      const d = drawOffset(rng, seOf(base));
+      const z = d / base.sigma;
+      if (terminates(z, 2) && Math.abs(z) >= 0.05) return { ...base, d, op: rng.pick<OneVsMeanParams['op']>(['lt', 'gt']) };
+    }
+  },
+  render: (p): Slide => {
+    const k = p.mu + p.d;
+    const s = seOf(p);
+    const z1 = clean(p.d / p.sigma);
+    const zn = clean(p.d / s);
+    const p1 = sideValue(p.op, p.d, p.sigma);
+    const pn = sideValue(p.op, p.d, s);
+    const answer = [fmt(z1), fmt(p1), fmt(zn), fmt(pn)];
+    const opTex = p.op === 'lt' ? '<' : '>';
+    return {
+      kind: 'table',
+      prompt: [
+        say(
+          `${meanOpening(p)} Compare one value of $X$ with $\\bar{X}$: fill in the $z$ of $${k}$ for each, and the probability that each is ${p.op === 'lt' ? 'less' : 'more'} than $${k}$. Use`,
+        ),
+        show(quoteTex([...new Set([Math.abs(z1), Math.abs(zn)])].sort((a, b) => a - b))),
+      ],
+      columns: ['', 'z', `P(\\,\\cdot ${opTex} ${k})`],
+      rows: [
+        ['X', null, null],
+        ['\\bar{X}', null, null],
+      ],
+      bank: decimalBank(answer, [-z1, -zn, clean(1 - p1), clean(1 - pn)], 3, false),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const k = p.mu + p.d;
+    const s = seOf(p);
+    const z1 = clean(p.d / p.sigma);
+    const zn = clean(p.d / s);
+    return [
+      { text: `One value of $X$ has standard deviation $${p.sigma}$; the mean of $${p.n}$ has $\\frac{${p.sigma}}{\\sqrt{${p.n}}} = ${s}$, so the same $${k}$ is ${rootOf(p.n)} times as many standard deviations from $${p.mu}$.` },
+      { tex: aligned(`z_X &= \\frac{${k} - ${p.mu}}{${p.sigma}} = ${fmt(z1)}`, `z_{\\bar{X}} &= \\frac{${k} - ${p.mu}}{${s}} = ${fmt(zn)}`) },
+      { tex: aligned(...sideLines(z1, p.op, sideValue(p.op, p.d, p.sigma))) },
+      { tex: aligned(...sideLines(zn, p.op, sideValue(p.op, p.d, s))) },
+    ];
+  },
+};
+
+/* ---------- Level 6, lesson 5: working back ---------- */
+
+interface CriticalMeanParams extends MeanParams {
+  /** 0 or 1: the 0.05 or 0.025 row of `CRITICAL`. */
+  crit: number;
+  form: 'upper' | 'lower' | 'within';
+}
+
+function sampleCriticalMean(rng: Rng, difficulty: number, within = true): CriticalMeanParams {
+  const base = sampleMean(rng, difficulty);
+  const forms: CriticalMeanParams['form'][] = within && difficulty > 1 ? ['upper', 'lower', 'within', 'within'] : ['upper', 'lower'];
+  return { ...base, crit: rng.int(0, 1), form: rng.pick(forms) };
+}
+
+/** The signed z at k: CRITICAL's z, negative for a lower tail. */
+const criticalZ = (p: CriticalMeanParams): number => (p.form === 'lower' ? -CRITICAL[p.crit].z : CRITICAL[p.crit].z);
+
+/** k for a tail, or the half-width c for `within`. */
+const criticalValue = (p: CriticalMeanParams): number =>
+  p.form === 'within' ? clean(CRITICAL[p.crit].z * seOf(p)) : clean(p.mu + criticalZ(p) * seOf(p));
+
+function criticalAsk(p: CriticalMeanParams): string {
+  const { tail } = CRITICAL[p.crit];
+  if (p.form === 'within') return `the value $c$ for which $P(${p.mu} - c < \\bar{X} < ${p.mu} + c) = ${fmt(clean(1 - 2 * tail))}$`;
+  return `the value $k$ for which $P(\\bar{X} ${p.form === 'upper' ? '>' : '<'} k) = ${fmt(tail)}$`;
+}
+
+function criticalMeanSolution(p: CriticalMeanParams): SolutionStep[] {
+  const { z, tail } = CRITICAL[p.crit];
+  const s = seOf(p);
+  if (p.form === 'within') {
+    return [
+      seLines(p),
+      { text: `The middle $${fmt(clean(1 - 2 * tail))}$ leaves $${fmt(tail)}$ in each tail, so $c$ is $${z}$ standard deviations of $\\bar{X}$.` },
+      { tex: aligned(`c &= ${z} \\times ${s}`, `&= ${fmt(criticalValue(p))}`) },
+    ];
+  }
+  const zs = criticalZ(p);
+  return [
+    seLines(p),
+    { text: `A ${p.form === 'upper' ? 'top' : 'bottom'} tail of $${fmt(tail)}$ puts $k$ at $z = ${fmt(zs)}$.` },
+    { tex: aligned(`k &= ${p.mu} ${zs < 0 ? '-' : '+'} ${z} \\times ${s}`, `&= ${fmt(criticalValue(p))}`) },
+  ];
+}
+
+const xbarCritical: Generator<CriticalMeanParams> = {
+  id: 'dist-xbar-critical',
+  sample: (rng, difficulty) => sampleCriticalMean(rng, difficulty),
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [say(`${meanOpening(p)} Find ${criticalAsk(p)}, using`), show(CRITICAL_TABLE)],
+    lead: p.form === 'within' ? 'c =' : 'k =',
+    keypad: [],
+    answer: fmt(criticalValue(p)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: criticalMeanSolution,
+  choices: (p) => {
+    const s = seOf(p);
+    const z = CRITICAL[p.crit].z;
+    const other = CRITICAL[1 - p.crit].z;
+    const slips =
+      p.form === 'within'
+        ? [z * p.sigma, other * s, 2 * z * s]
+        : [p.mu + criticalZ(p) * p.sigma, p.mu - criticalZ(p) * s, p.mu + Math.sign(criticalZ(p)) * other * s];
+    return decimalChoices(criticalValue(p), slips.map(clean));
+  },
+};
+
+const xbarCriticalTree: Generator<CriticalMeanParams> = {
+  id: 'dist-xbar-cutoff-tree',
+  sample: (rng, difficulty) => sampleCriticalMean(rng, difficulty, false),
+  render: (p): Slide => {
+    const s = seOf(p);
+    const z = criticalZ(p);
+    const k = criticalValue(p);
+    const answer = [fmt(s), fmt(z), fmt(k)];
+    const { tail } = CRITICAL[p.crit];
+    const event = `P(\\bar{X} ${p.form === 'upper' ? '>' : '<'} k) = ${fmt(tail)}`;
+    return {
+      kind: 'tree',
+      prompt: [
+        say(`${meanOpening(p)} For $${event}$, from the top: the standard deviation of $\\bar{X}$, then the $z$ at $k$, then $k$. Use`),
+        show(CRITICAL_TABLE),
+      ],
+      expression: event,
+      nodes: [
+        { id: 'se', from: [] },
+        { id: 'z', from: ['se'] },
+        { id: 'k', from: ['z'] },
+      ],
+      bank: decimalBank(answer, [p.sigma, -z, clean(p.mu - z * s), clean(p.mu + z * p.sigma), Math.sign(z) * CRITICAL[1 - p.crit].z], 3, false),
+      answer,
+    };
+  },
+  solution: criticalMeanSolution,
+};
+
+interface SizeParams {
+  mu: number;
+  sigma: number;
+  /** The distance either side of mu. */
+  d: number;
+  /** Any row of `CRITICAL`; the level is 1 - 2 tail. */
+  crit: number;
+  abs: boolean;
+}
+
+/** Distances with no prime factor but 2 and 5, so z sigma / d always terminates. */
+const MIN_N_DISTANCES = [1, 2, 4, 5, 8, 10, 16, 20, 25];
+const MIN_N_SIGMAS = [4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50];
+
+/** CRITICAL's z in thousandths, so the smallest n is found in whole numbers. */
+const zThousandths = (crit: number): number => Math.round(CRITICAL[crit].z * 1000);
+
+/** The smallest n with d sqrt(n) / sigma >= z, that is n (1000 d)^2 >= (1000 z sigma)^2. */
+const minN = ({ sigma, d, crit }: { sigma: number; d: number; crit: number }): number =>
+  ceilDiv((zThousandths(crit) * sigma) ** 2, (1000 * d) ** 2);
+
+/** z sigma / d, the least sqrt(n). */
+const minRoot = ({ sigma, d, crit }: SizeParams): number => clean((CRITICAL[crit].z * sigma) / d);
+
+const levelOf = (crit: number): number => clean(1 - 2 * CRITICAL[crit].tail);
+
+function sampleMinN(rng: Rng, difficulty: number): SizeParams {
+  for (;;) {
+    const sigma = rng.pick(MIN_N_SIGMAS);
+    const d = rng.pick(MIN_N_DISTANCES);
+    const crit = difficulty > 1 ? rng.int(0, 3) : rng.int(0, 1);
+    const p = { mu: drawMu(rng, sigma), sigma, d, crit, abs: difficulty > 1 };
+    const n = minN(p);
+    if (n >= 5 && n <= 250 && terminates(minRoot(p), 6)) return p;
+  }
+}
+
+function minNPrompt(p: SizeParams, closing: string): Block[] {
+  const event = p.abs ? `P(|\\bar{X} - ${p.mu}| < ${p.d})` : `P(${p.mu - p.d} < \\bar{X} < ${p.mu + p.d})`;
+  return [
+    say(
+      `$${nOf('X', p.mu, p.sigma)}$, and $\\bar{X}$ is the mean of a random sample of $n$ values of $X$. ${closing} for which $${event} \\ge ${fmt(levelOf(p.crit))}$, using`,
+    ),
+    show(CRITICAL_TABLE),
+  ];
+}
+
+function minNSolution(p: SizeParams): SolutionStep[] {
+  const { z, tail } = CRITICAL[p.crit];
+  const n = minN(p);
+  return [
+    { text: `A middle $${fmt(levelOf(p.crit))}$ leaves $${fmt(tail)}$ in each tail, so $${p.d}$ must be at least $${z}$ standard deviations of $\\bar{X}$.` },
+    { tex: aligned(`\\frac{${p.d}}{${p.sigma} / \\sqrt{n}} &\\ge ${z}`, `\\sqrt{n} &\\ge \\frac{${z} \\times ${p.sigma}}{${p.d}}`, `&= ${fmt(minRoot(p))}`) },
+    { tex: aligned(`n &\\ge ${fmt(minRoot(p))}^2`, `&= ${fmt(clean(minRoot(p) ** 2))}`) },
+    { text: `So the smallest sample size is $${n}$.` },
+  ];
+}
+
+/** The z a learner reaches for by mistake: the one-tailed point for the same level, else another row. */
+function wrongZs(crit: number): number[] {
+  const oneTail = CRITICAL.findIndex(({ tail }) => Math.abs(tail - 2 * CRITICAL[crit].tail) < 1e-9);
+  const rest = CRITICAL.map((_, i) => i).filter((i) => i !== crit && i !== oneTail);
+  return [...(oneTail >= 0 ? [oneTail] : []), ...rest].slice(0, 2);
+}
+
+const minNGen: Generator<SizeParams> = {
+  id: 'dist-min-n',
+  sample: sampleMinN,
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: minNPrompt(p, 'Find the smallest $n$'),
+    lead: 'n =',
+    keypad: [],
+    answer: String(minN(p)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: minNSolution,
+  choices: (p) => {
+    const n = minN(p);
+    return decimalChoices(n, [n - 1, Math.ceil(minRoot(p)), ...wrongZs(p.crit).map((crit) => minN({ ...p, crit })), n + 1]);
+  },
+};
+
+const minNFlow: Generator<SizeParams> = {
+  id: 'dist-min-n-flow',
+  sample: sampleMinN,
+  render: (p): Slide => {
+    const n = minN(p);
+    const root = fmt(minRoot(p));
+    const key = `${p.mu}|${p.sigma}|${p.d}|${p.crit}|${p.abs}`;
+    const zs = [p.crit, ...wrongZs(p.crit)].map((i) => `$${CRITICAL[i].z}$`);
+    const holds = [`$\\sqrt{n} \\ge ${root}$`, `$n \\ge ${root}$`, `$\\sqrt{n} \\le ${root}$`];
+    const guess = Math.ceil(minRoot(p));
+    const sizes = [`$${n}$`, `$${n - 1}$`, `$${guess === n || guess === n - 1 ? n + 1 : guess}$`];
+    return {
+      kind: 'flow',
+      prompt: minNPrompt(p, 'Plan how to find the smallest $n$'),
+      subject: `\\sigma_{\\bar{X}} = \\frac{${p.sigma}}{\\sqrt{n}}`,
+      steps: [
+        {
+          id: 'z',
+          ask: `$${p.d}$ must be at least how many standard deviations of $\\bar{X}$?`,
+          branches: turned(zs.map((label) => ({ label, to: 'holds' })), `${key}z`),
+        },
+        { id: 'holds', ask: 'So which must hold?', branches: turned(holds.map((label) => ({ label, to: 'n' })), `${key}h`) },
+        {
+          id: 'n',
+          ask: 'So what is the smallest sample size?',
+          branches: turned(sizes.map((label) => ({ label, outcome: `So the smallest sample size is ${label}.` })), `${key}n`),
+        },
+      ],
+      answer: [zs[0], holds[0], sizes[0]],
+    };
+  },
+  solution: minNSolution,
+};
+
 export const binomialNormalGenerators = [
   conditionsFlow,
   conditionsChoice,
@@ -5590,4 +6593,24 @@ export const binomialNormalGenerators = [
   biggerProb,
   diffRouteTree,
   diffPlan,
+  meanMoment,
+  meanFromTotal,
+  meanTable,
+  meanScaleFlow,
+  xbarNormal,
+  xbarBuild,
+  xbarSd,
+  xbarSlipFlow,
+  shrinkTable,
+  shrinkFactor,
+  shrinkN,
+  shrinkFlow,
+  xbarProb,
+  xbarRouteTree,
+  xbarStandardise,
+  oneVsMean,
+  xbarCritical,
+  xbarCriticalTree,
+  minNGen,
+  minNFlow,
 ];

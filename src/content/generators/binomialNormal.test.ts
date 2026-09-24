@@ -1346,3 +1346,348 @@ describe('level 5 lesson 5: a probability from the combination', () => {
     }
   });
 });
+
+/* ---------- level 6: the distribution of the sample mean ---------- */
+
+/**
+ * mu and sigma of X and the sample size n, read from the prompt, and the
+ * moments of the mean worked out here: E(Xbar) = mu, Var(Xbar) = sigma^2 / n,
+ * sigma_Xbar = sigma / sqrt(n).
+ */
+function sampleFrom(text: string) {
+  const { mu, sigma } = normalFrom(text);
+  const m = /sample of \$(\d+)\$/.exec(text);
+  expect(m, `no sample size in: ${text}`).not.toBeNull();
+  const n = Number(m![1]);
+  return { mu, sigma, n, variance: (sigma * sigma) / n, se: sigma / Math.sqrt(n) };
+}
+
+/** P(Z < z) the true way, by Simpson. */
+const simpsonBelow = (t: number) => (t >= 0 ? simpsonPhi(t) : 1 - simpsonPhi(-t));
+
+/** The percentage-point table a prompt quotes, as Phi to z, each held to Simpson. */
+function percentagePoints(text: string): Map<number, number> {
+  const rows = [...text.matchAll(/(0\.\d+) & (\d\.\d+)/g)].map((m) => [Number(m[1]), Number(m[2])] as const);
+  expect(rows.length, `no percentage points in: ${text}`).toBe(4);
+  for (const [p, z] of rows) expect(Math.abs(simpsonPhi(z) - p), `z = ${z}`).toBeLessThan(0.0005);
+  return new Map(rows);
+}
+
+describe('level 6 lesson 1: a total divided by n, from the prompt alone', () => {
+  it('gives E, Var or sigma of the sample mean in dist-mean-moment', () => {
+    for (const { slide, seed } of draws<unknown>('dist-mean-moment')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const { mu, variance, se } = sampleFrom(promptText(slide));
+      expect(Number.isInteger(se), `seed ${seed}`).toBe(true);
+      expect(Number(slide.answer), `seed ${seed}`).toBe({ mean: mu, var: variance, sd: se }[askedFrom(slide.lead!)]);
+    }
+  });
+
+  it('fills dist-mean-from-total-tree with the total, then the total over n', () => {
+    for (const { slide, seed } of draws<unknown>('dist-mean-from-total-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const { mu, sigma, n } = sampleFrom(promptText(slide));
+      const [eT, vT] = [n * mu, n * sigma * sigma];
+      expect(slide.answer.map(Number), `seed ${seed}`).toEqual([eT, vT, eT / n, vT / (n * n)]);
+    }
+  });
+
+  it('fills each row of dist-mean-table from the quantity its label names', () => {
+    for (const { slide, seed } of draws<unknown>('dist-mean-table')) {
+      if (slide.kind !== 'table') throw new Error('not a table slide');
+      const { mu, sigma, n, variance, se } = sampleFrom(promptText(slide));
+      const width = slide.columns.length - 1;
+      const want: Record<string, number[]> = {
+        T: [n * mu, n * sigma * sigma, Math.sqrt(n) * sigma],
+        '\\bar{X}': [mu, variance, se],
+      };
+      slide.rows.forEach((row, i) => {
+        expect(slide.answer.slice(width * i, width * (i + 1)).map(Number), `seed ${seed}: ${row[0]}`).toEqual(want[row[0]!].slice(0, width));
+      });
+    }
+  });
+
+  it('walks dist-mean-scale-flow from Var(T) through 1/n^2 to Var and sigma of the mean', () => {
+    for (const { slide, seed } of draws<unknown>('dist-mean-scale-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const { sigma, n, variance, se } = sampleFrom(promptText(slide));
+      expect(labelValue(slide.answer[0]), `seed ${seed}`).toBe(n * sigma * sigma);
+      expect(slide.answer[1], `seed ${seed}`).toBe(`$\\frac{1}{${n}^2}$`);
+      expect(labelValue(slide.answer[2]), `seed ${seed}`).toBe(variance);
+      if (slide.answer.length > 3) expect(labelValue(slide.answer[3]), `seed ${seed}`).toBe(se);
+    }
+  });
+});
+
+describe('level 6 lesson 2: the mean is N(mu, sigma^2 / n), from the prompt alone', () => {
+  it('names N(mu, sigma^2 / n) in dist-xbar-normal, and only there', () => {
+    for (const { slide, seed } of draws<unknown>('dist-xbar-normal')) {
+      if (slide.kind !== 'choice') throw new Error('not a choice slide');
+      const { mu, variance } = sampleFrom(promptText(slide));
+      expect(correctNormal(slide), `seed ${seed}`).toEqual({ mean: mu, variance });
+      expect(slide.options.filter((o) => o.label.endsWith(`N(${mu}, ${variance})`)).length, `seed ${seed}`).toBe(1);
+    }
+  });
+
+  it('builds the normal and sigma / sqrt(n) in dist-xbar-build', () => {
+    for (const { slide, seed } of draws<unknown>('dist-xbar-build')) {
+      if (slide.kind !== 'tiles') throw new Error('not a tiles slide');
+      const { mu, variance, se } = sampleFrom(promptText(slide));
+      expect(slide.answer.map(Number), `seed ${seed}`).toEqual([mu, variance, se]);
+    }
+  });
+
+  it('gives sigma / sqrt(n) in dist-xbar-sd, or sigma back from the mean', () => {
+    for (const { slide, seed } of draws<unknown>('dist-xbar-sd')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const text = promptText(slide);
+      if (slide.lead === '\\sigma =') {
+        const m = /\\bar\{X\} \\sim N\((\d+), (\d+)\)/.exec(text)!;
+        const n = Number(/sample of \$(\d+)\$/.exec(text)![1]);
+        expect(Number(slide.answer), `seed ${seed}`).toBe(Math.sqrt(Number(m[2]) * n));
+      } else {
+        expect(slide.lead, `seed ${seed}`).toBe('\\sigma_{\\bar{X}} =');
+        expect(Number(slide.answer), `seed ${seed}`).toBe(sampleFrom(text).se);
+      }
+    }
+  });
+
+  it('walks dist-xbar-slip-flow to the variance, sigma / sqrt(n) and the normal', () => {
+    for (const { slide, seed } of draws<unknown>('dist-xbar-slip-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const { mu, variance, se } = sampleFrom(promptText(slide));
+      expect(labelValue(slide.answer[0]), `seed ${seed}`).toBe(variance);
+      expect(labelValue(slide.answer[1]), `seed ${seed}`).toBe(se);
+      expect(slide.answer[2], `seed ${seed}`).toBe(`$N(${mu}, ${variance})$`);
+    }
+  });
+});
+
+describe('level 6 lesson 3: how the spread shrinks with n', () => {
+  it('fills dist-shrink-table with sigma / sqrt(n) for the n on each row', () => {
+    for (const { slide, seed } of draws<unknown>('dist-shrink-table')) {
+      if (slide.kind !== 'table') throw new Error('not a table slide');
+      const { sigma } = normalFrom(promptText(slide));
+      const withVar = slide.columns.length === 3;
+      const want = slide.rows.flatMap((row) => {
+        const n = Number(row[0]);
+        return withVar ? [(sigma * sigma) / n, sigma / Math.sqrt(n)] : [sigma / Math.sqrt(n)];
+      });
+      expect(slide.answer.map(Number), `seed ${seed}`).toEqual(want);
+      // The rows fall: a bigger sample never has the wider mean.
+      const sds = want.filter((_, i) => !withVar || i % 2 === 1);
+      expect([...sds].sort((a, b) => b - a), `seed ${seed}`).toEqual(sds);
+    }
+  });
+
+  it('marks the factor sigma_Xbar really changes by in dist-shrink-factor', () => {
+    for (const { slide, seed } of draws<unknown>('dist-shrink-factor')) {
+      if (slide.kind !== 'choice') throw new Error('not a choice slide');
+      const text = promptText(slide);
+      const n1 = Number(/sample of \$(\d+)\$/.exec(text)![1]);
+      const n2 = Number(/changed to \$(\d+)\$/.exec(text)![1]);
+      const ratio = Math.sqrt(n1) / Math.sqrt(n2);
+      const label = slide.options.find((o) => o.id === slide.correctId)!.label;
+      const m = /(divided|multiplied) by \} (?:\\sqrt\{(\d+)\}|(\d+))/.exec(label)!;
+      const size = m[2] ? Math.sqrt(Number(m[2])) : Number(m[3]);
+      expect(close(m[1] === 'divided' ? 1 / size : size, ratio), `seed ${seed}: ${label}`).toBe(true);
+    }
+  });
+
+  it('puts the n of dist-shrink-n back: it meets the target and one fewer does not', () => {
+    for (const { slide, seed } of draws<unknown>('dist-shrink-n')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const text = promptText(slide);
+      const { sigma } = normalFrom(text);
+      const n = Number(slide.answer);
+      const byVar = /\\mathrm\{Var\}\(\\bar\{X\}\) \\le (\d+)/.exec(text);
+      // In squares, so no square root decides a boundary: sigma^2 / n <= w, or sigma^2 / n <= t^2.
+      const limit = byVar ? Number(byVar[1]) : Number(/at most \$(\d+)\$/.exec(text)![1]) ** 2;
+      expect(sigma * sigma <= limit * n, `seed ${seed}: n = ${n}`).toBe(true);
+      expect(sigma * sigma > limit * (n - 1), `seed ${seed}: n - 1 = ${n - 1} also works`).toBe(true);
+    }
+  });
+
+  it('walks dist-shrink-flow to k^2 times the sample and the spread it gives', () => {
+    for (const { slide, seed } of draws<unknown>('dist-shrink-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const text = promptText(slide);
+      const { sigma } = normalFrom(text);
+      const n1 = Number(/sample of \$(\d+)\$/.exec(text)![1]);
+      const target = Number(/cut to \$(\d+)\$/.exec(text)![1]);
+      const k = sigma / Math.sqrt(n1) / target;
+      expect(labelValue(slide.answer[0]), `seed ${seed}`).toBe(k * k);
+      const n2 = labelValue(slide.answer[1]);
+      expect(n2, `seed ${seed}`).toBe(n1 * k * k);
+      expect(sigma / Math.sqrt(n2), `seed ${seed}`).toBe(target);
+      expect(labelValue(slide.answer[2]), `seed ${seed}`).toBe(target);
+    }
+  });
+});
+
+describe('level 6 lesson 4: a probability for a sample mean', () => {
+  /** P(Z < z) read from the quotes, each quote held to Simpson first. */
+  function tableBelow(text: string, z: number, seed: number): number {
+    const table = quotedPhis(text);
+    for (const [at, value] of table) expect(value, `seed ${seed}: Phi(${at})`).toBe(Number(simpsonPhi(at).toFixed(4)));
+    return belowFromTable(z, table);
+  }
+
+  /** P(Xbar < k), P(Xbar > k) or P(a < Xbar < b) from an event, the quotes and Simpson. */
+  function probabilityOf(text: string, event: string, seed: number) {
+    const { mu, se } = sampleFrom(text);
+    const z = (x: string) => (Number(x) - mu) / se;
+    let m = /^P\(\\bar\{X\} ([<>]) (\d+)\)/.exec(event);
+    if (m) {
+      const lower = tableBelow(text, z(m[2]), seed);
+      const truth = simpsonBelow(z(m[2]));
+      return m[1] === '<' ? { fromTable: lower, truth } : { fromTable: 1 - lower, truth: 1 - truth };
+    }
+    m = /^P\((\d+) < \\bar\{X\} < (\d+)\)/.exec(event);
+    expect(m, event).not.toBeNull();
+    return {
+      fromTable: tableBelow(text, z(m![2]), seed) - tableBelow(text, z(m![1]), seed),
+      truth: simpsonBelow(z(m![2])) - simpsonBelow(z(m![1])),
+    };
+  }
+
+  it('answers dist-xbar-prob by standardising with sigma / sqrt(n)', () => {
+    for (const { slide, seed } of draws<unknown>('dist-xbar-prob')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const { fromTable, truth } = probabilityOf(promptText(slide), slide.lead!, seed);
+      expect(close(Number(slide.answer), fromTable), `seed ${seed}`).toBe(true);
+      expect(Math.abs(Number(slide.answer) - truth), `seed ${seed}`).toBeLessThan(0.001);
+    }
+  });
+
+  it('fills dist-xbar-route-tree with sigma / sqrt(n), the z and the probability', () => {
+    for (const { slide, seed } of draws<unknown>('dist-xbar-route-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const text = promptText(slide);
+      const { mu, se } = sampleFrom(text);
+      const k = Number(/(\d+)\)$/.exec(slide.expression)![1]);
+      const { fromTable, truth } = probabilityOf(text, slide.expression, seed);
+      expect(slide.answer.map(Number), `seed ${seed}`).toEqual([se, Number(((k - mu) / se).toFixed(6)), Number(fromTable.toFixed(6))]);
+      expect(Math.abs(fromTable - truth), `seed ${seed}`).toBeLessThan(0.001);
+    }
+  });
+
+  it('standardises with sigma / sqrt(n), never sigma, in dist-xbar-standardise', () => {
+    for (const { slide, seed } of draws<unknown>('dist-xbar-standardise')) {
+      if (slide.kind !== 'tiles') throw new Error('not a tiles slide');
+      const text = promptText(slide);
+      const { mu, se } = sampleFrom(text);
+      const k = Number(/Standardise \$\\bar\{X\} = (\d+)\$/.exec(text)![1]);
+      expect(slide.answer.map(Number), `seed ${seed}`).toEqual([k, mu, se, Number(((k - mu) / se).toFixed(6))]);
+    }
+  });
+
+  it('fills dist-one-vs-mean with one value standardised by sigma and the mean by sigma / sqrt(n)', () => {
+    for (const { slide, seed } of draws<unknown>('dist-one-vs-mean')) {
+      if (slide.kind !== 'table') throw new Error('not a table slide');
+      const text = promptText(slide);
+      const { mu, sigma, se } = sampleFrom(text);
+      const [, op, k] = /([<>]) (\d+)\)$/.exec(slide.columns[2])!;
+      const want: number[] = [];
+      for (const sd of [sigma, se]) {
+        const z = (Number(k) - mu) / sd;
+        const lower = tableBelow(text, z, seed);
+        const value = op === '<' ? lower : 1 - lower;
+        const truth = op === '<' ? simpsonBelow(z) : 1 - simpsonBelow(z);
+        expect(Math.abs(value - truth), `seed ${seed}`).toBeLessThan(0.001);
+        want.push(Number(z.toFixed(6)), Number(value.toFixed(6)));
+      }
+      expect(slide.rows.map((row) => row[0]), `seed ${seed}`).toEqual(['X', '\\bar{X}']);
+      expect(slide.answer.map(Number), `seed ${seed}`).toEqual(want);
+      // The mean strays less: its tail beyond k is always the smaller.
+      const tail = (p: number) => Math.min(p, 1 - p);
+      expect(tail(want[3]) < tail(want[1]), `seed ${seed}`).toBe(true);
+    }
+  });
+});
+
+describe('level 6 lesson 5: working back from a sample mean', () => {
+  /** The stated probability, and the k or c it asks for, held to Simpson and to the table. */
+  function checkCritical(text: string, value: number, seed: number) {
+    const { mu, se } = sampleFrom(text);
+    const table = percentagePoints(text);
+    let m = /P\(\\bar\{X\} ([<>]) k\) = (0\.\d+)/.exec(text);
+    if (m) {
+      const z = (value - mu) / se;
+      const tail = Number(m[2]);
+      const area = m[1] === '>' ? 1 - simpsonBelow(z) : simpsonBelow(z);
+      expect(Math.abs(area - tail), `seed ${seed}: k = ${value}`).toBeLessThan(0.0005);
+      expect(close(Math.abs(z), table.get(1 - tail)!, 1e-9), `seed ${seed}: z = ${z}`).toBe(true);
+      return z;
+    }
+    m = /P\((\d+) - c < \\bar\{X\} < (\d+) \+ c\) = (0\.\d+)/.exec(text);
+    expect(m, text).not.toBeNull();
+    expect(Number(m![1]), `seed ${seed}`).toBe(mu);
+    const level = Number(m![3]);
+    const z = value / se;
+    expect(Math.abs(2 * simpsonPhi(z) - 1 - level), `seed ${seed}: c = ${value}`).toBeLessThan(0.001);
+    expect(close(z, table.get(Number((1 - (1 - level) / 2).toFixed(4)))!, 1e-9), `seed ${seed}: z = ${z}`).toBe(true);
+    return z;
+  }
+
+  it('finds k or c in dist-xbar-critical from sigma / sqrt(n) and the table', () => {
+    for (const { slide, seed } of draws<unknown>('dist-xbar-critical')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      checkCritical(promptText(slide), Number(slide.answer), seed);
+    }
+  });
+
+  it('fills dist-xbar-cutoff-tree with sigma / sqrt(n), the signed z and k', () => {
+    for (const { slide, seed } of draws<unknown>('dist-xbar-cutoff-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const text = `${promptText(slide)} ${slide.expression}`;
+      const [se, z, k] = slide.answer.map(Number);
+      expect(se, `seed ${seed}`).toBe(sampleFrom(text).se);
+      expect(close(checkCritical(text, k, seed), z, 1e-9), `seed ${seed}`).toBe(true);
+    }
+  });
+
+  /** mu, sigma, d and the level from a smallest-n prompt, and the z the table gives for that level. */
+  function sizeFrom(text: string) {
+    const { mu, sigma } = normalFrom(text);
+    const abs = /P\(\|\\bar\{X\} - (\d+)\| < (\d+)\) \\ge (0\.\d+)/.exec(text);
+    const range = /P\((\d+) < \\bar\{X\} < (\d+)\) \\ge (0\.\d+)/.exec(text);
+    expect(abs ?? range, text).not.toBeNull();
+    const d = abs ? Number(abs[2]) : (Number(range![2]) - Number(range![1])) / 2;
+    if (abs) expect(Number(abs[1])).toBe(mu);
+    else expect(Number(range![1]) + d).toBe(mu);
+    const level = Number((abs ?? range)![3]);
+    const z = percentagePoints(text).get(Number((1 - (1 - level) / 2).toFixed(4)))!;
+    expect(z, `no percentage point for ${level}`).toBeDefined();
+    return { sigma, d, level, z };
+  }
+
+  /** Whether d is at least z standard deviations of the mean of n, in whole numbers: n d^2 >= (z sigma)^2. */
+  const enough = (n: number, { sigma, d, z }: { sigma: number; d: number; z: number }) =>
+    n * d * d * 1e6 >= (Math.round(z * 1000) * sigma) ** 2;
+
+  it('puts the n of dist-min-n back: it reaches the level and one fewer does not', () => {
+    for (const { slide, seed } of draws<unknown>('dist-min-n')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const size = sizeFrom(promptText(slide));
+      const n = Number(slide.answer);
+      expect(enough(n, size), `seed ${seed}: n = ${n}`).toBe(true);
+      expect(enough(n - 1, size), `seed ${seed}: n - 1 = ${n - 1} also works`).toBe(false);
+      const reached = 2 * simpsonPhi((size.d * Math.sqrt(n)) / size.sigma) - 1;
+      expect(reached, `seed ${seed}`).toBeGreaterThan(size.level - 0.001);
+    }
+  });
+
+  it('plans dist-min-n-flow through the right z, sqrt(n) and the smallest n', () => {
+    for (const { slide, seed } of draws<unknown>('dist-min-n-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const size = sizeFrom(promptText(slide));
+      expect(slide.answer[0], `seed ${seed}`).toBe(`$${size.z}$`);
+      const root = /^\$\\sqrt\{n\} \\ge ([\d.]+)\$$/.exec(slide.answer[1]);
+      expect(root, `seed ${seed}: ${slide.answer[1]}`).not.toBeNull();
+      expect(close(Number(root![1]), (size.z * size.sigma) / size.d), `seed ${seed}`).toBe(true);
+      const n = labelValue(slide.answer[2]);
+      expect(enough(n, size) && !enough(n - 1, size), `seed ${seed}: n = ${n}`).toBe(true);
+    }
+  });
+});

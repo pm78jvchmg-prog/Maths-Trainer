@@ -17,8 +17,11 @@ continuity correction, and the whole route to a probability from quoted Φ);
 Sums and Differences of Independent Normals (E and Var of aX + b, X + Y and
 X − Y with the variances always adding, aX + bY in general, a total of n
 copies against one copy times n, and a probability from the combination,
-P(X > Y) among them).
+P(X > Y) among them); The Distribution of the Sample Mean (a total divided
+by n, X̄ ~ N(μ, σ²/n) with standard deviation σ/√n and the σ/n slip, how the
+spread shrinks with n and the n a target spread needs, a probability for X̄
+against one value at the same boundary, working back to a value or to the
+smallest n for P(|X̄ − μ| < d) at a stated level).
 
-Needs: The Distribution of the Sample Mean (X̄ ~ N(μ, σ²/n), how the spread shrinks
-with n, ahead of C19 Hypothesis Testing); Discrete Random Variables in
-General (a probability table of any shape, E(X), Var(X) and E(aX + b)).
+Needs: Discrete Random Variables in General (a probability table of any
+shape, E(X), Var(X) and E(aX + b)).

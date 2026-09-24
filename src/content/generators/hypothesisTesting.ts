@@ -2888,7 +2888,7 @@ const errorTiles: Generator<ErrorTilesParams> = {
         say(`Complete the description of a Type ${which} error: which counts cause it, and what $p$ is when it happens.`),
       ],
       template: `\\text{Type ${which}: } X {0} {1} \\text{ when } p {2} {3}`,
-      bank: tokenBank(answer, [up ? '\\le' : '\\ge', `${c - 1}`, `${c}`, `${c + 1}`, '=', OP[tail], OP[up ? 'down' : 'up'], fmt(1 - p0)], 5),
+      bank: tokenBank(answer, ['\\le', '\\ge', `${c - 1}`, `${c}`, `${c + 1}`, '=', OP[tail], OP[up ? 'down' : 'up'], fmt(1 - p0)], 5),
       answer,
     };
   },
@@ -2897,11 +2897,11 @@ const errorTiles: Generator<ErrorTilesParams> = {
     return sc.which === 'I'
       ? [
           { text: `A Type I error rejects $H_0$ when it is true: $X$ lands in the critical region while $p = ${P0}$.` },
-          { tex: `\\text{Type I: } ${regionTex(sc.tail, sc.c)} \\text{ when } p = ${P0}` },
+          { tex: aligned([`&\\text{Type I: } ${regionTex(sc.tail, sc.c)}`, `&\\text{when } p = ${P0}`]) },
         ]
       : [
           { text: `A Type II error keeps $H_0$ when it is false: $X$ lands outside the critical region while $p ${OP[sc.tail]} ${P0}$.` },
-          { tex: `\\text{Type II: } ${outsideTex(sc)} \\text{ when } p ${OP[sc.tail]} ${P0}` },
+          { tex: aligned([`&\\text{Type II: } ${outsideTex(sc)}`, `&\\text{when } p ${OP[sc.tail]} ${P0}`]) },
         ];
   },
 };
@@ -3196,8 +3196,8 @@ const sizeTable: Generator<SizeTableParams> = {
     ...cs.map((x, i) => ({
       tex:
         tail === 'up'
-          ? `${levels[i]}\\%: \\; P(X \\ge ${x}) = 1 - ${P4(q(n, p0, x - 1))} = ${P4(upper(n, p0, x))}`
-          : `${levels[i]}\\%: \\; P(X \\le ${x}) = ${P4(q(n, p0, x))}`,
+          ? aligned([`\\text{${levels[i]}\\%: } & P(X \\ge ${x})`, `&= 1 - ${P4(q(n, p0, x - 1))}`, `&= ${P4(upper(n, p0, x))}`])
+          : aligned([`\\text{${levels[i]}\\%: } & P(X \\le ${x})`, `&= ${P4(q(n, p0, x))}`]),
     })),
     { text: 'The stricter the level, the smaller the region, and the less likely a Type I error.' },
   ],
@@ -3752,11 +3752,11 @@ function meanErrSolution(sc: MeanErrScene): SolutionStep[] {
   const zLine =
     sc.tail === 'up'
       ? z >= 0
-        ? `P(Z < ${fmt(z)}) = \\Phi(${fmt(z)}) = ${P4(mBeta(sc))}`
-        : `P(Z < ${fmt(z)}) = 1 - \\Phi(${fmt(-z)}) = ${P4(mBeta(sc))}`
+        ? chain(`P(Z < ${fmt(z)})`, `\\Phi(${fmt(z)})`, P4(mBeta(sc)))
+        : chain(`P(Z < ${fmt(z)})`, `1 - \\Phi(${fmt(-z)})`, P4(mBeta(sc)))
       : z <= 0
-        ? `P(Z > ${fmt(z)}) = \\Phi(${fmt(-z)}) = ${P4(mBeta(sc))}`
-        : `P(Z > ${fmt(z)}) = 1 - \\Phi(${fmt(z)}) = ${P4(mBeta(sc))}`;
+        ? chain(`P(Z > ${fmt(z)})`, `\\Phi(${fmt(-z)})`, P4(mBeta(sc)))
+        : chain(`P(Z > ${fmt(z)})`, `1 - \\Phi(${fmt(z)})`, P4(mBeta(sc)));
   return [
     { tex: `\\frac{\\sigma}{\\sqrt{n}} = \\frac{${sigmaOf(sc)}}{\\sqrt{${sc.n}}} = ${sc.s}` },
     { tex: chain('\\bar{x}_c', `${sc.mu} ${sign} ${c} \\times ${sc.s}`, fmt(mXc(sc))) },
@@ -3916,12 +3916,15 @@ const betaNTable: Generator<NBetaParams> = {
       up ? `P(Z < ${fmt(z)})` : `P(Z > ${fmt(z)})`;
     return [
       {
-        text: `The boundary is $\\bar{x}_c = ${mu} ${up ? '+' : '-'} ${fmt(c)} \\times \\frac{${sigma}}{\\sqrt{n}}$, and the true mean is $${fmt(gap)}$ ${unit} ${up ? 'above' : 'below'} the claim. Standardised under the true mean, the boundary is ${up ? '' : 'minus '}$${fmt(c)}$ less the gap in standard deviations of $\\bar{X}$.`,
+        text: `The boundary is $\\bar{x}_c = ${mu} ${up ? '+' : '-'} ${fmt(c)} \\times \\frac{${sigma}}{\\sqrt{n}}$, and the true mean is $${fmt(gap)}$ ${unit} ${up ? 'above' : 'below'} the claim. Measured from the true mean in standard deviations of $\\bar{X}$, the boundary sits at $z = ${up ? '' : '-'}\\left(${fmt(c)} - \\frac{${fmt(gap)}}{${sigma} / \\sqrt{n}}\\right)$.`,
       },
       ...ns.map((n) => ({
         tex: aligned([
-          `n = ${n}: \\; z &= ${up ? '' : '-'}${up ? '' : '('}${fmt(c)} - \\frac{${fmt(gap)}}{${fmt(sigma / Math.sqrt(n))}}${up ? '' : ')'} = ${fmt(nZ(params, n))}`,
-          `\\beta &= ${tailTex(nZ(params, n))} = ${P4(nBeta(params, n))}`,
+          `n &= ${n}`,
+          `z &= ${up ? '' : '-('}${fmt(c)} - \\frac{${fmt(gap)}}{${fmt(sigma / Math.sqrt(n))}}${up ? '' : ')'}`,
+          `&= ${fmt(nZ(params, n))}`,
+          `\\beta &= ${tailTex(nZ(params, n))}`,
+          `&= ${P4(nBeta(params, n))}`,
         ]),
       })),
       { text: 'A bigger sample tightens the spread of $\\bar{X}$, so a real change is harder to miss: $\\beta$ falls while the level stays the same.' },

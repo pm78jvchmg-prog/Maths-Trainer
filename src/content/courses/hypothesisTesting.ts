@@ -508,8 +508,8 @@ export const hypothesisTesting: Course = {
             ask('hyp-size', 2),
             ask('hyp-size-choice', 2),
             teach(
-              prose('A stricter level pushes the region further out, so the size falls with it. For the seeds:'),
-              working('5\\%: &\\quad X \\ge 10, \\quad 1 - 0.9520 = 0.0480', '1\\%: &\\quad X \\ge 12, \\quad 1 - 0.9949 = 0.0051'),
+              prose('A stricter level pushes the region further out, so the size falls with it. For the seeds, $1 - 0.9520 = 0.0480$ at 5% and $1 - 0.9949 = 0.0051$ at 1%:'),
+              display('\\begin{array}{c|c|c} \\text{level} & \\text{region} & P(\\text{Type I}) \\\\ \\hline 5\\% & X \\ge 10 & 0.0480 \\\\ 1\\% & X \\ge 12 & 0.0051 \\end{array}'),
             ),
             ask('hyp-size-table', 2),
             ask('hyp-size-sum', 2),
@@ -559,14 +559,18 @@ export const hypothesisTesting: Course = {
             ask('hyp-power-choice'),
             teach(
               prose('The further the truth is from the claim, the more likely the count lands in the region, so the power rises:'),
-              working('p = 0.4: &\\quad 1 - 0.7553 = 0.2447', 'p = 0.5: &\\quad 1 - 0.4119 = 0.5881', 'p = 0.6: &\\quad 1 - 0.1275 = 0.8725'),
+              display(
+                '\\begin{array}{c|c|c} p & P(\\text{Type II}) & \\text{power} \\\\ \\hline 0.4 & 0.7553 & 0.2447 \\\\ 0.5 & 0.4119 & 0.5881 \\\\ 0.6 & 0.1275 & 0.8725 \\end{array}',
+              ),
             ),
             ask('hyp-trade-table'),
             ask('hyp-power', 2),
             ask('hyp-power-pair-tree', 2),
             teach(
-              prose('At a fixed sample size the two errors trade against each other. A stricter level shrinks the region: fewer Type I errors, but less power. With $p$ really $0.5$:'),
-              working('5\\%: &\\quad X \\ge 10, \\; \\alpha = 0.0480, \\; \\beta = 0.4119', '1\\%: &\\quad X \\ge 12, \\; \\alpha = 0.0051, \\; \\beta = 0.7483'),
+              prose(
+                'At a fixed sample size the two errors trade against each other. A stricter level shrinks the region: fewer Type I errors, but less power. At 5% the seed test rejects when $X \\ge 10$, at 1% when $X \\ge 12$. With $p$ really $0.5$:',
+              ),
+              display('\\begin{array}{c|c|c} \\text{level} & \\alpha & \\beta \\\\ \\hline 5\\% & 0.0480 & 0.4119 \\\\ 1\\% & 0.0051 & 0.7483 \\end{array}'),
               prose('Only a bigger sample can cut both at once.'),
             ),
             ask('hyp-power-choice', 2),
@@ -588,7 +592,8 @@ export const hypothesisTesting: Course = {
             ask('hyp-beta-n-table'),
             teach(
               prose('If the mean is really $507.5$ g, a Type II error is $\\bar{x}$ falling short of the boundary. Standardise the boundary under the true mean:'),
-              working('z &= \\frac{504.935 - 507.5}{3} = -0.855', 'P(\\text{Type II}) &= P(Z < -0.855)', '&= 1 - \\Phi(0.855) = 0.1963'),
+              working('z &= \\frac{504.935 - 507.5}{3}', '&= -0.855'),
+              working('& P(\\text{Type II})', '&= P(Z < -0.855)', '&= 1 - \\Phi(0.855)', '&= 0.1963'),
               prose('The dashed curve is $\\bar{X}$ under $H_0$, the solid one under the truth; the shaded part of it falls short of the line.'),
               figure({
                 xMin: 492,
@@ -606,7 +611,8 @@ export const hypothesisTesting: Course = {
             ask('hyp-mean-miss-tree', 2),
             teach(
               prose('A bigger sample narrows both curves, so less of the truth\'s curve falls short. With $n = 64$ the standard deviation of $\\bar{X}$ is $1.5$:'),
-              working('\\bar{x}_c &= 500 + 1.645 \\times 1.5 = 502.4675', 'z &= \\frac{502.4675 - 507.5}{1.5} = -3.355', 'P(\\text{Type II}) &= 1 - \\Phi(3.355) = 0.0004'),
+              working('\\bar{x}_c &= 500 + 1.645 \\times 1.5', '&= 502.4675', 'z &= \\frac{502.4675 - 507.5}{1.5}', '&= -3.355'),
+              working('& P(\\text{Type II})', '&= 1 - \\Phi(3.355)', '&= 0.0004'),
               prose('At a fixed level, P(Type II) falls as $n$ grows.'),
             ),
             ask('hyp-beta-n-table', 2),

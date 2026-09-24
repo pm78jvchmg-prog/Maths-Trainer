@@ -52,6 +52,7 @@ export const categories: Category[] = [
     'Derivatives, complex numbers, and the machinery behind them.',
     discovered,
   ),
+  tab('mechanics', 'Mechanics', 'How things move: motion graphs, the equations of constant acceleration, and gravity.', discovered),
 ];
 
 /** Every course, flattened, in the order the categories list them. */

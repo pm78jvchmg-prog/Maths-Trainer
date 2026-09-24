@@ -12,7 +12,12 @@
  * Level 4 solves `y'' + by' + cy = 0` through its auxiliary equation, drawing
  * the roots first (two real, one repeated, or α ± βi) and building b and c
  * from them, and the constants A and B first when a particular solution is
- * asked, so that y(0) and y'(0) are read off them.
+ * asked, so that y(0) and y'(0) are read off them. Level 5 solves
+ * `y'' + by' + cy = f(x)` as complementary function plus particular integral,
+ * for a polynomial, exponential or trigonometric f(x) and the resonant case
+ * where f(x) is already in the complementary function. The particular
+ * integral is drawn first and put through the left side to make f(x), so its
+ * coefficients come out whole when the learner compares them.
  *
  * Every number the learner meets is whole by construction. A rate constant
  * that has to be a logarithm is written as one, `k = (ln 2)/3`, so that the
@@ -28,7 +33,10 @@
  * The oracle in `generators.test.ts` differentiates a `source` in x only, and
  * nothing here is a plain derivative in x. `differentialEquations.test.ts`
  * differentiates each solution with mathjs and checks it satisfies its
- * equation, across seeds and both difficulties.
+ * equation, across seeds and both difficulties. Level 5's typed answers are
+ * a number or a particular integral, neither a derivative nor an integral of
+ * anything shown, so they declare no `source` or `integrand` either: the
+ * course test puts each one back into its equation.
  */
 import type { Block, Generator, KeypadKey, Slide, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
@@ -5659,6 +5667,1357 @@ const deIvpFit: Generator<SecondIvp> = {
   ],
 };
 
+/* ============================================================
+ * Level 5: non-homogeneous second order
+ * ============================================================ */
+
+/**
+ * A particular integral, drawn before its equation: f(x) is what it gives when
+ * put into `y'' + by' + cy`, so every coefficient of f(x) is whole.
+ *
+ * - `poly`: coefficients low power first, `[ν, μ, λ]` for λx^2 + μx + ν.
+ * - `exp`: λx^n e^{kx}, where n is how many times k is a root of the
+ *   auxiliary equation: 0 unless the question is about resonance.
+ * - `trig`: x^n(λ cos ωx + μ sin ωx), with n = 1 only for `y'' + ω^2y`, the
+ *   one equation whose complementary function holds cos ωx and sin ωx.
+ */
+export type Particular =
+  | { type: 'poly'; c: number[] }
+  | { type: 'exp'; k: number; lambda: number; n: number }
+  | { type: 'trig'; w: number; lambda: number; mu: number; n: number };
+
+export interface NonHomDe extends SecondDe {
+  pi: Particular;
+}
+
+/** f(x): polynomial coefficients low power first, an exponential's coefficient, or a cosine's and a sine's. */
+export type Forcing =
+  | { type: 'poly'; c: number[] }
+  | { type: 'exp'; k: number; F: number }
+  | { type: 'trig'; w: number; cos: number; sin: number };
+
+/** k^2 + bk + c, the auxiliary polynomial at k. */
+const auxAt = (de: SecondDe, k: number): number => k * k + secondB(de) * k + secondC(de);
+
+/**
+ * y'' + by' + cy with y the particular integral. `second` false drops the
+ * y'' term, which is the slip of forgetting it; it is only ever asked of a
+ * particular integral with n = 0.
+ */
+export function forcingOf(pi: Particular, b: number, c: number, second = true): Forcing {
+  const s = second ? 1 : 0;
+  if (pi.type === 'poly') {
+    const [n0 = 0, n1 = 0, n2 = 0] = pi.c;
+    return { type: 'poly', c: [c * n0 + b * n1 + 2 * s * n2, c * n1 + 2 * b * n2, c * n2].slice(0, pi.c.length) };
+  }
+  if (pi.type === 'exp') {
+    const { k, lambda, n } = pi;
+    // With k a root n times, only the n-th derivative of the auxiliary polynomial survives.
+    const factor = n === 0 ? s * k * k + b * k + c : n === 1 ? 2 * k + b : 2;
+    return { type: 'exp', k, F: lambda * factor };
+  }
+  const { w, lambda, mu, n } = pi;
+  if (n === 1) return { type: 'trig', w, cos: 2 * w * mu, sin: -2 * w * lambda };
+  const K = c - s * w * w;
+  const M = b * w;
+  return { type: 'trig', w, cos: K * lambda + M * mu, sin: K * mu - M * lambda };
+}
+
+/** The right side of the equation, built from its particular integral. */
+export const forcing = (de: NonHomDe): Forcing => forcingOf(de.pi, secondB(de), secondC(de));
+
+/** A polynomial as the learner reads it, from coefficients low power first. */
+const polyOf = (c: number[]): string => terms([[c[2] ?? 0, 'x^{2}'], [c[1] ?? 0, 'x'], [c[0] ?? 0, '']]);
+
+/** `x`, `x^{2}`, or nothing, in front of a particular integral's function. */
+const xPower = (n: number): string => (n === 0 ? '' : n === 1 ? 'x' : `x^{${n}}`);
+
+export function forcingTex(f: Forcing): string {
+  if (f.type === 'poly') return polyOf(f.c);
+  if (f.type === 'exp') return terms([[f.F, expX(f.k)]]);
+  return terms([[f.cos, trig('cos', f.w)], [f.sin, trig('sin', f.w)]]);
+}
+
+export function forcingAnswer(f: Forcing): string {
+  if (f.type === 'poly') return f.c.map((c, j) => (j === 0 ? `(${c})` : `(${c})*x^${j}`)).join(' + ');
+  if (f.type === 'exp') return `(${f.F})*e^((${f.k})*x)`;
+  return `(${f.cos})*cos((${f.w})*x) + (${f.sin})*sin((${f.w})*x)`;
+}
+
+export function piTex(pi: Particular): string {
+  if (pi.type === 'poly') return polyOf(pi.c);
+  const x = xPower(pi.n);
+  if (pi.type === 'exp') return terms([[pi.lambda, `${x}${expX(pi.k)}`]]);
+  return terms([[pi.lambda, `${x}${trig('cos', pi.w)}`], [pi.mu, `${x}${trig('sin', pi.w)}`]]);
+}
+
+/** The particular integral for mathjs. */
+export function piAnswer(pi: Particular): string {
+  if (pi.type === 'poly') return pi.c.map((c, j) => (j === 0 ? `(${c})` : `(${c})*x^${j}`)).join(' + ');
+  const x = pi.n === 0 ? '' : `x^${pi.n}*`;
+  if (pi.type === 'exp') return `(${pi.lambda})*${x}e^((${pi.k})*x)`;
+  return `${x}((${pi.lambda})*cos((${pi.w})*x) + (${pi.mu})*sin((${pi.w})*x))`;
+}
+
+/** The trial function, with its unknown coefficients as Greek letters. */
+export function trialTex(pi: Particular): string {
+  if (pi.type === 'poly') return ['\\lambda', '\\lambda x + \\mu', '\\lambda x^{2} + \\mu x + \\nu'][pi.c.length - 1];
+  const x = xPower(pi.n);
+  if (pi.type === 'exp') return `\\lambda ${x}${expX(pi.k)}`;
+  return `\\lambda ${x}${trig('cos', pi.w)} + \\mu ${x}${trig('sin', pi.w)}`;
+}
+
+/** The particular integral's value and gradient at x = 0. */
+export function piAtZero(pi: Particular): [number, number] {
+  if (pi.type === 'poly') return [pi.c[0], pi.c[1] ?? 0];
+  if (pi.type === 'exp') return pi.n === 0 ? [pi.lambda, pi.lambda * pi.k] : pi.n === 1 ? [0, pi.lambda] : [0, 0];
+  return pi.n === 0 ? [pi.lambda, pi.w * pi.mu] : [0, pi.lambda];
+}
+
+/** The same particular integral times s, for the slip of a sign or a factor. */
+function scaledPi(pi: Particular, s: number): Particular {
+  if (pi.type === 'poly') return { ...pi, c: pi.c.map((c) => s * c) };
+  if (pi.type === 'exp') return { ...pi, lambda: s * pi.lambda };
+  return { ...pi, lambda: s * pi.lambda, mu: s * pi.mu };
+}
+
+/** Its derivative, the same kind of function again. Only for n = 0. */
+function derivativeOf(pi: Particular): Particular {
+  if (pi.type === 'poly') {
+    const c = pi.c.slice(1).map((value, j) => value * (j + 1));
+    return { type: 'poly', c: c.length === 0 ? [0] : c };
+  }
+  if (pi.type === 'exp') return { ...pi, lambda: pi.lambda * pi.k };
+  return { ...pi, lambda: pi.w * pi.mu, mu: -pi.w * pi.lambda };
+}
+
+/**
+ * Slips in differentiating g, the particular integral or its derivative: a
+ * sign, a chain-rule factor left off or doubled, a power not brought down.
+ */
+function derivativeSlips(g: Particular): Particular[] {
+  const right = derivativeOf(g);
+  if (g.type === 'poly' && right.type === 'poly') {
+    if (g.c.length === 1) return [{ type: 'poly', c: [g.c[0]] }, { type: 'poly', c: [-g.c[0]] }, { type: 'poly', c: [0, g.c[0]] }];
+    return [
+      scaledPi(right, -1),
+      { type: 'poly', c: [0, ...right.c] },
+      { type: 'poly', c: g.c.slice(1) },
+      { type: 'poly', c: [g.c[0], ...right.c.slice(1)] },
+    ];
+  }
+  if (g.type === 'exp' && right.type === 'exp') {
+    return [scaledPi(right, -1), g, { ...right, k: -g.k }, scaledPi(right, 2)];
+  }
+  if (g.type === 'trig' && right.type === 'trig') {
+    return [
+      scaledPi(right, -1),
+      { ...g, lambda: g.mu, mu: -g.lambda },
+      { ...right, mu: -right.mu },
+      scaledPi(right, 2),
+    ];
+  }
+  return [];
+}
+
+/** `+ 3x - 1` or `- 2e^{x}`, for appending a whole expression to a solution. */
+const plusTex = (tex: string): string => (tex.startsWith('-') ? `- ${tex.slice(1)}` : `+ ${tex}`);
+
+/**
+ * The equation, with its right side. Written with primes, as the level's
+ * teaching is: two stacked fractions and a cosine and a sine on the right run
+ * off a phone.
+ */
+export function nonHomTex(de: NonHomDe): string {
+  return `${terms([[1, "y''"], [secondB(de), "y'"], [secondC(de), 'y']])} = ${forcingTex(forcing(de))}`;
+}
+
+/**
+ * A rough width in characters, exponents counted small and the spacing round
+ * an operator counted as a character. Measured across every draw of this
+ * level in Chromium, a display runs about 13 px a character plus 25.
+ */
+function roughWidth(tex: string): number {
+  const exponents = [...tex.matchAll(/\^\{([^}]*)\}/g)].reduce((sum, m) => sum + m[1].length * 0.7, 0);
+  const plain = tex.replace(/\^\{[^}]*\}/g, '').replace(/\\(cos|sin) /g, '$1').replace(/'/g, '');
+  const operators = (plain.match(/ [-+=] /g) ?? []).length;
+  return plain.replace(/ /g, '').length + exponents + operators * 1.2;
+}
+
+/**
+ * The equation as it is displayed: broken after the left side when one line
+ * would run past 300 px, which a cosine and a sine on the right, or a
+ * quadratic, will do on a phone.
+ */
+export function shownTex(de: NonHomDe): string {
+  const line = nonHomTex(de);
+  if (roughWidth(line) <= 20) return line;
+  const [lhs, rhs] = line.split(' = ');
+  return `\\begin{aligned} &${lhs} \\\\ &= ${rhs} \\end{aligned}`;
+}
+
+/** The left side in primes, for a line that puts a function in. */
+const lhsPrimes = (de: SecondDe): string => terms([[1, "y''"], [secondB(de), "y'"], [secondC(de), 'y']]);
+
+/** The general solution: complementary function plus particular integral. */
+export const fullGeneralTex = (de: NonHomDe): string => `${secondGeneralTex(de)} ${plusTex(piTex(de.pi))}`;
+
+/** A particular solution, with A and B numbers. */
+export const fullParticularTex = (de: NonHomDe, A: number, B: number): string =>
+  `${secondParticularTex(de, A, B)} ${plusTex(piTex(de.pi))}`;
+
+/** y(0) and y'(0) of the whole solution. */
+export function fullAtZero(de: NonHomDe, A: number, B: number): [number, number] {
+  const [y0, v0] = atZero(de, A, B);
+  const [p0, p1] = piAtZero(de.pi);
+  return [y0 + p0, v0 + p1];
+}
+
+const piNumbers = (pi: Particular): number[] =>
+  pi.type === 'poly' ? [1, ...pi.c] : pi.type === 'exp' ? [2, pi.k, pi.lambda, pi.n] : [3, pi.w, pi.lambda, pi.mu, pi.n];
+
+const nhSalt = (de: NonHomDe, ...more: number[]): number => secondSalt(de, ...piNumbers(de.pi), ...more);
+
+/** The kinds of root an equation is drawn with: mostly two real roots at difficulty 1. */
+const baseKinds = (difficulty: number): SecondDe['kind'][] =>
+  difficulty >= 2 ? ['real', 'repeated', 'complex'] : ['real', 'real', 'real', 'repeated'];
+
+/** The left side, with smaller roots than level 4 so that f(x) stays readable. */
+function sampleBase(rng: Rng, difficulty: number, kinds: SecondDe['kind'][]): SecondDe {
+  const hard = difficulty >= 2;
+  const kind = rng.pick(kinds);
+  const shown = { written: 'standard' as const, scale: 1 };
+  if (kind === 'repeated') {
+    const p = nonzero(rng, hard ? 3 : 2);
+    return { kind, p, q: p, ...shown };
+  }
+  if (kind === 'complex') return { kind, p: rng.int(-2, 2), q: rng.int(1, hard ? 3 : 2), ...shown };
+  for (;;) {
+    const one = nonzero(rng, hard ? 4 : 3);
+    const two = nonzero(rng, hard ? 4 : 3);
+    if (one !== two) return { kind, p: Math.min(one, two), q: Math.max(one, two), ...shown };
+  }
+}
+
+type PiType = 'const' | 'linear' | 'quad' | 'exp' | 'trig' | 'resExp' | 'resTrig';
+
+/** A particular integral of the type asked for that suits this left side, or nothing if it cannot. */
+function samplePi(rng: Rng, de: SecondDe, type: PiType, hard: boolean): Particular | undefined {
+  const b = secondB(de);
+  const c = secondC(de);
+  switch (type) {
+    case 'const':
+      return { type: 'poly', c: [nonzero(rng, hard ? 5 : 4)] };
+    case 'linear':
+      // With no y' term a linear trial has nothing to compare but two divisions.
+      return b === 0 ? undefined : { type: 'poly', c: [rng.int(-4, 4), nonzero(rng, 3)] };
+    case 'quad':
+      return { type: 'poly', c: [rng.int(-4, 4), rng.int(-4, 4), nonzero(rng, hard ? 3 : 2)] };
+    case 'exp': {
+      const k = nonzero(rng, 3);
+      // No y' term leaves too few slips to offer; k = α would let e^{kx} stand in for the complementary function's factor.
+      if (b === 0 || auxAt(de, k) === 0 || (de.kind === 'complex' && k === de.p)) return undefined;
+      return { type: 'exp', k, lambda: nonzero(rng, hard ? 4 : 3), n: 0 };
+    }
+    case 'trig': {
+      const w = rng.int(1, hard ? 3 : 2);
+      const K = c - w * w;
+      const M = b * w;
+      // With K or M zero a single cosine or sine would do, and the lesson is that it will not.
+      if (K === 0 || M === 0) return undefined;
+      const form = rng.pick(['cos', 'sin', 'both'] as const);
+      if (form === 'both') return { type: 'trig', w, lambda: nonzero(rng, 3), mu: nonzero(rng, 3), n: 0 };
+      // Built so that f(x) has the one term: λ and μ in the ratio that cancels the other.
+      const g = gcd(K, M);
+      const s = rng.sign();
+      const [lambda, mu] = form === 'cos' ? [(s * K) / g, (s * M) / g] : [(-s * M) / g, (s * K) / g];
+      return { type: 'trig', w, lambda, mu, n: 0 };
+    }
+    case 'resExp': {
+      if (de.kind === 'complex') return undefined;
+      const lambda = nonzero(rng, hard ? 4 : 3);
+      if (de.kind === 'repeated') return { type: 'exp', k: de.p, lambda, n: 2 };
+      return { type: 'exp', k: rng.chance(0.5) ? de.p : de.q, lambda, n: 1 };
+    }
+    case 'resTrig': {
+      if (de.kind !== 'complex' || de.p !== 0) return undefined;
+      const form = rng.pick(['cos', 'sin', 'both'] as const);
+      return {
+        type: 'trig',
+        w: de.q,
+        lambda: form === 'cos' ? 0 : nonzero(rng, 3),
+        mu: form === 'sin' ? 0 : nonzero(rng, 3),
+        n: 1,
+      };
+    }
+  }
+}
+
+const piCoefficients = (pi: Particular): number[] => (pi.type === 'poly' ? pi.c : pi.type === 'exp' ? [pi.lambda] : [pi.lambda, pi.mu]);
+
+const forcingCoefficients = (f: Forcing): number[] => (f.type === 'poly' ? f.c : f.type === 'exp' ? [f.F] : [f.cos, f.sin]);
+
+/** Roots that are not these, for a walk's first step: the signs flipped, or doubled. Never the roots themselves. */
+function rootSlips(de: SecondDe): SecondDe[] {
+  const { kind, p, q } = de;
+  if (kind === 'real') return [{ ...de, p: -q, q: -p }, { ...de, p: 2 * p, q: 2 * q }].filter((slip) => slip.p !== p || slip.q !== q);
+  if (kind === 'repeated') return [{ ...de, p: -p, q: -p }, { ...de, p: 2 * p, q: 2 * p }];
+  return [{ ...de, q: 2 * q }, p === 0 ? { ...de, p: q } : { ...de, p: -p }];
+}
+
+function sampleNonHom(rng: Rng, difficulty: number, types: PiType[], kinds = baseKinds(difficulty)): NonHomDe {
+  const hard = difficulty >= 2;
+  for (;;) {
+    const type = rng.pick(types);
+    const base: SecondDe =
+      type === 'resTrig'
+        ? { kind: 'complex', p: 0, q: rng.int(1, 3), written: 'standard', scale: 1 }
+        : sampleBase(rng, difficulty, type === 'resExp' ? kinds.filter((kind) => kind !== 'complex') : kinds);
+    const pi = samplePi(rng, base, type, hard);
+    if (!pi) continue;
+    const de = { ...base, pi };
+    if (piCoefficients(pi).every((v) => Math.abs(v) <= 8) && forcingCoefficients(forcing(de)).every((v) => Math.abs(v) <= 60)) return de;
+  }
+}
+
+/** Putting a particular integral in: its derivatives, then the left side. Only for n = 0. */
+function substituteSteps(de: NonHomDe): SolutionStep[] {
+  const first = derivativeOf(de.pi);
+  const second = derivativeOf(first);
+  return [
+    { text: 'Differentiate twice.', tex: chain(`y' &= ${piTex(first)}`, `y'' &= ${piTex(second)}`) },
+    {
+      text: `Put $y$, $y'$ and $y''$ into the left side and collect terms. It comes to $${forcingTex(forcing(de))}$, the right side.`,
+      tex: shownTex(de),
+    },
+  ];
+}
+
+/* ---------- Level 5, lesson 1: complementary function and particular integral ---------- */
+
+/** A constant right side: the particular integral is the constant that balances it. */
+const deNhConstant: Generator<NonHomDe & { hint: boolean }> = {
+  id: 'de-nh-constant',
+  sample: (rng, difficulty) => ({ ...sampleNonHom(rng, difficulty, ['const']), hint: difficulty < 2 }),
+  render: (de): Slide => ({
+    kind: 'expression',
+    prompt: [
+      prose(de.hint ? 'Find a particular integral of' : 'Find the constant particular integral of'),
+      display(shownTex(de)),
+      ...(de.hint ? [prose('The right side is a constant, so try a constant, $y = \\lambda$.')] : []),
+    ],
+    lead: 'y =',
+    keypad: [],
+    answer: piAnswer(de.pi),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (de) => {
+    const c = secondC(de);
+    const F = forcingTex(forcing(de));
+    return [
+      { text: "Try $y = \\lambda$. Then $y' = 0$ and $y'' = 0$, so only the $y$ term is left.", tex: `${terms([[c, '\\lambda']])} = ${F}` },
+      { text: `Divide by $${c}$.`, tex: `y = ${piTex(de.pi)}` },
+    ];
+  },
+};
+
+/** Check a particular integral by putting it in: y', then y'', then the left side. */
+const deNhCheckSteps: Generator<NonHomDe> = {
+  id: 'de-nh-check-steps',
+  sample: (rng, difficulty) => sampleNonHom(rng, difficulty, difficulty >= 2 ? ['quad', 'trig'] : ['exp', 'linear']),
+  render: (de): Slide => {
+    const b = secondB(de);
+    const c = secondC(de);
+    const first = derivativeOf(de.pi);
+    const second = derivativeOf(first);
+    const lhs = lhsPrimes(de);
+    const firstLine = `y' = ${piTex(first)}`;
+    const secondLine = `y'' = ${piTex(second)}`;
+    const last = `${lhs} = ${forcingTex(forcing(de))}`;
+    const lineSlips = (prefix: string, g: Particular, right: string): string[] =>
+      firstDistinct(right, derivativeSlips(g).map((slip) => `${prefix} = ${piTex(slip)}`), 3);
+    const lastSlips = [forcingOf(de.pi, -b, c), forcingOf(de.pi, b, c, false), scaledForcing(forcing(de), -1), forcingOf(de.pi, b, -c)].map(
+      (f) => `${lhs} = ${forcingTex(f)}`,
+    );
+    return {
+      kind: 'steps',
+      prompt: [
+        prose(
+          `Show that $y = ${piTex(de.pi)}$ is a particular integral of the equation below: tap the line for $y'$, again for $y''$, then again to put all three in.`,
+        ),
+        display(shownTex(de)),
+      ],
+      start: [`y = ${piTex(de.pi)}`],
+      reductions: [
+        { span: [0, 1], operator: 0, value: firstLine, bank: stepBank(firstLine, ...lineSlips("y'", de.pi, firstLine)) },
+        { span: [0, 1], operator: 0, value: secondLine, bank: stepBank(secondLine, ...lineSlips("y''", first, secondLine)) },
+        { span: [0, 1], operator: 0, value: last, bank: stepBank(last, ...firstDistinct(last, lastSlips, 3)) },
+      ],
+    };
+  },
+  solution: substituteSteps,
+};
+
+/** f(x) times s. */
+function scaledForcing(f: Forcing, s: number): Forcing {
+  if (f.type === 'poly') return { ...f, c: f.c.map((c) => s * c) };
+  if (f.type === 'exp') return { ...f, F: s * f.F };
+  return { ...f, cos: s * f.cos, sin: s * f.sin };
+}
+
+/** One solution of the equation with 0 on the right: e^{px}, xe^{px}, or e^{αx}cos βx. */
+function cfTermTex({ kind, p, q }: SecondDe): string {
+  if (kind === 'real') return expX(p);
+  if (kind === 'repeated') return `x${expX(p)}`;
+  return p === 0 ? trig('cos', q) : `${expX(p)}${trig('cos', q)}`;
+}
+
+/** Which of four functions is a particular integral. */
+const deNhWhichPi: Generator<NonHomDe> = {
+  id: 'de-nh-which-pi',
+  sample: (rng, difficulty) => sampleNonHom(rng, difficulty, difficulty >= 2 ? ['quad', 'trig', 'exp'] : ['exp', 'linear', 'const']),
+  render: (de): Slide => {
+    const answer = `y = ${piTex(de.pi)}`;
+    const slips = [
+      `y = ${forcingTex(forcing(de))}`,
+      `y = ${cfTermTex(de)}`,
+      `y = ${piTex(scaledPi(de.pi, -1))}`,
+      `y = ${piTex(scaledPi(de.pi, 2))}`,
+    ];
+    return choiceSlide(
+      [prose('Which of these is a particular integral of'), display(shownTex(de))],
+      [{ label: answer, tex: true, correct: true }, ...firstDistinct(answer, slips, 3).map((label) => ({ label, tex: true }))],
+      nhSalt(de),
+    );
+  },
+  solution: (de) => [
+    ...substituteSteps(de),
+    { text: `A function from the complementary function, such as $${cfTermTex(de)}$, gives $0$ instead; the others give a multiple of the right side, or something else.` },
+  ],
+};
+
+/** A walk: the auxiliary equation, the complementary function, then the general solution with the particular integral given. */
+const deNhGeneralFlow: Generator<NonHomDe> = {
+  id: 'de-nh-general-flow',
+  sample: (rng, difficulty) => sampleNonHom(rng, difficulty, difficulty >= 2 ? ['quad', 'trig', 'exp'] : ['exp', 'linear']),
+  render: (de): Slide => {
+    const b = secondB(de);
+    const c = secondC(de);
+    const salt = nhSalt(de);
+    const aux = `$${auxTex(de)}$`;
+    const cf = `$${secondGeneralTex(de)}$`;
+    const general = `$${fullGeneralTex(de)}$`;
+    const F = forcingTex(forcing(de));
+    return {
+      kind: 'flow',
+      prompt: [prose(`$y = ${piTex(de.pi)}$ is a particular integral of this equation. Find its general solution.`)],
+      subject: shownTex(de),
+      steps: [
+        {
+          id: 'aux',
+          ask: 'The auxiliary equation, from the left side, is',
+          branches: branchesOf(
+            { label: aux, to: 'cf' },
+            [
+              { label: `$${auxOf(-b, c)}$`, outcome: "$y'$ becomes $m$ with its coefficient, sign and all." },
+              { label: `$${auxOf(b, -c)}$`, outcome: '$y$ becomes $1$, keeping its coefficient and sign.' },
+            ],
+            salt,
+          ),
+        },
+        {
+          id: 'cf',
+          ask: 'Its roots give the complementary function',
+          branches: branchesOf(
+            { label: cf, to: 'general' },
+            firstDistinct(secondGeneralTex(de), solutionSlips(de), 2).map((slip) => ({
+              label: `$${slip}$`,
+              outcome: `The roots of $${auxTex(de)}$ are $${rootsTex(de)}$, which that does not use.`,
+            })),
+            salt >>> 4,
+          ),
+        },
+        {
+          id: 'general',
+          ask: 'So the general solution is',
+          branches: branchesOf(
+            { label: general, outcome: 'The complementary function carries the two constants, and the particular integral makes the right side.' },
+            [
+              { label: cf, outcome: 'That solves the equation with $0$ on the right. Add the particular integral.' },
+              ...(F !== piTex(de.pi)
+                ? [{ label: `$${secondGeneralTex(de)} ${plusTex(F)}$`, outcome: 'That adds the right side itself. Add the particular integral instead.' }]
+                : []),
+              { label: `$${secondGeneralTex(de)} ${plusTex(piTex(scaledPi(de.pi, -1)))}$`, outcome: 'The particular integral goes in with its own sign.' },
+            ],
+            salt >>> 8,
+          ),
+        },
+      ],
+      answer: [aux, cf, general],
+    };
+  },
+  solution: (de) => [
+    { text: 'With $0$ on the right, the auxiliary equation is', tex: auxTex(de) },
+    { text: `Its roots are $${rootsTex(de)}$, so the complementary function is`, tex: secondGeneralTex(de) },
+    // Inline, so a long solution can wrap: displayed, it runs off a phone.
+    { text: `Add the particular integral: $${fullGeneralTex(de)}$.` },
+  ],
+};
+
+/* ---------- Level 5, lesson 2: a polynomial right side ---------- */
+
+const POLY_TRIALS = ['\\lambda', '\\lambda x + \\mu', '\\lambda x^{2} + \\mu x + \\nu'];
+
+/** Trials of the wrong shape: a power missing, or the wrong degree. None can balance f(x). */
+const POLY_SLIPS = [
+  ['\\lambda x', '\\lambda x^{2}', `\\lambda ${expX(1)}`],
+  ['\\lambda x', '\\lambda', '\\lambda x^{2}'],
+  ['\\lambda x^{2}', '\\lambda x^{2} + \\mu', '\\lambda x + \\mu'],
+];
+
+/** Which trial function, from the degree of f(x). */
+const deNhPolyTrial: Generator<NonHomDe> = {
+  id: 'de-nh-poly-trial',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const de = sampleNonHom(rng, difficulty, difficulty >= 2 ? ['quad', 'quad', 'linear'] : ['linear', 'linear', 'const']);
+      // A zero coefficient would let a shorter trial work, and the point is that it cannot.
+      if (de.pi.type === 'poly' && de.pi.c.every((c) => c !== 0)) return de;
+    }
+  },
+  render: (de): Slide => {
+    const degree = de.pi.type === 'poly' ? de.pi.c.length - 1 : 0;
+    return choiceSlide(
+      [prose('Which trial function finds a particular integral of'), display(shownTex(de))],
+      [
+        { label: `y = ${POLY_TRIALS[degree]}`, tex: true, correct: true },
+        ...POLY_SLIPS[degree].map((trial) => ({ label: `y = ${trial}`, tex: true })),
+      ],
+      nhSalt(de),
+    );
+  },
+  solution: (de) => {
+    const degree = de.pi.type === 'poly' ? de.pi.c.length - 1 : 0;
+    return [
+      {
+        text:
+          degree === 0
+            ? 'The right side is a constant, so try a constant: its derivatives are $0$ and only the $y$ term is left.'
+            : `The right side has degree $${degree}$, so try a polynomial of degree $${degree}$ with every power below it too: $y'$ and $y''$ bring the lower powers in.`,
+        tex: `y = ${POLY_TRIALS[degree]}`,
+      },
+      { text: 'Here it gives', tex: `y = ${piTex(de.pi)}` },
+    ];
+  },
+};
+
+/** The left side after the polynomial trial goes in, collected by power. `bSign` and `second` make its slips. */
+function collectedPoly(degree: number, b: number, c: number, opts: { bSign?: number; second?: boolean } = {}): string {
+  const bb = (opts.bSign ?? 1) * b;
+  const s = opts.second === false ? 0 : 2;
+  const parts: [[number, string][], string][] =
+    degree === 1
+      ? [
+          [[[c, '\\lambda']], 'x'],
+          [[[bb, '\\lambda'], [c, '\\mu']], ''],
+        ]
+      : [
+          [[[c, '\\lambda']], 'x^{2}'],
+          [[[2 * bb, '\\lambda'], [c, '\\mu']], 'x'],
+          [[[s, '\\lambda'], [bb, '\\mu'], [c, '\\nu']], ''],
+        ];
+  const shown = parts.map(([combo, power]) => {
+    const kept = combo.filter(([k]) => k !== 0);
+    const inner = terms(kept);
+    if (power === '') return kept.length > 1 ? `(${inner})` : inner;
+    return kept.length > 1 ? `(${inner})${power}` : `${inner} ${power}`;
+  });
+  return shown.map((part, idx) => (idx === 0 ? part : plusTex(part))).join(' ');
+}
+
+/** Compare coefficients, top power first, as a tree. */
+const deNhPolyTree: Generator<NonHomDe> = {
+  id: 'de-nh-poly-tree',
+  sample: (rng, difficulty) => sampleNonHom(rng, difficulty, difficulty >= 2 ? ['quad'] : ['linear']),
+  render: (de): Slide => {
+    const c = secondC(de);
+    const coeffs = de.pi.type === 'poly' ? de.pi.c : [];
+    const top = forcing(de);
+    const F = top.type === 'poly' ? top.c : [];
+    const answer = [...coeffs].reverse();
+    const quad = coeffs.length === 3;
+    return {
+      kind: 'tree',
+      prompt: [
+        prose(
+          `Try $y = ${trialTex(de.pi)}$ for a particular integral. Put it in and compare coefficients, highest power of $x$ first.`,
+        ),
+        prose(quad ? 'Fill in $\\lambda$, then $\\mu$, then $\\nu$.' : 'Fill in $\\lambda$, then $\\mu$.'),
+      ],
+      expression: shownTex(de),
+      nodes: quad
+        ? [
+            { id: 'lambda', from: [] },
+            { id: 'mu', from: ['lambda'] },
+            { id: 'nu', from: ['lambda', 'mu'] },
+          ]
+        : [
+            { id: 'lambda', from: [] },
+            { id: 'mu', from: ['lambda'] },
+          ],
+      bank: treeBank(answer, [F[F.length - 1], -answer[0], ...answer.slice(1).map((v) => -v), c * answer[1]]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (de) => {
+    const b = secondB(de);
+    const c = secondC(de);
+    const degree = de.pi.type === 'poly' ? de.pi.c.length - 1 : 0;
+    const coeffs = de.pi.type === 'poly' ? de.pi.c : [];
+    const f = forcing(de);
+    const F = f.type === 'poly' ? f.c : [];
+    // The collected line split at its powers: x^2, then x, then the number.
+    const combos: [number, string][][] =
+      degree === 1
+        ? [[[c, '\\lambda']], [[b, '\\lambda'], [c, '\\mu']]]
+        : [[[c, '\\lambda']], [[2 * b, '\\lambda'], [c, '\\mu']], [[2, '\\lambda'], [b, '\\mu'], [c, '\\nu']]];
+    return [
+      {
+        text: `Put $y = ${trialTex(de.pi)}$ in, collect the powers of $x$, and compare each with the right side, top power first.`,
+        tex: chain(...combos.map((combo, idx) => `${terms(combo.filter(([k]) => k !== 0))} &= ${F[degree - idx]}`)),
+      },
+      { text: 'Each line gives one letter, using the ones found above it.', tex: lettersTex([...coeffs].reverse()) },
+      { text: 'So the particular integral is', tex: `y = ${piTex(de.pi)}` },
+    ];
+  },
+};
+
+/** The coefficients line: `\lambda = 2, \; \mu = -1`. */
+const lettersTex = (values: number[]): string =>
+  values.map((value, idx) => `${['\\lambda', '\\mu', '\\nu'][idx]} = ${value}`).join(', \\; ');
+
+/** Trial in, coefficients compared, particular integral written, one line at a time. */
+const deNhPolySteps: Generator<NonHomDe> = {
+  id: 'de-nh-poly-steps',
+  sample: (rng, difficulty) => sampleNonHom(rng, difficulty, difficulty >= 2 ? ['quad'] : ['linear']),
+  render: (de): Slide => {
+    const b = secondB(de);
+    const c = secondC(de);
+    const coeffs = de.pi.type === 'poly' ? de.pi.c : [];
+    const degree = coeffs.length - 1;
+    const f = forcing(de);
+    const F = f.type === 'poly' ? f.c : [];
+    const right = forcingTex(f);
+    const collected = `${collectedPoly(degree, b, c)} = ${right}`;
+    const values = [...coeffs].reverse();
+    const found = lettersTex(values);
+    const particular = `y = ${piTex(de.pi)}`;
+    const valueSlips: number[][] = [
+      values.map((v) => -v),
+      [...F].reverse(),
+      [values[0], ...values.slice(1).map((v) => -v)],
+      values.length > 1 && values[0] !== values[1] ? [values[1], values[0], ...values.slice(2)] : [],
+    ].filter((slip) => slip.length === values.length);
+    return {
+      kind: 'steps',
+      prompt: [
+        prose(
+          `Try $y = ${trialTex(de.pi)}$: tap the line to put it in and collect the powers of $x$, again to compare coefficients, and again for the particular integral of`,
+        ),
+        display(shownTex(de)),
+      ],
+      start: [`y = ${trialTex(de.pi)}`],
+      reductions: [
+        {
+          span: [0, 1],
+          operator: 0,
+          value: collected,
+          bank: stepBank(
+            collected,
+            ...firstDistinct(
+              collected,
+              [
+                collectedPoly(degree, b, c, { bSign: -1 }),
+                collectedPoly(degree, b, c, { second: false }),
+                collectedPoly(degree, b, -c),
+                collectedPoly(degree, b, 1),
+              ].map((lhs) => `${lhs} = ${right}`),
+              3,
+            ),
+          ),
+        },
+        { span: [0, 1], operator: 0, value: found, bank: stepBank(found, ...firstDistinct(found, valueSlips.map(lettersTex), 3)) },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: particular,
+          bank: stepBank(
+            particular,
+            ...firstDistinct(particular, [...valueSlips.map((slip) => `y = ${polyOf([...slip].reverse())}`), `y = ${right}`], 3),
+          ),
+        },
+      ],
+    };
+  },
+  solution: (de) => deNhPolyTree.solution(de),
+};
+
+/** The keypad for a typed particular integral: powers, e, sine and cosine, and no constant. */
+const PI_KEYS: KeypadKey[] = X_INTEGRAL_KEYS.filter((key) => key.insert !== 'C');
+
+/**
+ * The polynomial particular integral, typed. It declares no `source` or
+ * `integrand`: it is neither a derivative nor an integral of anything shown,
+ * so `differentialEquations.test.ts` puts it back into its equation instead.
+ */
+const deNhPolyPi: Generator<NonHomDe & { hint: boolean }> = {
+  id: 'de-nh-poly-pi',
+  sample: (rng, difficulty) =>
+    difficulty >= 2
+      ? { ...sampleNonHom(rng, difficulty, ['quad', 'quad', 'linear']), hint: false }
+      : { ...sampleNonHom(rng, difficulty, ['linear']), hint: true },
+  render: (de): Slide => ({
+    kind: 'expression',
+    prompt: de.hint
+      ? [prose('Find the particular integral of'), display(shownTex(de)), prose(`Try $y = ${trialTex(de.pi)}$.`)]
+      : [prose('Find the polynomial particular integral of'), display(shownTex(de))],
+    lead: 'y =',
+    keypad: PI_KEYS,
+    answer: piAnswer(de.pi),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (de) => deNhPolyTree.solution(de),
+};
+
+/* ---------- Level 5, lesson 3: an exponential right side ---------- */
+
+/** The number λe^{kx} comes to on the left, divided by λe^{kx}, written out: `(4 + 6 + 2)`. */
+const auxAtWorking = (de: SecondDe, k: number): string =>
+  `${k * k} ${signed(secondB(de) * k)} ${signed(secondC(de))} = ${auxAt(de, k)}`;
+
+function nhExpSolution(de: NonHomDe): SolutionStep[] {
+  if (de.pi.type !== 'exp') return [];
+  const { k, lambda } = de.pi;
+  const F = forcing(de);
+  return [
+    { text: `With $y = \\lambda ${expX(k)}$, $y' = ${terms([[k, `\\lambda ${expX(k)}`]])}$ and $y'' = ${terms([[k * k, `\\lambda ${expX(k)}`]])}$.` },
+    {
+      text: `Put them in: every term carries $\\lambda ${expX(k)}$, and the numbers in front add to $${auxAtWorking(de, k)}$.`,
+      tex: `${terms([[auxAt(de, k), `\\lambda ${expX(k)}`]])} = ${forcingTex(F)}`,
+    },
+    { text: `So $\\lambda = ${lambda}$, and the particular integral is`, tex: `y = ${piTex(de.pi)}` },
+  ];
+}
+
+/** λ for the trial λe^{kx}, typed. */
+const deNhExpValue: Generator<NonHomDe> = {
+  id: 'de-nh-exp-value',
+  sample: (rng, difficulty) => sampleNonHom(rng, difficulty, ['exp']),
+  render: (de): Slide => ({
+    kind: 'expression',
+    prompt: [prose(`Find $\\lambda$ so that $y = ${trialTex(de.pi)}$ is a particular integral of`), display(shownTex(de))],
+    lead: '\\lambda =',
+    keypad: [],
+    answer: `${de.pi.type === 'exp' ? de.pi.lambda : 0}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: nhExpSolution,
+};
+
+/** Trial in, λ found, particular integral written, one line at a time. */
+const deNhExpSteps: Generator<NonHomDe> = {
+  id: 'de-nh-exp-steps',
+  sample: (rng, difficulty) => sampleNonHom(rng, difficulty, ['exp']),
+  render: (de): Slide => {
+    const { k, lambda } = de.pi.type === 'exp' ? de.pi : { k: 1, lambda: 1 };
+    const b = secondB(de);
+    const c = secondC(de);
+    const f = forcing(de);
+    const F = f.type === 'exp' ? f.F : 0;
+    const right = forcingTex(f);
+    const E = expX(k);
+    const line = (factor: number) => `${terms([[factor, `\\lambda ${E}`]])} = ${right}`;
+    const substituted = line(auxAt(de, k));
+    const factorSlips = [k * k - b * k + c, b * k + c, k + b * k + c, k * k + b * k, -(k * k) + b * k + c].filter((v) => v !== 0);
+    const found = `\\lambda = ${lambda}`;
+    const particular = `y = ${piTex(de.pi)}`;
+    return {
+      kind: 'steps',
+      prompt: [
+        prose(`Try $y = \\lambda ${E}$: tap the line to put it in, again for $\\lambda$, and again for the particular integral of`),
+        display(shownTex(de)),
+      ],
+      start: [`y = \\lambda ${E}`],
+      reductions: [
+        { span: [0, 1], operator: 0, value: substituted, bank: stepBank(substituted, ...firstDistinct(substituted, factorSlips.map(line), 3)) },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: found,
+          bank: stepBank(found, ...firstDistinct(found, [F, -lambda, F * auxAt(de, k), F - auxAt(de, k)].map((v) => `\\lambda = ${v}`), 3)),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: particular,
+          bank: stepBank(
+            particular,
+            ...firstDistinct(
+              particular,
+              [terms([[F, E]]), terms([[lambda, expX(-k)]]), terms([[lambda, `x${E}`]]), terms([[-lambda, E]])].map((tex) => `y = ${tex}`),
+              3,
+            ),
+          ),
+        },
+      ],
+    };
+  },
+  solution: nhExpSolution,
+};
+
+/** The general solution with an exponential particular integral, as tiles. */
+const deNhExpGeneral: Generator<NonHomDe> = {
+  id: 'de-nh-exp-general',
+  sample: (rng, difficulty) => sampleNonHom(rng, difficulty, ['exp']),
+  render: (de): Slide => {
+    const { kind, p, q } = de;
+    const { k, lambda } = de.pi.type === 'exp' ? de.pi : { k: 1, lambda: 1 };
+    const f = forcing(de);
+    const F = f.type === 'exp' ? f.F : 0;
+    const pi = signedTerm(lambda, expX(k));
+    const piSlips = [signedTerm(F, expX(k)), signedTerm(-lambda, expX(k)), signedTerm(lambda, `x${expX(k)}`)];
+    const prompt = (form: string) => [prose(`Find the general solution, writing the complementary function as ${form}.`), display(shownTex(de))];
+    if (kind === 'real') {
+      const answer = [expX(p), expX(q), pi];
+      return {
+        kind: 'tiles',
+        prompt: prompt('$Ae^{px} + Be^{qx}$ with $p < q$'),
+        template: 'y = A{0} + B{1} {2}',
+        bank: tokenBank(answer, [expX(-p), expX(-q), expX(k), ...piSlips], 4),
+        answer,
+      };
+    }
+    if (kind === 'repeated') {
+      const answer = [expX(p), pi];
+      return {
+        kind: 'tiles',
+        prompt: prompt('$(A + Bx)e^{px}$'),
+        template: 'y = (A + Bx){0} {1}',
+        bank: tokenBank(answer, [expX(-p), expX(k), ...piSlips], 4),
+        answer,
+      };
+    }
+    if (p === 0) {
+      const answer = [trig('cos', q), trig('sin', q), pi];
+      return {
+        kind: 'tiles',
+        prompt: prompt('$A\\cos \\beta x + B\\sin \\beta x$'),
+        template: 'y = A{0} + B{1} {2}',
+        bank: tokenBank(answer, [trig('cos', 2 * q), expX(q), ...piSlips], 4),
+        answer,
+      };
+    }
+    const answer = [expX(p), trig('cos', q), trig('sin', q), pi];
+    return {
+      kind: 'tiles',
+      prompt: prompt('$e^{\\alpha x}(A\\cos \\beta x + B\\sin \\beta x)$'),
+      template: 'y = {0}(A{1} + B{2}) {3}',
+      bank: tokenBank(answer, [expX(-p), trig('cos', 2 * q), ...piSlips], 4),
+      answer,
+    };
+  },
+  solution: (de) => [
+    { text: 'The complementary function, from the auxiliary equation:', tex: auxTex(de) },
+    { text: `Its roots are $${rootsTex(de)}$, so`, tex: secondGeneralTex(de) },
+    ...nhExpSolution(de).slice(1),
+    { text: `The general solution is the two added: $${fullGeneralTex(de)}$.` },
+  ],
+};
+
+/** A walk: the roots, the trial that follows from them, then λ. */
+const deNhExpFlow: Generator<NonHomDe> = {
+  id: 'de-nh-exp-flow',
+  sample: (rng, difficulty) => sampleNonHom(rng, difficulty, ['exp']),
+  render: (de): Slide => {
+    const { k, lambda } = de.pi.type === 'exp' ? de.pi : { k: 1, lambda: 1 };
+    const f = forcing(de);
+    const F = f.type === 'exp' ? f.F : 0;
+    const salt = nhSalt(de);
+    const E = expX(k);
+    const roots = `$${rootsTex(de)}$`;
+    const trial = `$y = \\lambda ${E}$`;
+    const value = `$${lambda}$`;
+    return {
+      kind: 'flow',
+      prompt: [prose('Find a particular integral of this equation.')],
+      subject: shownTex(de),
+      steps: [
+        {
+          id: 'roots',
+          ask: `The auxiliary equation, $${auxTex(de)}$, has roots`,
+          branches: branchesOf(
+            { label: roots, to: 'trial' },
+            rootSlips(de).map((slip) => ({ label: `$${rootsTex(slip)}$`, outcome: 'Put one back in: it does not make the auxiliary equation zero.' })),
+            salt,
+          ),
+        },
+        {
+          id: 'trial',
+          ask: 'So for a particular integral, try',
+          branches: branchesOf(
+            { label: trial, to: 'value' },
+            [
+              { label: `$y = \\lambda x${E}$`, outcome: `The extra $x$ is only needed when $${k}$ is a root, and it is not.` },
+              { label: '$y = \\lambda$', outcome: 'A constant only balances a constant right side.' },
+            ],
+            salt >>> 4,
+          ),
+        },
+        {
+          id: 'value',
+          ask: `Put it in: $\\lambda$ is`,
+          branches: branchesOf(
+            { label: value, outcome: `So $y = ${piTex(de.pi)}$.` },
+            [
+              { label: `$${F}$`, outcome: `That is the right side's coefficient. Divide it by $k^2 + bk + c = ${auxAt(de, k)}$ first.` },
+              { label: `$${-lambda}$`, outcome: 'Check the sign: the left side has to come to the right side exactly.' },
+            ],
+            salt >>> 8,
+          ),
+        },
+      ],
+      answer: [roots, trial, value],
+    };
+  },
+  solution: (de) => [
+    { text: 'The auxiliary equation:', tex: auxTex(de) },
+    { text: `Its roots are $${rootsTex(de)}$, and $${de.pi.type === 'exp' ? de.pi.k : 0}$ is not one of them.` },
+    ...nhExpSolution(de),
+  ],
+};
+
+/* ---------- Level 5, lesson 4: a trigonometric right side ---------- */
+
+/** K = c - ω^2 and M = bω: what cos and sin pick up when the trial goes in. */
+function trigKM(de: NonHomDe): { K: number; M: number; w: number; lambda: number; mu: number } {
+  const { w, lambda, mu } = de.pi.type === 'trig' ? de.pi : { w: 1, lambda: 0, mu: 0 };
+  return { K: secondC(de) - w * w, M: secondB(de) * w, w, lambda, mu };
+}
+
+/** The two equations comparing cosines and sines, on one line or stacked for a worked solution. */
+function trigEquations(K: number, M: number, f: Forcing, stacked = false): string {
+  if (f.type !== 'trig') return '';
+  const [first, second] = [`${terms([[K, '\\lambda'], [M, '\\mu']])}`, `${terms([[-M, '\\lambda'], [K, '\\mu']])}`];
+  return stacked ? chain(`${first} &= ${f.cos}`, `${second} &= ${f.sin}`) : `${first} = ${f.cos}, \\; ${second} = ${f.sin}`;
+}
+
+function trigSolution(de: NonHomDe): SolutionStep[] {
+  const { K, M, w, lambda, mu } = trigKM(de);
+  const f = forcing(de);
+  return [
+    {
+      text: `With $y = ${trialTex(de.pi)}$, $y'' = ${terms([[-w * w, 'y']])}$, so $y''$ and $${terms([[secondC(de), 'y']])}$ together give $${terms([[K, 'y']])}$. The $${terms([[secondB(de), "y'"]])}$ term turns cosines into sines and back.`,
+    },
+    {
+      text: `Compare the cosines and the sines, with $K = c - \\omega^2 = ${K}$ and $M = b\\omega = ${M}$:`,
+      tex: trigEquations(K, M, f, true),
+    },
+    { text: `Solve them together: $${lettersTex([lambda, mu])}$, so`, tex: `y = ${piTex(de.pi)}` },
+  ];
+}
+
+const sampleTrig = (rng: Rng, difficulty: number): NonHomDe => sampleNonHom(rng, difficulty, ['trig']);
+
+/** Which trial function: both a cosine and a sine, even when f(x) has one of them. */
+const deNhTrigTrial: Generator<NonHomDe> = {
+  id: 'de-nh-trig-trial',
+  sample: sampleTrig,
+  render: (de): Slide => {
+    const { w } = trigKM(de);
+    const f = forcing(de);
+    const cosOnly = `y = \\lambda ${trig('cos', w)}`;
+    const sinOnly = `y = \\lambda ${trig('sin', w)}`;
+    const singles = f.type === 'trig' && f.cos === 0 ? [sinOnly, cosOnly] : [cosOnly, sinOnly];
+    return choiceSlide(
+      [prose('Which trial function finds a particular integral of'), display(shownTex(de))],
+      [
+        { label: `y = ${trialTex(de.pi)}`, tex: true, correct: true },
+        ...singles.map((label) => ({ label, tex: true })),
+        { label: `y = \\lambda x${trig('cos', w)} + \\mu x${trig('sin', w)}`, tex: true },
+      ].slice(0, 4),
+      nhSalt(de),
+    );
+  },
+  solution: (de) => [
+    {
+      text: `Differentiating a cosine gives a sine, so the $y'$ term brings a sine in even when the right side has only a cosine, and the other way round. Try both:`,
+      tex: `y = ${trialTex(de.pi)}`,
+    },
+    { text: 'The extra $x$ is only for a cosine and sine already in the complementary function, and these are not.' },
+  ],
+};
+
+/** K and M, then λ and μ, as a tree. */
+const deNhTrigTree: Generator<NonHomDe> = {
+  id: 'de-nh-trig-tree',
+  sample: sampleTrig,
+  render: (de): Slide => {
+    const { K, M, w, lambda, mu } = trigKM(de);
+    const answer = [K, M, lambda, mu];
+    return {
+      kind: 'tree',
+      prompt: [
+        prose(
+          `Try $y = ${trialTex(de.pi)}$. Put in, it gives $(K\\lambda + M\\mu)${trig('cos', w)} + (K\\mu - M\\lambda)${trig('sin', w)}$, where $K = c - \\omega^2$ and $M = b\\omega$.`,
+        ),
+        prose('Fill in $K$ and $M$, then $\\lambda$ and $\\mu$.'),
+      ],
+      expression: shownTex(de),
+      nodes: [
+        { id: 'K', from: [] },
+        { id: 'M', from: [] },
+        { id: 'lambda', from: ['K', 'M'] },
+        { id: 'mu', from: ['K', 'M'] },
+      ],
+      bank: treeBank(answer, [secondC(de) + w * w, -M, -lambda, -mu, secondB(de)]),
+      answer: answer.map(String),
+    };
+  },
+  solution: trigSolution,
+};
+
+/** Trial in, two equations, λ and μ, particular integral, one line at a time. */
+const deNhTrigSteps: Generator<NonHomDe> = {
+  id: 'de-nh-trig-steps',
+  sample: sampleTrig,
+  render: (de): Slide => {
+    const { K, M, w, lambda, mu } = trigKM(de);
+    const f = forcing(de);
+    const c = secondC(de);
+    const equations = trigEquations(K, M, f);
+    const found = lettersTex([lambda, mu]);
+    const particular = `y = ${piTex(de.pi)}`;
+    const pairs: [number, number][] = [[mu, lambda], [-lambda, -mu], [lambda, -mu], [-lambda, mu]];
+    const pairSlips = pairs.filter(([l, m]) => l !== lambda || m !== mu);
+    return {
+      kind: 'steps',
+      prompt: [
+        prose(
+          `Try $y = ${trialTex(de.pi)}$: tap the line to put it in and compare the cosines and the sines, again to solve for $\\lambda$ and $\\mu$, and again for the particular integral of`,
+        ),
+        display(shownTex(de)),
+      ],
+      start: [`y = ${trialTex(de.pi)}`],
+      reductions: [
+        {
+          span: [0, 1],
+          operator: 0,
+          value: equations,
+          bank: stepBank(
+            equations,
+            ...firstDistinct(equations, [trigEquations(K, -M, f), trigEquations(c + w * w, M, f), trigEquations(c, M, f), trigEquations(M, K, f)], 3),
+          ),
+        },
+        { span: [0, 1], operator: 0, value: found, bank: stepBank(found, ...firstDistinct(found, pairSlips.map(lettersTex), 3)) },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: particular,
+          bank: stepBank(
+            particular,
+            ...firstDistinct(
+              particular,
+              [...pairSlips.map(([l, m]) => `y = ${piTex({ type: 'trig', w, lambda: l, mu: m, n: 0 })}`), `y = ${forcingTex(f)}`],
+              3,
+            ),
+          ),
+        },
+      ],
+    };
+  },
+  solution: trigSolution,
+};
+
+/** λ or μ, typed. */
+const deNhTrigPart: Generator<NonHomDe & { letter: 'lambda' | 'mu' }> = {
+  id: 'de-nh-trig-part',
+  sample: (rng, difficulty) => ({ ...sampleTrig(rng, difficulty), letter: rng.chance(0.5) ? 'lambda' : 'mu' }),
+  render: (de): Slide => {
+    const { lambda, mu } = trigKM(de);
+    return {
+      kind: 'expression',
+      prompt: [
+        prose(`This equation has a particular integral $y = ${trialTex(de.pi)}$. Find $\\${de.letter}$.`),
+        display(shownTex(de)),
+      ],
+      lead: `\\${de.letter} =`,
+      keypad: [],
+      answer: `${de.letter === 'lambda' ? lambda : mu}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: trigSolution,
+};
+
+/* ---------- Level 5, lesson 5: resonance and initial conditions ---------- */
+
+/** The trial with its x, and a wrong one for each kind of resonance. */
+function resonantTrials(de: NonHomDe): { right: string; plain: string; wrong: string; plainWhy: string; wrongWhy: string } {
+  const { pi } = de;
+  if (pi.type === 'exp') {
+    const E = expX(pi.k);
+    const plain = `\\lambda ${E}`;
+    return pi.n === 2
+      ? {
+          right: `\\lambda x^{2}${E}`,
+          plain,
+          wrong: `\\lambda x${E}`,
+          plainWhy: `$${E}$ is in the complementary function, so it gives $0$ on the left.`,
+          wrongWhy: `The root repeats, so $x${E}$ is in the complementary function too: go up to $x^2$.`,
+        }
+      : {
+          right: `\\lambda x${E}`,
+          plain,
+          wrong: `\\lambda x^{2}${E}`,
+          plainWhy: `$${E}$ is in the complementary function, so it gives $0$ on the left.`,
+          wrongWhy: `$${pi.k}$ is a root only once, so one factor of $x$ is enough.`,
+        };
+  }
+  const w = pi.type === 'trig' ? pi.w : 1;
+  return {
+    right: `\\lambda x${trig('cos', w)} + \\mu x${trig('sin', w)}`,
+    plain: `\\lambda ${trig('cos', w)} + \\mu ${trig('sin', w)}`,
+    wrong: `\\lambda x^{2}${trig('cos', w)} + \\mu x^{2}${trig('sin', w)}`,
+    plainWhy: `Both are in the complementary function, so they give $0$ on the left.`,
+    wrongWhy: 'The roots do not repeat, so one factor of $x$ is enough.',
+  };
+}
+
+/** The particular integral a resonant trial gives, worked. */
+function resonantSolution(de: NonHomDe): SolutionStep[] {
+  const { right } = resonantTrials(de);
+  const { pi } = de;
+  const F = forcingTex(forcing(de));
+  const put =
+    pi.type === 'exp'
+      ? pi.n === 1
+        ? `Put in, the $x${expX(pi.k)}$ terms cancel, leaving $${terms([[2 * pi.k + secondB(de), `\\lambda ${expX(pi.k)}`]])} = ${F}$.`
+        : `Put in, the $x^2$ and $x$ terms cancel, leaving $2\\lambda ${expX(pi.k)} = ${F}$.`
+      : pi.type === 'trig'
+        ? `Put in, the $x$ terms cancel, leaving $${terms([[2 * pi.w, `\\mu ${trig('cos', pi.w)}`], [-2 * pi.w, `\\lambda ${trig('sin', pi.w)}`]])} = ${F}$.`
+        : '';
+  return [
+    { text: `The right side is already part of the complementary function $${secondGeneralTex(de)}$, so multiply the usual trial by $x$${pi.type === 'exp' && pi.n === 2 ? ' twice, since the root repeats' : ''}:`, tex: `y = ${right}` },
+    { text: put },
+    { text: 'So the particular integral is', tex: `y = ${piTex(pi)}` },
+  ];
+}
+
+const sampleResonant = (rng: Rng, difficulty: number): NonHomDe =>
+  difficulty >= 2 ? sampleNonHom(rng, difficulty, ['resExp', 'resExp', 'resTrig']) : sampleNonHom(rng, difficulty, ['resExp'], ['real']);
+
+/** A walk: the roots, the trial with its x, then the particular integral. */
+const deNhResFlow: Generator<NonHomDe> = {
+  id: 'de-nh-res-flow',
+  sample: sampleResonant,
+  render: (de): Slide => {
+    const salt = nhSalt(de);
+    const { right, plain, wrong, plainWhy, wrongWhy } = resonantTrials(de);
+    const roots = `$${rootsTex(de)}$`;
+    const trial = `$y = ${right}$`;
+    const answer = `$y = ${piTex(de.pi)}$`;
+    const { pi } = de;
+    // The right side's coefficient left undivided, or the cosine's and sine's coefficients crossed over.
+    const unhalved: Particular =
+      pi.type === 'exp' ? { ...pi, lambda: forcingCoefficients(forcing(de))[0] } : pi.type === 'trig' ? { ...pi, lambda: pi.mu, mu: pi.lambda } : pi;
+    return {
+      kind: 'flow',
+      prompt: [prose('Find a particular integral of this equation.')],
+      subject: shownTex(de),
+      steps: [
+        {
+          id: 'roots',
+          ask: `The auxiliary equation, $${auxTex(de)}$, has roots`,
+          branches: branchesOf(
+            { label: roots, to: 'trial' },
+            rootSlips(de).map((slip) => ({ label: `$${rootsTex(slip)}$`, outcome: 'Put one back in: it does not make the auxiliary equation zero.' })),
+            salt,
+          ),
+        },
+        {
+          id: 'trial',
+          ask: 'The right side is in the complementary function, so try',
+          branches: branchesOf(
+            { label: trial, to: 'pi' },
+            [
+              { label: `$y = ${plain}$`, outcome: plainWhy },
+              { label: `$y = ${wrong}$`, outcome: wrongWhy },
+            ],
+            salt >>> 4,
+          ),
+        },
+        {
+          id: 'pi',
+          ask: 'Put it in and compare: the particular integral is',
+          branches: branchesOf(
+            { label: answer, outcome: 'The $x$ terms cancel, and what is left matches the right side.' },
+            [
+              { label: `$y = ${piTex(unhalved)}$`, outcome: 'Put it back in: it does not give the right side. Compare the coefficients again.' },
+              { label: `$y = ${piTex(scaledPi(pi, -1))}$`, outcome: 'Check the sign: that gives the right side with the opposite sign.' },
+            ],
+            salt >>> 8,
+          ),
+        },
+      ],
+      answer: [roots, trial, answer],
+    };
+  },
+  solution: (de) => [{ text: 'The auxiliary equation:', tex: auxTex(de) }, { text: `Its roots are $${rootsTex(de)}$.` }, ...resonantSolution(de)],
+};
+
+/** The coefficient of a resonant trial, typed. For a cosine and sine, the one that is not zero. */
+const deNhResValue: Generator<NonHomDe & { letter: 'lambda' | 'mu' }> = {
+  id: 'de-nh-res-value',
+  sample: (rng, difficulty) => {
+    const de = sampleResonant(rng, difficulty);
+    const { pi } = de;
+    const letter = pi.type === 'trig' && (pi.lambda === 0 || (pi.mu !== 0 && rng.chance(0.5))) ? 'mu' : 'lambda';
+    return { ...de, letter };
+  },
+  render: (de): Slide => {
+    const { right } = resonantTrials(de);
+    const { pi } = de;
+    const value = pi.type === 'exp' ? pi.lambda : pi.type === 'trig' ? (de.letter === 'mu' ? pi.mu : pi.lambda) : 0;
+    return {
+      kind: 'expression',
+      prompt: [
+        prose(`The right side of this equation is already part of its complementary function. Try $y = ${right}$ and find $\\${de.letter}$.`),
+        display(shownTex(de)),
+      ],
+      lead: `\\${de.letter} =`,
+      keypad: [],
+      answer: `${value}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: resonantSolution,
+};
+
+/** A particular integral and the constants of the whole solution, drawn first. */
+export interface NonHomIvp extends NonHomDe {
+  A: number;
+  B: number;
+}
+
+function sampleNonHomIvp(rng: Rng, difficulty: number): NonHomIvp {
+  const de = sampleNonHom(rng, difficulty, difficulty >= 2 ? ['exp', 'quad', 'trig', 'resExp'] : ['exp', 'linear', 'const']);
+  return { ...de, A: nonzero(rng, difficulty >= 2 ? 4 : 3), B: nonzero(rng, difficulty >= 2 ? 4 : 3) };
+}
+
+export const fullConditionsTex = (de: NonHomIvp): string => {
+  const [y0, v0] = fullAtZero(de, de.A, de.B);
+  return `y(0) = ${y0}, \\; y'(0) = ${v0}`;
+};
+
+/** What the complementary function must give at 0 once the particular integral's share is taken off. */
+function cfConditions(de: NonHomIvp): [number, number] {
+  const [y0, v0] = fullAtZero(de, de.A, de.B);
+  const [p0, p1] = piAtZero(de.pi);
+  return [y0 - p0, v0 - p1];
+}
+
+function nonHomIvpSteps(de: NonHomIvp): SolutionStep[] {
+  const { kind, p, q, A, B } = de;
+  const [u, v] = cfConditions(de);
+  const [p0, p1] = piAtZero(de.pi);
+  const equations = chain(
+    `${kind === 'real' ? 'A + B' : 'A'} &= ${u}`,
+    `${kind === 'repeated' ? terms([[p, 'A'], [1, 'B']]) : terms([[p, 'A'], [q, 'B']])} &= ${v}`,
+  );
+  return [
+    { text: `The general solution, with the particular integral, is $${fullGeneralTex(de)}$.` },
+    {
+      text: `At $x = 0$ the particular integral is $${p0}$ with gradient $${p1}$, so the complementary function has to make up the rest of $y(0)$ and $y'(0)$:`,
+      tex: equations,
+    },
+    { text: 'Solve them.', tex: `A = ${A}, \\; B = ${B}` },
+    { text: `So the solution is $${fullParticularTex(de, A, B)}$.` },
+  ];
+}
+
+/** u and v, then A and B, as a tree. */
+const deNhIvpTree: Generator<NonHomIvp> = {
+  id: 'de-nh-ivp-tree',
+  sample: sampleNonHomIvp,
+  render: (de): Slide => {
+    const { kind, p, q, A, B } = de;
+    const [u, v] = cfConditions(de);
+    const [y0, v0] = fullAtZero(de, A, B);
+    const answer = [u, v, A, B];
+    return {
+      kind: 'tree',
+      prompt: [
+        prose(`This equation has general solution $${fullGeneralTex(de)}$. Solve it with $${fullConditionsTex(de)}$.`),
+        prose(
+          `First $u$ and $v$, the value and gradient the complementary function must have at $0$: $y(0)$ and $y'(0)$ less the particular integral's. Fill in $u$ and $v$, then $A$, then $B$.`,
+        ),
+      ],
+      expression: shownTex(de),
+      nodes: [
+        { id: 'u', from: [] },
+        { id: 'v', from: [] },
+        { id: 'A', from: kind === 'real' ? ['u', 'v'] : ['u'] },
+        { id: 'B', from: kind === 'real' ? ['u', 'A'] : ['v', 'A'] },
+      ],
+      bank: treeBank(answer, [y0, v0, -A, -B, kind === 'real' ? p + q : v - A]),
+      answer: answer.map(String),
+    };
+  },
+  solution: nonHomIvpSteps,
+};
+
+/** Which particular solution meets the equation and both conditions. */
+const deNhIvpFit: Generator<NonHomIvp> = {
+  id: 'de-nh-ivp-fit',
+  sample: sampleNonHomIvp,
+  render: (de): Slide => {
+    const { kind, p, q, A, B } = de;
+    const [y0, v0] = fullAtZero(de, A, B);
+    const answer = fullParticularTex(de, A, B);
+    // The constants found as if the right side were 0: the particular integral's share left in.
+    const ignored: [number, number] | undefined =
+      kind === 'real'
+        ? (() => {
+            const b0 = (v0 - p * y0) / (q - p);
+            return Number.isInteger(b0) ? [y0 - b0, b0] : undefined;
+          })()
+        : kind === 'repeated'
+          ? [y0, v0 - p * y0]
+          : Number.isInteger((v0 - p * y0) / q)
+            ? [y0, (v0 - p * y0) / q]
+            : undefined;
+    const pairs: [number, number][] = [...(ignored ? [ignored] : []), [B, A], [A, -B], [-A, B]];
+    const slips = [
+      `${secondParticularTex(de, A, B)}`,
+      ...pairs.filter(([a, b]) => a !== 0 && b !== 0).map(([a, b]) => fullParticularTex(de, a, b)),
+    ];
+    return choiceSlide(
+      [prose(`Which is the solution of this equation with $${fullConditionsTex(de)}$?`), display(shownTex(de))],
+      [{ label: answer, tex: true, correct: true }, ...firstDistinct(answer, slips, 3).map((label) => ({ label, tex: true }))],
+      nhSalt(de, A, B),
+    );
+  },
+  solution: (de) => [
+    ...nonHomIvpSteps(de),
+    { text: 'Without the particular integral the equation is not met, and any other constants miss a condition.' },
+  ],
+};
+
 /* ---------- Registration ---------- */
 
 export const deGenerators = {
@@ -5739,6 +7098,26 @@ export const deGenerators = {
   deIvpTree,
   deIvpSteps,
   deIvpFit,
+  deNhConstant,
+  deNhCheckSteps,
+  deNhWhichPi,
+  deNhGeneralFlow,
+  deNhPolyTrial,
+  deNhPolyTree,
+  deNhPolySteps,
+  deNhPolyPi,
+  deNhExpValue,
+  deNhExpSteps,
+  deNhExpGeneral,
+  deNhExpFlow,
+  deNhTrigTrial,
+  deNhTrigTree,
+  deNhTrigSteps,
+  deNhTrigPart,
+  deNhResFlow,
+  deNhResValue,
+  deNhIvpTree,
+  deNhIvpFit,
 };
 
 export const differentialEquationGenerators = Object.values(deGenerators) as Generator<never>[];

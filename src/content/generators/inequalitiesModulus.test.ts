@@ -1,6 +1,7 @@
 /**
  * An independent check on the level 3 modulus generators, modulus on both
- * sides, and the level 4 ones, the modulus of quadratics and cubics.
+ * sides, the level 4 ones, the modulus of quadratics and cubics, and the
+ * level 5 ones, regions of the plane bounded by a V or an upside-down V.
  *
  * The property tests in `generators.test.ts` prove each generator agrees with
  * itself, and the oracle there skips everything here. These read what the
@@ -34,15 +35,16 @@ function toMath(tex: string): string {
     .replace(/\)\(/g, ')*(');
 }
 
-const compiled = new Map<string, { evaluate(scope: { x: number }): unknown }>();
+const compiled = new Map<string, { evaluate(scope: { x: number; y: number }): unknown }>();
 
-function at(tex: string, x: number): number {
+/** A TeX expression's value; `y` is there for the regions of level 5. */
+function at(tex: string, x: number, y = 0): number {
   let expr = compiled.get(tex);
   if (!expr) {
     expr = math.compile(toMath(tex));
     compiled.set(tex, expr);
   }
-  return expr.evaluate({ x }) as number;
+  return expr.evaluate({ x, y }) as number;
 }
 
 type Rel = '=' | '<' | '<=' | '>' | '>=';
@@ -60,10 +62,10 @@ function relation(stackedTex: string): { left: string; rel: Rel; right: string }
   return { left: tex.slice(0, match.index), rel, right: tex.slice(match.index + match[0].length) };
 }
 
-function holds(tex: string, x: number): boolean {
+function holds(tex: string, x: number, y = 0): boolean {
   const { left, rel, right } = relation(tex);
-  const l = at(left, x);
-  const r = at(right, x);
+  const l = at(left, x, y);
+  const r = at(right, x, y);
   const eps = 1e-9;
   if (rel === '=') return Math.abs(l - r) < eps;
   if (rel === '<') return l < r - eps;
@@ -671,6 +673,398 @@ describe('the modulus of quadratics and cubics, checked from what the learner se
           return rel(x, ray[1], Number(ray[2]));
         });
       for (let x = -10; x <= 10; x += 0.25) expect(reads(x), `${where} at x = ${x}`).toBe(holds(inequality, x));
+    }
+  });
+});
+
+/* ---------- Level 5: regions of the plane ---------- */
+
+const LATTICE = Array.from({ length: 13 }, (_, i) => i - 6).flatMap((x) =>
+  Array.from({ length: 13 }, (_, j): [number, number] => [x, j - 6]),
+);
+
+/** The rules of a region: one inequality, or several stacked in `gathered`. */
+function rules(tex: string): string[] {
+  return tex
+    .replace(/\\(begin|end)\{gathered\}/g, '')
+    .split('\\\\')
+    .map((part) => part.trim())
+    .filter((part) => part !== '');
+}
+
+const inRegion = (texs: readonly string[], x: number, y: number) => texs.every((tex) => holds(tex, x, y));
+
+/** One rule read as a boundary `y = f(x)`, the side it keeps, and whether the boundary is in. */
+function boundary(tex: string): { f: (x: number) => number; above: boolean; strict: boolean } {
+  const { left, rel, right } = relation(tex);
+  const yFirst = left.trim() === 'y';
+  if (!yFirst && right.trim() !== 'y') throw new Error(`no lone y in ${tex}`);
+  const other = yFirst ? right : left;
+  const greater = rel === '>' || rel === '>=';
+  return {
+    f: (x) => at(other, x),
+    above: yFirst ? greater : !greater,
+    strict: rel === '<' || rel === '>',
+  };
+}
+
+/* The figure read back into the plane, from plotSvg's own constants. */
+const PLOT_W = 280;
+const PLOT_PAD = 12;
+
+interface Drawn {
+  dots: [number, number][];
+  lines: { dashed: boolean; points: [number, number][] }[];
+}
+
+function drawn(svg: string): Drawn {
+  const height = Number(/viewBox="0 0 280 (\d+)"/.exec(svg)![1]);
+  const x = (px: number) => -6 + ((px - PLOT_PAD) / (PLOT_W - 2 * PLOT_PAD)) * 12;
+  const y = (py: number) => 6 - ((py - PLOT_PAD) / (height - 2 * PLOT_PAD)) * 12;
+  const dots = [...svg.matchAll(/<circle cx="([\d.-]+)" cy="([\d.-]+)"/g)].map(
+    (m): [number, number] => [Math.round(x(Number(m[1]))), Math.round(y(Number(m[2])))],
+  );
+  const lines = [...svg.matchAll(/<path fill="none" stroke="currentColor" stroke-width="2"([^>]*?) d="([^"]+)"/g)].map((m) => ({
+    dashed: m[1].includes('stroke-dasharray'),
+    points: [...m[2].matchAll(/([\d.-]+),([\d.-]+)/g)].map((p): [number, number] => [x(Number(p[1])), y(Number(p[2]))]),
+  }));
+  return { dots, lines };
+}
+
+/** Does a drawn line run along y = f(x)? Coordinates are printed to a tenth of a pixel. */
+const traces = (line: Drawn['lines'][number], f: (x: number) => number) =>
+  line.points.every(([x, y]) => Math.abs(f(x) - y) < 0.08);
+
+function diagramOf(slide: Slide): string {
+  if (slide.kind === 'slider' && slide.figure) return slide.figure.svg;
+  if (!('prompt' in slide)) throw new Error('no prompt');
+  const block = slide.prompt.find((b) => b.kind === 'diagram');
+  if (!block || block.kind !== 'diagram') throw new Error('no diagram');
+  return block.svg;
+}
+
+/** Each drawn line is the boundary of one rule, dashed exactly when that rule is strict. */
+function matchesPicture(texs: readonly string[], picture: Drawn): boolean {
+  if (picture.lines.length !== texs.length) return false;
+  return texs.every((tex) => {
+    const { f, strict } = boundary(tex);
+    return picture.lines.some((line) => traces(line, f) && line.dashed === strict);
+  });
+}
+
+/**
+ * The region a picture shows, as a membership test: on the dot's side of
+ * every line, a point on a line counting only when that line is solid.
+ */
+function pictureRegion(picture: Drawn): (x: number, y: number) => boolean {
+  const [[dx, dy]] = picture.dots;
+  const sides = picture.lines.map((line) => {
+    // A drawn line is a V or an upside-down V: two straight arms, each
+    // rebuilt from two points of its path far apart either side of the kink,
+    // which fixes the height at every x rather than between samples.
+    const pts = line.points;
+    const opensUp = pts[1][1] < pts[0][1];
+    const ys = pts.map(([, y]) => y);
+    const kink = ys.indexOf(opensUp ? Math.min(...ys) : Math.max(...ys));
+    const arm = ([x0, y0]: [number, number], [x1, y1]: [number, number]) => (x: number) => y0 + ((y1 - y0) * (x - x0)) / (x1 - x0);
+    const left = arm(pts[0], pts[kink - 2]);
+    const right = arm(pts[kink + 2], pts[pts.length - 1]);
+    const height = (x: number) => {
+      const raw = opensUp ? Math.max(left(x), right(x)) : Math.min(left(x), right(x));
+      return Math.abs(raw - Math.round(raw)) < 0.02 ? Math.round(raw) : raw;
+    };
+    return { height, above: dy > height(dx), solid: !line.dashed };
+  });
+  return (x, y) =>
+    sides.every(({ height, above, solid }) => {
+      const h = height(x);
+      if (y === h) return solid;
+      return above ? y > h : y < h;
+    });
+}
+
+/** The picture and the rules agree at every lattice point, and the dot is in. */
+function sameRegion(texs: readonly string[], picture: Drawn): boolean {
+  const shown = pictureRegion(picture);
+  const [[dx, dy]] = picture.dots;
+  return inRegion(texs, dx, dy) && LATTICE.every(([x, y]) => shown(x, y) === inRegion(texs, x, y));
+}
+
+/** Where two boundaries cross, from a sign change on a fine grid, to the nearest hundredth. */
+function crossings(f: (x: number) => number, g: (x: number) => number): number[] {
+  const out: number[] = [];
+  for (let i = -1200; i <= 1200; i += 1) {
+    const x = i / 100;
+    const here = f(x) - g(x);
+    const next = f(x + 0.01) - g(x + 0.01);
+    if (Math.abs(here) < 1e-9) out.push(x);
+    else if (Math.abs(next) >= 1e-9 && here * next < 0) out.push(x + 0.005);
+  }
+  return out;
+}
+
+const pointsIn = (text: string) => [...text.matchAll(/\((-?\d+), (-?\d+)\)/g)].map((m) => [Number(m[1]), Number(m[2])]);
+
+describe('regions with modulus, checked from what the learner sees', () => {
+  it('draws every region with one line per rule, dashed exactly when the rule is strict', () => {
+    const withRules = [
+      'mod-region-lowest-slider',
+      'mod-region-highest-slider',
+      'mod-between-corner-slider',
+      'mod-region-count',
+      'mod-region-width',
+    ];
+    for (const id of withRules) {
+      for (const { slide, where } of slides(id)) {
+        const texs = displays(slide).length > 0 ? rules(displays(slide)[0]) : [inlineMaths(slide)[0]];
+        expect(matchesPicture(texs, drawn(diagramOf(slide))), where).toBe(true);
+      }
+    }
+  });
+
+  it('reads the boundary of a rule the same way mathjs evaluates it, at every lattice point', () => {
+    const ids = ['mod-region-vertex-tiles', 'mod-cap-intercepts-tiles', 'mod-region-point-choice'];
+    for (const id of ids) {
+      for (const { slide, where } of slides(id)) {
+        const [tex] = rules(displays(slide)[0]);
+        const { f, above, strict } = boundary(tex);
+        for (const [x, y] of LATTICE) {
+          const h = f(x);
+          const expected = y === h ? !strict : above ? y > h : y < h;
+          expect(holds(tex, x, y), `${where} at (${x}, ${y})`).toBe(expected);
+        }
+      }
+    }
+  });
+
+  it('places the vertex of a V, how it is drawn, and which side is in', () => {
+    for (const { slide, where } of slides('mod-region-vertex-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const { f, above, strict } = boundary(displays(slide)[0]);
+      const [a, c, line, side] = slide.answer;
+      expect(f(Number(a)), where).toBe(Number(c));
+      expect(f(Number(a) - 1) > Number(c) && f(Number(a) + 1) > Number(c), `${where}: a V turns up`).toBe(true);
+      expect(line, where).toBe(strict ? '\\text{dashed}' : '\\text{solid}');
+      expect(side, where).toBe(above ? '\\text{above}' : '\\text{below}');
+    }
+  });
+
+  it('places the top of an upside-down V and its two whole x-intercepts', () => {
+    for (const { slide, where } of slides('mod-cap-intercepts-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const { f } = boundary(displays(slide)[0]);
+      const [a, k, left, right] = slide.answer.map(Number);
+      expect(f(a), where).toBe(k);
+      expect(f(a - 1) < k && f(a + 1) < k, `${where}: it turns down`).toBe(true);
+      expect(left, where).toBeLessThan(right);
+      expect([f(left), f(right)], where).toEqual([0, 0]);
+      expect(crossings(f, () => 0).map((x) => Math.round(x)), where).toEqual([left, right]);
+    }
+  });
+
+  it('works a point through the boundary at its x, and the point is in exactly when the gap says so', () => {
+    for (const id of ['mod-region-test-tree', 'mod-cap-test-tree']) {
+      for (const { slide, where } of slides(id)) {
+        if (slide.kind !== 'tree') throw new Error('expected a tree');
+        const [[x, y]] = pointsIn(prose(slide));
+        const { f, above, strict } = boundary(slide.expression);
+        const vertex = pointsIn(prose(slide)).length;
+        expect(vertex, where).toBe(1);
+        const [inside, abs, height, gap] = slide.answer.map(Number);
+        expect(abs, where).toBe(Math.abs(inside));
+        expect(height, where).toBe(f(x));
+        expect(gap, where).toBe(y - f(x));
+        // The inside is x minus where the modulus is zero: the vertex.
+        expect(f(x - inside), where).toBe(id === 'mod-region-test-tree' ? Math.min(...LATTICE.map(([u]) => f(u))) : Math.max(...LATTICE.map(([u]) => f(u))));
+        const inByGap = gap === 0 ? !strict : above ? gap > 0 : gap < 0;
+        expect(inByGap, where).toBe(holds(slide.expression, x, y));
+      }
+    }
+  });
+
+  it('marks as right the one point that is in the region', () => {
+    for (const id of ['mod-region-point-choice', 'mod-pair-point-choice']) {
+      for (const { slide, where } of slides(id)) {
+        if (slide.kind !== 'choice') throw new Error('expected a choice');
+        const texs = rules(displays(slide)[0]);
+        const fits = slide.options.filter(({ label }) => {
+          const [[x, y]] = pointsIn(label);
+          return inRegion(texs, x, y);
+        });
+        expect(fits.map((option) => option.id), where).toEqual([slide.correctId]);
+      }
+    }
+  });
+
+  it('slides to the lowest or highest whole y in the region on the line asked about', () => {
+    for (const id of ['mod-region-lowest-slider', 'mod-region-highest-slider']) {
+      for (const { slide, where } of slides(id)) {
+        if (slide.kind !== 'slider') throw new Error('expected a slider');
+        const [tex] = inlineMaths(slide);
+        const t = Number(/line \$x = (-?\d+)\$/.exec(prose(slide))![1]);
+        const ys = Array.from({ length: 41 }, (_, i) => i - 20).filter((y) => holds(tex, t, y));
+        const lowest = prose(slide).includes('**lowest**');
+        expect(slide.answer, where).toBe(lowest ? Math.min(...ys) : Math.max(...ys));
+        expect(Math.abs(slide.answer), `${where}: on the window`).toBeLessThanOrEqual(6);
+        expect(slide.figure?.axis, where).toBe('y');
+      }
+    }
+  });
+
+  it('reaches the right verdict on whether the origin is in', () => {
+    for (const { slide, where } of slides('mod-origin-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected a flow');
+      const inside = holds(slide.subject, 0, 0);
+      expect(outcomeOf(slide), where).toBe(inside ? 'The origin is in the region.' : 'The origin is not in the region.');
+    }
+  });
+
+  /** The two rules of a region between graphs, and where their boundaries cross. */
+  const betweenOf = (slide: Slide) => {
+    const texs = rules(displays(slide)[0]);
+    expect(texs).toHaveLength(2);
+    const [f, g] = texs.map((tex) => boundary(tex).f);
+    return { texs, f, g, cross: crossings(f, g) };
+  };
+
+  it('places the two side corners where the graphs cross, both whole', () => {
+    for (const { slide, where } of slides('mod-between-corners-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const { f, g, cross } = betweenOf(slide);
+      const [x1, y1, x2, y2] = slide.answer.map(Number);
+      expect(cross, where).toEqual([x1, x2]);
+      expect([f(x1), g(x1), f(x2), g(x2)], where).toEqual([y1, y1, y2, y2]);
+    }
+    for (const { slide, where } of slides('mod-between-corner-slider')) {
+      if (slide.kind !== 'slider') throw new Error('expected a slider');
+      const { cross } = betweenOf(slide);
+      expect(cross, where).toHaveLength(2);
+      expect(slide.answer, where).toBe(prose(slide).includes('**right-hand**') ? cross[1] : cross[0]);
+    }
+  });
+
+  it('names the shape the two graphs really enclose', () => {
+    const labels: Record<string, string> = {
+      square: 'A square',
+      rectangle: 'A rectangle that is not a square',
+      kite: 'A kite that is not a square',
+      empty: 'Nothing: no point satisfies both',
+    };
+    for (const { slide, where } of slides('mod-between-shape')) {
+      const { texs, f, g, cross } = betweenOf(slide);
+      let shape: string;
+      const anyPoint = Array.from({ length: 2401 }, (_, i) => -12 + i / 100).some((x) => f(x) <= g(x));
+      if (!anyPoint) shape = 'empty';
+      else {
+        expect(cross, where).toHaveLength(2);
+        const xs = Array.from({ length: 2401 }, (_, i) => -12 + i / 100);
+        const bottomX = xs.reduce((best, x) => (f(x) < f(best) ? x : best));
+        const topX = xs.reduce((best, x) => (g(x) > g(best) ? x : best));
+        const corners = [
+          [bottomX, f(bottomX)],
+          [cross[1], f(cross[1])],
+          [topX, g(topX)],
+          [cross[0], f(cross[0])],
+        ];
+        const side = (i: number) => [corners[(i + 1) % 4][0] - corners[i][0], corners[(i + 1) % 4][1] - corners[i][1]];
+        const length = (i: number) => Math.hypot(...side(i));
+        const square = (i: number) => Math.abs(side(i)[0] * side((i + 1) % 4)[0] + side(i)[1] * side((i + 1) % 4)[1]) < 1e-6;
+        const right = [0, 1, 2, 3].every(square);
+        const equal = (i: number, j: number) => Math.abs(length(i) - length(j)) < 1e-6;
+        if (right) shape = equal(0, 1) ? 'square' : 'rectangle';
+        else {
+          expect(equal(0, 3) && equal(1, 2), `${where}: two pairs of neighbouring sides equal`).toBe(true);
+          shape = 'kite';
+        }
+      }
+      expect(chosen(slide), `${where} ${texs.join(' ; ')}`).toBe(labels[shape]);
+    }
+  });
+
+  it('builds the rules the picture shows, dot and dashes included', () => {
+    for (const { slide, where } of slides('mod-read-region-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const texs = filled(slide.template, slide.answer).split(' \\quad \\text{and} \\quad ');
+      const picture = drawn(diagramOf(slide));
+      expect(matchesPicture(texs, picture), where).toBe(true);
+      expect(sameRegion(texs, picture), where).toBe(true);
+    }
+  });
+
+  it('marks as right the one option that is the region drawn', () => {
+    for (const { slide, where } of slides('mod-read-region-match')) {
+      if (slide.kind !== 'choice') throw new Error('expected a choice');
+      const picture = drawn(diagramOf(slide));
+      const fits = slide.options.filter(({ label }) => {
+        const texs = rules(label);
+        return matchesPicture(texs, picture) && sameRegion(texs, picture);
+      });
+      expect(fits.map((option) => option.id), where).toEqual([slide.correctId]);
+    }
+  });
+
+  it('walks from the picture to the inequality it shows', () => {
+    for (const { slide, where } of slides('mod-read-region-flow')) {
+      const texs = [outcomeOf(slide).replace(/^\$|\$$/g, '')];
+      const picture = drawn(diagramOf(slide));
+      expect(matchesPicture(texs, picture), where).toBe(true);
+      expect(sameRegion(texs, picture), where).toBe(true);
+      // The subject quotes the vertex, which the drawn boundary must turn at.
+      const [[a, c]] = pointsIn((slide as Extract<Slide, { kind: 'flow' }>).subject);
+      expect(boundary(texs[0]).f(a), where).toBe(c);
+    }
+  });
+
+  it('finds the one thing wrong with a picture, or nothing', () => {
+    for (const { slide, where } of slides('mod-region-picture-check')) {
+      const texs = rules(displays(slide)[0]);
+      const picture = drawn(diagramOf(slide));
+      const shapes = texs.every((tex) => picture.lines.some((line) => traces(line, boundary(tex).f)));
+      const [[dx, dy]] = picture.dots;
+      let verdict: string;
+      if (!shapes) verdict = 'No: a vertex is in the wrong place';
+      else if (!matchesPicture(texs, picture)) verdict = 'No: solid and dashed are the wrong way round';
+      else if (!inRegion(texs, dx, dy)) verdict = 'No: the dot is not in the region';
+      else verdict = 'Yes, it is right';
+      expect(chosen(slide), where).toBe(verdict);
+      if (verdict === 'Yes, it is right') expect(sameRegion(texs, picture), where).toBe(true);
+      // Only one thing is ever wrong: a moved vertex or a wrong dash keeps the dot in.
+      if (verdict !== 'No: the dot is not in the region') expect(inRegion(texs, dx, dy), where).toBe(true);
+    }
+  });
+
+  it('counts the lattice points of a region', () => {
+    for (const { slide, where } of slides('mod-region-count')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const texs = rules(displays(slide)[0]);
+      let n = 0;
+      for (let x = -20; x <= 20; x += 1) for (let y = -20; y <= 20; y += 1) if (inRegion(texs, x, y)) n += 1;
+      expect(Number(slide.answer), where).toBe(n);
+    }
+  });
+
+  it('gives the width of the region at the height asked about', () => {
+    for (const { slide, where } of slides('mod-region-width')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const texs = rules(displays(slide)[0]);
+      const h = Number(/height \$y = (-?\d+)\$/.exec(prose(slide))![1]);
+      const xs = Array.from({ length: 2401 }, (_, i) => -12 + i / 100).filter((x) => inRegion(texs, x, h));
+      const width = xs[xs.length - 1] - xs[0];
+      expect(Math.abs(Number(slide.answer) - width), where).toBeLessThan(0.02);
+      expect(Number(slide.answer), where).toBeGreaterThan(0);
+    }
+  });
+
+  it('finds the highest or lowest lattice point of a region, which is the only one at that height', () => {
+    for (const { slide, where } of slides('mod-region-highest-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const texs = rules(displays(slide)[0]);
+      const found = LATTICE.filter(([x, y]) => inRegion(texs, x, y));
+      const lowest = prose(slide).includes('**lowest**');
+      const best = lowest ? Math.min(...found.map(([, y]) => y)) : Math.max(...found.map(([, y]) => y));
+      const at = found.filter(([, y]) => y === best);
+      expect(at, where).toHaveLength(1);
+      expect(slide.answer.map(Number), where).toEqual(at[0]);
     }
   });
 });

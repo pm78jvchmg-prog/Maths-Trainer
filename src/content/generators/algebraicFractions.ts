@@ -9,7 +9,9 @@
  * factor, and after dividing out a whole part; then a preview of what the
  * split is for, integrating it and expanding it as a series. Level 3 meets a
  * quadratic factor that will not split. Level 4 solves inequalities with
- * fractions in them, drawn on the number line.
+ * fractions in them, drawn on the number line. Level 5 reads the graph of a
+ * fraction off its rule: vertical and horizontal asymptotes, holes,
+ * intercepts, and all of them together in a sketch.
  *
  * Every fraction is built outward from its answer: the factors that cancel,
  * the root that solves the equation, the numerators of the split and the
@@ -5265,6 +5267,1308 @@ const fracIneqGraphSlider: Generator<GraphParams> = {
   },
 };
 
+/* ================================================================
+ * Level 5: graphs of rational functions
+ *
+ * The features of the curve y = top/bottom, read off its rule: vertical
+ * asymptotes where the bottom is zero once nothing cancels, and which way
+ * each arm goes; the horizontal asymptote from the degrees; holes where a
+ * factor does cancel; the intercepts; and all of them together in a sketch.
+ * Every fraction is drawn root first and multiplied up, so every pole, hole,
+ * intercept and asymptote is whole. Nothing here is calculus, so no slide
+ * declares `source` and the generic oracle skips these;
+ * `algebraicFractions.test.ts` reads each rule back off the shown TeX and
+ * holds every quoted feature to it instead.
+ * ================================================================ */
+
+interface Rational {
+  /** The top is k times (x - r) for each r in `top`. */
+  k: number;
+  top: number[];
+  /** The bottom is m times (x - r) for each r in `bottom`. */
+  m: number;
+  bottom: number[];
+  /** Both lines shown multiplied out, to be factorised first. */
+  expanded: boolean;
+}
+
+const ratTop = ({ k, top }: Rational): Poly => fromRoots(top, k);
+const ratBottom = ({ m, bottom }: Rational): Poly => fromRoots(bottom, m);
+
+/** Roots of both lines: each is a hole. */
+const holesOf = ({ top, bottom }: Rational): number[] => top.filter((r) => bottom.includes(r));
+/** Roots of the top alone: where the curve meets the x-axis. */
+const zerosOf = ({ top, bottom }: Rational): number[] => top.filter((r) => !bottom.includes(r));
+/** Roots of the bottom alone: the vertical asymptotes. */
+const polesOf = ({ top, bottom }: Rational): number[] => bottom.filter((r) => !top.includes(r));
+
+const ascending = (xs: number[]): number[] => [...new Set(xs)].sort((a, b) => a - b);
+
+/** One line of a fraction: its lead times its brackets, or multiplied out. */
+function lineTex(lead: number, roots: number[], expanded: boolean): string {
+  if (roots.length === 0) return String(lead);
+  if (expanded) return polyTex(fromRoots(roots, lead));
+  const brackets = roots.length === 1 && lead === 1 ? br(-roots[0]) : roots.map((r) => factorOf(-r)).join('');
+  if (lead === 1) return brackets;
+  if (lead === -1) return `-${brackets}`;
+  return `${lead}${brackets}`;
+}
+
+const ratTex = (r: Rational): string => frac(lineTex(r.k, r.top, r.expanded), lineTex(r.m, r.bottom, r.expanded));
+const factorisedRatTex = (r: Rational): string => ratTex({ ...r, expanded: false });
+
+/** The curve's height: infinite at a pole, NaN at a hole, where it has none. */
+const ratAt = (r: Rational, x: number): number => valueAt(ratTop(r), x) / valueAt(ratBottom(r), x);
+
+/** The simplified fraction at x, which is also the height of the curve beside a hole. */
+function simplifiedAt(r: Rational, x: number): number {
+  return valueAt(fromRoots(zerosOf(r), r.k), x) / valueAt(fromRoots(polesOf(r), r.m), x);
+}
+
+/** The simplified fraction, as the learner writes it. */
+function simplifiedTex(r: Rational): string {
+  const top = lineTex(r.k, zerosOf(r), false);
+  const poles = polesOf(r);
+  if (poles.length === 0) return r.m === 1 ? top : frac(top, String(r.m));
+  return frac(top, lineTex(r.m, poles, false));
+}
+
+/** The horizontal asymptote's height, or null when the top has the higher degree. */
+function asymptoteOf({ k, m, top, bottom }: Rational): number | null {
+  if (top.length < bottom.length) return 0;
+  if (top.length === bottom.length) return k / m;
+  return null;
+}
+
+/** Everything but the bracket (x - p), at x = p: its sign says which way the arms go. */
+function restAt(r: Rational, p: number): { top: number; bottom: number } {
+  return {
+    top: valueAt(fromRoots(zerosOf(r), r.k), p),
+    bottom: valueAt(fromRoots(polesOf(r).filter((q) => q !== p), r.m), p),
+  };
+}
+
+/** +1 where the curve shoots up just right of the pole p, -1 where it plunges. */
+function rightArm(r: Rational, p: number): number {
+  const { top, bottom } = restAt(r, p);
+  return Math.sign(top * bottom);
+}
+
+/** The rest at a pole as the learner reads it: a whole number, or top over bottom. */
+function restTex({ top, bottom }: { top: number; bottom: number }): string {
+  return bottom === 1 ? String(top) : frac(String(top), String(bottom));
+}
+
+/** Lines or points in order, x = -2 and x = 3, or a word for none. */
+function listTex(name: string, values: number[], none = '\\text{none}'): string {
+  if (values.length === 0) return none;
+  return ascending(values)
+    .map((v) => `${name} = ${v}`)
+    .join(' \\text{ and } ');
+}
+
+/** Distinct whole roots for both lines, `holes` of them shared, each line in a random order. */
+function sampleRoots(
+  rng: Rng,
+  { top, bottom, holes, max }: { top: number; bottom: number; holes: number; max: number },
+): { top: number[]; bottom: number[] } {
+  const all = distinct(rng, top + bottom - holes, max);
+  const shared = all.slice(0, holes);
+  return {
+    top: rng.shuffle([...shared, ...all.slice(holes, top)]),
+    bottom: rng.shuffle([...shared, ...all.slice(top)]),
+  };
+}
+
+/** A y window about the level the curve settles to, so its arms run off and its middle shows. */
+function levelWindow(r: Rational): { yMin: number; yMax: number } {
+  const level = asymptoteOf(r) ?? 0;
+  return { yMin: level - POLE_HEIGHT, yMax: level + POLE_HEIGHT };
+}
+
+/** The whole-number span of every root, with room either side. */
+function rootTrack(r: Rational, left: number, right: number, also: number[] = []): [number, number] {
+  const xs = [...r.top, ...r.bottom, ...also];
+  return [Math.min(...xs) - left, Math.max(...xs) + right];
+}
+
+interface RatFigure {
+  xMin: number;
+  xMax: number;
+  yMin: number;
+  yMax: number;
+  /** Draw the asymptotes dashed. */
+  asymptotes?: boolean;
+  /** Ring each hole. */
+  holes?: boolean;
+  /** Squared paper and the y-axis, to count features off. */
+  grid?: boolean;
+  /** The y-axis alone. */
+  yAxis?: boolean;
+  height?: number;
+  label: string;
+}
+
+/** The curve, the pen lifted at each pole. */
+function ratSvg(r: Rational, fig: RatFigure): string {
+  const level = asymptoteOf(r);
+  return plotSvg({
+    xMin: fig.xMin,
+    xMax: fig.xMax,
+    yMin: fig.yMin,
+    yMax: fig.yMax,
+    curves: [{ f: (x: number) => ratAt(r, x), accent: true, breaks: true }],
+    verticals: [
+      ...(fig.yAxis ? [{ x: 0, dashed: false }] : []),
+      ...(fig.asymptotes ? polesOf(r).map((x) => ({ x })) : []),
+    ],
+    horizontals: fig.asymptotes && level !== null && level !== 0 ? [level] : [],
+    marks: fig.holes ? holesOf(r).map((x) => ({ x, y: simplifiedAt(r, x), hollow: true })) : [],
+    grid: fig.grid,
+    height: fig.height,
+    label: fig.label,
+  });
+}
+
+/** Factorise first, when the lines were shown multiplied out. */
+function factoriseStep(r: Rational): SolutionStep[] {
+  return r.expanded ? [{ text: 'Factorise both lines first:' }, { tex: chain(`&${ratTex(r)}`, `=\\;&${factorisedRatTex(r)}`) }] : [];
+}
+
+/** The line about a shared factor, when there is one. */
+function cancelStep(r: Rational): SolutionStep[] {
+  return holesOf(r).map((h) => ({
+    text: `$${factorOf(-h)}$ is a factor of the top and the bottom, so it cancels: $x = ${h}$ is a hole, not an asymptote.`,
+  }));
+}
+
+/* ---------- vertical asymptotes ---------- */
+
+/**
+ * Which lines are the vertical asymptotes? Where the bottom is zero, once
+ * nothing cancels. Difficulty 2 gives both lines multiplied out, and half the
+ * time a factor they share, which is a hole rather than an asymptote.
+ */
+const fracVaWhich: Generator<Rational> = {
+  id: 'frac-va-which',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const holes = hard && rng.chance(0.5) ? 1 : 0;
+    return { k: hard ? nonZero(rng, 3) : 1, m: 1, ...sampleRoots(rng, { top: hard ? 2 : 1, bottom: 2, holes, max: 6 }), expanded: hard };
+  },
+  render: (r): Slide => {
+    const poles = polesOf(r);
+    return choiceSlide(
+      [say('Where are the vertical asymptotes of this curve?'), show(`y = ${ratTex(r)}`)],
+      firstFour(
+        listTex('x', poles),
+        listTex('x', poles.map((p) => -p)),
+        listTex('x', holesOf(r).length > 0 ? r.bottom : [...poles, ...zerosOf(r)]),
+        listTex('x', r.top),
+        '\\text{none}',
+      ),
+    );
+  },
+  solution: (r) => [
+    ...factoriseStep(r),
+    ...cancelStep(r),
+    { text: `A vertical asymptote is where the bottom is zero once nothing cancels: $${listTex('x', polesOf(r))}$.` },
+    { text: 'Where the top is zero the curve meets the $x$-axis instead, which is a different question.' },
+  ],
+};
+
+interface ArmParams {
+  r: Rational;
+  /** Which way the curve goes just right of the pole asked for: 1 up, -1 down. */
+  arm: number;
+  left: number;
+  right: number;
+}
+
+const armAsked = ({ r, arm }: ArmParams): number => polesOf(r).find((p) => rightArm(r, p) === arm)!;
+const armTrack = ({ r, left, right }: ArmParams): [number, number] => rootTrack(r, left, right);
+
+/** A curve's arms either side of a pole, in words. */
+const armWords = (arm: number): string =>
+  arm > 0 ? 'plunges down just to its left and shoots up just to its right' : 'shoots up just to its left and plunges down just to its right';
+
+/**
+ * Two vertical asymptotes whose arms go opposite ways, and the marker to the
+ * one described. The graph shows the arms; the rule says where the poles are.
+ */
+const fracVaSlider: Generator<ArmParams> = {
+  id: 'frac-va-slider',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const r: Rational = { k: hard ? nonZero(rng, 2) : 1, m: 1, ...sampleRoots(rng, { top: hard ? 2 : 1, bottom: 2, holes: 0, max: 5 }), expanded: hard };
+      const [p, q] = r.bottom;
+      if (rightArm(r, p) === rightArm(r, q)) continue;
+      const params: ArmParams = { r, arm: rng.sign(), left: rng.int(1, 2), right: rng.int(1, 2) };
+      const [min, max] = armTrack(params);
+      if (max - min > 12 || armAsked(params) === restingOn(min, max)) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const [min, max] = armTrack(params);
+    const window = markerWindow(min, max);
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          `The curve is $y = ${ratTex(params.r)}$. It has two vertical asymptotes. Slide the marker to the one where the curve ${armWords(params.arm)}.`,
+        ),
+      ],
+      min,
+      max,
+      step: 1,
+      answer: armAsked(params),
+      readout: 'x = {v}',
+      figure: {
+        svg: ratSvg(params.r, { ...window, ...levelWindow(params.r), label: 'The curve, shooting off at two vertical asymptotes' }),
+        ...window,
+        axis: 'x',
+      },
+    };
+  },
+  solution: (params) => {
+    const { r } = params;
+    return [
+      ...factoriseStep(r),
+      { text: `The bottom is zero at $${listTex('x', polesOf(r))}$.` },
+      ...ascending(polesOf(r)).map((p) => {
+        const arm = rightArm(r, p);
+        return {
+          text: `At $x = ${p}$ everything but $${factorOf(-p)}$ comes to $${restTex(restAt(r, p))}$, which is ${arm > 0 ? 'positive' : 'negative'}, so the curve ${armWords(arm)}.`,
+        };
+      }),
+      { text: `So the marker goes to $x = ${armAsked(params)}$.` },
+    ];
+  },
+};
+
+const HEAD_UP = 'Up, towards $+\\infty$';
+const HEAD_DOWN = 'Down, towards $-\\infty$';
+
+interface SideParams {
+  r: Rational;
+  /** The pole asked about. */
+  p: number;
+  side: 'left' | 'right';
+}
+
+/** The sign of the bracket, the sign of the rest, and so which way the arm goes. */
+const fracVaSideFlow: Generator<SideParams> = {
+  id: 'frac-va-side-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const r: Rational = {
+      k: nonZero(rng, hard ? 3 : 2),
+      m: 1,
+      ...sampleRoots(rng, { top: hard ? 2 : 1, bottom: hard ? 2 : rng.int(1, 2), holes: 0, max: 6 }),
+      expanded: hard,
+    };
+    return { r, p: rng.pick(r.bottom), side: rng.pick<SideParams['side']>(['left', 'right']) };
+  },
+  render: ({ r, p, side }): Slide => {
+    const rest = restAt(r, p);
+    const restSign = Math.sign(rest.top * rest.bottom);
+    const bracketSign = side === 'right' ? 1 : -1;
+    const key = `${ratTex(r)}|${p}|${side}`;
+    const signs = (to: string) => turned([POSITIVE, NEGATIVE], `${key}|${to}`).map((label) => ({ label, to }));
+    return {
+      kind: 'flow',
+      prompt: [say(`Which way does the curve go just to the ${side} of its asymptote $x = ${p}$? Decide one step at a time.`)],
+      subject: `y = ${ratTex(r)}`,
+      steps: [
+        { id: 'bracket', ask: `Just to the ${side} of $x = ${p}$, is $${factorOf(-p)}$ positive or negative?`, branches: signs('rest') },
+        {
+          id: 'rest',
+          ask: `Everything else in the fraction, with $x = ${p}$ put in, comes to $${restTex(rest)}$. Positive or negative?`,
+          branches: signs('arm'),
+        },
+        {
+          id: 'arm',
+          ask: `So just to the ${side} of the asymptote, the curve heads…`,
+          branches: turned([HEAD_UP, HEAD_DOWN], `${key}|arm`).map((label) => ({
+            label,
+            outcome: `So $y \\to ${label === HEAD_UP ? '+' : '-'}\\infty$ as $x \\to ${p}^{${side === 'right' ? '+' : '-'}}$.`,
+          })),
+        },
+      ],
+      answer: [bracketSign > 0 ? POSITIVE : NEGATIVE, restSign > 0 ? POSITIVE : NEGATIVE, bracketSign * restSign > 0 ? HEAD_UP : HEAD_DOWN],
+    };
+  },
+  solution: ({ r, p, side }) => {
+    const rest = restAt(r, p);
+    const restSign = Math.sign(rest.top * rest.bottom);
+    const bracketSign = side === 'right' ? 1 : -1;
+    return [
+      ...factoriseStep(r),
+      { text: `Just to the ${side} of $${p}$, $${factorOf(-p)}$ is a tiny ${bracketSign > 0 ? 'positive' : 'negative'} number.` },
+      { text: `Everything else barely changes near $x = ${p}$, and there it is $${restTex(rest)}$, which is ${restSign > 0 ? 'positive' : 'negative'}.` },
+      {
+        text: `A ${restSign > 0 ? 'positive' : 'negative'} number over a tiny ${bracketSign > 0 ? 'positive' : 'negative'} one is huge and ${bracketSign * restSign > 0 ? 'positive, so the curve heads up' : 'negative, so the curve heads down'}.`,
+      },
+    ];
+  },
+};
+
+interface ArmTilesParams {
+  r: Rational;
+  p: number;
+}
+
+/**
+ * The arms either side of one asymptote, in limit notation: which of
+ * +infinity and -infinity goes on each side. Difficulty 2 has two poles and
+ * the bottom multiplied out.
+ */
+const fracVaArmsTiles: Generator<ArmTilesParams> = {
+  id: 'frac-va-arms-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const r: Rational = {
+      k: nonZero(rng, 3),
+      m: 1,
+      ...sampleRoots(rng, { top: hard ? rng.int(1, 2) : 1, bottom: hard ? 2 : 1, holes: 0, max: 6 }),
+      expanded: hard,
+    };
+    return { r, p: rng.pick(r.bottom) };
+  },
+  render: ({ r, p }): Slide => {
+    const up = rightArm(r, p) > 0;
+    const answer = up ? ['-\\infty', '\\infty'] : ['\\infty', '-\\infty'];
+    return {
+      kind: 'tiles',
+      prompt: [
+        show(`y = ${ratTex(r)}`),
+        say(
+          `This curve has a vertical asymptote at $x = ${p}$. Which way does $y$ head as $x$ closes in on $${p}$ from below, $x \\to ${p}^{-}$, and from above, $x \\to ${p}^{+}$?`,
+        ),
+      ],
+      template: `x \\to ${p}^{-}\\!:\\; y \\to {0} \\qquad x \\to ${p}^{+}\\!:\\; y \\to {1}`,
+      bank: tileBank(answer, ['0', String(p), String(asymptoteOf(r) ?? 1)]),
+      answer,
+    };
+  },
+  solution: ({ r, p }) => {
+    const rest = restAt(r, p);
+    const up = rightArm(r, p) > 0;
+    return [
+      ...factoriseStep(r),
+      { text: `Near $x = ${p}$ only $${factorOf(-p)}$ changes sign. Everything else, at $x = ${p}$, is $${restTex(rest)}$: ${up ? 'positive' : 'negative'}.` },
+      { text: `From above, $${factorOf(-p)}$ is a tiny positive number, so $y \\to ${up ? '+' : '-'}\\infty$.` },
+      { text: `From below it is a tiny negative number, so $y \\to ${up ? '-' : '+'}\\infty$.` },
+    ];
+  },
+};
+
+/* ---------- horizontal asymptotes ---------- */
+
+/** Fractions for the degree rule, each line's lead chosen so the ratio of leads is whole. */
+function sampleDegrees(rng: Rng, hard: boolean, shapes: [number, number][]): Rational {
+  const [top, bottom] = rng.pick(shapes);
+  const m = hard ? rng.int(1, 3) : 1;
+  return { k: m * nonZero(rng, hard ? 3 : 4), m, ...sampleRoots(rng, { top, bottom, holes: 0, max: 6 }), expanded: hard };
+}
+
+/** The leading terms of each line, over each other. */
+const leadsTex = ({ k, m, top, bottom }: Rational): string => frac(termTex(k, top.length), termTex(m, bottom.length));
+
+/** Why the asymptote is what it is, from the degrees. */
+function degreeSteps(r: Rational): SolutionStep[] {
+  const [dt, db] = [r.top.length, r.bottom.length];
+  const steps: SolutionStep[] = [
+    { text: `The top has degree ${dt} and the bottom degree ${db}. Far out only the leading terms matter: $${leadsTex(r)}$.` },
+  ];
+  if (dt < db) steps.push({ text: 'The bottom grows faster, so the fraction shrinks towards $0$: the horizontal asymptote is $y = 0$.' });
+  else if (dt === db) steps.push({ text: `The powers match and cancel, leaving the ratio of the leading coefficients: $y = ${r.k / r.m}$.` });
+  else steps.push({ text: 'The top grows faster, so the fraction grows without limit: there is no horizontal asymptote.' });
+  return steps;
+}
+
+const TOP_HIGHER = 'The top';
+const SAME_POWER = 'Neither: the same power';
+const BOTTOM_HIGHER = 'The bottom';
+const NO_LEVEL = 'Settles on no level line';
+
+/** Which line has the higher power, then which level line the curve settles on. */
+const fracHaFlow: Generator<Rational> = {
+  id: 'frac-ha-flow',
+  sample: (rng, difficulty) =>
+    sampleDegrees(
+      rng,
+      difficulty > 1,
+      difficulty > 1
+        ? [[1, 1], [2, 2], [1, 2], [2, 1], [0, 2]]
+        : [[1, 1], [1, 2], [2, 1], [0, 1]],
+    ),
+  render: (r): Slide => {
+    const [dt, db] = [r.top.length, r.bottom.length];
+    const level = asymptoteOf(r);
+    const heights = [...new Set([0, r.k / r.m, r.k, -r.k / r.m])].slice(0, 3);
+    const labelOf = (y: number) => `Settles on $y = ${y}$`;
+    const outcomes = new Map(heights.map((y) => [labelOf(y), `So its horizontal asymptote is $y = ${y}$.`]));
+    const key = ratTex(r);
+    return {
+      kind: 'flow',
+      prompt: [say('Find where this curve settles far out, one decision at a time.')],
+      subject: `y = ${ratTex(r)}`,
+      steps: [
+        {
+          id: 'degree',
+          ask: 'Multiply each line out in your head. Which has the higher power of $x$?',
+          branches: turned([TOP_HIGHER, SAME_POWER, BOTTOM_HIGHER], `${key}|degree`).map((label) => ({ label, to: 'level' })),
+        },
+        {
+          id: 'level',
+          ask: 'So as $x$ grows large either way, the curve…',
+          branches: turned([...heights.map(labelOf), NO_LEVEL], `${key}|level`).map((label) => ({
+            label,
+            outcome: outcomes.get(label) ?? 'So it has no horizontal asymptote.',
+          })),
+        },
+      ],
+      answer: [dt > db ? TOP_HIGHER : dt === db ? SAME_POWER : BOTTOM_HIGHER, level === null ? NO_LEVEL : labelOf(level)],
+    };
+  },
+  solution: degreeSteps,
+};
+
+interface LevelParams {
+  r: Rational;
+  below: number;
+  above: number;
+}
+
+const levelTrack = ({ r, below, above }: LevelParams): [number, number] => {
+  const level = asymptoteOf(r)!;
+  return [Math.min(level, 0) - below, Math.max(level, 0) + above];
+};
+
+/** A horizontal line slid to the level the curve settles on. */
+const fracHaSlider: Generator<LevelParams> = {
+  id: 'frac-ha-slider',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const r = sampleDegrees(rng, hard, hard ? [[2, 2]] : [[1, 1]]);
+      const roots = [...r.top, ...r.bottom];
+      if (Math.max(...roots) - Math.min(...roots) > 8) continue;
+      const params: LevelParams = { r, below: rng.int(2, 4), above: rng.int(2, 4) };
+      const [min, max] = levelTrack(params);
+      if (max - min > 12 || asymptoteOf(r) === restingOn(min, max)) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { r } = params;
+    const [min, max] = levelTrack(params);
+    const window = markerWindow(min, max, 'y');
+    const roots = [...r.top, ...r.bottom];
+    return {
+      kind: 'slider',
+      prompt: [
+        say(`The curve is $y = ${ratTex(r)}$. Slide the line to the height the curve settles towards far out on both sides: its horizontal asymptote.`),
+      ],
+      min,
+      max,
+      step: 1,
+      answer: asymptoteOf(r)!,
+      readout: 'y = {v}',
+      figure: {
+        svg: ratSvg(r, {
+          xMin: Math.min(...roots) - 6,
+          xMax: Math.max(...roots) + 6,
+          yMin: window.xMin,
+          yMax: window.xMax,
+          label: 'The curve, flattening out far to the left and the right',
+        }),
+        ...window,
+        axis: 'y',
+      },
+    };
+  },
+  solution: ({ r }) => degreeSteps(r),
+};
+
+/** The horizontal asymptote's height, typed. Difficulty 2 multiplies the lines out and puts a number in front of the bottom. */
+const fracHaValue: Generator<Rational> = {
+  id: 'frac-ha-value',
+  sample: (rng, difficulty) =>
+    sampleDegrees(rng, difficulty > 1, difficulty > 1 ? [[1, 1], [2, 2], [2, 2], [1, 2], [0, 2]] : [[1, 1], [2, 2], [1, 2]]),
+  render: (r): Slide => ({
+    kind: 'expression',
+    prompt: [show(`y = ${ratTex(r)}`), say('This curve settles towards a level line far out. What is its horizontal asymptote?')],
+    lead: 'y =',
+    keypad: [],
+    answer: String(asymptoteOf(r)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: degreeSteps,
+};
+
+interface HaWhichParams {
+  /** The asymptote asked for, never 0. */
+  c: number;
+  /** The right fraction first, then one with the ratio upside down in sign, one whose bottom is higher, one whose top is higher. */
+  choices: Rational[];
+}
+
+/** Which of four curves settles on y = c? Each wrong one has leads that look right or a degree that is not. */
+const fracHaWhich: Generator<HaWhichParams> = {
+  id: 'frac-ha-which',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const c = nonZero(rng, 4);
+    const d = hard ? rng.int(1, 2) : 1;
+    const m = hard ? rng.int(1, 2) : 1;
+    const build = (top: number, bottom: number, k: number): Rational => ({
+      k,
+      m,
+      ...sampleRoots(rng, { top, bottom, holes: 0, max: 5 }),
+      expanded: hard,
+    });
+    return {
+      c,
+      choices: [build(d, d, c * m), build(d, d, -c * m), build(d, d + 1, c * m), build(d + 1, d, c * m)],
+    };
+  },
+  render: ({ c, choices: [right, ...wrong] }): Slide =>
+    choiceSlide(
+      [say(`Which of these curves has the horizontal asymptote $y = ${c}$?`)],
+      options({ tex: `y = ${ratTex(right)}` }, ...wrong.map((r) => ({ tex: `y = ${ratTex(r)}` }))),
+    ),
+  solution: ({ choices }) =>
+    choices.map((r) => {
+      const level = asymptoteOf(r);
+      return {
+        text: `$${ratTex(r)}$: far out it behaves like $${leadsTex(r)}$, so ${level === null ? 'it has no horizontal asymptote' : `$y = ${level}$`}.`,
+      };
+    }),
+};
+
+/* ---------- holes ---------- */
+
+/** A fraction whose top and bottom share one factor, with the hole's height whole. */
+function sampleHole(rng: Rng, hard: boolean, shapes: [number, number][]): Rational {
+  for (;;) {
+    const [top, bottom] = rng.pick(shapes);
+    const r: Rational = { k: hard ? nonZero(rng, 3) : 1, m: 1, ...sampleRoots(rng, { top, bottom, holes: 1, max: 6 }), expanded: hard };
+    const y = simplifiedAt(r, holesOf(r)[0]);
+    if (Number.isInteger(y) && Math.abs(y) <= 12) return r;
+  }
+}
+
+/** The hole's x, then the simplified top and bottom there, then its y. */
+const fracHoleTree: Generator<Rational> = {
+  id: 'frac-hole-tree',
+  sample: (rng, difficulty) => sampleHole(rng, difficulty > 1, [[2, 2]]),
+  render: (r): Slide => {
+    const h = holesOf(r)[0];
+    const [z] = zerosOf(r);
+    const [p] = polesOf(r);
+    const top = r.k * (h - z);
+    const bottom = h - p;
+    const answer = [h, top, bottom, top / bottom];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          'Cancel the factor the top and bottom share, and find the hole. Top row: its $x$. Next: the simplified top and bottom there. Last: its $y$.',
+        ),
+      ],
+      expression: `y = ${ratTex(r)}`,
+      nodes: [
+        { id: 'x', from: [] },
+        { id: 'top', from: ['x'] },
+        { id: 'bottom', from: ['x'] },
+        { id: 'y', from: ['top', 'bottom'] },
+      ],
+      bank: numberBank(answer, [-h, -top, -bottom, -top / bottom, z, p, r.k * (h + z)]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (r) => {
+    const h = holesOf(r)[0];
+    const y = simplifiedAt(r, h);
+    const [z] = zerosOf(r);
+    const [p] = polesOf(r);
+    return [
+      ...factoriseStep(r),
+      ...cancelStep(r),
+      { tex: chain(`&${factorisedRatTex(r)}`, `=\\;&${simplifiedTex(r)}`) },
+      { text: `The original has no value at $x = ${h}$, but the simplified form does:` },
+      { tex: `${frac(r.k === 1 ? `${h} ${signed(-z)}` : `${r.k}(${h} ${signed(-z)})`, `${h} ${signed(-p)}`)} = ${frac(String(r.k * (h - z)), String(h - p))} = ${y}` },
+      { text: `So the hole is at $(${h}, ${y})$.` },
+    ];
+  },
+};
+
+const CANCELS = 'Yes, so it cancels: a hole';
+const STAYS = 'No, so it stays: an asymptote';
+
+/** Each place the bottom is zero, sorted into holes and asymptotes. */
+const fracHoleFlow: Generator<Rational> = {
+  id: 'frac-hole-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const holes = rng.chance(hard ? 0.7 : 0.8) ? 1 : 0;
+    return { k: hard ? nonZero(rng, 2) : 1, m: 1, ...sampleRoots(rng, { top: hard ? 2 : 1, bottom: 2, holes, max: 6 }), expanded: hard };
+  },
+  render: (r): Slide => {
+    const [a, b] = ascending(r.bottom);
+    const key = ratTex(r);
+    const ask = (x: number) => `The bottom is zero at $x = ${x}$. Is $${factorOf(-x)}$ a factor of the top as well?`;
+    return {
+      kind: 'flow',
+      prompt: [say('Sort each place the bottom is zero into a hole or a vertical asymptote.')],
+      subject: `y = ${ratTex(r)}`,
+      steps: [
+        { id: 'first', ask: ask(a), branches: turned([CANCELS, STAYS], `${key}|first`).map((label) => ({ label, to: 'second' })) },
+        {
+          id: 'second',
+          ask: ask(b),
+          branches: turned([CANCELS, STAYS], `${key}|second`).map((label) => ({
+            label,
+            outcome: `So $x = ${b}$ is ${label === CANCELS ? 'a hole' : 'a vertical asymptote'}.`,
+          })),
+        },
+      ],
+      answer: [r.top.includes(a) ? CANCELS : STAYS, r.top.includes(b) ? CANCELS : STAYS],
+    };
+  },
+  solution: (r) => [
+    ...factoriseStep(r),
+    ...ascending(r.bottom).map((x) => ({
+      text: r.top.includes(x)
+        ? `$${factorOf(-x)}$ is on the top too, so it cancels: $x = ${x}$ is a hole.`
+        : `$${factorOf(-x)}$ is not a factor of the top (it is $${valueAt(ratTop(r), x)}$ there, not $0$), so $x = ${x}$ is a vertical asymptote.`,
+    })),
+  ],
+};
+
+interface HoleSliderParams {
+  r: Rational;
+  left: number;
+  right: number;
+}
+
+const holeTrack = ({ r, left, right }: HoleSliderParams): [number, number] => rootTrack(r, left, right);
+
+/**
+ * The hole found on a graph that cannot show it: the curve is drawn through
+ * the missing point, so the rule is the only way to find it. The break the
+ * graph does show is the asymptote, which is the obvious wrong answer.
+ */
+const fracHoleSlider: Generator<HoleSliderParams> = {
+  id: 'frac-hole-slider',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const r = sampleHole(rng, difficulty > 1, [[2, 2], [1, 2]]);
+      const h = holesOf(r)[0];
+      const params: HoleSliderParams = { r, left: rng.int(1, 2), right: rng.int(1, 2) };
+      const [min, max] = holeTrack(params);
+      const { yMin, yMax } = levelWindow(r);
+      const y = simplifiedAt(r, h);
+      if (max - min > 12 || h === restingOn(min, max) || y <= yMin + 1 || y >= yMax - 1) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { r } = params;
+    const [min, max] = holeTrack(params);
+    const window = markerWindow(min, max);
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          `The curve is $y = ${ratTex(r)}$. Apart from where it shoots off, it looks unbroken, but one point is missing from it: a hole. Slide the marker to the hole.`,
+        ),
+      ],
+      min,
+      max,
+      step: 1,
+      answer: holesOf(r)[0],
+      readout: 'x = {v}',
+      figure: {
+        svg: ratSvg(r, { ...window, ...levelWindow(r), label: 'The curve, which shoots off at one place and looks unbroken elsewhere' }),
+        ...window,
+        axis: 'x',
+      },
+    };
+  },
+  solution: ({ r }) => {
+    const h = holesOf(r)[0];
+    return [
+      ...factoriseStep(r),
+      ...cancelStep(r),
+      { text: `Cancelled, it is $${simplifiedTex(r)}$, which has a value at $x = ${h}$. The original is $\\tfrac{0}{0}$ there, so only that one point is missing, too small to draw.` },
+      { text: `The break the graph does show, at $x = ${polesOf(r)[0]}$, is the vertical asymptote. The hole is at $x = ${h}$.` },
+    ];
+  },
+};
+
+/** The simplified form and the value it leaves out, placed from a bank. */
+const fracHoleTiles: Generator<Rational> = {
+  id: 'frac-hole-tiles',
+  sample: (rng, difficulty) => sampleHole(rng, difficulty > 1, [[2, 2], [1, 2], [2, 1]]),
+  render: (r): Slide => {
+    const h = holesOf(r)[0];
+    const answer = [simplifiedTex(r), String(h)];
+    const negated: Rational = { ...r, top: r.top.map((x) => -x), bottom: r.bottom.map((x) => -x) };
+    const zeros = zerosOf(r);
+    const poles = polesOf(r);
+    return {
+      kind: 'tiles',
+      prompt: [show(`y = ${ratTex(r)}`), say('Cancel the shared factor. Place the simplified form, and the one value of $x$ it no longer shows is missing.')],
+      template: 'y = {0}, \\quad x \\neq {1}',
+      bank: tileBank(answer, [
+        simplifiedTex(negated),
+        zeros.length === 0 && r.k === 1 ? lineTex(r.m, poles, false) : frac(lineTex(r.m, poles, false), lineTex(r.k, zeros, false)),
+        String(-h),
+        ...poles.map(String),
+        ...zeros.map(String),
+      ]),
+      answer,
+    };
+  },
+  solution: (r) => {
+    const h = holesOf(r)[0];
+    return [
+      ...factoriseStep(r),
+      { tex: chain(`&${factorisedRatTex(r)}`, `=\\;&${simplifiedTex(r)}`) },
+      { text: `The cancelled factor, $${factorOf(-h)}$, is zero at $x = ${h}$. The original has no value there, so the simplified form holds everywhere except $x = ${h}$: a hole.` },
+    ];
+  },
+};
+
+/* ---------- intercepts ---------- */
+
+/** Where the curve crosses the x-axis: the top's roots that survive cancelling. */
+const fracXIntWhich: Generator<Rational> = {
+  id: 'frac-x-int-which',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const holes = hard && rng.chance(0.6) ? 1 : 0;
+    return {
+      k: hard ? nonZero(rng, 2) : 1,
+      m: 1,
+      ...sampleRoots(rng, { top: 2, bottom: hard ? 2 : rng.int(1, 2), holes, max: 6 }),
+      expanded: hard,
+    };
+  },
+  render: (r): Slide => {
+    const zeros = zerosOf(r);
+    return choiceSlide(
+      [say('Where does this curve cross the $x$-axis?'), show(`y = ${ratTex(r)}`)],
+      firstFour(
+        listTex('x', zeros, '\\text{nowhere}'),
+        listTex('x', r.top, '\\text{nowhere}'),
+        listTex('x', zeros.map((z) => -z), '\\text{nowhere}'),
+        listTex('x', polesOf(r), '\\text{nowhere}'),
+        listTex('x', [...zeros, ...polesOf(r)], '\\text{nowhere}'),
+      ),
+    );
+  },
+  solution: (r) => [
+    ...factoriseStep(r),
+    { text: 'The curve meets the $x$-axis where $y = 0$: where the top is zero and the bottom is not.' },
+    ...cancelStep(r),
+    { text: `So it crosses at $${listTex('x', zerosOf(r))}$.` },
+  ],
+};
+
+/** The top and bottom at x = 0, whole draws only. */
+function sampleYIntercept(rng: Rng, hard: boolean, shapes: [number, number][], limit: number): Rational {
+  for (;;) {
+    const [top, bottom] = rng.pick(shapes);
+    const r: Rational = { k: nonZero(rng, hard ? 3 : 2), m: 1, ...sampleRoots(rng, { top, bottom, holes: 0, max: 6 }), expanded: hard };
+    const y = ratAt(r, 0);
+    if (Number.isInteger(y) && Math.abs(y) <= limit) return r;
+  }
+}
+
+/** The y-intercept worked on a tree: the top at 0, the bottom at 0, and their quotient. */
+const fracYIntTree: Generator<Rational> = {
+  id: 'frac-y-int-tree',
+  sample: (rng, difficulty) =>
+    sampleYIntercept(rng, difficulty > 1, difficulty > 1 ? [[2, 2], [1, 2], [2, 1]] : [[1, 1], [1, 2], [2, 1]], 20),
+  render: (r): Slide => {
+    const top = valueAt(ratTop(r), 0);
+    const bottom = valueAt(ratBottom(r), 0);
+    const answer = [top, bottom, top / bottom];
+    return {
+      kind: 'tree',
+      prompt: [say('Find where the curve crosses the $y$-axis, at $x = 0$. Top row: the top and the bottom there. Below: $y$.')],
+      expression: `y = ${ratTex(r)}`,
+      nodes: [
+        { id: 'top', from: [] },
+        { id: 'bottom', from: [] },
+        { id: 'y', from: ['top', 'bottom'] },
+      ],
+      bank: numberBank(answer, [-top, -bottom, -top / bottom, r.k, top - bottom]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (r) => {
+    const top = valueAt(ratTop(r), 0);
+    const bottom = valueAt(ratBottom(r), 0);
+    return [
+      {
+        text: r.expanded
+          ? 'At $x = 0$ every term with an $x$ in it vanishes, leaving each line\'s number on its own.'
+          : 'Put $x = 0$ into each bracket.',
+      },
+      { tex: `${frac(String(top), String(bottom))} = ${top / bottom}` },
+      { text: `So the curve crosses the $y$-axis at $(0, ${top / bottom})$.` },
+    ];
+  },
+};
+
+/** The line slid to the height where the curve crosses the y-axis, drawn. */
+const fracYIntSlider: Generator<LevelParams> = {
+  id: 'frac-y-int-slider',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const r = sampleYIntercept(rng, hard, hard ? [[2, 2], [1, 2]] : [[1, 1], [1, 2]], 6);
+      const params: LevelParams = { r, below: rng.int(1, 3), above: rng.int(1, 3) };
+      const [min, max] = yIntTrack(params);
+      if (max - min > 12 || ratAt(r, 0) === restingOn(min, max)) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { r } = params;
+    const [min, max] = yIntTrack(params);
+    const window = markerWindow(min, max, 'y');
+    const xs = [...r.top, ...r.bottom, 0];
+    return {
+      kind: 'slider',
+      prompt: [say(`The curve is $y = ${ratTex(r)}$, drawn with the $y$-axis. Slide the line to the height where the curve crosses the $y$-axis.`)],
+      min,
+      max,
+      step: 1,
+      answer: ratAt(r, 0),
+      readout: 'y = {v}',
+      figure: {
+        svg: ratSvg(r, {
+          xMin: Math.min(...xs) - 2,
+          xMax: Math.max(...xs) + 2,
+          yMin: window.xMin,
+          yMax: window.xMax,
+          yAxis: true,
+          label: 'The curve, and the y-axis it crosses',
+        }),
+        ...window,
+        axis: 'y',
+      },
+    };
+  },
+  solution: (params) => fracYIntTree.solution(params.r),
+};
+
+function yIntTrack({ r, below, above }: LevelParams): [number, number] {
+  const y = ratAt(r, 0);
+  return [Math.min(y, 0) - below, Math.max(y, 0) + above];
+}
+
+const NO_Y = 'Yes: no $y$-intercept';
+const HAS_Y = 'No: it crosses the $y$-axis';
+const CROSSINGS = ['Never', 'Once', 'Twice'];
+
+/** Both intercepts in one walk: is x = 0 allowed, the height there, and how often the curve meets the x-axis. */
+const fracInterceptsFlow: Generator<Rational> = {
+  id: 'frac-intercepts-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const top = rng.pick(hard ? [1, 2, 2] : [0, 1, 2]);
+      const holes = hard && top === 2 && rng.chance(0.5) ? 1 : 0;
+      const roots = sampleRoots(rng, { top, bottom: 2, holes, max: 6 });
+      const onAxis = rng.chance(0.35);
+      if (onAxis) roots.bottom[roots.bottom.findIndex((x) => !roots.top.includes(x))] = 0;
+      const r: Rational = { k: nonZero(rng, hard ? 3 : 2), m: 1, ...roots, expanded: hard };
+      const y = ratAt(r, 0);
+      if (!onAxis && (!Number.isInteger(y) || Math.abs(y) > 20)) continue;
+      return r;
+    }
+  },
+  render: (r): Slide => {
+    const key = ratTex(r);
+    const pole = polesOf(r).includes(0);
+    const top0 = valueAt(ratTop(r), 0);
+    const bottom0 = valueAt(ratBottom(r), 0);
+    const y = top0 / bottom0;
+    const heights = pole ? [] : [...new Set([y, -y, top0, bottom0, ...near(y, 4)])].slice(0, 4).map((v) => `$y = ${v}$`);
+    const crossings = {
+      id: 'xaxis',
+      ask: 'How many times does it cross the $x$-axis?',
+      branches: turned(CROSSINGS, `${key}|x`).map((label) => ({
+        label,
+        outcome: label === 'Never' ? 'So it never meets the $x$-axis.' : `So it meets the $x$-axis ${label.toLowerCase()}.`,
+      })),
+    };
+    return {
+      kind: 'flow',
+      prompt: [say('Find where this curve meets each axis.')],
+      subject: `y = ${ratTex(r)}`,
+      steps: [
+        {
+          id: 'yaxis',
+          ask: 'At $x = 0$, is the bottom zero?',
+          branches: turned([NO_Y, HAS_Y], `${key}|y`).map((label) => ({ label, to: label === NO_Y || pole ? 'xaxis' : 'height' })),
+        },
+        ...(pole
+          ? []
+          : [
+              {
+                id: 'height',
+                ask: 'Where does it cross the $y$-axis?',
+                branches: turned(heights, `${key}|height`).map((label) => ({ label, to: 'xaxis' })),
+              },
+            ]),
+        crossings,
+      ],
+      answer: pole ? [NO_Y, CROSSINGS[zerosOf(r).length]] : [HAS_Y, `$y = ${y}$`, CROSSINGS[zerosOf(r).length]],
+    };
+  },
+  solution: (r) => {
+    const pole = polesOf(r).includes(0);
+    const zeros = zerosOf(r);
+    return [
+      ...factoriseStep(r),
+      pole
+        ? { text: 'At $x = 0$ the bottom is zero, so the $y$-axis is a vertical asymptote and the curve never meets it.' }
+        : { text: `At $x = 0$ the top is $${valueAt(ratTop(r), 0)}$ and the bottom $${valueAt(ratBottom(r), 0)}$, so it crosses the $y$-axis at $y = ${ratAt(r, 0)}$.` },
+      ...cancelStep(r),
+      {
+        text:
+          zeros.length === 0
+            ? 'Nothing on the top is ever zero, so it never meets the $x$-axis.'
+            : `The top is zero, with the bottom not, at $${listTex('x', zeros)}$: ${CROSSINGS[zeros.length].toLowerCase()}.`,
+      },
+    ];
+  },
+};
+
+/* ---------- the sketch ---------- */
+
+/** Every feature of a curve in one table, from a bank of numbers. Difficulty 2 has a hole as well. */
+const fracFeaturesTable: Generator<Rational> = {
+  id: 'frac-features-table',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const r: Rational = {
+        k: nonZero(rng, hard ? 3 : 4),
+        m: 1,
+        ...sampleRoots(rng, { top: hard ? 2 : 1, bottom: hard ? 2 : 1, holes: hard ? 1 : 0, max: 6 }),
+        expanded: hard,
+      };
+      const heights = [ratAt(r, 0), ...holesOf(r).map((h) => simplifiedAt(r, h))];
+      if (heights.every((y) => Number.isInteger(y) && Math.abs(y) <= 20)) return r;
+    }
+  },
+  render: (r): Slide => {
+    const [p] = polesOf(r);
+    const [z] = zerosOf(r);
+    const holes = holesOf(r);
+    const level = asymptoteOf(r)!;
+    const y0 = ratAt(r, 0);
+    const rows: [string, number][] = [
+      ['\\text{Asymptote } x', p],
+      ['\\text{Asymptote } y', level],
+      ...holes.flatMap((h): [string, number][] => [
+        ['\\text{Hole } x', h],
+        ['\\text{Hole } y', simplifiedAt(r, h)],
+      ]),
+      ['\\text{Meets } x\\text{-axis}', z],
+      ['\\text{Meets } y\\text{-axis}', y0],
+    ];
+    const answer = rows.map(([, v]) => v);
+    return {
+      kind: 'table',
+      prompt: [
+        show(`y = ${ratTex(r)}`),
+        say(
+          `Fill in every feature of this curve, ready to sketch it: its asymptotes $x = \\ldots$ and $y = \\ldots$,${holes.length ? ' the hole,' : ''} and where it meets each axis.`,
+        ),
+      ],
+      columns: ['\\text{Feature}', '\\text{Value}'],
+      rows: rows.map(([name]) => [name, null]),
+      bank: numberBank(answer, [-p, -z, -level, -y0, 0, ...holes.map((h) => -h)]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (r) => {
+    const [p] = polesOf(r);
+    const [z] = zerosOf(r);
+    return [
+      ...factoriseStep(r),
+      ...holesOf(r).map((h) => ({
+        text: `$${factorOf(-h)}$ cancels, leaving $${simplifiedTex(r)}$: a hole at $x = ${h}$, whose height is $${simplifiedAt(r, h)}$.`,
+      })),
+      { text: `Vertical asymptote where what is left of the bottom is zero: $x = ${p}$.` },
+      { text: `The top and bottom have the same degree, so the horizontal asymptote is the ratio of the leading coefficients: $y = ${asymptoteOf(r)}$.` },
+      { text: `The top is zero at $x = ${z}$, and at $x = 0$ the curve is at $y = ${ratAt(r, 0)}$.` },
+    ];
+  },
+};
+
+/** The three wrong rules beside a sketch: brackets' signs flipped, the zero and a pole swapped, and the curve upside down. */
+function sketchChoices(r: Rational): Rational[] {
+  const [z] = r.top;
+  const [p, ...rest] = r.bottom;
+  return [
+    r,
+    { ...r, top: r.top.map((x) => -x), bottom: r.bottom.map((x) => -x) },
+    { ...r, top: [p], bottom: [z, ...rest] },
+    { ...r, k: -r.k },
+  ];
+}
+
+function sketchOptions(r: Rational): [ChoiceOption, ...ChoiceOption[]] {
+  const [right, ...wrong] = sketchChoices(r).map((o) => ({ tex: `y = ${ratTex(o)}` }));
+  return [right, ...wrong];
+}
+
+/** The squared paper a sketch is drawn on: every root and the origin, with room either side. */
+function sketchWindow(r: Rational): { xMin: number; xMax: number; yMin: number; yMax: number } {
+  const xs = [...r.top, ...r.bottom, 0];
+  const level = asymptoteOf(r)!;
+  return { xMin: Math.min(...xs) - 3, xMax: Math.max(...xs) + 3, yMin: Math.min(level, 0) - 5, yMax: Math.max(level, 0) + 5 };
+}
+
+/**
+ * Whether every piece of the curve, between the edges and the poles, is on
+ * the paper for a stretch. A branch that runs off before the edge of the
+ * picture is a branch the learner cannot see, and the sketch then fits a
+ * rule it does not show.
+ */
+function everyPieceShows(r: Rational, win: ReturnType<typeof sketchWindow>): boolean {
+  const cuts = [win.xMin, ...ascending(polesOf(r)), win.xMax];
+  return cuts.slice(1).every((hi, i) => {
+    const lo = cuts[i];
+    const inside = Array.from({ length: 40 }, (_, j) => ratAt(r, lo + ((hi - lo) * (j + 0.5)) / 40)).filter(
+      (y) => y > win.yMin + 0.5 && y < win.yMax - 0.5,
+    );
+    return inside.length >= 6;
+  });
+}
+
+/**
+ * A sketch on squared paper with its asymptotes dashed, and the rule that
+ * draws it. Every wrong rule differs in a feature a learner can count off the
+ * grid. Difficulty 2 has two vertical asymptotes and settles on the x-axis.
+ */
+const fracSketchWhich: Generator<Rational> = {
+  id: 'frac-sketch-which',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const r: Rational = { k: nonZero(rng, 3), m: 1, ...sampleRoots(rng, { top: 1, bottom: hard ? 2 : 1, holes: 0, max: 4 }), expanded: false };
+      const win = sketchWindow(r);
+      if (new Set(sketchChoices(r).map(ratTex)).size === 4 && win.xMax - win.xMin <= 16 && everyPieceShows(r, win)) return r;
+    }
+  },
+  render: (r): Slide => {
+    return choiceSlide(
+      [
+        say('Which rule draws this sketch? The dashed lines are its asymptotes, and each square of the grid is one unit.'),
+        {
+          kind: 'diagram',
+          svg: ratSvg(r, {
+            ...sketchWindow(r),
+            asymptotes: true,
+            grid: true,
+            height: 200,
+            label: 'A curve on squared paper with its asymptotes dashed',
+          }),
+        },
+      ],
+      options(...sketchOptions(r)),
+    );
+  },
+  solution: (r) => {
+    const level = asymptoteOf(r)!;
+    return [
+      { text: `Count off the grid: vertical asymptote${polesOf(r).length > 1 ? 's' : ''} at $${listTex('x', polesOf(r))}$, so the bottom is $${lineTex(1, r.bottom, false)}$.` },
+      { text: `It crosses the $x$-axis at $x = ${zerosOf(r)[0]}$, so the top has the factor $${factorOf(-zerosOf(r)[0])}$.` },
+      {
+        text:
+          level === 0
+            ? `It settles on the $x$-axis, and just right of $x = ${Math.max(...r.bottom)}$ it heads ${rightArm(r, Math.max(...r.bottom)) > 0 ? 'up' : 'down'}, which fixes the sign in front: $${r.k}$.`
+            : `It settles on $y = ${level}$, the ratio of the leading coefficients, so the number in front is $${r.k}$.`,
+      },
+      { tex: `y = ${ratTex(r)}` },
+    ];
+  },
+};
+
+/** Two quadratics over each other: where the curve crosses its own horizontal asymptote, whole. */
+function crossing({ top: [a, b], bottom: [p, q] }: Rational): number {
+  return (a * b - p * q) / (a + b - p - q);
+}
+
+/**
+ * Where the curve crosses its horizontal asymptote y = k: set the fraction
+ * equal to k, and the x^2 terms cancel, leaving one linear equation.
+ */
+const fracCrossHa: Generator<Rational> = {
+  id: 'frac-cross-ha',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const r: Rational = { k: hard ? nonZero(rng, 3) : 1, m: 1, ...sampleRoots(rng, { top: 2, bottom: 2, holes: 0, max: 6 }), expanded: hard };
+      const [a, b] = r.top;
+      const [p, q] = r.bottom;
+      if (a + b === p + q) continue;
+      const x = crossing(r);
+      if (Number.isInteger(x) && Math.abs(x) <= 12) return r;
+    }
+  },
+  render: (r): Slide => ({
+    kind: 'expression',
+    prompt: [
+      show(`y = ${ratTex(r)}`),
+      say(`Its horizontal asymptote is $y = ${r.k}$. A curve can cross that line nearer in. Where does this one cross it?`),
+    ],
+    lead: 'x =',
+    keypad: [],
+    answer: String(crossing(r)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (r) => {
+    const [a, b] = r.top;
+    const [p, q] = r.bottom;
+    const top = fromRoots([a, b]);
+    const bottom = fromRoots([p, q]);
+    return [
+      { text: `Set the fraction equal to $${r.k}$ and multiply both sides by the bottom${r.k === 1 ? '' : `, then divide both by $${r.k}$`}:` },
+      { tex: `${polyTex(top)} = ${polyTex(bottom)}` },
+      { text: 'The $x^2$ terms cancel, which is why there is at most one crossing:' },
+      { tex: `${termTex(top[1] - bottom[1], 1)} = ${bottom[2] - top[2]}` },
+      { tex: `x = ${crossing(r)}` },
+    ];
+  },
+};
+
+const CROSSES = 'Yes, once';
+const NEVER_CROSSES = 'No, never';
+const NO_HA = 'None';
+
+/** Whether the curve crosses its horizontal asymptote, or null when it has none. */
+function crossesLevel(r: Rational): boolean | null {
+  const level = asymptoteOf(r);
+  if (level === null) return null;
+  if (level === 0) return zerosOf(r).length > 0;
+  if (r.top.length === 1) return false;
+  const [a, b] = r.top;
+  const [p, q] = r.bottom;
+  return a + b !== p + q;
+}
+
+/**
+ * The sketch planned from the rule: vertical asymptotes, the level the curve
+ * settles on, and whether it ever crosses that level.
+ */
+const fracSketchFlow: Generator<Rational> = {
+  id: 'frac-sketch-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const shape = rng.pick<[number, number]>(hard ? [[2, 2], [2, 2], [2, 1], [1, 2]] : [[0, 1], [1, 2], [1, 1], [0, 2]]);
+    for (;;) {
+      const r: Rational = { k: nonZero(rng, 3), m: 1, ...sampleRoots(rng, { top: shape[0], bottom: shape[1], holes: 0, max: 6 }), expanded: hard };
+      if (shape[0] === 2 && shape[1] === 2 && rng.chance(0.4)) {
+        // A pair of brackets on each line with equal sums never crosses: nudge the last pole to make one.
+        const [a, b] = r.top;
+        const [p] = r.bottom;
+        const q = a + b - p;
+        if (q === 0 || Math.abs(q) > 6 || [a, b, p].includes(q)) continue;
+        return { ...r, bottom: [p, q] };
+      }
+      return r;
+    }
+  },
+  render: (r): Slide => {
+    const key = ratTex(r);
+    const poles = polesOf(r);
+    const level = asymptoteOf(r);
+    const verticals = [
+      ...new Set([
+        listTex('x', poles),
+        listTex('x', poles.map((p) => -p)),
+        listTex('x', r.top.length > 0 ? r.top : poles.map((p) => p + 1)),
+        listTex('x', [...poles, ...r.top]),
+      ]),
+    ].map((tex) => `$${tex}$`);
+    const levels = [...new Set([0, r.k, -r.k])].map((y) => `$y = ${y}$`);
+    const cross = crossesLevel(r);
+    return {
+      kind: 'flow',
+      prompt: [say('Plan a sketch of this curve, one feature at a time.')],
+      subject: `y = ${ratTex(r)}`,
+      steps: [
+        {
+          id: 'vertical',
+          ask: 'Where are its vertical asymptotes?',
+          branches: turned(verticals, `${key}|v`).map((label) => ({ label, to: 'level' })),
+        },
+        {
+          id: 'level',
+          ask: 'And its horizontal asymptote?',
+          branches: turned([...levels, NO_HA], `${key}|h`).map((label) =>
+            label === NO_HA ? { label, outcome: 'So there is no level line to cross: far out the curve keeps climbing or falling.' } : { label, to: 'cross' },
+          ),
+        },
+        {
+          id: 'cross',
+          ask: 'Does the curve ever cross that line?',
+          branches: turned([CROSSES, NEVER_CROSSES], `${key}|c`).map((label) => ({
+            label,
+            outcome: label === CROSSES ? 'So it crosses the level line once, nearer in, then settles back towards it.' : 'So it stays on one side of the level line at each end.',
+          })),
+        },
+      ],
+      answer: [
+        `$${listTex('x', poles)}$`,
+        level === null ? NO_HA : `$y = ${level}$`,
+        ...(cross === null ? [] : [cross ? CROSSES : NEVER_CROSSES]),
+      ],
+    };
+  },
+  solution: (r) => {
+    const level = asymptoteOf(r);
+    const cross = crossesLevel(r);
+    const steps: SolutionStep[] = [
+      ...factoriseStep(r),
+      { text: `Vertical asymptotes where the bottom is zero: $${listTex('x', polesOf(r))}$.` },
+      ...degreeSteps(r),
+    ];
+    if (level === 0) {
+      steps.push({
+        text: cross ? `The level is the $x$-axis, and the curve crosses it where the top is zero: $x = ${zerosOf(r)[0]}$.` : 'The level is the $x$-axis, and the top is never zero, so the curve never crosses it.',
+      });
+    } else if (level !== null && r.top.length === 1) {
+      steps.push({ text: `Setting it equal to $${level}$ gives $${lineTex(1, r.top, false)} = ${lineTex(1, r.bottom, false)}$, which no $x$ satisfies: it never crosses.` });
+    } else if (level !== null) {
+      const [a, b] = r.top;
+      steps.push({
+        text: cross
+          ? `Setting it equal to $${level}$, the $x^2$ terms cancel and a linear equation is left, solved by $x = ${crossing(r)}$: it crosses once.`
+          : `Setting it equal to $${level}$, the $x^2$ terms cancel, and so do the $x$ terms: both lines have $x$ coefficient $${-(a + b)}$ once multiplied out. What is left is never true, so it never crosses.`,
+      });
+    }
+    return steps;
+  },
+};
+
 export const algebraicFractionGenerators = [
   fracCancel,
   fracCancelWhich,
@@ -5348,4 +6652,24 @@ export const algebraicFractionGenerators = [
   fracIneqLeastWhole,
   fracIneqMemberFlow,
   fracIneqGraphSlider,
+  fracVaWhich,
+  fracVaSlider,
+  fracVaSideFlow,
+  fracVaArmsTiles,
+  fracHaFlow,
+  fracHaSlider,
+  fracHaValue,
+  fracHaWhich,
+  fracHoleTree,
+  fracHoleFlow,
+  fracHoleSlider,
+  fracHoleTiles,
+  fracXIntWhich,
+  fracYIntTree,
+  fracYIntSlider,
+  fracInterceptsFlow,
+  fracFeaturesTable,
+  fracSketchWhich,
+  fracCrossHa,
+  fracSketchFlow,
 ];

@@ -29,6 +29,12 @@
  * angles; and it tells an identity from an equation, which one angle can
  * disprove but never prove.
  *
+ * Level 6 adds the factor formulae: sin P + sin Q and its three siblings as a
+ * product of half sums and half differences, derived by adding two compound
+ * angle expansions, run back from a product to a sum, used for exact values
+ * of angles off the table, and used to solve an equation such as
+ * sin 5x + sin x = 0 by factorising it, over a stated range.
+ *
  * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
  */
@@ -55,7 +61,7 @@ export const trigIdentities: Course = {
   // Straight after Trigonometric Functions, whose identities it puts to work.
   position: 15,
   title: 'Trigonometric Identities & Equations',
-  blurb: 'Rewriting with identities to solve equations; compound, double, half and triple angles; the form R sin(x + α); and proving identities.',
+  blurb: 'Rewriting with identities to solve equations; compound, double, half and triple angles; the form R sin(x + α); proving identities; and the factor formulae.',
   levels: [
     {
       id: 'ti-l1',
@@ -1114,6 +1120,212 @@ export const trigIdentities: Course = {
         ask('tid-proof-side-value', 2),
         ask('tid-proof-verdict-flow', 2),
         ask('tid-proof-wrong-choice', 2),
+      ],
+    },
+    {
+      id: 'ti-l6',
+      title: 'Sum-to-Product (Factor Formulae)',
+      lessons: [
+        {
+          id: 'ti-l6-origin',
+          title: 'Where the Formulae Come From',
+          slides: [
+            teach(
+              prose('Write out both expansions of $\\sin(A \\pm B)$:'),
+              maths('\\begin{aligned} & \\sin(A + B) \\\\ &= \\sin A \\cos B + \\cos A \\sin B \\\\[6pt] & \\sin(A - B) \\\\ &= \\sin A \\cos B - \\cos A \\sin B \\end{aligned}'),
+              prose('Add them. The $\\cos A \\sin B$ terms cancel, and what is left is one product:'),
+              maths('\\begin{aligned} & \\sin(A + B) + \\sin(A - B) \\\\ &= 2\\sin A \\cos B \\end{aligned}'),
+            ),
+            ask('tid-factor-add-steps'),
+            ask('tid-factor-origin-choice'),
+            ask('tid-factor-add-steps', 2),
+            teach(
+              prose('The other three ways of combining two expansions each leave one product too:'),
+              maths(
+                '\\begin{aligned} & \\sin(A + B) - \\sin(A - B) \\\\ &= 2\\cos A \\sin B \\\\[6pt] & \\cos(A + B) + \\cos(A - B) \\\\ &= 2\\cos A \\cos B \\\\[6pt] & \\cos(A + B) - \\cos(A - B) \\\\ &= -2\\sin A \\sin B \\end{aligned}',
+              ),
+              prose('The minus in front of the last one comes from $\\cos(A + B)$, which has the minus inside.'),
+            ),
+            ask('tid-factor-origin-choice', 2),
+            teach(
+              prose('Now name the angles the other way round: $P = A + B$ and $Q = A - B$. Adding and taking away gives'),
+              maths('A = \\frac{P + Q}{2} \\qquad B = \\frac{P - Q}{2}'),
+              prose('So a sum turns into a product of half the sum and half the difference:'),
+              maths('\\begin{aligned} & \\sin P + \\sin Q \\\\ &= 2\\sin \\frac{P + Q}{2} \\cos \\frac{P - Q}{2} \\end{aligned}'),
+            ),
+            ask('tid-factor-halves-tree'),
+            ask('tid-factor-derive-order'),
+            ask('tid-factor-halves-tree', 2),
+            ask('tid-factor-derive-order', 2),
+          ],
+          skillCheck: [
+            ask('tid-factor-add-steps', 2),
+            ask('tid-factor-halves-tree', 2),
+            ask('tid-factor-derive-order', 2),
+          ],
+        },
+        {
+          id: 'ti-l6-sum',
+          title: 'Sum to Product',
+          slides: [
+            teach(
+              prose('The four factor formulae turn a sum of two sines, or of two cosines, into a product:'),
+              maths(
+                '\\begin{aligned} & \\sin P + \\sin Q \\\\ &= 2\\sin \\tfrac{P + Q}{2} \\cos \\tfrac{P - Q}{2} \\\\[6pt] & \\sin P - \\sin Q \\\\ &= 2\\cos \\tfrac{P + Q}{2} \\sin \\tfrac{P - Q}{2} \\\\[6pt] & \\cos P + \\cos Q \\\\ &= 2\\cos \\tfrac{P + Q}{2} \\cos \\tfrac{P - Q}{2} \\\\[6pt] & \\cos P - \\cos Q \\\\ &= -2\\sin \\tfrac{P + Q}{2} \\sin \\tfrac{P - Q}{2} \\end{aligned}',
+              ),
+              prose('Half the sum goes in the first function, half the difference in the second.'),
+            ),
+            ask('tid-factor-sum-tiles'),
+            ask('tid-factor-sum-choice'),
+            ask('tid-factor-sum-steps'),
+            teach(
+              prose('For $\\sin 5x + \\sin 3x$, $P = 5x$ and $Q = 3x$:'),
+              maths('\\begin{aligned} & \\sin 5x + \\sin 3x \\\\ &= 2\\sin \\frac{5x + 3x}{2} \\cos \\frac{5x - 3x}{2} \\\\ &= 2\\sin 4x \\cos x \\end{aligned}'),
+              prose('Half of $8x$ is $4x$, and half of $2x$ is $x$.'),
+            ),
+            ask('tid-factor-sum-steps', 2),
+            ask('tid-factor-sum-tiles', 2),
+            teach(
+              prose('Two places the sign goes wrong. A difference of cosines has a minus in front: $\\cos 7x - \\cos 3x = -2\\sin 5x \\sin 2x$.'),
+              prose('And when $Q$ is the larger, half the difference is negative. $\\sin(-\\theta) = -\\sin \\theta$ turns the sign; $\\cos(-\\theta) = \\cos \\theta$ does not:'),
+              maths('\\begin{aligned} & \\cos 3x - \\cos 7x \\\\ &= -2\\sin 5x \\sin(-2x) \\\\ &= 2\\sin 5x \\sin 2x \\end{aligned}'),
+            ),
+            ask('tid-factor-sign-flow'),
+            ask('tid-factor-sum-choice', 2),
+            ask('tid-factor-sign-flow', 2),
+          ],
+          skillCheck: [
+            ask('tid-factor-sum-tiles', 2),
+            ask('tid-factor-sum-steps', 2),
+            ask('tid-factor-sign-flow', 2),
+          ],
+        },
+        {
+          id: 'ti-l6-product',
+          title: 'Product to Sum',
+          slides: [
+            teach(
+              prose('Read the other way, the same results turn a product into a sum:'),
+              maths(
+                '\\begin{aligned} & 2\\sin A \\cos B \\\\ &= \\sin(A + B) + \\sin(A - B) \\\\[6pt] & 2\\cos A \\sin B \\\\ &= \\sin(A + B) - \\sin(A - B) \\\\[6pt] & 2\\cos A \\cos B \\\\ &= \\cos(A + B) + \\cos(A - B) \\\\[6pt] & 2\\sin A \\sin B \\\\ &= \\cos(A - B) - \\cos(A + B) \\end{aligned}',
+              ),
+              prose('In the last one the $A - B$ term comes first. For example, $2\\sin 4x \\cos x = \\sin 5x + \\sin 3x$.'),
+            ),
+            ask('tid-factor-product-tiles'),
+            ask('tid-factor-product-choice'),
+            ask('tid-factor-product-tiles', 2),
+            teach(
+              prose('Each formula starts from twice the product. Without the $2$, halve the sum:'),
+              maths('\\begin{aligned} & \\sin 4x \\cos x \\\\ &= \\tfrac{1}{2}(\\sin 5x + \\sin 3x) \\end{aligned}'),
+              prose('It finds values too. Neither $75^{\\circ}$ nor $15^{\\circ}$ is on the table, but their sum and difference are:'),
+              maths('\\begin{aligned} & 2\\cos 75^{\\circ} \\cos 15^{\\circ} \\\\ &= \\cos 90^{\\circ} + \\cos 60^{\\circ} \\\\ &= 0 + \\tfrac{1}{2} = \\tfrac{1}{2} \\end{aligned}'),
+            ),
+            ask('tid-factor-product-choice', 2),
+            ask('tid-factor-product-value'),
+            teach(
+              prose('When $B$ is the larger angle, $A - B$ is negative. That is fine: $\\sin(-60^{\\circ}) = -\\sin 60^{\\circ}$.'),
+              maths('\\begin{aligned} & 2\\sin 15^{\\circ} \\cos 75^{\\circ} \\\\ &= \\sin 90^{\\circ} + \\sin(-60^{\\circ}) \\\\ &= 1 - \\frac{\\sqrt{3}}{2} \\end{aligned}'),
+            ),
+            ask('tid-factor-product-steps'),
+            ask('tid-factor-product-value+choice', 2),
+            ask('tid-factor-product-steps', 2),
+          ],
+          skillCheck: [
+            ask('tid-factor-product-tiles', 2),
+            ask('tid-factor-product-value', 2),
+            ask('tid-factor-product-steps', 2),
+          ],
+        },
+        {
+          id: 'ti-l6-exact',
+          title: 'Exact Values',
+          slides: [
+            teach(
+              prose('Two angles off the table can have a half sum and a half difference on it. For $\\sin 75^{\\circ} + \\sin 15^{\\circ}$ they are $45^{\\circ}$ and $30^{\\circ}$:'),
+              maths(
+                '\\begin{aligned} & \\sin 75^{\\circ} + \\sin 15^{\\circ} \\\\ &= 2\\sin 45^{\\circ} \\cos 30^{\\circ} \\\\ &= 2 \\times \\frac{\\sqrt{2}}{2} \\times \\frac{\\sqrt{3}}{2} = \\frac{\\sqrt{6}}{2} \\end{aligned}',
+              ),
+            ),
+            ask('tid-factor-exact-tiles'),
+            ask('tid-factor-exact-tree'),
+            ask('tid-factor-exact-choice'),
+            teach(
+              prose('Mind the minus in front of a difference of cosines:'),
+              maths(
+                '\\begin{aligned} & \\cos 75^{\\circ} - \\cos 15^{\\circ} \\\\ &= -2\\sin 45^{\\circ} \\sin 30^{\\circ} \\\\ &= -2 \\times \\frac{\\sqrt{2}}{2} \\times \\frac{1}{2} = -\\frac{\\sqrt{2}}{2} \\end{aligned}',
+              ),
+            ),
+            ask('tid-factor-exact-steps'),
+            ask('tid-factor-exact-tiles', 2),
+            ask('tid-factor-product-value', 2),
+            teach(
+              prose('Order matters. In $\\sin 15^{\\circ} - \\sin 75^{\\circ}$, half the difference is $-30^{\\circ}$, and $\\sin(-30^{\\circ}) = -\\tfrac{1}{2}$:'),
+              maths(
+                '\\begin{aligned} & \\sin 15^{\\circ} - \\sin 75^{\\circ} \\\\ &= 2\\cos 45^{\\circ} \\sin(-30^{\\circ}) \\\\ &= -\\frac{\\sqrt{2}}{2} \\end{aligned}',
+              ),
+            ),
+            ask('tid-factor-exact-choice', 2),
+            ask('tid-factor-product-value'),
+          ],
+          skillCheck: [
+            ask('tid-factor-exact-tiles', 2),
+            ask('tid-factor-exact-tree', 2),
+            ask('tid-factor-exact-steps', 2),
+          ],
+        },
+        {
+          id: 'ti-l6-equations',
+          title: 'Equations by Factorising',
+          slides: [
+            teach(
+              prose('To solve $\\sin 3x + \\sin x = 0$, factorise the left side:'),
+              maths('2\\sin 2x \\cos x = 0'),
+              prose(
+                'A product is zero only when one of its factors is. For $0^{\\circ} \\le x < 360^{\\circ}$, $\\sin 2x = 0$ gives $0^{\\circ}$, $90^{\\circ}$, $180^{\\circ}$ and $270^{\\circ}$, and $\\cos x = 0$ gives $90^{\\circ}$ and $270^{\\circ}$.',
+              ),
+            ),
+            ask('tid-factor-eq-steps'),
+            ask('tid-factor-eq-flow'),
+            ask('tid-factor-eq-slider'),
+            teach(
+              prose('Count each angle once. Above, $90^{\\circ}$ and $270^{\\circ}$ solve both factors, so there are four solutions, not six:'),
+              maths('x = 0^{\\circ}, 90^{\\circ}, 180^{\\circ}, 270^{\\circ}'),
+              prose('And solve each factor over the whole range: $\\sin 2x$ repeats every $180^{\\circ}$, so it has twice as many zeros as $\\sin x$.'),
+            ),
+            ask('tid-factor-eq-angle'),
+            ask('tid-factor-eq-flow', 2),
+            ask('tid-factor-eq-slider', 2),
+            teach(
+              prose('With a term on each side, as in $\\sin 5x = \\sin x$, bring both to one side first:'),
+              maths('\\begin{aligned} \\sin 5x - \\sin x &= 0 \\\\ 2\\cos 3x \\sin 2x &= 0 \\end{aligned}'),
+              prose('Never cancel the sines or divide by one: that loses the solutions where it is zero.'),
+            ),
+            ask('tid-factor-eq-steps', 2),
+            ask('tid-factor-eq-angle+choice', 2),
+          ],
+          skillCheck: [
+            ask('tid-factor-eq-flow', 2),
+            ask('tid-factor-eq-steps', 2),
+            ask('tid-factor-eq-angle', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('tid-factor-add-steps', 2),
+        ask('tid-factor-halves-tree', 2),
+        ask('tid-factor-origin-choice', 2),
+        ask('tid-factor-sum-tiles', 2),
+        ask('tid-factor-sign-flow', 2),
+        ask('tid-factor-sum-steps', 2),
+        ask('tid-factor-product-choice', 2),
+        ask('tid-factor-product-value', 2),
+        ask('tid-factor-product-tiles', 2),
+        ask('tid-factor-exact-tree', 2),
+        ask('tid-factor-exact-choice', 2),
+        ask('tid-factor-exact-tiles', 2),
+        ask('tid-factor-eq-flow', 2),
+        ask('tid-factor-eq-steps', 2),
+        ask('tid-factor-eq-angle', 2),
       ],
     },
   ],

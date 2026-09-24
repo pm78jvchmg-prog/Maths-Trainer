@@ -16,7 +16,9 @@
  * 22.5 degrees appear only in a prompt or an option, and a 3x equation that is
  * typed or slid keeps to 0 and +-1. Level 6 adds the factor formulae
  * (sum to product and back), their exact values off the table, and equations
- * solved by factorising a sum; its section's own comment says more.
+ * solved by factorising a sum; its section's own comment says more. Level 7
+ * writes general solutions, alpha + 360n and its kin, which are never typed;
+ * its section's comment says how they are checked.
  *
  * Every angle is a multiple of 30 or 45 degrees (or half of one, where a double
  * angle is being undone), every value is 0, +-1/2, +-1 or a surd, and every
@@ -9934,6 +9936,1220 @@ const eqAngle: Generator<EqAngleParams> = {
   },
 };
 
+/* ---------- Level 7: general solutions and harder equations ---------- */
+
+/**
+ * Trigonometric Functions (`tf-l6-general`) takes a principal value to its
+ * partner inside one turn. This level writes every solution at once, as
+ * families in a whole number n: alpha + 360n or 180 - alpha + 360n for a sine,
+ * ±alpha + 360n for a cosine, alpha + 180n for a tangent, and the same in
+ * radians (alpha + 2n pi to alpha + n pi). Then a bracket, fn(ax + b) = k,
+ * whose families are found for the bracket and then divided through, turn and
+ * all; then harder equations, which an identity or a factor formula splits
+ * into factors with families of their own; and last, which route an equation
+ * wants and what dividing by sin x or cos x throws away.
+ *
+ * Every principal value is a multiple of 30 or 45 degrees and every solution a
+ * multiple of 15, so each is whole in degrees and a `piTex` fraction in
+ * radians. Every family an equation is given is checked before it is shown
+ * (`solveParts`): its members from -360 to 360 must be exactly the whole
+ * degrees where `trigAt` makes the equation hold. Every slip offered beside a
+ * family is checked to give a different set of solutions (`sameSet`), so
+ * -alpha + 360n for a cosine, which is the right answer written another way,
+ * never reaches a learner as a wrong one.
+ *
+ * A general solution is never typed: n is a letter to the checker, which
+ * compares values, so a family goes through tiles, steps, tree, table, flow or
+ * choice; the typed answers are an angle (`angleAnswer`) or a count. Nothing
+ * here is calculus, so no slide declares `source`; `trigIdentities.test.ts`
+ * reads each family off the TeX, puts n into it, and holds what lands in the
+ * range to a one-degree scan of the equation instead.
+ */
+
+/** One family of solutions, base + period n, in degrees. */
+interface Family {
+  base: number;
+  period: number;
+}
+
+/** c times the root of r: [2, 1] is 2, [1, 3] is \\sqrt{3}. */
+type Term = [number, number];
+
+const termTex = ([c, r]: Term): string => (r === 1 ? `${c}` : `${c === 1 ? '' : c}\\sqrt{${r}}`);
+
+/** A term in front of a function: nothing for 1. */
+const termFront = (t: Term): string => (t[0] === 1 && t[1] === 1 ? '' : termTex(t));
+
+const termValue = ([c, r]: Term): number => c * Math.sqrt(r);
+
+/** Each size a ratio takes at a table angle, and the equation b fn x = a that writes it. */
+const GEN_SIZES: { value: number; b: Term; a: Term }[] = [
+  { value: 0, b: [1, 1], a: [0, 1] },
+  { value: 0.5, b: [2, 1], a: [1, 1] },
+  { value: Math.SQRT2 / 2, b: [1, 2], a: [1, 1] },
+  { value: Math.sqrt(3) / 2, b: [2, 1], a: [1, 3] },
+  { value: 1, b: [1, 1], a: [1, 1] },
+  { value: 1 / Math.sqrt(3), b: [1, 3], a: [1, 1] },
+  { value: Math.sqrt(3), b: [1, 1], a: [1, 3] },
+];
+
+/** The sizes whose sine or cosine has two families, and whose tangent has a principal value off zero. */
+const GEN_SIZES_FOR: Record<Fn, number[]> = { sin: [1, 2, 3], cos: [1, 2, 3], tan: [5, 4, 6] };
+
+/** fn x = sign times a size, written b fn x = a with both sides times m, and moved round by `shape`. */
+interface SizeEq {
+  fn: Fn;
+  size: number;
+  sign: number;
+  /** 0: b fn x = a; 1: b fn x - a = 0; 2: a - b fn x = 0. */
+  shape: number;
+  m: number;
+}
+
+const sizeValue = ({ size, sign }: SizeEq): number => sign * GEN_SIZES[size].value;
+
+function sizeEqTex({ fn, size, sign, shape, m }: SizeEq): string {
+  const { b, a } = GEN_SIZES[size];
+  const f = `${termFront([b[0] * m, b[1]])}\\${fn} x`;
+  if (a[0] === 0) return `${f} = 0`;
+  const A = termTex([a[0] * m, a[1]]);
+  if (shape === 0) return `${f} = ${sign < 0 ? '-' : ''}${A}`;
+  if (shape === 1) return `${f} ${sign < 0 ? '+' : '-'} ${A} = 0`;
+  return `${A} ${sign < 0 ? '+' : '-'} ${f} = 0`;
+}
+
+function sampleSizeEq(rng: Rng, fns: Fn[], signs: number[]): SizeEq {
+  const fn = rng.pick(fns);
+  return { fn, size: rng.pick(GEN_SIZES_FOR[fn]), sign: rng.pick(signs), shape: rng.int(0, 2), m: rng.int(1, 3) };
+}
+
+/** Where a calculator's inverse lands: -90 to 90 for a sine or tangent, 0 to 180 for a cosine. */
+const PRINCIPAL: Record<Fn, number[]> = {
+  sin: [-90, -60, -45, -30, 0, 30, 45, 60, 90],
+  cos: [0, 30, 45, 60, 90, 120, 135, 150, 180],
+  tan: [-60, -45, -30, 0, 30, 45, 60],
+};
+
+function principal(fn: Fn, value: number): number {
+  const found = PRINCIPAL[fn].find((d) => Math.abs((trigAt(fn, d) ?? NaN) - value) < 1e-9);
+  if (found === undefined) throw new Error(`${fn} x = ${value} has no principal value on the table`);
+  return found;
+}
+
+/** Every solution of fn x = value as families: two for a sine or cosine, folding to one at 0 and +-1; one for a tangent. */
+function familiesOf(fn: Fn, value: number): Family[] {
+  const a = principal(fn, value);
+  if (fn === 'tan') return [{ base: a, period: 180 }];
+  if (fn === 'sin') {
+    if (a === 0) return [{ base: 0, period: 180 }];
+    if (Math.abs(a) === 90) return [{ base: a, period: 360 }];
+    return [
+      { base: a, period: 360 },
+      { base: 180 - a, period: 360 },
+    ];
+  }
+  if (a === 90) return [{ base: 90, period: 180 }];
+  if (a === 0 || a === 180) return [{ base: a, period: 360 }];
+  return [
+    { base: a, period: 360 },
+    { base: -a, period: 360 },
+  ];
+}
+
+/** fn(m x + shift) = value: one factor of an equation, or a whole equation in a bracket. */
+interface Simple {
+  fn: Fn;
+  m: number;
+  shift: number;
+  value: number;
+}
+
+const simple = (fn: Fn, value: number, m = 1, shift = 0): Simple => ({ fn, m, shift, value });
+
+/** A factor's families for x: the bracket's families, less the shift, divided through, turn and all. */
+const simpleFamilies = ({ fn, m, shift, value }: Simple): Family[] =>
+  familiesOf(fn, value).map((f) => ({ base: (f.base - shift) / m, period: f.period / m }));
+
+const tidyDeg = (x: number): number => Math.round(x * 1e6) / 1e6;
+
+/** Every member of the families in lo <= x < hi, smallest first, each once. */
+function membersOf(fams: Family[], lo = -720, hi = 720): number[] {
+  const out = new Set<number>();
+  for (const { base, period } of fams) {
+    for (let n = Math.ceil((lo - base) / period) - 1; base + n * period < hi; n++) {
+      const x = tidyDeg(base + n * period);
+      if (x >= lo && x < hi) out.add(x);
+    }
+  }
+  return [...out].sort((a, b) => a - b);
+}
+
+/** Whether two general solutions name the same angles, however they are written. */
+const sameSet = (a: Family[], b: Family[]): boolean => sameList(membersOf(a), membersOf(b));
+
+/** The candidates whose solutions differ from the right ones and from each other, each once. */
+function differentFamilies(right: Family[], candidates: Family[][]): Family[][] {
+  const kept: Family[][] = [];
+  for (const c of candidates) {
+    if (c.length === 0 || sameSet(c, right) || kept.some((k) => sameSet(k, c))) continue;
+    kept.push(c);
+  }
+  return kept;
+}
+
+const solvedParts = new Map<string, Family[]>();
+
+/** Every factor's families, checked against a whole-degree scan of the product from -360 to 360 before any is shown. */
+function solveParts(parts: Simple[]): Family[] {
+  const key = JSON.stringify(parts);
+  const known = solvedParts.get(key);
+  if (known) return known;
+  const fams = parts.flatMap(simpleFamilies);
+  const at = (x: number) => parts.reduce((p, s) => p * ((trigAt(s.fn, s.m * x + s.shift) ?? NaN) - s.value), 1);
+  const scanned: number[] = [];
+  for (let d = -360; d < 360; d++) if (Math.abs(at(d)) < 1e-9) scanned.push(d);
+  const members = membersOf(fams, -360, 360);
+  if (!sameList(scanned, members) || members.some((x) => x % 15 !== 0)) throw new Error(`${key} solved wrongly`);
+  solvedParts.set(key, fams);
+  return fams;
+}
+
+/** Whether a factor's solutions are all multiples of 15 degrees, so whole and on the table in radians. */
+const onFifteens = (s: Simple): boolean => simpleFamilies(s).every((f) => f.base % 15 === 0 && f.period % 15 === 0);
+
+/** The turn of a family: 360^{\\circ} n, or 2n\\pi, n\\pi, \\frac{n\\pi}{2} in radians. */
+function turnTex(period: number, radians: boolean): string {
+  if (!radians) return `${tidyDeg(period)}^{\\circ} n`;
+  const [n, d] = rat(Math.round(period * 2), 360);
+  const top = `${n === 1 ? '' : n}n\\pi`;
+  return d === 1 ? top : `\\frac{${top}}{${d}}`;
+}
+
+/** One family as the learner reads it: 30^{\\circ} + 360^{\\circ} n, or the turn alone when it starts at 0. */
+function familyTex({ base, period }: Family, radians = false, pm = false): string {
+  const turn = turnTex(period, radians);
+  if (base === 0) return turn;
+  const size = radians ? piTex(Math.abs(base)) : deg(tidyDeg(Math.abs(base)));
+  return `${pm ? '\\pm ' : base < 0 ? '-' : ''}${size} + ${turn}`;
+}
+
+/** The families as written: two that differ only in the sign of their base fold into one with \\pm. */
+function formsOf(fams: Family[], radians = false): string[] {
+  const [f, g] = fams;
+  if (fams.length === 2 && f.period === g.period && f.base > 0 && g.base === -f.base) return [familyTex(f, radians, true)];
+  return fams.map((x) => familyTex(x, radians));
+}
+
+/** Every solution on one line, for an option or a tile; with `display`, broken at each "or" so it fits a phone. */
+const generalTex = (fams: Family[], radians = false, display = false): string =>
+  `x = ${formsOf(fams, radians).join(display ? ' \\quad \\text{or} \\quad ' : ' \\text{ or } ')}`;
+
+/** Several factors' families as prose: $x = A$, $x = B$ or $x = C$. */
+function familiesProse(groups: Family[][], radians = false): string {
+  const forms = groups.flatMap((g) => formsOf(g, radians)).map((t) => `$x = ${t}$`);
+  return forms.length === 1 ? forms[0] : `${forms.slice(0, -1).join(', ')} or ${forms[forms.length - 1]}`;
+}
+
+/** Angles in degrees or radians, three to a row so a long list of negative angles still fits a phone. */
+function anglesTex(angles: number[], radians: boolean): string {
+  const list = (xs: number[]) => xs.map((x) => angleTex(x, radians)).join(', ');
+  if (angles.length === 0) return '\\text{no solutions}';
+  const rows: string[] = [];
+  for (let i = 0; i < angles.length; i += 3) rows.push(list(angles.slice(i, i + 3)));
+  return `\\begin{aligned} x = {} & ${rows.join(', \\\\ & ')} \\end{aligned}`;
+}
+
+/** A stated range: its ends, and whether each end is in. */
+interface GenRange {
+  lo: number;
+  hi: number;
+  loIn: boolean;
+  hiIn: boolean;
+}
+
+const GEN_RANGES: GenRange[] = [
+  { lo: 0, hi: 360, loIn: true, hiIn: false },
+  { lo: -180, hi: 180, loIn: false, hiIn: true },
+  { lo: -180, hi: 180, loIn: true, hiIn: false },
+  { lo: -360, hi: 0, loIn: true, hiIn: false },
+  { lo: -360, hi: 360, loIn: true, hiIn: false },
+  { lo: 0, hi: 720, loIn: true, hiIn: false },
+  { lo: 360, hi: 720, loIn: false, hiIn: true },
+  { lo: 0, hi: 180, loIn: true, hiIn: false },
+];
+
+/** Ranges a turn wide, and the wider or shifted ones difficulty 2 adds. The half turn is for a bracket only. */
+const TURN_RANGES = [0, 1, 2, 3];
+const WIDE_RANGES = [0, 1, 2, 3, 4, 5, 6];
+
+const genRangeTex = (r: GenRange, radians = false): string =>
+  `${angleTex(r.lo, radians)} ${r.loIn ? '\\le' : '<'} x ${r.hiIn ? '\\le' : '<'} ${angleTex(r.hi, radians)}`;
+
+const inRange = (x: number, r: GenRange): boolean => (r.loIn ? x >= r.lo : x > r.lo) && (r.hiIn ? x <= r.hi : x < r.hi);
+
+/** The members of the families that land in the range, smallest first. */
+const within = (fams: Family[], r: GenRange): number[] => membersOf(fams, r.lo - 360, r.hi + 360).filter((x) => inRange(x, r));
+
+/** What a range question asks: 0 the smallest solution, 1 the largest, 2 how many there are. */
+const ASK_WORDS = ['smallest', 'largest'];
+
+const pickOf = (sols: number[], ask: number): number => (ask === 0 ? sols[0] : sols[sols.length - 1]);
+
+function askProse(ask: number, radians: boolean): string {
+  if (ask === 2) return 'How many solutions are there?';
+  return `Give the ${ASK_WORDS[ask]} solution${radians ? ', in radians' : ', in degrees'}.`;
+}
+
+/** A range question typed: an angle, or a count. Never a general solution, which the checker could not grade. */
+function rangeSlide(prompt: Block[], sols: number[], ask: number, radians: boolean): Slide {
+  return {
+    kind: 'expression',
+    prompt,
+    lead: ask === 2 ? '\\text{number of solutions} =' : 'x =',
+    keypad: ask === 2 ? [] : radians ? PI_KEYS : NUMBER_KEYS,
+    answer: ask === 2 ? `${sols.length}` : angleAnswer(pickOf(sols, ask), radians),
+    domain: 'real',
+    mode: 'exact',
+  };
+}
+
+/** The answer beside the slips a range invites: an end counted that is not in, a member one n too far. */
+function rangeChoices(fams: Family[], r: GenRange, ask: number, radians: boolean): ChoiceOption[] {
+  const sols = within(fams, r);
+  if (ask === 2) {
+    const n = sols.length;
+    const slips = [...new Set([n + 1, n - 1, 2 * n, n + 2, n - 2])].filter((v) => v > 0 && v !== n).slice(0, 3);
+    return options({ tex: `${n}`, answer: `${n}` }, ...slips.map((v) => ({ tex: `${v}`, answer: `${v}` })));
+  }
+  const target = pickOf(sols, ask);
+  const outside = membersOf(fams, r.lo - 360, r.hi + 360)
+    .filter((x) => !inRange(x, r))
+    .sort((a, b) => Math.abs(a - target) - Math.abs(b - target) || a - b);
+  const others = sols.filter((x) => x !== target);
+  return angleOptions(target, [outside[0], ...others.slice(0, 1), outside[1], target + 180, target - 180], radians);
+}
+
+/** Put n into each family, keep what lands in the range, then read off what was asked. */
+function rangeSolution(fams: Family[], r: GenRange, ask: number, radians: boolean): SolutionStep[] {
+  const sols = within(fams, r);
+  return [
+    { text: `Put $n = -1, 0, 1, \\ldots$ into each family and keep what lands in $${genRangeTex(r, radians)}$:` },
+    { tex: anglesTex(sols, radians) },
+    {
+      text:
+        ask === 2
+          ? `That is $${sols.length}$ solution${sols.length === 1 ? '' : 's'}; check each end of the range, which may or may not be in.`
+          : `The ${ASK_WORDS[ask]} is $x = ${angleTex(pickOf(sols, ask), radians)}$.`,
+    },
+  ];
+}
+
+/** How each function's families come from the principal value. */
+function ruleText(fn: Fn, radians: boolean): string {
+  const turn = radians ? '2\\pi' : '360^{\\circ}';
+  if (fn === 'sin') return `A sine repeats every $${turn}$, and $\\sin(${radians ? '\\pi' : '180^{\\circ}'} - x) = \\sin x$ gives the second family.`;
+  if (fn === 'cos') return `A cosine repeats every $${turn}$, and $\\cos(-x) = \\cos x$ gives the second family: plus or minus the principal value.`;
+  return `A tangent repeats every $${radians ? '\\pi' : '180^{\\circ}'}$, so one family holds every solution.`;
+}
+
+/** The ratio on its own: \\sin x = -\\frac{1}{2}. */
+const aloneTex = (fn: Fn, value: number, arg = 'x'): string => `\\${fn} ${arg} = ${specialTex(value)}`;
+
+/** Rearrange, take the principal value, then the rule for the function. */
+function sizeSteps(e: SizeEq, radians: boolean): SolutionStep[] {
+  const k = sizeValue(e);
+  const alone = aloneTex(e.fn, k);
+  return [
+    ...(sizeEqTex(e) === alone ? [] : [{ text: 'Get the ratio on its own:' }, { tex: alone }]),
+    { text: `The principal value is $x = ${angleTex(principal(e.fn, k), radians)}$.` },
+    { text: ruleText(e.fn, radians) },
+    { tex: generalTex(familiesOf(e.fn, k), radians, true) },
+    { text: 'Here $n$ is any whole number.' },
+  ];
+}
+
+/** The general solutions a slip on the rule writes: another function's rule, the wrong turn, or 180 plus instead of minus. */
+function ruleSlips(fn: Fn, a: number): Family[][] {
+  const rules: Record<Fn, Family[]> = {
+    sin: [
+      { base: a, period: 360 },
+      { base: 180 - a, period: 360 },
+    ],
+    cos: [
+      { base: a, period: 360 },
+      { base: -a, period: 360 },
+    ],
+    tan: [{ base: a, period: 180 }],
+  };
+  const others = (['sin', 'cos', 'tan'] as Fn[]).filter((g) => g !== fn).map((g) => rules[g]);
+  const turn = fn === 'tan' ? [{ base: a, period: 360 }] : rules[fn].map((f) => ({ ...f, period: 180 }));
+  return [
+    ...others,
+    turn,
+    [
+      { base: a, period: 360 },
+      { base: 180 + a, period: 360 },
+    ],
+  ];
+}
+
+const mod360 = (x: number): number => ((x % 360) + 360) % 360;
+
+/* Lesson 1: sin x = k and cos x = k for every x. */
+
+const SINCOS_PROMPTS = ['Every solution, for any whole number $n$:', 'Complete the general solution. Here $n$ is any whole number.'];
+
+/** Both families of sin x = k or cos x = k, their bases placed from a bank. */
+const sincosTiles: Generator<SizeEq> = {
+  id: 'tid-general-sincos-tiles',
+  sample: (rng, difficulty) => sampleSizeEq(rng, ['sin', 'cos'], difficulty > 1 ? [-1] : [1]),
+  render: (e): Slide => {
+    const fams = solveParts([simple(e.fn, sizeValue(e))]);
+    const a = fams[0].base;
+    const answer = fams.map((f) => deg(f.base));
+    const taken = fams.map((f) => mod360(f.base));
+    const candidates = (e.fn === 'sin' ? [180 + a, -a, 360 - a, 90 - a, a + 90] : [180 - a, 180 + a, 90 - a, 90 + a]).filter(
+      (d, i, all) => !taken.includes(mod360(d)) && all.findIndex((o) => mod360(o) === mod360(d)) === i,
+    );
+    return {
+      kind: 'tiles',
+      prompt: [prose(SINCOS_PROMPTS[e.m % 2]), display(sizeEqTex(e))],
+      template: 'x = {0} + 360^{\\circ} n \\text{ or } x = {1} + 360^{\\circ} n',
+      bank: bankOf(answer, candidates.map(deg), 3),
+      answer,
+      unordered: true,
+    };
+  },
+  solution: (e) => sizeSteps(e, false),
+};
+
+interface PartnerParams extends SizeEq {
+  radians: boolean;
+}
+
+/** The principal value first, then the families it gives. */
+const partnerFlow: Generator<PartnerParams> = {
+  id: 'tid-general-partner-flow',
+  sample: (rng, difficulty) => ({
+    ...sampleSizeEq(rng, difficulty > 1 ? ['sin', 'cos', 'tan'] : ['sin', 'cos'], difficulty > 1 ? [1, -1] : [1]),
+    radians: difficulty > 1 && rng.chance(0.5),
+  }),
+  render: (p): Slide => {
+    const k = sizeValue(p);
+    const fams = solveParts([simple(p.fn, k)]);
+    const a = principal(p.fn, k);
+    const at = (d: number) => `$x = ${angleTex(d, p.radians)}$`;
+    const alphas = [180 - a, -a, 90 - a, a + 180, 180 + 2 * a].filter((d, i, all) => d !== a && all.indexOf(d) === i).slice(0, 3);
+    const general = (fs: Family[]) => `$${generalTex(fs, p.radians)}$`;
+    const slips = differentFamilies(fams, ruleSlips(p.fn, a)).slice(0, 3);
+    return {
+      kind: 'flow',
+      prompt: [prose(`Solve for every $x$, in ${p.radians ? 'radians' : 'degrees'}. Here $n$ is any whole number.`)],
+      subject: sizeEqTex(p),
+      steps: [
+        { id: 'alpha', ask: 'The principal value is', branches: scatter([at(a), ...alphas.map(at)]).map((label) => ({ label, to: 'general' })) },
+        {
+          id: 'general',
+          ask: 'So every solution is',
+          branches: scatter([general(fams), ...slips.map(general)]).map((label) => ({
+            label,
+            outcome: 'The principal value and the rule for the function give every family.',
+          })),
+        },
+      ],
+      answer: [at(a), general(fams)],
+    };
+  },
+  solution: (p) => sizeSteps(p, p.radians),
+};
+
+interface InRangeParams extends SizeEq {
+  radians: boolean;
+  range: number;
+  ask: number;
+}
+
+/** A general solution given: read off the smallest, the largest, or how many land in a range. */
+const inRangeAngle: Generator<InRangeParams> = {
+  id: 'tid-general-in-range',
+  sample: (rng, difficulty) => ({
+    ...sampleSizeEq(rng, difficulty > 1 ? ['sin', 'cos', 'tan'] : ['sin', 'cos'], [1, -1]),
+    radians: difficulty > 1 && rng.chance(0.5),
+    range: rng.pick(difficulty > 1 ? WIDE_RANGES : TURN_RANGES),
+    ask: rng.int(0, 2),
+  }),
+  render: (p): Slide => {
+    const fams = solveParts([simple(p.fn, sizeValue(p))]);
+    const r = GEN_RANGES[p.range];
+    return rangeSlide(
+      [
+        prose(`Every solution of $${sizeEqTex(p)}$ is`),
+        display(generalTex(fams, p.radians, true)),
+        prose(`Take only the solutions in $${genRangeTex(r, p.radians)}$. ${askProse(p.ask, p.radians)}`),
+      ],
+      within(fams, r),
+      p.ask,
+      p.radians,
+    );
+  },
+  choices: (p) => rangeChoices(solveParts([simple(p.fn, sizeValue(p))]), GEN_RANGES[p.range], p.ask, p.radians),
+  solution: (p) => rangeSolution(solveParts([simple(p.fn, sizeValue(p))]), GEN_RANGES[p.range], p.ask, p.radians),
+};
+
+interface ValuesParams extends SizeEq {
+  /** The first row's n. */
+  from: number;
+}
+
+/** Put n into each family: a table of solutions, row by row. */
+const valuesTable: Generator<ValuesParams> = {
+  id: 'tid-general-values-table',
+  sample: (rng, difficulty) => ({
+    ...sampleSizeEq(rng, ['sin', 'cos'], difficulty > 1 ? [-1] : [1]),
+    from: difficulty > 1 ? rng.pick([-2, 0, 1]) : -1,
+  }),
+  render: (p): Slide => {
+    const fams = solveParts([simple(p.fn, sizeValue(p))]);
+    const ns = [p.from, p.from + 1, p.from + 2];
+    const rows = ns.map((n) => [`${n}`, ...fams.map((f) => (n === 0 ? deg(f.base) : null))]);
+    const values = ns.filter((n) => n !== 0).flatMap((n) => fams.map((f) => f.base + f.period * n));
+    const slips = ns.flatMap((n) => fams.flatMap((f) => [f.base - f.period * n, f.base + 180 * n, f.base + 90 * n]));
+    const extras = [...new Set(slips)].filter((v) => !values.includes(v) && !fams.some((f) => f.base === v)).slice(0, 4);
+    return {
+      kind: 'table',
+      prompt: [prose(`Every solution of $${sizeEqTex(p)}$ is in one of the two families heading the table. Put each row's $n$ into each family.`)],
+      columns: ['n', ...fams.map((f) => familyTex(f))],
+      rows,
+      bank: [...values, ...extras].sort((x, y) => x - y).map(deg),
+      answer: values.map(deg),
+    };
+  },
+  solution: (p) => {
+    const fams = solveParts([simple(p.fn, sizeValue(p))]);
+    const ns = [p.from, p.from + 1, p.from + 2].filter((n) => n !== 0);
+    return [
+      { text: 'Each cell is the family with its row\'s $n$ put in:' },
+      ...ns.map((n) => ({
+        tex: fams.map((f) => `${deg(f.base)} + ${f.period} \\times ${n < 0 ? `(${n})` : n} = ${deg(f.base + f.period * n)}`).join(' \\qquad '),
+      })),
+      { text: 'Check one: each value makes the equation true, since adding a whole turn changes nothing.' },
+    ];
+  },
+};
+
+/* Lesson 2: tan x = k, and radians. */
+
+interface TanTilesParams extends SizeEq {
+  radians: boolean;
+}
+
+/** tan x = k: the principal value and the half-turn, placed from a bank. */
+const tanTiles: Generator<TanTilesParams> = {
+  id: 'tid-general-tan-tiles',
+  sample: (rng, difficulty) => ({ ...sampleSizeEq(rng, ['tan'], [1, -1]), radians: difficulty > 1 }),
+  render: (p): Slide => {
+    const [f] = solveParts([simple('tan', sizeValue(p))]);
+    const a = f.base;
+    const bases = [180 - a, -a, 90 - a, a + 90]
+      .filter((d, i, all) => ((d - a) % 180 + 180) % 180 !== 0 && all.indexOf(d) === i)
+      .map((d) => angleTex(d, p.radians));
+    const spare = [bases[0], p.radians ? '2n\\pi' : '360^{\\circ}', bases[1], p.radians ? '\\frac{n\\pi}{2}' : '90^{\\circ}'].filter((t): t is string => t !== undefined);
+    const answer = [angleTex(a, p.radians), p.radians ? 'n\\pi' : '180^{\\circ}'];
+    return {
+      kind: 'tiles',
+      prompt: [prose(`Every solution${p.radians ? ', in radians' : ''}, for any whole number $n$:`), display(sizeEqTex(p))],
+      template: p.radians ? 'x = {0} + {1}' : 'x = {0} + {1} n',
+      bank: bankOf(answer, spare, 4),
+      answer,
+      // In radians n\pi + \frac{\pi}{6} is the same answer the other way round.
+      unordered: p.radians,
+    };
+  },
+  solution: (p) => sizeSteps(p, p.radians),
+};
+
+/** Every solution in radians, from four: the rule for the function and its turn in pi. */
+const radianChoice: Generator<SizeEq> = {
+  id: 'tid-general-radian-choice',
+  sample: (rng, difficulty) => sampleSizeEq(rng, ['sin', 'cos', 'tan'], difficulty > 1 ? [-1] : [1]),
+  render: (e): Slide => {
+    const k = sizeValue(e);
+    const fams = solveParts([simple(e.fn, k)]);
+    const slips = differentFamilies(fams, ruleSlips(e.fn, principal(e.fn, k)));
+    return choiceSlide(
+      [prose('Which is every solution, in radians? Here $n$ is any whole number.'), display(sizeEqTex(e))],
+      generalTex(fams, true),
+      slips.map((s) => generalTex(s, true)),
+      saltOf(e),
+    );
+  },
+  solution: (e) => sizeSteps(e, true),
+};
+
+/** Values a slip on the rearranging lands on: the sign lost, the fraction upside down, a factor of two dropped. */
+function valueSlips(k: number): number[] {
+  return [-k, 1 / k, 2 * k, k / 2].filter((v) => Number.isFinite(v) && Math.abs(v - k) > 1e-9 && tryTex(v) !== undefined);
+}
+
+/** Rearrange, then write every solution in radians, a line at a time. */
+const radianSteps: Generator<SizeEq> = {
+  id: 'tid-general-radian-steps',
+  sample: (rng, difficulty) => {
+    const e = sampleSizeEq(rng, ['sin', 'cos', 'tan'], difficulty > 1 ? [-1] : [1]);
+    // A tangent already alone, as tan x = 1 is, would leave nothing to rearrange.
+    const { b } = GEN_SIZES[e.size];
+    return b[0] * e.m === 1 && b[1] === 1 && e.shape === 0 ? { ...e, shape: 1 } : e;
+  },
+  render: (e): Slide => {
+    const k = sizeValue(e);
+    const fams = solveParts([simple(e.fn, k)]);
+    const [lhs, rhs] = sizeEqTex(e).split(' = ');
+    const alone = aloneTex(e.fn, k);
+    const aloneSlips = valueSlips(k).map((v) => aloneTex(e.fn, v));
+    const right = generalTex(fams, true);
+    const slips = differentFamilies(fams, ruleSlips(e.fn, principal(e.fn, k))).map((s) => generalTex(s, true));
+    return {
+      kind: 'steps',
+      prompt: [prose('Solve for every $x$, in radians, a line at a time. Here $n$ is any whole number.')],
+      start: [lhs, '=', rhs],
+      reductions: [
+        { span: [0, 3], value: alone, bank: scatter([alone, ...aloneSlips.slice(0, 3)]) },
+        { span: [0, 1], value: right, bank: scatter([right, ...slips.slice(0, 3)]) },
+      ],
+    };
+  },
+  solution: (e) => sizeSteps(e, true),
+};
+
+/* Lesson 3: a bracket, fn(ax + b) = k. */
+
+/** fn(a x + shift) = sign times a size. */
+interface Bracket {
+  fn: 'sin' | 'cos';
+  size: number;
+  sign: number;
+  a: number;
+  shift: number;
+}
+
+const bracketSimple = (b: Bracket): Simple => simple(b.fn, b.sign * GEN_SIZES[b.size].value, b.a, b.shift);
+
+/** The bracket's inside: 2x + 30^{\\circ}, or 3x alone. */
+const bracketArg = ({ a, shift }: Bracket): string => (shift === 0 ? mx(a) : `${mx(a)} ${shift > 0 ? '+' : '-'} ${deg(Math.abs(shift))}`);
+
+const bracketEqTex = (b: Bracket): string =>
+  b.shift === 0 ? aloneTex(b.fn, bracketSimple(b).value, mx(b.a)) : aloneTex(b.fn, bracketSimple(b).value, `(${bracketArg(b)})`);
+
+/** Every bracket whose solutions are all multiples of 15 degrees. */
+const BRACKETS: Bracket[] = (['sin', 'cos'] as const).flatMap((fn) =>
+  [1, 2, 3].flatMap((size) =>
+    [1, -1].flatMap((sign) =>
+      [2, 3].flatMap((a) =>
+        [0, 30, 45, 60, 90, -30, -45, -60].map((shift) => ({ fn, size, sign, a, shift })).filter((b) => onFifteens(bracketSimple(b))),
+      ),
+    ),
+  ),
+);
+
+/** Difficulty 1 doubles the angle and adds; difficulty 2 triples it too, and takes away. */
+const BRACKET_POOLS = [BRACKETS.filter((b) => b.a === 2 && b.shift >= 0), BRACKETS];
+
+/** The bracket first, then x: move the shift across, then divide, turn and all. */
+function bracketSteps(b: Bracket): SolutionStep[] {
+  const s = bracketSimple(b);
+  const u = familiesOf(b.fn, s.value);
+  const moved = u.map((f) => ({ base: f.base - b.shift, period: f.period }));
+  const arg = bracketArg(b);
+  return [
+    { text: `Solve for the bracket first. The principal value of $${arg}$ is $${deg(principal(b.fn, s.value))}$, so` },
+    { tex: `${arg} = ${formsOf(u).join(' \\quad \\text{or} \\quad ')}` },
+    ...(b.shift === 0
+      ? []
+      : [
+          { text: `${b.shift > 0 ? 'Take' : 'Add'} $${deg(Math.abs(b.shift))}$ ${b.shift > 0 ? 'from' : 'to'} both sides:` },
+          { tex: `${mx(b.a)} = ${formsOf(moved).join(' \\quad \\text{or} \\quad ')}` },
+        ]),
+    { text: `Divide by $${b.a}$, the turn as well: $360^{\\circ} n$ becomes $${360 / b.a}^{\\circ} n$.` },
+    { tex: generalTex(simpleFamilies(s), false, true) },
+  ];
+}
+
+/** Families a bracket slip writes: the turn left whole, the shift added, the base not divided. */
+function bracketSlips(b: Bracket): Family[] {
+  const u = familiesOf(b.fn, bracketSimple(b).value);
+  const x = simpleFamilies(bracketSimple(b));
+  return [
+    ...x.map((f) => ({ base: f.base, period: 360 })),
+    ...u.map((f) => ({ base: (f.base + b.shift) / b.a, period: 360 / b.a })),
+    ...u.map((f) => ({ base: f.base - b.shift, period: 360 / b.a })),
+    { base: 180 + u[0].base, period: 360 },
+  ].filter((f) => Number.isInteger(f.base));
+}
+
+const BRACKET_TREE_PROMPTS = [
+  'Top row: every value of the bracket, the principal value\'s family first. Under each: the family it gives for $x$. Here $n$ is any whole number.',
+  'Find the bracket\'s two families, principal value first, then divide each down to $x$. Here $n$ is any whole number.',
+];
+
+interface BracketTreeParams extends Bracket {
+  phrasing: number;
+}
+
+/** The bracket's families on top, x's underneath. */
+const bracketTree: Generator<BracketTreeParams> = {
+  id: 'tid-general-bracket-families-tree',
+  sample: (rng, difficulty) => ({ ...rng.pick(BRACKET_POOLS[difficulty > 1 ? 1 : 0]), phrasing: rng.int(0, 1) }),
+  render: (b): Slide => {
+    const s = bracketSimple(b);
+    const x = solveParts([s]);
+    const u = familiesOf(b.fn, s.value);
+    const right = [...u, ...x];
+    const slips = bracketSlips(b).filter((f) => !right.some((g) => sameSet([g], [f])));
+    const answer = right.map((f) => familyTex(f));
+    return {
+      kind: 'tree',
+      prompt: [prose(BRACKET_TREE_PROMPTS[b.phrasing])],
+      expression: bracketEqTex(b),
+      nodes: [
+        { id: 'u1', from: [] },
+        { id: 'u2', from: [] },
+        { id: 'x1', from: ['u1'] },
+        { id: 'x2', from: ['u2'] },
+      ],
+      bank: bankOf(answer, slips.map((f) => familyTex(f)), 3),
+      answer,
+    };
+  },
+  solution: (b) => bracketSteps(b),
+};
+
+interface BracketRangeParams extends Bracket {
+  range: number;
+  ask: number;
+}
+
+/** A bracket over a range: the smallest, the largest, or how many. */
+const bracketCount: Generator<BracketRangeParams> = {
+  id: 'tid-general-bracket-count',
+  sample: (rng, difficulty) => ({
+    ...rng.pick(BRACKET_POOLS[difficulty > 1 ? 1 : 0]),
+    range: difficulty > 1 ? rng.pick([1, 2, 3, 7]) : 0,
+    ask: difficulty > 1 ? rng.int(0, 2) : rng.pick([0, 2]),
+  }),
+  render: (p): Slide => {
+    const fams = solveParts([bracketSimple(p)]);
+    const r = GEN_RANGES[p.range];
+    return rangeSlide(
+      [prose(`Solve for $${genRangeTex(r)}$.`), display(bracketEqTex(p)), prose(askProse(p.ask, false))],
+      within(fams, r),
+      p.ask,
+      false,
+    );
+  },
+  choices: (p) => rangeChoices(solveParts([bracketSimple(p)]), GEN_RANGES[p.range], p.ask, false),
+  solution: (p) => [...bracketSteps(p), ...rangeSolution(solveParts([bracketSimple(p)]), GEN_RANGES[p.range], p.ask, false)],
+};
+
+interface BracketStepsParams extends Bracket {
+  /** Which of the bracket's families is given. */
+  which: number;
+}
+
+/** One family of the bracket given: move the shift, then divide, a line at a time. */
+const bracketStepsGen: Generator<BracketStepsParams> = {
+  id: 'tid-general-bracket-divide-steps',
+  sample: (rng, difficulty) => ({ ...rng.pick(BRACKET_POOLS[difficulty > 1 ? 1 : 0]), which: rng.int(0, 1) }),
+  render: (b): Slide => {
+    const s = bracketSimple(b);
+    const f = familiesOf(b.fn, s.value)[b.which];
+    const xf = solveParts([s])[b.which];
+    const moved = { base: f.base - b.shift, period: 360 };
+    const lhs = mx(b.a);
+    const line = (left: string) => (g: Family) => `${left} = ${familyTex(g)}`;
+    const reductions: { span: [number, number]; value: string; bank: string[] }[] = [];
+    if (b.shift !== 0) {
+      const slips = differentFamilies([moved], [[{ base: f.base + b.shift, period: 360 }], [{ base: f.base, period: 360 }], [{ base: moved.base, period: 180 }]]);
+      reductions.push({ span: [0, 3], value: line(lhs)(moved), bank: scatter([line(lhs)(moved), ...slips.map(([g]) => line(lhs)(g))]) });
+    }
+    const xSlips = differentFamilies(
+      [xf],
+      [[{ base: xf.base, period: 360 }], [{ base: moved.base, period: 360 / b.a }], [{ base: xf.base, period: 180 / b.a }], [{ base: moved.base, period: 360 }]],
+    ).slice(0, 3);
+    reductions.push({ span: [0, b.shift !== 0 ? 1 : 3], value: line('x')(xf), bank: scatter([line('x')(xf), ...xSlips.map(([g]) => line('x')(g))]) });
+    return {
+      kind: 'steps',
+      prompt: [
+        prose(`One family of solutions of $${bracketEqTex(b)}$ is shown for the bracket. Find the family it gives for $x$, a line at a time.`),
+      ],
+      start: [bracketArg(b), '=', familyTex(f)],
+      reductions,
+    };
+  },
+  solution: (b) => {
+    const s = bracketSimple(b);
+    const f = familiesOf(b.fn, s.value)[b.which];
+    const xf = simpleFamilies(s)[b.which];
+    const moved = { base: f.base - b.shift, period: 360 };
+    return [
+      ...(b.shift === 0
+        ? []
+        : [
+            { text: `${b.shift > 0 ? 'Take' : 'Add'} $${deg(Math.abs(b.shift))}$ ${b.shift > 0 ? 'from' : 'to'} both sides; the turn stays as it is:` },
+            { tex: `${mx(b.a)} = ${familyTex(moved)}` },
+          ]),
+      { text: `Divide everything by $${b.a}$, the turn included:` },
+      { tex: `x = ${familyTex(xf)}` },
+      { text: `The turn is now $${360 / b.a}^{\\circ}$, so a full turn of $x$ holds ${b.a} solutions from this family.` },
+    ];
+  },
+};
+
+/* Lessons 4 and 5: harder equations, and choosing the route. */
+
+type HardKind = 'quadratic' | 'double' | 'factor' | 'tan' | 'r';
+
+/** An equation that needs an identity, a formula or a division before its factors can be solved. */
+interface Hard {
+  kind: HardKind;
+  tex: string;
+  /** The identity or formula it needs, as prose. */
+  how: string;
+  /** What it becomes. */
+  factored: string;
+  /** Every factor that can be zero. */
+  parts: Simple[];
+  /** A factor that cannot be zero, such as \\sin x = 2. */
+  dropped?: string;
+  /** Wrong rewrites, each with the factors it would give. */
+  slips: { tex: string; parts: Simple[] }[];
+}
+
+/** A value's factor only when a sine or cosine can take it. */
+const reachable = (fn: Fn, value: number): Simple[] => (Math.abs(value) <= 1 + 1e-9 || fn === 'tan' ? [simple(fn, value)] : []);
+
+const QUAD_VALID: Rat[] = [
+  [1, 2],
+  [-1, 2],
+  [1, 1],
+  [-1, 1],
+];
+const QUAD_ANY: Rat[] = [...QUAD_VALID, [2, 1], [-2, 1], [3, 2], [-3, 2], [3, 1]];
+
+/** Quadratics in sin x or cos x, written with the other function squared, so an identity comes first. */
+const QUAD_HARDS: Hard[] = (['sin', 'cos'] as const).flatMap((fn) => {
+  const seen = new Set<string>();
+  return QUAD_VALID.flatMap((r1) =>
+    QUAD_ANY.flatMap((r2): Hard[] => {
+      if (sameRat(r1, r2) || ratValue(r1) === -ratValue(r2)) return [];
+      const [A, , C] = quadratic(r1, r2);
+      if (A + C === 0) return [];
+      const roots = sortedRoots([r1, r2]);
+      const key = JSON.stringify(roots);
+      if (seen.has(key)) return [];
+      seen.add(key);
+      const factored = (rs: Rat[]) => `${factorTex(rs[0], fn)}${factorTex(rs[1], fn)} = 0`;
+      const partsOf = (rs: Rat[]) => rs.flatMap((r) => reachable(fn, ratValue(r)));
+      const flip = ([n, d]: Rat): Rat => [-n, d];
+      const bad = roots.find((r) => Math.abs(ratValue(r)) > 1);
+      return [
+        {
+          kind: 'quadratic',
+          tex: disguisedTex({ target: fn, roots }),
+          how: DISGUISE_HINT[fn],
+          factored: factored(roots),
+          parts: partsOf(roots),
+          dropped: bad ? `\\${fn} x = ${ratTex(bad)}` : undefined,
+          slips: [
+            [flip(roots[0]), roots[1]],
+            [roots[0], flip(roots[1])],
+            [flip(roots[0]), flip(roots[1])],
+          ].map((rs) => ({ tex: factored(rs), parts: partsOf(rs) })),
+        },
+      ];
+    }),
+  );
+});
+
+/** The c in sin 2x = c cos x: plus or minus 1, root 2 or root 3. */
+const DOUBLE_CS: [number, number][] = [
+  [1, 1],
+  [-1, 1],
+  [1, 2],
+  [-1, 2],
+  [1, 3],
+  [-1, 3],
+];
+
+/** c in front of a function: nothing, a minus, or a signed root. */
+const cFront = ([s, r]: [number, number]): string => `${s < 0 ? '-' : ''}${r === 1 ? '' : `\\sqrt{${r}}`}`;
+
+/** The right-hand side of 2 fn x = c. */
+const cValue = ([s, r]: [number, number]): string => `${s < 0 ? '-' : ''}${r === 1 ? '1' : `\\sqrt{${r}}`}`;
+
+/** 2 fn x - c, the factor a double angle leaves. */
+const cFactor = (fn: Fn, [s, r]: [number, number], plus = false): string =>
+  `(2\\${fn} x ${s < 0 !== plus ? '+' : '-'} ${r === 1 ? '1' : `\\sqrt{${r}}`})`;
+
+/** sin 2x = c cos x, sin 2x = c sin x and sin 2x + c cos x = 0: the double angle first, then a common factor. */
+const DOUBLE_HARDS: Hard[] = DOUBLE_CS.flatMap((c): Hard[] => {
+  const half = (c[0] * Math.sqrt(c[1])) / 2;
+  const how = '$\\sin 2x = 2\\sin x \\cos x$';
+  return [
+    {
+      kind: 'double',
+      tex: `\\sin 2x = ${cFront(c)}\\cos x`,
+      how,
+      factored: `\\cos x${cFactor('sin', c)} = 0`,
+      parts: [simple('cos', 0), simple('sin', half)],
+      slips: [
+        { tex: `\\cos x${cFactor('sin', c, true)} = 0`, parts: [simple('cos', 0), simple('sin', -half)] },
+        { tex: `\\sin x${cFactor('cos', c)} = 0`, parts: [simple('sin', 0), simple('cos', half)] },
+        { tex: `2\\sin x = ${cValue(c)}`, parts: [simple('sin', half)] },
+      ],
+    },
+    {
+      kind: 'double',
+      tex: `\\sin 2x = ${cFront(c)}\\sin x`,
+      how,
+      factored: `\\sin x${cFactor('cos', c)} = 0`,
+      parts: [simple('sin', 0), simple('cos', half)],
+      slips: [
+        { tex: `\\sin x${cFactor('cos', c, true)} = 0`, parts: [simple('sin', 0), simple('cos', -half)] },
+        { tex: `\\cos x${cFactor('sin', c)} = 0`, parts: [simple('cos', 0), simple('sin', half)] },
+        { tex: `2\\cos x = ${cValue(c)}`, parts: [simple('cos', half)] },
+      ],
+    },
+    {
+      kind: 'double',
+      tex: `\\sin 2x ${c[0] < 0 ? '-' : '+'} ${c[1] === 1 ? '' : `\\sqrt{${c[1]}}`}\\cos x = 0`,
+      how,
+      factored: `\\cos x${cFactor('sin', c, true)} = 0`,
+      parts: [simple('cos', 0), simple('sin', -half)],
+      slips: [
+        { tex: `\\cos x${cFactor('sin', c)} = 0`, parts: [simple('cos', 0), simple('sin', half)] },
+        { tex: `\\sin x${cFactor('cos', c, true)} = 0`, parts: [simple('sin', 0), simple('cos', -half)] },
+      ],
+    },
+  ];
+});
+
+/** A product's two factors as equations each set to zero. */
+const productParts = (p: Product): Simple[] => [simple(p.f, 0, p.s), simple(p.g, 0, p.d)];
+
+/** sin P +- sin Q = 0 and cos P +- cos Q = 0, P and Q up to 6x, every solution a multiple of 15 degrees. */
+const FACTOR_HARDS: Hard[] = [0, 1, 2, 3].flatMap((form) =>
+  evenPairs(6).flatMap(([p, q]): Hard[] => {
+    const sf = { form, p, q };
+    const pr = factorOf(sf);
+    const parts = productParts(pr);
+    if (!parts.every(onFifteens)) return [];
+    return [
+      {
+        kind: 'factor',
+        tex: `${sumTex(sf)} = 0`,
+        how: `the factor formula for $\\${FACTOR[form].fn} P ${FACTOR[form].plus ? '+' : '-'} \\${FACTOR[form].fn} Q$`,
+        factored: `${productTex(pr)} = 0`,
+        parts,
+        slips: wrongFactors(sf).map((w) => ({ tex: `${productTex(w)} = 0`, parts: productParts(w) })),
+      },
+    ];
+  }),
+);
+
+/** a sin x = b cos x: divide by cos x. */
+const TAN_HARDS: Hard[] = GEN_SIZES_FOR.tan.flatMap((size) =>
+  [1, -1].flatMap((sign) =>
+    [1, 2].map((m): Hard => {
+      const { b, a, value } = GEN_SIZES[size];
+      const k = sign * value;
+      return {
+        kind: 'tan',
+        tex: `${termFront([b[0] * m, b[1]])}\\sin x = ${sign < 0 ? '-' : ''}${termFront([a[0] * m, a[1]])}\\cos x`,
+        how: 'dividing by $\\cos x$',
+        factored: aloneTex('tan', k),
+        parts: [simple('tan', k)],
+        slips: [
+          { tex: aloneTex('tan', -k), parts: [simple('tan', -k)] },
+          { tex: aloneTex('tan', 1 / k), parts: [simple('tan', 1 / k)] },
+        ],
+      };
+    }),
+  ),
+);
+
+/** a sin x +- b cos x = c with R and alpha on the table: R sin(x +- alpha) = c. */
+const R_PAIRS: { s: Term; c: Term; R: Term; alpha: number }[] = [
+  { s: [1, 1], c: [1, 3], R: [2, 1], alpha: 60 },
+  { s: [1, 3], c: [1, 1], R: [2, 1], alpha: 30 },
+  { s: [1, 1], c: [1, 1], R: [1, 2], alpha: 45 },
+];
+
+const R_RIGHTS: Term[] = [
+  [1, 1],
+  [1, 2],
+  [1, 3],
+];
+
+const R_HARDS: Hard[] = R_PAIRS.flatMap(({ s, c, R, alpha }) =>
+  [1, -1].flatMap((plus) =>
+    R_RIGHTS.flatMap((rhs) =>
+      [1, -1].flatMap((sign): Hard[] => {
+        const value = (sign * termValue(rhs)) / termValue(R);
+        if (Math.abs(value) > 1 + 1e-9) return [];
+        const shift = plus * alpha;
+        const rTex = `${sign < 0 ? '-' : ''}${termTex(rhs)}`;
+        const arg = (sh: number) => `(x ${sh > 0 ? '+' : '-'} ${deg(Math.abs(sh))})`;
+        return [
+          {
+            kind: 'r',
+            tex: `${termFront(s)}\\sin x ${plus > 0 ? '+' : '-'} ${termFront(c)}\\cos x = ${rTex}`,
+            how: `$R\\sin(x + \\alpha)$, with $R = ${termTex(R)}$ and $\\alpha = ${deg(shift)}$`,
+            factored: `${termTex(R)}\\sin${arg(shift)} = ${rTex}`,
+            parts: [simple('sin', value, 1, shift)],
+            slips: [
+              { tex: `${termTex(R)}\\sin${arg(-shift)} = ${rTex}`, parts: [simple('sin', value, 1, -shift)] },
+              { tex: `${termTex(R)}\\cos${arg(shift)} = ${rTex}`, parts: [simple('cos', value, 1, shift)] },
+            ],
+          },
+        ];
+      }),
+    ),
+  ),
+);
+
+/** Level 7's harder equations: an identity, a double angle or a factor formula first. */
+const HARDS: Hard[] = [...QUAD_HARDS, ...DOUBLE_HARDS, ...FACTOR_HARDS];
+
+/** Difficulty 1 keeps to a quadratic or a double angle; difficulty 2 adds the factor formulae. */
+const HARD_POOLS = [HARDS.flatMap((h, i) => (h.kind === 'factor' ? [] : [i])), HARDS.map((_, i) => i)];
+
+/** One factor as an equation: \\sin 2x = 0, \\cos x = \\frac{1}{2}, \\sin(x + 60^{\\circ}) = \\frac{1}{2}. */
+function simpleTex(s: Simple): string {
+  const arg = s.shift === 0 ? mx(s.m) : `(${mx(s.m)} ${s.shift > 0 ? '+' : '-'} ${deg(Math.abs(s.shift))})`;
+  return aloneTex(s.fn, s.value, arg);
+}
+
+/** Rewrite, split into factors, and solve each for every x. */
+function hardSteps(h: Hard, radians = false): SolutionStep[] {
+  return [
+    { text: `Use ${h.how}:` },
+    { tex: h.factored },
+    ...(h.parts.length > 1 ? [{ text: 'A product is zero when one of its factors is, so solve each:' }] : []),
+    ...(h.dropped ? [{ text: `$${h.dropped}$ has no solution, since a sine or cosine stays between $-1$ and $1$.` }] : []),
+    ...h.parts.flatMap((s) => [{ text: `$${simpleTex(s)}$ gives` }, { tex: generalTex(simpleFamilies(s), radians, true) }]),
+    { text: 'Every solution is in one of these families, for a whole number $n$.' },
+  ];
+}
+
+/** General solutions a slip writes: a factor lost, a factor's turn not divided or doubled, a sine given a cosine's rule. */
+function hardSlips(h: Hard): Family[][] {
+  const groups = h.parts.map(simpleFamilies);
+  const swapRule = (s: Simple): Family[] =>
+    s.fn === 'tan' ? [{ base: principal('tan', s.value) - s.shift, period: 360 }] : ruleSlips(s.fn, principal(s.fn, s.value))[0].map((f) => ({ base: (f.base - s.shift) / s.m, period: f.period / s.m }));
+  const out: Family[][] = [];
+  if (groups.length > 1) groups.forEach((_, i) => out.push(groups.filter((__, j) => j !== i).flat()));
+  out.push(groups.flatMap((g, i) => (h.parts[i].m > 1 ? g.map((f) => ({ base: f.base * h.parts[i].m, period: f.period * h.parts[i].m })) : g)));
+  out.push(h.parts.flatMap((s, i) => (s.value === 0 || Math.abs(s.value) === 1 ? groups[i] : swapRule(s))));
+  out.push(groups.flat().map((f) => ({ ...f, period: f.period * 2 })));
+  out.push(groups.flat().map((f) => ({ ...f, period: f.period / 2 })));
+  return out;
+}
+
+/** Families grouped by factor, the way familiesProse writes them. */
+const hardGroups = (h: Hard): Family[][] => h.parts.map(simpleFamilies);
+
+/** The identity first, then every solution, both chosen from options. */
+const factorFlow: Generator<{ eq: number }> = {
+  id: 'tid-general-factor-flow',
+  sample: (rng, difficulty) => ({ eq: rng.pick(HARD_POOLS[difficulty > 1 ? 1 : 0]) }),
+  render: ({ eq }): Slide => {
+    const h = HARDS[eq];
+    const fams = solveParts(h.parts);
+    const kept: Family[][] = [];
+    const factorSlips = h.slips.filter((s) => {
+      const f = s.parts.flatMap(simpleFamilies);
+      if (f.length === 0 || sameSet(f, fams) || kept.some((k) => sameSet(k, f))) return false;
+      kept.push(f);
+      return true;
+    });
+    const general = familiesProse(hardGroups(h));
+    const slips = differentFamilies(fams, hardSlips(h)).slice(0, 3);
+    return {
+      kind: 'flow',
+      prompt: [prose('Solve for every $x$. Here $n$ is any whole number.')],
+      subject: h.tex,
+      steps: [
+        {
+          id: 'factor',
+          ask: `Using ${h.how}, it becomes`,
+          branches: scatter([`$${h.factored}$`, ...factorSlips.slice(0, 3).map((s) => `$${s.tex}$`)]).map((label) => ({ label, to: 'general' })),
+        },
+        {
+          id: 'general',
+          ask: 'So every solution is',
+          branches: scatter([general, ...slips.map((s) => familiesProse([s]))]).map((label) => ({
+            label,
+            outcome: 'Each factor that can be zero gives its own families; together they are every solution.',
+          })),
+        },
+      ],
+      answer: [`$${h.factored}$`, general],
+    };
+  },
+  solution: ({ eq }) => hardSteps(HARDS[eq]),
+};
+
+interface HardRangeParams {
+  eq: number;
+  range: number;
+  ask: number;
+  radians: boolean;
+}
+
+/** Radian ranges from -pi to pi, one end in. */
+const RADIAN_RANGES = [1, 2];
+
+/** A harder equation over a range: the smallest, the largest, or how many. */
+const harderAngle: Generator<HardRangeParams> = {
+  id: 'tid-general-harder-angle',
+  sample: (rng, difficulty) => {
+    const radians = difficulty > 1 && rng.chance(0.5);
+    return {
+      eq: rng.pick(HARD_POOLS[difficulty > 1 ? 1 : 0]),
+      range: radians ? rng.pick(RADIAN_RANGES) : difficulty > 1 ? rng.pick([0, 1, 2, 3]) : rng.pick([0, 1]),
+      ask: rng.int(0, 2),
+      radians,
+    };
+  },
+  render: (p): Slide => {
+    const h = HARDS[p.eq];
+    const r = GEN_RANGES[p.range];
+    return rangeSlide(
+      [prose(`Solve for $${genRangeTex(r, p.radians)}$.`), display(h.tex), prose(askProse(p.ask, p.radians))],
+      within(solveParts(h.parts), r),
+      p.ask,
+      p.radians,
+    );
+  },
+  choices: (p) => rangeChoices(solveParts(HARDS[p.eq].parts), GEN_RANGES[p.range], p.ask, p.radians),
+  solution: (p) => [...hardSteps(HARDS[p.eq], p.radians), ...rangeSolution(solveParts(HARDS[p.eq].parts), GEN_RANGES[p.range], p.ask, p.radians)],
+};
+
+type RouteKind = 'tan' | 'r' | 'quadratic' | 'factor';
+
+/** The routes, as the learner reads them, in a fixed order. */
+const ROUTE_LABELS: [RouteKind, string][] = [
+  ['tan', 'Divide by $\\cos x$ and solve $\\tan x = k$'],
+  ['r', 'Write the left side as $R\\sin(x + \\alpha)$'],
+  ['quadratic', 'Use an identity to make a quadratic in one function'],
+  ['factor', 'Factorise the sum with a factor formula'],
+];
+
+/** One list per route, so each is drawn as often as the others. */
+const ROUTE_HARDS: Record<RouteKind, Hard[]> = {
+  tan: TAN_HARDS,
+  r: R_HARDS,
+  quadratic: QUAD_HARDS,
+  factor: FACTOR_HARDS,
+};
+
+interface RouteParams {
+  route: RouteKind;
+  eq: number;
+  range: number;
+}
+
+/** Which route does this equation want, and so how many solutions has it? */
+const routeFlow: Generator<RouteParams> = {
+  id: 'tid-general-route-flow',
+  sample: (rng, difficulty) => {
+    const route = rng.pick(ROUTE_LABELS.map(([k]) => k));
+    return { route, eq: rng.int(0, ROUTE_HARDS[route].length - 1), range: difficulty > 1 ? rng.pick([1, 2, 3]) : 0 };
+  },
+  render: (p): Slide => {
+    const h = ROUTE_HARDS[p.route][p.eq];
+    const r = GEN_RANGES[p.range];
+    const n = within(solveParts(h.parts), r).length;
+    const counts = [...new Set([n, n + 1, n - 1, 2 * n, n + 2])].filter((v) => v > 0).slice(0, 4).sort((a, b) => a - b);
+    const routeLabel = ROUTE_LABELS.find(([k]) => k === p.route)![1];
+    return {
+      kind: 'flow',
+      prompt: [prose(`Choose the route, then count the solutions with $${genRangeTex(r)}$.`)],
+      subject: h.tex,
+      steps: [
+        { id: 'route', ask: 'The route this equation wants is', branches: ROUTE_LABELS.map(([, label]) => ({ label, to: 'count' })) },
+        {
+          id: 'count',
+          ask: 'So the number of solutions in the range is',
+          branches: counts.map((v) => ({ label: `$${v}$`, outcome: 'Solve each factor for every x, then keep what lands in the range.' })),
+        },
+      ],
+      answer: [routeLabel, `$${n}$`],
+    };
+  },
+  solution: (p) => {
+    const h = ROUTE_HARDS[p.route][p.eq];
+    return [...hardSteps(h), ...rangeSolution(solveParts(h.parts), GEN_RANGES[p.range], 2, false)];
+  },
+};
+
+/** Dividing by a function that can be zero: the equation, what it divides by, what is left, and every factor. */
+const LOST_FORMS: { tex: (c: string) => string; by: Fn; left: Fn; full: (half: number) => Simple[] }[] = [
+  { tex: (c) => `\\sin 2x = ${c}\\cos x`, by: 'cos', left: 'sin', full: (h) => [simple('cos', 0), simple('sin', h)] },
+  { tex: (c) => `\\sin 2x = ${c}\\sin x`, by: 'sin', left: 'cos', full: (h) => [simple('sin', 0), simple('cos', h)] },
+  { tex: (c) => `2\\sin^2 x = ${c}\\sin x`, by: 'sin', left: 'sin', full: (h) => [simple('sin', 0), simple('sin', h)] },
+  { tex: (c) => `2\\cos^2 x = ${c}\\cos x`, by: 'cos', left: 'cos', full: (h) => [simple('cos', 0), simple('cos', h)] },
+];
+
+interface LostParams {
+  form: number;
+  c: number;
+  range: number;
+}
+
+const listOrNone = (xs: number[]): string => (xs.length === 0 ? '\\text{none}' : `x = ${angleList(xs)}`);
+
+/** Dividing by sin x or cos x: which solutions go missing? */
+const lostChoice: Generator<LostParams> = {
+  id: 'tid-general-lost-choice',
+  sample: (rng, difficulty) => ({ form: rng.int(0, LOST_FORMS.length - 1), c: rng.int(0, DOUBLE_CS.length - 1), range: rng.pick(difficulty > 1 ? [2, 3] : [0, 1]) }),
+  render: (p): Slide => {
+    const f = LOST_FORMS[p.form];
+    const c = DOUBLE_CS[p.c];
+    const half = (c[0] * Math.sqrt(c[1])) / 2;
+    const r = GEN_RANGES[p.range];
+    const all = within(solveParts(f.full(half)), r);
+    const kept = within(solveParts([simple(f.left, half)]), r);
+    const lost = all.filter((x) => !kept.includes(x));
+    const otherZeros = within(solveParts([simple(f.by === 'sin' ? 'cos' : 'sin', 0)]), r);
+    return choiceSlide(
+      [
+        prose(
+          `Dividing both sides by $\\${f.by} x$ leaves $2\\${f.left} x = ${cValue(c)}$. Which solutions with $${genRangeTex(r)}$ does that lose?`,
+        ),
+        display(f.tex(cFront(c))),
+      ],
+      listOrNone(lost),
+      [kept, all, otherZeros, []].map(listOrNone),
+      saltOf(p),
+    );
+  },
+  solution: (p) => {
+    const f = LOST_FORMS[p.form];
+    const c = DOUBLE_CS[p.c];
+    const half = (c[0] * Math.sqrt(c[1])) / 2;
+    const r = GEN_RANGES[p.range];
+    const zeros = within(solveParts([simple(f.by, 0)]), r);
+    return [
+      { text: `Dividing by $\\${f.by} x$ assumes it is not zero, so the solutions of $\\${f.by} x = 0$ go missing. Factorise instead:` },
+      { tex: `\\${f.by} x${cFactor(f.left, c)} = 0` },
+      { text: `$\\${f.by} x = 0$ gives` },
+      { tex: anglesTex(zeros, false) },
+      { text: `$\\${f.left} x = ${specialTex(half)}$ gives the rest, which the division kept.` },
+    ];
+  },
+};
+
 /* ---------- Fitting a phone ---------- */
 
 /**
@@ -10191,4 +11407,18 @@ export const trigIdentityGenerators = [
   fitted(eqFactorSteps),
   fitted(eqSlider),
   fitted(eqAngle),
+  fitted(sincosTiles),
+  fitted(partnerFlow),
+  fitted(inRangeAngle),
+  fitted(valuesTable),
+  fitted(tanTiles),
+  fitted(radianChoice),
+  fitted(radianSteps),
+  fitted(bracketTree),
+  fitted(bracketCount),
+  fitted(bracketStepsGen),
+  fitted(factorFlow),
+  fitted(harderAngle),
+  fitted(routeFlow),
+  fitted(lostChoice),
 ];

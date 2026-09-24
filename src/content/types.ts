@@ -580,7 +580,7 @@ export interface Level {
 }
 
 /** The tabs on the home screen; `courses/index.ts` gives each its title. */
-export type CategoryId = 'algebra-fundamentals' | 'advanced-algebra' | 'advanced-maths';
+export type CategoryId = 'algebra-fundamentals' | 'advanced-algebra' | 'advanced-maths' | 'statistics';
 
 export interface Course {
   id: string;

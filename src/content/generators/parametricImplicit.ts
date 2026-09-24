@@ -8,9 +8,14 @@
  * point** on it, so every gradient, bank and answer the learner meets is whole.
  *
  * The oracle in `generators.test.ts` differentiates a `source` in $x$ only, and
- * nothing here is a plain function of $x$: a parametric gradient is written in
- * $t$ and an implicit one in $x$ and $y$. `parametricImplicit.test.ts` checks
- * both against mathjs's own derivatives of $x(t)$, $y(t)$ and $F(x, y)$.
+ * up to level 4 nothing here is a plain function of $x$: a parametric gradient
+ * is written in $t$ and an implicit one in $x$ and $y$. `parametricImplicit.test.ts`
+ * checks both against mathjs's own derivatives of $x(t)$, $y(t)$ and $F(x, y)$.
+ * Level 5 differentiates $a^x$ and $\tan^{-1}(kx)$, which are, so those typed
+ * questions declare a `source` for the oracle; everything else in the level
+ * (the inverse sine, whose gradient cannot be typed where the checker probes,
+ * logarithmic differentiation, and every tile, box and branch) is checked in
+ * `parametricImplicit.test.ts`.
  *
  * As everywhere, `*Tex` is what the learner reads and `answer` is what mathjs
  * grades; the two are never the same string.
@@ -18,7 +23,8 @@
 import type { Block, ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
 import { hashSeed, type Rng } from '../../engine/rng';
 import { options } from '../choiceVariant';
-import { ALGEBRA_KEYS, TRIG_KEYS, sumTex, termAnswer, termTex } from './calculus';
+import { ALGEBRA_KEYS, EXP_KEYS, TRIG_KEYS, sumTex, termAnswer, termTex } from './calculus';
+import { TRIPLES } from './complexPlane';
 
 /* ---------- Shared helpers ---------- */
 
@@ -6202,6 +6208,1293 @@ const implSlopePoints: Generator<SlopePointsParams> = {
   },
 };
 
+/* ---------- Level 5: exponentials and inverses ---------- */
+
+/*
+ * a^x, the inverse sine and tangent, and logarithmic differentiation: each is
+ * implicit differentiation of an equation with a logarithm or a trigonometric
+ * function on the y side. The rule of the rest of the file still holds, built
+ * outward from the answer: a logarithm is never evaluated, so `\ln 3` stays a
+ * symbol in every tile, box and typed answer, and an inverse sine is only
+ * asked at x = a/c from a Pythagorean triple, where 1 - x^2 is a square.
+ */
+
+/** A number times something that follows it: `3x`, `-x`, `x`. */
+const kxTex = (k: number): string => `${coef(k)}x`;
+
+/** a^{kx}, as the learner reads it. */
+const powerTex = (a: number, k: number): string => `${a}^{${kxTex(k)}}`;
+
+/** n \ln a, a coefficient of 1 or -1 implied. */
+const lnTex = (n: number, a: number): string => `${coef(n)}\\ln ${a}`;
+
+/** A number times a body, with a times sign so the number cannot run into a power's base. */
+const timesBody = (n: number, body: string): string => (n === 1 ? body : n === -1 ? `-${body}` : `${n} \\times ${body}`);
+
+/** A whole number over a body, the sign out front. */
+const fracBody = (top: number, body: string): string => (top < 0 ? `-\\frac{${-top}}{${body}}` : `\\frac{${top}}{${body}}`);
+
+/**
+ * A term the learner reads, first on its line or following another: first it
+ * carries its own sign (`-\ln 3`), later its operator (`- \ln 3`, `+ 2\ln 3`).
+ */
+const piece = (n: number, body: (size: number) => string, first: boolean): string =>
+  first ? (n < 0 ? `-${body(-n)}` : body(n)) : `${n < 0 ? '-' : '+'} ${body(Math.abs(n))}`;
+
+const fracTimes = ([a, b]: Frac, [c, dd]: Frac): Frac => [a * c, b * dd];
+
+/* ---------- a^x through the logarithm ---------- */
+
+/** y = c a^{kx}. */
+export interface ExpParams {
+  a: number;
+  k: number;
+  c: number;
+}
+
+const EXP_BASES = [2, 3, 4, 5, 6, 7, 10];
+
+/** y for mathjs, for the oracle and the independent test. */
+export const expSource = ({ a, k, c }: ExpParams): string => `${c} * ${a}^((${k}) * x)`;
+
+const expTex = ({ a, k, c }: ExpParams): string => timesBody(c, powerTex(a, k));
+
+/** dy/dx = ck \ln a \times a^{kx}. */
+const expGradTex = ({ a, k, c }: ExpParams): string => `${lnTex(c * k, a)} \\times ${powerTex(a, k)}`;
+
+const expGradAnswer = ({ a, k, c }: ExpParams): string => `(${c * k}) * log(${a}) * ${a}^((${k}) * x)`;
+
+/** At difficulty 1 a plain a^{kx}; at 2 a coefficient in front and the power possibly negative. */
+function sampleExp(rng: Rng, difficulty: number, ks: number[]): ExpParams {
+  const a = rng.pick(EXP_BASES);
+  if (difficulty < 2) return { a, k: rng.pick(ks), c: 1 };
+  return { a, k: rng.pick([-3, -2, -1, 1, 2, 3]), c: rng.int(2, 5) };
+}
+
+/** The right-hand side of ln y = ln c + kx ln a, the ln c dropped when c is 1. */
+function expLogTokens({ a, k, c }: ExpParams): string[] {
+  const rate = piece(k, (size) => `${kxTex(size)}\\ln ${a}`, c === 1);
+  return c === 1 ? [rate] : [`\\ln ${c}`, rate];
+}
+
+function expSolution(params: ExpParams): SolutionStep[] {
+  const { a, k } = params;
+  return [
+    { text: 'Take natural logarithms of both sides: the power comes down in front.', tex: `\\ln y = ${expLogTokens(params).join(' ')}` },
+    {
+      text: `Differentiate. $\\ln y$ gives $\\frac{1}{y}${DYDX}$ by the chain rule, and $\\ln ${a}$ is only a number.`,
+      tex: `\\frac{1}{y}${DYDX} = ${lnTex(k, a)}`,
+    },
+    { text: `Multiply both sides by $y = ${expTex(params)}$.`, tex: `${DYDX} = ${expGradTex(params)}` },
+  ];
+}
+
+/**
+ * a^{kx} differentiated by taking logarithms: ln y, then each side, then
+ * multiplying back by y.
+ *
+ * The banks carry the $\frac{1}{y}$ left off, $\ln a$ differentiated as if it
+ * moved, the power rule's $kx\,a^{kx - 1}$, and the answer left divided by y.
+ */
+const implAxLogSteps: Generator<ExpParams> = {
+  id: 'impl-ax-log-steps',
+  sample: (rng, difficulty) => sampleExp(rng, difficulty, [1, 2, 3, 4, 5]),
+  render: (params): Slide => {
+    const { a, k, c } = params;
+    const right = expLogTokens(params);
+    const start = ['\\ln y', '=', ...right];
+    const reductions: Extract<Slide, { kind: 'steps' }>['reductions'] = [
+      {
+        span: [0, 1],
+        value: `\\frac{1}{y}${DYDX}`,
+        bank: stepBank(`\\frac{1}{y}${DYDX}`, '\\frac{1}{y}', `y${DYDX}`, DYDX),
+      },
+    ];
+    if (c !== 1) reductions.push({ span: [2, 3], value: '0', bank: stepBank('0', `\\frac{1}{${c}}`, `${c}`) });
+    const first = c === 1;
+    const at = start.length - 1;
+    reductions.push({
+      span: [at, at + 1],
+      value: piece(k, (size) => lnTex(size, a), first),
+      bank: stepBank(
+        piece(k, (size) => lnTex(size, a), first),
+        piece(k, (size) => `${size}`, first),
+        piece(k, (size) => fracTex(size, a), first),
+        piece(k === 1 || k === -1 ? 2 * k : Math.sign(k), (size) => lnTex(size, a), first),
+      ),
+    });
+    const gradient = (tex: string) => `${DYDX} = ${tex}`;
+    reductions.push({
+      span: [0, start.length],
+      operator: 1,
+      value: gradient(expGradTex(params)),
+      bank: stepBank(
+        gradient(expGradTex(params)),
+        gradient(lnTex(c * k, a)),
+        gradient(`${kxTex(c * k)} \\times ${a}^{${kxTex(k)} - 1}`),
+        gradient(`\\frac{${lnTex(c * k, a)}}{${expTex(params)}}`),
+      ),
+    });
+    return {
+      kind: 'steps',
+      prompt: [
+        prose(
+          `Differentiate $y = ${expTex(params)}$ by taking logarithms: $\\ln y = ${right.join(' ')}$. Differentiate each side, then multiply through by $y$. Tap the step to do next, then choose what it gives.`,
+        ),
+      ],
+      start,
+      reductions,
+    };
+  },
+  solution: expSolution,
+};
+
+/**
+ * dy/dx for c a^{kx} from tiles: the number in front, the base of the
+ * logarithm and the power.
+ *
+ * The bank holds the chain factor dropped, the sign turned, $\ln x$ for
+ * $\ln a$, and the power rule's $a^{kx - 1}$.
+ */
+const implAxTiles: Generator<ExpParams> = {
+  id: 'impl-ax-tiles',
+  sample: (rng, difficulty) => sampleExp(rng, difficulty, [2, 3, 4, 5]),
+  render: (params): Slide => {
+    const { a, k, c } = params;
+    const answer = [bareTile(c * k), `${a}`, powerTex(a, k)];
+    const extras = [bareTile(c === 1 ? 1 : k), `${a}^{${kxTex(k)} - 1}`, 'x', bareTile(-c * k), 'e'];
+    return {
+      kind: 'tiles',
+      prompt: [prose('Differentiate, writing the answer as a number times $\\ln$ of the base times the power.'), display(`y = ${expTex(params)}`)],
+      template: `${DYDX} = {0}\\ln {1} \\times {2}`,
+      bank: tokenBank(answer, extras, 4),
+      answer,
+    };
+  },
+  solution: expSolution,
+};
+
+/**
+ * dy/dx for c a^{kx}, typed. The oracle differentiates `source` itself.
+ *
+ * The options carry the power rule applied to a variable power, the $\ln a$
+ * lost, and the logarithm divided by rather than multiplied.
+ */
+const implAxGrad: Generator<ExpParams> = {
+  id: 'impl-ax-grad',
+  sample: (rng, difficulty) => sampleExp(rng, difficulty, [1, 2, 3, 4]),
+  choices: (params) => {
+    const { a, k, c } = params;
+    const y = powerTex(a, k);
+    const n = c * k;
+    const spare = [{ tex: `${lnTex(n, a)} \\times ${a}^{${kxTex(k)} - 1}`, answer: `(${n}) * log(${a}) * ${a}^((${k}) * x - 1)` }];
+    if (k !== 1) spare.push({ tex: `${lnTex(c, a)} \\times ${y}`, answer: `(${c}) * log(${a}) * ${a}^((${k}) * x)` });
+    return steered(
+      options(
+        { tex: expGradTex(params), answer: expGradAnswer(params) },
+        { tex: `${kxTex(n)} \\times ${a}^{${kxTex(k)} - 1}`, answer: `(${n}) * x * ${a}^((${k}) * x - 1)` },
+        { tex: timesBody(n, y), answer: `(${n}) * ${a}^((${k}) * x)` },
+        { tex: `\\frac{${timesBody(n, y)}}{\\ln ${a}}`, answer: `(${n}) * ${a}^((${k}) * x) / log(${a})` },
+      ),
+      mix(a, k, c),
+      spare,
+    );
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [prose('Differentiate, writing the logarithm as $\\ln$.'), display(`y = ${expTex(params)}`)],
+    lead: `${DYDX} =`,
+    keypad: EXP_KEYS,
+    answer: expGradAnswer(params),
+    source: expSource(params),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: expSolution,
+};
+
+/** y = a^{kx} at x = n. */
+export interface ExpAtParams {
+  a: number;
+  k: number;
+  n: number;
+}
+
+/**
+ * The gradient of a^{kx} at a whole x as a tree: y there, and the rate
+ * $\frac{d}{dx}(\ln y) = k \ln a$ that logarithms give, then their product.
+ *
+ * The bank holds the power rule's value $kn\,a^{kn - 1}$, $\ln y$ in place of
+ * y, the logarithm dropped, $\ln a$ differentiated to $\frac{1}{a}$, and the
+ * power one too high.
+ */
+const implAxAtTree: Generator<ExpAtParams> = {
+  id: 'impl-ax-at-tree',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = { a: rng.int(2, 10), k: difficulty >= 2 ? rng.int(2, 3) : 1, n: rng.int(1, difficulty >= 2 ? 2 : 3) };
+      if (params.a ** (params.k * params.n) <= 5000) return params;
+    }
+  },
+  render: ({ a, k, n }): Slide => {
+    const y = a ** (k * n);
+    const answer = [`${y}`, lnTex(k, a), `${k * y}\\ln ${a}`];
+    const extras = [`${k * n * a ** (k * n - 1)}`, `\\ln ${y}`, `${k * y}`, fracTex(k, a), `${y * a}\\ln ${a}`];
+    return {
+      kind: 'tree',
+      prompt: [
+        prose(`Find the gradient of $y = ${powerTex(a, k)}$ where $x = ${n}$.`),
+        prose(`The top row is $y$ there and $\\frac{d}{dx}(\\ln y)$, the rate that taking logarithms gives. The gradient is their product.`),
+      ],
+      expression: `y \\times \\frac{d}{dx}\\left(\\ln y\\right)`,
+      nodes: [
+        { id: 'y', from: [] },
+        { id: 'rate', from: [] },
+        { id: 'g', from: ['y', 'rate'] },
+      ],
+      bank: tokenBank(answer, extras, 4),
+      answer,
+    };
+  },
+  solution: ({ a, k, n }) => [
+    { text: 'Take logarithms and differentiate.', tex: `\\ln y = ${kxTex(k)}\\ln ${a}, \\quad \\frac{1}{y}${DYDX} = ${lnTex(k, a)}` },
+    { text: `At $x = ${n}$, $y = ${a}^{${k * n}} = ${a ** (k * n)}$.` },
+    { text: 'Multiply.', tex: `${DYDX} = ${a ** (k * n)} \\times ${lnTex(k, a)} = ${k * a ** (k * n)}\\ln ${a}` },
+  ],
+};
+
+/* ---------- Inverse sine ---------- */
+
+/** y = k sin^{-1} x or k cos^{-1} x at x = s a/c, where the other ratio of y is b/c. */
+export interface InverseSineParams {
+  a: number;
+  b: number;
+  c: number;
+  s: number;
+  k: number;
+  inv: 'sin' | 'cos';
+}
+
+/** Triples in lowest terms up to 41, so a/c is a new fraction on every row. */
+const LOWEST_TRIPLES = TRIPLES.filter(([a, b, c]) => gcd(a, b) === 1 && c <= 41);
+
+function sampleInverseSine(rng: Rng, inv: InverseSineParams['inv'][], ks: number[]): InverseSineParams {
+  const [a, b, c] = rng.pick(LOWEST_TRIPLES);
+  return { a, b, c, s: rng.sign(), k: rng.pick(ks), inv: rng.pick(inv) };
+}
+
+/** Difficulty 1 is sin^{-1} x alone; 2 adds cos^{-1} x and a number in front. */
+const sampleInverseMixed = (rng: Rng, difficulty: number): InverseSineParams =>
+  difficulty >= 2 ? sampleInverseSine(rng, ['sin', 'cos'], [1, 2, 3]) : sampleInverseSine(rng, ['sin'], [1]);
+
+/** y for mathjs. */
+export const inverseSineSource = ({ k, inv }: InverseSineParams): string => `${k} * ${inv === 'sin' ? 'asin' : 'acos'}(x)`;
+
+/** The x the question is asked at. */
+export const inverseSineX = ({ a, c, s }: InverseSineParams): number => (s * a) / c;
+
+/** The gradient there: k c/b for sin^{-1}, -k c/b for cos^{-1}. */
+export const inverseSineGradient = ({ b, c, k, inv }: InverseSineParams): Frac => [(inv === 'sin' ? 1 : -1) * k * c, b];
+
+const inverseName = (inv: 'sin' | 'cos' | 'tan'): string => `\\${inv}^{-1}`;
+
+const inverseSineTex = ({ k, inv }: InverseSineParams): string => `y = ${coef(k)}${inverseName(inv)} x`;
+
+/** Where y lies, and the ratio that is never negative there. */
+const inverseRange = (inv: 'sin' | 'cos'): { range: string; other: string } =>
+  inv === 'sin'
+    ? { range: '$-\\frac{\\pi}{2}$ and $\\frac{\\pi}{2}$', other: '\\cos y' }
+    : { range: '$0$ and $\\pi$', other: '\\sin y' };
+
+function inverseSineSolution(params: InverseSineParams): SolutionStep[] {
+  const { a, b, c, s, k, inv } = params;
+  const sin = inv === 'sin';
+  const { range, other } = inverseRange(inv);
+  const [top, bottom] = inverseSineGradient(params);
+  const steps: SolutionStep[] = [
+    {
+      text: `$y = ${inverseName(inv)} x$ means $\\${inv} y = x$. Differentiate both sides with respect to $x$.`,
+      tex: `${sin ? '\\cos y' : '-\\sin y'}\\,${DYDX} = 1`,
+    },
+    {
+      text: `$y$ lies between ${range}, where $${other}$ is never negative, so $${other} = \\sqrt{1 - x^2}$. At $x = ${fracTex(s * a, c)}$:`,
+      tex: `${other} = \\sqrt{1 - ${fracTex(a * a, c * c)}} = ${fracTex(b, c)}`,
+    },
+    { text: 'Divide.', tex: `${DYDX} = ${sin ? '' : '-'}1 \\div ${fracTex(b, c)} = ${fracTex(sin ? c : -c, b)}` },
+  ];
+  if (k !== 1) steps.push({ text: `$y$ has $${k}$ in front, so the gradient is $${k}$ times that.`, tex: `${DYDX} = ${fracTex(top, bottom)}` });
+  return steps;
+}
+
+/**
+ * The inverse sine (or cosine) differentiated at a point, one step at a time:
+ * the chain rule on $\sin y$, the right-hand side, the ratio put in, then the
+ * division.
+ *
+ * The ratio's bank holds $x$ itself (the sine for the cosine), its sign
+ * slipped, and its square not rooted; the last step's, the division upside
+ * down and the sign turned.
+ */
+const implArcsinDeriveSteps: Generator<InverseSineParams> = {
+  id: 'impl-arcsin-derive-steps',
+  sample: (rng, difficulty) => sampleInverseSine(rng, [difficulty >= 2 ? 'cos' : 'sin'], [1]),
+  render: (params): Slide => {
+    const { a, b, c, s, inv } = params;
+    const sin = inv === 'sin';
+    const { range, other } = inverseRange(inv);
+    const dy = (lead: string) => `${lead}\\,${DYDX}`;
+    const rate = sin ? '\\cos y' : '-\\sin y';
+    const turned = sin ? '-\\cos y' : '\\sin y';
+    const ratio = sin ? b : -b;
+    const [top, bottom] = inverseSineGradient(params);
+    const gradient = (tex: string) => `${DYDX} = ${tex}`;
+    return {
+      kind: 'steps',
+      prompt: [
+        prose(
+          `Find $${DYDX}$ for $${inverseSineTex(params)}$ at $x = ${fracTex(s * a, c)}$. Write it as $\\${inv} y = x$, differentiate both sides, then put in the point: $y$ lies between ${range}, so $${other}$ is not negative. Tap the step to do next, then choose what it gives.`,
+        ),
+      ],
+      start: [`\\${inv} y`, '=', 'x'],
+      reductions: [
+        { span: [0, 1], value: dy(rate), bank: stepBank(dy(rate), rate, dy(turned), dy(`\\${inv} y`)) },
+        { span: [2, 3], value: '1', bank: stepBank('1', '0', 'x') },
+        {
+          span: [0, 1],
+          value: dy(fracTex(ratio, c)),
+          bank: stepBank(dy(fracTex(ratio, c)), dy(fracTex(-ratio, c)), dy(fracTex(sin ? s * a : -s * a, c)), dy(fracTex(sin ? b * b : -b * b, c * c))),
+        },
+        {
+          span: [0, 3],
+          operator: 1,
+          value: gradient(fracTex(top, bottom)),
+          bank: stepBank(gradient(fracTex(top, bottom)), gradient(fracTex(ratio, c)), gradient(fracTex(-top, bottom)), gradient(fracTex(top, a))),
+        },
+      ],
+    };
+  },
+  solution: inverseSineSolution,
+};
+
+/**
+ * The inverse sine's gradient at x = a/c as a tree: x^2, 1 - x^2, its root,
+ * then k over that.
+ *
+ * The bank holds 1 + x^2, the root not taken, x in place of the root, and
+ * the sign turned.
+ */
+const implArcsinAtTree: Generator<InverseSineParams> = {
+  id: 'impl-arcsin-at-tree',
+  sample: sampleInverseMixed,
+  render: (params): Slide => {
+    const { a, b, c, s, k, inv } = params;
+    const [top, bottom] = inverseSineGradient(params);
+    const formula = `${inv === 'cos' ? '-' : ''}\\frac{${k}}{\\sqrt{1 - x^2}}`;
+    return {
+      kind: 'tree',
+      prompt: [
+        prose(`The gradient of $${inverseSineTex(params)}$ is`),
+        display(`${DYDX} = ${formula}`),
+        prose(`Find it at $x = ${fracTex(s * a, c)}$. The top box is $x^2$, then $1 - x^2$, its square root, and the gradient.`),
+      ],
+      expression: formula,
+      nodes: [
+        { id: 'square', from: [] },
+        { id: 'less', from: ['square'] },
+        { id: 'root', from: ['less'] },
+        { id: 'g', from: ['root'] },
+      ],
+      bank: fracTreeBank(
+        [
+          [a * a, c * c],
+          [b * b, c * c],
+          [b, c],
+          [top, bottom],
+        ],
+        [
+          [c * c + a * a, c * c],
+          [-top, bottom],
+          [Math.sign(top) * k * c * c, b * b],
+          [Math.sign(top) * k * c, a],
+        ],
+      ),
+      answer: [fracTex(a * a, c * c), fracTex(b * b, c * c), fracTex(b, c), fracTex(top, bottom)],
+    };
+  },
+  solution: (params) => {
+    const { a, b, c, s } = params;
+    const [top, bottom] = inverseSineGradient(params);
+    return [
+      { text: `Square $x = ${fracTex(s * a, c)}$ and take it from $1$.`, tex: `1 - ${fracTex(a * a, c * c)} = ${fracTex(b * b, c * c)}` },
+      { text: 'Take the square root.', tex: `\\sqrt{${fracTex(b * b, c * c)}} = ${fracTex(b, c)}` },
+      { text: 'Divide into the number on top.', tex: `${DYDX} = ${fracTex(top, bottom)}` },
+    ];
+  },
+};
+
+/** The inverse sine's gradient at x = a/c, typed. Options: not turned over, x for the root, the sign lost, the root not taken. */
+const implArcsinGrad: Generator<InverseSineParams> = {
+  id: 'impl-arcsin-grad',
+  sample: sampleInverseMixed,
+  choices: (params) => {
+    const { a, b, c, s, k } = params;
+    const [top, bottom] = inverseSineGradient(params);
+    const sign = Math.sign(top);
+    return fracChoices(
+      [top, bottom],
+      [
+        [sign * k * b, c],
+        [sign * k * c, a],
+        [-top, bottom],
+      ],
+      mix(a, b, c, s, top),
+      [[sign * k * c * c, b * b]],
+    );
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [prose('Find the gradient of'), display(inverseSineTex(params)), prose(`at $x = ${fracTex(params.s * params.a, params.c)}$.`)],
+    lead: `${DYDX} =`,
+    keypad: FRACTION_KEYS,
+    answer: fracAnswer(...inverseSineGradient(params)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: inverseSineSolution,
+};
+
+/**
+ * The sign of an inverse's gradient as three decisions: the chain rule on
+ * $\cos y$, which root the range allows, then the value.
+ *
+ * Every wrong turn is a real slip: the minus lost differentiating cosine, the
+ * $\frac{dy}{dx}$ forgotten, the negative root, the square not rooted, the
+ * ratio not turned over.
+ */
+const implInverseSignFlow: Generator<InverseSineParams> = {
+  id: 'impl-inverse-sign-flow',
+  sample: (rng, difficulty) => sampleInverseSine(rng, difficulty >= 2 ? ['sin', 'cos'] : ['cos'], [1]),
+  render: (params): Slide => {
+    const { a, b, c, s, inv } = params;
+    const sin = inv === 'sin';
+    const { range, other } = inverseRange(inv);
+    const salt = mix(a, b, c, s, sin ? 1 : 2);
+    const x = fracTex(s * a, c);
+    const [top, bottom] = inverseSineGradient(params);
+    const differentiated = `$${sin ? '\\cos y' : '-\\sin y'}\\,${DYDX} = 1$`;
+    const root = `$${other} = \\sqrt{1 - x^2}$`;
+    const value = `$${fracTex(top, bottom)}$`;
+    return {
+      kind: 'flow',
+      prompt: [prose(`Find the gradient of $${inverseSineTex(params)}$ at $x = ${x}$.`)],
+      subject: `\\${inv} y = x`,
+      steps: [
+        {
+          id: 'differentiate',
+          ask: `Differentiate both sides of $\\${inv} y = x$ with respect to $x$.`,
+          branches: fork(
+            [
+              { label: differentiated, to: 'root' },
+              {
+                label: `$${sin ? '-\\cos y' : '\\sin y'}\\,${DYDX} = 1$`,
+                outcome: sin ? 'Sine differentiates to cosine, with no change of sign.' : 'Cosine differentiates to minus sine.',
+              },
+              { label: `$${sin ? '\\cos y' : '-\\sin y'} = 1$`, outcome: `$y$ depends on $x$, so the chain rule brings a $${DYDX}$.` },
+            ],
+            salt,
+          ),
+        },
+        {
+          id: 'root',
+          ask: `$y$ lies between ${range}. In terms of $x$, $${other}$ is`,
+          branches: fork(
+            [
+              { label: root, to: 'value' },
+              { label: `$${other} = -\\sqrt{1 - x^2}$`, outcome: `$${other}$ is never negative when $y$ is between ${range}.` },
+              { label: `$${other} = 1 - x^2$`, outcome: `That is $${sin ? '\\cos^2 y' : '\\sin^2 y'}$; take the square root.` },
+            ],
+            salt >>> 3,
+          ),
+        },
+        {
+          id: 'value',
+          ask: `So at $x = ${x}$, $${DYDX}$ is`,
+          branches: fork(
+            [
+              { label: value, outcome: `Right: $${other} = ${fracTex(b, c)}$ there, so $${DYDX} = ${fracTex(top, bottom)}$.` },
+              {
+                label: `$${fracTex(-top, bottom)}$`,
+                outcome: sin ? '$\\cos y$ is positive, so the gradient is too.' : '$\\sin y$ is positive, and the minus sign makes the gradient negative.',
+              },
+              { label: `$${fracTex(sin ? b : -b, c)}$`, outcome: `That is $${sin ? '\\cos y' : '-\\sin y'}$ itself; $${DYDX}$ is $1$ divided by it.` },
+              { label: `$${fracTex(sin ? c : -c, a)}$`, outcome: `That divides by $\\${inv} y$, which is $x$; the working needs $${other}$.` },
+            ],
+            salt >>> 6,
+          ),
+        },
+      ],
+      answer: [differentiated, root, value],
+    };
+  },
+  solution: inverseSineSolution,
+};
+
+/* ---------- Inverse tangent ---------- */
+
+/** y = k tan^{-1} x (or tan y = kx) at a whole x. */
+export interface ArctanParams {
+  k: number;
+  x0: number;
+}
+
+const sampleArctan = (rng: Rng, ks: number[], span: number): ArctanParams => ({ k: rng.pick(ks), x0: rng.int(1, span) * rng.sign() });
+
+const arctanTex = (k: number): string => `y = ${coef(k)}\\tan^{-1} x`;
+
+function arctanSolution({ k, x0 }: ArctanParams): SolutionStep[] {
+  const S = 1 + x0 * x0;
+  return [
+    { text: 'From $\\tan y = x$, $\\sec^2 y\\,\\frac{dy}{dx} = 1$ and $\\sec^2 y = 1 + x^2$, so $\\tan^{-1} x$ has gradient $\\frac{1}{1 + x^2}$.' },
+    { text: `With $${k}$ in front:`, tex: `${DYDX} = \\frac{${k}}{1 + x^2}` },
+    { text: `At $x = ${x0}$:`, tex: `${DYDX} = \\frac{${k}}{1 + ${x0 * x0}} = ${fracTex(k, S)}` },
+  ];
+}
+
+/** The inverse tangent's gradient at a whole x, typed. Options: 1 - x^2, the 1 dropped, not turned over. */
+const implArctanGrad: Generator<ArctanParams> = {
+  id: 'impl-arctan-grad',
+  sample: (rng, difficulty) => (difficulty >= 2 ? sampleArctan(rng, [2, 3, 4, 5, 6], 6) : sampleArctan(rng, [1], 13)),
+  choices: ({ k, x0 }) => {
+    const S = 1 + x0 * x0;
+    return fracChoices(
+      [k, S],
+      [
+        [k, 1 - x0 * x0],
+        [k * S, 1],
+        [k, x0 * x0],
+      ],
+      mix(k, x0),
+      [[1, k * S]],
+    );
+  },
+  render: ({ k, x0 }): Slide => ({
+    kind: 'expression',
+    prompt: [prose('Find the gradient of'), display(arctanTex(k)), prose(`at $x = ${x0}$.`)],
+    lead: `${DYDX} =`,
+    keypad: FRACTION_KEYS,
+    answer: fracAnswer(k, 1 + x0 * x0),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const { k, x0 } = params;
+    if (k !== 1) return arctanSolution(params);
+    return [
+      { text: '$y = \\tan^{-1} x$ means $\\tan y = x$. Differentiate both sides.', tex: `\\sec^2 y\\,${DYDX} = 1` },
+      { text: 'Use $\\sec^2 y = 1 + \\tan^2 y = 1 + x^2$.', tex: `${DYDX} = \\frac{1}{1 + x^2}` },
+      { text: `At $x = ${x0}$:`, tex: `${DYDX} = \\frac{1}{1 + ${x0 * x0}} = ${fracTex(1, 1 + x0 * x0)}` },
+    ];
+  },
+};
+
+/**
+ * tan y = kx differentiated implicitly, from tiles: $\sec^2 y$ at the point,
+ * then the gradient.
+ *
+ * The bank holds $\tan^2 y$ for $\sec^2 y$, $1 - \tan^2 y$, the k dropped, the
+ * 1 dropped, and the sign turned.
+ */
+const implArctanSecTiles: Generator<ArctanParams> = {
+  id: 'impl-arctan-sec-tiles',
+  sample: (rng, difficulty) => (difficulty >= 2 ? sampleArctan(rng, [2, 3, 4, 5], 4) : sampleArctan(rng, [1], 13)),
+  render: ({ k, x0 }): Slide => {
+    const S = 1 + k * k * x0 * x0;
+    const answer = [`${S}`, fracTex(k, S)];
+    const extras = [`${S - 1}`, bareTile(1 - S), fracTex(-k, S), k === 1 ? fracTex(1, S - 1) : fracTex(1, S), fracTex(k, S - 1)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        prose('A curve is given by'),
+        display(`\\tan y = ${kxTex(k)}`),
+        prose(`Differentiate both sides, write $\\sec^2 y$ as $1 + \\tan^2 y$, and fill in both at $x = ${x0}$.`),
+      ],
+      template: `\\sec^2 y = {0}, \\quad ${DYDX} = {1}`,
+      bank: tokenBank(answer, extras, 4),
+      answer,
+    };
+  },
+  solution: ({ k, x0 }) => {
+    const S = 1 + k * k * x0 * x0;
+    return [
+      { text: 'Differentiate both sides with respect to $x$.', tex: `\\sec^2 y\\,${DYDX} = ${k}` },
+      { text: `At $x = ${x0}$, $\\tan y = ${k * x0}$, so`, tex: `\\sec^2 y = 1 + \\tan^2 y = 1 + ${k * k * x0 * x0} = ${S}` },
+      { text: 'Divide.', tex: `${DYDX} = ${fracTex(k, S)}` },
+    ];
+  },
+};
+
+/** y = k tan^{-1} x at x = s p/q, from a triple (p, q, r). */
+export interface ArctanAtParams {
+  p: number;
+  q: number;
+  r: number;
+  s: number;
+  k: number;
+}
+
+/**
+ * The inverse tangent's gradient at a fraction as a tree: x^2, 1 + x^2, then
+ * k over that. Taking x from a triple keeps $1 + x^2$ a square over a square,
+ * so the numbers stay recognisable.
+ *
+ * The bank holds 1 - x^2, a square root taken that is not in the formula,
+ * the fraction not turned over, and the sign turned.
+ */
+const implArctanAtTree: Generator<ArctanAtParams> = {
+  id: 'impl-arctan-at-tree',
+  sample: (rng, difficulty) => {
+    const [p, q, r] = rng.pick(LOWEST_TRIPLES);
+    return { p, q, r, s: rng.sign(), k: difficulty >= 2 ? rng.int(2, 4) : 1 };
+  },
+  render: ({ p, q, r, s, k }): Slide => ({
+    kind: 'tree',
+    prompt: [
+      prose(`The gradient of $${arctanTex(k)}$ is`),
+      display(`${DYDX} = \\frac{${k}}{1 + x^2}`),
+      prose(`Find it at $x = ${fracTex(s * p, q)}$. The top box is $x^2$, then $1 + x^2$, then the gradient.`),
+    ],
+    expression: `\\frac{${k}}{1 + x^2}`,
+    nodes: [
+      { id: 'square', from: [] },
+      { id: 'more', from: ['square'] },
+      { id: 'g', from: ['more'] },
+    ],
+    bank: fracTreeBank(
+      [
+        [p * p, q * q],
+        [r * r, q * q],
+        [k * q * q, r * r],
+      ],
+      [
+        [q * q - p * p, q * q],
+        [k * q, r],
+        [k * r * r, q * q],
+        [-k * q * q, r * r],
+      ],
+    ),
+    answer: [fracTex(p * p, q * q), fracTex(r * r, q * q), fracTex(k * q * q, r * r)],
+  }),
+  solution: ({ p, q, r, s, k }) => [
+    { text: `Square $x = ${fracTex(s * p, q)}$ and add $1$.`, tex: `1 + ${fracTex(p * p, q * q)} = ${fracTex(r * r, q * q)}` },
+    { text: `Divide it into $${k}$: turn the fraction over${k === 1 ? '' : ` and multiply by $${k}$`}.`, tex: `${DYDX} = ${fracTex(k * q * q, r * r)}` },
+  ],
+};
+
+/** Where y = k tan^{-1} x has a given gradient: k over 1 + m^2 (at x = ±m), or more than k (nowhere). */
+export interface ArctanWhereParams {
+  k: number;
+  m: number;
+  over: number;
+}
+
+/** The gradient asked for. */
+export const arctanWhereTarget = ({ k, m, over }: ArctanWhereParams): Frac => (over > 0 ? [k + over, 1] : [k, 1 + m * m]);
+
+const NOWHERE = '\\text{no such } x';
+
+/**
+ * Where the inverse tangent has a given gradient, as a choice.
+ *
+ * Solving $\frac{k}{1 + x^2} = \frac{k}{1 + m^2}$ gives $x = \pm m$. The
+ * options carry the root not taken, one sign only, and the 1 forgotten; at
+ * difficulty 2 a gradient larger than k is asked too, which the curve never
+ * reaches, since $1 + x^2 \ge 1$.
+ */
+const implArctanWhere: Generator<ArctanWhereParams> = {
+  id: 'impl-arctan-where',
+  sample: (rng, difficulty) => {
+    if (difficulty < 2) return { k: rng.int(1, 3), m: rng.int(2, 10), over: 0 };
+    const k = rng.int(1, 6);
+    if (rng.chance(0.2)) return { k, m: 0, over: rng.int(1, 3) };
+    return { k, m: rng.int(0, 8), over: 0 };
+  },
+  render: (params): Slide => {
+    const { k, m, over } = params;
+    const prompt = [display(arctanTex(k)), prose(`Where is its gradient $${fracTex(...arctanWhereTarget(params))}$?`)];
+    const salt = mix(k, m, over);
+    if (over > 0) return labelChoice(prompt, [NOWHERE, 'x = 0', 'x = \\pm 1', `x = \\pm ${over + 1}`], salt);
+    if (m === 0) return labelChoice(prompt, ['x = 0', 'x = \\pm 1', NOWHERE, `x = \\pm ${k + 1}`], salt);
+    // Three of the four slips, which three turned by the salt, so "no such x" is sometimes on offer.
+    const slips = turned([`x = \\pm ${m * m}`, `x = ${m}`, `x = \\pm\\sqrt{${m * m + 1}}`, NOWHERE], salt >>> 4).slice(0, 3);
+    return labelChoice(prompt, [`x = \\pm ${m}`, ...slips], salt);
+  },
+  solution: (params) => {
+    const { k, m, over } = params;
+    const target = fracTex(...arctanWhereTarget(params));
+    const steps: SolutionStep[] = [{ text: `The gradient of $${arctanTex(k)}$ is $\\frac{${k}}{1 + x^2}$.` }];
+    if (over > 0) {
+      steps.push({ text: `$1 + x^2$ is never less than $1$, so the gradient is never more than $${k}$, its value at $x = 0$. It never reaches $${target}$.` });
+      return steps;
+    }
+    steps.push(
+      { text: `Set it equal to $${target}$.`, tex: `\\frac{${k}}{1 + x^2} = \\frac{${k}}{${1 + m * m}}` },
+      { text: 'So the bottoms match.', tex: `x^2 = ${m * m}` },
+      { text: m === 0 ? 'Only one point.' : 'Both square roots count.', tex: m === 0 ? 'x = 0' : `x = \\pm ${m}` },
+    );
+    return steps;
+  },
+};
+
+/* ---------- Logarithmic differentiation ---------- */
+
+/** y = (x + p)^m (x + q)^n, or the first over the second. */
+export interface LogDiffParams {
+  p: number;
+  q: number;
+  m: number;
+  n: number;
+  quotient: boolean;
+}
+
+/** (x + p)^m, the power dropped when it is 1. */
+const factorTex = (p: number, m: number): string => `(x ${signed(p)})${m === 1 ? '' : `^${m}`}`;
+
+const logDiffTex = ({ p, q, m, n, quotient }: Pick<LogDiffParams, 'p' | 'q' | 'm' | 'n' | 'quotient'>): string =>
+  quotient ? `\\frac{${factorTex(p, m)}}{${factorTex(q, n)}}` : `${factorTex(p, m)}${factorTex(q, n)}`;
+
+/** y for mathjs. */
+export const logDiffSource = ({ p, q, m, n, quotient }: Pick<LogDiffParams, 'p' | 'q' | 'm' | 'n' | 'quotient'>): string =>
+  `(x + (${p}))^${m} ${quotient ? '/' : '*'} (x + (${q}))^${n}`;
+
+/** At difficulty 1 a product, at 2 a quotient. */
+function sampleLogDiff(rng: Rng, difficulty: number): LogDiffParams {
+  for (;;) {
+    const params = { p: rng.int(1, 6) * rng.sign(), q: rng.int(1, 6) * rng.sign(), m: rng.int(2, 4), n: rng.int(2, 4), quotient: difficulty >= 2 };
+    if (params.p !== params.q && params.m !== params.n) return params;
+  }
+}
+
+/** The two logarithms, `3\ln(x + 1)` and `+ 2\ln(x - 2)`. */
+function logTerms({ p, q, m, n, quotient }: LogDiffParams): [string, string] {
+  return [`${m}\\ln(x ${signed(p)})`, `${quotient ? '-' : '+'} ${n}\\ln(x ${signed(q)})`];
+}
+
+/** y'/y: `\frac{3}{x + 1} + \frac{2}{x - 2}`. */
+function rateTex({ p, q, m, n, quotient }: LogDiffParams): string {
+  return `\\frac{${m}}{x ${signed(p)}} ${quotient ? '-' : '+'} \\frac{${n}}{x ${signed(q)}}`;
+}
+
+function logDiffSolution(params: LogDiffParams): SolutionStep[] {
+  const [first, second] = logTerms(params);
+  return [
+    {
+      text: `Take natural logarithms. The log of a ${params.quotient ? 'quotient is a difference' : 'product is a sum'} of logs, and each power comes down in front.`,
+      tex: `\\ln y = ${first} ${second}`,
+    },
+    { text: 'Differentiate both sides: the left gives $\\frac{1}{y}\\frac{dy}{dx}$.', tex: `\\frac{1}{y}${DYDX} = ${rateTex(params)}` },
+    { text: 'Multiply through by $y$.', tex: `${DYDX} = y\\left(${rateTex(params)}\\right)` },
+  ];
+}
+
+/**
+ * ln y for a product or quotient of powers, from tiles.
+ *
+ * The bank holds the two powers swapped, each shift's sign turned, and the
+ * operator between the logs the wrong way round.
+ */
+const implLogdiffLnTiles: Generator<LogDiffParams> = {
+  id: 'impl-logdiff-ln-tiles',
+  sample: sampleLogDiff,
+  render: (params): Slide => {
+    const { p, q, m, n, quotient } = params;
+    const answer = [`${m}`, signed(p), signed(quotient ? -n : n), signed(q)];
+    const extras = [`${n}`, signed(-p), signed(quotient ? n : -n), signed(-q), `${m - 1}`];
+    return {
+      kind: 'tiles',
+      prompt: [prose('Take natural logarithms of both sides and use the laws of logarithms.'), display(`y = ${logDiffTex(params)}`)],
+      template: '\\ln y = {0}\\ln(x {1}) {2}\\ln(x {3})',
+      bank: tokenBank(answer, extras, 4),
+      answer,
+    };
+  },
+  solution: logDiffSolution,
+};
+
+/**
+ * Logarithmic differentiation one step at a time: each side of ln y, then
+ * multiplying back by y.
+ *
+ * The banks carry the $\frac{1}{y}$ left off, a log differentiated without
+ * its power or its shift, a sign slipped, and the last line left without y
+ * or divided by it.
+ */
+const implLogdiffRateSteps: Generator<LogDiffParams> = {
+  id: 'impl-logdiff-rate-steps',
+  sample: sampleLogDiff,
+  render: (params): Slide => {
+    const { p, q, m, n, quotient } = params;
+    const [first, second] = logTerms(params);
+    const op = quotient ? '-' : '+';
+    const back = quotient ? '+' : '-';
+    const gradient = (tex: string) => `${DYDX} = ${tex}`;
+    return {
+      kind: 'steps',
+      prompt: [
+        prose(`Differentiate $y = ${logDiffTex(params)}$ by taking logarithms. Differentiate each side, then multiply through by $y$. Tap the step to do next, then choose what it gives.`),
+      ],
+      start: ['\\ln y', '=', first, second],
+      reductions: [
+        {
+          span: [0, 1],
+          value: `\\frac{1}{y}${DYDX}`,
+          bank: stepBank(`\\frac{1}{y}${DYDX}`, '\\frac{1}{y}', `y${DYDX}`, `\\frac{1}{\\ln y}${DYDX}`),
+        },
+        {
+          span: [2, 3],
+          value: `\\frac{${m}}{x ${signed(p)}}`,
+          bank: stepBank(`\\frac{${m}}{x ${signed(p)}}`, `\\frac{1}{x ${signed(p)}}`, `\\frac{${m}}{x}`, `\\frac{${m}}{x ${signed(-p)}}`),
+        },
+        {
+          span: [3, 4],
+          value: `${op} \\frac{${n}}{x ${signed(q)}}`,
+          bank: stepBank(`${op} \\frac{${n}}{x ${signed(q)}}`, `${back} \\frac{${n}}{x ${signed(q)}}`, `${op} \\frac{1}{x ${signed(q)}}`, `${op} \\frac{${n}}{x}`),
+        },
+        {
+          span: [0, 4],
+          operator: 1,
+          value: gradient(`y\\left(${rateTex(params)}\\right)`),
+          bank: stepBank(
+            gradient(`y\\left(${rateTex(params)}\\right)`),
+            gradient(rateTex(params)),
+            gradient(`\\frac{1}{y}\\left(${rateTex(params)}\\right)`),
+            gradient(`y\\left(\\frac{${m}}{x ${signed(p)}} \\times \\frac{${n}}{x ${signed(q)}}\\right)`),
+          ),
+        },
+      ],
+    };
+  },
+  solution: logDiffSolution,
+};
+
+/** y = (x + p)^m (x + q)^n (or over) at a whole x, where x + p = u and x + q = v. */
+export interface LogDiffAtParams {
+  u: number;
+  v: number;
+  m: number;
+  n: number;
+  x0: number;
+  quotient: boolean;
+}
+
+export const logDiffAtCurve = ({ u, v, m, n, x0, quotient }: LogDiffAtParams) => ({ p: u - x0, q: v - x0, m, n, quotient });
+
+/** [m/u, ±n/v, y'/y, y, dy/dx] as fractions. */
+export function logDiffAtValues({ u, v, m, n, quotient }: LogDiffAtParams): Frac[] {
+  const sign = quotient ? -1 : 1;
+  const rate: Frac = [m * v + sign * n * u, u * v];
+  const y: Frac = quotient ? [u ** m, v ** n] : [u ** m * v ** n, 1];
+  return [[m, u], [sign * n, v], rate, y, fracTimes(y, rate)];
+}
+
+/**
+ * dy/dx at a whole x as a tree: the two log rates, their sum y'/y, then y,
+ * then the product. Keeping the brackets small keeps y and the gradient
+ * whole, or a simple fraction for a quotient.
+ *
+ * The bank holds the rates multiplied instead of added, a sign slipped, and
+ * y'/y taken for the gradient.
+ */
+const implLogdiffAtTree: Generator<LogDiffAtParams> = {
+  id: 'impl-logdiff-at-tree',
+  sample: (rng, difficulty) => {
+    const small = [-3, -2, -1, 1, 2, 3];
+    for (;;) {
+      const params = {
+        u: rng.pick(small),
+        v: rng.pick(small),
+        m: rng.int(1, 3),
+        n: rng.int(1, 3),
+        x0: rng.int(-3, 3),
+        quotient: difficulty >= 2,
+      };
+      if (params.u === params.v || params.m + params.n < 3 || params.m + params.n > 4) continue;
+      const { p, q } = logDiffAtCurve(params);
+      if (p === 0 || q === 0) continue;
+      if (logDiffAtValues(params)[2][0] === 0) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const [a, b, rate, y, g] = logDiffAtValues(params);
+    const curve = logDiffAtCurve(params);
+    const answer: Frac[] = [a, b, rate, y, g];
+    return {
+      kind: 'tree',
+      prompt: [
+        prose(`For $y = ${logDiffTex(curve)}$, taking logarithms gives`),
+        display(`${DYDX} = y\\left(${rateTex(curve)}\\right)`),
+        prose(`Find it at $x = ${params.x0}$. The top row is the two fractions there, then their ${params.quotient ? 'difference' : 'sum'}, then $y$, then the gradient.`),
+      ],
+      expression: `y\\left(${rateTex(curve)}\\right)`,
+      nodes: [
+        { id: 'a', from: [] },
+        { id: 'b', from: [] },
+        { id: 'rate', from: ['a', 'b'] },
+        { id: 'y', from: [] },
+        { id: 'g', from: ['y', 'rate'] },
+      ],
+      bank: fracTreeBank(answer, [fracTimes(a, b), [-b[0], b[1]], [a[0] * b[1] - b[0] * a[1], a[1] * b[1]], fracTimes(y, [-rate[0], rate[1]])]),
+      answer: answer.map(([top, bottom]) => fracTex(top, bottom)),
+    };
+  },
+  solution: (params) => {
+    const [a, b, rate, y, g] = logDiffAtValues(params);
+    const curve = logDiffAtCurve(params);
+    return [
+      { text: 'Take logarithms and differentiate.', tex: `${DYDX} = y\\left(${rateTex(curve)}\\right)` },
+      {
+        text: `At $x = ${params.x0}$ the brackets are $${params.u}$ and $${params.v}$.`,
+        tex: `${fracTex(...a)} ${b[0] * b[1] < 0 ? '-' : '+'} ${fracTex(Math.abs(b[0]), Math.abs(b[1]))} = ${fracTex(...rate)}`,
+      },
+      { text: 'And $y$ there:', tex: `y = ${fracTex(...y)}` },
+      { text: 'Multiply.', tex: `${DYDX} = ${fracTex(...y)} \\times ${fracTex(...rate)} = ${fracTex(...g)}` },
+    ];
+  },
+};
+
+/** y = (x + p)^{kx + c}: a power that moves with x on a base that does too. */
+export interface PowerPowerParams {
+  k: number;
+  c: number;
+  p: number;
+}
+
+export const powerPowerSource = ({ k, c, p }: PowerPowerParams): string => `(x + (${p}))^((${k}) * x + (${c}))`;
+
+/** The pieces a learner reads: the base, the power, ln y, and y'/y's two terms. */
+export function powerPowerTex({ k, c, p }: PowerPowerParams) {
+  const power = linTex(k, 'x', c);
+  const inner = p === 0 ? 'x' : `x ${signed(p)}`;
+  const base = p === 0 ? 'x' : `(${inner})`;
+  const powerFactor = c === 0 ? power : `(${power})`;
+  const first = `${coef(k)}\\ln ${base}`;
+  const second = p === 0 && c === 0 ? `${k}` : `\\frac{${power}}{${inner}}`;
+  return { power, inner, base, powerFactor, first, second, y: `${base}^{${power}}` };
+}
+
+/**
+ * When logarithms help, as three decisions: a variable power on a variable
+ * base rules out both the power rule and the $a^x$ rule, then ln y, then
+ * the product rule on it.
+ */
+const implLogdiffFlow: Generator<PowerPowerParams> = {
+  id: 'impl-logdiff-flow',
+  sample: (rng, difficulty) =>
+    difficulty >= 2
+      ? { k: rng.int(1, 3), c: rng.int(-2, 2), p: rng.int(1, 4) * rng.sign() }
+      : { k: rng.int(1, 4), c: rng.int(-3, 3), p: 0 },
+  render: (params): Slide => {
+    const { k, c, p } = params;
+    const t = powerPowerTex(params);
+    const salt = mix(k, c, p);
+    const logged = `$\\ln y = ${t.powerFactor}\\ln ${t.base}$`;
+    const rate = `$${t.first} + ${t.second}$`;
+    const logBranches: Branch[] = [
+      { label: logged, to: 'differentiate' },
+      { label: `$\\ln y = ${t.powerFactor} + \\ln ${t.base}$`, outcome: 'The log of a power is the power times the log, not plus it.' },
+      { label: `$\\ln y = \\ln ${t.base}$`, outcome: 'The power has gone missing: it comes down in front of the log.' },
+    ];
+    // Swapping base and power changes nothing when the power is the base's own inside, as in (x - 2)^{x - 2}.
+    if (!(k === 1 && c === p)) logBranches.push({ label: `$\\ln y = ${t.base}\\ln(${t.power})$`, outcome: 'That swaps the base and the power.' });
+    return {
+      kind: 'flow',
+      prompt: [prose('Differentiate this curve.')],
+      subject: `y = ${t.y}`,
+      steps: [
+        {
+          id: 'start',
+          ask: 'The power moves with $x$, and so does the base. How do you start?',
+          branches: fork(
+            [
+              { label: 'Take $\\ln$ of both sides', to: 'log' },
+              { label: 'The power rule', outcome: 'The power rule needs a constant power; this one changes with $x$.' },
+              { label: 'The rule for $a^x$', outcome: 'That rule needs a constant base; this one changes with $x$.' },
+            ],
+            salt,
+          ),
+        },
+        { id: 'log', ask: 'Taking logs of both sides gives', branches: fork(logBranches, salt >>> 3) },
+        {
+          id: 'differentiate',
+          ask: `Differentiate both sides; the right needs the product rule. $\\frac{1}{y}${DYDX}$ is`,
+          branches: fork(
+            [
+              { label: rate, outcome: `Right, so $${DYDX} = ${t.y}\\left(${t.first} + ${t.second}\\right)$.` },
+              { label: `$\\frac{${k}}{${t.inner}}$`, outcome: 'That multiplies the two derivatives; the product rule adds two terms.' },
+              { label: `$${t.first}$`, outcome: `That is only the first term: the second keeps $${t.power}$ and differentiates the log.` },
+              { label: `$${t.second}$`, outcome: 'That is only the second term: the first differentiates the power and keeps the log.' },
+            ],
+            salt >>> 6,
+          ),
+        },
+      ],
+      answer: ['Take $\\ln$ of both sides', logged, rate],
+    };
+  },
+  solution: (params) => {
+    const t = powerPowerTex(params);
+    return [
+      { text: 'Neither the power rule nor the $a^x$ rule fits, so take logarithms.', tex: `\\ln y = ${t.powerFactor}\\ln ${t.base}` },
+      {
+        text: 'Differentiate with the product rule: the power differentiated times the log, plus the power times the log differentiated.',
+        tex: `\\frac{1}{y}${DYDX} = ${t.first} + ${t.second}`,
+      },
+      { text: 'Multiply by $y$.', tex: `${DYDX} = ${t.y}\\left(${t.first} + ${t.second}\\right)` },
+    ];
+  },
+};
+
+/* ---------- Inverses inside a chain ---------- */
+
+/** y = m sin^{-1}(u) or m tan^{-1}(u), with u = n x, or x / n when `over`. */
+export interface InverseChainParams {
+  fn: 'sin' | 'tan';
+  over: boolean;
+  n: number;
+  m: number;
+}
+
+const innerTex = ({ over, n }: Pick<InverseChainParams, 'over' | 'n'>): string => (over ? `\\frac{x}{${n}}` : `${n}x`);
+
+const chainYTex = (params: InverseChainParams): string => `y = ${coef(params.m)}${inverseName(params.fn)}\\left(${innerTex(params)}\\right)`;
+
+/** y for mathjs. */
+export const chainSource = ({ fn, over, n, m }: InverseChainParams): string =>
+  `${m} * ${fn === 'sin' ? 'asin' : 'atan'}(${over ? `x / ${n}` : `${n} * x`})`;
+
+/** dy/dx as the learner reads it, with the chain factor multiplied in and the fraction inside cleared. */
+function chainGradTex({ fn, over, n, m }: InverseChainParams): string {
+  if (fn === 'sin') return over ? fracBody(m, `\\sqrt{${n * n} - x^2}`) : fracBody(m * n, `\\sqrt{1 - ${n * n}x^2}`);
+  return over ? fracBody(m * n, `${n * n} + x^2`) : fracBody(m * n, `1 + ${n * n}x^2`);
+}
+
+/** dy/du as the learner reads it. */
+const chainOuterTex = ({ fn, m }: Pick<InverseChainParams, 'fn' | 'm'>): string =>
+  fracBody(m, fn === 'sin' ? '\\sqrt{1 - u^2}' : '1 + u^2');
+
+/** du/dx. */
+const chainInner = ({ over, n }: Pick<InverseChainParams, 'over' | 'n'>): Frac => (over ? [1, n] : [n, 1]);
+
+function sampleChain(rng: Rng, fns: InverseChainParams['fn'][], ms: number[]): InverseChainParams {
+  return { fn: rng.pick(fns), over: rng.chance(0.5), n: rng.int(2, 9), m: rng.pick(ms) };
+}
+
+function chainSolution(params: InverseChainParams): SolutionStep[] {
+  const [top, bottom] = chainInner(params);
+  return [
+    { text: `Let $u = ${innerTex(params)}$, so $y = ${coef(params.m)}${inverseName(params.fn)} u$.`, tex: `\\frac{dy}{du} = ${chainOuterTex(params)}, \\quad \\frac{du}{dx} = ${fracTex(top, bottom)}` },
+    { text: `Multiply, and put $u = ${innerTex(params)}$ back.`, tex: `${DYDX} = ${chainGradTex(params)}` },
+  ];
+}
+
+/**
+ * The derivative of an inverse tangent of kx or x/a, typed. The oracle
+ * differentiates `atan` itself. Options: the chain factor dropped, the chain
+ * factor divided rather than multiplied, and the inside not squared.
+ */
+const implArctanChainGrad: Generator<InverseChainParams> = {
+  id: 'impl-arctan-chain-grad',
+  sample: (rng, difficulty) => sampleChain(rng, ['tan'], difficulty >= 2 ? [-3, -2, -1, 2, 3, 4, 5] : [1, 2]),
+  choices: (params) => {
+    const { over, n, m } = params;
+    const sq = n * n;
+    const bottom = over ? `${sq} + x^2` : `1 + ${sq}x^2`;
+    const bottomAnswer = over ? `(${sq} + x^2)` : `(1 + ${sq} * x^2)`;
+    const as = (top: number, body: string, bodyAnswer: string) => ({ tex: fracBody(top, body), answer: `(${top}) / ${bodyAnswer}` });
+    return steered(
+      options(
+        as(m * n, bottom, bottomAnswer),
+        over ? as(m * sq, bottom, bottomAnswer) : as(m, bottom, bottomAnswer),
+        over ? as(m * sq * n, bottom, bottomAnswer) : { tex: fracBody(m, `${n}(1 + ${sq}x^2)`), answer: `(${m}) / (${n} * (1 + ${sq} * x^2))` },
+        over ? as(m * n, `${n} + x^2`, `(${n} + x^2)`) : as(m * n, `1 + ${n}x^2`, `(1 + ${n} * x^2)`),
+      ),
+      mix(m, n, over ? 1 : 0),
+      [as(m, '1 + x^2', '(1 + x^2)')],
+    );
+  },
+  render: (params): Slide => {
+    const { over, n, m } = params;
+    return {
+      kind: 'expression',
+      prompt: [prose('Differentiate, clearing any fraction inside the fraction.'), display(chainYTex(params))],
+      lead: `${DYDX} =`,
+      keypad: ALGEBRA_KEYS,
+      answer: over ? `(${m * n}) / (${n * n} + x^2)` : `(${m * n}) / (1 + ${n * n} * x^2)`,
+      source: chainSource(params),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: chainSolution,
+};
+
+/**
+ * An inverse inside a chain from tiles: dy/du, du/dx, then dy/dx.
+ *
+ * The bank holds the other inverse's derivative, a plus for the minus under
+ * the root, du/dx turned over, the chain factor dropped, and the inside not
+ * squared.
+ */
+const implInverseChainTiles: Generator<InverseChainParams> = {
+  id: 'impl-inverse-chain-tiles',
+  sample: (rng, difficulty) => sampleChain(rng, ['sin', 'tan'], difficulty >= 2 ? [2, 3, 4] : [1]),
+  render: (params): Slide => {
+    const { fn, over, n, m } = params;
+    const [top, bottom] = chainInner(params);
+    const answer = [chainOuterTex(params), fracTex(top, bottom), chainGradTex(params)];
+    const sq = n * n;
+    const dropped =
+      fn === 'sin'
+        ? over
+          ? fracBody(m * n, `\\sqrt{${sq} - x^2}`)
+          : fracBody(m, `\\sqrt{1 - ${sq}x^2}`)
+        : over
+          ? fracBody(m * sq, `${sq} + x^2`)
+          : fracBody(m, `1 + ${sq}x^2`);
+    const unsquared =
+      fn === 'sin'
+        ? over
+          ? fracBody(m, `\\sqrt{${n} - x^2}`)
+          : fracBody(m * n, `\\sqrt{1 - ${n}x^2}`)
+        : over
+          ? fracBody(m * n, `${n} + x^2`)
+          : fracBody(m * n, `1 + ${n}x^2`);
+    const extras = [
+      chainOuterTex({ fn: fn === 'sin' ? 'tan' : 'sin', m }),
+      fracBody(m, fn === 'sin' ? '\\sqrt{1 + u^2}' : '1 - u^2'),
+      fracTex(bottom, top),
+      dropped,
+      unsquared,
+    ];
+    return {
+      kind: 'tiles',
+      prompt: [display(chainYTex(params)), prose(`Let $u = ${innerTex(params)}$. Build $${DYDX}$ with the chain rule, clearing any fraction inside the fraction.`)],
+      template: `\\frac{dy}{du} = {0}, \\quad \\frac{du}{dx} = {1}, \\quad ${DYDX} = {2}`,
+      bank: tokenBank(answer, extras, 5),
+      answer,
+    };
+  },
+  solution: chainSolution,
+};
+
+/** The gradient where the curve crosses the origin: m n for a u of n x, m / n for x / n. */
+export const originGradient = ({ over, n, m }: InverseChainParams): Frac => (over ? [m, n] : [m * n, 1]);
+
+/**
+ * The gradient of an inverse-in-a-chain at the origin, typed. At x = 0 both
+ * $\frac{1}{\sqrt{1 - u^2}}$ and $\frac{1}{1 + u^2}$ are 1, so only the chain
+ * factor is left. Options: the chain factor dropped, turned over, and the
+ * number in front lost.
+ */
+const implInverseOrigin: Generator<InverseChainParams> = {
+  id: 'impl-inverse-origin',
+  sample: (rng, difficulty) => sampleChain(rng, ['sin', 'tan'], difficulty >= 2 ? [-3, -2, 2, 3, 4, 5] : [1]),
+  choices: (params) => {
+    const { over, n, m } = params;
+    return fracChoices(originGradient(params), [[m, 1], over ? [m * n, 1] : [m, n], over ? [1, n] : [n, 1]], mix(m, n, over ? 1 : 0, params.fn === 'sin' ? 1 : 0));
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [prose('This curve passes through the origin.'), display(chainYTex(params)), prose('Find its gradient there.')],
+    lead: `${DYDX} =`,
+    keypad: FRACTION_KEYS,
+    answer: fracAnswer(...originGradient(params)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => [
+    ...chainSolution(params),
+    { text: 'At $x = 0$, $u = 0$ too, and the root or the $1 + u^2$ is just $1$.', tex: `${DYDX} = ${fracTex(...originGradient(params))}` },
+  ],
+};
+
+/** An inverse inside a chain at a point: x, and u there, as fractions. */
+export interface InversePointParams extends InverseChainParams {
+  x: Frac;
+  u: Frac;
+}
+
+/** [u, du/dx, dy/du, dy/dx] at the point. */
+export function inversePointValues(params: InversePointParams): Frac[] {
+  const { fn, m, u } = params;
+  const inner = chainInner(params);
+  let outer: Frac;
+  if (fn === 'sin') {
+    // u = a/c from a triple, so sqrt(1 - u^2) = b/c.
+    const b = Math.round(Math.sqrt(u[1] * u[1] - u[0] * u[0]));
+    outer = [m * u[1], b];
+  } else {
+    outer = [m * u[1] * u[1], u[1] * u[1] + u[0] * u[0]];
+  }
+  return [u, inner, outer, fracTimes(outer, inner)];
+}
+
+/**
+ * The gradient of an inverse inside a chain at a point, as a tree: u there
+ * and du/dx, then dy/du at u, then their product.
+ *
+ * An inverse sine is asked where u is a/c from a triple, so the root is
+ * whole over whole; an inverse tangent at a whole x. The bank holds du/dx
+ * turned over, the answer with it, dy/du found at x instead of u, and the
+ * sign turned.
+ */
+const implInversePointTree: Generator<InversePointParams> = {
+  id: 'impl-inverse-point-tree',
+  sample: (rng, difficulty) => {
+    const base = sampleChain(rng, ['sin', 'tan'], difficulty >= 2 ? [2, 3] : [1]);
+    const { fn, over, n } = base;
+    if (fn === 'sin') {
+      const [a, , c] = rng.pick(LOWEST_TRIPLES);
+      const s = rng.sign();
+      return { ...base, u: [s * a, c], x: over ? [s * a * n, c] : [s * a, n * c] };
+    }
+    const x0 = rng.int(1, over ? 6 : 2) * rng.sign();
+    return { ...base, u: over ? [x0, n] : [n * x0, 1], x: [x0, 1] };
+  },
+  render: (params): Slide => {
+    const values = inversePointValues(params);
+    const [, inner, outer, g] = values;
+    // dy/du found at x rather than at u.
+    const atX: Frac = params.fn === 'tan' ? [params.m, 1 + params.x[0] * params.x[0]] : [params.m, 1];
+    return {
+      kind: 'tree',
+      prompt: [
+        display(chainYTex(params)),
+        prose(
+          `Find its gradient at $x = ${fracTex(...params.x)}$. Let $u = ${innerTex(params)}$, so $\\frac{dy}{du} = ${chainOuterTex(params)}$. The top row is $u$ there and $\\frac{du}{dx}$, then $\\frac{dy}{du}$ at that $u$, then the gradient.`,
+        ),
+      ],
+      expression: `\\frac{dy}{du} \\times \\frac{du}{dx}`,
+      nodes: [
+        { id: 'u', from: [] },
+        { id: 'inner', from: [] },
+        { id: 'outer', from: ['u'] },
+        { id: 'g', from: ['outer', 'inner'] },
+      ],
+      bank: fracTreeBank(values, [[inner[1], inner[0]], fracTimes(outer, [inner[1], inner[0]]), [-g[0], g[1]], atX]),
+      answer: values.map(([top, bottom]) => fracTex(top, bottom)),
+    };
+  },
+  solution: (params) => {
+    const [u, inner, outer, g] = inversePointValues(params);
+    return [
+      { text: `At $x = ${fracTex(...params.x)}$, $u = ${innerTex(params)} = ${fracTex(...u)}$, and $\\frac{du}{dx} = ${fracTex(...inner)}$.` },
+      { text: `Put $u = ${fracTex(...u)}$ into $\\frac{dy}{du} = ${chainOuterTex(params)}$.`, tex: `\\frac{dy}{du} = ${fracTex(...outer)}` },
+      { text: 'Multiply.', tex: `${DYDX} = ${fracTex(...outer)} \\times ${fracTex(...inner)} = ${fracTex(...g)}` },
+    ];
+  },
+};
+
 /* ---------- Registration ---------- */
 
 /** By name, for `parametricImplicit.test.ts`. */
@@ -6279,6 +7572,26 @@ export const piGenerators = {
   paramParallelSteps,
   paramGivenTiles,
   implSlopePoints,
+  implAxLogSteps,
+  implAxTiles,
+  implAxGrad,
+  implAxAtTree,
+  implArcsinDeriveSteps,
+  implArcsinAtTree,
+  implArcsinGrad,
+  implInverseSignFlow,
+  implArctanGrad,
+  implArctanSecTiles,
+  implArctanAtTree,
+  implArctanWhere,
+  implLogdiffLnTiles,
+  implLogdiffRateSteps,
+  implLogdiffAtTree,
+  implLogdiffFlow,
+  implArctanChainGrad,
+  implInverseChainTiles,
+  implInverseOrigin,
+  implInversePointTree,
 };
 
 export const parametricGenerators = Object.values(piGenerators) as Generator<never>[];

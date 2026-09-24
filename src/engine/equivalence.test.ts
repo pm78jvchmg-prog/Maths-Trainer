@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { checkAnswer, probePolicy, type CheckOptions } from './equivalence';
-import { math } from './expression';
+import { math, samplePoint } from './expression';
 import { makeRng, hashSeed } from './rng';
 
 /** Fixed seed everywhere so a failure is always reproducible. */
@@ -327,5 +327,49 @@ describe('compiling', () => {
     } finally {
       compile.mockRestore();
     }
+  });
+});
+
+/**
+ * Up to a constant, every gap between the two sides is compared with a
+ * reference gap. That reference used to be the first valid point's, so if the
+ * first point was the noisy one — floating-point cancellation beside a
+ * removable singularity, the case the 0.9 threshold exists to absorb — every
+ * other point disagreed with it and a right answer was marked wrong. Anywhere
+ * else the same noisy point cost one agreement out of 24. The median gap is
+ * the same wherever the noisy point falls.
+ *
+ * `noisyAt(k)` is a term that is exactly 0 algebraically but, evaluated at the
+ * k-th point the checker will draw, divides by about 1e-12 and keeps only a few
+ * significant digits.
+ */
+describe('a noisy point up to a constant', () => {
+  const points = () => {
+    const rng = makeRng(SEED);
+    return Array.from({ length: probePolicy().sampleCount }, () => samplePoint(rng, ['x'], 'real').x as number);
+  };
+  const noisyAt = (k: number) => {
+    // Bracketed, since a point may be negative and -0.77^2 is -(0.77^2).
+    const a = `(${(points()[k] + 1e-12).toPrecision(17)})`;
+    return `((x^2 - ${a}^2)/(x - ${a}) - (x + ${a}))`;
+  };
+  const upToConstant: CheckOptions = { mode: 'upToConstant' };
+
+  it('is absorbed in exact mode wherever it falls', () => {
+    expect(check(`x^2/2 + ${noisyAt(0)}`, 'x^2/2')).toBe('correct');
+    expect(check(`x^2/2 + ${noisyAt(5)}`, 'x^2/2')).toBe('correct');
+  });
+
+  it('is absorbed up to a constant when it is not the first point', () => {
+    expect(check(`x^2/2 + 5 + ${noisyAt(5)}`, 'x^2/2', upToConstant)).toBe('correct');
+  });
+
+  it('is absorbed up to a constant when it is the first point', () => {
+    expect(check(`x^2/2 + 5 + ${noisyAt(0)}`, 'x^2/2', upToConstant)).toBe('correct');
+  });
+
+  it('still rejects a wrong antiderivative', () => {
+    expect(check(`x^3/3 + 5 + ${noisyAt(0)}`, 'x^2/2', upToConstant)).toBe('incorrect');
+    expect(check('abs(x)', 'x', upToConstant)).toBe('incorrect');
   });
 });

@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { checkAnswer, probePolicy, type CheckOptions } from './equivalence';
+import { math } from './expression';
 import { makeRng, hashSeed } from './rng';
 
 /** Fixed seed everywhere so a failure is always reproducible. */
@@ -307,5 +308,24 @@ describe('an equals sign cannot leak into the other side', () => {
   it('leaves a genuinely correct answer alone', () => {
     expect(check('x=3', '3')).toBe('correct');
     expect(check('y=2x', '2x')).toBe('correct');
+  });
+});
+
+/**
+ * `node.evaluate` compiles the tree afresh on every call, and a check evaluates
+ * each side at up to 24 points. Each side is compiled once per check instead;
+ * this counts the compilations, so a return to evaluating the parsed node
+ * directly shows up as 48 rather than 2.
+ */
+describe('compiling', () => {
+  it('compiles each side once per check, not once per point', () => {
+    const { prototype } = (math as unknown as { Node: { prototype: { compile: () => unknown } } }).Node;
+    const compile = vi.spyOn(prototype, 'compile');
+    try {
+      expect(check('(x+1)^2', 'x^2+2x+1')).toBe('correct');
+      expect(compile).toHaveBeenCalledTimes(2);
+    } finally {
+      compile.mockRestore();
+    }
   });
 });

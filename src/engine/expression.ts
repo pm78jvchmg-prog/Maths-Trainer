@@ -163,9 +163,34 @@ export function isInvalidScalar(value: unknown): boolean {
   return true;
 }
 
+/** Something `evaluateAt` can run: a parsed node, or one compiled ahead of time. */
+export interface Evaluable {
+  evaluate(scope?: Record<string, unknown>): unknown;
+}
+
+/**
+ * Compile a parsed expression once, for evaluating at many points.
+ *
+ * `node.evaluate` compiles the tree afresh on every call, and a check evaluates
+ * each side at up to 24 points; compiling once is several times faster. A node
+ * that fails to compile yields one whose every evaluation fails, which is what
+ * evaluating the node would have done, so no verdict changes.
+ */
+export function compileExpression(node: MathNode): Evaluable {
+  try {
+    return node.compile();
+  } catch (err) {
+    return {
+      evaluate: () => {
+        throw err;
+      },
+    };
+  }
+}
+
 /** Evaluate at a point. Returns `undefined` for a domain hole rather than throwing. */
 export function evaluateAt(
-  node: MathNode,
+  node: Evaluable,
   scope: Record<string, unknown>,
 ): Scalar | undefined {
   try {

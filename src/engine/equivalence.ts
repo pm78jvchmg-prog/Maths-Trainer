@@ -15,6 +15,7 @@
 import { makeRng } from './rng';
 import {
   parseExpression,
+  compileExpression,
   evaluateAt,
   samplePoint,
   distance,
@@ -138,6 +139,10 @@ export function checkAnswer(
     throw new Error(`Malformed expected answer in content: ${expected} (${target.error})`);
   }
 
+  // Compiled once here rather than on each of the evaluations below.
+  const userFn = compileExpression(user.node);
+  const targetFn = compileExpression(target.node);
+
   // Arbitrary constants are bound to 0 so "x^2/2" and "x^2/2 + C" probe alike.
   const zeroed: Record<string, unknown> = {};
   for (const name of constants) zeroed[name] = 0;
@@ -146,8 +151,8 @@ export function checkAnswer(
 
   // No variables: a single evaluation settles it. Covers arithmetic such as 3i + 7i.
   if (variables.length === 0) {
-    const a = evaluateAt(user.node, { ...zeroed });
-    const b = evaluateAt(target.node, { ...zeroed });
+    const a = evaluateAt(userFn, { ...zeroed });
+    const b = evaluateAt(targetFn, { ...zeroed });
     if (a === undefined || b === undefined) {
       return { status: 'indeterminate', message: 'That expression could not be evaluated.' };
     }
@@ -170,8 +175,8 @@ export function checkAnswer(
     // object let a learner's `x=0` rebind x for the expected side too, so
     // `x=0` was graded correct against `2x`, `14x`, and every other answer
     // vanishing at 0.
-    const a = evaluateAt(user.node, { ...scope });
-    const b = evaluateAt(target.node, { ...scope });
+    const a = evaluateAt(userFn, { ...scope });
+    const b = evaluateAt(targetFn, { ...scope });
     if (a === undefined || b === undefined) continue; // domain hole
     valid++;
 

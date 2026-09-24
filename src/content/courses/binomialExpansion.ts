@@ -18,6 +18,9 @@
  * together. Level 6 lets n be negative or a fraction: an expansion that never
  * ends, negative whole n and the geometric series, fractional n, the range
  * |x| < 1 the series holds for, and (a + bx)^n with the a taken out.
+ * Level 7 turns the series into numbers: roots such as √1.02, reciprocals
+ * such as 1/0.98², a number taken out first, how many places an estimate is
+ * good to and which x to choose, and the series of a partial-fraction split.
  *
  * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
@@ -1116,6 +1119,176 @@ export const binomialExpansion: Course = {
         ask('bin-taken-out-tiles', 2),
         ask('bin-taken-out-coef-steps', 2),
         ask('bin-taken-out-range', 2),
+      ],
+    },
+    {
+      id: 'be-l7',
+      title: 'Approximating with the Series',
+      lessons: [
+        {
+          id: 'be-l7-root',
+          title: 'A Root from the Series',
+          slides: [
+            teach(
+              prose('A root is a fractional power, so the series of level 6 gives its value. $\\sqrt{1.02} = (1.02)^{1/2}$, which is $(1 + x)^{1/2}$ with $x = 0.02$:'),
+              maths('\\begin{aligned} & (1 + x)^{1/2} \\\\ &= 1 + \\tfrac{1}{2}x - \\tfrac{1}{8}x^{2} + \\dots \\end{aligned}'),
+              prose('$x = 0.02$ is well inside $|x| < 1$, so the series holds, and its terms shrink fast.'),
+            ),
+            ask('bin-root-setup'),
+            ask('bin-root-terms-tree'),
+            ask('bin-root-estimate'),
+            teach(
+              prose('Put $x = 0.02$ into each term:'),
+              maths('\\begin{aligned} \\tfrac{1}{2} \\times 0.02 &= 0.01 \\\\ \\tfrac{1}{8} \\times 0.02^{2} &= 0.00005 \\end{aligned}'),
+              prose('So $\\sqrt{1.02} \\approx 1 + 0.01 - 0.00005 = 1.00995$. The true value is $1.0099504\\dots$: each later term carries a higher power of a small number, so three terms are already very close.'),
+            ),
+            ask('bin-root-substitute-steps'),
+            ask('bin-root-estimate+choice', 2),
+            ask('bin-root-setup', 2),
+            teach(
+              prose('Below $1$, $x$ is negative: $\\sqrt{0.98}$ is $(1 + x)^{1/2}$ with $x = -0.02$, and $x^2$ is still positive:'),
+              maths('1 - 0.01 - 0.00005 = 0.98995'),
+              prose('A cube root is the power $\\frac{1}{3}$, and one over a root is a negative power: $\\frac{1}{\\sqrt{1.02}} = (1.02)^{-1/2}$.'),
+            ),
+            ask('bin-root-terms-tree', 2),
+            ask('bin-root-substitute-steps', 2),
+          ],
+          skillCheck: [ask('bin-root-estimate', 2), ask('bin-root-terms-tree', 2), ask('bin-root-substitute-steps', 2)],
+        },
+        {
+          id: 'be-l7-reciprocal',
+          title: 'Reciprocals',
+          slides: [
+            teach(
+              prose('One over a power is a negative power, as in Exponents & Radicals:'),
+              maths('\\frac{1}{(1 - x)^{2}} = (1 - x)^{-2}'),
+              prose('Its series is level 6\'s, $1 + 2x + 3x^2 + \\dots$, so $\\frac{1}{0.98^2}$ comes from $x = 0.02$:'),
+              maths('1 + 0.04 + 0.0012 = 1.0412'),
+            ),
+            ask('bin-reciprocal-rewrite'),
+            ask('bin-reciprocal-flow'),
+            ask('bin-reciprocal-estimate'),
+            teach(
+              prose('With a number on $x$, find $x$ from the whole bracket. $\\frac{1}{1.04} = (1 + 2x)^{-1}$ needs $1 + 2x = 1.04$, so $x = 0.02$:'),
+              maths('\\begin{aligned} & (1 + 2x)^{-1} \\\\ &= 1 - 2x + 4x^{2} - \\dots \\end{aligned}'),
+              maths('1 - 0.04 + 0.0016 = 0.9616'),
+            ),
+            ask('bin-reciprocal-terms-tree'),
+            ask('bin-reciprocal-estimate+choice', 2),
+            ask('bin-reciprocal-rewrite', 2),
+            teach(
+              prose('Watch the signs. With $n$ negative the terms alternate, and a minus in the bracket turns the odd ones back: every term of $(1 - x)^{-2}$ is positive, so $\\frac{1}{0.98^2}$ comes out above $1$, as it should.'),
+              prose('A root underneath works the same way: $\\frac{1}{\\sqrt{1 + x}} = (1 + x)^{-1/2}$.'),
+            ),
+            ask('bin-reciprocal-flow', 2),
+            ask('bin-reciprocal-terms-tree', 2),
+          ],
+          skillCheck: [ask('bin-reciprocal-estimate', 2), ask('bin-reciprocal-flow', 2), ask('bin-reciprocal-terms-tree', 2)],
+        },
+        {
+          id: 'be-l7-out-first',
+          title: 'Taking the Number Out First',
+          slides: [
+            teach(
+              prose('The series needs a bracket that starts with $1$. $4.08$ is not near $1$, so take the $4$ out first, as in level 6:'),
+              maths('\\begin{aligned} \\sqrt{4.08} &= \\sqrt{4} \\times \\sqrt{1.02} \\\\ &= 2(1 + 0.02)^{1/2} \\end{aligned}'),
+            ),
+            ask('bin-out-first-tiles'),
+            ask('bin-out-first-which'),
+            ask('bin-out-first-estimate'),
+            teach(
+              prose('Estimate the bracket, then multiply by the number taken out:'),
+              maths('\\begin{aligned} \\sqrt{4.08} &\\approx 2 \\times 1.00995 \\\\ &= 2.0199 \\end{aligned}'),
+              prose('A cube root takes out a cube: $\\sqrt[3]{8.24} = 2(1 + 0.03)^{1/3}$.'),
+            ),
+            ask('bin-out-first-tree'),
+            ask('bin-out-first-estimate+choice', 2),
+            ask('bin-out-first-tiles', 2),
+            teach(
+              prose('This is level 6\'s range at work: $(a + bx)^n$ holds for $|x| < \\frac{a}{|b|}$. Writing $\\sqrt{4.08}$ as $(1 + 3.08)^{1/2}$ is equal, but $3.08$ is far outside $|x| < 1$ and that series does not hold.'),
+              prose('Taking the $4$ out leaves $x = 0.02$, deep inside the range, where three terms are plenty.'),
+            ),
+            ask('bin-out-first-which', 2),
+            ask('bin-out-first-tree', 2),
+          ],
+          skillCheck: [ask('bin-out-first-tiles', 2), ask('bin-out-first-estimate', 2), ask('bin-out-first-tree', 2)],
+        },
+        {
+          id: 'be-l7-error',
+          title: 'How Good, and Which x',
+          slides: [
+            teach(
+              prose('$\\frac{1}{1.02} = (1 + x)^{-1}$ at $x = 0.02$, and three terms give $1 - 0.02 + 0.0004 = 0.9804$. As in level 5, the first term left out is about the size of the error:'),
+              maths('-x^{3} = -0.000008'),
+              prose('An estimate is good to $k$ places when its error is under half a unit in place $k$. $0.000008$ is under $0.00005$ but not under $0.000005$, so $0.9804$ is good to $4$ places.'),
+            ),
+            ask('bin-error-term'),
+            ask('bin-error-places-flow'),
+            ask('bin-error-term+choice', 2),
+            teach(
+              prose('To estimate a surd, choose $x$ so the bracket holds a number you know. $0.98 = \\frac{49 \\times 2}{100}$, so'),
+              maths('\\begin{aligned} \\sqrt{0.98} &= \\tfrac{7}{10}\\sqrt{2} \\\\ \\sqrt{2} &= \\tfrac{10}{7}(1 - 0.02)^{1/2} \\end{aligned}'),
+              prose('$x = 1$ gives $\\sqrt{2}$ too, but at the edge of the range the terms barely shrink. The smaller $|x|$, the better.'),
+            ),
+            ask('bin-known-root-which'),
+            ask('bin-known-root-estimate'),
+            ask('bin-error-places-flow', 2),
+            teach(
+              prose('Three terms of $(1 - 0.02)^{1/2}$ give $0.98995$, so'),
+              maths('\\begin{aligned} \\sqrt{2} &\\approx \\tfrac{10}{7} \\times 0.98995 \\\\ &= 1.4142142\\dots \\end{aligned}'),
+              prose('The term left out is about $\\frac{10}{7} \\times 0.0000005$, under $0.000005$, so this is good to $5$ places: $\\sqrt{2} \\approx 1.41421$.'),
+            ),
+            ask('bin-known-root-which', 2),
+            ask('bin-known-root-estimate+choice', 2),
+          ],
+          skillCheck: [ask('bin-error-term', 2), ask('bin-error-places-flow', 2), ask('bin-known-root-estimate', 2)],
+        },
+        {
+          id: 'be-l7-split',
+          title: 'A Partial-Fraction Split',
+          slides: [
+            teach(
+              prose('A proper fraction with two brackets underneath splits into two simpler ones, as in Algebraic & Partial Fractions:'),
+              maths('\\begin{aligned} & \\frac{4 + 5x}{(1 - x)(1 + 2x)} \\\\ &= \\frac{3}{1 - x} + \\frac{1}{1 + 2x} \\end{aligned}'),
+              prose('Each part is a number times $(1 + wx)^{-1}$, whose series is geometric: $1 - wx + w^2x^2 - \\dots$'),
+            ),
+            ask('bin-pf-parts-tree'),
+            ask('bin-pf-coef'),
+            ask('bin-pf-tiles'),
+            teach(
+              prose('Expand each part, then add like terms:'),
+              maths('\\begin{aligned} \\frac{3}{1 - x} &= 3 + 3x + 3x^{2} + \\dots \\\\ \\frac{1}{1 + 2x} &= 1 - 2x + 4x^{2} - \\dots \\end{aligned}'),
+              prose('So the series of the whole fraction starts $4 + x + 7x^2 + \\dots$'),
+            ),
+            ask('bin-pf-range'),
+            ask('bin-pf-coef+choice', 2),
+            ask('bin-pf-parts-tree', 2),
+            teach(
+              prose('Each part holds on its own range: $|x| < 1$ for $\\frac{3}{1 - x}$, and $|x| < \\frac{1}{2}$ for $\\frac{1}{1 + 2x}$.'),
+              prose('The series of the whole needs both, so it holds for the smaller: $|x| < \\frac{1}{2}$.'),
+            ),
+            ask('bin-pf-tiles', 2),
+            ask('bin-pf-range', 2),
+          ],
+          skillCheck: [ask('bin-pf-tiles', 2), ask('bin-pf-coef', 2), ask('bin-pf-range', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('bin-root-estimate', 2),
+        ask('bin-root-terms-tree', 2),
+        ask('bin-root-substitute-steps', 2),
+        ask('bin-reciprocal-flow', 2),
+        ask('bin-reciprocal-estimate', 2),
+        ask('bin-reciprocal-terms-tree', 2),
+        ask('bin-out-first-tiles', 2),
+        ask('bin-out-first-which', 2),
+        ask('bin-out-first-estimate', 2),
+        ask('bin-error-term', 2),
+        ask('bin-error-places-flow', 2),
+        ask('bin-known-root-estimate', 2),
+        ask('bin-pf-tiles', 2),
+        ask('bin-pf-parts-tree', 2),
+        ask('bin-pf-range', 2),
       ],
     },
   ],

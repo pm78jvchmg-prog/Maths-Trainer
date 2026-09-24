@@ -32,6 +32,7 @@ import {
 } from '../expr';
 import { startSession } from '../../engine/session';
 import { canonicalSet, parseSet } from '../numberLine';
+import { canonicalForces, headsClash } from '../forces';
 import { levelCheckLesson } from '../types';
 import { CHOICE_SUFFIX, familyOf } from '../choiceVariant';
 import {
@@ -378,6 +379,43 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
         }
       }
 
+      if (slide.kind === 'forces') {
+        // An arrow's id is its direction, so two arrows one way would be one
+        // tap target for two answers; and every head must be a thumb apart.
+        const ids = slide.arrows.map((arrow) => arrow.id);
+        expect(new Set(ids).size, `two arrows share a direction in ${ids.join(' ')}`).toBe(ids.length);
+        expect(headsClash(slide.scene, ids), 'arrow heads overlap').toEqual([]);
+        if (slide.mode === 'pick') {
+          // Stored canonically, naming only arrows on the diagram, with at
+          // least one arrow that does not act: otherwise tapping everything
+          // is the answer and nothing is being judged.
+          expect(canonicalForces(slide.answer), 'answer is not canonical').toBe(slide.answer);
+          const acting = slide.answer.split('|');
+          expect(acting.length, 'no force acts').toBeGreaterThan(0);
+          for (const id of acting) expect(ids, `answer names ${id}, not on the diagram`).toContain(id);
+          expect(ids.length, 'pick has no distractor arrow').toBeGreaterThan(acting.length);
+        } else {
+          // One token per blank, every token on offer as often as it is
+          // needed, and two spares at least, as for a tree.
+          const blanks = slide.arrows.filter((arrow) => arrow.given === undefined).length;
+          expect(slide.answer.length, 'one answer token per blank').toBe(blanks);
+          const bank = [...slide.bank];
+          for (const token of slide.answer) {
+            const at = bank.indexOf(token);
+            expect(at, `force value ${token} missing from bank`).toBeGreaterThanOrEqual(0);
+            bank.splice(at, 1);
+          }
+          expect(
+            bank.length,
+            `forces bank for ${JSON.stringify(slide.answer)} keeps only ${bank.length} distractor(s)`,
+          ).toBeGreaterThanOrEqual(2);
+          expect(
+            lookalikeTiles(slide.bank),
+            `${generator.id}: tiles that look the same in ${JSON.stringify(slide.bank)}`,
+          ).toEqual([]);
+        }
+      }
+
       if (slide.kind === 'plot') {
         expect(Number.isInteger(slide.answer.re)).toBe(true);
         expect(Number.isInteger(slide.answer.im)).toBe(true);
@@ -610,6 +648,16 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
         check(transformTex(IDENTITY), 'transform readout');
       }
 
+      if (slide.kind === 'forces') {
+        // Each label is laid over the picture as its own KaTeX call, and so
+        // is every given magnitude and bank token beneath it.
+        for (const arrow of slide.arrows) {
+          check(arrow.label, 'force label');
+          if (arrow.given !== undefined) check(arrow.given, 'force given');
+        }
+        if (slide.mode === 'fill') for (const token of slide.bank) check(token, 'force bank');
+      }
+
       if (slide.kind === 'iterate') {
         check(slide.start, 'iterate start');
         for (const token of slide.bank) check(token, 'iterate bank');
@@ -628,6 +676,48 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
         }
       }
     }
+  });
+
+  it('renders every line of its worked solution', () => {
+    // The sweep above reads the question; nothing read the answer's working,
+    // which the learner sees under Show me. `int-vol-find-limit` glued \pi to
+    // the letter after it, and `25\pih` is an unknown command, so the line
+    // printed red in more than half its draws with a green suite.
+    //
+    // Thirty seeds a difficulty rather than all of `cases`: a solution is
+    // several KaTeX calls, across every generator in the registry, and a
+    // family of draws that fails at all fails well inside thirty.
+    const solutionSeeds = 30;
+    const failures: string[] = [];
+    const check = (tex: string, where: string) => {
+      try {
+        katex.renderToString(tex, { throwOnError: true, strict: false });
+      } catch (error) {
+        failures.push(`${where}: ${tex} (${(error as Error).message.split('\n')[0]})`);
+        return;
+      }
+      if (BARE_TEX_COMMAND.test(tex)) failures.push(`${where}: bare TeX command in ${tex}`);
+    };
+
+    for (const { params, difficulty, seed } of cases) {
+      if (seed >= solutionSeeds) continue;
+      const steps = (generator as Generator<unknown>).solution(params);
+      steps.forEach((step, line) => {
+        const where = `seed ${seed}, difficulty ${difficulty}, line ${line + 1}`;
+        if (step.tex) check(step.tex, where);
+        if (step.text) {
+          // Prose rendered as the app renders it: inline maths between dollars.
+          if ((step.text.match(/\$/g) ?? []).length % 2 !== 0) {
+            failures.push(`${where}: unbalanced $ in ${step.text}`);
+          }
+          step.text
+            .split(/\$([^$]+)\$/g)
+            .filter((_, idx) => idx % 2 === 1)
+            .forEach((tex) => check(tex, where));
+        }
+      });
+    }
+    expect(failures.slice(0, 5).join('\n')).toBe('');
   });
 
   it('offers exactly one correct option, and distractors that are really wrong', () => {

@@ -8,7 +8,10 @@
  * is spread: the range and what one extreme value does to it, quartiles and
  * the interquartile range, outliers by the 1.5 times IQR rule, variance from
  * `\sum x^2 / n - \bar{x}^2`, and the standard deviation, with two sets of
- * data compared by their means and spreads.
+ * data compared by their means and spreads. Level 3 is representing data:
+ * stem-and-leaf diagrams with the quartiles counted off the leaves, box plots
+ * read on their own and compared in pairs, and histograms of unequal classes
+ * by frequency density, with frequencies read back as areas.
  *
  * Sigma notation belongs to Sequences & Series (`sq-l2-sigma`) and
  * rearranging a formula to Linear Equations (`le-l3-subject`); both are
@@ -21,6 +24,7 @@
  */
 import type { Block, Course, SlideRef } from '../types';
 import { plotSvg } from '../figures';
+import { boxPlotSvg, histogramSvg, type Box, type BoxScale, type HistFigure } from '../generators/dataAveragesSpread';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -54,6 +58,17 @@ const scatter = (points: [number, number][], label: string, line?: (x: number) =
     marks: points.map(([x, y]) => ({ x, y })),
     label,
   });
+
+/** Box plots drawn the way the generated questions draw them. */
+const boxes = (rows: { name?: string; box: Box }[], scale: BoxScale, label: string): Block => ({
+  kind: 'diagram',
+  svg: boxPlotSvg(rows, scale, label),
+});
+
+/** The fine scale level 3's teaching pictures use: a mark every 2, a number every 10. */
+const FINE: BoxScale = { lo: 10, hi: 50, tick: 2, every: 10 };
+
+const bars = (fig: HistFigure): Block => ({ kind: 'diagram', svg: histogramSvg(fig) });
 
 const risingPoints: [number, number][] = [
   [1, 2],
@@ -479,6 +494,238 @@ export const dataAveragesSpread: Course = {
         ask('dat-sd', 2),
         ask('dat-sd-tiles', 2),
         ask('dat-compare-flow', 2),
+      ],
+    },
+    {
+      id: 'da-l3',
+      title: 'Representing Data',
+      lessons: [
+        {
+          id: 'da-l3-stem',
+          title: 'Stem-and-Leaf Diagrams',
+          slides: [
+            teach(
+              prose(
+                'A **stem-and-leaf diagram** lists every value but groups them as it goes. Each value splits into a **stem**, its leading digits, and a **leaf**, its last digit. Marks of $23, 25, 25, 31, 36, 38, 42$:',
+              ),
+              display('\\begin{array}{r|l} 2 & 3\\;5\\;5 \\\\ 3 & 1\\;6\\;8 \\\\ 4 & 2 \\end{array}'),
+              prose(
+                'Key: $2 \\mid 3$ means $23$. Every diagram needs a key, since the same picture could stand for $2.3$ or $230$. The leaves go in order, smallest first, and a value that appears twice keeps both its leaves.',
+              ),
+            ),
+            ask('dat-stem-leaves'),
+            ask('dat-stem-key'),
+            ask('dat-stem-read'),
+            teach(
+              prose('Reading a diagram back, each leaf is one value. With the key $4 \\mid 7$ means $4.7$, the row $5 \\mid 1\\;2\\;2\\;9$ stands for four values:'),
+              display('5.1, \\ 5.2, \\ 5.2, \\ 5.9'),
+              prose(
+                'With two-digit stems the leaf is still the last digit: if $12 \\mid 5$ means $125$, then $13 \\mid 0\\;4$ is $130$ and $134$. The smallest value is the first leaf on the top row, and the largest the last leaf on the bottom row.',
+              ),
+            ),
+            ask('dat-stem-key', 2),
+            ask('dat-stem-read', 2),
+            ask('dat-stem-leaves', 2),
+            teach(
+              prose(
+                'The leaves are already in order, so the median and the quartiles can be counted straight off them, top row first. With $n = 4k + 3$ values, as in Measures of Spread, they sit at position $\\frac{n + 1}{4}$, twice that, and three times that.',
+              ),
+              display('\\begin{array}{r|l} 1 & 2\\;5\\;8 \\\\ 2 & 1\\;1\\;4\\;7 \\\\ 3 & 0\\;3\\;5\\;8 \\end{array}'),
+              prose(
+                'Key: $1 \\mid 2$ means $12$. Here $n = 11$, so count to the 3rd, 6th and 9th leaves: $Q_1 = 18$, the median is $24$ and $Q_3 = 33$, so the IQR is $33 - 18 = 15$.',
+              ),
+            ),
+            ask('dat-stem-quartiles'),
+            ask('dat-stem-quartiles', 2),
+          ],
+          skillCheck: [ask('dat-stem-leaves', 2), ask('dat-stem-quartiles', 2), ask('dat-stem-read', 2)],
+        },
+        {
+          id: 'da-l3-box',
+          title: 'Box Plots',
+          slides: [
+            teach(
+              prose(
+                'A **box plot** draws five values on a scale: the smallest, the lower quartile $Q_1$, the median, the upper quartile $Q_3$, and the largest.',
+              ),
+              boxes([{ box: { min: 12, q1: 20, q2: 26, q3: 34, max: 46, outliers: [] } }], FINE, 'A box plot from 12 to 46, the box from 20 to 34 with the median at 26'),
+              prose(
+                'The box runs from $Q_1 = 20$ to $Q_3 = 34$, with a line at the median, $26$. The **whiskers** reach out to the smallest value, $12$, and the largest, $46$.',
+              ),
+            ),
+            ask('dat-box-five'),
+            ask('dat-box-read'),
+            ask('dat-box-slider'),
+            teach(
+              prose(
+                'Each of the four parts, whisker, half of the box, the other half and the other whisker, holds a quarter of the values. So half the values lie inside the box, and a quarter lie above $Q_3$.',
+              ),
+              prose(
+                'To read one, first work out what a small division is worth: from $10$ to $20$ in five divisions is $2$ each. In the plot above the IQR is the length of the box, $34 - 20 = 14$, and the range the whole length, $46 - 12 = 34$.',
+              ),
+              prose('A cross out beyond a whisker marks an outlier. That comes next.'),
+            ),
+            ask('dat-box-slider', 2),
+            ask('dat-box-five', 2),
+            teach(
+              prose(
+                'An outlier, more than $1.5 \\times \\text{IQR}$ beyond a quartile as in Outliers, is plotted on its own as a cross. The whisker then stops at the furthest value that is **not** an outlier.',
+              ),
+              boxes(
+                [{ box: { min: 14, q1: 20, q2: 24, q3: 28, max: 36, outliers: [48] } }],
+                FINE,
+                'A box plot from 14 to 36, the box from 20 to 28 with the median at 24, and a cross at 48',
+              ),
+              prose(
+                'Here the IQR is $8$, so the upper fence is $28 + 12 = 40$. The cross at $48$ is beyond it, and the whisker ends at $36$, the largest value inside. The cross is still one of the values, so the range is $48 - 14 = 34$.',
+              ),
+            ),
+            ask('dat-box-whisker'),
+            ask('dat-box-fence'),
+            ask('dat-box-read', 2),
+          ],
+          skillCheck: [ask('dat-box-five', 2), ask('dat-box-read', 2), ask('dat-box-whisker', 2)],
+        },
+        {
+          id: 'da-l3-compare',
+          title: 'Comparing Box Plots',
+          slides: [
+            teach(
+              prose(
+                'Two box plots on one scale compare two sets of data at a glance. As with a mean and a standard deviation, compare an **average**, here the medians, and a **spread**, here the interquartile ranges.',
+              ),
+              boxes(
+                [
+                  { name: 'Class A', box: { min: 40, q1: 55, q2: 65, q3: 70, max: 85, outliers: [] } },
+                  { name: 'Class B', box: { min: 35, q1: 45, q2: 55, q3: 70, max: 80, outliers: [] } },
+                ],
+                { lo: 30, hi: 90, tick: 5, every: 10 },
+                'Two box plots on one scale: Class A with its box from 55 to 70 and median 65, Class B with its box from 45 to 70 and median 55',
+              ),
+              prose(
+                'Class A has the higher median, $65$ against $55$. Class B has the larger IQR, $70 - 45 = 25$ against $70 - 55 = 15$, so its marks are more spread out.',
+              ),
+            ),
+            ask('dat-boxes-choice'),
+            ask('dat-boxes-tree'),
+            ask('dat-boxes-flow'),
+            teach(
+              prose(
+                'Use the IQR for spread, not the length of the whiskers. One extreme value can stretch a whisker a long way, while the box holds the middle half and hardly moves.',
+              ),
+              prose(
+                'And, as with means, higher is not always better. For lap times or journey times the lower median did better, and the smaller IQR is the more consistent.',
+              ),
+            ),
+            ask('dat-boxes-choice', 2),
+            ask('dat-boxes-flow', 2),
+            ask('dat-boxes-tree', 2),
+            teach(
+              prose('Each part of a box plot holds a quarter of the values, and that lets one plot be read against the other.'),
+              prose(
+                'Above, the median of Class B is $55$, which is exactly the lower quartile of Class A. A quarter of Class A lies below its lower quartile, so about $75\\%$ of Class A scored more than Class B\'s median. If Class A has $40$ pupils, that is about $30$ of them.',
+              ),
+            ),
+            ask('dat-boxes-percent'),
+            ask('dat-boxes-percent', 2),
+          ],
+          skillCheck: [ask('dat-boxes-choice', 2), ask('dat-boxes-flow', 2), ask('dat-boxes-percent', 2)],
+        },
+        {
+          id: 'da-l3-histogram',
+          title: 'Histograms',
+          slides: [
+            teach(
+              prose(
+                'When classes have different widths, their frequencies cannot be compared as they stand: a class twice as wide collects about twice as many values. So divide each by its width, to get its **frequency density**.',
+              ),
+              display('\\text{density} = \\frac{\\text{frequency}}{\\text{width}}'),
+              prose('These classes are $10$, $5$ and $20$ wide:'),
+              display(
+                '\\begin{array}{c|c|c} \\text{Class} & f & \\text{Density} \\\\ \\hline 0 \\le x < 10 & 30 & 3 \\\\ 10 \\le x < 15 & 40 & 8 \\\\ 15 \\le x < 35 & 60 & 3 \\end{array}',
+              ),
+              prose('The middle class has the most tightly packed values, even though the last class holds more of them.'),
+            ),
+            ask('dat-fd-table'),
+            ask('dat-fd-tiles'),
+            ask('dat-fd-slider'),
+            teach(
+              prose(
+                'A **histogram** draws each class as a bar as wide as the class and as tall as its frequency density, with no gaps between the bars. The same table:',
+              ),
+              bars({ bounds: [0, 10, 15, 35], heights: [3, 8, 3], yMax: 8, yStep: 1, yEvery: 2, label: 'A histogram of bars 3, 8 and 3 high over 0 to 10, 10 to 15 and 15 to 35' }),
+              prose(
+                'Height is density, so a bar\'s **area**, its density times its width, is its frequency: $8 \\times 5 = 40$ for the middle bar. How many values a bar holds is its area, not its height.',
+              ),
+            ),
+            ask('dat-fd-tiles', 2),
+            ask('dat-fd-area'),
+            ask('dat-fd-table', 2),
+            teach(
+              prose('Densities need not be whole. $36$ values in a class $15$ wide have a density of $36 \\div 15 = 2.4$.'),
+              prose(
+                'On a finer scale, count the lines. With a number at every $1$ and five lines to each, a line is worth $0.2$, so a bar reaching two lines past $2$ is $2.4$ high.',
+              ),
+            ),
+            ask('dat-fd-slider', 2),
+            ask('dat-fd-area', 2),
+          ],
+          skillCheck: [ask('dat-fd-table', 2), ask('dat-fd-slider', 2), ask('dat-fd-area', 2)],
+        },
+        {
+          id: 'da-l3-reading',
+          title: 'Reading a Histogram',
+          slides: [
+            teach(
+              prose('Every bar\'s area is its frequency, so the total number of values is the total area.'),
+              bars({ bounds: [10, 20, 40, 50], heights: [2, 3, 5], yMax: 6, yStep: 1, yEvery: 2, label: 'A histogram of bars 2, 3 and 5 high over 10 to 20, 20 to 40 and 40 to 50' }),
+              working('2 \\times 10 &= 20', '3 \\times 20 &= 60', '5 \\times 10 &= 50'),
+              prose(
+                'That is $130$ values. The tallest bar, $40 \\le x < 50$, does not hold the most of them: the wider, lower bar $20 \\le x < 40$ does.',
+              ),
+            ),
+            ask('dat-hist-total'),
+            ask('dat-hist-tallest'),
+            ask('dat-hist-part'),
+            teach(
+              prose(
+                'A range that cuts through a bar takes the share of the bar it covers, as though the values were spread evenly across the class.',
+              ),
+              prose(
+                'In the histogram above, how many values lie between $30$ and $45$? The part of $20 \\le x < 40$ from $30$ is $10$ wide at height $3$, and the part of $40 \\le x < 50$ up to $45$ is $5$ wide at height $5$:',
+              ),
+              working('3 \\times 10 &= 30', '5 \\times 5 &= 25', '30 + 25 &= 55'),
+              prose('About $55$. It is an estimate, since the values inside a class are rarely spread exactly evenly.'),
+            ),
+            ask('dat-hist-part', 2),
+            ask('dat-hist-total', 2),
+            ask('dat-hist-tallest', 2),
+            teach(
+              prose('Sometimes the vertical scale has no numbers. Frequency is still area, so count squares, and let one bar whose frequency is known set the scale.'),
+              prose('If a bar covering $6$ squares has a frequency of $18$, each square stands for $18 \\div 6 = 3$ values, and a bar covering $10$ squares holds $30$.'),
+            ),
+            ask('dat-hist-scale'),
+            ask('dat-hist-scale', 2),
+          ],
+          skillCheck: [ask('dat-hist-part', 2), ask('dat-hist-tallest', 2), ask('dat-hist-scale', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('dat-stem-leaves', 2),
+        ask('dat-stem-quartiles', 2),
+        ask('dat-stem-key', 2),
+        ask('dat-box-five', 2),
+        ask('dat-box-read', 2),
+        ask('dat-box-whisker', 2),
+        ask('dat-boxes-percent', 2),
+        ask('dat-boxes-flow', 2),
+        ask('dat-boxes-choice', 2),
+        ask('dat-fd-table', 2),
+        ask('dat-fd-slider', 2),
+        ask('dat-fd-area', 2),
+        ask('dat-hist-part', 2),
+        ask('dat-hist-tallest', 2),
+        ask('dat-hist-scale', 2),
       ],
     },
   ],

@@ -1175,6 +1175,14 @@ button {
 
 .plot-hits circle {
   cursor: pointer;
+  outline: none;
+}
+
+/* The ring a keyboard user steers by, drawn the way the force diagram's
+   focused arrow head is. */
+.plot-hits circle:focus-visible {
+  stroke: var(--accent);
+  stroke-width: 2;
 }
 
 .plot-hits.locked circle {

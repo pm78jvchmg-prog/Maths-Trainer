@@ -14,7 +14,11 @@
  * string over a peg with friction on both sides, the string going slack when
  * the hanging particle lands (Kinematics' v^2 = u^2 + 2as, kn-l2-more, used
  * rather than taught), and putting it together with a free-body diagram for
- * each particle and a check on the tension.
+ * each particle and a check on the tension. Level 4 is moments: the moment of
+ * a force about a point, its sense and the resultant of several, a uniform rod
+ * on two supports, loads on a plank (and an unknown position or mass from a
+ * given reaction), the point of tilting, and a ladder against a smooth wall
+ * with friction at the foot.
  *
  * Vectors, right-angled trigonometry and Pythagoras are used here, not taught
  * again: each angle is given through a 3-4-5 or 7-24-25 triangle so the sine
@@ -23,11 +27,12 @@
  * Levels 1 and 2 draw their free-body diagrams as teach figures, and several
  * of their lessons will later ask them on the `forces` widget (see
  * docs/roadmap/levels/forces.md); level 3 asks them on the widget already.
- * Each level closes with a level check: questions only, no teaching
+ * Level 4 draws its rods, planks and ladders with `beamSvg` and `ladderSvg`,
+ * since the widget puts every arrow on one box's centre. Each level closes with a level check: questions only, no teaching
  * slides, one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
-import { A34, A43, DROP, FLAT, arrowsSvg, hangingSvg, pulleySvg, rigSvg, slopeSvg } from '../generators/forces';
+import { A34, A43, DROP, FLAT, arrowsSvg, beamSvg, hangingSvg, ladderSvg, pulleySvg, rigSvg, slopeSvg } from '../generators/forces';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -747,6 +752,263 @@ export const forces: Course = {
         ask('force-slack-flow', 2),
         ask('force-incline-fill', 2),
         ask('force-incline-check', 2),
+      ],
+    },
+    {
+      id: 'fo-l4',
+      title: 'Moments',
+      lessons: [
+        {
+          id: 'fo-l4-moment',
+          title: 'The Moment of a Force',
+          slides: [
+            teach(
+              prose(
+                'A force can **turn** something as well as move it: a spanner on a nut, a hand on a door. Its turning effect about a point is its **moment**:',
+              ),
+              display('\\text{moment} = F \\times d'),
+              prose(
+                'Here $d$ is the **perpendicular** distance from the point to the line of the force. A force in newtons and a distance in metres give a moment in newton metres, $\\text{N m}$.',
+              ),
+              diagram(
+                beamSvg(4, {
+                  supports: [{ x: 0, name: '' }],
+                  arrows: [{ x: 3, dir: 'up', label: 'F' }],
+                  label: 'A rod pivoted at its left end A, with a force F pushing straight up three quarters of the way along',
+                }),
+              ),
+              prose('A force of $20\\text{ N}$ at right angles to the rod, $3\\text{ m}$ from the pivot, has moment $20 \\times 3 = 60\\text{ N m}$.'),
+            ),
+            ask('force-moment'),
+            ask('force-moment-sense'),
+            ask('force-moment-table'),
+            teach(
+              prose(
+                'A moment also has a **sense**: the way it turns, **clockwise** or **anticlockwise**. A downward force to the right of the pivot turns the rod clockwise; the same force to the left turns it anticlockwise, and an upward force the other way round.',
+              ),
+              prose(
+                'To combine several moments about one point, pick a sense as positive, add the moments that way and take away the others. What is left is the **resultant moment**, and it turns the way of the bigger total.',
+              ),
+            ),
+            ask('force-moment-sum-steps'),
+            ask('force-moment-table', 2),
+            ask('force-moment-sense', 2),
+            teach(
+              prose(
+                'A force at an angle $\\theta$ to the rod: split it into a part along the rod, $F\\cos\\theta$, and a part at right angles, $F\\sin\\theta$. The part along the rod passes through the pivot and does not turn it, so',
+              ),
+              display('\\text{moment} = F\\sin\\theta \\times d'),
+              diagram(
+                beamSvg(4, {
+                  supports: [{ x: 0, name: '' }],
+                  arrows: [{ x: 3, dir: { t: A34, lean: 1 }, label: 'F' }],
+                  label: 'A rod pivoted at its left end A, with a force F pulling up and to the right at an angle theta to the rod',
+                }),
+              ),
+            ),
+            ask('force-moment', 2),
+            ask('force-moment-sum-steps', 2),
+          ],
+          skillCheck: [ask('force-moment', 2), ask('force-moment-sense', 2), ask('force-moment-sum-steps', 2)],
+        },
+        {
+          id: 'fo-l4-rod',
+          title: 'A Rod on Two Supports',
+          slides: [
+            teach(
+              prose(
+                'A **uniform** rod has its weight spread evenly, so its whole weight acts at the **middle**. Resting on two supports $C$ and $D$, it is pushed up by a reaction at each.',
+              ),
+              diagram(
+                beamSvg(6, {
+                  supports: [
+                    { x: 1, name: 'C' },
+                    { x: 5, name: 'D' },
+                  ],
+                  arrows: [
+                    { x: 3, dir: 'down', label: 'W' },
+                    { x: 1, dir: 'up', label: 'R_C' },
+                    { x: 5, dir: 'up', label: 'R_D' },
+                  ],
+                  label: 'A rod AB on supports C and D, with its weight W down at the middle and reactions R C and R D up at the supports',
+                }),
+              ),
+              prose(
+                'The rod is in **equilibrium**, so two things hold: the forces balance, $R_{C} + R_{D} = W$, and the moments balance about **any** point.',
+              ),
+            ),
+            ask('force-rod'),
+            ask('force-rod-tiles'),
+            ask('force-rod-reactions-tree'),
+            teach(
+              prose(
+                'The trick is where to take moments. About $C$, the reaction $R_{C}$ acts **through** the point, so its moment is zero and it drops out, leaving one unknown. With $d$ the distance from $C$ to the middle:',
+              ),
+              display('R_{D} \\times CD = W \\times d'),
+              prose('Then resolve vertically for the other reaction: $R_{C} = W - R_{D}$.'),
+            ),
+            ask('force-rod-slider'),
+            ask('force-rod+choice', 2),
+            ask('force-rod-tiles', 2),
+            teach(
+              prose(
+                'The supports need not be at the ends. Measure every distance from the point you take moments about, not from $A$. The support nearer the middle always carries more of the weight.',
+              ),
+            ),
+            ask('force-rod-reactions-tree', 2),
+            ask('force-rod-slider', 2),
+          ],
+          skillCheck: [ask('force-rod', 2), ask('force-rod-tiles', 2), ask('force-rod-reactions-tree', 2)],
+        },
+        {
+          id: 'fo-l4-plank',
+          title: 'Loads on a Plank',
+          slides: [
+            teach(
+              prose(
+                'Put a person or a box on the plank and there is one more downward force, at the point where they stand. Taking moments about $C$, each weight has its own moment, force times its distance $d$ from $C$, and together they balance $R_{D}$\'s:',
+              ),
+              display('R_{D} \\times CD = Wd_{W} + Pd_{P}'),
+              diagram(
+                beamSvg(6, {
+                  supports: [
+                    { x: 0, name: 'C' },
+                    { x: 6, name: 'D' },
+                  ],
+                  arrows: [
+                    { x: 3, dir: 'down', label: 'W' },
+                    { x: 4.5, dir: 'down', label: 'P' },
+                    { x: 0, dir: 'up', label: 'R_C' },
+                    { x: 6, dir: 'up', label: 'R_D' },
+                  ],
+                  label: 'A plank AB on supports at its ends, with its weight W at the middle, a person P nearer B, and reactions R C and R D',
+                }),
+              ),
+            ),
+            ask('force-plank'),
+            ask('force-plank-table'),
+            ask('force-plank-tiles'),
+            teach(
+              prose(
+                'The second reaction comes from resolving: the two reactions hold up **everything** on the plank. As a check, take moments about $D$ as well: it should give the same $R_{C}$.',
+              ),
+              prose('The reaction is bigger at the support the person stands nearer.'),
+            ),
+            ask('force-plank+choice', 2),
+            ask('force-plank-tiles', 2),
+            teach(
+              prose(
+                'Run it backwards: given one reaction, find where someone stands or how heavy they are. Take moments about the **other** support, so the unknown reaction drops out and the only unknown is the one asked for.',
+              ),
+            ),
+            ask('force-plank-unknown'),
+            ask('force-plank-table', 2),
+            ask('force-plank-unknown', 2),
+          ],
+          skillCheck: [ask('force-plank', 2), ask('force-plank-tiles', 2), ask('force-plank-unknown', 2)],
+        },
+        {
+          id: 'fo-l4-tilt',
+          title: 'On the Point of Tilting',
+          slides: [
+            teach(
+              prose(
+                'As someone walks along a plank past support $D$ towards $B$, their moment about $D$ grows. The plank\'s weight holds it down on the other side, and the reaction at $C$ shrinks.',
+              ),
+              diagram(
+                beamSvg(8, {
+                  supports: [
+                    { x: 1, name: 'C' },
+                    { x: 5, name: 'D' },
+                  ],
+                  arrows: [
+                    { x: 4, dir: 'down', label: 'W' },
+                    { x: 6.5, dir: 'down', label: 'P' },
+                    { x: 5, dir: 'up', label: 'R_D' },
+                  ],
+                  label: 'A plank on supports C and D with a person P standing beyond D; the reaction at C has fallen to zero and only R D pushes up',
+                }),
+              ),
+              prose(
+                'On the **point of tilting** about $D$, the reaction at $C$ is **zero**: the plank is just lifting off it. So take moments about $D$, with $R_{C} = 0$.',
+              ),
+            ),
+            ask('force-tilt-flow'),
+            ask('force-tilt'),
+            ask('force-tilt-slider'),
+            teach(
+              prose('With $e$ how far past $D$ the person stands, and $d$ the distance from $D$ back to the middle, the moments about $D$ balance:'),
+              display('P \\times e = W \\times d'),
+              prose(
+                'The same idea gives the greatest load that can hang from the end: at that load the plank is on the point of tilting. With masses, $g$ appears on both sides and cancels.',
+              ),
+            ),
+            ask('force-tipping-tree'),
+            ask('force-tilt+choice', 2),
+            ask('force-tilt-flow', 2),
+            teach(
+              prose(
+                'Walking the other way, towards $A$, the plank tilts about $C$ instead and $R_{D}$ falls to zero. And at the point of tilting, the one support left carries **all** the weight: resolving gives that reaction.',
+              ),
+            ),
+            ask('force-tilt-slider', 2),
+            ask('force-tipping-tree', 2),
+          ],
+          skillCheck: [ask('force-tilt', 2), ask('force-tipping-tree', 2), ask('force-tilt-flow', 2)],
+        },
+        {
+          id: 'fo-l4-ladder',
+          title: 'A Ladder Against a Wall',
+          slides: [
+            teach(
+              prose(
+                'A ladder $AB$ rests with its foot $A$ on rough ground and its top $B$ against a **smooth** wall. Four forces act on it: its weight $W$ at the middle, the wall\'s push $S$, and at the foot the normal reaction $R$ and friction $F$.',
+              ),
+              diagram(ladderSvg(A43)),
+              prose(
+                'A smooth wall gives no friction, so $S$ is **horizontal**. The ladder would slide out at the foot, so friction points **towards** the wall.',
+              ),
+            ),
+            ask('force-ladder-flow'),
+            ask('force-ladder-table'),
+            ask('force-ladder'),
+            teach(
+              prose(
+                'Take moments about the foot $A$: $R$ and $F$ both act there and drop out. The perpendicular distances come from the angle $\\alpha$ with the ground: the height of $B$, $L\\sin\\alpha$, for $S$, and $\\tfrac{L}{2}\\cos\\alpha$ for the weight.',
+              ),
+              display('S \\times L\\sin\\alpha = W \\times \\tfrac{L}{2}\\cos\\alpha'),
+              prose('Then resolve: horizontally $F = S$, vertically $R$ = the total weight.'),
+            ),
+            ask('force-ladder-limit-tree'),
+            ask('force-ladder+choice', 2),
+            ask('force-ladder-table', 2),
+            teach(
+              prose(
+                'Friction can give at most $\\mu R$. The ladder stays put while $F \\le \\mu R$, so the least coefficient of friction that holds it is $\\mu = \\tfrac{F}{R}$.',
+              ),
+              prose('A person climbing adds to $R$, and adds even more to the moment about $A$ the higher they go, so a ladder that is safe at the bottom can slip near the top.'),
+            ),
+            ask('force-ladder-limit-tree', 2),
+            ask('force-ladder-flow', 2),
+          ],
+          skillCheck: [ask('force-ladder', 2), ask('force-ladder-limit-tree', 2), ask('force-ladder-table', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('force-moment', 2),
+        ask('force-moment-sense', 2),
+        ask('force-moment-sum-steps', 2),
+        ask('force-rod', 2),
+        ask('force-rod-reactions-tree', 2),
+        ask('force-plank', 2),
+        ask('force-plank-table', 2),
+        ask('force-plank-unknown', 2),
+        ask('force-tilt', 2),
+        ask('force-tilt-flow', 2),
+        ask('force-tipping-tree', 2),
+        ask('force-ladder', 2),
+        ask('force-ladder-limit-tree', 2),
+        ask('force-ladder-flow', 2),
       ],
     },
   ],

@@ -415,6 +415,15 @@ function grade(slide: Slide, answer: Answer, seed: number): Feedback {
     case 'iterate':
       return gradeSequence(answer, slide.answer);
 
+    // Fill: one token per blank branch. Path: the two branch labels taken. A
+    // path cut short is a different length and so wrong, as with `flow`.
+    case 'probTree':
+      return gradeSequence(answer, slide.answer);
+
+    // One token per blank region, in the fixed region order.
+    case 'venn':
+      return gradeSequence(answer, slide.answer);
+
     // The step ids in slot order. A distractor anywhere, or two steps swapped,
     // is simply a different sequence.
     case 'order':

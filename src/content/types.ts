@@ -474,6 +474,56 @@ export type Slide =
       bank: string[];
       /** `x_1` onwards, one per blank row, then the conclusion. */
       answer: string[];
+    })
+  /**
+   * A two-stage probability tree, drawn root on the left as it is on paper.
+   *
+   * At most three first-stage branches and two under each. Two modes, one
+   * picture: `fill` leaves some branch probabilities blank and fills them from
+   * the bank in any order, as `iterate` does; `path` shows every probability
+   * and asks the learner to tap one branch per stage, as `flow` does, so what
+   * is graded is which outcome they picked rather than a value.
+   */
+  | ({ kind: 'probTree' } & Prompted & {
+      mode: 'fill' | 'path';
+      /**
+       * First-stage branches, top to bottom, each with the two under it. A
+       * label is TeX and unique among its siblings; a probability is TeX, or
+       * `null` for a blank (fill mode only).
+       */
+      branches: {
+        label: string;
+        p: string | null;
+        next: { label: string; p: string | null }[];
+      }[];
+      /** Values offered in fill mode, including distractors. Sorted, never shuffled. Empty in path mode. */
+      bank: string[];
+      /**
+       * Fill: one token per blank, first-stage blanks top to bottom, then the
+       * second stage top to bottom. Path: the two branch labels, first stage
+       * then the one under it.
+       */
+      answer: string[];
+    })
+  /**
+   * A Venn diagram of two sets in a rectangle, its four regions filled from a
+   * bank: only in the first set, in both, only in the second, in neither.
+   * The regions hold counts or probabilities, and a region may be given.
+   */
+  | ({ kind: 'venn' } & Prompted & {
+      /** The two circles' labels, left then right. TeX. */
+      sets: [string, string];
+      /**
+       * The size of the universal set when the regions are counts, shown in the
+       * corner as `n(\xi)`. Absent for probabilities, whose regions sum to 1.
+       */
+      total?: number;
+      /** Only the first, both, only the second, neither. TeX, or `null` for a blank. */
+      regions: (string | null)[];
+      /** Values offered, including distractors. Sorted, never shuffled. */
+      bank: string[];
+      /** One token per blank region, in `regions` order. */
+      answer: string[];
     });
 
 /**

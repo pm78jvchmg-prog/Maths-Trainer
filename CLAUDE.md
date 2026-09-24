@@ -328,6 +328,31 @@ bottom of the slide while it is live, since a filled table runs past the fold.
 `iterate-fixed-point` and `iterate-newton-raphson` are demonstrations no lesson
 asks yet.
 
+**`probTree`** (batch C16-widget) is a two-stage probability tree drawn root on
+the left: at most three first-stage branches and two under each. Branches carry
+a TeX label and a TeX probability or `null` for a blank. `mode: 'fill'` fills
+the blanks from a sorted bank in any order, `answer` listing them first stage
+then second, top to bottom; `mode: 'path'` shows every probability and has the
+learner tap one branch per stage, `answer` being the two labels. Both are graded
+by `gradeSequence`, so a slide writes every value one way: the counters write
+the unsimplified fraction of what is left in the bag, the decimal families
+decimals, and `generators.test.ts` refuses a bank holding one value under two
+spellings. It also checks every point's branches sum to 1 and a path's second
+label sits under its first. The widget (`src/ui/probTreeSlide.tsx`) draws lines
+in SVG scaled to the frame and lays every label and value over them as HTML at
+the same proportional position, so fractions render through KaTeX; the overlay
+lets taps through to the branch hit lines except on its buttons.
+
+**`venn`** (same batch) is two labelled circles in a rectangle with four regions
+in a fixed order: only the first set, both, only the second, neither. A region
+is TeX or `null`, filled from a sorted bank; `total` (counts only) is shown in
+the corner as `n(\xi)`, and the checks require whole counts summing to it, or
+probabilities summing to 1. `src/ui/vennSlide.tsx` shares its bank logic with
+the tree through `src/ui/bankFill.ts`. `ptree-fill`, `ptree-path`,
+`venn-counts` and `venn-probabilities` are demonstrations no lesson asks yet;
+`probTree.test.ts` rebuilds every branch from the parameters and `venn.test.ts`
+works every region out again from the numbers the prompt states.
+
 ## TeX escaping — the recurring hazard
 
 TeX lives inside JavaScript string literals, so **every backslash must be

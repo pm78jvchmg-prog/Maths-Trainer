@@ -34,6 +34,8 @@ import { isPlotAnswer } from '../engine/session';
 import { complexTex } from '../content/generators/format';
 import { StepsSlide, TreeSlide, FlowSlide } from './workingSlides';
 import { IterateSlide } from './iterateSlide';
+import { ProbTreeSlide } from './probTreeSlide';
+import { VennSlide } from './vennSlide';
 import { OrderSlide } from './orderSlide';
 import { defaultSliderValue } from './sliderValue';
 import { TransformSlide } from './transformSlide';
@@ -704,6 +706,10 @@ export function SlideView(props: SlideProps) {
       return <TreeSlide {...props} />;
     case 'iterate':
       return <IterateSlide {...props} />;
+    case 'probTree':
+      return <ProbTreeSlide {...props} />;
+    case 'venn':
+      return <VennSlide {...props} />;
     case 'slider':
       return <SliderSlide {...props} />;
     case 'flow':
@@ -729,6 +735,12 @@ export function initialAnswer(slide: Slide): Answer {
   if (slide.kind === 'tree') return Array.from({ length: slide.nodes.length }, () => '');
   if (slide.kind === 'table') return Array.from({ length: tableBlanks(slide) }, () => '');
   if (slide.kind === 'iterate') return Array.from({ length: slide.answer.length }, () => '');
+  if (slide.kind === 'venn') return Array.from({ length: slide.answer.length }, () => '');
+  // A tree to fill has a blank per missing branch; a path starts untaken and
+  // grows a branch at a time, as `flow` does.
+  if (slide.kind === 'probTree') {
+    return slide.mode === 'fill' ? Array.from({ length: slide.answer.length }, () => '') : [];
+  }
   // Both start at nothing chosen and grow as the learner works.
   if (
     slide.kind === 'steps' ||
@@ -757,6 +769,15 @@ export function hasAnswer(slide: Slide, answer: Answer): boolean {
         : slide.kind === 'table' ? tableBlanks(slide)
           : slide.answer.length;
     return Array.isArray(answer) && answer.length === expected && answer.every((t) => t !== '');
+  }
+  // Every blank filled, or a branch taken at each stage: the same test, since a
+  // path's answer is as long as the tree has stages.
+  if (slide.kind === 'probTree' || slide.kind === 'venn') {
+    return (
+      Array.isArray(answer) &&
+      answer.length === slide.answer.length &&
+      answer.every((t) => t !== '')
+    );
   }
   // A proof is answerable once every slot holds a step.
   if (slide.kind === 'order') {

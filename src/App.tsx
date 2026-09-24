@@ -12,6 +12,7 @@
  * the state below rather than by a route.
  */
 import { useLayoutEffect, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { categories, lessonCount, checkCount } from './content/courses';
 import { registry } from './content/registry';
 import { LessonPlayer } from './ui/LessonPlayer';
@@ -167,10 +168,28 @@ function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
                     >
                       <div className="course-card-title">{course.title}</div>
                       <div className="course-progress">
+                        {/* One pip per level, filled as far as the level is
+                            finished. A pip per lesson ran to 47 on a card this
+                            narrow, which was a smear rather than a count. */}
                         <span className="progress-pips">
-                          {ids.map((id) => (
-                            <span key={id} className={`pip${records[id] ? ' done' : ''}`} />
-                          ))}
+                          {course.levels.map((level) => {
+                            const check = levelCheckLesson(level);
+                            const inLevel = check ? [...level.lessons, check] : level.lessons;
+                            if (inLevel.length === 0) return null;
+                            const finished = inLevel.filter((lesson) => records[lesson.id]).length;
+                            return (
+                              <span
+                                key={level.id}
+                                className="pip"
+                                style={{ '--size': inLevel.length } as CSSProperties}
+                              >
+                                <span
+                                  className="pip-fill"
+                                  style={{ width: `${(finished / inLevel.length) * 100}%` }}
+                                />
+                              </span>
+                            );
+                          })}
                         </span>
                         {/* Lessons finished, then marks earned. The pair is the
                             point: you can finish every lesson in a course and

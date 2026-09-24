@@ -310,9 +310,12 @@ button {
   background: var(--correct);
 }
 
+/* The question being asked, in the accent rather than mint: mint means right,
+   and straight after a wrong answer in a level check the current dot sat green
+   beside "Not quite.". */
 .dot.active {
-  background: var(--correct);
-  box-shadow: 0 0 0 4px var(--correct-bg), 0 0 12px rgb(75 214 173 / 0.45);
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-dim), 0 0 12px rgb(138 134 255 / 0.45);
 }
 
 /* ---------- Slide body ---------- */
@@ -1256,11 +1259,16 @@ button {
   color: var(--text-dim);
 }
 
-/* The pips shrink to whatever the count label leaves, rather than sitting at a
-   fixed width. At 18px each a sixteen-lesson course needs 348px of pips, which
-   is wider than the card on a phone — so the row overflowed and pushed "1/16"
-   off the edge. Capped at 18px so a two-lesson course does not stretch them
-   into bars. */
+/* One pip per level, filled as far as that level is finished.
+
+   It was one pip per lesson, and courses run to 47 lessons and checks: at the
+   3px floor on a card this narrow the row was a smear, and past about forty it
+   overflowed onto the count beside it. Levels run to eight, so each pip keeps
+   a readable length. A pip grows with the number of lessons in its level
+   (`--size`, set by the course card) and is capped at what those lessons'
+   18px pips used to take, so a one-level course still reads as a short run
+   rather than a bar the width of the card. The row shrinks to whatever the
+   count label leaves, as before. */
 .progress-pips {
   display: flex;
   gap: 4px;
@@ -1269,12 +1277,20 @@ button {
 }
 
 .pip {
-  flex: 1 1 0;
-  max-width: 18px;
-  min-width: 3px;
+  flex: var(--size, 1) 1 0;
+  max-width: calc(var(--size, 1) * 22px - 4px);
+  min-width: 0;
   height: 5px;
   border-radius: 999px;
+  overflow: hidden;
   background: var(--surface-raised);
+}
+
+.pip-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
 }
 
 /* Never shrinks and never wraps: the count is the part that must stay readable
@@ -1284,11 +1300,7 @@ button {
   white-space: nowrap;
 }
 
-.pip.done {
-  background: var(--accent);
-}
-
-.course-card.complete .pip.done {
+.course-card.complete .pip-fill {
   background: var(--correct);
 }
 

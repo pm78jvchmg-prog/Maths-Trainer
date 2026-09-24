@@ -557,6 +557,440 @@ describe('comparing two groups', () => {
   });
 });
 
+/* ---------- level 3: reading the pictures back ---------- */
+
+type Block = { kind: string; text?: string; tex?: string; svg?: string };
+const blocksOf = (slide: Slide): Block[] => (slide.kind === 'teach' ? [] : (slide.prompt as Block[]));
+const proseOf = (slide: Slide): string =>
+  blocksOf(slide)
+    .filter((b) => b.kind === 'prose')
+    .map((b) => b.text!)
+    .join(' ');
+/** The picture a question is asked about: a diagram in its prompt, or a slider's figure. */
+const svgOf = (slide: Slide): string => {
+  if (slide.kind === 'slider') return slide.figure!.svg;
+  const svg = blocksOf(slide).find((b) => b.kind === 'diagram')?.svg;
+  if (!svg) throw new Error('no picture in the prompt');
+  return svg;
+};
+const attr = (tag: string, name: string): number => Number(new RegExp(`\\b${name}="([-\\d.]+)"`).exec(tag)![1]);
+
+/**
+ * A stem-and-leaf diagram read back from its TeX and its key: each row's stem
+ * with each leaf written after it, then scaled the way the key's own example
+ * is scaled.
+ */
+function readStem(slide: Slide): number[] {
+  const tex = blocksOf(slide).find((b) => b.kind === 'display' && b.tex!.includes('{r|l}'))!.tex!;
+  const body = tex.replace('\\begin{array}{r|l}', '').replace('\\end{array}', '');
+  const scale = keyScale(proseOf(slide));
+  return body
+    .split('\\\\')
+    .flatMap((row) => {
+      const [stem, leaves] = row.split('&').map((part) => part.trim());
+      return leaves.split('\\;').map((leaf) => Number(`${stem}${leaf}`) * scale);
+    })
+    .map((v) => Math.round(v * 10) / 10);
+}
+
+/** What one leaf unit is worth, from the key's example: `4 | 7 means 4.7` is a tenth. */
+function keyScale(text: string): number {
+  const hit = /Key: \$(\d+) \\mid (\d)\$ means \$([\d.]+)\$/.exec(text)!;
+  const unit = Number(hit[3]) / Number(`${hit[1]}${hit[2]}`);
+  expect([1, 0.1].some((u) => close(u, unit)), `key ${hit[0]}`).toBe(true);
+  return close(unit, 1) ? 1 : 0.1;
+}
+
+const sameList = (a: number[], b: number[]) => expect(inOrder(a).map((x) => Math.round(x * 10))).toEqual(inOrder(b).map((x) => Math.round(x * 10)));
+
+describe('dat-stem-leaves', () => {
+  it('holds every listed value exactly once, each row in order, under the key', () => {
+    for (const { slide, seed, difficulty } of draws('dat-stem-leaves')) {
+      if (slide.kind !== 'table') throw new Error('not a table slide');
+      const text = proseOf(slide);
+      const listed = [...text.split('Draw')[0].matchAll(/\$([\d.]+)\$/g)].map((hit) => Number(hit[1]));
+      const scale = keyScale(text);
+      const drawn = slide.rows.flatMap((row, i) => {
+        const leaves = slide.answer[i].split('\\;').map(Number);
+        for (let j = 1; j < leaves.length; j += 1) expect(leaves[j], `seed ${seed}`).toBeGreaterThanOrEqual(leaves[j - 1]);
+        return leaves.map((leaf) => Number(`${row[0]}${leaf}`) * scale);
+      });
+      sameList(drawn, listed);
+      expect(slide.rows.length).toBe(difficulty === 1 ? 3 : 4);
+      expect(verdict(slide, slide.answer)).toBe('correct');
+    }
+  });
+});
+
+describe('dat-stem-read', () => {
+  it('reads the largest, the smallest, the range or a count off the diagram', () => {
+    for (const { slide, seed } of draws('dat-stem-read')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const values = readStem(slide);
+      const s = inOrder(values);
+      const text = proseOf(slide);
+      const line = /more than \$([\d.]+)\$/.exec(text);
+      const want = line
+        ? values.filter((v) => v > Number(line[1])).length
+        : text.includes('largest')
+          ? s[s.length - 1]
+          : text.includes('smallest')
+            ? s[0]
+            : s[s.length - 1] - s[0];
+      expect(num(slide.answer), `seed ${seed}: ${text}`).toBeCloseTo(want, 9);
+    }
+  });
+});
+
+describe('dat-stem-quartiles', () => {
+  it('finds the quartiles of the drawn values as the medians of the halves', () => {
+    for (const { slide, seed } of draws('dat-stem-quartiles')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const values = readStem(slide);
+      expect((values.length - 3) % 4, `seed ${seed}`).toBe(0);
+      const { q1, q2, q3 } = quartilesByHalves(values);
+      const got = slide.answer.map(num);
+      [q1, q2, q3, q3 - q1].forEach((want, i) => expect(got[i], `seed ${seed}`).toBeCloseTo(want, 9));
+    }
+  });
+});
+
+describe('dat-stem-key', () => {
+  it('marks the row as its values under the key, a repeated leaf counted twice', () => {
+    for (const { slide, seed } of draws('dat-stem-key')) {
+      const stem = Number(/row with stem \$(\d+)\$/.exec(proseOf(slide))![1]);
+      const scale = keyScale(proseOf(slide));
+      const inRow = readStem(slide).filter((v) => Math.floor(Math.round(v / scale) / 10) === stem);
+      const marked = correctLabel(slide).split(',\\ ').map(Number);
+      sameList(marked, inRow);
+      expect(new Set(inRow).size, `seed ${seed}: the row repeats a leaf`).toBeLessThan(inRow.length);
+    }
+  });
+});
+
+/**
+ * Box plots read back from the SVG: the numbers under the scale fix where
+ * each value is, and the box, the median line, the whiskers and the crosses
+ * are read off at their drawn positions.
+ */
+function readBoxes(svg: string): { name?: string; min: number; q1: number; q2: number; q3: number; max: number; outliers: number[] }[] {
+  const labels = [...svg.matchAll(/<text class="box-label" x="([\d.]+)"[^>]*>([\d.]+)<\/text>/g)].map((h) => [Number(h[1]), Number(h[2])]);
+  const [x0, v0] = labels[0];
+  const [x1, v1] = labels[labels.length - 1];
+  const at = (x: number) => {
+    const v = v0 + ((x - x0) * (v1 - v0)) / (x1 - x0);
+    expect(Math.abs(v - Math.round(v)), `a drawn value ${v} sits off the whole numbers`).toBeLessThan(0.1);
+    return Math.round(v);
+  };
+  const names = [...svg.matchAll(/<text x="[\d.]+" y="[\d.]+" font-size="10" fill="currentColor">([^<]+)<\/text>/g)].map((h) => h[1]);
+  const bodies = [...svg.matchAll(/<rect class="box-body"[^>]*>/g)].map((h) => h[0]);
+  const medians = [...svg.matchAll(/<line class="box-median"[^>]*>/g)].map((h) => h[0]);
+  const whiskers = [...svg.matchAll(/<line class="box-whisker"[^>]*>/g)].map((h) => h[0]);
+  const crosses = [...svg.matchAll(/<path class="box-outlier" d="M ([\d.]+),([\d.]+) /g)].map((h) => [Number(h[1]) + 4, Number(h[2]) + 4]);
+  return bodies.map((body, i) => {
+    const top = attr(body, 'y');
+    return {
+      name: names[i],
+      min: at(attr(whiskers[2 * i], 'x1')),
+      q1: at(attr(body, 'x')),
+      q2: at(attr(medians[i], 'x1')),
+      q3: at(attr(body, 'x') + attr(body, 'width')),
+      max: at(attr(whiskers[2 * i + 1], 'x2')),
+      outliers: crosses.filter(([, y]) => Math.abs(y - (top + 10)) < 0.5).map(([x]) => at(x)),
+    };
+  });
+}
+
+type ReadBox = ReturnType<typeof readBoxes>[number];
+const iqrOfRead = (b: ReadBox) => b.q3 - b.q1;
+
+/** Whether a drawn box obeys the 1.5 IQR rule: crosses beyond the fences, whiskers inside them. */
+function obeysFences(b: ReadBox): boolean {
+  const lo = b.q1 - 1.5 * iqrOfRead(b);
+  const hi = b.q3 + 1.5 * iqrOfRead(b);
+  return b.min >= lo && b.max <= hi && b.outliers.every((o) => o < lo || o > hi) && b.min < b.q1 && b.q1 < b.q2 && b.q2 < b.q3 && b.q3 < b.max;
+}
+
+describe('dat-box-five', () => {
+  it('gives the smallest, the quartiles by halves and the largest', () => {
+    for (const { params, slide, seed } of draws<{ values: number[] }>('dat-box-five')) {
+      if (slide.kind !== 'table') throw new Error('not a table slide');
+      const s = inOrder(params.values);
+      const { q1, q2, q3 } = quartilesByHalves(params.values);
+      expect(slide.answer.map(num), `seed ${seed}`).toEqual([s[0], q1, q2, q3, s[s.length - 1]]);
+      expect(new Set(slide.answer).size).toBe(5);
+    }
+  });
+});
+
+describe('dat-box-read', () => {
+  it('reads the IQR, and the range out to any cross, off the drawn plot', () => {
+    for (const { slide, seed, difficulty } of draws('dat-box-read')) {
+      if (slide.kind !== 'tiles') throw new Error('not a tiles slide');
+      const [b] = readBoxes(svgOf(slide));
+      expect(obeysFences(b), `seed ${seed}`).toBe(true);
+      const all = [b.min, b.max, ...b.outliers];
+      const range = Math.max(...all) - Math.min(...all);
+      const got = slide.answer.map(num);
+      if (difficulty === 1) expect(got, `seed ${seed}`).toEqual([b.q3, b.q1, iqrOfRead(b)]);
+      else expect(got, `seed ${seed}`).toEqual([Math.max(...all), Math.min(...all), range, b.q3, b.q1, iqrOfRead(b)]);
+    }
+  });
+});
+
+describe('dat-box-slider', () => {
+  it('lands on the value the prompt describes, and the marker lines up with it in the picture', () => {
+    for (const { slide, seed } of draws('dat-box-slider')) {
+      if (slide.kind !== 'slider') throw new Error('not a slider slide');
+      const [b] = readBoxes(svgOf(slide));
+      const text = proseOf(slide);
+      const want =
+        text.includes('lower quartile') || text.includes('quarter of the values lie below')
+          ? b.q1
+          : text.includes('upper quartile') || text.includes('quarter of the values lie above')
+            ? b.q3
+            : b.q2;
+      expect(slide.answer, `seed ${seed}: ${text}`).toBe(want);
+      // Where the widget puts the marker, as a share of the figure's width, against where the value is drawn.
+      const fig = slide.figure!;
+      const share = (slide.answer - fig.xMin) / (fig.xMax - fig.xMin);
+      const drawnAt = [b.q1, b.q2, b.q3].indexOf(want);
+      const body = /<rect class="box-body"[^>]*>/.exec(fig.svg)![0];
+      const median = /<line class="box-median"[^>]*>/.exec(fig.svg)![0];
+      const x = [attr(body, 'x'), attr(median, 'x1'), attr(body, 'x') + attr(body, 'width')][drawnAt];
+      expect(share * 280, `seed ${seed}`).toBeCloseTo(x, 0);
+    }
+  });
+});
+
+describe('dat-box-whisker', () => {
+  it('ends the whisker at the furthest value inside the fence, past which lies exactly one outlier', () => {
+    for (const { params, slide, seed } of draws<{ values: number[] }>('dat-box-whisker')) {
+      const { q1, q3 } = quartilesByHalves(params.values);
+      const lo = q1 - 1.5 * (q3 - q1);
+      const hi = q3 + 1.5 * (q3 - q1);
+      const inside = params.values.filter((x) => x >= lo && x <= hi);
+      expect(inside.length, `seed ${seed}`).toBe(params.values.length - 1);
+      const right = proseOf(slide).includes('right-hand');
+      expect(num(correctLabel(slide)), `seed ${seed}`).toBe(right ? Math.max(...inside) : Math.min(...inside));
+    }
+  });
+});
+
+describe('dat-box-fence', () => {
+  it('works out the fence the plotted cross is beyond', () => {
+    for (const { slide, seed } of draws('dat-box-fence')) {
+      if (slide.kind !== 'steps') throw new Error('not a steps slide');
+      const [b] = readBoxes(svgOf(slide));
+      expect(obeysFences(b), `seed ${seed}`).toBe(true);
+      expect(b.outliers).toHaveLength(1);
+      const upper = slide.start[0] === 'Q_3';
+      const fence = upper ? b.q3 + (3 * iqrOfRead(b)) / 2 : b.q1 - (3 * iqrOfRead(b)) / 2;
+      expect(num(slide.reductions[0].value)).toBe(iqrOfRead(b));
+      expect(num(slide.reductions[2].value), `seed ${seed}`).toBeCloseTo(fence, 9);
+      expect(upper ? b.outliers[0] > fence : b.outliers[0] < fence).toBe(true);
+    }
+  });
+});
+
+describe('comparing box plots', () => {
+  const LOWER_IS_BETTER = ['lap times', 'journey times', 'faulty parts'];
+
+  it('names the higher median and the larger IQR as drawn', () => {
+    for (const { slide, seed, difficulty } of draws('dat-boxes-choice')) {
+      const [a, b] = readBoxes(svgOf(slide));
+      const [first, second] = correctLabel(slide).replace(' has the higher median, and ', '|').replace(' has the larger interquartile range.', '').split('|');
+      expect(first, `seed ${seed}`).toBe(a.q2 > b.q2 ? a.name : b.name);
+      expect(second, `seed ${seed}`).toBe(iqrOfRead(a) > iqrOfRead(b) ? a.name : b.name);
+      // At difficulty 2 the whiskers point the other way from the boxes.
+      if (difficulty === 2) expect(Math.sign(a.max - a.min - (b.max - b.min))).toBe(-Math.sign(iqrOfRead(a) - iqrOfRead(b)));
+    }
+  });
+
+  it('walks to the better median and the more consistent group', () => {
+    for (const { slide, seed, difficulty } of draws('dat-boxes-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const [a, b] = readBoxes(svgOf(slide));
+      const higher = a.q2 > b.q2 ? a.name : b.name;
+      const lower = a.q2 > b.q2 ? b.name : a.name;
+      if (difficulty === 1) {
+        expect(slide.answer, `seed ${seed}`).toEqual([higher, iqrOfRead(a) > iqrOfRead(b) ? a.name : b.name]);
+      } else {
+        const lowerBetter = LOWER_IS_BETTER.some((what) => slide.steps[0].ask.includes(what));
+        expect(slide.answer, `seed ${seed}`).toEqual([lowerBetter ? 'No' : 'Yes', lowerBetter ? lower : higher, iqrOfRead(a) < iqrOfRead(b) ? a.name : b.name]);
+      }
+    }
+  });
+
+  it('reads both boxes into their IQRs', () => {
+    for (const { slide, seed } of draws('dat-boxes-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const [a, b] = readBoxes(svgOf(slide));
+      expect(slide.answer.map(num), `seed ${seed}`).toEqual([a.q1, a.q3, b.q1, b.q3, iqrOfRead(a), iqrOfRead(b)]);
+    }
+  });
+
+  it('counts the quarters of one plot beyond a value of the other', () => {
+    for (const { slide, seed, difficulty } of draws('dat-boxes-percent')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const [a, b] = readBoxes(svgOf(slide));
+      const text = proseOf(slide);
+      const hit = /(more|less) than the (lower quartile|median|upper quartile) of/.exec(text)!;
+      const v = { 'lower quartile': b.q1, median: b.q2, 'upper quartile': b.q3 }[hit[2] as 'median'];
+      // The four quarters of the first plot, each as the stretch it covers.
+      const edges = [a.min, a.q1, a.q2, a.q3, a.max];
+      expect([a.q1, a.q2, a.q3], `seed ${seed}: ${v} is not one of the first plot's quartiles`).toContain(v);
+      const quarters = [0, 1, 2, 3].filter((i) => (hit[1] === 'more' ? edges[i] >= v : edges[i + 1] <= v)).length;
+      const count = /has (\d+) values/.exec(text);
+      expect(Boolean(count)).toBe(difficulty === 2);
+      expect(num(slide.answer), `seed ${seed}`).toBe(count ? (Number(count[1]) * quarters) / 4 : 25 * quarters);
+    }
+  });
+});
+
+/**
+ * A histogram read back from the SVG: the class boundaries from the numbers
+ * under it, each bar's height from the numbers up the side, and so each
+ * bar's area. Where the side is unnumbered, heights stay in pixels.
+ */
+function readHist(svg: string) {
+  const xs = [...svg.matchAll(/<text class="hist-x" x="([\d.]+)"[^>]*>([\d.]+)<\/text>/g)].map((h) => [Number(h[1]), Number(h[2])]);
+  const ys = [...svg.matchAll(/<text class="hist-y" x="[\d.]+" y="([\d.]+)"[^>]*>([\d.]+)<\/text>/g)].map((h) => [Number(h[1]) - 3.5, Number(h[2])]);
+  const boundAt = (x: number) => {
+    const hit = xs.find(([px]) => Math.abs(px - x) < 0.2);
+    expect(hit, `no boundary is numbered under a bar edge at ${x}`).toBeDefined();
+    return hit![1];
+  };
+  const densityAt = (y: number) => {
+    if (ys.length < 2) return NaN;
+    const [y0, v0] = ys[0];
+    const [y1, v1] = ys[ys.length - 1];
+    return Math.round((v0 + ((y - y0) * (v1 - v0)) / (y1 - y0)) * 100) / 100;
+  };
+  const bars = [...svg.matchAll(/<rect class="hist-bar"[^>]*>/g)].map((h) => {
+    const x = attr(h[0], 'x');
+    const y = attr(h[0], 'y');
+    const w = attr(h[0], 'width');
+    const lo = boundAt(x);
+    const hi = boundAt(x + w);
+    const density = densityAt(y);
+    return { lo, hi, density, area: Math.round(density * (hi - lo) * 100) / 100 };
+  });
+  return { bounds: xs.map(([, v]) => v), bars, densityAt, zero: ys[0]?.[0] };
+}
+
+describe('frequency density', () => {
+  it('is each class frequency over its width, in the table', () => {
+    for (const { slide, seed, difficulty } of draws('dat-fd-table')) {
+      if (slide.kind !== 'table') throw new Error('not a table slide');
+      const want = slide.rows.flatMap((row) => {
+        const [lo, hi] = /(\d+) \\le x < (\d+)/.exec(row[0]!)!.slice(1).map(Number);
+        const f = Number(row[1]);
+        return [hi - lo, f / (hi - lo)];
+      });
+      const got = slide.answer.map(num);
+      want.forEach((w, i) => expect(got[i], `seed ${seed}`).toBeCloseTo(w, 9));
+      // Densities land on the grid a histogram of them is drawn on: whole, or fifths.
+      for (let i = 1; i < got.length; i += 2) expect(close(got[i] * (difficulty === 1 ? 1 : 5), Math.round(got[i] * (difficulty === 1 ? 1 : 5)))).toBe(true);
+    }
+  });
+
+  it('is the class frequency over its width, in the tiles', () => {
+    for (const { params, slide, seed } of draws<{ bounds: number[]; freqs: number[]; at: number }>('dat-fd-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('not a tiles slide');
+      const w = params.bounds[params.at + 1] - params.bounds[params.at];
+      expect(slide.answer.map(num), `seed ${seed}`).toEqual([params.freqs[params.at], w, params.freqs[params.at] / w]);
+    }
+  });
+
+  it('puts the missing bar where its frequency over its width says, and the marker at that height', () => {
+    for (const { slide, seed } of draws('dat-fd-slider')) {
+      if (slide.kind !== 'slider') throw new Error('not a slider slide');
+      const { bounds, bars, densityAt } = readHist(svgOf(slide));
+      const hit = /bar for \$(\d+) \\le x < (\d+)\$, which has a frequency of \$(\d+)\$/.exec(proseOf(slide))!;
+      const [lo, hi, f] = hit.slice(1).map(Number);
+      expect(bars.some((bar) => bar.lo === lo), `seed ${seed}: the missing bar is drawn`).toBe(false);
+      expect(bars).toHaveLength(bounds.length - 2);
+      expect(slide.answer, `seed ${seed}`).toBeCloseTo(f / (hi - lo), 9);
+      // The marker's height, as the widget places it, read back through the numbered scale.
+      const fig = slide.figure!;
+      const top = 1 - (slide.answer - fig.xMin) / (fig.xMax - fig.xMin);
+      expect(densityAt(top * 170), `seed ${seed}`).toBeCloseTo(slide.answer, 2);
+    }
+  });
+
+  it('turns bars back into frequencies by their areas', () => {
+    for (const { slide, seed } of draws('dat-fd-area')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const { bars } = readHist(svgOf(slide));
+      const [lo, hi] = /\$(\d+) \\le x < (\d+)\$\?/.exec(proseOf(slide))!.slice(1).map(Number);
+      const inside = bars.filter((bar) => bar.lo >= lo && bar.hi <= hi);
+      expect(inside.length).toBeGreaterThan(0);
+      expect(num(slide.answer), `seed ${seed}`).toBeCloseTo(add(inside.map((bar) => bar.area)), 9);
+    }
+  });
+});
+
+describe('reading a histogram', () => {
+  it('takes the share of each bar a range covers', () => {
+    for (const { slide, seed } of draws('dat-hist-part')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const { bars } = readHist(svgOf(slide));
+      const [p, q] = /between \$(\d+)\$ and \$(\d+)\$/.exec(proseOf(slide))!.slice(1).map(Number);
+      const pieces = bars
+        .map((bar) => bar.density * Math.max(0, Math.min(q, bar.hi) - Math.max(p, bar.lo)))
+        .filter((area) => area > 0);
+      expect(pieces).toHaveLength(2);
+      const got = slide.answer.map(num);
+      [...pieces, add(pieces)].forEach((want, i) => expect(got[i], `seed ${seed}`).toBeCloseTo(want, 9));
+      for (const piece of pieces) expect(Number.isInteger(Math.round(piece * 1e6) / 1e6)).toBe(true);
+    }
+  });
+
+  it('totals the areas', () => {
+    for (const { slide, seed } of draws('dat-hist-total')) {
+      if (slide.kind !== 'table') throw new Error('not a table slide');
+      const areas = readHist(svgOf(slide)).bars.map((bar) => bar.area);
+      expect(slide.answer.map(num), `seed ${seed}`).toEqual([...areas, add(areas)]);
+    }
+  });
+
+  it('marks the class with the most or fewest values by area, never the tallest or shortest bar', () => {
+    for (const { slide, seed } of draws('dat-hist-tallest')) {
+      const { bars } = readHist(svgOf(slide));
+      const most = proseOf(slide).includes('the most values');
+      const areas = bars.map((bar) => bar.area);
+      const heights = bars.map((bar) => bar.density);
+      const pick = (xs: number[]) => xs.indexOf(most ? Math.max(...xs) : Math.min(...xs));
+      const right = bars[pick(areas)];
+      expect(correctLabel(slide), `seed ${seed}`).toBe(`${right.lo} \\le x < ${right.hi}`);
+      expect(pick(heights)).not.toBe(pick(areas));
+    }
+  });
+
+  it('scales an unnumbered histogram by one known bar', () => {
+    for (const { slide, seed } of draws('dat-hist-scale')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const { bars } = readHist(svgOf(slide));
+      const hit = /class \$(\d+) \\le x < \d+\$ has a frequency of \$(\d+)\$\. How many values are in \$(\d+) \\le x/.exec(proseOf(slide))!;
+      const [knownLo, f, askedLo] = hit.slice(1).map(Number);
+      // Squares counted the way a learner counts them: rows of the grid up each bar, times its width.
+      const svg = svgOf(slide);
+      const lines = [...svg.matchAll(/<line x1="14" y1="([\d.]+)" x2="266" y2="([\d.]+)"/g)].filter((h) => h[1] === h[2]).map((h) => Number(h[1]));
+      const row = (Math.max(...lines) - Math.min(...lines)) / (lines.length - 1);
+      const bar = (lo: number) => {
+        const tag = [...svg.matchAll(/<rect class="hist-bar"[^>]*>/g)].map((h) => h[0])[bars.findIndex((b) => b.lo === lo)];
+        const rows = attr(tag, 'height') / row;
+        expect(Math.abs(rows - Math.round(rows)), `seed ${seed}: a bar ends between grid lines`).toBeLessThan(0.05);
+        const { hi } = bars.find((b) => b.lo === lo)!;
+        return (hi - lo) * Math.round(rows);
+      };
+      expect(num(slide.answer), `seed ${seed}`).toBeCloseTo((f * bar(askedLo)) / bar(knownLo), 9);
+      expect(Number.isInteger(num(slide.answer))).toBe(true);
+    }
+  });
+});
+
 /* ---------- level 4: cumulative frequency ---------- */
 
 type Pt = [number, number];

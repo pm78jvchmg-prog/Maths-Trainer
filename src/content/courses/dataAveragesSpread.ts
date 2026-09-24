@@ -113,7 +113,7 @@ export const dataAveragesSpread: Course = {
   id: 'data-averages-spread',
   category: 'statistics',
   // After Probability (10), which opens the tab.
-  position: 20,
+  position: 10,
   title: 'Data, Averages and Spread',
   blurb: 'Summing up a set of data: its averages, frequency tables and scatter diagrams, then its range, quartiles, outliers and standard deviation, and cumulative frequency curves.',
   levels: [

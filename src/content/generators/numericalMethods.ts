@@ -4842,7 +4842,7 @@ const carryError: Generator<CarryErrorParams> = {
     const { alpha, delta } = params;
     const s = exactScheme(params);
     return [
-      { text: "Near the root, one step multiplies the error by about $g'(\\alpha)$ (level 1, When Iteration Fails)." },
+      { text: "Near the root, one step multiplies the error by about $g'(\\alpha)$ (Numerical Methods Basics, When Iteration Fails)." },
       { tex: aligned(`g'(x) &= ${s.dTex}`, `g'(${alpha}) &= ${fmt(s.factor)}`) },
       { tex: `${fmt(s.factor)} \\times ${paren(delta)} = ${fmt(s.factor * delta)}` },
       ...(s.factor < 0 ? [{ text: 'The gradient is negative, so the error changes sign: $x_{n+1}$ lands on the other side of $\\alpha$.' }] : []),
@@ -7648,7 +7648,7 @@ function exactLines(ivp: Ivp, X: number): SolutionStep[] {
   const F = antiderivative(ivp.rhs.px).map(clean);
   const [FX, F0] = [valueAt(F, X), valueAt(F, ivp.x0)].map(clean);
   return [
-    { text: `Integrating: $y = ${antiTexOf(ivp.rhs.px)} + c$, with $c$ fixed by $y = ${fmt(ivp.y0)}$ at $x = ${fmt(ivp.x0)}$ (Differential Equations level 1, A Particular Solution).` },
+    { text: `Integrating: $y = ${antiTexOf(ivp.rhs.px)} + c$, with $c$ fixed by $y = ${fmt(ivp.y0)}$ at $x = ${fmt(ivp.x0)}$ (Differential Equations Basics, A Particular Solution).` },
     { tex: aligned(`y(${fmt(X)}) &= ${fmt(ivp.y0)} + ${paren(FX)}`, `&\\quad - ${paren(F0)}`, `&= ${fmt(exactY(ivp, X))}`) },
   ];
 }

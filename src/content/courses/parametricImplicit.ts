@@ -56,9 +56,10 @@ const DDT_DYDX = '\\frac{d}{dt}\\left(\\frac{dy}{dx}\\right)';
 export const parametricImplicit: Course = {
   id: 'parametric-implicit',
   title: 'Parametric & Implicit Differentiation',
-  blurb: 'Curves traced by a parameter, and gradients of curves that never say y =.',
+  // Its first two levels are shown in Parametric & Implicit Basics; see placement.ts.
+  blurb: 'Second derivatives, tangents and normals, related rates and areas for parametric and implicit curves.',
   category: 'advanced-maths',
-  // Between Differentiation (20), whose rules it uses, and Integration (30).
+  // Before Further Integration (30); the rules it uses are taught in Advanced Algebra.
   position: 25,
   levels: [
     {

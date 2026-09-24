@@ -1,4 +1,5 @@
 import type { Category, CategoryId, Course } from '../types';
+import { place } from '../placement';
 
 /**
  * Every course file in this folder, found by the bundler rather than imported
@@ -34,7 +35,9 @@ function tab(id: CategoryId, title: string, blurb: string, all: Course[]): Categ
   return { id, title, blurb, courses: all.filter((course) => course.category === id).sort(byPlace) };
 }
 
-const discovered = discoverCourses();
+// Some levels are shown in a different course from the file they are written
+// in; see placement.ts.
+const discovered = place(discoverCourses());
 
 /**
  * Courses grouped into the tabs on the home screen.

@@ -74,8 +74,10 @@ export const integration: Course = {
   id: 'integration',
   category: 'advanced-maths',
   position: 30,
-  title: 'Integration',
-  blurb: 'Differentiation run backwards, then areas, then the two techniques.',
+  // Its A-level levels are shown in Integration under Advanced Algebra; see
+  // placement.ts.
+  title: 'Further Integration',
+  blurb: 'Volumes of revolution, improper integrals, and the integral as the limit of a sum.',
   levels: [
     {
       id: 'in-l1',

@@ -55,7 +55,8 @@ export const differentialEquations: Course = {
   // After Integration (30), Vectors (40) and Matrices (50) — and Exponential Models, whose model it solves for.
   position: 70,
   title: 'Differential Equations',
-  blurb: 'Equations for a rate: forming them, separating the variables, modelling cooling, limits and mixing, the integrating factor, second-order equations with and without a right side, and simple harmonic and damped motion.',
+  // Its first two levels are shown in Differential Equations Basics; see placement.ts.
+  blurb: 'The integrating factor, second-order equations with and without a right side, and simple harmonic and damped motion.',
   levels: [
     {
       id: 'de-l1',

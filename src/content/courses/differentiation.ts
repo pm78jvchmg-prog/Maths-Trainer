@@ -55,8 +55,8 @@ const graph = (
 
 export const differentiation: Course = {
   id: 'differentiation',
-  category: 'advanced-maths',
-  position: 20,
+  category: 'advanced-algebra',
+  position: 22,
   title: 'Differentiation',
   blurb: 'Rates of change, from the power rule to sketching curves.',
   levels: [

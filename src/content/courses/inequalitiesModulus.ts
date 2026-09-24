@@ -628,7 +628,7 @@ export const inequalitiesModulus: Course = {
             ask('mod-both-root'),
             teach(
               prose(
-                'In level 2, $\\lvert x - 1 \\rvert = 2x + 5$ gave a root that failed, because the right-hand side could be negative there.',
+                'In The Modulus Function, $\\lvert x - 1 \\rvert = 2x + 5$ gave a root that failed, because the right-hand side could be negative there.',
               ),
               prose(
                 'With bars on **both** sides that cannot happen. Both sides are distances, so neither is ever negative, and every root the two cases give is a solution.',
@@ -812,7 +812,7 @@ export const inequalitiesModulus: Course = {
             ask('mod-false-root'),
             teach(
               prose(
-                'Square $\\lvert x - 1 \\rvert = 2x + 5$ from level 2 and factorise the difference of two squares:',
+                'Square $\\lvert x - 1 \\rvert = 2x + 5$ from The Modulus Function and factorise the difference of two squares:',
               ),
               maths('\\begin{gathered} (x - 1)^2 = (2x + 5)^2 \\\\ (-x - 6)(3x + 4) = 0 \\\\ x = -6 \\text{ or } x = -\\tfrac{4}{3} \\end{gathered}'),
               prose(

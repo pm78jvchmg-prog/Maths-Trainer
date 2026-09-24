@@ -72,6 +72,7 @@ export const sequencesSeries: Course = {
   id: 'sequences-series',
   category: 'algebra-fundamentals',
   position: 60,
+  // Its further-maths levels are shown in Series & Induction; see placement.ts.
   title: 'Sequences & Series',
   blurb: 'Rules that build a list of numbers term by term, and what those terms add up to.',
   levels: [
@@ -842,7 +843,7 @@ export const sequencesSeries: Course = {
             ask('seq-leftover-flow', 2),
             teach(
               prose('The partial sums can creep up very slowly. For $\\sum \\frac{7}{(r + 6)(r + 7)}$ the eighth is only just past half the limit, so read the limit from the algebra, not from the picture.'),
-              prose('Proving a sum formula for every $n$ is the next level: induction.'),
+              prose('Proving a sum formula for every $n$ is Proof by Induction for Series, later in Series & Induction.'),
             ),
             ask('seq-survivor-tree', 2),
             ask('seq-telescope-slider', 2),

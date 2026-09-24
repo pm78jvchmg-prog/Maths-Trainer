@@ -76,8 +76,9 @@ export const algebraicFractions: Course = {
   id: 'algebraic-fractions',
   category: 'algebra-fundamentals',
   position: 50,
-  title: 'Algebraic & Partial Fractions',
-  blurb: 'Fractions with x in them: simplifying, combining, solving, and splitting them back apart.',
+  // Its later levels are shown in other courses; see placement.ts.
+  title: 'Algebraic Fractions',
+  blurb: 'Fractions with x in them: simplifying, combining and solving.',
   levels: [
     {
       id: 'af-l1',

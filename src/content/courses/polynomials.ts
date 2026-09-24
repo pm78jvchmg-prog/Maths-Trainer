@@ -98,6 +98,7 @@ export const polynomials: Course = {
   id: 'polynomials',
   category: 'algebra-fundamentals',
   position: 40,
+  // Roots and Coefficients is shown in Roots of Polynomials; see placement.ts.
   title: 'Polynomials & the Factor Theorem',
   blurb: 'Cubics and beyond: their arithmetic, dividing them, and the theorem that finds their factors.',
   levels: [
@@ -747,7 +748,7 @@ export const polynomials: Course = {
           title: 'Sum and Product of Two Roots',
           slides: [
             teach(
-              prose('Level 2 went from a polynomial to its roots. This level goes the other way. Multiply out a quadratic with roots $\\alpha$ and $\\beta$:'),
+              prose('Polynomials & the Factor Theorem went from a polynomial to its roots. This level goes the other way. Multiply out a quadratic with roots $\\alpha$ and $\\beta$:'),
               working('&(x - \\alpha)(x - \\beta)', '=\\;&x^{2} - (\\alpha + \\beta)x + \\alpha\\beta'),
               prose(
                 'So in $x^{2} + bx + c$, the $x$ coefficient is minus the sum of the roots and the constant is their product. $x^{2} - 5x + 6$ has roots adding to $5$ and multiplying to $6$: they are $2$ and $3$.',

@@ -220,7 +220,8 @@ export const numericalMethods: Course = {
   category: 'advanced-maths',
   position: 80,
   title: 'Numerical Methods',
-  blurb: 'Roots and areas you cannot find exactly, pinned down by sign changes, iteration, tangents and trapezia.',
+  // Its first two levels are shown in Numerical Methods Basics; see placement.ts.
+  blurb: "Bounds and errors, Simpson's rule, Euler's method, and choosing between methods.",
   levels: [
     {
       id: 'nm-l1',
@@ -539,7 +540,7 @@ export const numericalMethods: Course = {
           slides: [
             teach(
               prose(
-                "Integration's rectangle sums (level 8) estimate an area with rectangles. The trapezium rule uses trapezia instead: split $[a, b]$ into $n$ strips of width $h = \\frac{b - a}{n}$ and join the heights with straight lines.",
+                "Rectangle sums (Further Integration, Integration as a Limit of a Sum) estimate an area with rectangles. The trapezium rule uses trapezia instead: split $[a, b]$ into $n$ strips of width $h = \\frac{b - a}{n}$ and join the heights with straight lines.",
               ),
               maths('\\begin{gathered} \\int_a^b y\\,dx \\approx \\frac{h}{2}\\big[y_0 + y_n \\\\ + 2(y_1 + \\cdots + y_{n-1})\\big] \\end{gathered}'),
               prose('The two end heights count once. Every height in the middle is shared by two trapezia, so it counts twice.'),
@@ -644,7 +645,7 @@ export const numericalMethods: Course = {
             ask('numer-abs-size-steps', 2),
             teach(
               prose(
-                'A value correctly rounded to 2 decimal places is never out by more than $0.005$, half a unit in the last place; level 2, A Root to a Set Accuracy, turned that into bounds. An estimate out by more than that is not the correctly rounded value, however many places it shows.',
+                'A value correctly rounded to 2 decimal places is never out by more than $0.005$, half a unit in the last place; Numerical Methods Basics, A Root to a Set Accuracy, turned that into bounds. An estimate out by more than that is not the correctly rounded value, however many places it shows.',
               ),
             ),
             ask('numer-closest-choice', 2),
@@ -690,7 +691,7 @@ export const numericalMethods: Course = {
           slides: [
             teach(
               prose(
-                'A value rounded to 1 decimal place could be anywhere within $0.05$ of it (level 2, A Root to a Set Accuracy): $a = 3.4$ means $3.35 \\le a < 3.45$. Calculate with rounded values and the result is uncertain too.',
+                'A value rounded to 1 decimal place could be anywhere within $0.05$ of it (Numerical Methods Basics, A Root to a Set Accuracy): $a = 3.4$ means $3.35 \\le a < 3.45$. Calculate with rounded values and the result is uncertain too.',
               ),
               prose('With $b = 2.7$ as well, the least sum takes both lower bounds and the greatest both upper bounds:'),
               working('3.35 + 2.65 &= 6.0', '3.45 + 2.75 &= 6.2'),
@@ -734,7 +735,7 @@ export const numericalMethods: Course = {
             ask('numer-carry-error'),
             ask('numer-carry-slider'),
             teach(
-              prose("Near the root each step multiplies the error by about $g'(\\alpha)$ (level 1, When Iteration Fails):"),
+              prose("Near the root each step multiplies the error by about $g'(\\alpha)$ (Numerical Methods Basics, When Iteration Fails):"),
               maths("x_{n+1} - \\alpha \\approx g'(\\alpha)(x_n - \\alpha)"),
               prose("Above, $g'(x) = \\frac{1}{2\\sqrt{x + 3}}$ and $g'(\\alpha) \\approx 0.22$, so a gap of $0.01$ becomes about $0.002$."),
             ),
@@ -810,7 +811,7 @@ export const numericalMethods: Course = {
           slides: [
             teach(
               prose(
-                "The trapezium rule joins the heights with straight lines (level 2, The Trapezium Rule). **Simpson's rule** takes the strips two at a time and runs a parabola through each three heights, which follows a bending curve far more closely.",
+                "The trapezium rule joins the heights with straight lines (Numerical Methods Basics, The Trapezium Rule). **Simpson's rule** takes the strips two at a time and runs a parabola through each three heights, which follows a bending curve far more closely.",
               ),
               parabolaFigure,
               prose('For two strips of width $h$, with heights $y_0$, $y_1$, $y_2$:'),
@@ -877,7 +878,7 @@ export const numericalMethods: Course = {
           slides: [
             teach(
               prose(
-                'The same heights give two estimates. The trapezium rule joins them with straight chords, which cut across a bend (level 2, Over or Under); the parabolas follow it.',
+                'The same heights give two estimates. The trapezium rule joins them with straight chords, which cut across a bend (Numerical Methods Basics, Over or Under); the parabolas follow it.',
               ),
               working('T &= \\tfrac{h}{2}(y_0 + 2y_1 + y_2)', 'S &= \\tfrac{h}{3}(y_0 + 4y_1 + y_2)'),
             ),
@@ -1106,11 +1107,11 @@ export const numericalMethods: Course = {
           slides: [
             teach(
               prose(
-                'When $\\frac{dy}{dx}$ is in $x$ alone, the equation can be solved exactly by integrating and fixing the constant from the starting point (Differential Equations level 1, A Particular Solution). Then the estimate can be checked.',
+                'When $\\frac{dy}{dx}$ is in $x$ alone, the equation can be solved exactly by integrating and fixing the constant from the starting point (Differential Equations Basics, A Particular Solution). Then the estimate can be checked.',
               ),
               prose('$\\frac{dy}{dx} = 2x + 1$ with $y = 1$ at $x = 0$ gives $y = x^{2} + x + 1$. At $x = 1.5$:'),
               working('y(1.5) &= 2.25 + 1.5 + 1', '&= 4.75', '\\text{error} &= 4 - 4.75', '&= -0.75'),
-              prose('As in level 3, the error is the estimate minus the true value, so a negative error means the estimate is too low.'),
+              prose('As in Bounds and Errors, the error is the estimate minus the true value, so a negative error means the estimate is too low.'),
             ),
             ask('numer-euler-exact-steps'),
             ask('numer-euler-error-tree'),
@@ -1195,7 +1196,7 @@ export const numericalMethods: Course = {
           slides: [
             teach(
               prose(
-                'A change of sign on $[a, b]$ traps a root (level 1, The Change of Sign). **Bisection** tightens the trap: work out $f$ at the midpoint $m = \\frac{a + b}{2}$, and keep the half whose ends still differ in sign.',
+                'A change of sign on $[a, b]$ traps a root (Numerical Methods Basics, The Change of Sign). **Bisection** tightens the trap: work out $f$ at the midpoint $m = \\frac{a + b}{2}$, and keep the half whose ends still differ in sign.',
               ),
               bisectionFigure,
               prose('Each halving keeps the root trapped and halves the interval. It cannot fail once it has started.'),
@@ -1234,7 +1235,7 @@ export const numericalMethods: Course = {
           slides: [
             teach(
               prose(
-                'Three ways to chase one root: bisection on a bracket, the iteration $x_{n+1} = g(x_n)$ (level 1, Rearranging to x = g(x)), and Newton-Raphson, $x_{n+1} = x_n - \\frac{f(x_n)}{f\'(x_n)}$ (level 2, The Tangent Step).',
+                'Three ways to chase one root: bisection on a bracket, the iteration $x_{n+1} = g(x_n)$ (Numerical Methods Basics, Rearranging to x = g(x)), and Newton-Raphson, $x_{n+1} = x_n - \\frac{f(x_n)}{f\'(x_n)}$ (Numerical Methods Basics, The Tangent Step).',
               ),
               prose(
                 'For $f(x) = x^{3} - 2x - 5$: bisection on $[2, 3]$, the iteration $x_{n+1} = \\sqrt[3]{2x_n + 5}$, and Newton-Raphson, both from $x_0 = 2$.',
@@ -1276,7 +1277,7 @@ export const numericalMethods: Course = {
               prose("**Iteration** multiplies its error by about $|g'(\\alpha)|$."),
               prose('**Newton-Raphson** roughly doubles its correct decimal places.'),
               prose(
-                'Halving is one binary place a step, so about $3.3$ steps for each decimal place. The iteration factor is level 3, The Error After k Steps.',
+                'Halving is one binary place a step, so about $3.3$ steps for each decimal place. The iteration factor is in Bounds and Errors, The Error After k Steps.',
               ),
             ),
             ask('numer-speed-flow'),
@@ -1312,7 +1313,7 @@ export const numericalMethods: Course = {
               prose("**Iteration** runs away when $|g'(\\alpha)| > 1$."),
               prose("**Newton-Raphson** has no next value when $f'(x_0) = 0$: the tangent is flat."),
               prose(
-                'These are level 1, Where the Sign Test Fails and When Iteration Fails, and level 2, When Newton-Raphson Fails. Here all three are set up on one $f$, and the question is which fails.',
+                'These are Where the Sign Test Fails, When Iteration Fails and When Newton-Raphson Fails, all in Numerical Methods Basics. Here all three are set up on one $f$, and the question is which fails.',
               ),
             ),
             ask('numer-breaks-flow'),
@@ -1360,7 +1361,7 @@ export const numericalMethods: Course = {
             ask('numer-reach-choice', 2),
             teach(
               prose(
-                'In practice they are used together: a few halvings to get close safely, then Newton-Raphson to finish in two or three steps, and a sign change either side of the answer to prove it is right (level 2, A Root to a Set Accuracy).',
+                'In practice they are used together: a few halvings to get close safely, then Newton-Raphson to finish in two or three steps, and a sign change either side of the answer to prove it is right (Numerical Methods Basics, A Root to a Set Accuracy).',
               ),
             ),
             ask('numer-reach-value', 2),

@@ -980,9 +980,10 @@ export const coordinateGeometry: Course = {
               prose(
                 'A second test: the diagonals of a parallelogram **bisect each other**, so $AC$ and $BD$ have the same midpoint. And a quadrilateral whose diagonals share a midpoint is a parallelogram.',
               ),
-              maths(
-                '\\begin{aligned} M_{AC} &= \\left(\\tfrac{-3 + 3}{2}, \\tfrac{-2 + 2}{2}\\right) = (0, 0) \\\\ M_{BD} &= \\left(\\tfrac{1 + (-1)}{2}, \\tfrac{-1 + 1}{2}\\right) = (0, 0) \\end{aligned}',
+              prose(
+                'Average the ends of each diagonal. For $AC$: $\\tfrac{-3 + 3}{2} = 0$ and $\\tfrac{-2 + 2}{2} = 0$. For $BD$: $\\tfrac{1 + (-1)}{2} = 0$ and $\\tfrac{-1 + 1}{2} = 0$.',
               ),
+              maths('M_{AC} = M_{BD} = (0, 0)'),
               prose('One point, so the diagonals bisect each other. Two different points would mean it is not a parallelogram.'),
             ),
             ask('coord-para-diagonal-steps'),
@@ -992,7 +993,7 @@ export const coordinateGeometry: Course = {
               prose(
                 'Opposite sides are equal as well as parallel, so the step from $B$ to $A$ is the same as the step from $C$ to $D$. That finds a missing corner: $D = A + C - B$.',
               ),
-              maths('D = (-3 + 3 - 1, \\; -2 + 2 - (-1)) = (-1, 1)'),
+              maths('\\begin{aligned} x_D &= -3 + 3 - 1 = -1 \\\\ y_D &= -2 + 2 - (-1) = 1 \\end{aligned}'),
               prose(
                 'The equal gradients run backwards too. If $AB \\parallel DC$ and $D$ has an unknown height $k$, write the gradient of $DC$ with $k$ in it, set it equal to $m_{AB}$, and solve.',
               ),
@@ -1017,7 +1018,7 @@ export const coordinateGeometry: Course = {
                 'The rectangle with corners A(-2, -1), B(0, 0), C(-2, 4) and D(-4, 3)',
               ),
               prose('For the parallelogram $A(-2, -1)$, $B(0, 0)$, $C(-2, 4)$, $D(-4, 3)$:'),
-              maths('m_{AB} \\times m_{BC} = \\tfrac{1}{2} \\times (-2) = -1'),
+              maths('\\begin{aligned} m_{AB} &= \\tfrac{1}{2} \\\\ m_{BC} &= -2 \\\\ m_{AB} \\times m_{BC} &= -1 \\end{aligned}'),
               prose('So the angle at $B$ is a right angle, and $ABCD$ is a rectangle.'),
             ),
             ask('coord-rect-flow'),
@@ -1066,7 +1067,9 @@ export const coordinateGeometry: Course = {
             ask('coord-name-quad'),
             teach(
               prose('A second test: a parallelogram is a rhombus exactly when its **diagonals are perpendicular**. Here:'),
-              maths('m_{AC} \\times m_{BD} = \\frac{3 - (-1)}{1 - (-3)} \\times \\frac{2 - 0}{-2 - 0} = 1 \\times (-1) = -1'),
+              maths(
+                '\\begin{aligned} m_{AC} &= \\tfrac{4}{4} = 1 \\\\ m_{BD} &= \\tfrac{2}{-2} = -1 \\\\ m_{AC} \\times m_{BD} &= -1 \\end{aligned}',
+              ),
               prose('The diagonals cross at a right angle, so $ABCD$ is a rhombus.'),
             ),
             ask('coord-square-steps'),
@@ -1110,7 +1113,8 @@ export const coordinateGeometry: Course = {
               prose(
                 'Pythagoras works backwards as well: if the two shorter squared lengths add to the longest, the angle opposite the longest side is a right angle. No gradients, and no square roots:',
               ),
-              maths('\\begin{aligned} PQ^2 &= 5, \\quad QR^2 = 20, \\quad RP^2 = 25 \\\\ 5 + 20 &= 25 \\end{aligned}'),
+              maths('\\begin{aligned} PQ^2 &= 5 \\\\ QR^2 &= 20 \\\\ RP^2 &= 25 \\end{aligned}'),
+              prose('The two shorter add to the longest: $5 + 20 = 25$.'),
               prose('$RP$ is the longest side, so the right angle is opposite it, at $Q$.'),
             ),
             ask('coord-isosceles-flow'),
@@ -1119,7 +1123,7 @@ export const coordinateGeometry: Course = {
             teach(
               prose('A triangle is **isosceles** when two of its sides are equal. Compare all three squared lengths; the equal pair meet at the apex.'),
               prose('For $P(0, 3)$, $Q(-1, 1)$ and $R(1, 1)$:'),
-              maths('PQ^2 = 1 + 4 = 5, \\quad QR^2 = 4, \\quad RP^2 = 1 + 4 = 5'),
+              maths('\\begin{aligned} PQ^2 &= 1 + 4 = 5 \\\\ QR^2 &= 4 + 0 = 4 \\\\ RP^2 &= 1 + 4 = 5 \\end{aligned}'),
               prose('$PQ = RP$, so $PQR$ is isosceles with its apex at $P$.'),
             ),
             ask('coord-isosceles-flow', 2),
@@ -1156,7 +1160,7 @@ export const coordinateGeometry: Course = {
                 'To complete a named shape from three corners, every one of them is a parallelogram, so $D = A + C - B$. Then check the name: the right angle, the equal sides, or both.',
               ),
               prose('For the square with $A(-1, -1)$, $B(1, 0)$ and $C(0, 2)$:'),
-              maths('D = (-1 + 0 - 1, \\; -1 + 2 - 0) = (-2, 1)'),
+              maths('\\begin{aligned} x_D &= -1 + 0 - 1 = -2 \\\\ y_D &= -1 + 2 - 0 = 1 \\end{aligned}'),
             ),
             ask('coord-fails-one-choice', 2),
             ask('coord-rhombus-flow', 2),

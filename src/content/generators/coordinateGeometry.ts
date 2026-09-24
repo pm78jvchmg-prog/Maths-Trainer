@@ -5742,6 +5742,14 @@ function lengthLine(label: string, P: Pt, R: Pt): string {
   return `${label}^2 &= ${paren(x)}^2 + ${paren(y)}^2 = ${x * x + y * y}`;
 }
 
+/**
+ * A corner found as another corner plus a step, one coordinate a line, since
+ * both on one line is wider than a phone: x_D &= 3 + (-1) = 2, then y_D.
+ */
+function stepLines(letter: string, from: Pt, [dx, dy]: Pt): string[] {
+  return [`x_${letter} &= ${from[0]} + ${paren(dx)} = ${from[0] + dx}`, `y_${letter} &= ${from[1]} + ${paren(dy)} = ${from[1] + dy}`];
+}
+
 /** Two gradients multiplied, with a negative second one bracketed. */
 const productTex = (m1: Q, m2: Q): string => `${qTex(m1)} \\times ${qParen(m2)} = ${qTex(mul(m1, m2))}`;
 
@@ -5866,7 +5874,8 @@ function nameSolution([A, B, C]: Four, shape: QuadName): SolutionStep[] {
   return [
     { text: 'A parallelogram already has its opposite sides equal and parallel, so two sides that meet settle the rest:' },
     { tex: chain(lengthLine('AB', A, B), lengthLine('BC', B, C)) },
-    { tex: chain(gradientLine('AB', A, B), gradientLine('BC', B, C), `m_{AB} \\times m_{BC} &= ${productTex(mAB, mBC)}`) },
+    { tex: chain(gradientLine('AB', A, B), gradientLine('BC', B, C)) },
+    { text: `Multiplied: $${productTex(mAB, mBC)}$.` },
     {
       text: `${equal ? 'The sides are equal' : 'The sides are not equal'}, and ${right ? 'the product is $-1$, so the angle at $B$ is a right angle' : 'the product is not $-1$, so there is no right angle'}. So $ABCD$ is ${A_NAME[shape]}.`,
     },
@@ -6016,13 +6025,11 @@ const coordParaDiagonalSteps: Generator<CornersParams> = {
     const [mAC, mBD] = [midOf(A, C), midOf(B, D)];
     const yes = samePt(mAC, mBD);
     return [
-      { text: 'The midpoint of each diagonal is the average of its ends:' },
-      {
-        tex: chain(
-          `M_{AC} &= \\left(\\frac{${A[0]} + ${paren(C[0])}}{2}, \\frac{${A[1]} + ${paren(C[1])}}{2}\\right) = ${pt(...mAC)}`,
-          `M_{BD} &= \\left(\\frac{${B[0]} + ${paren(D[0])}}{2}, \\frac{${B[1]} + ${paren(D[1])}}{2}\\right) = ${pt(...mBD)}`,
-        ),
-      },
+      { text: 'The midpoint of each diagonal is the average of its ends. For $AC$:' },
+      { tex: chain(`x &= \\frac{${A[0]} + ${paren(C[0])}}{2} = ${mAC[0]}`, `y &= \\frac{${A[1]} + ${paren(C[1])}}{2} = ${mAC[1]}`) },
+      { text: 'And for $BD$:' },
+      { tex: chain(`x &= \\frac{${B[0]} + ${paren(D[0])}}{2} = ${mBD[0]}`, `y &= \\frac{${B[1]} + ${paren(D[1])}}{2} = ${mBD[1]}`) },
+      { text: `So $M_{AC} = ${pt(...mAC)}$ and $M_{BD} = ${pt(...mBD)}$.` },
       {
         text: yes
           ? 'They are the same point, so the diagonals bisect each other and $ABCD$ is a parallelogram.'
@@ -6081,14 +6088,10 @@ const coordParaFourthTiles: Generator<FourthParams> = {
     const [dx, dy] = minusPt(next, opp);
     return [
       {
-        text: `Opposite sides of a parallelogram are equal and parallel, so the step from $${names[2]}$ to $${names[1]}$ is the same as the step from $${names[0]}$ to $${QUAD[p.missing]}$.`,
+        text: `Opposite sides of a parallelogram are equal and parallel, so the step from $${names[2]}$ to $${names[1]}$, which is $${pt(dx, dy)}$, is the same as the step from $${names[0]}$ to $${QUAD[p.missing]}$:`,
       },
-      {
-        tex: chain(
-          `${names[1]} - ${names[2]} &= (${next[0]} - ${paren(opp[0])}, ${next[1]} - ${paren(opp[1])}) = ${pt(dx, dy)}`,
-          `${QUAD[p.missing]} &= (${prev[0]} + ${paren(dx)}, ${prev[1]} + ${paren(dy)}) = ${pt(...X)}`,
-        ),
-      },
+      { tex: chain(...stepLines(QUAD[p.missing], prev, [dx, dy])) },
+      { text: `So $${namedAt(QUAD[p.missing], X)}$.` },
     ];
   },
 };
@@ -6202,13 +6205,11 @@ const coordParaSlider: Generator<QuadSliderParams> = {
     const [A, B, C, D] = quadOf(p);
     const [dx, dy] = minusPt(A, B);
     return [
-      { text: 'Opposite sides of a parallelogram are equal and parallel, so $D$ is the same step from $C$ as $A$ is from $B$:' },
       {
-        tex: chain(
-          `A - B &= ${pt(dx, dy)}`,
-          `D &= (${C[0]} + ${paren(dx)}, ${C[1]} + ${paren(dy)}) = ${pt(...D)}`,
-        ),
+        text: `Opposite sides of a parallelogram are equal and parallel, so $D$ is the same step from $C$ as $A$ is from $B$, which is $${pt(dx, dy)}$:`,
       },
+      { tex: chain(...stepLines('D', C, [dx, dy])) },
+      { text: `So $${namedAt('D', D)}$.` },
     ];
   },
 };
@@ -6916,9 +6917,11 @@ const coordCompleteChoice: Generator<QuadParams> = {
     const [A, B, C, D] = P;
     const [dx, dy] = minusPt(A, B);
     return [
-      { text: `Every ${p.shape} is a parallelogram, so $D$ is the same step from $C$ as $A$ is from $B$:` },
-      { tex: chain(`A - B &= ${pt(dx, dy)}`, `D &= (${C[0]} + ${paren(dx)}, ${C[1]} + ${paren(dy)}) = ${pt(...D)}`) },
-      { text: 'A check that it is the right shape:' },
+      {
+        text: `Every ${p.shape} is a parallelogram, so $D$ is the same step from $C$ as $A$ is from $B$, which is $${pt(dx, dy)}$:`,
+      },
+      { tex: chain(...stepLines('D', C, [dx, dy])) },
+      { text: `So $${namedAt('D', D)}$. A check that it is the right shape:` },
       ...nameSolution(P, p.shape).slice(1),
     ];
   },
@@ -6984,7 +6987,8 @@ const coordFailsOneChoice: Generator<CornersParams> = {
     };
     const failed = (Object.keys(tests) as SquareTest[]).find((test) => !tests[test]) as SquareTest;
     return [
-      { tex: chain(gradientLine('AB', A, B), gradientLine('DC', D, C), gradientLine('AD', A, D), gradientLine('BC', B, C)) },
+      { tex: chain(gradientLine('AB', A, B), gradientLine('DC', D, C)) },
+      { tex: chain(gradientLine('AD', A, D), gradientLine('BC', B, C)) },
       { text: `$m_{AB} \\times m_{BC} = ${productTex(mAB, mBC)}$.` },
       { tex: chain(lengthLine('AB', A, B), lengthLine('BC', B, C)) },
       { text: verdict[failed] },

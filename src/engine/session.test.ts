@@ -745,9 +745,9 @@ describe('decision tree grading', () => {
  * Reducing an expression.
  *
  * Graded by replaying the moves over the original tree, so there is no expected
- * sequence and every order precedence allows passes equally. What fails is a
- * piece taken before its operands were settled — which is the order mistake,
- * and it fails whatever value came with it.
+ * sequence and the value is the only test. A piece taken before its operands
+ * were settled is not refused for that: it is marked on the number given for
+ * it, which is where an order mistake shows.
  */
 describe('reduce grading', () => {
   // 2^3 + (5 - 3)^2 x sqrt(9) = 20, the expression from the reference app.

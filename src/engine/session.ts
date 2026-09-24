@@ -475,8 +475,9 @@ function grade(slide: Slide, answer: Answer, seed: number): Feedback {
      * Re-walk the learner's reductions over the original expression.
      *
      * The whole grade is the replay: nothing is compared against an expected
-     * sequence, so any order precedence allows passes, and a reduction taken
-     * before its operands were settled fails whatever value came with it.
+     * sequence, and the value is the only test. A reduction taken before its
+     * operands were settled is not refused for that; it is marked on the
+     * number given for it, which is where an order mistake shows.
      */
     case 'reduce': {
       if (!Array.isArray(answer)) return { kind: 'incorrect' };

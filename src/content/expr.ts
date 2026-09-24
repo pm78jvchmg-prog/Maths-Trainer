@@ -16,11 +16,13 @@
  * - what a piece is worth (`valueOf`),
  * - what the expression becomes once a piece is replaced (`reduceAt`).
  *
- * Grading needs no authored answer sequence. A walk is correct when every
- * reduction was legal *at the moment it was made*, every value was right, and
- * nothing is left. Any order precedence permits is therefore accepted, which is
- * the honest rule: doing the root before the bracket is not a mistake, and
- * marking it one would teach a superstition.
+ * Grading needs no authored answer sequence. A walk is correct when every value
+ * was right and nothing is left: the value is the only test (see `replay`), so
+ * a piece taken before its operands were settled is marked on the number given
+ * for it, which is where an order mistake shows. Any order that gets the
+ * numbers right is therefore accepted, which is the honest rule: doing the root
+ * before the bracket is not a mistake, and marking it one would teach a
+ * superstition.
  */
 
 export type Expr =

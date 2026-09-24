@@ -780,6 +780,16 @@ interface MissingParams extends MatrixPairParams {
 }
 
 /**
+ * The four entries of the missing matrix: `A + X = E` gives `X = E - A`, and
+ * `A - X = E` gives `X = A - E`.
+ */
+function missingEntries(p: MissingParams): number[] {
+  return p.addend
+    ? [p.e - p.a, p.f - p.b, p.g - p.c, p.h - p.d]
+    : [p.a - p.e, p.b - p.f, p.c - p.g, p.d - p.h];
+}
+
+/**
  * The matrix that completes an equation.
  *
  * `mat-add` asks what two matrices come to; this asks what is missing, which
@@ -789,12 +799,12 @@ interface MissingParams extends MatrixPairParams {
 const missing: Generator<MissingParams> = {
   id: 'mat-missing',
   choices: (p) => {
-    const sign = p.addend ? 1 : -1;
+    const [w, x, y, z] = missingEntries(p);
     return options(
-      { tex: matrixTex(p.e - sign * p.a, p.f - sign * p.b, p.g - sign * p.c, p.h - sign * p.d) },
+      { tex: matrixTex(w, x, y, z) },
       // The two sides subtracted the other way round, and added instead.
-      { tex: matrixTex(sign * p.a - p.e, sign * p.b - p.f, sign * p.c - p.g, sign * p.d - p.h) },
-      { tex: matrixTex(p.e + sign * p.a, p.f + sign * p.b, p.g + sign * p.c, p.h + sign * p.d) },
+      { tex: matrixTex(-w, -x, -y, -z) },
+      { tex: matrixTex(p.e + p.a, p.f + p.b, p.g + p.c, p.h + p.d) },
       { tex: matrixTex(p.e, p.f, p.g, p.h) },
     );
   },
@@ -803,13 +813,7 @@ const missing: Generator<MissingParams> = {
     addend: rng.pick([true, false]),
   }),
   render: (p) => {
-    const sign = p.addend ? 1 : -1;
-    const entries = [
-      p.e - sign * p.a,
-      p.f - sign * p.b,
-      p.g - sign * p.c,
-      p.h - sign * p.d,
-    ];
+    const entries = missingEntries(p);
     return {
       kind: 'tiles',
       prompt: [
@@ -824,14 +828,13 @@ const missing: Generator<MissingParams> = {
         entries.map(String),
         // The subtraction taken the other way round, which is the whole of
         // what goes wrong here.
-        [sign * p.a - p.e, sign * p.b - p.f, sign * p.c - p.g, sign * p.d - p.h].map(String),
+        entries.map((entry) => String(-entry)),
       ),
       answer: entries.map(String),
     };
   },
   solution: (p) => {
-    const sign = p.addend ? 1 : -1;
-    const entries = [p.e - sign * p.a, p.f - sign * p.b, p.g - sign * p.c, p.h - sign * p.d];
+    const entries = missingEntries(p);
     return [
       {
         text: p.addend

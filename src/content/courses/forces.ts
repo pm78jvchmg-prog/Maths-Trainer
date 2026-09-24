@@ -8,19 +8,26 @@
  * tension, and equilibrium on a slope with friction up to its limit, F <= mu R.
  * Level 2 is dynamics: F = ma along a line and with vectors, connected
  * particles on a tow bar and over a pulley, motion on a rough slope, Newton's
- * third law and the force between two touching bodies, and lifts.
+ * third law and the force between two touching bodies, and lifts. Level 3 is
+ * connected particles on slopes: a pulley at the top of a slope with one
+ * particle hanging, then with friction and the case where nothing moves, a
+ * string over a peg with friction on both sides, the string going slack when
+ * the hanging particle lands (Kinematics' v^2 = u^2 + 2as, kn-l2-more, used
+ * rather than taught), and putting it together with a free-body diagram for
+ * each particle and a check on the tension.
  *
  * Vectors, right-angled trigonometry and Pythagoras are used here, not taught
  * again: each angle is given through a 3-4-5 or 7-24-25 triangle so the sine
  * and cosine are exact, and a lesson says how to read them off. g = 9.8 is
  * stated where weight first appears and in every question that needs it.
- * Several lessons will later draw their free-body diagrams with the `forces`
- * widget (see docs/roadmap/levels/forces.md); for now the diagrams are teach
- * figures. Each level closes with a level check: questions only, no teaching
+ * Levels 1 and 2 draw their free-body diagrams as teach figures, and several
+ * of their lessons will later ask them on the `forces` widget (see
+ * docs/roadmap/levels/forces.md); level 3 asks them on the widget already.
+ * Each level closes with a level check: questions only, no teaching
  * slides, one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
-import { A34, A43, arrowsSvg, hangingSvg, pulleySvg, slopeSvg } from '../generators/forces';
+import { A34, A43, DROP, FLAT, arrowsSvg, hangingSvg, pulleySvg, rigSvg, slopeSvg } from '../generators/forces';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -539,6 +546,207 @@ export const forces: Course = {
         ask('force-lift', 2),
         ask('force-lift-table', 2),
         ask('force-cable-tree', 2),
+      ],
+    },
+    {
+      id: 'fo-l3',
+      title: 'Connected Particles on Slopes',
+      lessons: [
+        {
+          // Builds on fo-l2-connected (a pulley, one equation per particle) and fo-l2-slope (F = ma along a slope).
+          id: 'fo-l3-incline',
+          title: 'A Pulley at the Top of a Slope',
+          slides: [
+            teach(
+              prose(
+                'Particle $A$ lies on a slope. A light string runs from it up the slope, over a smooth pulley at the top, to particle $B$, which hangs down the far side.',
+              ),
+              diagram(rigSvg(A34, DROP)),
+              prose(
+                "Which way they move is a contest between two pulls along the string: $B$'s whole weight, $m_{B}g$, and the part of $A$'s weight down the slope, $m_{A}g\\sin\\alpha$.",
+              ),
+              prose('Whichever is bigger wins: its particle goes down and drags the other. If they are equal, nothing moves.'),
+            ),
+            ask('force-incline-way'),
+            ask('force-incline-balance'),
+            ask('force-incline-pick'),
+            teach(
+              prose(
+                'Once you know the way, write $F = ma$ for each particle in its own direction of motion, as for two particles over a pulley in Connected Particles. If $B$ falls, $A$ first and then $B$:',
+              ),
+              working('T - m_{A}g\\sin\\alpha &= m_{A}a', 'm_{B}g - T &= m_{B}a'),
+              prose('Add the two equations and $T$ drops out, leaving $a$. $A$\'s normal reaction plays no part: it acts at right angles to the motion.'),
+            ),
+            ask('force-incline-tiles'),
+            ask('force-incline'),
+            ask('force-incline-system-tree'),
+            teach(
+              prose('Then put $a$ back into either equation for the tension. $B$\'s is usually the shorter: $T = m_{B}(g - a)$.'),
+              prose(
+                'If $A$ is the one that wins, everything turns round: $A$ slides down with $m_{A}g\\sin\\alpha - T = m_{A}a$, and $B$ rises with $T - m_{B}g = m_{B}a$.',
+              ),
+            ),
+            ask('force-incline+choice'),
+            ask('force-incline-way'),
+          ],
+          skillCheck: [ask('force-incline-tiles'), ask('force-incline'), ask('force-incline-system-tree')],
+        },
+        {
+          // Friction on a slope is fo-l1-friction (F <= mu R) and fo-l2-slope (mu R against the motion).
+          id: 'fo-l3-rough',
+          title: 'Adding Friction',
+          slides: [
+            teach(
+              prose(
+                'On a rough slope friction acts on $A$ as well, along the slope. As in Motion on a Slope, it opposes the motion, so decide which way the system moves **first**, then draw friction against it.',
+              ),
+              prose(
+                'Moving, friction is at its limit, $F = \\mu R$, with $R = m_{A}g\\cos\\alpha$ from resolving at right angles to the slope. If $B$ falls and drags $A$ up, with $F = \\mu R$, $A$ first and then $B$:',
+              ),
+              working('T - m_{A}g\\sin\\alpha - F &= m_{A}a', 'm_{B}g - T &= m_{B}a'),
+            ),
+            ask('force-incline-way', 2),
+            ask('force-incline-system-tree', 2),
+            ask('force-incline-fill', 2),
+            teach(
+              prose(
+                'The system may not move at all. Friction can give up to $\\mu R$, in whichever direction holds $A$ still. If the difference between the two pulls is no more than $\\mu R$, nothing moves.',
+              ),
+              prose(
+                'Then the tension is just $B$\'s weight, and friction gives only what balances $A$: the difference between the pulls, not $\\mu R$.',
+              ),
+            ),
+            ask('force-incline-rest-steps'),
+            ask('force-incline-balance', 2),
+            ask('force-incline-tiles', 2),
+            teach(
+              prose(
+                'So a hanging mass holds $A$ still anywhere between $m_{A}(\\sin\\alpha - \\mu\\cos\\alpha)$, with $A$ about to slide down, and $m_{A}(\\sin\\alpha + \\mu\\cos\\alpha)$, with $A$ about to be pulled up.',
+              ),
+            ),
+            ask('force-incline', 2),
+            ask('force-incline-rest-steps', 2),
+          ],
+          skillCheck: [ask('force-incline', 2), ask('force-incline-system-tree', 2), ask('force-incline-rest-steps', 2)],
+        },
+        {
+          id: 'fo-l3-peg',
+          title: 'Over a Peg',
+          slides: [
+            teach(
+              prose(
+                'Two rough slopes meet at a ridge, with a smooth peg along the top. $A$ is on one slope and $B$ on the other, joined by a light string over the peg.',
+              ),
+              diagram(rigSvg(A43, A34)),
+              prose(
+                'Resolve for each particle on its own slope: $mg\\sin\\theta$ down that slope, $R = mg\\cos\\theta$ at right angles to it, and friction up to $\\mu R$. Each particle has its own $\\theta$, $\\mu$ and $R$.',
+              ),
+            ),
+            ask('force-peg-table'),
+            ask('force-peg-flow'),
+            ask('force-peg-tiles'),
+            teach(
+              prose(
+                'The particle whose weight pulls harder down its slope goes down, but only if the difference beats **both** frictions together. Moving, each friction is $\\mu R$ against its own particle\'s motion: $F_{A}$ on $A$ and $F_{B}$ on $B$. If $B$ goes down, $A$ first and then $B$:',
+              ),
+              working('T - m_{A}g\\sin\\alpha - F_{A} &= m_{A}a', 'm_{B}g\\sin\\beta - T - F_{B} &= m_{B}a'),
+              prose('Add them for $a$, as before, then either one gives $T$.'),
+            ),
+            ask('force-peg'),
+            ask('force-incline-pick', 2),
+            ask('force-peg+choice', 2),
+            teach(
+              prose(
+                'A rough table with a slope beyond its edge is the same thing with $\\alpha = 0$: none of $A$\'s weight acts along the table, and $R_{A} = m_{A}g$.',
+              ),
+              diagram(rigSvg(FLAT, A34)),
+            ),
+            ask('force-peg-table', 2),
+            ask('force-peg-tiles', 2),
+          ],
+          skillCheck: [ask('force-peg', 2), ask('force-peg-tiles', 2), ask('force-peg-flow', 2)],
+        },
+        {
+          // The suvat equations are kn-l2-more (v^2 = u^2 + 2as) in Kinematics; used here, not taught again.
+          id: 'fo-l3-slack',
+          title: 'When the String Goes Slack',
+          slides: [
+            teach(
+              prose(
+                '$B$ starts a height $h$ above the ground and falls, pulling $A$ up the slope. When $B$ lands it stops, the string goes slack, and the tension drops to zero.',
+              ),
+              diagram(rigSvg(A34, DROP, { gap: true })),
+              prose(
+                'Up to that moment both move with the same acceleration $a$, from rest, through the same distance $h$. So $A$\'s speed as $B$ lands comes from $v^{2} = u^{2} + 2as$, from Kinematics:',
+              ),
+              display('v^{2} = 2ah'),
+            ),
+            ask('force-slack-speed'),
+            ask('force-slack-distance-steps'),
+            ask('force-slack-stages-tree'),
+            teach(
+              prose(
+                'After that $A$ carries on up the slope with no tension. Gravity and friction both act down the slope, against its motion, so it slows with deceleration $g(\\sin\\alpha + \\mu\\cos\\alpha)$ until it stops.',
+              ),
+              prose(
+                'Then it may slide back. Compare $mg\\sin\\alpha$ with $\\mu R$, as in Slopes and Friction: if the pull is bigger, $A$ slides back down. On a table only friction slows it, $\\mu g$, and the question is whether it reaches the pulley first.',
+              ),
+            ),
+            ask('force-slack-flow'),
+            ask('force-slack-speed+choice', 2),
+            ask('force-incline', 2),
+            teach(prose('The whole distance $A$ goes up the slope is $h$ with the string taut, plus the extra distance with it slack.')),
+            ask('force-slack-stages-tree', 2),
+            ask('force-slack-flow', 2),
+          ],
+          skillCheck: [ask('force-slack-speed', 2), ask('force-slack-stages-tree', 2), ask('force-slack-flow', 2)],
+        },
+        {
+          id: 'fo-l3-together',
+          title: 'Putting It Together',
+          slides: [
+            teach(
+              prose('Every connected-particle question goes the same way:'),
+              prose(
+                '**1.** Draw the forces on each particle separately. **2.** Decide which way the system moves, and whether it moves at all. **3.** Write $F = ma$ for each particle in its own direction of motion. **4.** Add the equations for $a$, then find $T$.',
+              ),
+            ),
+            ask('force-incline-pick'),
+            ask('force-incline-fill', 2),
+            ask('force-incline-tiles', 2),
+            teach(
+              prose(
+                '**5.** Check the tension. If $B$ hangs and falls, it accelerates downwards, so the string pulls it up with **less** than its weight: $T < m_{B}g$.',
+              ),
+              prose(
+                "And $A$ accelerates up the slope, so the tension must beat what holds it back: $T > m_{A}g\\sin\\alpha + F$. A tension outside that range has a slip in it, usually a sign in one of the equations.",
+              ),
+            ),
+            ask('force-incline-check'),
+            ask('force-incline-pick', 2),
+            ask('force-peg+choice', 2),
+            ask('force-incline-check', 2),
+            ask('force-slack-speed', 2),
+          ],
+          skillCheck: [ask('force-incline-fill', 2), ask('force-incline-check', 2), ask('force-incline-pick', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('force-incline-way', 2),
+        ask('force-incline-tiles', 2),
+        ask('force-incline', 2),
+        ask('force-incline-system-tree', 2),
+        ask('force-incline-balance', 2),
+        ask('force-incline-rest-steps', 2),
+        ask('force-peg-table', 2),
+        ask('force-peg-tiles', 2),
+        ask('force-peg', 2),
+        ask('force-peg-flow', 2),
+        ask('force-slack-speed', 2),
+        ask('force-slack-stages-tree', 2),
+        ask('force-slack-flow', 2),
+        ask('force-incline-fill', 2),
+        ask('force-incline-check', 2),
       ],
     },
   ],

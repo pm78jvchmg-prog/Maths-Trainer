@@ -13,6 +13,7 @@ import type { Generator, GeneratorRegistry, Lesson, Slide } from '../types';
 import { orderBank, proofOrderGenerators } from './proofOrder';
 import { numberProofOrders } from './numberProof';
 import { numberDivisibilityOrders } from './numberDivisibility';
+import { numberEuclidOrders } from './numberEuclid';
 import { coordinateGeometryOrders } from './coordinateGeometry';
 
 type OrderSlide = Extract<Slide, { kind: 'order' }>;
@@ -23,7 +24,13 @@ const DIFFICULTIES = [1, 2];
 // Every order generator in the library, the demos, the Number & Proof
 // course's own and Coordinate Geometry's, so each one's proofs are graded the
 // way a learner's are.
-const orderGenerators = [...proofOrderGenerators, ...numberProofOrders, ...numberDivisibilityOrders, ...coordinateGeometryOrders] as Generator<unknown>[];
+const orderGenerators = [
+  ...proofOrderGenerators,
+  ...numberProofOrders,
+  ...numberDivisibilityOrders,
+  ...numberEuclidOrders,
+  ...coordinateGeometryOrders,
+] as Generator<unknown>[];
 
 const registry: GeneratorRegistry = Object.fromEntries(
   orderGenerators.map((g) => [g.id, g as unknown as Generator<never>]),

@@ -849,3 +849,336 @@ describe('connected particles on slopes', TIME, () => {
     });
   });
 });
+
+/*
+ * Level 4: moments. Each beam's forces and distances are checked to be the
+ * ones the prompt states, then its reactions come from the two equilibrium
+ * equations solved afresh: resolving, and moments about A, solved together
+ * by Cramer's rule rather than by taking moments about a support as the
+ * generator does. A tipping point is checked by putting the person there and
+ * finding the far reaction zero, and a little further on negative. The ladder
+ * takes its angle off the prompt's sine and cosine, or its tangent, through
+ * `Math.atan2`, and balances moments about its foot as a cross product.
+ */
+
+/** A number as the prose writes it. */
+const txt = (v: number) => String(Number(v.toFixed(6)));
+
+/** The prompt states this many newtons, or metres. */
+function states(slide: Slide, v: number, unit: 'N' | 'm', where: string): void {
+  expect(promptText(slide), `${where}: ${v} ${unit} not stated`).toContain(`$${txt(v)}\\text{ ${unit}}$`);
+}
+
+interface Down {
+  x: number;
+  w: number;
+}
+
+/** Both reactions from resolving and moments about A, solved together. */
+function supported(c: number, d: number, down: Down[]): { RC: number; RD: number } {
+  const total = down.reduce((s, f) => s + f.w, 0);
+  const turn = down.reduce((s, f) => s + f.w * f.x, 0);
+  // RC + RD = total, c RC + d RD = turn.
+  const det = d - c;
+  return { RC: (total * d - turn) / det, RD: (turn - total * c) / det };
+}
+
+interface HandBeam {
+  L: number;
+  W: number;
+  c: number;
+  d: number;
+  loads: { x: number; w: number }[];
+}
+
+const downs = (b: HandBeam): Down[] => [{ x: b.L / 2, w: b.W }, ...b.loads.map(({ x, w }) => ({ x, w }))];
+
+function statesBeam(slide: Slide, b: HandBeam, where: string, weighed = true): void {
+  states(slide, b.L, 'm', where);
+  if (weighed) states(slide, b.W, 'N', where);
+  for (const x of [b.c, b.d]) if (x !== 0 && x !== b.L) states(slide, x, 'm', where);
+}
+
+/** A beam's reactions by hand, with its weight and loads checked against the prompt. */
+function beamByHand(slide: Slide, b: HandBeam, where: string) {
+  statesBeam(slide, b, where);
+  for (const l of b.loads) states(slide, l.w, 'N', where);
+  return supported(b.c, b.d, downs(b));
+}
+
+/** The resultant moment about p of vertical forces, clockwise positive: minus the cross product. */
+const clockwise = (p: number, forces: { x: number; F: number; up: boolean }[]) =>
+  -forces.reduce((s, f) => s + (f.x - p) * (f.up ? f.F : -f.F), 0);
+
+describe('moments', TIME, () => {
+  it('the moment of one force: the part at right angles times the distance', () => {
+    for (const { params, slide } of draws(g.moment)) {
+      const { F, d, t } = params;
+      states(slide, F, 'N', 'moment');
+      const along = t ? Math.sin(Math.atan2(t.o, t.a)) : 1;
+      if (t) expect(promptText(slide)).toContain(`\\sin\\theta = ${txt(t.o / t.h)}$`);
+      expectClose(answerOf(slide), [F * along * d], 'moment');
+    }
+    choicesAgree(g.moment);
+  });
+
+  it('the resultant moment about a pivot: its size and its sense', () => {
+    for (const { params, slide } of draws(g.momentSense)) {
+      if (slide.kind !== 'choice') throw new Error('expected a choice');
+      params.forces.forEach((f, i) => expect(promptText(slide)).toContain(`F_{${i + 1}} = ${f.F}\\text{ N}$ ${f.up ? 'upwards' : 'downwards'}`));
+      const net = clockwise(params.p, params.forces);
+      const label = slide.options.find((o) => o.id === slide.correctId)!.label;
+      expect(label).toBe(`${txt(Math.abs(net))}\\text{ N m ${net > 0 ? 'clockwise' : 'anticlockwise'}}`);
+      expect(new Set(slide.options.map((o) => o.label)).size).toBe(slide.options.length);
+    }
+  });
+
+  it('each distance from the pivot, and each moment', () => {
+    for (const { params, slide } of draws(g.momentTable)) {
+      const want = params.forces.flatMap((f) => {
+        const arm = Math.abs(f.x - params.p);
+        return params.hard ? [arm, f.F * arm] : [f.F * arm];
+      });
+      expectClose(answerOf(slide), want, 'moment table');
+    }
+  });
+
+  it('the resultant moment, worked on the line', () => {
+    for (const { params, slide } of draws(g.momentSumSteps)) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      const net = Math.abs(clockwise(params.p, params.forces));
+      expectClose(answerOf(slide), [net], 'moment steps');
+      expect(close(lineValue(slide.start), net)).toBe(true);
+    }
+  });
+
+  it('a uniform rod: each reaction, and the reactions from the tree', () => {
+    for (const { params, slide } of draws(g.rod)) {
+      const r = beamByHand(slide, params.beam, 'rod');
+      expectClose(answerOf(slide), [r[params.find]], 'rod');
+      expect(r.RC).toBeGreaterThan(0);
+      expect(r.RD).toBeGreaterThan(0);
+    }
+    choicesAgree(g.rod);
+    for (const { params, slide } of draws(g.rodReactionsTree)) {
+      const b = params.beam;
+      const r = beamByHand(slide, b, 'rod tree');
+      expectClose(answerOf(slide), [b.W * (b.L / 2 - b.c), r.RD, r.RC], 'rod tree');
+    }
+  });
+
+  it('the moments equation for a rod balances with the reaction worked out by hand', () => {
+    for (const { params, slide } of draws(g.rodTiles)) {
+      const b = params.beam;
+      const r = beamByHand(slide, b, 'rod tiles');
+      const [gap, W, arm] = answerOf(slide);
+      expect(W).toBe(b.W);
+      expect(gap).toBe(b.d - b.c);
+      expect(close((params.about === 'C' ? r.RD : r.RC) * gap, W * arm)).toBe(true);
+    }
+  });
+
+  it('the slider puts D where its reaction is the one stated', () => {
+    for (const { params, slide } of draws(g.rodSlider)) {
+      const b = params.beam;
+      const stated = quoted(slide, 'The reaction at $D$');
+      const [D] = answerOf(slide);
+      expect(close(supported(b.c, D, downs(b)).RD, stated)).toBe(true);
+      // Half a metre either way gives a different reaction, so the answer is the only one.
+      for (const other of [D - 0.5, D + 0.5]) expect(close(supported(b.c, other, downs(b)).RD, stated)).toBe(false);
+    }
+  });
+
+  it('a plank with loads: each reaction', () => {
+    for (const { params, slide } of draws(g.plank)) {
+      const r = beamByHand(slide, params.beam, 'plank');
+      expectClose(answerOf(slide), [r[params.find]], 'plank');
+      expect(Math.min(r.RC, r.RD)).toBeGreaterThan(0);
+    }
+    choicesAgree(g.plank);
+  });
+
+  it('the plank table: every moment about C, then R_D and its moment', () => {
+    for (const { params, slide } of draws(g.plankTable)) {
+      const b = params.beam;
+      const r = beamByHand(slide, b, 'plank table');
+      const want = downs(b).flatMap((f) => (params.hard ? [f.x - b.c, f.w * (f.x - b.c)] : [f.w * (f.x - b.c)]));
+      expectClose(answerOf(slide), [...want, r.RD, r.RD * (b.d - b.c)], 'plank table');
+    }
+  });
+
+  it('the plank tiles: every weight with its distance from C, balancing R_D', () => {
+    for (const { params, slide } of draws(g.plankTiles)) {
+      const b = params.beam;
+      const r = beamByHand(slide, b, 'plank tiles');
+      const [gap, ...pairs] = answerOf(slide);
+      expect(gap).toBe(b.d - b.c);
+      const terms = Array.from({ length: pairs.length / 2 }, (_, k) => [pairs[2 * k], pairs[2 * k + 1]]);
+      const got = terms.map(([w, arm]) => `${w}@${arm}`).sort();
+      expect(got).toEqual(downs(b).map((f) => `${f.w}@${f.x - b.c}`).sort());
+      expect(close(r.RD * gap, terms.reduce((s, [w, arm]) => s + w * arm, 0))).toBe(true);
+    }
+  });
+
+  it('from a given reaction: where the person stands, or their weight or mass', () => {
+    for (const { params, slide } of draws(g.plankUnknown)) {
+      const { L, W, c, d } = params.beam;
+      const load = params.beam.loads[0];
+      statesBeam(slide, params.beam, 'unknown');
+      const R = quoted(slide, `The reaction at $${params.known === 'RC' ? 'C' : 'D'}$`);
+      // Resolving and moments about A, with the unknown solved for.
+      let want: number;
+      if (params.find === 'x') {
+        states(slide, load.w, 'N', 'unknown');
+        const other = W + load.w - R;
+        const [RC, RD] = params.known === 'RC' ? [R, other] : [other, R];
+        want = (RC * c + RD * d - (W * L) / 2) / load.w;
+      } else {
+        states(slide, load.x, 'm', 'unknown');
+        const P =
+          params.known === 'RC'
+            ? ((W * L) / 2 - R * c - (W - R) * d) / (d - load.x)
+            : ((W * L) / 2 - (W - R) * c - R * d) / (c - load.x);
+        want = params.find === 'w' ? P : P / GRAV;
+      }
+      expectClose(answerOf(slide), [want], 'unknown');
+    }
+  });
+
+  interface HandTilt {
+    L: number;
+    W: number;
+    c: number;
+    d: number;
+    side: 'A' | 'B';
+    P: number;
+    box: { x: number; w: number } | null;
+  }
+
+  /** The reactions with the person (or the end load) standing at x. */
+  const tiltAt = (p: HandTilt, x: number, w = p.P) => supported(p.c, p.d, [{ x: p.L / 2, w: p.W }, ...(p.box ? [p.box] : []), { x, w }]);
+
+  /** At x the far reaction is zero, just inside it positive, just beyond it negative. */
+  function tipsAt(p: HandTilt, x: number, where: string): void {
+    const far = (at: number) => tiltAt(p, at)[p.side === 'B' ? 'RC' : 'RD'];
+    const out = p.side === 'B' ? 1 : -1;
+    expect(Math.abs(far(x)), `${where}: far reaction at ${x}`).toBeLessThan(1e-7);
+    expect(far(x - 0.25 * out), where).toBeGreaterThan(0);
+    expect(far(x + 0.25 * out), where).toBeLessThan(0);
+    expect(x).toBeGreaterThanOrEqual(0);
+    expect(x).toBeLessThanOrEqual(p.L);
+  }
+
+  const pivotX = (p: HandTilt) => (p.side === 'B' ? p.d : p.c);
+
+  it('how far the person gets, and the greatest mass at the end', () => {
+    for (const { params: p, slide } of draws(g.tilt)) {
+      // The plank's length and supports; its weight, or its mass when the load at the end is asked.
+      statesBeam(slide, { ...p, loads: [] }, 'tilt', p.find !== 'm');
+      const [v] = answerOf(slide);
+      if (p.find === 'm') {
+        expect(promptText(slide)).toContain(`mass $${txt(p.W)}\\text{ kg}$`);
+        // Masses in place of weights: g multiplies every force and cancels.
+        const end = p.side === 'B' ? p.L : 0;
+        const far = (m: number) => supported(p.c, p.d, [{ x: p.L / 2, w: p.W }, { x: end, w: m }])[p.side === 'B' ? 'RC' : 'RD'];
+        expect(Math.abs(far(v))).toBeLessThan(1e-7);
+        expect(far(v + 0.5)).toBeLessThan(0);
+      } else {
+        states(slide, p.P, 'N', 'tilt');
+        if (p.box) states(slide, p.box.w, 'N', 'tilt');
+        tipsAt(p, p.find === 'x' ? v : pivotX(p) + (p.side === 'B' ? v : -v), 'tilt');
+      }
+    }
+    choicesAgree(g.tilt);
+  });
+
+  it('the tilt flow, the slider and the tree agree with the reactions', () => {
+    for (const { params: p, slide } of draws(g.tiltFlow)) {
+      const [about, zero, e] = pathOf(slide);
+      const name = p.side === 'B' ? 'D' : 'C';
+      expect([about, zero]).toEqual([`$${name}$`, `$R_{${p.side === 'B' ? 'C' : 'D'}}$`]);
+      tipsAt(p, pivotX(p) + (p.side === 'B' ? (e as number) : -(e as number)), 'tilt flow');
+    }
+    for (const { params: p, slide } of draws(g.tiltSlider)) {
+      if (slide.kind !== 'slider') throw new Error('expected a slider');
+      tipsAt(p, slide.answer, 'tilt slider');
+    }
+    for (const { params: p, slide } of draws(g.tippingTree)) {
+      const [hold, R, e] = answerOf(slide);
+      const at = pivotX(p);
+      const x = at + (p.side === 'B' ? e : -e);
+      tipsAt(p, x, 'tipping tree');
+      expect(close(hold, p.W * Math.abs(at - p.L / 2) + (p.box ? p.box.w * Math.abs(at - p.box.x) : 0))).toBe(true);
+      expect(close(R, tiltAt(p, x)[p.side === 'B' ? 'RD' : 'RC'])).toBe(true);
+    }
+  });
+
+  /** The ladder's angle read off the prompt: its tangent, or its sine and cosine. */
+  function ladderAngle(slide: Slide): number {
+    const text = promptText(slide);
+    const tan = /\\tan\\alpha = \\tfrac\{(\d+)\}\{(\d+)\}/.exec(text);
+    if (tan) return Math.atan2(Number(tan[1]), Number(tan[2]));
+    const sin = /\\sin\\alpha = ([\d.]+)\$ and \$\\cos\\alpha = ([\d.]+)\$/.exec(text)!;
+    return Math.atan2(Number(sin[1]), Number(sin[2]));
+  }
+
+  interface HandLadder {
+    L: number;
+    W: number;
+    P: number;
+    s: number;
+  }
+
+  /** Moments about the foot as cross products, then resolving. */
+  function ladderByHand(slide: Slide, p: HandLadder, where: string) {
+    const th = ladderAngle(slide);
+    states(slide, p.L, 'm', where);
+    states(slide, p.W, 'N', where);
+    if (p.P > 0) states(slide, p.P, 'N', where);
+    const cross = (r: number, fx: number, fy: number) => r * Math.cos(th) * fy - r * Math.sin(th) * fx;
+    // The wall pushes B away from it, the weights pull down; about A they sum to zero.
+    const weights = cross(p.L / 2, 0, -p.W) + cross(p.s, 0, -p.P);
+    const S = -weights / cross(p.L, -1, 0);
+    const R = p.W + p.P;
+    return { th, S, R, F: S, mu: S / R };
+  }
+
+  it('a ladder: the wall, the friction, the ground, the least mu, how far up', () => {
+    for (const { params: p, slide } of draws(g.ladder)) {
+      if (p.find === 's') {
+        const th = ladderAngle(slide);
+        const mu = Number(/coefficient of friction between the ladder and the ground is \$([\d.]+)\$/.exec(promptText(slide))![1]);
+        const S = mu * (p.W + p.P);
+        const s = (S * p.L * Math.sin(th) - p.W * (p.L / 2) * Math.cos(th)) / (p.P * Math.cos(th));
+        expectClose(answerOf(slide), [s], 'ladder s');
+        continue;
+      }
+      const h = ladderByHand(slide, p, 'ladder');
+      expectClose(answerOf(slide), [{ S: h.S, F: h.F, R: h.R, mu: h.mu }[p.find]], 'ladder');
+      expect(h.mu).toBeLessThan(1.5);
+    }
+    choicesAgree(g.ladder);
+  });
+
+  it('the ladder table, tree and flow', () => {
+    for (const { params: p, slide } of draws(g.ladderTable)) {
+      const h = ladderByHand(slide, p, 'ladder table');
+      const rows: [number, number][] = [
+        [p.W, (p.L / 2) * Math.cos(h.th)],
+        ...(p.P > 0 ? [[p.P, p.s * Math.cos(h.th)] as [number, number]] : []),
+      ];
+      const want = rows.flatMap(([F, arm]) => (p.hard ? [arm, F * arm] : [F * arm]));
+      const top = p.L * Math.sin(h.th);
+      expectClose(answerOf(slide), [...want, h.S, ...(p.hard ? [top] : []), h.S * top], 'ladder table');
+    }
+    for (const { params: p, slide } of draws(g.ladderLimitTree)) {
+      const h = ladderByHand(slide, p, 'ladder tree');
+      expectClose(answerOf(slide), [h.S * p.L * Math.sin(h.th), h.R, h.S, h.mu], 'ladder tree');
+      expect(h.mu).toBeLessThan(1);
+    }
+    for (const { params: p, slide } of draws(g.ladderFlow)) {
+      const h = ladderByHand(slide, p, 'ladder flow');
+      expectPath(pathOf(slide), ['About the foot, $A$', h.S, h.mu], 'ladder flow');
+    }
+  });
+});

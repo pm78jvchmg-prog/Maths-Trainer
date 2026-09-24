@@ -17,6 +17,12 @@
  * the `probTree` widget where the learner fills or taps branches), testing
  * independence with P(A | B) = P(A), and P(A | B) from a finished tree as one
  * path over the sum of the paths ending in B.
+ * Level 5 counts arrangements and selections: n things in a line as n!, with
+ * a pair kept together or a person at an end, ordered selections as nPr,
+ * unordered ones as nCr (the r! orders of each group divided out), the
+ * arrangements of a word with repeated letters, a choice from two groups as a
+ * product, and a probability as the arrangements or selections that fit over
+ * all of them.
  *
  * Three rules hold everywhere in this file.
  *
@@ -31,7 +37,8 @@
  *   Venn diagram's regions to its total.
  * - Nothing here is calculus, so no slide declares `source`, `integrand` or
  *   `limits`. `probability.test.ts` is the independent check instead: it
- *   enumerates each sample space and recounts every answer.
+ *   enumerates each sample space and recounts every answer, and for level 5
+ *   lists every arrangement or selection outright.
  */
 import type { Block, ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
@@ -39,6 +46,7 @@ import { hashSeed } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import { fmt } from './numericalMethods';
 import { fracTex, gcd, stepBank, steered, tokenBank } from './parametricImplicit';
+import { nCr } from './binomialExpansion';
 
 /* ================================================================
  * Shared helpers
@@ -6664,6 +6672,1103 @@ const reverseCounters: Generator<CounterParams> = {
 };
 
 /* ================================================================
+ * Level 5: arrangements and selections
+ *
+ * Every count here is small: nobody arranges more than seven things in a
+ * line, and no selection is drawn from more than ten. Counts are whole
+ * numbers typed through `countSlide`; probabilities are fractions in lowest
+ * terms through `fracTex`, typed through `probSlide` and graded by value.
+ * Anything that asks for a form rather than a number (which factorials,
+ * nPr or nCr, the product before it is worked out) goes through tiles, a
+ * tree, steps, a flow or a choice, never a typed answer.
+ * ================================================================ */
+
+/** `n!`. Every n in this level is at most 10. */
+function factorial(n: number): number {
+  let value = 1;
+  for (let i = 2; i <= n; i += 1) value *= i;
+  return value;
+}
+
+/** Ordered selections of `r` from `n`: n! over (n - r)!. */
+const nPr = (n: number, r: number): number => factorial(n) / factorial(n - r);
+
+/** A whole number as a tile, a bank entry or an option. */
+const whole = (v: number): Tok => dec(v);
+
+/** `5 \times 4 \times 3`: the first `r` factors of `n!`. */
+function fallingTex(n: number, r: number): string {
+  return Array.from({ length: r }, (_, i) => `${n - i}`).join(' \\times ');
+}
+
+/** `\dfrac{8!}{3!\,5!}`, the nCr formula with its numbers in. */
+const ncrTex = (n: number, r: number): string => `\\dfrac{${n}!}{${r}!\\,${n - r}!}`;
+
+/** `\dfrac{8!}{5!}`, the nPr formula with its numbers in. */
+const nprTex = (n: number, r: number): string => `\\dfrac{${n}!}{${n - r}!}`;
+
+/* ----------------------------------------------------------------
+ * Lesson 1: everything in a line
+ * ---------------------------------------------------------------- */
+
+/** People in a line. The first three are physical rows, so "next to" and "at the end" mean something. */
+const LINE_STORIES = [
+  { verb: 'stand in a line for a photo', row: 'line' },
+  { verb: 'sit in a row of seats', row: 'row' },
+  { verb: 'queue at a till', row: 'queue' },
+  { verb: 'finish a race with no ties', row: 'finishing order' },
+  { verb: 'take turns to speak', row: 'order' },
+] as const;
+
+/** How many of `LINE_STORIES` are rows people stand or sit in. */
+const ROWS = 3;
+
+const ORDINALS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th'] as const;
+
+interface LineParams {
+  story: number;
+  names: string[];
+}
+
+const lineSentence = ({ story, names }: LineParams): string => `${listing([...names])} ${LINE_STORIES[story].verb}.`;
+
+const arrangeLine: Generator<LineParams> = {
+  id: 'prob-ar-line',
+  sample: (rng, difficulty) => {
+    const n = difficulty > 1 ? rng.int(6, 7) : rng.int(3, 5);
+    return { story: rng.int(0, LINE_STORIES.length - 1), names: rng.sample(NAMES, n) };
+  },
+  render: (params): Slide =>
+    countSlide([say(`${lineSentence(params)} In how many different orders can they do this?`)], '\\text{orders} =', factorial(params.names.length)),
+  solution: ({ names }) => {
+    const n = names.length;
+    return [
+      { text: `The 1st place can go to any of the $${n}$, the 2nd to any of the $${n - 1}$ left, and so on down to $1$ for the last place.` },
+      // Seven factors and their product do not fit a phone on one line.
+      { tex: `${n}! = ${n > 5 ? `${n} \\times ${n - 1} \\times \\cdots \\times 1` : fallingTex(n, n)} = ${factorial(n)}` },
+    ];
+  },
+  choices: (params) => {
+    const n = params.names.length;
+    return probChoices(whole(factorial(n)), [whole(n ** n), whole(factorial(n - 1)), whole((n * (n + 1)) / 2), whole(n * (n - 1))], saltOf(params));
+  },
+};
+
+interface SlotsParams extends LineParams {
+  /** The one person who will not go first, or -1 when anyone may. */
+  who: number;
+}
+
+/** The choices for each place, filled from the front, the restricted place first. */
+function slotChoices({ names, who }: SlotsParams): number[] {
+  const n = names.length;
+  if (who < 0) return Array.from({ length: n }, (_, i) => n - i);
+  // Anyone but one person first; after that they are back in and one is used.
+  return [n - 1, ...Array.from({ length: n - 1 }, (_, i) => n - 1 - i)];
+}
+
+const arrangeSlots: Generator<SlotsParams> = {
+  id: 'prob-ar-slots-table',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const n = hard ? rng.int(5, 6) : rng.int(4, 5);
+    return { story: rng.int(0, ROWS - 1), names: rng.sample(NAMES, n), who: hard ? rng.int(0, n - 1) : -1 };
+  },
+  render: (params): Slide => {
+    const choices = slotChoices(params);
+    const total = choices.reduce((p, c) => p * c, 1);
+    const n = params.names.length;
+    const rule = params.who < 0 ? '' : ` ${params.names[params.who]} will not go 1st.`;
+    const answer = [...choices, total].map(whole);
+    return {
+      kind: 'table',
+      prompt: [
+        say(`${lineSentence(params)}${rule}`),
+        say('Fill in how many people could take each place, working from the front, then the total number of orders.'),
+      ],
+      columns: ['\\text{Place}', '\\text{Choices}'],
+      rows: [...choices.map((_, i) => [`\\text{${ORDINALS[i]}}`, null]), ['\\text{Total}', null]],
+      bank: bank(answer, [whole(n), whole(factorial(n)), whole(n + 1), whole(total + factorial(n - 1)), whole(factorial(n - 1)), whole(total / 2)]),
+      answer: answer.map((t) => t.tex),
+    };
+  },
+  solution: (params) => {
+    const choices = slotChoices(params);
+    const total = choices.reduce((p, c) => p * c, 1);
+    const n = params.names.length;
+    const steps: SolutionStep[] = [];
+    if (params.who < 0) {
+      steps.push({ text: `Any of the $${n}$ can go 1st, then any of the $${n - 1}$ left, and each place after has one fewer.` });
+    } else {
+      const who = params.names[params.who];
+      steps.push(
+        { text: `Deal with the rule first: anyone but ${who} can go 1st, so $${n - 1}$ choices.` },
+        { text: `${who} is free for the 2nd place, so that also has $${n - 1}$ choices, and each place after has one fewer.` },
+      );
+    }
+    steps.push({ tex: `${choices.join(' \\times ')} = ${total}` });
+    return steps;
+  },
+};
+
+interface PairLineParams extends LineParams {
+  pair: [number, number];
+  /** Count the orders with the two apart, rather than together. */
+  apart: boolean;
+}
+
+const arrangeTogether: Generator<PairLineParams> = {
+  id: 'prob-ar-together-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const n = hard ? rng.int(5, 7) : rng.int(4, 6);
+    const pair = rng.sample(
+      Array.from({ length: n }, (_, i) => i),
+      2,
+    ).sort((a, b) => a - b) as [number, number];
+    return { story: rng.int(0, ROWS - 1), names: rng.sample(NAMES, n), pair, apart: hard };
+  },
+  render: (params): Slide => {
+    const n = params.names.length;
+    const [a, b] = params.pair.map((i) => params.names[i]);
+    const together = 2 * factorial(n - 1);
+    if (!params.apart) {
+      const answer = [whole(n - 1), whole(2), whole(together)];
+      return {
+        kind: 'tiles',
+        prompt: [
+          say(lineSentence(params)),
+          say(`How many orders have ${a} and ${b} next to each other? Treat the two as one block: arrange the blocks, then the two inside their block.`),
+        ],
+        template: '{0}! \\times {1}! = {2}',
+        bank: bank(answer, [whole(n), whole(1), whole(factorial(n - 1)), whole(factorial(n))]),
+        answer: answer.map((t) => t.tex),
+      };
+    }
+    const answer = [whole(n), whole(together), whole(factorial(n) - together)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(lineSentence(params)),
+        say(`How many orders have ${a} and ${b} not next to each other? Count every order, take away the ones with the two together, then work it out.`),
+      ],
+      template: '{0}! - {1} = {2}',
+      bank: bank(answer, [whole(n - 1), whole(factorial(n - 1)), whole(factorial(n) - factorial(n - 1)), whole(factorial(n) - 2)]),
+      answer: answer.map((t) => t.tex),
+    };
+  },
+  solution: (params) => {
+    const n = params.names.length;
+    const [a, b] = params.pair.map((i) => params.names[i]);
+    const together = 2 * factorial(n - 1);
+    const steps: SolutionStep[] = [
+      { text: `Glue ${a} and ${b} into one block. That leaves $${n - 1}$ things to arrange: the block and the other $${n - 2}$.` },
+      { text: `Inside the block the two can stand either way round, $2!$ ways.` },
+      { tex: `${n - 1}! \\times 2! = ${factorial(n - 1)} \\times 2 = ${together}` },
+    ];
+    if (params.apart) {
+      steps.push(
+        { text: `Every order has the two either together or apart, so take the together orders away from all $${n}!$.` },
+        { tex: `${n}! - ${together} = ${factorial(n)} - ${together} = ${factorial(n) - together}` },
+      );
+    }
+    return steps;
+  },
+};
+
+type EndKind = 'end' | 'bothEnds' | 'notEnd';
+
+interface EndParams extends LineParams {
+  kind: EndKind;
+  who: [number, number];
+}
+
+/** The ways to place the restricted people, the ways to arrange everyone else, and their product. */
+function endParts({ names, kind }: EndParams): { places: number; rest: number; total: number } {
+  const n = names.length;
+  const places = kind === 'notEnd' ? n - 2 : 2;
+  const rest = factorial(kind === 'bothEnds' ? n - 2 : n - 1);
+  return { places, rest, total: places * rest };
+}
+
+const arrangeEnd: Generator<EndParams> = {
+  id: 'prob-ar-end-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const n = hard ? rng.int(5, 7) : rng.int(4, 6);
+    const who = rng.sample(
+      Array.from({ length: n }, (_, i) => i),
+      2,
+    ) as [number, number];
+    return { story: rng.int(0, ROWS - 1), names: rng.sample(NAMES, n), kind: hard ? rng.pick(['bothEnds', 'notEnd'] as const) : 'end', who };
+  },
+  render: (params): Slide => {
+    const { places, rest, total } = endParts(params);
+    const n = params.names.length;
+    const [a, b] = params.who.map((i) => params.names[i]);
+    const row = LINE_STORIES[params.story].row;
+    const rule: Record<EndKind, string> = {
+      end: `${a} must be at one end of the ${row}.`,
+      bothEnds: `${a} and ${b} must be at the two ends of the ${row}.`,
+      notEnd: `${a} must not be at either end of the ${row}.`,
+    };
+    const placed = params.kind === 'bothEnds' ? `${a} and ${b}` : a;
+    const answer = [whole(places), whole(rest), whole(total)];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(`${lineSentence(params)} ${rule[params.kind]}`),
+        say(`How many orders are there? Top row: the ways to place ${placed}, then the ways to arrange everyone else. Then multiply.`),
+      ],
+      expression: '\\text{orders}',
+      nodes: [
+        { id: 'places', from: [] },
+        { id: 'rest', from: [] },
+        { id: 'total', from: ['places', 'rest'] },
+      ],
+      bank: bank(answer, [whole(n), whole(factorial(n)), whole(factorial(n - 1)), whole(factorial(n - 2)), whole(1)]),
+      answer: answer.map((t) => t.tex),
+    };
+  },
+  solution: (params) => {
+    const { places, rest, total } = endParts(params);
+    const n = params.names.length;
+    const [a, b] = params.who.map((i) => params.names[i]);
+    const left = params.kind === 'bothEnds' ? n - 2 : n - 1;
+    const first: Record<EndKind, string> = {
+      end: `${a} can take either end: $2$ ways.`,
+      bothEnds: `${a} at the left and ${b} at the right, or the other way round: $2$ ways.`,
+      notEnd: `${a} can take any of the $${n}$ places except the two ends: $${n - 2}$ ways.`,
+    };
+    return [
+      { text: `Place the restricted ${params.kind === 'bothEnds' ? 'people' : 'person'} first. ${first[params.kind]}` },
+      { text: `The other $${left}$ fill the places left in any order: $${left}! = ${rest}$ ways.` },
+      { tex: `${places} \\times ${rest} = ${total}` },
+    ];
+  },
+};
+
+/* ----------------------------------------------------------------
+ * Lessons 2 and 3: ordered and unordered selections
+ * ---------------------------------------------------------------- */
+
+/** `r` of `n`, each to its own place, so order matters. */
+const ORDERED = [
+  { set: (n: number, _r: number) => `${n} runners are in a race with no ties.`, ask: (r: number) => `In how many ways can the first ${r} places be filled?` },
+  { set: (n: number, r: number) => `A code is made of ${r} different digits chosen from 1 to ${n}.`, ask: () => 'How many different codes are possible?' },
+  {
+    set: (n: number, r: number) => `${r} different prizes are given out among ${n} people, with nobody winning more than one.`,
+    ask: () => 'In how many ways can the prizes be given out?',
+  },
+  { set: (n: number, r: number) => `${r} of ${n} different books are put in a row on a shelf.`, ask: () => 'How many different rows are possible?' },
+  { set: (n: number, r: number) => `A club of ${n} members fills ${r} different posts, one person to each.`, ask: () => 'In how many ways can the posts be filled?' },
+] as const;
+
+/** `r` of `n` with nothing to tell them apart, so order does not matter. */
+const UNORDERED = [
+  { set: (n: number, r: number) => `A team of ${r} is picked from ${n} players.`, ask: 'How many different teams are possible?' },
+  { set: (n: number, r: number) => `${r} of ${n} different books are packed into a bag.`, ask: 'How many different sets of books could go in the bag?' },
+  { set: (n: number, r: number) => `A hand of ${r} cards is dealt from ${n} different cards.`, ask: 'How many different hands are possible?' },
+  { set: (n: number, r: number) => `${r} of ${n} friends are invited to a party.`, ask: 'How many different groups of guests are possible?' },
+  { set: (n: number, r: number) => `A pizza has ${r} different toppings chosen from ${n}.`, ask: 'How many different pizzas are possible?' },
+] as const;
+
+/** All `n`, in order. */
+const EVERYTHING = [
+  { set: (n: number) => `${n} people sit in a row of ${n} seats.`, ask: 'In how many ways can they sit?' },
+  { set: (n: number) => `${n} different books are put in a row on a shelf.`, ask: 'How many different rows are possible?' },
+  { set: (n: number) => `${n} runners finish a race with no ties.`, ask: 'How many different finishing orders are possible?' },
+  { set: (n: number) => `${n} children line up for lunch.`, ask: 'How many different queues are possible?' },
+] as const;
+
+interface SelectParams {
+  story: number;
+  n: number;
+  r: number;
+}
+
+const orderedSentence = ({ story, n, r }: SelectParams): string => `${ORDERED[story].set(n, r)} ${ORDERED[story].ask(r)}`;
+const unorderedSentence = ({ story, n, r }: SelectParams): string => `${UNORDERED[story].set(n, r)} ${UNORDERED[story].ask}`;
+
+function sampleSelect(rng: Rng, difficulty: number, stories: number): SelectParams {
+  const hard = difficulty > 1;
+  const r = hard ? rng.int(3, 4) : rng.int(2, 3);
+  const n = hard ? rng.int(r + 3, 10) : rng.int(r + 2, 8);
+  return { story: rng.int(0, stories - 1), n, r };
+}
+
+const selectOrdered: Generator<SelectParams> = {
+  id: 'prob-ar-npr',
+  sample: (rng, difficulty) => sampleSelect(rng, difficulty, ORDERED.length),
+  render: (params): Slide => countSlide([say(orderedSentence(params))], '\\text{ways} =', nPr(params.n, params.r)),
+  solution: ({ n, r }) => [
+    { text: `Order matters, and only $${r}$ of the $${n}$ are used. The 1st place has $${n}$ choices, the next $${n - 1}$, and so on for $${r}$ places.` },
+    { tex: `{}^{${n}}P_{${r}} = ${fallingTex(n, r)} = ${nPr(n, r)}` },
+  ],
+  choices: (params) => {
+    const { n, r } = params;
+    return probChoices(whole(nPr(n, r)), [whole(nCr(n, r)), whole(n ** r), whole(factorial(n)), whole(n * r)], saltOf(params));
+  },
+};
+
+const selectOrderedTiles: Generator<SelectParams & { hard: boolean }> = {
+  id: 'prob-ar-npr-tiles',
+  sample: (rng, difficulty) => ({ ...sampleSelect(rng, difficulty, ORDERED.length), hard: difficulty > 1 }),
+  render: (params): Slide => {
+    const { n, r, hard } = params;
+    const count = nPr(n, r);
+    if (hard) {
+      const answer = [whole(n), whole(n - r), whole(count)];
+      return {
+        kind: 'tiles',
+        prompt: [say(orderedSentence(params)), say('Write the count as one factorial divided by another, then work it out.')],
+        template: '{0}! \\div {1}! = {2}',
+        bank: bank(answer, [whole(r), whole(n - r - 1), whole(nCr(n, r)), whole(n ** r)]),
+        answer: answer.map((t) => t.tex),
+      };
+    }
+    const factors = Array.from({ length: r }, (_, i) => n - i);
+    const answer = [...factors, count].map(whole);
+    return {
+      kind: 'tiles',
+      prompt: [say(orderedSentence(params)), say('Fill in the choices for each place, largest first, then multiply them.')],
+      template: `${factors.map((_, i) => `{${i}}`).join(' \\times ')} = {${r}}`,
+      bank: bank(answer, [whole(r), whole(n - r), whole(n ** r), whole(nCr(n, r))]),
+      answer: answer.map((t) => t.tex),
+    };
+  },
+  solution: ({ n, r, hard }) => {
+    const steps: SolutionStep[] = [{ text: `Each of the $${r}$ places takes one of the ones not yet used: $${fallingTex(n, r)}$.` }];
+    if (hard) steps.push({ text: `That is the start of $${n}!$ with the last $${n - r}!$ left off, so divide it away.` }, { tex: `\\dfrac{${n}!}{${n - r}!} = ${fallingTex(n, r)} = ${nPr(n, r)}` });
+    else steps.push({ tex: `${fallingTex(n, r)} = ${nPr(n, r)}` });
+    return steps;
+  },
+};
+
+const cancelSteps: Generator<SelectParams & { hard: boolean }> = {
+  id: 'prob-ar-cancel-steps',
+  sample: (rng, difficulty) => ({ ...sampleSelect(rng, difficulty, ORDERED.length), hard: difficulty > 1 }),
+  render: (params): Slide => {
+    const { n, r, hard } = params;
+    const count = nPr(n, r);
+    const cancel = {
+      span: [0, 1] as [number, number],
+      value: fallingTex(n, r),
+      bank: stepBank(fallingTex(n, r), fallingTex(n, r + 1), `\\dfrac{${n}}{${n - r}}`, `${r}!`),
+    };
+    const work = {
+      span: [0, 1] as [number, number],
+      value: `${count}`,
+      bank: stepBank(`${count}`, `${count * (n - r)}`, `${nCr(n, r)}`, `${n * r}`),
+    };
+    // Inline, a `\dfrac` pushes the prose lines apart.
+    const written = hard ? `$^{${n}}P_{${r}}$` : `$\\frac{${n}!}{${n - r}!}$`;
+    const prompt = [say(orderedSentence(params)), say(`The count is ${written}. Tap the line, then choose what it becomes. Keep going until it is a number.`)];
+    if (!hard) return { kind: 'steps', prompt, start: [nprTex(n, r)], reductions: [cancel, work] };
+    const formula = {
+      span: [0, 1] as [number, number],
+      value: nprTex(n, r),
+      bank: stepBank(nprTex(n, r), ncrTex(n, r), `\\dfrac{${n}!}{${r}!}`, `${n}^{${r}}`),
+    };
+    return { kind: 'steps', prompt, start: [`{}^{${n}}P_{${r}}`], reductions: [formula, cancel, work] };
+  },
+  solution: ({ n, r, hard }) => {
+    const steps: SolutionStep[] = [];
+    if (hard) steps.push({ text: `$^{${n}}P_{${r}}$ is the ordered selections of $${r}$ from $${n}$: $${n}!$ over $${n - r}!$.` });
+    steps.push(
+      { text: `Everything from $${n - r}$ down to $1$ is on the top and the bottom, so it cancels, leaving the first $${r}$ factors.` },
+      { tex: `${nprTex(n, r)} = ${fallingTex(n, r)} = ${nPr(n, r)}` },
+    );
+    return steps;
+  },
+};
+
+type Method = 'all' | 'ordered' | 'unordered';
+
+interface KindOfCountParams {
+  method: Method;
+  story: number;
+  n: number;
+  r: number;
+}
+
+function countSentence({ method, story, n, r }: KindOfCountParams): string {
+  if (method === 'all') return `${EVERYTHING[story].set(n)} ${EVERYTHING[story].ask}`;
+  return method === 'ordered' ? orderedSentence({ story, n, r }) : unorderedSentence({ story, n, r });
+}
+
+/** The formulas offered at the last fork, the right one first. */
+function countForms({ method, n, r }: KindOfCountParams): string[] {
+  if (method === 'all') return [`${n}!`, `${n}^{${n}}`, `\\dfrac{${n}!}{2}`];
+  const [p, c] = [nprTex(n, r), ncrTex(n, r)];
+  return method === 'ordered' ? [p, c, `${n}^{${r}}`] : [c, p, `${n}!`];
+}
+
+const countMethodFlow: Generator<KindOfCountParams> = {
+  id: 'prob-ar-method-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const method = rng.pick(hard ? (['all', 'ordered', 'unordered'] as const) : (['all', 'ordered'] as const));
+    if (method === 'all') return { method, story: rng.int(0, EVERYTHING.length - 1), n: hard ? rng.int(5, 7) : rng.int(4, 6), r: 0 };
+    const { story, n, r } = sampleSelect(rng, difficulty, method === 'ordered' ? ORDERED.length : UNORDERED.length);
+    return { method, story, n, r };
+  },
+  render: (params): Slide => {
+    const salt = saltOf(params);
+    const [right, ...wrong] = countForms(params);
+    const orderHint =
+      params.method === 'unordered'
+        ? 'Swap two of the chosen ones round. It is still the same choice, so order does not matter.'
+        : 'Swap two of them round. That gives a different result, so order matters.';
+    const allHint =
+      params.method === 'all'
+        ? `Every one of the $${params.n}$ gets a place, so all of them are used.`
+        : `Only $${params.r}$ of the $${params.n}$ are chosen, so not all of them are used.`;
+    const formHint: Record<Method, string> = {
+      all: 'Every place has one fewer choice than the one before, all the way down to $1$.',
+      ordered: `The count is the first $${params.r}$ factors of $${params.n}!$.`,
+      unordered: `Count the ordered selections, then divide by the $${params.r}!$ orders each group can be put in.`,
+    };
+    const form = {
+      id: 'form',
+      ask: 'Which counts them?',
+      branches: turn(
+        [{ label: `$${right}$`, outcome: `Right. ${formHint[params.method]}` }, ...wrong.map((w) => ({ label: `$${w}$`, outcome: formHint[params.method] }))],
+        salt >> 4,
+      ),
+    };
+    const unordered = params.method === 'unordered';
+    const order = {
+      id: 'order',
+      ask: 'Does the order they are in matter?',
+      branches: turn(
+        [
+          { label: unordered ? 'No' : 'Yes', to: unordered ? 'form' : 'used' },
+          { label: unordered ? 'Yes' : 'No', outcome: orderHint },
+        ],
+        salt,
+      ),
+    };
+    const used = {
+      id: 'used',
+      ask: 'Is every one of them used?',
+      branches: turn(
+        [
+          { label: params.method === 'all' ? 'Yes, all of them' : 'No, only some', to: 'form' },
+          { label: params.method === 'all' ? 'No, only some' : 'Yes, all of them', outcome: allHint },
+        ],
+        salt >> 2,
+      ),
+    };
+    const answer = unordered ? ['No', `$${right}$`] : ['Yes', params.method === 'all' ? 'Yes, all of them' : 'No, only some', `$${right}$`];
+    return {
+      kind: 'flow',
+      prompt: [say(countSentence(params)), say('Decide what kind of count this is.')],
+      subject: '\\text{How many ways?}',
+      steps: unordered ? [order, form] : [order, used, form],
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { method, n, r } = params;
+    if (method === 'all') {
+      return [{ text: `Order matters and all $${n}$ are used, so this is $${n}!$.` }, { tex: `${n}! = ${factorial(n)}` }];
+    }
+    if (method === 'ordered') {
+      return [{ text: `Order matters but only $${r}$ of the $${n}$ are used, so this is $^{${n}}P_{${r}}$.` }, { tex: `${nprTex(n, r)} = ${nPr(n, r)}` }];
+    }
+    return [{ text: `Order does not matter, so this is $^{${n}}C_{${r}}$.` }, { tex: `${ncrTex(n, r)} = ${nCr(n, r)}` }];
+  },
+};
+
+const selectUnordered: Generator<SelectParams> = {
+  id: 'prob-ar-ncr',
+  sample: (rng, difficulty) => sampleSelect(rng, difficulty, UNORDERED.length),
+  render: (params): Slide => countSlide([say(unorderedSentence(params))], '\\text{ways} =', nCr(params.n, params.r)),
+  solution: ({ n, r }) => [
+    { text: `Order does not matter: each group of $${r}$ can be put in $${r}!$ orders, and they all count once.` },
+    { tex: `{}^{${n}}C_{${r}} = ${ncrTex(n, r)} = \\dfrac{${nPr(n, r)}}{${factorial(r)}} = ${nCr(n, r)}` },
+  ],
+  choices: (params) => {
+    const { n, r } = params;
+    return probChoices(whole(nCr(n, r)), [whole(nPr(n, r)), whole(factorial(n) / factorial(r)), whole(n * r), whole(factorial(n - r))], saltOf(params));
+  },
+};
+
+const divideTree: Generator<SelectParams> = {
+  id: 'prob-ar-divide-tree',
+  sample: (rng, difficulty) => sampleSelect(rng, difficulty, UNORDERED.length),
+  render: (params): Slide => {
+    const { n, r } = params;
+    const answer = [whole(nPr(n, r)), whole(factorial(r)), whole(nCr(n, r))];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(unorderedSentence(params)),
+        say(`Top row: the selections if order mattered, then the number of orders each group of ${r} can be put in. Then divide.`),
+      ],
+      expression: `{}^{${n}}C_{${r}}`,
+      nodes: [
+        { id: 'ordered', from: [] },
+        { id: 'orders', from: [] },
+        { id: 'groups', from: ['ordered', 'orders'] },
+      ],
+      bank: bank(answer, [whole(factorial(n)), whole(factorial(n - r)), whole(nPr(n, r) * factorial(r)), whole(n * r), whole(r)]),
+      answer: answer.map((t) => t.tex),
+    };
+  },
+  solution: ({ n, r }) => [
+    { text: `In order there would be $${fallingTex(n, r)} = ${nPr(n, r)}$ selections.` },
+    { text: `But each group of $${r}$ appears in all its $${r}! = ${factorial(r)}$ orders, and should count once.` },
+    { tex: `\\dfrac{${nPr(n, r)}}{${factorial(r)}} = ${nCr(n, r)}` },
+  ],
+};
+
+/** One set of `n`, asked about in order and then as a group. */
+const PAIRED = [
+  { set: (n: number) => `A club has ${n} members.`, ordered: (r: number) => `${r}\\text{ different jobs}`, unordered: (r: number) => `\\text{a team of }${r}` },
+  { set: (n: number) => `${n} different books are on a table.`, ordered: (r: number) => `${r}\\text{ in a row}`, unordered: (r: number) => `${r}\\text{ in a bag}` },
+  { set: (n: number) => `A pack holds ${n} different cards.`, ordered: (r: number) => `${r}\\text{ laid in a row}`, unordered: (r: number) => `\\text{a hand of }${r}` },
+  { set: (n: number) => `${n} runners are in a race.`, ordered: (r: number) => `\\text{the first }${r}\\text{ places}`, unordered: (r: number) => `${r}\\text{ into the final}` },
+] as const;
+
+const pairTable: Generator<SelectParams> = {
+  id: 'prob-ar-pair-table',
+  sample: (rng, difficulty) => sampleSelect(rng, difficulty, PAIRED.length),
+  render: (params): Slide => {
+    const { story, n, r } = params;
+    const s = PAIRED[story];
+    const answer = [whole(nPr(n, r)), whole(nCr(n, r)), whole(factorial(r))];
+    return {
+      kind: 'table',
+      prompt: [say(`${s.set(n)} Fill in the number of ways to choose each, then how many times bigger the first count is than the second.`)],
+      columns: ['\\text{Choose}', '\\text{Ways}'],
+      rows: [
+        [s.ordered(r), null],
+        [s.unordered(r), null],
+        ['\\text{Times bigger}', null],
+      ],
+      bank: bank(answer, [whole(r), whole(n * r), whole(factorial(n - r)), whole(nCr(n, r - 1))]),
+      answer: answer.map((t) => t.tex),
+    };
+  },
+  solution: ({ n, r }) => [
+    { text: `In order: $${fallingTex(n, r)} = ${nPr(n, r)}$.` },
+    { text: `As a group, each set of $${r}$ was counted once for each of its $${r}!$ orders, so divide.` },
+    { tex: `\\dfrac{${nPr(n, r)}}{${factorial(r)}} = ${nCr(n, r)}` },
+    { text: `The first count is always $${r}! = ${factorial(r)}$ times the second.` },
+  ],
+};
+
+/* ----------------------------------------------------------------
+ * Lesson 4: repeated letters, and choosing from two groups
+ * ---------------------------------------------------------------- */
+
+/** One letter repeated. */
+const REPEAT_ONE = [
+  'APPLE', 'HELLO', 'SPOON', 'CHEESE', 'GEESE', 'PUZZLE', 'RABBIT', 'BALLOT', 'LADDER', 'COMMA', 'HAPPY', 'CARROT', 'MIRROR', 'GLASS', 'BUTTON',
+] as const;
+
+/** Two or more letters repeated. */
+const REPEAT_MANY = [
+  'BANANA', 'PEPPER', 'LETTER', 'COFFEE', 'TOFFEE', 'KETTLE', 'LLAMA', 'ARRAY', 'SETTEE', 'MAMMAL', 'PAPAYA', 'TATTOO', 'COCOA', 'SEESAW', 'LETTUCE',
+  'ALFALFA', 'BAOBAB',
+] as const;
+
+const WORD_ASKS = [
+  (w: string) => `How many different arrangements are there of the letters of the word ${w}?`,
+  (w: string) => `The letters of ${w} are written on cards, one letter to a card, and laid in a row. How many different rows of letters can there be?`,
+  (w: string) => `How many different strings of ${w.length} letters can be made using all the letters of ${w}?`,
+] as const;
+
+interface WordParams {
+  word: string;
+  ask: number;
+}
+
+/** How often each repeated letter appears, most first. */
+function repeatsOf(word: string): number[] {
+  const counts = new Map<string, number>();
+  for (const letter of word) counts.set(letter, (counts.get(letter) ?? 0) + 1);
+  return [...counts.values()].filter((k) => k > 1).sort((a, b) => b - a);
+}
+
+function wordParts(word: string) {
+  const ks = repeatsOf(word);
+  const n = word.length;
+  const repeats = ks.reduce((p, k) => p * factorial(k), 1);
+  return { n, ks, repeats, count: factorial(n) / repeats, bottom: ks.map((k) => `${k}!`).join('\\,') };
+}
+
+const sampleWord = (rng: Rng, difficulty: number): WordParams => ({
+  word: rng.pick(difficulty > 1 ? REPEAT_MANY : REPEAT_ONE),
+  ask: rng.int(0, WORD_ASKS.length - 1),
+});
+
+function wordSolution(word: string): SolutionStep[] {
+  const { n, ks, count, bottom } = wordParts(word);
+  const letters = repeatsOf(word).length === 1 ? 'the repeated letter' : 'each repeated letter';
+  const counts = new Map<string, number>();
+  for (const letter of word) counts.set(letter, (counts.get(letter) ?? 0) + 1);
+  const said = [...counts.entries()].filter(([, k]) => k > 1).map(([letter, k]) => `${k} ${letter}s`);
+  return [
+    { text: `${word} has $${n}$ letters, with ${listing(said)}.` },
+    { text: `If every letter were different there would be $${n}!$ orders. Swapping copies of ${letters} gives the same word, so divide by the factorial of each count.` },
+    { tex: `\\dfrac{${n}!}{${bottom}} = \\dfrac{${factorial(n)}}{${ks.reduce((p, k) => p * factorial(k), 1)}} = ${count}` },
+  ];
+}
+
+const wordCount: Generator<WordParams> = {
+  id: 'prob-ar-word',
+  sample: sampleWord,
+  render: ({ word, ask }): Slide => countSlide([say(WORD_ASKS[ask](word))], '\\text{arrangements} =', wordParts(word).count),
+  solution: ({ word }) => wordSolution(word),
+  choices: (params) => {
+    const { n, ks, count } = wordParts(params.word);
+    const sum = ks.reduce((s, k) => s + k, 0);
+    return probChoices(
+      whole(count),
+      [whole(factorial(n)), whole(factorial(n) / factorial(ks[0])), whole(factorial(n) / sum), whole(factorial(n) / factorial(sum))],
+      saltOf(params),
+    );
+  },
+};
+
+const repeatsTree: Generator<WordParams> = {
+  id: 'prob-ar-repeats-tree',
+  sample: sampleWord,
+  render: ({ word, ask }): Slide => {
+    const { n, ks, repeats, count } = wordParts(word);
+    const answer = [whole(factorial(n)), whole(repeats), whole(count)];
+    const sum = ks.reduce((s, k) => s + k, 0);
+    return {
+      kind: 'tree',
+      prompt: [
+        say(WORD_ASKS[ask](word)),
+        say('Top row: the orders if every letter were different, then the ways the repeated letters can swap among themselves. Then divide.'),
+      ],
+      expression: `\\text{arrangements of ${word}}`,
+      nodes: [
+        { id: 'all', from: [] },
+        { id: 'repeats', from: [] },
+        { id: 'words', from: ['all', 'repeats'] },
+      ],
+      bank: bank(answer, [whole(factorial(n - 1)), whole(n), whole(sum), whole(factorial(sum)), whole(count * 2)]),
+      answer: answer.map((t) => t.tex),
+    };
+  },
+  solution: ({ word }) => wordSolution(word),
+};
+
+const wordWhich: Generator<WordParams> = {
+  id: 'prob-ar-word-which',
+  sample: sampleWord,
+  render: (params): Slide => {
+    const { n, ks, count, bottom } = wordParts(params.word);
+    const k = ks[0];
+    const sum = ks.reduce((s, x) => s + x, 0);
+    const f = factorial(n);
+    const candidates: [string, number][] =
+      ks.length === 1
+        ? [
+            [`${n}!`, f],
+            [`\\dfrac{${n}!}{${n - k}!}`, f / factorial(n - k)],
+            [`\\dfrac{${n}!}{${k}}`, f / k],
+            [`${n}! - ${k}!`, f - factorial(k)],
+            [`\\dfrac{${n - 1}!}{${k}!}`, factorial(n - 1) / factorial(k)],
+          ]
+        : [
+            [`\\dfrac{${n}!}{${k}!}`, f / factorial(k)],
+            [`\\dfrac{${n}!}{${ks.map((x) => `${x}!`).join(' + ')}}`, f / ks.reduce((s, x) => s + factorial(x), 0)],
+            [`${n}!`, f],
+            [`\\dfrac{${n}!}{${sum}!}`, f / factorial(sum)],
+          ];
+    const wrong = candidates.filter(([, v]) => !same(v, count)).map(([label]) => label);
+    return pickSlide([say(WORD_ASKS[params.ask](params.word)), say('Which of these works it out?')], `\\dfrac{${n}!}{${bottom}}`, wrong, saltOf(params), true);
+  },
+  solution: ({ word }) => wordSolution(word),
+};
+
+/** Two kinds of people to pick from, singular and plural. */
+const GROUPS = [
+  [
+    ['teacher', 'teachers'],
+    ['student', 'students'],
+  ],
+  [
+    ['adult', 'adults'],
+    ['child', 'children'],
+  ],
+  [
+    ['boy', 'boys'],
+    ['girl', 'girls'],
+  ],
+  [
+    ['doctor', 'doctors'],
+    ['nurse', 'nurses'],
+  ],
+  [
+    ['singer', 'singers'],
+    ['dancer', 'dancers'],
+  ],
+] as const;
+
+interface GroupsParams {
+  group: number;
+  /** How many there are of each kind, and how many of each are chosen. */
+  of: [number, number];
+  pick: [number, number];
+}
+
+const groupWord = (group: number, side: number, k: number): string => `${k} ${GROUPS[group][side][k === 1 ? 0 : 1]}`;
+
+const groupsTiles: Generator<GroupsParams> = {
+  id: 'prob-ar-groups-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const of: [number, number] = hard ? [rng.int(5, 8), rng.int(5, 8)] : [rng.int(3, 6), rng.int(3, 6)];
+      const pick: [number, number] = hard ? [rng.int(2, 3), rng.int(2, 3)] : [rng.int(1, 2), rng.int(1, 2)];
+      if (pick[0] >= of[0] || pick[1] >= of[1]) continue;
+      if (nCr(of[0], pick[0]) === nCr(of[1], pick[1])) continue;
+      return { group: rng.int(0, GROUPS.length - 1), of, pick };
+    }
+  },
+  render: (params): Slide => {
+    const { group, of, pick } = params;
+    const [a, b] = [nCr(of[0], pick[0]), nCr(of[1], pick[1])];
+    const answer = [whole(a), whole(b), whole(a * b)];
+    const plural = (side: number) => GROUPS[group][side][1];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(
+          `A group of ${groupWord(group, 0, pick[0])} and ${groupWord(group, 1, pick[1])} is chosen from ${groupWord(group, 0, of[0])} and ${groupWord(group, 1, of[1])}. How many different groups are possible?`,
+        ),
+        say(`Fill in the ways to choose the ${plural(0)}, then the ${plural(1)}, then multiply.`),
+      ],
+      template: '{0} \\times {1} = {2}',
+      bank: bank(answer, [whole(nCr(of[0] + of[1], pick[0] + pick[1])), whole(a + b), whole(nPr(of[0], pick[0])), whole(nPr(of[1], pick[1]))]),
+      answer: answer.map((t) => t.tex),
+    };
+  },
+  solution: ({ group, of, pick }) => {
+    const [a, b] = [nCr(of[0], pick[0]), nCr(of[1], pick[1])];
+    return [
+      { text: `Choose the ${GROUPS[group][0][1]}: $^{${of[0]}}C_{${pick[0]}} = ${a}$ ways.` },
+      { text: `Each of those goes with any choice of the ${GROUPS[group][1][1]}: $^{${of[1]}}C_{${pick[1]}} = ${b}$ ways.` },
+      { tex: `${a} \\times ${b} = ${a * b}` },
+    ];
+  },
+};
+
+/* ----------------------------------------------------------------
+ * Lesson 5: counting to find a probability
+ * ---------------------------------------------------------------- */
+
+type SideKind = 'together' | 'ends' | 'apart';
+
+interface SideParams extends LineParams {
+  pair: [number, number];
+  kind: SideKind;
+}
+
+/** Favourable orders over all orders, uncancelled. */
+function sideFrac({ names, kind }: SideParams): Frac {
+  const n = names.length;
+  const all = factorial(n);
+  const fav = kind === 'together' ? 2 * factorial(n - 1) : kind === 'ends' ? 2 * factorial(n - 2) : all - 2 * factorial(n - 1);
+  return [fav, all];
+}
+
+const SIDE_EVENTS: Record<SideKind, string> = {
+  together: 'are next to each other',
+  ends: 'are at the two ends',
+  apart: 'are not next to each other',
+};
+
+const sideBySide: Generator<SideParams> = {
+  id: 'prob-ar-side',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const n = hard ? rng.int(5, 7) : rng.int(4, 6);
+    const pair = rng.sample(
+      Array.from({ length: n }, (_, i) => i),
+      2,
+    ).sort((a, b) => a - b) as [number, number];
+    return { story: rng.int(0, ROWS - 1), names: rng.sample(NAMES, n), pair, kind: hard ? rng.pick(['ends', 'apart'] as const) : 'together' };
+  },
+  render: (params): Slide => {
+    const [a, b] = params.pair.map((i) => params.names[i]);
+    return probSlide(
+      [
+        say(`${listing([...params.names])} ${LINE_STORIES[params.story].verb}, in a random order.`),
+        say(`Find the probability that ${a} and ${b} ${SIDE_EVENTS[params.kind]}.`),
+      ],
+      'P =',
+      fans(sideFrac(params)),
+    );
+  },
+  solution: (params) => {
+    const n = params.names.length;
+    const [a, b] = params.pair.map((i) => params.names[i]);
+    const [fav, all] = sideFrac(params);
+    const how: Record<SideKind, SolutionStep[]> = {
+      together: [{ text: `Glue ${a} and ${b} into a block: $${n - 1}!$ orders of the blocks, times $2$ for the pair's own order.` }, { tex: `2 \\times ${n - 1}! = ${fav}` }],
+      ends: [{ text: `${a} and ${b} take the ends in $2$ ways, and the other $${n - 2}$ fill the middle in $${n - 2}!$ ways.` }, { tex: `2 \\times ${n - 2}! = ${fav}` }],
+      apart: [
+        { text: `Together they fill $2 \\times ${n - 1}! = ${2 * factorial(n - 1)}$ orders. Apart is every other order.` },
+        { tex: `${n}! - ${2 * factorial(n - 1)} = ${fav}` },
+      ],
+    };
+    return [
+      { text: `Every order is equally likely, and there are $${n}! = ${all}$ of them.` },
+      ...how[params.kind],
+      { tex: `P = ${rawTex([fav, all])} = ${ftex([fav, all])}` },
+    ];
+  },
+  choices: (params) => {
+    const n = params.names.length;
+    const right = fr(sideFrac(params));
+    return probChoices(right, [fr([1, n]), fr([2, factorial(n)]), fr([1, n - 1]), fr([n - 2, n]), fr([2, n])], saltOf(params));
+  },
+};
+
+type CommitteeKind = 'one' | 'both' | 'neither';
+
+interface CommitteeParams {
+  names: string[];
+  r: number;
+  kind: CommitteeKind;
+  who: [number, number];
+}
+
+function committeeCounts({ names, r, kind }: CommitteeParams): { fav: number; all: number } {
+  const n = names.length;
+  const fav = kind === 'one' ? nCr(n - 1, r - 1) : kind === 'both' ? nCr(n - 2, r - 2) : nCr(n - 2, r);
+  return { fav, all: nCr(n, r) };
+}
+
+const committeeTiles: Generator<CommitteeParams> = {
+  id: 'prob-ar-committee-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const n = hard ? rng.int(6, 10) : rng.int(5, 8);
+    const r = hard ? rng.int(3, 4) : rng.int(2, 3);
+    const who = rng.sample(
+      Array.from({ length: n }, (_, i) => i),
+      2,
+    ) as [number, number];
+    return { names: rng.sample(NAMES, n), r, kind: hard ? rng.pick(['both', 'neither'] as const) : 'one', who };
+  },
+  render: (params): Slide => {
+    const { fav, all } = committeeCounts(params);
+    const n = params.names.length;
+    const [a, b] = params.who.map((i) => params.names[i]);
+    const event: Record<CommitteeKind, string> = { one: `includes ${a}`, both: `includes both ${a} and ${b}`, neither: `includes neither ${a} nor ${b}` };
+    const answer = [whole(fav), whole(all), fr([fav, all])];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(`A committee of ${params.r} is chosen at random from ${listing([...params.names])}.`),
+        say(`Find the probability that it ${event[params.kind]}. Fill in the committees that do, then all the committees, then the probability.`),
+      ],
+      template: 'P = {0} \\div {1} = {2}',
+      bank: bank(answer, [whole(nPr(n, params.r)), whole(nCr(n - 1, params.r)), fr([1, n]), fr([fav, nPr(n, params.r)]), fr([all - fav, all])]),
+      answer: answer.map((t) => t.tex),
+    };
+  },
+  solution: (params) => {
+    const { fav, all } = committeeCounts(params);
+    const n = params.names.length;
+    const r = params.r;
+    const [a, b] = params.who.map((i) => params.names[i]);
+    const how: Record<CommitteeKind, string> = {
+      one: `Put ${a} on it, then choose the other $${r - 1}$ from the $${n - 1}$ left: $^{${n - 1}}C_{${r - 1}} = ${fav}$.`,
+      both: `Put ${a} and ${b} on it, then choose the other $${r - 2}$ from the $${n - 2}$ left: $^{${n - 2}}C_{${r - 2}} = ${fav}$.`,
+      neither: `Leave ${a} and ${b} out, and choose all $${r}$ from the other $${n - 2}$: $^{${n - 2}}C_{${r}} = ${fav}$.`,
+    };
+    return [
+      { text: `Every committee is equally likely, and there are $^{${n}}C_{${r}} = ${all}$ of them.` },
+      { text: how[params.kind] },
+      { tex: `P = ${rawTex([fav, all])}${gcd(fav, all) > 1 ? ` = ${ftex([fav, all])}` : ''}` },
+    ];
+  },
+};
+
+interface ThreeBagParams {
+  holder: string;
+  thing: number;
+  colours: string[];
+  counts: [number, number];
+  /** Exactly two of the first colour, rather than all three. */
+  two: boolean;
+}
+
+function threeBagCounts({ counts: [x, y], two }: ThreeBagParams): { fav: number; all: number } {
+  return { fav: two ? nCr(x, 2) * y : nCr(x, 3), all: nCr(x + y, 3) };
+}
+
+const threeBagTree: Generator<ThreeBagParams> = {
+  id: 'prob-ar-bag-tree',
+  sample: (rng, difficulty) => {
+    const two = difficulty > 1;
+    for (;;) {
+      const counts: [number, number] = two ? [rng.int(3, 6), rng.int(3, 6)] : [rng.int(3, 6), rng.int(2, 5)];
+      if (counts[0] + counts[1] > 10) continue;
+      return { holder: rng.pick(HOLDERS), thing: rng.int(0, THINGS.length - 1), colours: rng.sample(COLOURS, 2), counts, two };
+    }
+  },
+  render: (params): Slide => {
+    const { fav, all } = threeBagCounts(params);
+    const [c, d] = params.colours;
+    const [x, y] = params.counts;
+    const many = THINGS[params.thing][1];
+    const answer = [whole(fav), whole(all), fr([fav, all])];
+    const event = params.two ? `exactly two are ${c} and one is ${d}` : `all three are ${c}`;
+    return {
+      kind: 'tree',
+      prompt: [
+        say(`A ${params.holder} holds ${x} ${c} and ${y} ${d} ${many}. Three are taken at random, all at once.`),
+        say(`Find the probability that ${event}. Top row: the sets of three that give this, then all the sets of three. Then divide.`),
+      ],
+      expression: params.two ? `P(\\text{two ${c}, one ${d}})` : `P(\\text{three ${c}})`,
+      nodes: [
+        { id: 'fav', from: [] },
+        { id: 'all', from: [] },
+        { id: 'p', from: ['fav', 'all'] },
+      ],
+      bank: bank(answer, [whole(nPr(x + y, 3)), whole(nCr(x, params.two ? 3 : 2)), fr([fav, nPr(x + y, 3)]), fr([x, x + y]), fr([all - fav, all])]),
+      answer: answer.map((t) => t.tex),
+    };
+  },
+  solution: (params) => {
+    const { fav, all } = threeBagCounts(params);
+    const [c, d] = params.colours;
+    const [x, y] = params.counts;
+    const way = params.two
+      ? { text: `Two of the $${x}$ ${c} in $^{${x}}C_{2} = ${nCr(x, 2)}$ ways, and one of the $${y}$ ${d} in $${y}$ ways: $${nCr(x, 2)} \\times ${y} = ${fav}$.` }
+      : { text: `Three of the $${x}$ ${c}: $^{${x}}C_{3} = ${fav}$ ways.` };
+    return [
+      { text: `The three come out together, so order does not matter. Any three of the $${x + y}$: $^{${x + y}}C_{3} = ${all}$ ways.` },
+      way,
+      { tex: `P = ${rawTex([fav, all])}${gcd(fav, all) > 1 ? ` = ${ftex([fav, all])}` : ''}` },
+    ];
+  },
+};
+
+/** No letter repeated, and exactly two vowels. */
+const PLAIN_WORDS = [
+  'PLANET', 'CAMEL', 'LEMON', 'TIGER', 'ROBIN', 'SPIDER', 'GARDEN', 'MARKET', 'DONKEY', 'PENCIL', 'WINTER', 'FOREST', 'CANDLE', 'SILVER', 'BASKET',
+] as const;
+
+type WordChanceKind = 'starts' | 'ends' | 'together' | 'bothEnds' | 'vowelFirst';
+
+interface WordChanceParams {
+  word: string;
+  kind: WordChanceKind;
+  /** The letter asked about, for `starts` and `ends`. */
+  letter: number;
+}
+
+const VOWELS = 'AEIOU';
+
+function chanceFav({ word, kind }: WordChanceParams): number {
+  const n = word.length;
+  if (kind === 'starts' || kind === 'ends') return factorial(n - 1);
+  if (kind === 'bothEnds') return 2 * factorial(n - 2);
+  return 2 * factorial(n - 1);
+}
+
+function chanceEvent({ word, kind, letter }: WordChanceParams): string {
+  const events: Record<WordChanceKind, string> = {
+    starts: `begins with ${word[letter]}`,
+    ends: `ends with ${word[letter]}`,
+    together: 'has its two vowels next to each other',
+    bothEnds: 'begins and ends with a vowel',
+    vowelFirst: 'begins with a vowel',
+  };
+  return events[kind];
+}
+
+const chanceFlow: Generator<WordChanceParams> = {
+  id: 'prob-ar-chance-flow',
+  sample: (rng, difficulty) => {
+    const word = rng.pick(PLAIN_WORDS);
+    const kind = rng.pick(difficulty > 1 ? (['together', 'bothEnds', 'vowelFirst'] as const) : (['starts', 'ends'] as const));
+    return { word, kind, letter: kind === 'starts' || kind === 'ends' ? rng.int(0, word.length - 1) : 0 };
+  },
+  render: (params): Slide => {
+    const n = params.word.length;
+    const all = factorial(n);
+    const fav = chanceFav(params);
+    const salt = saltOf(params);
+    const event = chanceEvent(params);
+    const favWrong = [factorial(n - 1), 2 * factorial(n - 1), 2 * factorial(n - 2), factorial(n - 2), all / 2].filter((v) => v !== fav && v !== all);
+    const favSlips = [...new Set(favWrong)].slice(0, 2);
+    const right = `$${fracTex(fav, all)}$`;
+    const probSlips = [
+      { label: `$${fracTex(1, all)}$`, outcome: `That is the chance of one particular arrangement. Count every arrangement that ${event}.` },
+      { label: `$${fracTex(all - fav, all)}$`, outcome: `That is the chance it does not. Put the arrangements that ${event} on top.` },
+      { label: `$${fracTex(fav, all / n)}$`, outcome: `The bottom is every arrangement of all $${n}$ letters, $${n}!$.` },
+    ].filter((s) => s.label !== right);
+    return {
+      kind: 'flow',
+      prompt: [say(`The letters of ${params.word} are arranged in a random order. Find the probability that the arrangement ${event}, one step at a time.`)],
+      subject: `\\text{Arranging ${params.word}}`,
+      steps: [
+        {
+          id: 'all',
+          ask: 'How many arrangements are there altogether?',
+          branches: turn(
+            [
+              { label: `${all}`, to: 'fav' },
+              { label: `${n}`, outcome: `That counts the letters. The 1st place can take any of the $${n}$, the next any of the $${n - 1}$ left, and so on: $${n}!$.` },
+              { label: `${n * (n - 1)}`, outcome: `That fills only the first two places. Keep going down to $1$: $${n}!$.` },
+            ],
+            salt,
+          ),
+        },
+        {
+          id: 'fav',
+          ask: `How many of them ${event}?`,
+          branches: turn(
+            [
+              { label: `${fav}`, to: 'prob' },
+              ...favSlips.map((v) => ({ label: `${v}`, outcome: 'Place what the event needs first, count the ways to do that, then arrange the letters left over.' })),
+            ],
+            salt >> 3,
+          ),
+        },
+        {
+          id: 'prob',
+          ask: 'So what is the probability?',
+          branches: turn([{ label: right, outcome: 'Right: the arrangements that fit, over all of them.' }, ...probSlips.slice(0, 2)], salt >> 6),
+        },
+      ],
+      answer: [`${all}`, `${fav}`, right],
+    };
+  },
+  solution: (params) => {
+    const n = params.word.length;
+    const all = factorial(n);
+    const fav = chanceFav(params);
+    const how: Record<WordChanceKind, string> = {
+      starts: `Put ${params.word[params.letter]} first, then arrange the other $${n - 1}$: $${n - 1}! = ${fav}$.`,
+      ends: `Put ${params.word[params.letter]} last, then arrange the other $${n - 1}$: $${n - 1}! = ${fav}$.`,
+      together: `Glue the two vowels into a block: $${n - 1}!$ orders, times $2$ for the vowels' own order, $${fav}$.`,
+      bothEnds: `The two vowels take the two ends in $2$ ways, and the other $${n - 2}$ letters fill the middle: $2 \\times ${n - 2}! = ${fav}$.`,
+      vowelFirst: `Either vowel can go first, $2$ ways, then the other $${n - 1}$ letters in any order: $2 \\times ${n - 1}! = ${fav}$.`,
+    };
+    const vowels = [...params.word].filter((l) => VOWELS.includes(l));
+    const steps: SolutionStep[] = [{ text: `${params.word} has $${n}$ different letters, so there are $${n}! = ${all}$ arrangements, all equally likely.` }];
+    if (params.kind !== 'starts' && params.kind !== 'ends') steps.push({ text: `Its vowels are ${vowels.join(' and ')}.` });
+    steps.push({ text: how[params.kind] }, { tex: `P = ${rawTex([fav, all])} = ${ftex([fav, all])}` });
+    return steps;
+  },
+};
+
+/* ================================================================
  * Registry
  * ================================================================ */
 
@@ -6810,4 +7915,23 @@ export const probabilityGenerators = [
   reverseTree,
   reverseWhich,
   reverseCounters,
+  arrangeLine,
+  arrangeSlots,
+  arrangeTogether,
+  arrangeEnd,
+  selectOrdered,
+  selectOrderedTiles,
+  cancelSteps,
+  countMethodFlow,
+  selectUnordered,
+  divideTree,
+  pairTable,
+  wordCount,
+  repeatsTree,
+  wordWhich,
+  groupsTiles,
+  sideBySide,
+  committeeTiles,
+  threeBagTree,
+  chanceFlow,
 ].map((g) => fitted(g as Generator<unknown>));

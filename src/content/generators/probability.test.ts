@@ -1,5 +1,5 @@
 /**
- * An independent check on Probability levels 1 to 4.
+ * An independent check on Probability levels 1 to 5.
  *
  * The oracle in `generators.test.ts` differentiates a `source`, and nothing
  * here declares one: a probability is a count over a count. So these tests
@@ -14,6 +14,11 @@
  * regions or the branch labels on the slide. The words of a story are mapped
  * to its events through `COND_STORIES`, `TWO_WAY` and `VENN`, which hold only
  * words and letters, never a number.
+ *
+ * Level 5 counts arrangements and selections, and each count is checked by
+ * reading the people, letters or objects back off the slide, listing every
+ * order or every set of them outright, and counting the list. No factorial,
+ * nPr or nCr from the generator file is used.
  */
 import { describe, expect, it } from 'vitest';
 import { makeRng } from '../../engine/rng';
@@ -1405,6 +1410,435 @@ describe('prob-cr-counters', () => {
       else throw new Error(`cannot read: ${prose}`);
       const hits = given.filter(([x, y]) => x === c && y === c);
       expect(typed(slide), prose).toBeCloseTo(hits.length / given.length, 12);
+    }
+  });
+});
+
+/* ================================================================
+ * Level 5: every arrangement and selection listed outright
+ * ================================================================ */
+
+/** Every order of `0 .. n-1`, listed once per n and kept. */
+const permsCache = new Map<number, number[][]>();
+function perms(n: number): number[][] {
+  const cached = permsCache.get(n);
+  if (cached) return cached;
+  const build = (left: number[]): number[][] =>
+    left.length === 0 ? [[]] : left.flatMap((x) => build(left.filter((y) => y !== x)).map((rest) => [x, ...rest]));
+  const out = build(Array.from({ length: n }, (_, i) => i));
+  permsCache.set(n, out);
+  return out;
+}
+
+/** Every ordered pick of `r` different items from `0 .. n-1`. */
+function orderedPicks(n: number, r: number): number[][] {
+  const build = (left: number[], k: number): number[][] =>
+    k === 0 ? [[]] : left.flatMap((x) => build(left.filter((y) => y !== x), k - 1).map((rest) => [x, ...rest]));
+  return build(Array.from({ length: n }, (_, i) => i), r);
+}
+
+/** Every set of `r` items from `items`, each once, in no order. */
+function subsets<T>(items: T[], r: number): T[][] {
+  if (r === 0) return [[]];
+  if (items.length < r) return [];
+  const [head, ...tail] = items;
+  return [...subsets(tail, r - 1).map((rest) => [head, ...rest]), ...subsets(tail, r)];
+}
+
+const upTo = (n: number) => Array.from({ length: n }, (_, i) => i);
+
+/** "Jo, Sam and Ria" as three names. */
+const namesIn = (list: string) => list.split(/, | and /);
+
+/** The people in a line and the sentence after them. */
+function lineOf(prose: string): { names: string[]; rest: string } {
+  const m = /^(.+?) (?:stand in a line|sit in a row|queue at a till|finish a race|take turns)[^.]*\.(.*)$/.exec(prose);
+  if (!m) throw new Error(`no line in: ${prose}`);
+  return { names: namesIn(m[1]), rest: m[2] };
+}
+
+/** The different words the letters of `word` make, counted by listing them. */
+const wordCache = new Map<string, number>();
+function arrangementsOf(word: string): number {
+  if (!wordCache.has(word)) wordCache.set(word, new Set(perms(word.length).map((p) => p.map((i) => word[i]).join(''))).size);
+  return wordCache.get(word)!;
+}
+
+const wordOf = (prose: string): string => /\b([A-Z]{4,})\b/.exec(prose)![1];
+
+/** `n!` by multiplying, here rather than from the generator. */
+const bang = (n: number): number => (n <= 1 ? 1 : n * bang(n - 1));
+
+/** A formula as the slide writes it: `\dfrac{8!}{3!\,5!}`, `8^{3}`, `8 \times 7`. */
+function formValue(tex: string): number {
+  const plain = tex
+    .replace(/\$/g, '')
+    .replace(/\{\}\^\{(\d+)\}P_\{(\d+)\}/g, '(($1)!/(($1)-($2))!)')
+    .replace(/\\dfrac\{([^{}]*)\}\{([^{}]*)\}/g, '(($1)/($2))')
+    .replace(/\\,/g, '*')
+    .replace(/\\times/g, '*')
+    .replace(/\^\{(\d+)\}/g, '^($1)');
+  return math.evaluate(plain) as number;
+}
+
+const cellValues = (slide: Slide): number[] => {
+  if (slide.kind !== 'tiles' && slide.kind !== 'tree' && slide.kind !== 'table') throw new Error(`expected a filled slide, got ${slide.kind}`);
+  return slide.answer.map(value);
+};
+
+describe('prob-ar-line', () => {
+  it('lists every order of the people', () => {
+    for (const slide of slides('prob-ar-line')) {
+      const { names } = lineOf(proseOf(slide));
+      expect(typed(slide), proseOf(slide)).toBe(perms(names.length).length);
+    }
+  });
+});
+
+describe('prob-ar-slots-table', () => {
+  it('fills each place from the front, and the places multiply to the orders listed', () => {
+    for (const slide of slides('prob-ar-slots-table')) {
+      if (slide.kind !== 'table') throw new Error('expected a table');
+      const prose = proseOf(slide);
+      const { names, rest } = lineOf(prose);
+      const barred = /(\w+) will not go 1st/.exec(rest)?.[1];
+      const valid = perms(names.length).filter((p) => names[p[0]] !== barred);
+      const cells = cellValues(slide);
+      expect(cells.length, prose).toBe(names.length + 1);
+      expect(cells[names.length]).toBe(valid.length);
+      expect(cells.slice(0, -1).reduce((p, c) => p * c, 1)).toBe(valid.length);
+      expect(cells[0]).toBe(new Set(valid.map((p) => p[0])).size);
+    }
+  });
+});
+
+describe('prob-ar-together-tiles', () => {
+  it('counts the orders with the two together or apart', () => {
+    for (const slide of slides('prob-ar-together-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const prose = proseOf(slide);
+      const { names } = lineOf(prose);
+      const m = /have (\w+) and (\w+) (not )?next to each other/.exec(prose)!;
+      const [a, b] = [names.indexOf(m[1]), names.indexOf(m[2])];
+      const next = (p: number[]) => Math.abs(p.indexOf(a) - p.indexOf(b)) === 1;
+      const together = perms(names.length).filter(next).length;
+      const [x, y, total] = cellValues(slide);
+      if (m[3]) {
+        expect(total, prose).toBe(perms(names.length).length - together);
+        expect(bang(x) - y).toBe(total);
+        expect(y).toBe(together);
+      } else {
+        expect(total, prose).toBe(together);
+        expect(bang(x) * bang(y)).toBe(total);
+      }
+    }
+  });
+});
+
+describe('prob-ar-end-tree', () => {
+  it('places the restricted people, then everyone else, and multiplies', () => {
+    for (const slide of slides('prob-ar-end-tree')) {
+      const prose = proseOf(slide);
+      const { names, rest } = lineOf(prose);
+      const n = names.length;
+      const end = (i: number) => i === 0 || i === n - 1;
+      let who: number[];
+      let valid: number[][];
+      let m: RegExpExecArray | null;
+      if ((m = /(\w+) and (\w+) must be at the two ends/.exec(rest))) {
+        who = [names.indexOf(m[1]), names.indexOf(m[2])];
+        valid = perms(n).filter((p) => end(p.indexOf(who[0])) && end(p.indexOf(who[1])));
+      } else if ((m = /(\w+) must not be at either end/.exec(rest))) {
+        who = [names.indexOf(m[1])];
+        valid = perms(n).filter((p) => !end(p.indexOf(who[0])));
+      } else if ((m = /(\w+) must be at one end/.exec(rest))) {
+        who = [names.indexOf(m[1])];
+        valid = perms(n).filter((p) => end(p.indexOf(who[0])));
+      } else throw new Error(`cannot read: ${prose}`);
+      const [places, others, total] = cellValues(slide);
+      expect(total, prose).toBe(valid.length);
+      expect(places * others).toBe(total);
+      expect(places).toBe(new Set(valid.map((p) => who.map((w) => p.indexOf(w)).join(','))).size);
+    }
+  });
+});
+
+/** `n` and `r` of an ordered selection, from the story's own words. */
+function orderedOf(prose: string): { n: number; r: number } | undefined {
+  const read: [RegExp, 'nr' | 'rn'][] = [
+    [/(\d+) runners are in a race with no ties\. In how many ways can the first (\d+) places/, 'nr'],
+    [/made of (\d+) different digits chosen from 1 to (\d+)/, 'rn'],
+    [/(\d+) different prizes are given out among (\d+) people/, 'rn'],
+    [/(\d+) of (\d+) different books are put in a row/, 'rn'],
+    [/club of (\d+) members fills (\d+) different posts/, 'nr'],
+  ];
+  for (const [re, order] of read) {
+    const m = re.exec(prose);
+    if (m) return order === 'nr' ? { n: Number(m[1]), r: Number(m[2]) } : { n: Number(m[2]), r: Number(m[1]) };
+  }
+  return undefined;
+}
+
+/** `n` and `r` of a selection in no order. */
+function unorderedOf(prose: string): { n: number; r: number } | undefined {
+  const read = [
+    /team of (\d+) is picked from (\d+) players/,
+    /(\d+) of (\d+) different books are packed into a bag/,
+    /hand of (\d+) cards is dealt from (\d+) different cards/,
+    /(\d+) of (\d+) friends are invited/,
+    /(\d+) different toppings chosen from (\d+)/,
+  ];
+  for (const re of read) {
+    const m = re.exec(prose);
+    if (m) return { n: Number(m[2]), r: Number(m[1]) };
+  }
+  return undefined;
+}
+
+/** All `n`, in a line. */
+function everythingOf(prose: string): number | undefined {
+  const m = /^(\d+) (?:people sit in a row|different books are put in a row|runners finish a race|children line up)/.exec(prose);
+  return m ? Number(m[1]) : undefined;
+}
+
+describe('prob-ar-npr', () => {
+  it('lists every ordered pick', () => {
+    for (const slide of slides('prob-ar-npr')) {
+      const { n, r } = orderedOf(proseOf(slide))!;
+      expect(typed(slide), proseOf(slide)).toBe(orderedPicks(n, r).length);
+    }
+  });
+});
+
+describe('prob-ar-npr-tiles', () => {
+  it('writes the count as the choices per place, or as factorials, and works it out', () => {
+    for (const slide of slides('prob-ar-npr-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const { n, r } = orderedOf(proseOf(slide))!;
+      const count = orderedPicks(n, r).length;
+      const cells = cellValues(slide);
+      expect(cells[cells.length - 1], proseOf(slide)).toBe(count);
+      if (slide.template.includes('\\div')) {
+        expect(bang(cells[0]) / bang(cells[1])).toBe(count);
+      } else {
+        expect(cells.slice(0, -1)).toEqual(upTo(r).map((i) => n - i));
+      }
+    }
+  });
+});
+
+describe('prob-ar-cancel-steps', () => {
+  it('keeps the count the same at every step and ends on the listed number', () => {
+    for (const slide of slides('prob-ar-cancel-steps')) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      const { n, r } = orderedOf(proseOf(slide))!;
+      const count = orderedPicks(n, r).length;
+      expect(formValue(slide.start[0]), slide.start[0]).toBe(count);
+      for (const step of slide.reductions) expect(formValue(step.value), step.value).toBe(count);
+      expect(slide.reductions[slide.reductions.length - 1].value).toBe(`${count}`);
+    }
+  });
+});
+
+describe('prob-ar-method-flow', () => {
+  it('takes the right turns and ends on a formula that gives the listed count', () => {
+    for (const slide of slides('prob-ar-method-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected a flow');
+      const prose = proseOf(slide);
+      const ordered = orderedOf(prose);
+      const unordered = unorderedOf(prose);
+      const all = everythingOf(prose);
+      const last = slide.answer[slide.answer.length - 1];
+      if (unordered) {
+        expect(slide.answer[0], prose).toBe('No');
+        expect(formValue(last)).toBe(subsets(upTo(unordered.n), unordered.r).length);
+      } else if (ordered) {
+        expect(slide.answer.slice(0, 2), prose).toEqual(['Yes', 'No, only some']);
+        expect(formValue(last)).toBe(orderedPicks(ordered.n, ordered.r).length);
+      } else if (all) {
+        expect(slide.answer.slice(0, 2), prose).toEqual(['Yes', 'Yes, all of them']);
+        expect(formValue(last)).toBe(perms(all).length);
+      } else throw new Error(`cannot read: ${prose}`);
+    }
+  });
+});
+
+describe('prob-ar-ncr', () => {
+  it('lists every set of r', () => {
+    for (const slide of slides('prob-ar-ncr')) {
+      const { n, r } = unorderedOf(proseOf(slide))!;
+      expect(typed(slide), proseOf(slide)).toBe(subsets(upTo(n), r).length);
+    }
+  });
+});
+
+describe('prob-ar-divide-tree', () => {
+  it('counts the ordered picks, the orders of one group, and the groups', () => {
+    for (const slide of slides('prob-ar-divide-tree')) {
+      const { n, r } = unorderedOf(proseOf(slide))!;
+      expect(cellValues(slide), proseOf(slide)).toEqual([orderedPicks(n, r).length, perms(r).length, subsets(upTo(n), r).length]);
+    }
+  });
+});
+
+describe('prob-ar-pair-table', () => {
+  it('counts the same set in order and as a group', () => {
+    for (const slide of slides('prob-ar-pair-table')) {
+      if (slide.kind !== 'table') throw new Error('expected a table');
+      const n = Number(/(\d+)/.exec(proseOf(slide))![1]);
+      const r = Number(/(\d+)/.exec(slide.rows[0][0]!)![1]);
+      expect(/(\d+)/.exec(slide.rows[1][0]!)![1]).toBe(`${r}`);
+      expect(slide.rows[0][0]).toMatch(/jobs|in a row|places/);
+      expect(slide.rows[1][0]).toMatch(/team|bag|hand|final/);
+      const [inOrder, group] = [orderedPicks(n, r).length, subsets(upTo(n), r).length];
+      expect(cellValues(slide), proseOf(slide)).toEqual([inOrder, group, inOrder / group]);
+    }
+  });
+});
+
+describe('prob-ar-word', () => {
+  it('lists every different arrangement of the letters', () => {
+    for (const slide of slides('prob-ar-word')) {
+      expect(typed(slide), proseOf(slide)).toBe(arrangementsOf(wordOf(proseOf(slide))));
+    }
+  });
+
+  it('draws words with a repeated letter, and more than one repeated at difficulty 2', () => {
+    const g = generator('prob-ar-word');
+    for (const difficulty of [1, 2]) {
+      for (let seed = 0; seed < SEEDS; seed += 1) {
+        const word = wordOf(proseOf(g.render(g.sample(makeRng(seed), difficulty))));
+        const repeated = new Set([...word].filter((letter, i) => word.indexOf(letter) !== i));
+        if (difficulty === 1) expect(repeated.size, word).toBe(1);
+        else expect(repeated.size, word).toBeGreaterThan(1);
+      }
+    }
+  });
+});
+
+describe('prob-ar-repeats-tree', () => {
+  it('divides the orders of distinct letters by the swaps that change nothing', () => {
+    for (const slide of slides('prob-ar-repeats-tree')) {
+      const word = wordOf(proseOf(slide));
+      const [all, swaps, count] = cellValues(slide);
+      expect(all, word).toBe(perms(word.length).length);
+      expect(count).toBe(arrangementsOf(word));
+      expect(all / swaps).toBe(count);
+    }
+  });
+});
+
+describe('prob-ar-word-which', () => {
+  it('marks the formula that gives the listed count, and only that one', () => {
+    for (const slide of slides('prob-ar-word-which')) {
+      const word = wordOf(proseOf(slide));
+      const { right, wrong } = optionsOf(slide);
+      expect(formValue(right.label), `${word}: ${right.label}`).toBe(arrangementsOf(word));
+      for (const o of wrong) expect(formValue(o.label), `${word}: ${o.label}`).not.toBe(arrangementsOf(word));
+      expect(wrong.length).toBeGreaterThanOrEqual(2);
+    }
+  });
+});
+
+describe('prob-ar-groups-tiles', () => {
+  it('counts the groups with the right number of each kind', () => {
+    for (const slide of slides('prob-ar-groups-tiles')) {
+      const prose = proseOf(slide);
+      const m = /group of (\d+) \w+ and (\d+) \w+ is chosen from (\d+) \w+ and (\d+) \w+\./.exec(prose)!;
+      const [x, y, a, b] = m.slice(1).map(Number);
+      const people = [...upTo(a).map(() => 'A'), ...upTo(b).map(() => 'B')].map((kind, i) => ({ kind, i }));
+      const fits = subsets(people, x + y).filter((s) => s.filter((p) => p.kind === 'A').length === x);
+      const cells = cellValues(slide);
+      expect(cells[2], prose).toBe(fits.length);
+      expect(cells[0]).toBe(subsets(upTo(a), x).length);
+      expect(cells[0] * cells[1]).toBe(cells[2]);
+    }
+  });
+});
+
+describe('prob-ar-side', () => {
+  it('counts the orders that fit over all the orders', () => {
+    for (const slide of slides('prob-ar-side')) {
+      const prose = proseOf(slide);
+      const names = namesIn(/^(.+?) (?:stand|sit|queue)/.exec(prose)![1]);
+      const m = /that (\w+) and (\w+) (are next to each other|are at the two ends|are not next to each other)/.exec(prose)!;
+      const [a, b] = [names.indexOf(m[1]), names.indexOf(m[2])];
+      const n = names.length;
+      const test: Record<string, (p: number[]) => boolean> = {
+        'are next to each other': (p) => Math.abs(p.indexOf(a) - p.indexOf(b)) === 1,
+        'are not next to each other': (p) => Math.abs(p.indexOf(a) - p.indexOf(b)) !== 1,
+        'are at the two ends': (p) => [0, n - 1].includes(p.indexOf(a)) && [0, n - 1].includes(p.indexOf(b)),
+      };
+      expect(typed(slide), prose).toBeCloseTo(perms(n).filter(test[m[3]]).length / perms(n).length, 12);
+    }
+  });
+});
+
+describe('prob-ar-committee-tiles', () => {
+  it('counts the committees that fit and all the committees', () => {
+    for (const slide of slides('prob-ar-committee-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const prose = proseOf(slide);
+      const m = /committee of (\d+) is chosen at random from (.+?)\. /.exec(prose)!;
+      const names = namesIn(m[2]);
+      const all = subsets(names, Number(m[1]));
+      let fits: string[][];
+      let e: RegExpExecArray | null;
+      if ((e = /includes both (\w+) and (\w+)\./.exec(prose))) fits = all.filter((s) => s.includes(e![1]) && s.includes(e![2]));
+      else if ((e = /includes neither (\w+) nor (\w+)\./.exec(prose))) fits = all.filter((s) => !s.includes(e![1]) && !s.includes(e![2]));
+      else if ((e = /includes (\w+)\./.exec(prose))) fits = all.filter((s) => s.includes(e![1]));
+      else throw new Error(`cannot read: ${prose}`);
+      const [fav, total, p] = cellValues(slide);
+      expect([fav, total], prose).toEqual([fits.length, all.length]);
+      expect(p).toBeCloseTo(fits.length / all.length, 12);
+      expect(lowest(slide.answer[2]), slide.answer[2]).toBe(true);
+    }
+  });
+});
+
+describe('prob-ar-bag-tree', () => {
+  it('counts the sets of three that fit and all the sets of three', () => {
+    for (const slide of slides('prob-ar-bag-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected a tree');
+      const prose = proseOf(slide);
+      const m = /holds (\d+) (\w+) and (\d+) (\w+) \w+\. Three are taken/.exec(prose)!;
+      const bag = [...upTo(Number(m[1])).map(() => m[2]), ...upTo(Number(m[3])).map(() => m[4])].map((colour, i) => ({ colour, i }));
+      const all = subsets(bag, 3);
+      const count = (s: { colour: string }[], c: string) => s.filter((x) => x.colour === c).length;
+      const fits = /exactly two are/.test(prose) ? all.filter((s) => count(s, m[2]) === 2) : all.filter((s) => count(s, m[2]) === 3);
+      expect(/all three are (\w+)|exactly two are (\w+)/.exec(prose)!.slice(1).find(Boolean)).toBe(m[2]);
+      const [fav, total, p] = cellValues(slide);
+      expect([fav, total], prose).toEqual([fits.length, all.length]);
+      expect(p).toBeCloseTo(fits.length / all.length, 12);
+      expect(lowest(slide.answer[2])).toBe(true);
+    }
+  });
+});
+
+describe('prob-ar-chance-flow', () => {
+  it('counts every arrangement, the ones that fit, and divides', () => {
+    for (const slide of slides('prob-ar-chance-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected a flow');
+      const prose = proseOf(slide);
+      const word = wordOf(prose);
+      const event = /the arrangement (.+), one step at a time/.exec(prose)![1];
+      const vowel = (l: string) => 'AEIOU'.includes(l);
+      const orders = perms(word.length).map((p) => p.map((i) => word[i]).join(''));
+      let m: RegExpExecArray | null;
+      const fits = (s: string): boolean => {
+        if ((m = /^begins with ([A-Z])$/.exec(event))) return s[0] === m[1];
+        if ((m = /^ends with ([A-Z])$/.exec(event))) return s[s.length - 1] === m[1];
+        if (event === 'begins with a vowel') return vowel(s[0]);
+        if (event === 'begins and ends with a vowel') return vowel(s[0]) && vowel(s[s.length - 1]);
+        if (event === 'has its two vowels next to each other') return /[AEIOU]{2}/.test(s);
+        throw new Error(`cannot read: ${event}`);
+      };
+      const fav = orders.filter(fits).length;
+      expect([...word].filter(vowel).length, word).toBe(2);
+      expect(Number(slide.answer[0]), prose).toBe(orders.length);
+      expect(Number(slide.answer[1]), prose).toBe(fav);
+      expect(texValue(slide.answer[2])).toBeCloseTo(fav / orders.length, 12);
+      expect(lowest(slide.answer[2].replace(/\$/g, ''))).toBe(true);
     }
   });
 });

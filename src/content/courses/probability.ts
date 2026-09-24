@@ -18,6 +18,11 @@
  * back up a tree from the outcome. It follows level 2's "given that" lesson
  * (`pb-l2-conditional`) rather than teaching that again.
  *
+ * Level 5 is arrangements: n things in a line as n! and with a rule to keep,
+ * ordered selections as nPr, unordered ones as nCr, the words made from
+ * letters that repeat, choosing from two groups, and a probability as the
+ * arrangements or selections that fit over all of them.
+ *
  * Counting selections with nCr belongs to Binomial Expansion (`be-l2-ncr`)
  * and percentages to Exponents & Radicals (`er-l7-percent`); both are pointed
  * at, not taught again. Later levels are in `docs/roadmap/levels/probability.md`.
@@ -988,6 +993,194 @@ export const probability: Course = {
         ask('prob-cb-total-tree', 2),
         ask('prob-ci-given', 2),
         ask('prob-cr-which', 2),
+      ],
+    },
+    {
+      id: 'pb-l5',
+      title: 'Arrangements',
+      lessons: [
+        {
+          id: 'pb-l5-line',
+          title: 'Arranging Everything',
+          slides: [
+            teach(
+              prose('Jo, Sam and Ria can stand in a line in six orders:'),
+              maths('\\begin{gathered} \\text{JSR, JRS, SJR,} \\\\ \\text{SRJ, RJS, RSJ} \\end{gathered}'),
+              prose(
+                'The 1st place can go to any of the 3, the 2nd to either of the 2 left, and the last to the 1 left: $3 \\times 2 \\times 1 = 6$. For $n$ different things that product is $n!$, said "$n$ factorial".',
+              ),
+              working('5! &= 5 \\times 4 \\times 3 \\times 2 \\times 1', '&= 120'),
+            ),
+            ask('prob-ar-line'),
+            ask('prob-ar-slots-table'),
+            ask('prob-ar-line+choice'),
+            teach(
+              prose(
+                'A rule changes the count, so deal with the rule first. When two people must stand **together**, glue them into one block. With 5 people that leaves 4 things to arrange, and the pair can stand either way round inside the block:',
+              ),
+              maths('4! \\times 2! = 24 \\times 2 = 48'),
+              prose('When one person must be **at an end**, place them first: 2 ends to choose from, then the other 4 in any order, $2 \\times 4! = 48$.'),
+            ),
+            ask('prob-ar-together-tiles'),
+            ask('prob-ar-end-tree'),
+            ask('prob-ar-slots-table', 2),
+            teach(
+              prose('**Not together** is easier the other way round: every order, take away the together ones. With 5 people that is $5! - 48 = 72$.'),
+              prose(
+                'Two people at the two ends take them in 2 ways, and the other 3 fill the middle in $3!$ ways: $2 \\times 3! = 12$. Someone **not** at either end has 3 middle places to choose from, then $4!$ for the rest: $3 \\times 4! = 72$.',
+              ),
+            ),
+            ask('prob-ar-together-tiles', 2),
+            ask('prob-ar-end-tree', 2),
+          ],
+          skillCheck: [ask('prob-ar-line', 2), ask('prob-ar-together-tiles', 2), ask('prob-ar-end-tree', 2)],
+        },
+        {
+          id: 'pb-l5-ordered',
+          title: 'Ordered Selections',
+          slides: [
+            teach(
+              prose(
+                'Sometimes only some are chosen, but order still matters. 8 runners race for gold, silver and bronze: any of the 8 can win gold, then 7 are left for silver, then 6 for bronze.',
+              ),
+              maths('8 \\times 7 \\times 6 = 336'),
+              prose('That is the start of $8!$, stopping after 3 factors.'),
+            ),
+            ask('prob-ar-npr'),
+            ask('prob-ar-npr-tiles'),
+            ask('prob-ar-method-flow'),
+            teach(
+              prose('Written with factorials, the $5!$ left over cancels:'),
+              maths('\\dfrac{8!}{5!} = \\dfrac{8 \\times 7 \\times 6 \\times 5!}{5!} = 336'),
+              prose('This is written $^{8}P_{3}$, the ordered selections of 3 from 8. In general'),
+              maths('{}^{n}P_{r} = \\dfrac{n!}{(n - r)!}'),
+            ),
+            ask('prob-ar-cancel-steps'),
+            ask('prob-ar-npr+choice', 2),
+            ask('prob-ar-npr-tiles', 2),
+            teach(
+              prose(
+                'Before counting, ask two questions. Does the order matter? For a podium, a code or a row of books, yes. Are all of them used? If so it is $n!$, which is $^{n}P_{n}$ since $0! = 1$.',
+              ),
+              prose('If only $r$ of the $n$ are used, it is $^{n}P_{r}$: the first $r$ factors of $n!$.'),
+            ),
+            ask('prob-ar-cancel-steps', 2),
+            ask('prob-ar-method-flow'),
+          ],
+          skillCheck: [ask('prob-ar-npr', 2), ask('prob-ar-npr-tiles', 2), ask('prob-ar-cancel-steps', 2)],
+        },
+        {
+          id: 'pb-l5-unordered',
+          title: 'Unordered Selections',
+          slides: [
+            teach(
+              prose(
+                'A team of 3 from 8 players has no gold or bronze: the same three people make one team in any order. Counting in order gives $^{8}P_{3} = 336$, but each team is counted once for each of its $3! = 6$ orders:',
+              ),
+              maths('\\dfrac{336}{6} = 56'),
+              prose('Factorials and nCr, in Binomial Expansion, met this number as $^{8}C_{3}$.'),
+            ),
+            ask('prob-ar-divide-tree'),
+            ask('prob-ar-ncr'),
+            ask('prob-ar-pair-table'),
+            teach(
+              maths('{}^{n}C_{r} = \\dfrac{n!}{r!\\,(n - r)!}'),
+              prose('It is $^{n}P_{r}$ divided by $r!$. For the same $n$ and $r$, the ordered count is always $r!$ times the unordered one.'),
+            ),
+            ask('prob-ar-method-flow', 2),
+            ask('prob-ar-ncr+choice', 2),
+            ask('prob-ar-divide-tree', 2),
+            teach(
+              prose(
+                'To tell which you need, swap two of the chosen ones round. If that gives something different, as a 1st and a 2nd place do, order matters: use $^{n}P_{r}$. If it gives the same team, hand or group, it does not: use $^{n}C_{r}$.',
+              ),
+            ),
+            ask('prob-ar-pair-table', 2),
+            ask('prob-ar-method-flow', 2),
+          ],
+          skillCheck: [ask('prob-ar-ncr', 2), ask('prob-ar-divide-tree', 2), ask('prob-ar-pair-table', 2)],
+        },
+        {
+          id: 'pb-l5-repeats',
+          title: 'Repeated Letters',
+          slides: [
+            teach(
+              prose(
+                'The letters of BOOK make fewer than $4! = 24$ words, because the two Os look the same. Swapping them changes nothing, so every word has been counted twice:',
+              ),
+              maths('\\dfrac{4!}{2!} = \\dfrac{24}{2} = 12'),
+              prose('Divide by the factorial of how many times a letter appears: $3!$ for three of a letter.'),
+            ),
+            ask('prob-ar-word'),
+            ask('prob-ar-repeats-tree'),
+            ask('prob-ar-word-which'),
+            teach(
+              prose('With more than one letter repeated, divide by each. BANANA has 3 As and 2 Ns:'),
+              maths('\\dfrac{6!}{3!\\,2!} = \\dfrac{720}{12} = 60'),
+            ),
+            ask('prob-ar-repeats-tree', 2),
+            ask('prob-ar-word+choice', 2),
+            ask('prob-ar-word-which', 2),
+            teach(
+              prose('Choosing from two groups is two choices, one after the other, so multiply. For 2 of 5 boys and 1 of 4 girls:'),
+              maths('{}^{5}C_{2} \\times {}^{4}C_{1} = 10 \\times 4 = 40'),
+              prose('Every one of the 10 pairs of boys goes with every one of the 4 girls.'),
+            ),
+            ask('prob-ar-groups-tiles'),
+            ask('prob-ar-groups-tiles', 2),
+          ],
+          skillCheck: [ask('prob-ar-word', 2), ask('prob-ar-repeats-tree', 2), ask('prob-ar-groups-tiles', 2)],
+        },
+        {
+          id: 'pb-l5-chance',
+          title: 'Counting to Find a Probability',
+          slides: [
+            teach(
+              prose(
+                'When every order is equally likely, a probability is the orders that fit over all the orders. Five people sit in a row at random. Jo and Sam sit together in $2 \\times 4! = 48$ of the $5! = 120$ orders:',
+              ),
+              maths('P = \\dfrac{48}{120} = \\dfrac{2}{5}'),
+            ),
+            ask('prob-ar-side'),
+            ask('prob-ar-chance-flow'),
+            ask('prob-ar-committee-tiles'),
+            teach(
+              prose(
+                'Selections work the same way. A committee of 3 is chosen at random from 6 people. There are $^{6}C_{3} = 20$ committees, and the ones with Ria on take her, then 2 of the other 5, in $^{5}C_{2} = 10$ ways:',
+              ),
+              maths('P = \\dfrac{10}{20} = \\dfrac{1}{2}'),
+            ),
+            ask('prob-ar-bag-tree'),
+            ask('prob-ar-side+choice', 2),
+            ask('prob-ar-committee-tiles', 2),
+            teach(
+              prose(
+                'Three counters taken from a bag all at once are a selection too. A bag holds 5 red and 3 blue counters. Exactly two red means 2 of the 5 red and 1 of the 3 blue:',
+              ),
+              maths('P = \\dfrac{{}^{5}C_{2} \\times {}^{3}C_{1}}{{}^{8}C_{3}} = \\dfrac{30}{56} = \\dfrac{15}{28}'),
+            ),
+            ask('prob-ar-bag-tree', 2),
+            ask('prob-ar-chance-flow', 2),
+          ],
+          skillCheck: [ask('prob-ar-side', 2), ask('prob-ar-committee-tiles', 2), ask('prob-ar-bag-tree', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('prob-ar-line', 2),
+        ask('prob-ar-together-tiles', 2),
+        ask('prob-ar-npr', 2),
+        ask('prob-ar-cancel-steps', 2),
+        ask('prob-ar-ncr', 2),
+        ask('prob-ar-divide-tree', 2),
+        ask('prob-ar-method-flow', 2),
+        ask('prob-ar-word', 2),
+        ask('prob-ar-repeats-tree', 2),
+        ask('prob-ar-groups-tiles', 2),
+        ask('prob-ar-side', 2),
+        ask('prob-ar-committee-tiles', 2),
+        ask('prob-ar-bag-tree', 2),
+        ask('prob-ar-chance-flow', 2),
+        ask('prob-ar-pair-table', 2),
       ],
     },
   ],

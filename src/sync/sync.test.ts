@@ -119,7 +119,7 @@ describe('pairing and syncing', () => {
       a: { completedAt: 100, bestCorrect: 3, total: 3, timesPlayed: 1 },
       c: record(60, 1),
     });
-    expect(useStreak.getState()).toMatchObject({ streak: 3, lastPlayedDay: '2026-09-25', charges: 1 });
+    expect(useStreak.getState()).toMatchObject({ streak: 3, lastPlayedDay: '2026-09-25', charges: 2 });
 
     const shared = sanitizeSnapshot((await api(`/api/sync/doc/${id}`)).body.data);
     expect(shared.lessons).toEqual(useProgress.getState().lessons);

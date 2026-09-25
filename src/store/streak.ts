@@ -4,7 +4,7 @@
  * The rest of the app deliberately carries no engagement mechanics — no XP,
  * no leagues, no persistent points total. The streak is the one exception the
  * owner asked for, and it is kept deliberately forgiving: a charge is banked
- * when a streak starts and is spent automatically to cover a missed day, so
+ * on every day played, and is spent automatically to cover a missed day, so
  * one busy day does not undo a month.
  *
  * Days are the *device's local calendar* days, not 24-hour windows. Playing at
@@ -250,7 +250,6 @@ export function playOnAt(state: StreakState, today: string, now?: number): Strea
     return base === state ? state : { ...base, lastPlayedAt: now ?? base.lastPlayedAt };
   }
 
-  const starting = base.streak === 0;
   const replaced =
     base.replaced && daysApart(base.replaced.since, today) <= REPLACED_WINDOW_DAYS ? base.replaced : null;
   const streak = base.streak + 1;
@@ -264,8 +263,10 @@ export function playOnAt(state: StreakState, today: string, now?: number): Strea
   return {
     streak,
     lastPlayedDay: today,
-    // Starting a streak earns a charge — including a restart after a break.
-    charges: starting ? Math.min(MAX_CHARGES, base.charges + 1) : base.charges,
+    // Every day played earns a charge, the first day of a streak included.
+    // Earning one only when a streak started, as this once did, left a
+    // streak that never missed a day holding one charge for good.
+    charges: Math.min(MAX_CHARGES, base.charges + 1),
     lastPlayedAt: now ?? null,
     replaced,
     best: Math.max(state.best ?? 0, state.streak, streak),
@@ -321,6 +322,22 @@ export function bestStreak(state: StreakState, today: string, now?: number): num
   return Math.max(state.best ?? 0, state.streak, resolveStreak(state, today, now).streak);
 }
 
+/**
+ * A streak saved when a charge came only on its first day, given the ones its
+ * later days would have earned. Any it may have spent meanwhile are not taken
+ * back out, which errs the forgiving way.
+ */
+export function backfillCharges(state: StreakState): StreakState {
+  const charges = Math.min(MAX_CHARGES, state.charges + Math.max(0, state.streak - 1));
+  return charges === state.charges ? state : { ...state, charges };
+}
+
+/** Persisted versions: 0 earned a charge only when a streak started. */
+function migrateStreak(saved: unknown): StreakState {
+  const state = { ...emptyStreak, ...(saved as Partial<StreakState>) };
+  return backfillCharges(state);
+}
+
 interface StreakStore extends StreakState {
   /** Record that a lesson was finished. Safe to call more than once a day. */
   recordPlay: (now?: Date) => void;
@@ -334,6 +351,6 @@ export const useStreak = create<StreakStore>()(
       recordPlay: (now = new Date()) => set((state) => playAt(state, now)),
       reset: () => set({ ...emptyStreak }),
     }),
-    { name: 'maths-trainer:streak:v1' },
+    { name: 'maths-trainer:streak:v1', version: 1, migrate: (saved) => migrateStreak(saved) },
   ),
 );

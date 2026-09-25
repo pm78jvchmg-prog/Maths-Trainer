@@ -60,8 +60,8 @@ describe('merging two streaks', () => {
 
   it('carries a stale device forward rather than keeping it or dropping it', () => {
     // Both saw Monday; the iPad played Tuesday offline.
-    expect(runOf(mergeStreak(streak(5, '2026-09-21', 1), streak(6, '2026-09-22', 1)))).toEqual(
-      streak(6, '2026-09-22', 1),
+    expect(runOf(mergeStreak(streak(5, '2026-09-21', 1), streak(6, '2026-09-22', 2)))).toEqual(
+      streak(6, '2026-09-22', 2),
     );
   });
 
@@ -138,7 +138,7 @@ describe('merging whole snapshots', () => {
   const tablet = snap({
     lessons: { b: lesson(300, 1, 3, 3), c: lesson(250, 1, 3, 1) },
     abandoned: { a: 2, c: 1 },
-    streak: streak(4, '2026-09-25', 1),
+    streak: streak(4, '2026-09-25', 2),
   });
 
   it('loses nothing either device held', () => {
@@ -146,7 +146,7 @@ describe('merging whole snapshots', () => {
     expect(Object.keys(merged.lessons).sort()).toEqual(['a', 'b', 'c']);
     expect(merged.lessons.b).toEqual(lesson(300, 3, 3, 3));
     expect(merged.abandoned).toEqual({ a: 2, c: 1 });
-    expect(runOf(merged.streak)).toEqual(streak(4, '2026-09-25', 1));
+    expect(runOf(merged.streak)).toEqual(streak(4, '2026-09-25', 2));
   });
 
   it('is the same in either order, and merging again changes nothing', () => {

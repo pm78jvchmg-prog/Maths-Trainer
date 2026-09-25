@@ -557,13 +557,16 @@ const termOf: Generator<TermParams> = {
     ),
   solution: (params) => {
     const { a, b, c, quad, k } = params;
+    // A coefficient of 1 multiplies nothing, and a constant of 0 adds nothing.
+    const middle = b === 0 ? '' : Math.abs(b) === 1 ? ` ${b < 0 ? '-' : '+'} ${k}` : ` ${signed(b)} \\times ${k}`;
+    const tail = c === 0 ? '' : ` ${signed(c)}`;
     return [
       { text: `Put $n = ${k}$ into the rule.` },
       {
         tex: chain(
           quad
-            ? `u_{${k}} &= ${times(a)}${k}^{2} ${b ? `${signed(b)} \\times ${k}` : ''} ${signed(c)}`
-            : `u_{${k}} &= ${a} \\times ${k} ${signed(c)}`,
+            ? `u_{${k}} &= ${times(a)}${k}^{2}${middle}${tail}`
+            : `u_{${k}} &= ${a} \\times ${k}${tail}`,
           `&= ${termValue(params, k)}`,
         ),
       },

@@ -3422,12 +3422,16 @@ const expmAvgSlider: Generator<StretchParams> = {
     const f = (t: number) => a * Math.exp(k * t);
     const top = down ? a * 1.1 : lotsValue(params, j + 2) * 1.1;
     const stretch = h === 1 ? `one-${story.unit}` : `${h}-${story.unit}`;
+    const rate = stretchRate(params);
+    // One of anything is singular: 1 lumen, 1 gram, 1 person.
+    const counted =
+      rate !== 1 ? story.of : story.of === 'people' ? 'person' : story.of === 'bacteria' ? 'bacterium' : story.of.replace(/s$/, '');
     return {
       kind: 'slider',
       prompt: [
         {
           kind: 'prose',
-          text: `${opening(story, modelTex(a, params))} Each dot is $${story.sym}$ ${h === 1 ? `every ${story.unit}` : `every ${h} ${story.unit}s`}. Slide to the start of the ${stretch} stretch over which it ${down ? 'falls' : 'grows'} at an average of ${texNum(stretchRate(params))} ${story.of} per ${story.unit}.`,
+          text: `${opening(story, modelTex(a, params))} Each dot is $${story.sym}$ ${h === 1 ? `every ${story.unit}` : `every ${h} ${story.unit}s`}. Slide to the start of the ${stretch} stretch over which it ${down ? 'falls' : 'grows'} at an average of ${texNum(rate)} ${counted} per ${story.unit}.`,
         },
       ],
       min: 0,
@@ -3451,14 +3455,14 @@ const expmAvgSlider: Generator<StretchParams> = {
   },
   solution: (params) => {
     const { b, h, j, down, ctx } = params;
-    const { sym } = storyOf(down, ctx);
+    const { sym, unit } = storyOf(down, ctx);
     const row = (i: number) => {
       const y0 = lotsValue(params, i);
       const y1 = lotsValue(params, i + 1);
       return `t = ${i * h}: \\quad \\frac{${texNum(y1)} - ${texNum(y0)}}{${h}} &= ${texNum((y1 - y0) / h)}`;
     };
     return [
-      { text: `$e^{${ktTex(params)}} = ${everyTex(params)}$, so every ${h === 1 ? '' : `${h} `}step ${down ? 'divides' : 'multiplies'} $${sym}$ by $${b}$. Work out the average rate over each stretch in turn.` },
+      { text: `$e^{${ktTex(params)}} = ${everyTex(params)}$, so every ${h === 1 ? '' : `${h}-${unit} `}step ${down ? 'divides' : 'multiplies'} $${sym}$ by $${b}$. Work out the average rate over each stretch in turn.` },
       { tex: chain(row(j - 1), row(j)) },
       { text: `So the stretch starts at $t = ${j * h}$. ${down ? 'A decaying model changes fastest early on.' : 'A growing model changes faster the later the stretch.'}` },
     ];

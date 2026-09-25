@@ -725,13 +725,15 @@ const growth: Generator<GrowthParams> = {
   solution: ({ start, multiplier, target }) => {
     const exact = Math.log(target / start) / Math.log(multiplier);
     const steps = Math.ceil(exact);
+    // A whole ratio is written whole: 50, not 50.00.
+    const ratio = Number.isInteger(target / start) ? `${target / start}` : (target / start).toFixed(2);
     return [
       {
         text: `After $n$ hours the colony is $${start} \\times ${multiplier}^{n}$, so the question asks when that first passes $${target}$.`,
       },
-      { tex: `${start} \\times ${multiplier}^{n} > ${target} \\implies ${multiplier}^{n} > ${(target / start).toFixed(2)}` },
+      { tex: `${start} \\times ${multiplier}^{n} > ${target} \\implies ${multiplier}^{n} > ${ratio}` },
       {
-        tex: `n > \\frac{\\ln\\left(${(target / start).toFixed(2)}\\right)}{\\ln\\left(${multiplier}\\right)} = ${exact.toFixed(3)}`,
+        tex: `n > \\frac{\\ln\\left(${ratio}\\right)}{\\ln\\left(${multiplier}\\right)} = ${exact.toFixed(3)}`,
       },
       {
         text: `So $n = ${steps}$. The exact value is $${exact.toFixed(3)}$, and since only whole hours count it has to be rounded *up* — at $${steps - 1}$ hours the colony has not yet passed the threshold.`,

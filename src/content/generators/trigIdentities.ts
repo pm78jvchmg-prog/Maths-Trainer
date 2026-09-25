@@ -689,23 +689,23 @@ const VALUE_FORMS: ValueForm[] = [
   {
     hard: false,
     given: 'sin',
-    expr: ({ k }, v) => `${k} - ${k}\\cos^2 ${v}`,
+    expr: ({ k }, v) => `${k} - ${co(k)}\\cos^2 ${v}`,
     value: ({ k, p, q }) => rat(k * sq(p), sq(q)),
     slips: ({ k, p, q }) => [rat(k * p, q), rat(k * (sq(q) - sq(p)), sq(q)), rat(sq(p), sq(q))],
     why: ({ k, p, q }, v) => [
-      { text: `Take out the $${k}$ and use $1 - \\cos^2 ${v} = \\sin^2 ${v}$:` },
-      { tex: `${k} - ${k}\\cos^2 ${v} = ${k}\\sin^2 ${v} = ${k} \\times \\left(\\frac{${p}}{${q}}\\right)^2 = ${ratTex(rat(k * sq(p), sq(q)))}` },
+      { text: `${k === 1 ? 'Use' : `Take out the $${k}$ and use`} $1 - \\cos^2 ${v} = \\sin^2 ${v}$:` },
+      { tex: `${k} - ${co(k)}\\cos^2 ${v} = ${co(k)}\\sin^2 ${v} = ${k === 1 ? '' : `${k} \\times `}\\left(\\frac{${p}}{${q}}\\right)^2 = ${ratTex(rat(k * sq(p), sq(q)))}` },
     ],
   },
   {
     hard: false,
     given: 'cos',
-    expr: ({ k }, v) => `${k} - ${k}\\sin^2 ${v}`,
+    expr: ({ k }, v) => `${k} - ${co(k)}\\sin^2 ${v}`,
     value: ({ k, p, q }) => rat(k * sq(p), sq(q)),
     slips: ({ k, p, q }) => [rat(k * p, q), rat(k * (sq(q) - sq(p)), sq(q)), rat(sq(p), sq(q))],
     why: ({ k, p, q }, v) => [
-      { text: `Take out the $${k}$ and use $1 - \\sin^2 ${v} = \\cos^2 ${v}$:` },
-      { tex: `${k} - ${k}\\sin^2 ${v} = ${k}\\cos^2 ${v} = ${k} \\times \\left(\\frac{${p}}{${q}}\\right)^2 = ${ratTex(rat(k * sq(p), sq(q)))}` },
+      { text: `${k === 1 ? 'Use' : `Take out the $${k}$ and use`} $1 - \\sin^2 ${v} = \\cos^2 ${v}$:` },
+      { tex: `${k} - ${co(k)}\\sin^2 ${v} = ${co(k)}\\cos^2 ${v} = ${k === 1 ? '' : `${k} \\times `}\\left(\\frac{${p}}{${q}}\\right)^2 = ${ratTex(rat(k * sq(p), sq(q)))}` },
     ],
   },
   {
@@ -735,13 +735,13 @@ const VALUE_FORMS: ValueForm[] = [
   {
     hard: true,
     given: 'sin',
-    expr: ({ k, b }, v) => `${k}\\sin^2 ${v} + ${b}\\cos^2 ${v}`,
+    expr: ({ k, b }, v) => `${co(k)}\\sin^2 ${v} + ${co(b)}\\cos^2 ${v}`,
     value: ({ k, b, p, q }) => rat(b * sq(q) + (k - b) * sq(p), sq(q)),
     slips: ({ k, b, p, q }) => [rat(k * sq(p) + b * sq(p), sq(q)), rat(k + b, 1), rat(k * sq(q) + (b - k) * sq(p), sq(q))],
     why: ({ k, b, p, q }, v) => [
       { text: `Write $\\cos^2 ${v}$ as $1 - \\sin^2 ${v}$, so everything is in terms of the sine you know:` },
-      { tex: `${k}\\sin^2 ${v} + ${b}(1 - \\sin^2 ${v}) = ${b} + ${signed(k - b, `\\sin^2 ${v}`, true)}` },
-      { tex: `= ${b} + ${k - b === 1 ? '' : k - b === -1 ? '-' : k - b}\\left(\\frac{${p}}{${q}}\\right)^2 = ${ratTex(rat(b * sq(q) + (k - b) * sq(p), sq(q)))}` },
+      { tex: `${co(k)}\\sin^2 ${v} + ${co(b)}(1 - \\sin^2 ${v}) = ${b} ${signed(k - b, `\\sin^2 ${v}`)}` },
+      { tex: `= ${b} ${signed(k - b, `\\left(\\frac{${p}}{${q}}\\right)^2`)} = ${ratTex(rat(b * sq(q) + (k - b) * sq(p), sq(q)))}` },
     ],
   },
   {
@@ -763,8 +763,8 @@ const VALUE_FORMS: ValueForm[] = [
     value: ({ k, p, q }) => rat(k * (sq(q) - sq(p)), sq(p)),
     slips: ({ k, p, q }) => [rat(k * (sq(q) - sq(p)), sq(q)), rat(k * sq(q), sq(p)), rat(k * (sq(q) + sq(p)), sq(p))],
     why: ({ k, p, q }, v) => [
-      { text: `$\\tan^2 ${v} = \\sec^2 ${v} - 1$, and $\\sec ${v} = \\frac{1}{\\cos ${v}} = \\frac{${q}}{${p}}$:` },
-      { tex: `\\tan^2 ${v} = \\left(\\frac{${q}}{${p}}\\right)^2 - 1 = ${ratTex(rat(sq(q) - sq(p), sq(p)))}` },
+      { text: `$\\tan^2 ${v} = \\sec^2 ${v} - 1$, and $\\sec ${v} = \\frac{1}{\\cos ${v}} = ${p === 1 ? q : `\\frac{${q}}{${p}}`}$:` },
+      { tex: `\\tan^2 ${v} = ${p === 1 ? `${q}^2` : `\\left(\\frac{${q}}{${p}}\\right)^2`} - 1 = ${ratTex(rat(sq(q) - sq(p), sq(p)))}` },
       ...(k === 1 ? [] : [{ tex: `${k}\\tan^2 ${v} = ${ratTex(rat(k * (sq(q) - sq(p)), sq(p)))}` }]),
     ],
   },
@@ -2873,10 +2873,15 @@ const doubleTiles: Generator<DoubleTilesParams> = {
     f.answer(H, D).forEach((token, i) => {
       line = line.replace(`{${i}}`, token);
     });
+    // The formula's own letter, kept apart from the question's: never "A = 4A",
+    // and no "with A = A" when the question's letter is already the formula's.
+    const g = x === 'A' && m !== 1 ? 'B' : 'A';
     return [
       { text: 'The formula is' },
-      { tex: f.says },
-      { text: m === 1 ? `with $A = ${x}$.` : `with $A = ${H}$, so $2A = ${D}$: the single angle is always half the double one.` },
+      { tex: f.says.replace(/A/g, g) },
+      ...(m === 1 && x === 'A'
+        ? []
+        : [{ text: m === 1 ? `with $${g} = ${x}$.` : `with $${g} = ${H}$, so $2${g} = ${D}$: the single angle is always half the double one.` }]),
       { tex: line },
     ];
   },
@@ -6177,8 +6182,8 @@ const tripleValue: Generator<TripleValueParams> = {
     const n = ratTex(need);
     const line =
       p.ask === 'sin'
-        ? `\\sin 3${v} = 3\\sin ${v} - 4\\sin^3 ${v} = 3 \\times ${br(n)} - 4 \\times ${br(n)}^3`
-        : `\\cos 3${v} = 4\\cos^3 ${v} - 3\\cos ${v} = 4 \\times ${br(n)}^3 - 3 \\times ${br(n)}`;
+        ? `\\sin 3${v} = 3\\sin ${v} - 4\\sin^3 ${v} = 3 \\times ${br(n)} - 4 \\times \\left(${n}\\right)^3`
+        : `\\cos 3${v} = 4\\cos^3 ${v} - 3\\cos ${v} = 4 \\times \\left(${n}\\right)^3 - 3 \\times ${br(n)}`;
     steps.push({ tex: line }, { tex: `\\${p.ask} 3${v} = ${ratTex(tripleOf(p.ask, p))}` });
     return steps;
   },

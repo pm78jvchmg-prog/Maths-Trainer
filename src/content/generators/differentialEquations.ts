@@ -49,6 +49,7 @@ import type { Rng } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
 import { EXP_KEYS, termAnswer, termTex } from './calculus';
+import { coeffTex } from './format';
 import {
   OPERATOR_KEYS,
   fracTex,
@@ -1515,7 +1516,7 @@ const deParticularSlider: Generator<ExpModelParams> = {
     const { sym, k, A, at } = params;
     const y1 = expValue(params, at);
     return [
-      { text: `$A$ is the value at $t = 0$. The marked point is $${at === 1 ? 'one' : 'two'}$ ${k.h === 1 ? 'step' : `step${at === 1 ? '' : 's'} of $${k.h}$`} along, and each step ${k.sign > 0 ? 'multiplies' : 'divides'} by $${k.b}$.` },
+      { text: `$A$ is the value at $t = 0$. The marked point is ${at === 1 ? 'one step' : 'two steps'}${k.h === 1 ? '' : ` of $${k.h}$`} along, and each step ${k.sign > 0 ? 'multiplies' : 'divides'} by $${k.b}$.` },
       { tex: `A = ${y1} ${k.sign > 0 ? '\\div' : '\\times'} ${k.b ** at} = ${A}` },
       { text: `So the solution through the point is $${sym} = ${A}${lnExpTex(k)}$.` },
     ];
@@ -5352,12 +5353,17 @@ const deCxPart: Generator<PartParams> = {
     return [
       ...toStandard(de),
       { text: 'The auxiliary equation:', tex: auxTex(de) },
+      // With no m term it is already a square plus a number: nothing to complete.
+      ...(de.p === 0
+        ? []
+        : [
+            {
+              text: 'Complete the square.',
+              tex: `(m ${signed(-de.p)})^2 + ${de.q * de.q} = 0`,
+            },
+          ]),
       {
-        text: 'Complete the square.',
-        tex: `${de.p === 0 ? 'm^2' : `(m ${signed(-de.p)})^2`} + ${de.q * de.q} = 0`,
-      },
-      {
-        text: `So $m = ${de.p} \\pm ${de.q}i$: $\\alpha = -\\frac{b}{2} = ${de.p}$ and $\\beta = \\frac{\\sqrt{4c - b^2}}{2} = \\frac{\\sqrt{${4 * c - b * b}}}{2} = ${de.q}$.`,
+        text: `So $m = ${de.p === 0 ? '' : `${de.p} `}\\pm ${coeffTex(de.q)}$: $\\alpha = -\\frac{b}{2} = ${de.p}$ and $\\beta = \\frac{\\sqrt{4c - b^2}}{2} = \\frac{\\sqrt{${4 * c - b * b}}}{2} = ${de.q}$.`,
       },
     ];
   },

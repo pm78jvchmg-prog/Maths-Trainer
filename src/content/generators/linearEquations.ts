@@ -81,6 +81,15 @@ function pointTex(x: number, y: number): string {
   return `(${x}, ${y})`;
 }
 
+/**
+ * The last line of a solve: `3x = 12 \implies x = 4`. With a coefficient of 1
+ * the implication would only repeat the line, `x = 4 \implies x = 4`, so the
+ * line stops at the value.
+ */
+function solvedTex(lhs: string, rhs: number, letter: string, value: number): string {
+  return lhs === letter ? `${letter} = ${value}` : `${lhs} = ${rhs} \\implies ${letter} = ${value}`;
+}
+
 const range = (from: number, to: number): number[] =>
   Array.from({ length: to - from + 1 }, (_, i) => from + i);
 const nonZeroRange = (from: number, to: number): number[] =>
@@ -662,7 +671,7 @@ function bothSolution(params: BothParams): SolutionStep[] {
       { text: `The left has more $x$. Take $${termTex(c, 1)}$ from both sides so the $x$ terms collect there.` },
       { tex: `${linTex(a - c, b)} = ${d}` },
       { text: `Then ${b > 0 ? `take $${b}$ from` : `add $${-b}$ to`} both sides, and divide by $${a - c}$.` },
-      { tex: `${termTex(a - c, 1)} = ${d - b} \\implies x = ${x}` },
+      { tex: solvedTex(termTex(a - c, 1), d - b, 'x', x) },
     ];
   }
   return [
@@ -1019,7 +1028,7 @@ function bracketSolution(params: BracketParams): SolutionStep[] {
       { text: 'There is $x$ outside the bracket, so expand: multiply **both** terms inside by the number outside.' },
       { tex: `${linTex(a, a * b)} = ${linTex(c, r)}` },
       { text: 'Then collect the $x$ terms on one side and the numbers on the other.' },
-      { tex: `${termTex(a - c, 1)} = ${r - a * b} \\implies x = ${x}` },
+      { tex: solvedTex(termTex(a - c, 1), r - a * b, 'x', x) },
     ];
   }
   return [
@@ -1027,7 +1036,7 @@ function bracketSolution(params: BracketParams): SolutionStep[] {
     { text: 'Expand both brackets, watching the sign in front of the second.' },
     { tex: `${linTex(a, a * b)} ${signedTile(c, 'x')} ${signedTile(c * e)} = ${r}` },
     { tex: `${linTex(a + c, a * b + c * e)} = ${r}` },
-    { tex: `${termTex(a + c, 1)} = ${r - a * b - c * e} \\implies x = ${x}` },
+    { tex: solvedTex(termTex(a + c, 1), r - a * b - c * e, 'x', x) },
   ];
 }
 
@@ -1226,7 +1235,7 @@ const bracketFlow: Generator<BracketRouteParams> = {
       return [
         { text: 'The $x$ outside the bracket has to be collected with the $x$ inside it, and that means expanding first.' },
         { tex: `${linTex(a, a * b)} = ${linTex(c, r)}` },
-        { tex: `${termTex(a - c, 1)} = ${r - a * b} \\implies x = ${x}` },
+        { tex: solvedTex(termTex(a - c, 1), r - a * b, 'x', x) },
       ];
     }
     if (route === 'extra') {
@@ -1463,7 +1472,7 @@ const crossTiles: Generator<CrossParams> = {
       { text: `Multiplying the left fraction by $${a * b}$ cancels its $${a}$ and leaves $${b}$; the right cancels its $${b}$ and leaves $${a}$.` },
       { tex: `${b}(x ${signedTile(p)}) = ${a}(x ${signedTile(q)})` },
       { tex: `${linTex(b, b * p)} = ${linTex(a, a * q)}` },
-      { tex: `${termTex(k, 1)} = ${a * q - b * p} \\implies x = ${x}` },
+      { tex: solvedTex(termTex(k, 1), a * q - b * p, 'x', x) },
       { text: `Both fractions then equal $${m}$, which is a quick check.` },
     ];
   },
@@ -2037,7 +2046,7 @@ function matchSolution(s: Sys, match: Match): SolutionStep[] {
     {
       text: `The $${gone}$ coefficients are the same size with ${match.endsWith('opp') ? 'opposite signs, so **add**' : 'the same sign, so **subtract**'}: ${op}.`,
     },
-    { tex: `${letterTerm(k, letter)} = ${v} \\implies ${letter} = ${found}` },
+    { tex: solvedTex(letterTerm(k, letter), v, letter, found) },
     { text: `Put $${letter} = ${found}$ back into either equation to find $${gone} = ${other}$.` },
   ];
 }
@@ -2339,13 +2348,13 @@ const backSub: Generator<BackSubParams> = {
       return [
         { tex: `${a} \\times ${br(params.x)} ${signedTile(b, 'y')} = ${c}` },
         { tex: `${a * params.x} ${signedTile(b, 'y')} = ${c}` },
-        { tex: `${yTerm(b)} = ${c - a * params.x} \\implies y = ${params.y}` },
+        { tex: solvedTex(yTerm(b), c - a * params.x, 'y', params.y) },
       ];
     }
     return [
       { tex: `${termTex(a, 1)} ${b < 0 ? '-' : '+'} ${Math.abs(b)} \\times ${br(params.y)} = ${c}` },
       { tex: `${termTex(a, 1)} ${signedTile(b * params.y)} = ${c}` },
-      { tex: `${termTex(a, 1)} = ${c - b * params.y} \\implies x = ${params.x}` },
+      { tex: solvedTex(termTex(a, 1), c - b * params.y, 'x', params.x) },
     ];
   },
 };
@@ -2853,7 +2862,7 @@ const scaleTree: Generator<Sys> = {
       { tex: `${eqTex(s.a1 * s.a2, p, s.a2 * c1Of(s))} \\quad ${s.a2} \\times (1)` },
       { tex: `${eqTex(s.a1 * s.a2, r, s.a1 * c2Of(s))} \\quad ${s.a1} \\times (2)` },
       { text: 'Subtract, and the $x$ terms cancel.' },
-      { tex: `${yTerm(p - r)} = ${s.a2 * c1Of(s) - s.a1 * c2Of(s)} \\implies y = ${s.y}` },
+      { tex: solvedTex(yTerm(p - r), s.a2 * c1Of(s) - s.a1 * c2Of(s), 'y', s.y) },
       { text: `Putting $y = ${s.y}$ back into (1) gives $x = ${s.x}$.` },
     ];
   },
@@ -2987,7 +2996,7 @@ function subSolution(p: SubParams): SolutionStep[] {
     { text: 'Equation (1) says what $y$ is, so put that expression into (2) in place of $y$.' },
     { tex: `${termTex(p.a, 1)} ${p.b < 0 ? '-' : '+'} ${Math.abs(p.b)}(${linTex(p.m, p.k)}) = ${c}` },
     { tex: `${linTex(A, B)} = ${c}` },
-    { tex: `${termTex(A, 1)} = ${c - B} \\implies x = ${p.x}` },
+    { tex: solvedTex(termTex(A, 1), c - B, 'x', p.x) },
     { text: `Then (1) gives $y = ${p.m} \\times ${br(p.x)} ${signedTile(p.k)} = ${subY(p)}$.` },
   ];
 }
@@ -7772,7 +7781,7 @@ const triFinishTree: Generator<FinishParams> = {
     const [L, M, N] = [TRI_LETTERS[p.k], TRI_LETTERS[p.m], TRI_LETTERS[n]];
     return [
       { text: `The $${M}$ coefficients in (4) and (5) are the same size, so ${c.op === '-' ? 'subtract' : 'add'}.` },
-      { tex: `${leadTerm(c.row[n], N)} = ${c.d} \\implies ${N} = ${p.sol[n]}` },
+      { tex: solvedTex(leadTerm(c.row[n], N), c.d, N, p.sol[n]) },
       { text: `Put $${N} = ${p.sol[n]}$ into (4):` },
       { tex: `${rowAtTex(four.row, p.sol, p.m)} = ${four.d}` },
       { tex: `${M} = ${p.sol[p.m]}` },
@@ -9689,8 +9698,8 @@ const cornerCheckTree: Generator<CornerCheckParams> = {
     const first = one.a * x + one.b * y;
     const second = two.a * x + two.b * y;
     return [
-      { text: `$${regionSideTex(one)} = ${first}$, ${first === one.c ? 'which' : 'but the line needs'} $${one.c}$${first === one.c ? ' is right' : ''}.` },
-      { text: `$${regionSideTex(two)} = ${second}$, ${second === two.c ? 'which' : 'but the line needs'} $${two.c}$${second === two.c ? ' is right' : ''}.` },
+      { text: `$${regionSideTex(one)} = ${first}$, ${first === one.c ? 'which is what the line needs' : `but the line needs $${one.c}$`}.` },
+      { text: `$${regionSideTex(two)} = ${second}$, ${second === two.c ? 'which is what the line needs' : `but the line needs $${two.c}$`}.` },
       {
         text: p.real
           ? `It is on both lines, so it is the corner.`

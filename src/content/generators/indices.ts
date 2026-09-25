@@ -1849,7 +1849,7 @@ const chooseRootRoute: Generator<RootRouteParams> = {
     if (n === 1) {
       return [
         {
-          text: `The $${d}$ underneath names the root, and the 1 on top leaves it at that — so this is simply the $${d}$th root of $${base}$.`,
+          text: `The $${d}$ underneath names the root, and the 1 on top leaves it at that — so this is simply ${ROOT_NAMES[d].toLowerCase()} of $${base}$.`,
         },
         { tex: `${base}^{\\frac{1}{${d}}} = ${rootOf(d, base)} = ${root}` },
         {
@@ -1859,7 +1859,7 @@ const chooseRootRoute: Generator<RootRouteParams> = {
     }
     return [
       {
-        text: `The $${d}$ underneath names the root and the $${n}$ on top names the power, so this reads as the $${d}$th root of $${base}$, then raised to the power $${n}$.`,
+        text: `The $${d}$ underneath names the root and the $${n}$ on top names the power, so this reads as ${ROOT_NAMES[d].toLowerCase()} of $${base}$, then raised to the power $${n}$.`,
       },
       { tex: `${rootOf(d, base)} = ${root} \\quad\\text{then}\\quad ${root}^{${n}} = ${Math.pow(root, n)}` },
       {

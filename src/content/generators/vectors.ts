@@ -11,6 +11,7 @@ import { options } from '../choiceVariant';
 import { hashSeed } from '../../engine/rng';
 import { vectorSvg } from '../figures';
 import { ALGEBRA_KEYS } from './calculus';
+import { coeffTex } from './format';
 import {
   bankOf,
   columnTex,
@@ -464,7 +465,12 @@ const perpendicular: Generator<PerpendicularParams> = {
         text: 'Two vectors are perpendicular exactly when their scalar product is zero, so set it to zero and solve.',
       },
       { tex: `\\left(${a}\\right)\\left(${cx}\\right) + \\left(${b}\\right)k = 0` },
-      { tex: `${a * cx} + ${b}k = 0 \\implies k = \\frac{${-a * cx}}{${b}} = ${k}` },
+      {
+        tex:
+          b === 1
+            ? `${a * cx} + k = 0 \\implies k = ${k}`
+            : `${a * cx} + ${b}k = 0 \\implies k = \\frac{${-a * cx}}{${b}} = ${k}`,
+      },
       {
         text: `Check it: $\\left(${a}\\right)\\left(${cx}\\right) + \\left(${b}\\right)\\left(${k}\\right) = ${a * cx} + ${b * k} = 0$.`,
       },
@@ -2352,7 +2358,7 @@ const lineTest: Generator<LineTestParams> = {
     ];
     if (yes) {
       steps.push(
-        { tex: `${second} = ${k}${first}` },
+        { tex: `${second} = ${coeffTex(k, first)}` },
         {
           text: points
             ? `The same multiple, $${k}$, works for both components, and both vectors start at $A$. So $A$, $B$ and $C$ are collinear.`
@@ -4119,6 +4125,8 @@ const lineFindT: Generator<FindTParams> = {
     const px = ax + t * bx;
     const py = ay + t * by;
     const useX = bx !== 0;
+    // `-t = -2`, not `-1t = -2`; and with a coefficient of 1 there is nothing to divide by.
+    const solved = (c: number, rhs: number) => (c === 1 ? `t = ${t}` : `${coeffTex(c, 't')} = ${rhs} \\implies t = ${t}`);
     const steps: { text?: string; tex?: string }[] = [
       {
         text: useX
@@ -4126,7 +4134,7 @@ const lineFindT: Generator<FindTParams> = {
           : 'The direction has no across component, so every point of the line has the same $x$. Take the up component instead:',
       },
       useX ? { tex: `${affTex(ax, bx, 't')} = ${px}` } : { tex: `${affTex(ay, by, 't')} = ${py}` },
-      useX ? { tex: `${bx}t = ${px - ax} \\implies t = ${t}` } : { tex: `${by}t = ${py - ay} \\implies t = ${t}` },
+      useX ? { tex: solved(bx, px - ax) } : { tex: solved(by, py - ay) },
     ];
     if (useX && by !== 0) {
       steps.push({
@@ -4997,7 +5005,9 @@ function substituteTex(n: Vec, entries: string[]): string {
     const size = Math.abs(c) === 1 ? '' : `${Math.abs(c)}`;
     const entry = entries[i];
     const numeric = !Number.isNaN(Number(entry));
-    const value = numeric && (size !== '' || Number(entry) < 0) ? `(${entry})` : entry;
+    // A zero after a leading bare minus is bracketed too: `-(0)`, never `-0`.
+    const value =
+      numeric && (size !== '' || Number(entry) < 0 || (c < 0 && out === '' && Number(entry) === 0)) ? `(${entry})` : entry;
     const sign = c < 0 ? '-' : out === '' ? '' : '+';
     out += out === '' ? `${sign}${size}${value}` : ` ${sign} ${size}${value}`;
   });

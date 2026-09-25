@@ -1590,7 +1590,7 @@ const subTiles: Generator<SubParams> = {
     const u = uTex(f.k, f.m);
     const inner = termsOf(f, 3, SUB_CAP - r);
     const steps: SolutionStep[] = [
-      { text: `Replace every $u$ with $${u}$: its coefficient is raised to the same power as the $x^{${f.m}}$, so $u^{j}$ becomes $(${qTex(f.k)})^{j}x^{${f.m}j}$.` },
+      { text: `Replace every $u$ with $${u}$: its coefficient is raised to the same power as the $${f.m === 1 ? 'x' : `x^{${f.m}}`}$, so $u^{j}$ becomes $(${qTex(f.k)})^{j}x^{${f.m === 1 ? '' : f.m}j}$.` },
       { tex: `${fnTex({ ...f, scale: 1 })} = ${seriesTex(inner)}` },
     ];
     if (r > 0) steps.push({ text: 'Multiplying by $x$ raises every power by one:' }, { tex: `${subTex(params)} = ${seriesTex(subTerms(params))}` });

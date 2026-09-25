@@ -7307,7 +7307,7 @@ function apexSolution(p: LevelTriParams, letter = 'k'): SolutionStep[] {
   const area = (b * h) / 2;
   return [
     {
-      text: `$AB$ lies on the line $${baseLine(p)}$, so it is level and its length is the base: $b = ${b}$. Put the area into half base times height:`,
+      text: `$AB$ lies on the line $${baseLine(p)}$, so it is ${p.along === 'x' ? 'level' : 'upright'} and its length is the base: $b = ${b}$. Put the area into half base times height:`,
     },
     { tex: chain(`\\tfrac{1}{2} \\times ${b} \\times h &= ${area}`, `h &= ${area * 2} \\div ${b} = ${h}`) },
     {

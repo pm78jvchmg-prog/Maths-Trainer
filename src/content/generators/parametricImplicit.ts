@@ -294,6 +294,13 @@ const DYDX = d('y', 'x');
 const DXDT = d('x', 't');
 const DYDT = d('y', 't');
 
+/**
+ * A rate differentiated then evaluated: `4t + 1 = 5`. A constant derivative
+ * has nothing to put t into, so it is written once: `-1`, not `-1 = -1`.
+ */
+const rateAt = (name: string, derivative: string, value: number): string =>
+  derivative === `${value}` ? `${name} = ${value}` : `${name} = ${derivative} = ${value}`;
+
 /* ---------- Parametric curves ---------- */
 
 /** x and y as polynomials in t, highest power first. */
@@ -1460,8 +1467,8 @@ const paramSlopeTree: Generator<SlopeAtParams> = {
     const { curve, k } = params;
     const [dx, dy, m] = slopeValues(params);
     return [
-      { text: `Differentiate, then put in $t = ${k}$.`, tex: `${DXDT} = ${polyTex(derived(curve.x))} = ${dx}` },
-      { tex: `${DYDT} = ${polyTex(derived(curve.y))} = ${dy}` },
+      { text: `Differentiate, then put in $t = ${k}$.`, tex: rateAt(DXDT, polyTex(derived(curve.x)), dx) },
+      { tex: rateAt(DYDT, polyTex(derived(curve.y)), dy) },
       { text: 'Divide.', tex: `${DYDX} = ${dy} \\div ${bracketed(dx)} = ${m}` },
     ];
   },
@@ -4889,8 +4896,8 @@ function sampleNormal(rng: Rng, difficulty: number): SlopeAtParams {
 function paramNormalGradientSteps({ curve, k }: SlopeAtParams): SolutionStep[] {
   const [dx, dy] = ratesAt(curve, k);
   return [
-    { text: `Differentiate, then put in $t = ${k}$.`, tex: `${DXDT} = ${polyTex(derived(curve.x))} = ${dx}` },
-    { tex: `${DYDT} = ${polyTex(derived(curve.y))} = ${dy}` },
+    { text: `Differentiate, then put in $t = ${k}$.`, tex: rateAt(DXDT, polyTex(derived(curve.x)), dx) },
+    { tex: rateAt(DYDT, polyTex(derived(curve.y)), dy) },
     { text: `Divide for the tangent's gradient.`, tex: `${DYDX} = ${dy} \\div ${bracketed(dx)} = ${dy / dx}` },
   ];
 }

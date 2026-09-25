@@ -1408,7 +1408,7 @@ const IRRATIONAL: Classified[] = [
   { tex: '\\sqrt{5}', why: '$5$ is not a square number' },
   { tex: '\\sqrt{7}', why: '$7$ is not a square number' },
   { tex: '\\sqrt{10}', why: '$10$ is not a square number' },
-  { tex: '\\pi', why: '$\\pi$ is irrational' },
+  { tex: '\\pi', why: 'its digits never end and never repeat' },
   { tex: '2\\pi', why: 'a whole number times $\\pi$ is irrational' },
   { tex: '1 + \\sqrt{2}', why: 'a rational number plus an irrational one is irrational', hard: true },
   { tex: '3 - \\sqrt{5}', why: 'a rational number minus an irrational one is irrational', hard: true },

@@ -39,6 +39,7 @@ import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
 import { canonicalPieces, formatSet, type Piece } from '../numberLine';
 import { sumTex, termTex } from './calculus';
+import { coeffTex } from './format';
 import { numberLineSvg } from './inequalitiesModulus';
 import { windowFor } from './numberLine';
 
@@ -2422,8 +2423,8 @@ const polyCompareTree: Generator<CompareParams> = {
     const b = -(r2 + r3);
     const c = r2 * r3;
     return [
-      { text: `Multiplying out, $(${linTex(a)})(x^{2} + bx + c)$ has $x^{2}$ coefficient $b ${signedNum(-a)}$ and constant $${-a}c$.` },
-      { tex: chain(`b ${signedNum(-a)} &= ${p[1]} &\\Rightarrow b &= ${b}`, `${-a}c &= ${p[3]} &\\Rightarrow c &= ${c}`) },
+      { text: `Multiplying out, $(${linTex(a)})(x^{2} + bx + c)$ has $x^{2}$ coefficient $b ${signedNum(-a)}$ and constant $${coeffTex(-a, 'c')}$.` },
+      { tex: chain(`b ${signedNum(-a)} &= ${p[1]} &\\Rightarrow b &= ${b}`, `${coeffTex(-a, 'c')} &= ${p[3]} &\\Rightarrow c &= ${c}`) },
       { text: `$${polyTex([1, b, c])} = (${linTex(r2)})(${linTex(r3)})$` },
       { text: `So the quadratic's roots are $${Math.min(r2, r3)}$ and $${Math.max(r2, r3)}$.` },
     ];
@@ -8167,7 +8168,7 @@ function rearrangedTex(params: RearrangeParams): string {
 }
 
 /** Its solution: subtract, factorise, and turn round if the cubic leads with a minus. */
-function rearrangeSolution(params: RearrangeParams): SolutionStep[] {
+function rearrangeSolution(params: RearrangeParams, found = params.roots[1]): SolutionStep[] {
   const { roots, lead, op } = params;
   const p = oneSided(params);
   const monic = rootsForm(roots, [1, 1, 1]);
@@ -8176,7 +8177,7 @@ function rearrangeSolution(params: RearrangeParams): SolutionStep[] {
     { text: `Take $${polyTex(params.q)}$ from both sides, which never turns an inequality round:` },
     { tex: `${polyTex(p)} ${OP_TEX[op]} 0` },
     {
-      text: `Trying small divisors of $${p[3]}$, $x = ${roots[1]}$ makes it zero, so $(${linTex(roots[1])})$ is a factor; dividing leaves a quadratic that factorises:`,
+      text: `Trying small divisors of $${p[3]}$, $x = ${found}$ makes it zero, so $(${linTex(found)})$ is a factor; dividing leaves a quadratic that factorises:`,
     },
     { tex: `${formTex(rootsForm(roots, [1, 1, 1], lead))} ${OP_TEX[op]} 0` },
     ...(lead < 0
@@ -8250,6 +8251,11 @@ function nonRoots(p: Poly, count: number): number[] {
   return [1, -1, 2, -2, 3, -3, 4, -4, 5, -5].filter((k) => valueAt(p, k) !== 0).slice(0, count);
 }
 
+/** The root a person finds first: the smallest in size. */
+function firstFoundRoot(roots: number[]): number {
+  return [...roots].sort((a, b) => Math.abs(a) - Math.abs(b) || b - a)[0];
+}
+
 /**
  * The method as forks: to one side, a root by the factor theorem, the
  * quotient, and the set. A wrong branch ends with what went wrong.
@@ -8262,8 +8268,7 @@ const polyRearrangeFlow: Generator<RearrangeParams> = {
     const p = oneSided(params);
     const left = leftSide(params);
     const key = `${polyTex(left)}|${op}|${polyTex(q)}`;
-    // The root a person finds first: the smallest in size.
-    const r = [...roots].sort((a, b) => Math.abs(a) - Math.abs(b) || b - a)[0];
+    const r = firstFoundRoot(roots);
     const quotient = divideBy(p, r).quotient;
     const slipQuotients = [
       [quotient[0], -quotient[1], quotient[2]],
@@ -8332,7 +8337,8 @@ const polyRearrangeFlow: Generator<RearrangeParams> = {
       answer: [`$${polyTex(p)} ${OP_TEX[op]} 0$`, `$x = ${r}$`, `$${polyTex(quotient)}$`, set],
     };
   },
-  solution: rearrangeSolution,
+  // The worked solution names the same root the flow asks for.
+  solution: (params) => rearrangeSolution(params, firstFoundRoot(params.roots)),
 };
 
 interface RearrangeLineParams extends RearrangeParams {
@@ -9487,7 +9493,14 @@ const polyFitCoefficient: Generator<FitCoefficientParams> = {
     const rest = y0 - p[slot] * power;
     return [
       { text: `The point is on the curve, so put $x = ${x0}$ and $y = ${y0}$ into the equation. Every term but the $k$ one is a number:` },
-      { tex: chain(`${y0} &= ${power === 1 ? '' : power === -1 ? '-' : power}k ${signedNum(rest)}`, `${factor(String(power))}k &= ${y0 - rest}`, `k &= ${p[slot]}`) },
+      {
+        // At a power of 1 the middle line would read "k = ..." twice over.
+        tex: chain(
+          `${y0} &= ${coeffTex(power, 'k')}${rest === 0 ? '' : ` ${signedNum(rest)}`}`,
+          ...(power === 1 ? [] : [`${coeffTex(power, 'k')} &= ${y0 - rest}`]),
+          `k &= ${p[slot]}`,
+        ),
+      },
     ];
   },
 };

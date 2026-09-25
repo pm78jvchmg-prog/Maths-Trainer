@@ -8,6 +8,7 @@
  */
 import type { Generator } from '../types';
 import { I_KEY, coeffTex, complexTex, complexAnswer, distinct, nonZero } from './format';
+import { sumTex, termTex } from './calculus';
 import { options } from '../choiceVariant';
 
 
@@ -738,7 +739,7 @@ export const rootPair: Generator<PairParams> = {
     },
     {
       text: 'The reason is what happens when you put them back together.',
-      tex: `(x - (${complexTex(p, q)}))(x - (${complexTex(p, -q)})) = x^2 - ${2 * p}x + ${p * p + q * q}`,
+      tex: `(x - (${complexTex(p, q)}))(x - (${complexTex(p, -q)})) = ${sumTex([termTex(1, 2), termTex(-2 * p, 1), termTex(p * p + q * q, 0)])}`,
     },
     {
       text: `Both coefficients came out real. Pairing it with $${complexTex(-p, q)}$ instead would leave an $i$ behind in the middle term.`,

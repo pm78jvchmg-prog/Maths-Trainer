@@ -946,7 +946,12 @@ const growHalfLife: Generator<HalfParams> = {
     const halvings = arrows(terms(a, 0.5, k + 1));
     if (ask === 'amount') {
       return [
-        { text: `${k * h} ${time}s is ${k} half-lives of ${h} ${time}s, so the amount halves ${k} times.` },
+        {
+          text:
+            k === 1
+              ? `${h} ${time}s is exactly one half-life, so the amount halves once.`
+              : `${k * h} ${time}s is ${k} half-lives of ${h} ${time}s, so the amount halves ${k} times.`,
+        },
         { tex: `${a} \\times 2^{-${k}} = \\frac{${a}}{${2 ** k}} = ${a / 2 ** k}` },
         { tex: halvings },
       ];

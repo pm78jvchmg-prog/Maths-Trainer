@@ -20,6 +20,7 @@ import {
   VECTOR_TEMPLATE,
 } from './vectorFormat';
 import { spanFor, transformGridSvg, type Mirror } from './transformFigure';
+import { fracTex } from './parametricImplicit';
 
 interface MatrixPairParams {
   a: number;
@@ -5413,13 +5414,14 @@ const sysCount: Generator<SysCountParams> = {
         { text: 'Two straight lines can never meet at exactly two points: they cross once, never, or all the way along.' },
       ];
     }
-    const ratio = p.s === 1 ? `${p.t}` : `\\frac{${p.t}}{${p.s}}`;
+    // In lowest terms with the sign out front, and bracketed when negative after a times sign.
+    const ratio = fracTex(p.t, p.s);
     return [
       ...steps,
       {
         text: `It is zero: the second row is $${ratio}$ times the first. Now check the right-hand side against the same multiple.`,
       },
-      { text: `$${br(r1)} \\times ${ratio} = ${(r1 * p.t) / p.s}$, against $${r2}$.` },
+      { text: `$${br(r1)} \\times ${ratio.startsWith('-') ? `\\left(${ratio}\\right)` : ratio} = ${(r1 * p.t) / p.s}$, against $${r2}$.` },
       {
         text:
           p.route === 'same'

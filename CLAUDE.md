@@ -155,6 +155,19 @@ missed. Two earlier fixes each broke the opposite direction; the tests in
 `streak.test.ts` cover both. That the streak is forgiving is the point — it should
 not become a reason to feel bad about missing a morning.
 
+Tapping the streak bar opens the **streak view** (`src/ui/StreakView.tsx`), a
+modal `<dialog>` like the leave-check prompt: the current streak, the charges,
+the last five days (played, covered by a charge, missed, or today still open),
+the longest streak and the lessons completed. The longest run is `best` on the
+streak state; the days come from `days`, a log of the last `RECENT_DAYS`
+marked `played` or `charge` by `playOnAt`, plus the days lessons were last
+finished on, which covers the time before the log was kept. `recentDays` reads
+a charge the next play will spend as already covering its day, as the bar's
+charge count does. Lessons completed is the sum of each record's `timesPlayed`,
+so it syncs with the lessons; `best` (the larger) and `days` (the union, a
+played day beating a charge) sync with the streak. The log is display only;
+nothing about the streak is worked out from it.
+
 **Topic mastery** replaces the XP the reference app runs on, and is the reason
 a points total is still refused. Solo there is no leaderboard to give a running
 score meaning, so `src/store/mastery.ts` measures *coverage and how well*

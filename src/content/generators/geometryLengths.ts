@@ -20,12 +20,12 @@ export const PI_KEYS: KeypadKey[] = [{ insert: 'pi', label: 'π' }];
 /** `k` lots of π as the learner reads it: `12\pi`, `\pi`, `2.5\pi`. */
 export const piTex = (k: number) => (k === 1 ? '\\pi' : `${num(k)}\\pi`);
 /** The same for mathjs. */
-const piAns = (k: number) => `${num(k)}*pi`;
+export const piAns = (k: number) => `${num(k)}*pi`;
 /** `k` lots of π as SVG text. */
 const piText = (k: number) => (k === 1 ? 'π' : `${num(k)}π`);
 
 /** Four options that are multiples of π: the answer and three distinct slips. */
-function piOptions(k: number, slips: number[]): ChoiceOption[] {
+export function piOptions(k: number, slips: number[]): ChoiceOption[] {
   const seen = new Set([num(k)]);
   const picked: number[] = [];
   for (const v of [...slips, k + 1, k * 2, k + 2, k * 3, k + 3]) {

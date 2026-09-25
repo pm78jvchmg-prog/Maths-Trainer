@@ -29,7 +29,7 @@ Id prefix `geo-` (levels `geo-l1` to `geo-l8`); no other course uses it.
 
 ## Levels
 
-Eight levels, 28 lessons and 8 level checks: 36 on the home-screen card.
+Eight levels, 26 lessons and 8 level checks: 34 on the home-screen card.
 Slide kinds are abbreviated: expr (typed), choice, tiles, table, tree, slider.
 
 ### Level 1: Angles (`geo-l1`)
@@ -67,10 +67,10 @@ Slide kinds are abbreviated: expr (typed), choice, tiles, table, tree, slider.
 
 | Lesson | Teaches | Leans on |
 | --- | --- | --- |
-| Reasoning About Area | counting squares, rectangles, cm² and m² | expr, choice, table |
-| Polygon Areas | ½bh, bh, ½(a + b)h, compound shapes | expr, choice, tree |
-| Circle Areas | πr², from a diameter, sectors | expr, choice, tiles |
-| Scaling Areas | area scale factor k² | expr, choice, tree |
+| Reasoning About Area | counting squares and half squares, rectangles, L-shapes split into two rectangles | expr, choice, table |
+| Polygon Areas | ½bh, bh, ½(a + b)h, a height from an area | expr, choice, tiles |
+| Circle Areas | πr², from a diameter, backwards to r, semicircles and quarter circles, sectors | expr, choice, tiles |
+| Scaling Areas | area scale factor k², and back to k by a square root | tiles, expr, choice, table |
 
 ### Level 6: Pythagoras' Geometry (`geo-l6`)
 
@@ -81,23 +81,24 @@ Pythagoras is stated and used, never proved (owner, 19:20).
 | The Pythagorean Theorem | a² + b² = c² for the hypotenuse | expr, choice, tiles |
 | Pythagorean Triples | 3-4-5, 5-12-13 and their multiples | choice, expr, table |
 | Squares and Roots | a shorter side, and answers left as roots | expr, choice, tree |
-| Special Right Triangles | half a square, half an equilateral triangle | expr, choice |
+| Special Right Triangles | half a square, half an equilateral triangle | expr, choice, tiles |
 | Applications | ladders, diagonals, distance between points | expr, choice, tree |
 
 ### Level 7: Surface Area (`geo-l7`)
 
 | Lesson | Teaches | Leans on |
 | --- | --- | --- |
-| Surface Area | nets, cuboids face by face | table, expr, choice |
+| Surface Area | faces, edges and vertices; nets, cuboids face by face, cubes | table, expr, choice |
 | Surface Area Shortcut | a prism: two ends plus perimeter × length; cylinders | expr, choice, tree |
-| Pyramids and Cones | triangle faces, πrl (formula given) | expr, choice |
+| Pyramids and Cones | triangle faces and slant height, πrl (formula given) | expr, choice, tiles |
 
 ### Level 8: Volume (`geo-l8`)
 
 | Lesson | Teaches | Leans on |
 | --- | --- | --- |
-| Volume | cuboids, prisms, cylinders, volume scale factor k³ | expr, choice, tree |
-| Pyramids and Cones | ⅓ × base × height, spheres ⁴⁄₃πr³ (formulas given) | expr, choice |
+| Volume | cuboids and prisms, and backwards to a length | expr, choice, tree |
+| Cylinders and Scaling | πr²h, from a diameter, volume scale factor k³ | expr, tiles, choice |
+| Pyramids, Cones and Spheres | ⅓ × base × height, ⅓πr²h, ⁴⁄₃πr³ and hemispheres (formulas given) | expr, choice, tiles |
 
 Pacing (the owner's rule for new courses): Level 1 on its own first, later
 levels in bigger batches.

@@ -63,6 +63,17 @@ const askWith = (generatorId: string, text: string, difficulty = 1): SlideRef =>
   leadIn: [prose(text)],
 });
 
+/**
+ * An exercise with a short worked example above it, on the same slide, where
+ * the question needs a step the lesson's teaching slides have not shown yet.
+ */
+const askAfter = (generatorId: string, difficulty: number, ...blocks: Block[]): SlideRef => ({
+  type: 'generated',
+  generatorId,
+  difficulty,
+  leadIn: blocks,
+});
+
 /** Straight lines on one set of axes, for the slides about graphs. */
 const lines = (
   fs: ((x: number) => number)[],
@@ -177,7 +188,6 @@ export const linearEquations: Course = {
             ),
             ask('lin-one-step'),
             ask('lin-one-step+choice'),
-            ask('lin-undo-flow'),
             teach(
               prose(
                 'Read the left-hand side of $3x + 4 = 19$ as a recipe that starts with $x$: multiply by $3$, **then** add $4$.',
@@ -191,6 +201,7 @@ export const linearEquations: Course = {
                 'Check by putting it back in: $3 \\times 5 + 4 = 19$. If the left-hand side does not come to the right-hand side, something went wrong.',
               ),
             ),
+            ask('lin-undo-flow'),
             ask('lin-two-step-steps'),
             ask('lin-check'),
             ask('lin-two-step'),
@@ -214,19 +225,17 @@ export const linearEquations: Course = {
               prose('When $x$ appears on both sides, first gather all the $x$ terms on one side.'),
               maths('5x + 3 = 2x + 15'),
               prose(
-                'Take $2x$ from both sides. The equation stays balanced, and now only the left has $x$.',
+                'The left has more $x$ ($5x$ against $2x$), so take $2x$ from both sides. The equation stays balanced, and now only the left has $x$.',
               ),
-              maths('3x + 3 = 15'),
-              prose('That is a two-step equation: take away $3$, then divide by $3$, giving $x = 4$.'),
+              maths('\\begin{gathered} 3x + 3 = 15 \\\\ 3x = 12 \\\\ x = 4 \\end{gathered}'),
+              prose('After collecting it is a two-step equation: take away $3$, then divide by $3$.'),
             ),
-            ask('lin-collect-flow'),
-            ask('lin-collect-tiles'),
             ask('lin-both-sides-steps'),
             teach(
               prose(
-                'Collect the $x$ terms on the side with **more** $x$, so the coefficient left over is positive. In $2x + 9 = 5x - 3$ that is the right.',
+                'Collect the $x$ terms on the side with **more** $x$, so the coefficient left over is positive. In $2x + 9 = 5x - 3$ that is the right, so take $2x$ from both sides.',
               ),
-              maths('\\begin{gathered} 9 = 3x - 3 \\\\ 12 = 3x \\\\ x = 4 \\end{gathered}'),
+              maths('\\begin{gathered} 2x + 9 = 5x - 3 \\\\ 9 = 3x - 3 \\\\ 12 = 3x \\\\ x = 4 \\end{gathered}'),
               prose(
                 'Each side is a straight line, and the solution is where they cross: there both sides have the same value.',
               ),
@@ -236,17 +245,20 @@ export const linearEquations: Course = {
                 'The lines y = 2x + 9 and y = 5x - 3 crossing at x = 4',
               ),
             ),
+            ask('lin-collect-flow'),
+            ask('lin-collect-tiles'),
             ask('lin-both-sides'),
-            ask('lin-meet-slider'),
-            ask('lin-collect-tiles+choice'),
             teach(
               prose(
-                'With negatives, "more $x$" means the larger coefficient, sign included: $-2x$ is less $x$ than $3x$, so in $-2x + 1 = 3x - 9$ the $x$ terms collect on the right.',
+                'With negatives, "more $x$" means the larger coefficient, sign included: $-2x$ is less $x$ than $3x$. So in $-2x + 1 = 3x - 9$ the $x$ terms collect on the right, and taking $-2x$ away means **adding** $2x$ to both sides.',
               ),
+              maths('\\begin{gathered} -2x + 1 = 3x - 9 \\\\ 1 = 5x - 9 \\\\ 10 = 5x \\\\ x = 2 \\end{gathered}'),
               prose(
-                'Checking needs both sides now. Put the answer into each side separately; they must come to the same number.',
+                'Check both sides separately: the left is $-4 + 1 = -3$ and the right is $6 - 9 = -3$. They match, so $x = 2$ is right.',
               ),
             ),
+            ask('lin-meet-slider'),
+            ask('lin-collect-tiles+choice'),
             ask('lin-collect-flow', 2),
             ask('lin-meet-slider', 2),
           ],
@@ -267,8 +279,7 @@ export const linearEquations: Course = {
               ),
             ),
             ask('lin-expand-tiles'),
-            ask('lin-bracket-flow'),
-            ask('lin-brackets'),
+            ask('lin-expand-tiles+choice'),
             teach(
               prose(
                 'When the bracket is alone on its side, dividing first is shorter. The whole bracket is multiplied by $4$, so divide both sides by $4$.',
@@ -278,16 +289,17 @@ export const linearEquations: Course = {
             ),
             ask('lin-brackets-tree'),
             askWith('lin-check', 'Brackets make checking worth doing. Work out the inside of the bracket first.', 2),
-            ask('lin-expand-tiles+choice'),
             teach(
               prose(
-                'An $x$ outside the bracket means expanding first, so the $x$ terms can be collected.',
+                'An $x$ outside the bracket means expanding first, so the $x$ terms can be collected. Then take $2x$ from both sides, since the right has more $x$.',
               ),
-              maths('\\begin{gathered} 2(x + 5) = 4x - 2 \\\\ 2x + 10 = 4x - 2 \\\\ x = 6 \\end{gathered}'),
+              maths('\\begin{gathered} 2(x + 5) = 4x - 2 \\\\ 2x + 10 = 4x - 2 \\\\ 12 = 2x \\\\ x = 6 \\end{gathered}'),
               prose(
-                'A negative number outside changes every sign inside: $-3(x - 2) = -3x + 6$.',
+                'So: a bracket alone on its side, divide first; an $x$ on the other side, expand first. A negative number outside changes every sign inside: $-3(x - 2) = -3x + 6$.',
               ),
             ),
+            ask('lin-bracket-flow'),
+            ask('lin-brackets'),
             ask('lin-bracket-flow', 2),
             ask('lin-check+choice', 2),
           ],
@@ -360,9 +372,24 @@ export const linearEquations: Course = {
               maths('\\begin{gathered} 2(x + x + 3) = 26 \\\\ 4x + 6 = 26 \\\\ x = 5 \\end{gathered}'),
               prose('Answer the question that was asked: the width is $5$ cm.'),
             ),
-            ask('lin-words-solve'),
+            askAfter(
+              'lin-words-solve',
+              1,
+              prose(
+                'Whole numbers in a row: call the smallest $x$, and each next one is $1$ more. Three in a row adding up to $48$:',
+              ),
+              maths('\\begin{gathered} x + (x + 1) + (x + 2) = 48 \\\\ 3x + 3 = 48 \\\\ 3x = 45 \\\\ x = 15 \\end{gathered}'),
+              prose('The numbers are $15$, $16$ and $17$. Four in a row are $x$, $x + 1$, $x + 2$ and $x + 3$, which add up to $4x + 6$.'),
+            ),
             ask('lin-cost-slider', 2),
-            ask('lin-words-solve', 2),
+            askAfter(
+              'lin-words-solve',
+              2,
+              prose(
+                'One amount can be a multiple of the other and then more. £$32$ is shared so that one person gets twice as much as the other, and then £$5$ more. Call the smaller share $x$; the other is $2x + 5$:',
+              ),
+              maths('\\begin{gathered} x + 2x + 5 = 32 \\\\ 3x + 5 = 32 \\\\ 3x = 27 \\\\ x = 9 \\end{gathered}'),
+            ),
             teach(
               prose(
                 'Two ways of paying, and when they cost the same: write each total with the same letter and set them equal. Plan A: £$10$ plus £$4$ a month. Plan B: £$22$ plus £$2$ a month.',
@@ -453,23 +480,26 @@ export const linearEquations: Course = {
               maths('\\begin{gathered} 2y - (-y) = 16 - 10 \\\\ 3y = 6 \\\\ y = 2 \\end{gathered}'),
               prose('Then (1) gives $3x + 4 = 16$, so $x = 4$.'),
             ),
+            askWith('lin-sim-back-sub', 'After eliminating, one value is known. Finish the pair.'),
+            askWith('lin-sim-check', 'Check a pair found by elimination, one equation at a time.'),
+            teach(
+              prose(
+                'When the matching coefficients have **opposite** signs, add the equations instead: $y$ and $-y$ add to nothing.',
+              ),
+              maths('\\begin{aligned} 2x + y &= 11 & \\quad (1) \\\\ 5x - y &= 17 & \\quad (2) \\end{aligned}'),
+              prose('$(1) + (2)$, term by term:'),
+              maths('\\begin{gathered} 2x + 5x = 11 + 17 \\\\ 7x = 28 \\\\ x = 4 \\end{gathered}'),
+              prose('Putting $x = 4$ into (1): $8 + y = 11$, so $y = 3$.'),
+            ),
             ask('lin-elim-flow'),
             ask('lin-elim-combine'),
             ask('lin-elim-solve'),
-            teach(
-              prose('When the matching coefficients have **opposite** signs, add the equations instead.'),
-              maths('\\begin{aligned} 2x + y &= 11 & \\quad (1) \\\\ 5x - y &= 17 & \\quad (2) \\end{aligned}'),
-              maths('\\begin{gathered} 7x = 28 \\\\ x = 4 \\end{gathered}'),
-              prose('Putting $x = 4$ into (1): $8 + y = 11$, so $y = 3$.'),
-            ),
-            askWith('lin-sim-back-sub', 'After eliminating, one value is known. Finish the pair.'),
-            ask('lin-elim-combine+choice'),
-            askWith('lin-sim-check', 'Check a pair found by elimination, one equation at a time.'),
             teach(
               prose(
                 'The rule in four words: **same sign, subtract**; opposite signs, add. Subtracting a negative is the step that goes wrong, so take it one term at a time.',
               ),
             ),
+            ask('lin-elim-combine+choice'),
             ask('lin-elim-flow'),
             ask('lin-elim-solve+choice'),
           ],
@@ -528,16 +558,24 @@ export const linearEquations: Course = {
               ),
             ),
             ask('lin-sub-rearrange'),
-            ask('lin-sub-collect'),
-            ask('lin-sub'),
             teach(
               prose(
-                'The bracket is where substitution goes wrong. The $2$ multiplies **both** terms of $2x - 1$.',
+                'The bracket is where substitution goes wrong. In $3x + 2(2x - 1) = 12$ the $2$ multiplies **both** terms of $2x - 1$. Expand, collect the $x$ terms, then solve.',
               ),
-              maths('\\begin{gathered} 3x + 4x - 2 = 12 \\\\ 7x = 14 \\\\ x = 2 \\end{gathered}'),
-              prose('Then (1) gives $y = 2 \\times 2 - 1 = 3$.'),
+              maths('\\begin{gathered} 3x + 4x - 2 = 12 \\\\ 7x - 2 = 12 \\\\ 7x = 14 \\\\ x = 2 \\end{gathered}'),
+              prose('That is only $x$. Put it back into (1) for $y$: $y = 2 \\times 2 - 1 = 3$.'),
             ),
+            ask('lin-sub-collect'),
             ask('lin-sub-steps'),
+            askAfter(
+              'lin-sub',
+              1,
+              prose(
+                'A negative number outside the bracket changes both signs inside. Putting $y = -2x + 1$ into $5x - 3y = 19$:',
+              ),
+              maths('\\begin{gathered} 5x - 3(-2x + 1) = 19 \\\\ 5x + 6x - 3 = 19 \\\\ 11x = 22 \\\\ x = 2 \\end{gathered}'),
+              prose('Then $y = -2 \\times 2 + 1 = -3$.'),
+            ),
             ask('lin-sub-collect+choice'),
             askWith('lin-sim-y-slider', 'The same pair as a picture: where do the two lines cross?'),
             teach(
@@ -566,8 +604,26 @@ export const linearEquations: Course = {
               prose('Keep the letters in the same order in both equations, whatever order the words use.'),
             ),
             ask('lin-sim-words-setup'),
+            ask('lin-sim-words-setup+choice'),
+            teach(
+              prose(
+                'Then solve the pair as in Simultaneous Linear Equations. "$3$ coffees and $2$ cakes cost £$19$; $2$ coffees and $3$ cakes cost £$16$", with $x$ for a coffee and $y$ for a cake:',
+              ),
+              maths('\\begin{aligned} 3x + 2y &= 19 & \\quad (1) \\\\ 2x + 3y &= 16 & \\quad (2) \\end{aligned}'),
+              prose('No letter matches, so scale both: (1) by $3$ and (2) by $2$, so both have $6y$.'),
+              maths('\\begin{aligned} 9x + 6y &= 57 \\\\ 4x + 6y &= 32 \\end{aligned}'),
+              prose(
+                'Subtracting leaves $5x = 25$, so $x = 5$. Then (1) gives $15 + 2y = 19$, so $y = 2$: a coffee is £$5$ and a cake £$2$.',
+              ),
+            ),
             ask('lin-sim-words-solve'),
-            ask('lin-method-flow', 2),
+            askAfter(
+              'lin-method-flow',
+              2,
+              prose(
+                'Pick the quickest route. In $x + 3y = 5$ the $x$ has coefficient $1$, so $x = 5 - 3y$ substitutes cleanly. In $3x + 2y = 34$ with $7x - 2y = 26$ the $y$ terms already match, so add. With neither, scale and then eliminate, as above.',
+              ),
+            ),
             teach(
               prose('Two numbers from their sum and difference is the quickest pair of all.'),
               maths('\\begin{aligned} x + y &= 23 \\\\ x - y &= 7 \\end{aligned}'),
@@ -576,14 +632,12 @@ export const linearEquations: Course = {
               ),
             ),
             ask('lin-sum-diff'),
-            ask('lin-sim-words-setup+choice'),
             ask('lin-sum-diff+choice'),
-            teach(
-              prose(
-                'Check the answer against the **words**, not only the equations. If the equations were written wrongly, the answer will satisfy them and still not fit the story.',
-              ),
+            askWith(
+              'lin-sim-words-solve',
+              'Check the answer against the **words**, not only the equations: with the coffees above, $3 \\times 5 + 2 \\times 2 = 19$. If the equations were written wrongly, the answer will satisfy them and still not fit the story.',
+              2,
             ),
-            ask('lin-sim-words-solve', 2),
             ask('lin-method-flow'),
           ],
           skillCheck: [ask('lin-sim-words-solve', 2), ask('lin-sim-words-setup', 2), ask('lin-sum-diff', 2)],
@@ -635,7 +689,14 @@ export const linearEquations: Course = {
               ),
               maths('h - b = -kt \\implies t = \\frac{b - h}{k}'),
             ),
-            ask('lin-rearrange-steps'),
+            askAfter(
+              'lin-rearrange-steps',
+              1,
+              prose(
+                'A letter underneath is cleared by multiplying, just as a number would be. From $p = \\frac{x}{k} + 2$, take off the $2$, then multiply both sides by $k$:',
+              ),
+              maths('\\begin{aligned} p - 2 &= \\frac{x}{k} \\\\ k(p - 2) &= x \\end{aligned}'),
+            ),
             ask('lin-subject+choice', 2),
             ask('lin-first-undo-tiles', 2),
             teach(
@@ -729,9 +790,26 @@ export const linearEquations: Course = {
               maths('\\begin{aligned} A &= \\pi r^2 \\\\ \\frac{A}{\\pi} &= r^2 \\\\ r &= \\sqrt{\\frac{A}{\\pi}} \\end{aligned}'),
               prose('A radius is never negative, so only the positive root.'),
             ),
-            ask('lin-root-flow'),
-            ask('lin-root-subject'),
             ask('lin-root-sign'),
+            askAfter(
+              'lin-root-flow',
+              1,
+              prose(
+                'A square root is undone by squaring, but only once the root is the whole of its side. Here it is, so square both sides first:',
+              ),
+              maths('\\begin{aligned} W &= \\sqrt{k - 3} \\\\ W^2 &= k - 3 \\\\ k &= W^2 + 3 \\end{aligned}'),
+              prose(
+                'With something else beside the root, take that off first: from $W = \\sqrt{k} + 3$, $W - 3 = \\sqrt{k}$, so $k = (W - 3)^2$.',
+              ),
+            ),
+            askAfter(
+              'lin-root-subject',
+              1,
+              prose(
+                'When a number multiplies the root, divide it off first so the root is alone. Then square the **whole** of each side, so the number is squared too:',
+              ),
+              maths('\\begin{aligned} V &= 5\\sqrt{h} \\\\ \\frac{V}{5} &= \\sqrt{h} \\\\ \\frac{V^2}{25} &= h \\end{aligned}'),
+            ),
             teach(
               prose(
                 'Square or root only once the square or the root is the **whole** of its side. In $T = 2\\pi\\sqrt{\\frac{l}{g}}$ divide by $2\\pi$ first, then square, and the $2\\pi$ is squared too.',
@@ -779,16 +857,24 @@ export const linearEquations: Course = {
             ),
             ask('lin-use-slider'),
             ask('lin-use-formula+choice', 2),
-            ask('lin-formula-words', 2),
             teach(
               prose(
-                'To test a rearrangement, pick numbers for the other letters, work the subject out from the original, then see whether the rearrangement gives it back.',
+                'A shape counts its letter more than once. A rectangle $5$ cm longer than it is wide, width $w$, has perimeter $P = 2(w + w + 5)$:',
               ),
+              maths('\\begin{aligned} P &= 4w + 10 \\\\ P - 10 &= 4w \\\\ w &= \\frac{P - 10}{4} \\end{aligned}'),
+              prose(
+                'A quantity that goes **down** takes its letter term away. A $30$ cm candle burning $2$ cm an hour is $h = 30 - 2t$. Add $2t$ to both sides and take $h$ from both, so the letter term is positive:',
+              ),
+              maths('\\begin{aligned} 2t &= 30 - h \\\\ t &= \\frac{30 - h}{2} \\end{aligned}'),
             ),
-            ask('lin-which-rearrangement', 2),
+            ask('lin-formula-words', 2),
+            askWith(
+              'lin-which-rearrangement',
+              'Test an option with numbers. For $v = u + 3t$, pick $u = 5$ and $t = 4$, so $v = 17$. The option $\\frac{v + u}{3}$ gives $\\frac{22}{3}$, not $4$, so it is wrong; $\\frac{v - u}{3} = \\frac{12}{3} = 4$ gives $t$ back.',
+            ),
             ask('lin-use-slider', 2),
           ],
-          skillCheck: [ask('lin-use-formula', 2), ask('lin-formula-words', 2), ask('lin-which-rearrangement', 2)],
+          skillCheck: [ask('lin-use-formula', 2), ask('lin-formula-words', 2), ask('lin-which-rearrangement')],
         },
       ],
       levelCheck: [
@@ -828,19 +914,19 @@ export const linearEquations: Course = {
               ),
             ),
             ask('lin-ineq-steps'),
-            ask('lin-ineq-picture'),
-            ask('lin-ineq-line'),
             teach(
               prose(
                 'On a number line the solution is a dot at the boundary and shading along the line. A **filled** dot means the boundary is included ($\\le$ or $\\ge$); a **hollow** dot means it is left out ($<$ or $>$).',
               ),
               numberLine({ min: -2, max: 8 }, (x) => x <= 3, [{ x: 3, hollow: false }], 'x at most 3: a filled dot at 3, shaded to the left'),
               prose(
-                'That is $x \\le 3$: filled at $3$, shaded left. To draw one here, tap a number for a dot, tap the dot to make it hollow, then tap the line on the side to shade.',
+                'That is $x \\le 3$: filled at $3$, shaded left. $x > 1$ would be hollow at $1$ and shaded right. To draw one here, tap a number for a dot, tap the dot to make it hollow, then tap the line on the side to shade.',
               ),
             ),
             ask('lin-ineq-line'),
+            ask('lin-ineq-picture'),
             ask('lin-ineq-steps'),
+            ask('lin-ineq-line'),
             ask('lin-ineq-picture'),
             teach(
               prose(
@@ -960,7 +1046,15 @@ export const linearEquations: Course = {
               ),
             ),
             ask('lin-int-extreme'),
-            ask('lin-double-line', 2),
+            askAfter(
+              'lin-double-line',
+              2,
+              prose(
+                'Dividing all three parts by a **negative** number turns both signs round:',
+              ),
+              maths('\\begin{gathered} -7 < 3 - 2x \\le 5 \\\\ -10 < -2x \\le 2 \\\\ 5 > x \\ge -1 \\end{gathered}'),
+              prose('Read from the smaller end, that is $-1 \\le x < 5$: filled at $-1$, hollow at $5$.'),
+            ),
             ask('lin-int-list', 2),
             teach(
               prose(
@@ -1353,12 +1447,17 @@ export const linearEquations: Course = {
             ),
             ask('lin-corner-check-tree'),
             ask('lin-corner-steps', 2),
-            ask('lin-corner-slider', 2),
             teach(
-              prose('In the form $ax + by$, eliminate a letter.'),
-              maths('\\begin{aligned} x + y &= 2 & \\quad (1) \\\\ x - 2y &= -4 & \\quad (2) \\end{aligned}'),
-              prose('$(1) - (2)$ gives $3y = 6$, so $y = 2$, and (1) gives $x = 0$. The corner is $(0, 2)$.'),
+              prose(
+                'In the form $ax + by$, eliminate a letter, as in Simultaneous Linear Equations. With opposite signs, add: $x + y = 6$ and $x - y = 2$ give $2x = 8$, so $x = 4$ and $y = 2$.',
+              ),
+              prose('When no coefficient matches, scale one line first.'),
+              maths('\\begin{aligned} 2x + 3y &= 12 & \\quad (1) \\\\ x - y &= 1 & \\quad (2) \\end{aligned}'),
+              prose('Multiply every term of (2) by $2$, so both have $2x$: $2x - 2y = 2$. Subtract it from (1):'),
+              maths('\\begin{gathered} 3y - (-2y) = 12 - 2 \\\\ 5y = 10 \\\\ y = 2 \\end{gathered}'),
+              prose('Then (2) gives $x - 2 = 1$, so $x = 3$. The corner is $(3, 2)$.'),
             ),
+            ask('lin-corner-slider', 2),
             ask('lin-corner-value', 2),
             ask('lin-corner-check-tree', 2),
           ],
@@ -1504,15 +1603,17 @@ export const linearEquations: Course = {
               prose('It **breaks even** when the two are equal: no profit and no loss.'),
             ),
             ask('lin-even-tiles'),
-            ask('lin-even-count'),
             ask('lin-even-table'),
             teach(
-              prose('Solve it like any equation with the unknown on both sides, as in level 1:'),
+              prose(
+                'Solve it like any equation with the unknown on both sides, as in Solving Linear Equations: take $2n$ from both sides, then divide by $3$.',
+              ),
               maths('\\begin{gathered} 5n = 36 + 2n \\\\ 3n = 36 \\\\ n = 12 \\end{gathered}'),
               prose(
                 'The $3$ is what each cake makes over its own cost, and $12$ lots of £$3$ pay back the £$36$. On a graph, break-even is where the income line crosses the cost line.',
               ),
             ),
+            ask('lin-even-count'),
             ask('lin-even-slider'),
             ask('lin-even-count+choice', 2),
             ask('lin-even-tiles', 2),
@@ -1547,7 +1648,17 @@ export const linearEquations: Course = {
               prose('On a distance-time graph, the catch is where the two lines cross.'),
             ),
             ask('lin-rate-catch'),
-            ask('lin-rate-meet+choice', 2),
+            askAfter(
+              'lin-rate-meet+choice',
+              2,
+              prose(
+                'When one sets off first, count what they cover alone, then close the rest of the gap. Ana and Bo are $62$ km apart. Ana sets off at $6$ km/h, and Bo follows $1$ hour later at $8$ km/h, towards her.',
+              ),
+              prose(
+                'In that first hour Ana covers $6$ km. After that the gap closes at $6 + 8 = 14$ km/h, for $t$ hours after Bo sets off:',
+              ),
+              maths('\\begin{gathered} 6 + 14t = 62 \\\\ 14t = 56 \\\\ t = 4 \\end{gathered}'),
+            ),
             ask('lin-rate-tiles', 2),
             teach(
               prose(
@@ -1557,7 +1668,14 @@ export const linearEquations: Course = {
               prose('If more drains out than flows in, the net rate is negative and the level falls.'),
             ),
             ask('lin-rate-tank'),
-            ask('lin-rate-catch', 2),
+            askAfter(
+              'lin-rate-catch',
+              2,
+              prose(
+                'A later start works like a head start in time. Cy cycles at $12$ km/h, and Di leaves the same place $1$ hour later at $16$ km/h. After $t$ hours from Cy\'s start, Di has had $t - 1$ hours. She catches him when they have gone the same distance:',
+              ),
+              maths('\\begin{gathered} 16(t - 1) = 12t \\\\ 16t - 16 = 12t \\\\ 4t = 16 \\\\ t = 4 \\end{gathered}'),
+            ),
           ],
           skillCheck: [ask('lin-rate-meet', 2), ask('lin-rate-tiles', 2), ask('lin-rate-tank', 2)],
         },
@@ -1567,7 +1685,7 @@ export const linearEquations: Course = {
           slides: [
             teach(
               prose(
-                'A mixture has two unknowns, how much of each goes in, so it needs two letters and two facts: one about the **amounts** and one about the **cost**. This is level 2 again, from a new kind of story.',
+                'A mixture has two unknowns, how much of each goes in, so it needs two letters and two facts: one about the **amounts** and one about the **cost**. This is Simultaneous Linear Equations again, from a new kind of story.',
               ),
               prose('Cashews at £$12$ per kg and peanuts at £$4$ per kg make $8$ kg of mix at £$7$ per kg. With $x$ kg of cashews and $y$ kg of peanuts:'),
               maths('\\begin{gathered} x + y = 8 \\\\ 12x + 4y = 56 \\end{gathered}'),
@@ -1577,7 +1695,6 @@ export const linearEquations: Course = {
             ),
             ask('lin-mix-pair'),
             ask('lin-mix-tiles'),
-            ask('lin-mix-slider'),
             teach(
               prose('Solve by substitution: $y = 8 - x$, so'),
               maths('\\begin{gathered} 12x + 4(8 - x) = 56 \\\\ 8x + 32 = 56 \\\\ 8x = 24 \\\\ x = 3 \\end{gathered}'),
@@ -1585,16 +1702,19 @@ export const linearEquations: Course = {
             ),
             ask('lin-mix-substitute-steps'),
             ask('lin-mix-solve'),
+            ask('lin-mix-slider'),
             ask('lin-mix-tiles', 2),
             teach(
               prose(
-                'A **strength** works the same way. A $40\\%$ acid and a $10\\%$ acid make $30$ litres at $20\\%$. Counting per cent times litres, $40x + 10y = 20 \\times 30 = 600$, with $x + y = 30$.',
+                'A **strength** works the same way. A $40\\%$ acid and a $10\\%$ acid make $30$ litres at $20\\%$. Counting per cent times litres, $40x + 10y = 20 \\times 30 = 600$, with $x + y = 30$. Substitute $y = 30 - x$:',
               ),
-              prose(
-                'The target sits nearer the one there is more of, and exactly halfway for equal amounts. $20$ is nearer $10$, so there is more of the weak one: $x = 10$ and $y = 20$.',
-              ),
+              maths('\\begin{gathered} 40x + 10(30 - x) = 600 \\\\ 30x + 300 = 600 \\\\ 30x = 300 \\\\ x = 10 \\end{gathered}'),
+              prose('So $10$ litres of the strong acid and $y = 30 - 10 = 20$ litres of the weak.'),
             ),
-            ask('lin-mix-flow'),
+            askWith(
+              'lin-mix-flow',
+              'Compare the target with each ingredient. The acid target $20$ is $10$ from the weak $10\\%$ and $20$ from the strong $40\\%$, and the answer was $20$ litres weak to $10$ strong. Like a seesaw, each amount times its distance balances: $20 \\times 10 = 10 \\times 20$. So the target sits nearer the one there is more of. The nuts agree: £$7$ is $3$ from the peanuts and $5$ from the cashews, with $5$ kg of peanuts and $3$ of cashews, and $5 \\times 3 = 3 \\times 5$.',
+            ),
             ask('lin-mix-solve+choice', 2),
           ],
           skillCheck: [ask('lin-mix-tiles', 2), ask('lin-mix-solve', 2), ask('lin-mix-substitute-steps', 2)],
@@ -1615,13 +1735,20 @@ export const linearEquations: Course = {
             ask('lin-back-sense-flow'),
             ask('lin-back-which', 2),
             teach(
-              prose("A formula can be turned round to give the story's unknown straight away. Undo in reverse order, as in level 3:"),
+              prose("A formula can be turned round to give the story's unknown straight away. Undo in reverse order, as in Rearranging Formulae:"),
               maths('\\begin{gathered} C = 40 + 30h \\\\ C - 40 = 30h \\\\ h = (C - 40) \\div 30 \\end{gathered}'),
               prose('Then any bill gives its hours at once: a £$130$ bill is $(130 - 40) \\div 30 = 3$ hours.'),
             ),
             ask('lin-back-rearrange'),
             ask('lin-back-sense-flow', 2),
-            ask('lin-back-rearrange', 2),
+            askAfter(
+              'lin-back-rearrange',
+              2,
+              prose(
+                'When the letter term is taken away, add it to both sides first so it is positive. A tank holding $100$ litres that drains at $5$ litres a minute has $V = 100 - 5t$:',
+              ),
+              maths('\\begin{gathered} V + 5t = 100 \\\\ 5t = 100 - V \\\\ t = (100 - V) \\div 5 \\end{gathered}'),
+            ),
             teach(
               prose(
                 'Changing one number moves the answer in a way you can predict. A fixed cost of £$60$ with £$4$ made on each sale breaks even at $60 \\div 4 = 15$.',

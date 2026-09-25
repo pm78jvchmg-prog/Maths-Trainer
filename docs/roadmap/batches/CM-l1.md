@@ -1,0 +1,21 @@
+# CM-l1: Classical Mechanics: Describing Motion
+
+Status: done
+Branch: `claude/classical-mechanics-course-i7qlc4`
+
+New course `classical-mechanics` (Mechanics band, position 30, after
+Kinematics and Forces), plan in `docs/roadmap/levels/classical-mechanics.md`.
+Level `cm-l1`, 5 lessons (`cm-l1-units`, `cm-l1-average`, `cm-l1-relative`,
+`cm-l1-stopping`, `cm-l1-steps`) and a 12-question level check, 21 new `cm-*`
+generators in `generators/classicalMotion.ts`, shared pieces in
+`generators/classicalKit.ts`.
+
+- Levels live in `courses/classical/levelN.ts`, imported by the one course
+  file, so later levels can be written side by side without touching the
+  same lines.
+- Speeds in km h^-1 are 3.6 times a whole or half m s^-1, so no conversion
+  rounds. Everything else is drawn so the quotient terminates.
+- `classicalMotion.test.ts` recomputes every answer by another route
+  (braking by stepping the motion finely, traffic by moving cars cell by
+  cell); two mutations (a pit stop left out of the time, the traffic gap off
+  by one) were confirmed to turn it red.

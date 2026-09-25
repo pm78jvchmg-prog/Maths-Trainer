@@ -6986,7 +6986,7 @@ const waveParts: Generator<WavePartsParams> = {
       : [
           {
             kind: 'prose',
-            text: `$${skeleton}$, $x$ in degrees and $a > 0$, has greatest value $${max}$, least value $${min}$ and period $${360 / b}°$. ${order}`,
+            text: `$${skeleton}$, $x$ in degrees and $a > 0$, has a greatest value of $${max}$, a least value of $${min}$ and a period of $${360 / b}°$. ${order}`,
           },
         ];
     return {

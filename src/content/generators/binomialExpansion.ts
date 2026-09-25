@@ -5597,8 +5597,8 @@ const surdGatherSteps: Generator<SurdAskParams> = {
     const { start, reductions } = sumOfProducts(terms);
     const which =
       ask === 'a'
-        ? `Below is $a$, from the even powers of $${rootTex(k)}$.`
-        : `Below is $b$, from the odd powers of $${rootTex(k)}$, one $${rootTex(k)}$ taken out of each.`;
+        ? `$a$ is the sum of the even powers of $${rootTex(k)}$, below.`
+        : `$b$ is the sum of the odd powers of $${rootTex(k)}$, one $${rootTex(k)}$ taken out of each, below.`;
     return {
       kind: 'steps',
       prompt: [

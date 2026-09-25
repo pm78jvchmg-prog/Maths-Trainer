@@ -8606,7 +8606,7 @@ function sampleSide(rng: Rng, difficulty: number): SideParams {
 }
 
 const sideText = (params: SideParams) =>
-  `$f(x) = ${polyTex(params.poly)}$ has a root $\\alpha$ in $[${params.lo}, ${params.lo + 1}]$. Methods: bisection on that interval; $x_{n+1} = ${sideGTex(params, 'x_n')}$ and Newton-Raphson, both from $x_0 = ${params.x0}$.`;
+  `$f(x) = ${polyTex(params.poly)}$ has a root $\\alpha$ in $[${params.lo}, ${params.lo + 1}]$. Methods: bisection on that interval, $x_{n+1} = ${sideGTex(params, 'x_n')}$, and Newton-Raphson, both from $x_0 = ${params.x0}$.`;
 
 /** The three columns as a display, rows 1 to 3 filled in, for the slides that compare them. */
 function sideDisplay(params: SideParams): string {
@@ -9005,7 +9005,7 @@ const speedTree: Generator<SpeedCountParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `All three methods start with an error of at most $${fmt(e0)}$ ($${placesOf(e0)}$ correct place${placesOf(e0) > 1 ? 's' : ''}); the iteration's factor is $${fmt(r)}$. Top row: the steps to get the error below $10^{-${P}}$ for bisection, iteration, Newton-Raphson. Below: the fewest.`,
+          `All three methods start with an error of at most $${fmt(e0)}$ ($${placesOf(e0)}$ correct place${placesOf(e0) > 1 ? 's' : ''}); the iteration's factor is about $${fmt(r)}$. Top row: the steps to get the error below $10^{-${P}}$ for bisection, iteration, Newton-Raphson. Below: the fewest.`,
         ),
       ],
       expression: `\\text{error} < 10^{-${P}}`,
@@ -9088,7 +9088,7 @@ const kitKey = ({ s, q, ok, x0 }: Kit) => `${s}|${q}|${ok.bisection}|${ok.iterat
 /** The three plans in words, for a prompt. */
 function kitText(kit: Kit): string {
   const { poly, alpha, bracket, tex, x0 } = kitFacts(kit);
-  return `$f(x) = ${polyTex(poly)}$ has a root $\\alpha \\approx ${alpha.toFixed(1)}$. Plans: bisection on $[${bracket[0]}, ${bracket[1]}]$; iteration with $g(x) = ${tex}$; Newton-Raphson from $x_0 = ${x0}$.`;
+  return `$f(x) = ${polyTex(poly)}$ has a root $\\alpha \\approx ${alpha.toFixed(1)}$. Plans: bisection on $[${bracket[0]}, ${bracket[1]}]$; iteration with $g(x) = ${tex}$; and Newton-Raphson from $x_0 = ${x0}$.`;
 }
 
 /** Why each plan fails when it does. */

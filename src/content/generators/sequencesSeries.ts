@@ -4035,7 +4035,7 @@ const divideSteps: Generator<DivideParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `Find the limit of $u_n = \\frac{${linearTex(a, b)}}{${linearTex(c, d)}}$. Below, top and bottom are divided by $n$. Tap the operation to do next, then choose what it heads for.`,
+          text: `Find the limit of $u_n = \\frac{${linearTex(a, b)}}{${linearTex(c, d)}}$. Dividing top and bottom by $n$ gives the line below. Tap the operation to do next, then choose what it heads for.`,
         },
       ],
       start: ['(', `${a}`, sign(b), small(b), ')', '\\div', '(', `${c}`, sign(d), small(d), ')'],
@@ -7875,7 +7875,7 @@ function samplePlan(rng: Rng, hard: boolean, most = 6): Plan {
 }
 
 function saveStory(name: string, P: number, pct: number): string {
-  return `${name} pays £${P} into savings at the start of each year; at each year's end it earns ${interest(pct)}.`;
+  return `${name} pays £${P} into a savings account at the start of each year; at each year's end it earns ${interest(pct)}.`;
 }
 
 /** The balance after n years as a series: `1000 \times 1.1 + 1000 \times 1.1^2 + …`. */
@@ -8124,7 +8124,7 @@ function sampleLoan(rng: Rng, years: number[]): LoanDraw {
 }
 
 function loanStory(name: string, { D, pct, R }: Loan): string {
-  return `${name} borrows £${D}. Each year ends with $${pct}\\%$ interest added, then £${R} repaid (or the rest, if less).`;
+  return `${name} borrows £${D}. Each year ends with $${pct}\\%$ interest added, then £${R} is repaid (or the rest, if less).`;
 }
 
 function loanWorking({ D, pct, R }: Loan): SolutionStep {
@@ -8267,7 +8267,7 @@ const loanInterestTree: Generator<LoanParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${loanStory(NAMES[name], params)} £${run.after[run.years - 2]} is owed after year $${run.years - 1}$, and year $${run.years}$ clears it. Fill the tree: the last payment, the full payments before it, the total repaid, then the interest.`,
+          text: `${loanStory(NAMES[name], params)} After year $${run.years - 1}$, £${run.after[run.years - 2]} is still owed, and year $${run.years}$ clears it. Fill the tree: the last payment, the full payments before it, the total repaid, then the interest.`,
         },
       ],
       expression: `\\text{interest} = \\text{repaid} - ${D}`,
@@ -8330,7 +8330,7 @@ const targetYear: Generator<TargetParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${saveStory(NAMES[name], P, pct)} Dots: year-end balances; dashed line: £${T}. Slide to the first year above £${T}.`,
+          text: `${saveStory(NAMES[name], P, pct)} Dots: year-end balances; the dashed line is £${T}. Slide to the first year above it.`,
         },
       ],
       min: 0,
@@ -8490,7 +8490,7 @@ const targetTable: Generator<TargetTableParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${saveStory(NAMES[name], P, pct)} Fill in each year-end balance and how far it is above a £${T} target, stopping at the first year over it.`,
+          text: `${saveStory(NAMES[name], P, pct)} The target is £${T}. Fill in each year-end balance and how far it is above the target, stopping at the first year over it.`,
         },
       ],
       columns: ['n', 'B_n', `B_n - ${T}`],
@@ -8995,7 +8995,7 @@ const plansTotalTree: Generator<PlansParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${plansStory(params)} Fill the tree: Plan A's total over $${N}$ years, $S_A = \\frac{${N}}{2}(2 \\times ${a} + ${N - 1} \\times ${d})$, Plan B's, $S_B = \\frac{${b}(${rateOf(pct).tex}^{${N}} - 1)}{${rateOf(pct).tex} - 1}$, then how much more the better plan pays.`,
+          text: `${plansStory(params)} Fill the tree: Plan A's total over the first $${N}$ years, $S_A = \\frac{${N}}{2}(2 \\times ${a} + ${N - 1} \\times ${d})$, Plan B's, $S_B = \\frac{${b}(${rateOf(pct).tex}^{${N}} - 1)}{${rateOf(pct).tex} - 1}$, then how much more the better plan pays.`,
         },
       ],
       expression: SA > SB ? 'S_A - S_B' : 'S_B - S_A',

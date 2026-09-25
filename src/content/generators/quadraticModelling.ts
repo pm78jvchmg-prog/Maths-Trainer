@@ -452,7 +452,7 @@ const flightEvaluate: Generator<EvalParams> = {
       kind: 'reduce',
       prompt: [
         ...flightIntro(params),
-        prose(`How high is the ${LAUNCHES[params.ctx].noun} after ${k} ${k === 1 ? 'second' : 'seconds'}?`),
+        prose(`How high is the ${LAUNCHES[params.ctx].noun} after ${k} ${k === 1 ? 'second' : 'seconds'}? Tap the part you would do **next**, then choose what it comes to.`),
       ],
       expr,
       banks,

@@ -38,6 +38,18 @@ const ask = (generatorId: string, difficulty = 1): SlideRef => ({
   difficulty,
 });
 
+/**
+ * A generated question with a worked example above it, on the same slide.
+ * Used where one question needs a step the teaching slide before it did not
+ * show, so the example sits right where it is needed.
+ */
+const askAfter = (lead: Block[], generatorId: string, difficulty = 1): SlideRef => ({
+  type: 'generated',
+  generatorId,
+  difficulty,
+  leadIn: lead,
+});
+
 const prose = (text: string): Block => ({ kind: 'prose', text });
 const display = (tex: string): Block => ({ kind: 'display', tex });
 
@@ -82,26 +94,29 @@ export const kinematics: Course = {
               working('\\text{displacement} &= 5 - 2 = 3', '\\text{distance} &= 7 + 4 = 11'),
             ),
             ask('kin-disp'),
-            ask('kin-sign-flow'),
             ask('kin-line-slider'),
+            ask('kin-disp+choice', 2),
             teach(
               prose(
                 '**Velocity** is how fast the displacement changes, and it carries a sign: which way the particle is moving. **Speed** is its size, never negative.',
               ),
               prose('With right as positive, $v = -3$ m/s means moving left at a speed of 3 m/s.'),
               prose('Moving steadily from $s = 4$ to $s = -8$ in 4 s is a velocity of $\\frac{-8 - 4}{4} = -3$ m/s.'),
+              prose('Turned round, velocity times time is the displacement. From $s = 1$, at $-3$ m/s for 2 s, then $2$ m/s for 4 s:'),
+              working('(-3) \\times 2 &= -6', '2 \\times 4 &= 8', 's &= 1 - 6 + 8 = 3'),
             ),
             ask('kin-motion-choice'),
-            ask('kin-disp+choice', 2),
             ask('kin-line-slider', 2),
+            ask('kin-motion-choice', 2),
             teach(
               prose(
                 'The two signs answer different questions. The velocity says **which way it is moving**; the displacement says **which side of $O$ it is**.',
               ),
+              prose('With east positive, a particle leaves $O$, goes 5 m east, turns and has come 8 m back, still moving west. It is moving west, so $v < 0$. It is at $5 - 8 = -3$, west of $O$, so $s < 0$ too.'),
               prose('A ball thrown up from $O$, with up positive, is still above $O$ on its way down: $s > 0$ but $v < 0$.'),
             ),
+            ask('kin-sign-flow'),
             ask('kin-sign-flow', 2),
-            ask('kin-motion-choice', 2),
           ],
           skillCheck: [ask('kin-disp', 2), ask('kin-sign-flow', 2), ask('kin-line-slider', 2)],
         },
@@ -126,7 +141,14 @@ export const kinematics: Course = {
             ),
             ask('kin-avgvel-steps'),
             ask('kin-avg-tree', 2),
-            ask('kin-mean-speed+choice', 2),
+            askAfter(
+              [
+                prose('A stop still counts in the time. A bus goes 30 m at 6 m/s, stops for 5 s, then goes 40 m at 4 m/s:'),
+                working('\\text{time} &= \\tfrac{30}{6} + 5 + \\tfrac{40}{4} = 5 + 5 + 10 = 20', '\\text{average speed} &= \\tfrac{30 + 40}{20} = 3.5'),
+              ],
+              'kin-mean-speed+choice',
+              2,
+            ),
             teach(
               prose('With several legs, set the fraction up before working it out: every leg **adds** to the distance, and legs the negative way **subtract** from the displacement.'),
               working('\\text{distance} &= 40 + 15 + 25', '\\text{displacement} &= 40 - 15 + 25'),
@@ -162,21 +184,28 @@ export const kinematics: Course = {
                 label: 'A displacement-time graph rising, flat, then falling back to zero',
               }),
               prose('Here the first stage has gradient $\\frac{6}{3} = 2$: a steady $2$ m/s.'),
+              prose('A **flat** stage is a gradient of zero: the particle is at rest. Here it stops at $t = 3$ and moves again at $t = 5$.'),
             ),
             ask('kin-st-gradient'),
-            ask('kin-st-table'),
             ask('kin-st-slider'),
+            askAfter(
+              [
+                prose('Going the other way, each second adds the velocity to $s$. From $s = 1$: $3$ m/s for 2 s, still for 1 s, then $-2$ m/s for 2 s:'),
+                working('t = 0, 1, 2 &: \\quad s = 1, 4, 7', 't = 3 &: \\quad s = 7 \\text{ (still)}', 't = 4, 5 &: \\quad s = 5, 3'),
+              ],
+              'kin-st-table',
+            ),
             teach(
-              prose('A **flat** stage is a gradient of zero: the particle is at rest.'),
               prose(
                 'A stage sloping **down** has a negative gradient: the particle is moving the negative way. Above, the last stage is $\\frac{0 - 6}{3} = -2$ m/s, back to $O$, where the graph meets the $t$-axis.',
               ),
+              prose('Steeper means faster, up or down: the speed is the size of the gradient, whatever its sign. Stages at $2$, $0$ and $-3$ m/s: the fastest is the $-3$ stage, at 3 m/s.'),
             ),
             ask('kin-st-choice'),
             ask('kin-st-gradient+choice', 2),
             ask('kin-st-table', 2),
             teach(
-              prose('Steeper means faster, up or down: the speed is the size of the gradient, whatever its sign.'),
+              prose('The particle is **at $O$** where $s = 0$: where the graph meets the $t$-axis. In the graph above, that is $t = 0$ and $t = 8$.'),
               prose(
                 'Every graph here is made of straight stages, so each stage has one velocity. A curved graph has a different gradient at every point, $v = \\frac{ds}{dt}$, which is a later level of this course.',
               ),
@@ -239,23 +268,30 @@ export const kinematics: Course = {
               }),
               working('A_1 &= \\tfrac{1}{2} \\times 2 \\times 6 = 6', 'A_2 &= 4 \\times 6 = 24', 'A_3 &= \\tfrac{1}{2} \\times 2 \\times 6 = 6', '\\text{distance} &= 6 + 24 + 6 = 36'),
             ),
-            ask('kin-dist-area'),
-            ask('kin-trap-steps'),
             ask('kin-stages-tree'),
             teach(
               prose('A stage that does not start or end at zero is a **trapezium**: half the sum of the parallel sides times the width.'),
               display('\\tfrac{1}{2}(u + v)t'),
+              prose('From $4$ m/s to $10$ m/s over 3 s: $\\tfrac{1}{2}(4 + 10) \\times 3 = \\tfrac{1}{2} \\times 14 \\times 3 = 21$ m.'),
+              prose('Split the area at every corner and work stage by stage; the shapes are always triangles, rectangles or trapezia. The units check the method: m/s times s is m.'),
+            ),
+            ask('kin-trap-steps'),
+            ask('kin-dist-area'),
+            ask('kin-trap-steps', 2),
+            teach(
               prose(
                 'Area **below** the axis is motion the negative way. For the distance, add it; for the displacement, take it away from the area above.',
+              ),
+              prose('A graph joining $(0, 4)$, $(2, 0)$ and $(3, -2)$ has a triangle above the axis and one below:'),
+              working(
+                '\\text{above} &= \\tfrac{1}{2} \\times 2 \\times 4 = 4',
+                '\\text{below} &= \\tfrac{1}{2} \\times 1 \\times 2 = 1',
+                '\\text{displacement} &= 4 - 1 = 3',
+                '\\text{distance} &= 4 + 1 = 5',
               ),
             ),
             ask('kin-net-disp+choice'),
             ask('kin-dist-area+choice', 2),
-            ask('kin-trap-steps', 2),
-            teach(
-              prose('Split the area at every corner and work stage by stage; the shapes are always triangles, rectangles or trapezia.'),
-              prose('The units check the method: m/s times s is m.'),
-            ),
             ask('kin-stages-tree', 2),
             ask('kin-net-disp', 2),
           ],
@@ -296,6 +332,7 @@ export const kinematics: Course = {
               prose(
                 'This is the straight velocity-time graph from level 1. Rearranged (Linear Equations, "Changing the Subject"), it gives $a = \\frac{v - u}{t}$ and $t = \\frac{v - u}{a}$.',
               ),
+              working('u = 5,\\ a = 3,\\ t = 4: \\quad v &= 5 + 3 \\times 4 = 17', 'u = 2,\\ v = 14,\\ t = 3: \\quad a &= \\tfrac{14 - 2}{3} = 4'),
             ),
             ask('kin-vuat-tiles'),
             ask('kin-vuat'),
@@ -307,10 +344,18 @@ export const kinematics: Course = {
             ),
             ask('kin-suat-steps'),
             ask('kin-suat-find'),
-            ask('kin-vuat-tiles', 2),
+            askAfter(
+              [
+                prose('Slowing down is a **negative** acceleration: decelerating at 2 m/s² means $a = -2$. From $20$ m/s down to $6$ m/s:'),
+                working('t &= \\frac{v - u}{a} = \\frac{6 - 20}{-2} = 7'),
+              ],
+              'kin-vuat-tiles',
+              2,
+            ),
             teach(
-              prose('Slowing down is a **negative** acceleration. Braking at 2 m/s² means $a = -2$, so the half term is taken away.'),
-              prose('Given $s$, the same equation gives $a$ or $u$: put in what is known and solve the linear equation left.'),
+              prose('Braking at 2 m/s² means $a = -2$ in $s = ut + \\tfrac{1}{2}at^{2}$ too, so the half term is taken away.'),
+              prose('Given $s$, the same equation gives $a$: put in what is known and solve the linear equation left. From $4$ m/s, covering 40 m in 4 s:'),
+              working('40 &= 4 \\times 4 + \\tfrac{1}{2} \\times a \\times 4^{2}', '40 &= 16 + 8a', 'a &= \\tfrac{24}{8} = 3'),
             ),
             ask('kin-suat-tree', 2),
             ask('kin-suat-find', 2),
@@ -328,7 +373,15 @@ export const kinematics: Course = {
             ),
             ask('kin-v2'),
             ask('kin-vsq-tree'),
-            ask('kin-v2+choice', 2),
+            askAfter(
+              [
+                prose('The same equation gives $a$ or $s$: put in what is known and solve. From $3$ m/s to $7$ m/s over 10 m:'),
+                working('7^{2} &= 3^{2} + 2 \\times a \\times 10', '49 &= 9 + 20a', 'a &= \\tfrac{40}{20} = 2'),
+                prose('Asked for $s$ instead, with $a = 2$: $49 = 9 + 4s$, so $s = \\tfrac{40}{4} = 10$ m.'),
+              ],
+              'kin-v2+choice',
+              2,
+            ),
             teach(
               prose('When the acceleration plays no part, use the average of the two velocities times the time:'),
               display('s = \\tfrac{1}{2}(u + v)t'),
@@ -336,10 +389,18 @@ export const kinematics: Course = {
             ),
             ask('kin-uvt-tiles'),
             ask('kin-uvt'),
-            ask('kin-vsq-tree', 2),
+            askAfter(
+              [
+                prose('Braking makes $a$ negative, so $2as$ is taken away. From $10$ m/s, braking at 2 m/s² over 16 m:'),
+                working('v^{2} &= 10^{2} + 2 \\times (-2) \\times 16', '&= 100 - 64 = 36', 'v &= \\sqrt{36} = 6'),
+              ],
+              'kin-vsq-tree',
+              2,
+            ),
             teach(
-              prose('Coming to rest means $v = 0$. Braking from $u$ at $a < 0$, the stopping distance is $s = \\frac{-u^{2}}{2a}$.'),
-              prose('Rearranged for the time, $s = \\tfrac{1}{2}(u + v)t$ gives $t = \\frac{2s}{u + v}$.'),
+              prose('Rearranged for the time, $s = \\tfrac{1}{2}(u + v)t$ gives $t = \\frac{2s}{u + v}$. From $8$ m/s to $12$ m/s over 30 m: $t = \\frac{60}{20} = 3$ s.'),
+              prose('It gives $u$ or $v$ the same way. Reaching $9$ m/s after 4 s, covering 24 m:'),
+              working('24 &= \\tfrac{1}{2}(u + 9) \\times 4', '24 &= 2(u + 9)', 'u + 9 &= 12, \\quad u = 3'),
             ),
             ask('kin-uvt-tiles', 2),
             ask('kin-uvt+choice', 2),
@@ -370,10 +431,18 @@ export const kinematics: Course = {
               prose(
                 'A car braking has $a < 0$ in the direction it travels. A stone thrown up at 12 m/s from a ledge 20 m high, with up positive, has $u = 12$, $a = -9.8$ and, on landing, $s = -20$.',
               ),
+              prose('With **down** as positive instead, every sign flips: the same stone has $u = -12$, $a = 9.8$ and $s = 20$.'),
             ),
             ask('kin-signs-tiles'),
             ask('kin-which-flow', 2),
-            ask('kin-solve-mixed+choice', 2),
+            askAfter(
+              [
+                prose('With no $v$, solve $s = ut + \\tfrac{1}{2}at^{2}$ for $a$. From $2$ m/s, covering 32 m in 4 s:'),
+                working('32 &= 2 \\times 4 + \\tfrac{1}{2} \\times a \\times 4^{2}', '32 &= 8 + 8a', 'a &= \\tfrac{24}{8} = 3'),
+              ],
+              'kin-solve-mixed+choice',
+              2,
+            ),
             teach(
               prose('A train slows from $20$ m/s to rest over 100 m. Given $u$, $v$, $s$; asked $a$; no $t$. So:'),
               working('0^{2} &= 20^{2} + 2a \\times 100', 'a &= -2'),
@@ -397,18 +466,31 @@ export const kinematics: Course = {
             ),
             ask('kin-grav-height'),
             ask('kin-grav-steps'),
-            ask('kin-grav-slider'),
+            askAfter(
+              [
+                prose('Back at the level it was thrown from, $s = 0$. Thrown up at $9.8$ m/s, take out the common factor $t$:'),
+                working('9.8t - 4.9t^{2} &= 0', 't(9.8 - 4.9t) &= 0', 't = 0 \\text{ or } t &= \\tfrac{9.8}{4.9} = 2'),
+                prose('$t = 0$ is the throw, so it is back at $t = 2$ s.'),
+              ],
+              'kin-grav-slider',
+            ),
             teach(
-              prose('At the **greatest height** it stops for an instant: $v = 0$. So the time to the top is $t = \\frac{u}{9.8}$, and the height gained is $\\tfrac{1}{2}ut$.'),
+              prose('At the **greatest height** it stops for an instant: $v = 0$. So the time to the top is $t = \\frac{u}{9.8}$, and the height gained is $\\tfrac{1}{2}(u + 0)t$. Thrown up at $19.6$ m/s from 10 m above the ground:'),
+              working('0 &= 19.6 - 9.8t, \\quad t = 2', 's &= \\tfrac{1}{2}(19.6 + 0) \\times 2 = 19.6', '\\text{height} &= 10 + 19.6 = 29.6'),
               prose('Going up and coming back to the same level take the same time. Thrown from a cliff, it carries on past its start: below that point $s$ is negative.'),
             ),
             ask('kin-top-tree'),
             ask('kin-grav-steps', 2),
             ask('kin-grav-slider', 2),
             teach(
-              prose('Landing time from a cliff $h$ m high means solving $-h = ut - 4.9t^{2}$, a quadratic (Quadratics, "The Quadratic Formula"):'),
-              display('4.9t^{2} - ut - h = 0'),
-              prose('Keep the positive root; the negative one is a time before it was thrown.'),
+              prose('From the top it falls from rest, so it falls $4.9t^{2}$. Thrown up at $19.6$ m/s from 24.5 m above the ground:'),
+              working(
+                '\\text{to the top: } t &= 2, \\text{ rising } 19.6',
+                '\\text{top: } 24.5 + 19.6 &= 44.1',
+                '\\text{fall: } 4.9t^{2} = 44.1, \\ t^{2} &= 9, \\ t = 3',
+                '\\text{in the air: } 2 + 3 &= 5',
+              ),
+              prose('Solving $-24.5 = 19.6t - 4.9t^{2}$ in one go (Quadratics, "The Quadratic Formula") gives the same 5 s; keep the positive root.'),
             ),
             ask('kin-grav-height+choice', 2),
             ask('kin-top-tree', 2),
@@ -423,26 +505,40 @@ export const kinematics: Course = {
               prose(
                 'A journey can change acceleration part way. Treat each **stage** as its own suvat problem: where one stage ends, the next begins, so the first stage\'s $v$ is the second stage\'s $u$.',
               ),
-              prose('A table with a row per stage keeps track: fill each row from the one above.'),
+              prose('A table with a row per stage keeps track: fill each row from the one above. From rest at 3 m/s² for 4 s, then steady for 5 s:'),
+              working(
+                '\\text{stage 1: } v &= 0 + 3 \\times 4 = 12',
+                's &= \\tfrac{1}{2} \\times 3 \\times 4^{2} = 24',
+                '\\text{stage 2 } (u = 12)\\text{: } s &= 12 \\times 5 = 60',
+                '\\text{total: } s &= 24 + 60 = 84',
+              ),
             ),
             ask('kin-stage-table'),
             ask('kin-twostage-steps'),
-            ask('kin-catch-time'),
+            ask('kin-stage-table', 2),
             teach(
               prose(
-                'Two things **meet** when they are at the same place at the same time. Starting from the same point together, that is when their displacements are equal.',
+                'Two things **meet** when they are at the same place at the same time. One already ahead at a steady speed is caught at the **difference** of the speeds: 30 m behind, at 8 m/s against 5 m/s, the gap closes 3 m each second, so $t = \\frac{30}{8 - 5} = 10$ s.',
               ),
-              prose('A car passes a junction at a steady $w$ just as another sets off from rest there at $a$. They meet when $\\tfrac{1}{2}at^{2} = wt$, so $t = \\frac{2w}{a}$.'),
+              prose('A car passes a junction at a steady $w$ just as another sets off from rest there at $a$. They meet when their displacements are equal, $\\tfrac{1}{2}at^{2} = wt$, so $t = \\frac{2w}{a}$. At $w = 10$ and $a = 4$: $t = \\frac{20}{4} = 5$ s.'),
             ),
+            ask('kin-catch-time'),
             ask('kin-catch-tree'),
-            ask('kin-stage-table', 2),
             ask('kin-twostage-steps', 2),
             teach(
-              prose('With a head start $d$, the chaser has to cover $d$ more: $\\tfrac{1}{2}at^{2} = d + wt$.'),
-              prose('That is a quadratic in $t$. It has one positive root, the time they meet.'),
+              prose('With a head start $d$, the chaser has to cover $d$ more: $\\tfrac{1}{2}at^{2} = d + wt$, a quadratic in $t$. A cyclist 24 m ahead rides at a steady $2$ m/s; a runner starts from rest at 2 m/s²:'),
+              working('\\tfrac{1}{2} \\times 2t^{2} &= 24 + 2t', 't^{2} - 2t - 24 &= 0', '(t - 6)(t + 4) &= 0'),
+              prose('Keep the positive root: $t = 6$ s. The negative one is before the start.'),
             ),
             ask('kin-catch-time', 2),
-            ask('kin-catch-tree', 2),
+            askAfter(
+              [
+                prose('If the one ahead is accelerating too, give it its own $\\tfrac{1}{2}at^{2}$. Passing at 10 m/s and accelerating at 1 m/s², chased from rest at 3 m/s²:'),
+                working('\\tfrac{1}{2} \\times 3t^{2} &= 10t + \\tfrac{1}{2} \\times 1t^{2}', '\\tfrac{1}{2} \\times 2t^{2} &= 10t', 't &= \\tfrac{2 \\times 10}{2} = 10'),
+              ],
+              'kin-catch-tree',
+              2,
+            ),
           ],
           skillCheck: [ask('kin-stage-table', 2), ask('kin-catch-tree', 2), ask('kin-catch-time', 2)],
         },
@@ -511,7 +607,6 @@ export const kinematics: Course = {
             ),
             ask('kin-a-dt'),
             ask('kin-a-at'),
-            ask('kin-accel-flow'),
             teach(
               prose('From $s$, differentiate twice:'),
               working('s &= t^{3} + 2t^{2} - 7t', 'v &= 3t^{2} + 4t - 7', 'a &= 6t + 4'),
@@ -526,6 +621,7 @@ export const kinematics: Course = {
               ),
               prose('For $v = 10 - t^{2}$ at $t = 2$: $v = 6$ and $a = -2t = -4$. Opposite signs, so it is slowing down.'),
             ),
+            ask('kin-accel-flow'),
             ask('kin-accel-flow', 2),
             ask('kin-a-dt', 2),
           ],
@@ -577,13 +673,14 @@ export const kinematics: Course = {
               prose('The constant $c$ is fixed by one value you know. Starting from rest, $v = 0$ at $t = 0$, so $c = 0$.'),
             ),
             ask('kin-int-v'),
-            ask('kin-int-c-tree'),
+            ask('kin-int-v-at'),
             ask('kin-int-s-tiles'),
             teach(
-              prose('When the value you know is at a later time, put it in and solve for $c$. With $v = 3t^{2} - 4t + c$ and $v = 9$ at $t = 2$: $9 = 12 - 8 + c$, so $c = 5$.'),
+              prose('When the value you know is at a later time, put it in and solve for $c$. With $v = 3t^{2} - 4t + c$ and $v = 9$ at $t = 2$:'),
+              working('3(2)^{2} - 4(2) &= 12 - 8 = 4', '9 &= 4 + c', 'c &= 5'),
               prose('When the acceleration changes with $t$, the constant-acceleration equations do not apply: $v = u + at$ is only true for a constant $a$.'),
             ),
-            ask('kin-int-v-at'),
+            ask('kin-int-c-tree'),
             ask('kin-int-s-table'),
             ask('kin-int-v', 2),
             teach(
@@ -629,7 +726,9 @@ export const kinematics: Course = {
             ask('kin-dist-int'),
             ask('kin-interval-tree', 2),
             teach(
-              prose('Worked the other way, a distance fixes a time. With $v = 2t + 3$ from $t = 0$, it has gone $t^{2} + 3t$, which reaches $28$ m when $t = 4$.'),
+              prose('Worked the other way, a distance fixes a time. With $v = 2t + 3$ from $t = 0$, by time $T$ it has gone $\\Big[ t^{2} + 3t \\Big]_{0}^{T} = T^{2} + 3T$. When has it gone $28$ m?'),
+              working('T^{2} + 3T &= 28', 'T^{2} + 3T - 28 &= 0', '(T + 7)(T - 4) &= 0'),
+              prose('$T = -7$ is before it started, so $T = 4$ s.'),
             ),
             ask('kin-area-slider'),
             ask('kin-dist-int', 2),
@@ -670,15 +769,16 @@ export const kinematics: Course = {
               prose('A particle is **at rest** when $v = 0$. With $s = t^3 - 6t^2 + 9t$, $v = 3t^2 - 12t + 9 = 3(t - 1)(t - 3)$, so it is at rest at $t = 1$ and at $t = 3$.'),
             ),
             ask('kin-rest-times'),
-            ask('kin-turn-position'),
             ask('kin-rest-times', 2),
             teach(
               prose('At rest is not always **turning round**. It turns round only if $v$ changes sign there: positive on one side, negative on the other.'),
               prose(
                 'A factor that appears once, like $(t - 1)$, changes sign as $t$ passes 1, and $v$ changes with it. A squared factor never goes negative: $v = 3(t - 2)^2$ is zero at $t = 2$, but the particle only pauses there and carries on the same way.',
               ),
+              prose('So with $s = t^3 - 6t^2 + 9t$, where $v = 3(t - 1)(t - 3)$, it turns round at $t = 1$ and at $t = 3$. Where it first turns round, put $t = 1$ into $s$: $s = 1 - 6 + 9 = 4$.'),
             ),
             ask('kin-turn-flow'),
+            ask('kin-turn-position'),
             ask('kin-turn-position+choice', 2),
             ask('kin-turn-flow', 2),
             teach(
@@ -700,7 +800,15 @@ export const kinematics: Course = {
               prose('Here $s = 4t - t^2 = t(4 - t)$: it leaves $O$ at $t = 0$ and is back at $t = 4$. On the way it turns round at $t = 2$, where the graph is flat.'),
             ),
             ask('kin-origin-slider'),
-            ask('kin-origin-slider', 2),
+            askAfter(
+              [
+                prose('A cubic $s$ factorises one root at a time (Polynomials & the Factor Theorem, "The Factor Theorem"). Take $s = -t^3 + 7t^2 - 14t + 8 = -(t^3 - 7t^2 + 14t - 8)$. Try the numbers that divide 8: at $t = 1$ the bracket is $1 - 7 + 14 - 8 = 0$, so $(t - 1)$ is a factor.'),
+                working('s &= -(t - 1)(t^2 - 6t + 8)', '&= -(t - 1)(t - 2)(t - 4)'),
+                prose('So it is at $O$ at $t = 1$, $2$ and $4$: the third time is $t = 4$.'),
+              ],
+              'kin-origin-slider',
+              2,
+            ),
           ],
           skillCheck: [ask('kin-rest-times', 2), ask('kin-turn-flow', 2), ask('kin-origin-slider', 2)],
         },
@@ -724,7 +832,14 @@ export const kinematics: Course = {
             ),
             ask('kin-speed-table'),
             ask('kin-interval-speed'),
-            ask('kin-max-velocity+choice', 2),
+            askAfter(
+              [
+                prose('Given $a$ instead of $v$, integrate first, with the starting velocity fixing $c$ (Calculus in Kinematics, "Back by Integrating"). With $a = 6 - 2t$ and $v = -5$ at $t = 0$:'),
+                working('v &= 6t - t^2 + c, \\quad c = -5', 'a &= 0 \\text{ at } t = 3', 'v(3) &= 18 - 9 - 5 = 4'),
+              ],
+              'kin-max-velocity+choice',
+              2,
+            ),
             teach(
               prose('If $a = 0$ falls **outside** the interval, it does not count: only the ends do.'),
               prose('With $v = t^2 - 6t + 5$ for $0 \\le t \\le 2$: $a = 2t - 6$ is zero at $t = 3$, outside. $v(0) = 5$ and $v(2) = -3$, so the greatest speed is 5 m/s, at the start.'),
@@ -745,7 +860,14 @@ export const kinematics: Course = {
                 'If $v$ changes sign inside the interval, the particle turns round, and the forward and backward parts cancel in that integral. The **distance** does not cancel: split the integral where $v$ changes sign and add the sizes of the pieces.',
               ),
             ),
-            ask('kin-disp-integral'),
+            askAfter(
+              [
+                prose('With $v = 4 - 2t$ from $t = 0$ to $t = 3$:'),
+                working('\\int_{0}^{3} (4 - 2t)\\,dt &= \\Big[ 4t - t^2 \\Big]_{0}^{3}', '&= (12 - 9) - 0 = 3'),
+                prose('It turns round at $t = 2$ on the way, so 3 m is the displacement, not the distance.'),
+              ],
+              'kin-disp-integral',
+            ),
             ask('kin-split-flow'),
             ask('kin-dist-or-disp'),
             teach(
@@ -838,13 +960,13 @@ export const kinematics: Course = {
             ),
             ask('kin-integrate-tiles'),
             ask('kin-chain-velocity'),
-            ask('kin-stop-tree'),
+            ask('kin-integrate-tiles', 2),
             teach(
               prose('A particle has $a = 6 - 6t$ and starts from rest at $O$. Then $v = 6t - 3t^2 = 3t(2 - t)$, so it next comes to rest at $t = 2$.'),
               prose('Up to then $v > 0$, so it moves one way only, and the distance is the displacement:'),
               working('\\int_{0}^{2} (6t - 3t^2)\\,dt &= \\Big[ 3t^2 - t^3 \\Big]_{0}^{2}', '&= 12 - 8 = 4'),
             ),
-            ask('kin-integrate-tiles', 2),
+            ask('kin-stop-tree'),
             ask('kin-chain-velocity+choice', 2),
             ask('kin-turn-position', 2),
             teach(

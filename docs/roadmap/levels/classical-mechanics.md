@@ -139,11 +139,11 @@ Strings, Firefly Problem.
 
 | Lesson | Source | Leans on |
 | --- | --- | --- |
-| Vibrations in Molecules | MIT 8.03 (reduced mass) | expr, tree |
-| Damping and Resonance | UP1 15.5-15.6 | expr, choice |
-| Coupled Oscillators | Tong ch. 3; MIT 8.03 (normal modes) | tree, choice |
-| Waves on a String | UP1 16.3 | expr, table |
-| Standing Waves | UP1 16.6 | slider, tree |
+| Vibrations in Molecules | MIT 8.03 (reduced mass) | expr, table, tree, flow |
+| Damping and Resonance | UP1 15.5-15.6 | expr, table, slider, flow |
+| Coupled Oscillators | Tong ch. 3; MIT 8.03 (normal modes) | expr, table, tree, flow |
+| Waves on a String | UP1 16.3 | expr, table, tree, flow |
+| Standing Waves | UP1 16.6 | slider, expr, tree, table |
 
 ### Level 10: General Considerations (`clm-l10`)
 Outline: Natural Units, Lagrangian Mechanics.

@@ -129,6 +129,22 @@ describe('stepping back onto a solved slide', () => {
     expect(screen.getByText(SECOND)).toBeTruthy();
     expect(screen.queryByText(FIRST)).toBeNull();
   });
+
+  it('brings a slide finished by Show me back showing its answer', () => {
+    play(lesson);
+    answer('Yes');
+    tap('Show me');
+    tap('Continue');
+    expect(screen.getByText(SECOND)).toBeTruthy();
+
+    tap('Previous slide');
+    expect(screen.getByText(FIRST)).toBeTruthy();
+    expect(screen.getByText(new RegExp(WORKING))).toBeTruthy();
+
+    tap('Continue');
+    expect(screen.getByText(SECOND)).toBeTruthy();
+    expect(screen.queryByText(FIRST)).toBeNull();
+  });
 });
 
 describe('the skill check', () => {

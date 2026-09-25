@@ -2463,7 +2463,7 @@ const implTermTree: Generator<TermTreeParams> = {
         kind: 'tree',
         prompt: [
           prose(
-            `At a point on a curve, $y = ${q}$ and $${DYDX} = ${g}$. Find $\\frac{d}{dx}\\left(${term}\\right)$ there. The top box is the derivative of $${term}$ as if $y$ were the variable; the box below is that times $${DYDX}$.`,
+            `At a point on a curve, $y = ${q}$ and $${DYDX} = ${g}$. Find $\\frac{d}{dx}\\left(${term}\\right)$ there. Top: the derivative of $${term}$ as if $y$ were the variable; below, that times $${DYDX}$.`,
           ),
         ],
         expression: `\\frac{d}{dx}\\left(${term}\\right) = ${withDy(k * n, 0, n - 1)}`,
@@ -2828,7 +2828,7 @@ const implSlopeTree: Generator<CurveParams> = {
         prose(`The curve below passes through $${pair(curve.p, curve.q)}$.`),
         ...equationBlocks(curve),
         prose(
-          `Differentiating and rearranging gives the gradient underneath. The top row is the top and the bottom of that fraction at the point; the box below is $${DYDX}$.`,
+          `Differentiating and rearranging gives the gradient underneath. Top row: that fraction's top and bottom at the point; below, $${DYDX}$.`,
         ),
       ],
       expression: `${DYDX} = -\\frac{${xyTex(partialX(curve.terms))}}{${xyTex(partialY(curve.terms))}}`,
@@ -4385,7 +4385,7 @@ const implD2SubSteps: Generator<ConicParams> = {
         prose('This curve'),
         display(conicEquation(params)),
         prose(
-          `has gradient $${DYDX} = ${slopeTex(conicTerms(params))}$, and differentiating again gives the line below. Put the gradient in, clear the fraction, use the curve's equation, then multiply. Tap the step to do next, then choose what it gives.`,
+          `has gradient $${DYDX} = ${slopeTex(conicTerms(params))}$, and differentiating again gives the line below. Tap the step to do next, then choose what it gives.`,
         ),
       ],
       start: [k, '\\times', `\\frac{y - x${DYDX}}{y^{2}}`],
@@ -4637,7 +4637,7 @@ const implTurningTree: Generator<TurningParams> = {
       kind: 'tree',
       prompt: turningPrompt(
         params,
-        `Find $${D2YDX2}$ there. The top row is $N_x$, which is $N$ differentiated with respect to $x$ with $y$ held still, and $D$, both at the point; the box below is $${D2YDX2}$.`,
+        `Find $${D2YDX2}$ there. Top row: $N_x$ and $D$ at the point; below, $${D2YDX2}$.`,
       ),
       expression: `${D2YDX2} = -\\frac{N_x}{D}`,
       nodes: [
@@ -4923,7 +4923,7 @@ const paramNormalTree: Generator<SlopeAtParams> = {
         prose('A curve is traced by'),
         ...curveBlocks(curve),
         prose(
-          `Find the gradient of the normal where $t = ${k}$. The top row is $${DYDT}$ and $${DXDT}$ there, the next box the tangent's gradient $${DYDX}$, and the last the normal's.`,
+          `Find the gradient of the normal where $t = ${k}$. Top row: $${DYDT}$ and $${DXDT}$ there; next, the tangent's gradient; last, the normal's.`,
         ),
       ],
       expression: `-1 \\div \\left(${DYDT} \\div ${DXDT}\\right)`,
@@ -5135,7 +5135,7 @@ const implNormalSteps: Generator<CurveParams> = {
       ...base,
       prompt: [
         prose(
-          `Find the gradient of the normal at $${pair(p, q)}$. Differentiate each term with $x = ${p}$, $y = ${q}$ put in straight away, solve for $${DYDX}$, then turn it into the normal's gradient $m_{N}$. Tap the step to do next, then choose what it gives.`,
+          `Find the gradient of the normal, $m_{N}$, at $${pair(p, q)}$. Tap the step to do next, then choose what it gives.`,
         ),
       ],
       reductions: [
@@ -5645,7 +5645,7 @@ const paramAtKTree: Generator<AtKParams> = {
         prose(`Its ${lineName(params.normal)} at the point with parameter $t$ is`),
         display(generalLine(params).final),
         prose(
-          `Where does the ${lineName(params.normal)} at $t = ${params.k}$ cross the $y$-axis? Put $x = 0$: the top row is the right-hand side and the number in front of $y$ at $t = ${params.k}$; the box below is $y$.`,
+          `Where does the ${lineName(params.normal)} at $t = ${params.k}$ cross the $y$-axis? With $x = 0$, top row: the right-hand side and the number in front of $y$; below, $y$.`,
         ),
       ],
       expression: atKExpression(params),
@@ -5935,7 +5935,7 @@ const paramAgainTree: Generator<AgainParams> = {
       prompt: [
         ...againPrompt(params),
         prose(
-          `Where does it meet the curve again? Put the curve's $x$ and $y$ into it to get $pt^{2} + qt + r = 0$, with $p$ positive. The top row is $p$ and $q$, the next box the sum of the two roots, and the last the root that is not $t = ${params.k}$.`,
+          `Where does it meet the curve again? Putting the curve into it gives $pt^{2} + qt + r = 0$, with $p > 0$. Top row: $p$ and $q$; next, the sum of the roots; last, the root other than $t = ${params.k}$.`,
         ),
       ],
       expression: `t = -\\frac{q}{p} ${signed(-params.k)}`,
@@ -6139,7 +6139,7 @@ const paramParallelSteps: Generator<ParallelParams> = {
         prose('A curve is traced by'),
         ...curveBlocks(curve),
         prose(
-          `Find where its tangent is ${relation(params)} to $${givenLineTex(params)}$. That is where $${DYDT} = m${DXDT}$, with $m$ the gradient the tangent needs. Tap each piece to work it out, then solve.`,
+          `Find where its tangent is ${relation(params)} to $${givenLineTex(params)}$. $m$ is the gradient the tangent needs. Tap each piece to work it out, then solve.`,
         ),
       ],
       start: [DYDT, '=', 'm', DXDT],
@@ -6613,7 +6613,7 @@ const implArcsinDeriveSteps: Generator<InverseSineParams> = {
       kind: 'steps',
       prompt: [
         prose(
-          `Find $${DYDX}$ for $${inverseSineTex(params)}$ at $x = ${fracTex(s * a, c)}$. Write it as $\\${inv} y = x$, differentiate both sides, then put in the point: $y$ lies between ${range}, so $${other}$ is not negative. Tap the step to do next, then choose what it gives.`,
+          `Find $${DYDX}$ for $${inverseSineTex(params)}$ at $x = ${fracTex(s * a, c)}$. $y$ lies between ${range}, so $${other}$ is not negative. Tap the step to do next, then choose what it gives.`,
         ),
       ],
       start: [`\\${inv} y`, '=', 'x'],
@@ -7706,7 +7706,7 @@ const implRateTSteps: Generator<RateParams> = {
       kind: 'steps',
       prompt: [
         prose(
-          `A point moves along this curve. As it passes $${pair(p, q)}$, $${DXDT} = ${r}$. Differentiate each term with respect to $t$, putting in the point and $${DXDT}$ as you go, then solve for $${DYDT}$. Tap the step to do next, then choose what it gives.`,
+          `A point moves along this curve. As it passes $${pair(p, q)}$, $${DXDT} = ${r}$. Find $${DYDT}$. Tap the step to do next, then choose what it gives.`,
         ),
       ],
       start,
@@ -7740,7 +7740,7 @@ const implRateTree: Generator<RateParams> = {
         prose(`Differentiating with respect to $t$ gives $A${DXDT} + B${DYDT} = 0$, where`),
         display(`A = ${xyTex(partialX(curve.terms))}`),
         display(`B = ${xyTex(partialY(curve.terms))}`),
-        prose(`The top row is $A$ and $B$ at the point. Under $A$ goes $A${DXDT}$, and the bottom box is $${DYDT}$.`),
+        prose(`Top row: $A$ and $B$ at the point. Under $A$: $A${DXDT}$. Bottom: $${DYDT}$.`),
       ],
       expression: `A${DXDT} + B${DYDT} = 0`,
       nodes: [
@@ -8356,7 +8356,7 @@ const paramSpeedPartsTree: Generator<MotionParams> = {
       kind: 'tree',
       prompt: [
         ...motionBlocks(curve),
-        prose(`Find its speed at $t = ${k}$. The top row is $${DXDT}$ and $${DYDT}$ there, then the sum of their squares, then the speed.`),
+        prose(`Find its speed at $t = ${k}$. Top row: $${DXDT}$ and $${DYDT}$ there; then the sum of their squares; then the speed.`),
       ],
       expression: `${SPEED} = ${speedFormula}`,
       nodes: [
@@ -9488,7 +9488,7 @@ const paramAreaValueTree: Generator<AreaParams> = {
       kind: 'tree',
       prompt: [
         ...tracedBlocks(curve),
-        prose(`Find the area of ${sweptText(params)}. The top boxes are the antiderivative of $y ${DXDT}$ at $t = ${hi}$ and at $t = ${lo}$; the bottom box is the area.`),
+        prose(`Find the area of ${sweptText(params)}. Top: the antiderivative of $y ${DXDT}$ at $t = ${hi}$ and at $t = ${lo}$. Bottom: the area.`),
       ],
       expression: `\\text{area} = ${integralTex(lo, hi, p)}`,
       nodes: [
@@ -9645,7 +9645,7 @@ const paramAreaSignTree: Generator<AreaParams> = {
       prompt: [
         ...tracedBlocks(curve),
         prose(
-          `Find the area between the curve and the $x$-axis from $t = ${lo}$ to $t = ${hi}$. The top boxes are the antiderivative of $y ${DXDT}$ at $t = ${hi}$ and at $t = ${lo}$, then the integral, then the area.`,
+          `Find the area between the curve and the $x$-axis from $t = ${lo}$ to $t = ${hi}$. Top: the antiderivative of $y ${DXDT}$ at $t = ${hi}$ and at $t = ${lo}$; then the integral; then the area.`,
         ),
       ],
       expression: integralTex(lo, hi, p),

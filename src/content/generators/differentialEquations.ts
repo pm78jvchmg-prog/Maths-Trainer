@@ -1717,7 +1717,7 @@ const deGrowthSteps: Generator<GrowthParams> = {
       kind: 'steps',
       prompt: [
         prose(growthStatement(params)),
-        prose('Solve it one step at a time: tap the comma to separate and integrate, then tap the line to undo the log, then again to use the start value.'),
+        prose('Tap the comma to separate and integrate, then the line to undo the log, then again to use the start value.'),
       ],
       start: [growthDeTex(params), ',', `${s}(0) = ${params.A}`],
       reductions: [
@@ -1864,7 +1864,7 @@ function sampleCool(rng: Rng, difficulty: number): CoolParams {
 
 function coolIntro(params: CoolParams): string {
   const { story, start } = params;
-  return `${story.what} at ${start}°C is put in ${surroundings(params)}. Its temperature $${story.sym}$°C changes at a rate proportional to the difference between $${story.sym}$ and the temperature around it.`;
+  return `${story.what} at ${start}°C is put in ${surroundings(params)}. Its temperature $${story.sym}$°C changes at a rate proportional to the difference between $${story.sym}$ and its surroundings.`;
 }
 
 /** Newton's law of cooling from words, as tiles. */
@@ -1876,7 +1876,7 @@ const deCoolTiles: Generator<CoolParams> = {
     const answer = ['-k', signed(-room)];
     return {
       kind: 'tiles',
-      prompt: [prose(`${coolIntro(params)} Taking $k$ as a positive constant, build the equation.`)],
+      prompt: [prose(`${coolIntro(params)} With $k > 0$, build the equation.`)],
       template: `${rate(story.sym)} = {0}(${story.sym} {1})`,
       bank: tokenBank(answer, ['k', signed(room), signed(-start), signed(start)], 3),
       answer,
@@ -1914,7 +1914,7 @@ const deCoolSteps: Generator<CoolParams> = {
     const particular = coolSolutionTex(params);
     return {
       kind: 'steps',
-      prompt: [prose(`Solve Newton's law of cooling for ${story.what.toLowerCase()} at ${start}°C in ${surroundings(params)}: tap the comma to separate and integrate, then tap the line to undo the log, then again to use the start.`)],
+      prompt: [prose(`Solve Newton's law of cooling for ${story.what.toLowerCase()} at ${start}°C in ${surroundings(params)}. Tap the comma to separate and integrate, then the line to undo the log, then again to use the start.`)],
       start: [`${rate(s)} = -k(${gap})`, ',', `${s}(0) = ${start}`],
       reductions: [
         {
@@ -2008,7 +2008,7 @@ const deCoolTree: Generator<CoolFitParams> = {
         prose(
           `${story.what} is put in a room at ${room}°C. By Newton's law, $${s} = ${room} + Be^{-kt}$, with $t$ in minutes. Its readings are below.`,
         ),
-        prose(`Fill in the gap to the room at the start, the gap after ${h} minute${h === 1 ? '' : 's'}, how many times smaller the gap has become, then $k$.`),
+        prose(`Fill in the gap to the room at the start, then after ${h} minute${h === 1 ? '' : 's'}, the factor it shrank by, then $k$.`),
       ],
       expression: `${s}(0) = ${T0} \\qquad ${s}(${h}) = ${T1}`,
       nodes: [
@@ -2146,7 +2146,7 @@ const deLimitTiles: Generator<LimitParams & { build: boolean }> = {
   render: (params): Slide => {
     const story = LIMIT_STORIES[params.ctx];
     const s = story.sym;
-    const intro = `${limitSetting(params)} after $t$ ${story.unit}s, and $${s} = ${params.start}$ at the start. $${s}$ rises at a rate proportional to ${story.left}. Taking $k$ as a positive constant, build the equation.`;
+    const intro = `${limitSetting(params)} after $t$ ${story.unit}s, and $${s} = ${params.start}$ at the start. $${s}$ rises at a rate proportional to ${story.left}. With $k > 0$, build the equation.`;
     if (params.build) {
       const answer = ['k', `${params.L}`, s];
       return {
@@ -2455,9 +2455,9 @@ function tankStory(params: TankParams): string {
   const { V, r, c, fresh, S0 } = params;
   const inflow =
     fresh === 0
-      ? `Salt water with ${c} g of salt per litre flows in at ${r} litres a minute, and the mixed water flows out at the same rate.`
-      : `Salt water with ${c} g of salt per litre flows in at ${r} litres a minute, fresh water flows in at ${fresh} litres a minute, and the mixed water flows out at ${r + fresh} litres a minute.`;
-  return `A tank holds ${V} litres of water with ${S0} g of salt in it. ${inflow} $S$ is the salt in the tank, in grams, after $t$ minutes.`;
+      ? `Water with ${c} g of salt a litre flows in at ${r} litres a minute, and the mix flows out as fast.`
+      : `Water with ${c} g of salt a litre flows in at ${r} litres a minute, fresh water at ${fresh} litres a minute, and the mix flows out at ${r + fresh} litres a minute.`;
+  return `A tank holds ${V} litres of water and ${S0} g of salt. ${inflow} $S$ g of salt is in it after $t$ minutes.`;
 }
 
 function tankSolution(params: TankParams): SolutionStep[] {
@@ -2511,7 +2511,7 @@ const deMixTree: Generator<TankNowParams> = {
       kind: 'tree',
       prompt: [
         prose(`${tankStory(params)} At one moment the tank holds $${S}$ g of salt.`),
-        prose('Fill in the rate salt comes in, the grams per litre in the tank, the rate salt goes out, then $\\frac{dS}{dt}$.'),
+        prose('Fill in the salt coming in a minute, the grams per litre in the tank, the salt going out a minute, then $\\frac{dS}{dt}$.'),
       ],
       expression: `${rate('S')} = ${r * c} - ${outTex(params)}, \\quad S = ${S}`,
       nodes: [
@@ -2596,7 +2596,7 @@ const deMixWhen: Generator<TankWhenParams> = {
       prompt: [
         prose(tankStory(params)),
         display(`${rate('S')} = ${params.r * params.c} - ${outTex(params)}`),
-        prose(`How much salt is in the tank at the moment $S$ is ${net > 0 ? 'rising' : 'falling'} at ${Math.abs(net)} g a minute?`),
+        prose(`How much salt is in the tank when $S$ is ${net > 0 ? 'rising' : 'falling'} at ${Math.abs(net)} g a minute?`),
       ],
       lead: 'S =',
       keypad: [],
@@ -6984,7 +6984,7 @@ const deNhIvpTree: Generator<NonHomIvp> = {
       prompt: [
         prose(`This equation has general solution $${fullGeneralTex(de)}$. Solve it with $${fullConditionsTex(de)}$.`),
         prose(
-          `First $u$ and $v$, the value and gradient the complementary function must have at $0$: $y(0)$ and $y'(0)$ less the particular integral's. Fill in $u$ and $v$, then $A$, then $B$.`,
+          `$u$ and $v$ are the value and gradient the complementary function needs at $0$: $y(0)$ and $y'(0)$ less the particular integral's. Fill in $u$, $v$, $A$, then $B$.`,
         ),
       ],
       expression: shownTex(de),

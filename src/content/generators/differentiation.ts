@@ -4746,7 +4746,7 @@ const sketchReadGradient: Generator<ReadGradientParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `This is the graph of a **gradient function**, $y = f'(x)$, not of $f$ itself. It crosses the $x$-axis at $x = ${p}$ and $x = ${q}$. Where does $y = f(x)$ have its local maximum and its local minimum?`,
+          text: `This graph is the **gradient function** $y = f'(x)$, not $f$. It crosses the $x$-axis at $x = ${p}$ and $x = ${q}$. Where does $f$ have its local maximum and minimum?`,
         },
         {
           kind: 'diagram',
@@ -5059,7 +5059,7 @@ const rateAt: Generator<RateAtParams> = {
         { kind: 'display', tex: `${c.symbol} = ${polyInTex(coefficients)}` },
         {
           kind: 'prose',
-          text: `How fast is it changing when $t = ${at}$? Give the rate in $${rateUnit(c)}$${signed ? '; a negative rate means it is going down' : ''}.`,
+          text: `How fast is it changing when $t = ${at}$, in $${rateUnit(c)}$?${signed ? ' A negative rate means falling.' : ''}`,
         },
       ],
       lead: `\\left.${rateOf(c.symbol)}\\right|_{t = ${at}} =`,
@@ -5409,7 +5409,7 @@ const linkTree: Generator<LinkParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `$y$ depends on $x$, and $x$ changes with time. Find $${rateOf('y')}$ when $t = ${at}$. The top row is $x$ and $${rateOf('x')}$ at that moment, the next is $${rateOf('y', 'x')}$ using that value of $x$, and the last is their product.`,
+          text: `$y$ depends on $x$, and $x$ changes with time. Find $${rateOf('y')}$ when $t = ${at}$. Top row: $x$ and $${rateOf('x')}$ then; next, $${rateOf('y', 'x')}$ at that $x$; last, their product.`,
         },
         { kind: 'display', tex: `y = ${termTex(k, n)}, \\qquad x = ${xTex}` },
       ],
@@ -5780,7 +5780,7 @@ const shapeK: Generator<RoundParams> = {
         { kind: 'display', tex: shape.formula },
         {
           kind: 'prose',
-          text: `The answer is $${rateOf(shape.q)} = k\\pi$ $${shape.unit}$ per second, for a whole number $k$. Find $k$.`,
+          text: `It is $k\\pi$ $${shape.unit}$ per second. Find the whole number $k$.`,
         },
       ],
       lead: 'k =',
@@ -5850,10 +5850,6 @@ const shapeBack: Generator<RoundParams> = {
           text: `${shape.story}. Its ${shape.what} is ${shape.grows} at $${piTex(k)}$ $${shape.unit}$ per second. How fast is its ${shape.xWhat} ${shape.grows} when $${shape.x} = ${s}$ cm?`,
         },
         { kind: 'display', tex: shape.formula },
-        {
-          kind: 'prose',
-          text: `Divide the rate you know by $${rateOf(shape.q, shape.x)}$ at that moment.`,
-        },
       ],
       template: `${rateOf(shape.x)} = {0} \\div {1} = {2}`,
       bank: tokenBank(
@@ -5964,8 +5960,8 @@ const shapeFlow: Generator<ShapeFlowParams> = {
         {
           kind: 'prose',
           text: forward
-            ? `${shape.story}, and its ${shape.xWhat} is ${shape.grows} at $${rate}$ cm per second. Work out how fast its ${shape.what} is ${shape.grows} when $${shape.x} = ${s}$ cm.`
-            : `${shape.story}, and its ${shape.what} is ${shape.grows} at $${piTex(k)}$ $${shape.unit}$ per second. Work out how fast its ${shape.xWhat} is ${shape.grows} when $${shape.x} = ${s}$ cm.`,
+            ? `${shape.story}, and its ${shape.xWhat} is ${shape.grows} at $${rate}$ cm per second. How fast is its ${shape.what} ${shape.grows} when $${shape.x} = ${s}$ cm?`
+            : `${shape.story}, and its ${shape.what} is ${shape.grows} at $${piTex(k)}$ $${shape.unit}$ per second. How fast is its ${shape.xWhat} ${shape.grows} when $${shape.x} = ${s}$ cm?`,
         },
       ],
       subject: shape.formula,
@@ -6103,7 +6099,7 @@ const blockBack: Generator<BlockBackParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `The ${b.what} of ${b.solid} is growing at $${change}$ $${b.unit}$ per second. How fast is its ${b.side}, $x$ cm, growing when $x = ${s}$? Dividing by $${rateOf(b.q, 'x')} = ${termTex(b.k * b.n, b.n - 1)}$ is dividing by $${b.k * b.n}$, then by $${termTex(1, b.n - 1).replace('x', `${s}`)}$. Tap the part you would do **next**, then choose what it comes to.`,
+          text: `The ${b.what} of ${b.solid} is growing at $${change}$ $${b.unit}$ per second. How fast is its ${b.side}, $x$ cm, growing when $x = ${s}$? Tap the part you would do **next**, then choose what it comes to.`,
         },
         { kind: 'display', tex: `${blockFormula(b)}, \\qquad ${rateOf('x')} = ${rateOf(b.q)} \\div ${rateOf(b.q, 'x')}` },
       ],
@@ -6625,8 +6621,8 @@ export function modelFacts({ kind, m, story }: Model): ModelFacts {
         goal: 'greatest',
         story:
           story === 0
-            ? `A rectangular pen is built against a long wall, so it is fenced on three sides only. There is $${4 * m}$ m of fencing, and each side meeting the wall is $x$ m long.`
-            : `A rectangular vegetable patch lies against a wall and is edged on its other three sides with $${4 * m}$ m of board. The two sides meeting the wall are $x$ m long.`,
+            ? `A rectangular pen against a long wall is fenced on its other three sides with $${4 * m}$ m of fencing. Each side meeting the wall is $x$ m long.`
+            : `A rectangular vegetable patch against a wall is edged on its other three sides with $${4 * m}$ m of board. The sides meeting the wall are $x$ m long.`,
         tex: `x(${4 * m} - 2x)`,
         answer: `x*(${4 * m} - 2*x)`,
         f: (x) => x * (4 * m - 2 * x),
@@ -6647,7 +6643,7 @@ export function modelFacts({ kind, m, story }: Model): ModelFacts {
         story:
           story === 0
             ? `An open box is made from a square sheet of card $${6 * m}$ cm wide, by cutting a square of side $x$ cm from each corner and folding up the sides.`
-            : `An open tray is folded from a square sheet of metal $${6 * m}$ cm across, after a square of side $x$ cm is cut from each corner.`,
+            : `An open tray is folded from a square of metal $${6 * m}$ cm across, with a square of side $x$ cm cut from each corner.`,
         tex: `x(${6 * m} - 2x)^{2}`,
         answer: `x*(${6 * m} - 2*x)^2`,
         f: (x) => x * (6 * m - 2 * x) ** 2,
@@ -7042,7 +7038,7 @@ const eliminate: Generator<EliminateParams> = {
         ...facts.given.map((tex) => ({ kind: 'display' as const, tex })),
         {
           kind: 'prose',
-          text: `Use the first equation to write $${other}$ in terms of $${one}$, then put it into the second.`,
+          text: `Write $${other}$ in terms of $${one}$ from the first, then put it into the second.`,
         },
       ],
       template: facts.template,
@@ -7193,8 +7189,8 @@ const modelDomain: Generator<Model> = {
           kind: 'prose',
           text:
             model.kind === 'sum'
-              ? 'Both numbers are positive, so $x > 0$ and $y > 0$. Write $y$ using $x$ and then give the value $x$ must stay below.'
-              : `$x$ is a length, so $x > 0$. The ${facts.other.name} must be positive too. Write it using $x$ and then give the value $x$ must stay below.`,
+              ? 'Both numbers are positive, so $x > 0$ and $y > 0$. Write $y$ using $x$, then the value $x$ must stay below.'
+              : `$x > 0$, and the ${facts.other.name} must be positive too. Write it using $x$, then the value $x$ must stay below.`,
         },
       ],
       template: '{0} > 0, \\quad \\text{so } 0 < x < {1}',
@@ -7257,7 +7253,7 @@ const modelDerivative: Generator<Model> = {
           kind: 'prose',
           text: expanded
             ? `Differentiate the expanded form.`
-            : `Write it with a negative power to differentiate.`,
+            : `Differentiate it.`,
         },
       ],
       lead: `${modelRate(facts)} =`,
@@ -7410,7 +7406,7 @@ const modelTree: Generator<Model> = {
         { kind: 'prose', text: facts.story },
         {
           kind: 'prose',
-          text: `Here $${facts.q} = ${product}$, where $${letter} = ${facts.other.tex}$${kind === 'sum' ? '' : ` is the ${facts.other.name}`}, and $${modelRate(facts)} = ${facts.derivative.tex}$. Fill in the $x$ that makes $${facts.q}$ greatest, then $${letter}$, then $${facts.q}$.`,
+          text: `$${facts.q} = ${product}$, where $${letter} = ${facts.other.tex}$${kind === 'sum' ? '' : ` is the ${facts.other.name}`}, and $${modelRate(facts)} = ${facts.derivative.tex}$. Fill in the $x$ that makes $${facts.q}$ greatest, then $${letter}$, then $${facts.q}$.`,
         },
       ],
       expression: `${facts.q} = ${product}`,
@@ -7612,7 +7608,7 @@ const optNatureFlow: Generator<CubicModel> = {
         { kind: 'prose', text: `${text.replace(/, where$/, '.')} Its formula is below.` },
         {
           kind: 'prose',
-          text: `Its stationary points are at $x = ${params.a}$ and $x = ${params.b}$. Sort out the one at $x = ${p}$ step by step.`,
+          text: `Its stationary points are at $x = ${params.a}$ and $x = ${params.b}$. Sort out the one at $x = ${p}$.`,
         },
       ],
       subject: `${q} = ${polyInTex(profitCoefficients(params), 'x')}`,
@@ -7852,7 +7848,7 @@ const sumLeast: Generator<SumLeastParams> = {
           text:
             params.story === 0
               ? `Positive numbers $x$ and $y$ have $xy = ${k}$.`
-              : `A rectangular yard of $${k}$ $\\text{m}^{2}$ has sides $x$ m and $y$ m. Fencing the two $x$ sides costs £$${params.p}$ a metre and the two $y$ sides £$${params.qq}$ a metre.`,
+              : `A rectangular yard of $${k}$ $\\text{m}^{2}$ has sides $x$ m and $y$ m. Fencing costs £${params.p} a metre on the $x$ sides and £${params.qq} on the $y$ sides.`,
         },
         { kind: 'display', tex: `C = ${objective}` },
         { kind: 'prose', text: params.story === 0 ? 'Find the least value of $C$.' : 'Find the least possible cost $C$, in pounds.' },
@@ -7992,7 +7988,7 @@ const cylinderTree: Generator<CylinderParams> = {
         { kind: 'display', tex: closed ? `V = \\pi(${n}r - r^{3})` : `V = \\frac{\\pi}{2}(${n}r - r^{3})` },
         {
           kind: 'prose',
-          text: 'Fill in the $r$ that makes $V$ greatest, the height $h$ it gives, then $k$, where the volume is $k\\pi$.',
+          text: 'Fill in the $r$ that makes $V$ greatest, then $h$, then $k$, where $V = k\\pi$.',
         },
       ],
       expression: 'V = \\pi r^{2} h = k\\pi',
@@ -8105,7 +8101,7 @@ const whichQuantity: Generator<WhichParams> = {
         { kind: 'prose', text: facts.story },
         {
           kind: 'prose',
-          text: `Setting $${modelRate(facts)} = 0$ gives $${v} = ${params.m}$ as the only sensible stationary point, and it is a maximum. The question asks for **${quantities[params.ask].ask}**. What is the answer?`,
+          text: `$${modelRate(facts)} = 0$ gives the maximum at $${v} = ${params.m}$. The question asks for **${quantities[params.ask].ask}**. What is the answer?`,
         },
       ],
       options: turned(choices, turnFor(4, params.m, params.ask, params.story, kindIndex(params.kind))),

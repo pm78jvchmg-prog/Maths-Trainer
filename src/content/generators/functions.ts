@@ -6056,7 +6056,7 @@ const ampSlider: Generator<AmpSliderParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `The dashed curve is $y = \\${fn} x$, with $x$ in degrees. It is ${moves.join(', ')}. Slide the line to the height of the new curve's ${feature}.`,
+          text: `The dashed curve $y = \\${fn} x$ ($x$ in degrees) is ${moves.join(', ')}. Slide the line to the new curve's ${feature}.`,
         },
       ],
       min: -7,
@@ -6613,7 +6613,7 @@ const phaseSteps: Generator<PhaseParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `How far, and which way, has $y = ${unmovedTex(params)}$ moved? The line is the new rule, with $x$ in degrees: take $${b}$ out of the bracket, then choose the translation. ${HOW_TO_STEP}`,
+          text: `How far, and which way, has $y = ${unmovedTex(params)}$ moved? The line is the new rule, $x$ in degrees. ${HOW_TO_STEP}`,
         },
       ],
       start: [movedTex(params)],
@@ -6976,7 +6976,7 @@ const waveParts: Generator<WavePartsParams> = {
     const min = d - a;
     const answer = [max - min, max + min, b, a, d].map(String);
     const skeleton = `y = a\\${fn} bx + d`;
-    const order = 'Fill in the top row — the greatest value take away the least, the two added, and $b$ — then $a$ and $d$ beneath.';
+    const order = 'Top row: greatest minus least, the two added, and $b$. Then $a$ and $d$ beneath.';
     const [first, second] = ringedExtremes(wave);
     const prompt: Block[] = graph
       ? [
@@ -6986,7 +6986,7 @@ const waveParts: Generator<WavePartsParams> = {
       : [
           {
             kind: 'prose',
-            text: `$${skeleton}$, with $x$ in degrees and $a > 0$, has a greatest value of $${max}$, a least value of $${min}$ and a period of $${360 / b}°$. ${order}`,
+            text: `$${skeleton}$, $x$ in degrees and $a > 0$, has a greatest value of $${max}$, a least value of $${min}$ and a period of $${360 / b}°$. ${order}`,
           },
         ];
     return {

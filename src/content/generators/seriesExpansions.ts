@@ -1631,7 +1631,7 @@ const subTree: Generator<SubTreeParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `For $f(x) = ${fnTex(f)}$, put $u = ${u}$ into the series for $${baseTex(f.base, 'u', f.index)}$. Top row, left to right: $(${qTex(f.k)})^{${j}}$, the coefficient of $u^{${j}}$, then the same two for $u^{${j + 1}}$. Underneath: the coefficients of $x^{${f.m * j}}$ and $x^{${f.m * (j + 1)}}$.`,
+          `For $f(x) = ${fnTex(f)}$, put $u = ${u}$ into the series for $${baseTex(f.base, 'u', f.index)}$. Top row: $(${qTex(f.k)})^{${j}}$, the coefficient of $u^{${j}}$, then the same two for $u^{${j + 1}}$. Underneath: the coefficients of $x^{${f.m * j}}$ and $x^{${f.m * (j + 1)}}$.`,
         ),
       ],
       expression: standardTex(f.base, f.index),
@@ -2387,7 +2387,7 @@ const estimateSlider: Generator<ErrorSliderParams> = {
       kind: 'slider',
       prompt: [
         say(
-          `Near $0$, $${baseTex(base, 'x')} \\approx ${seriesTex(keptBefore(base, p), 'x', false)}$. The first term left out has size $\\frac{x^{${p}}}{${p}!}$, drawn here for $x \\ge 0$, and it estimates the error. Slide to the largest $x$ at which it is at most $${qTex(bound)}$.`,
+          `Near $0$, $${baseTex(base, 'x')} \\approx ${seriesTex(keptBefore(base, p), 'x', false)}$. The first term left out, $\\frac{x^{${p}}}{${p}!}$, is drawn for $x \\ge 0$. Slide to the largest $x$ where it is at most $${qTex(bound)}$.`,
         ),
       ],
       min: 0,
@@ -3580,7 +3580,7 @@ const boundTree: Generator<BoundParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `Bound the error when $f(x) = ${fnTex(f)}$ is replaced by $P_{${n}}(x)$ at $x = ${qTex(x)}$. Top row, left to right: the bound $M$ on $|${dName(n + 1)}(c)|$, then $|x|^{${n + 1}}$, then $${n + 1}!$. Underneath: the bound on the error.`,
+          `Bound the error when $f(x) = ${fnTex(f)}$ is replaced by $P_{${n}}(x)$ at $x = ${qTex(x)}$. Top row: the bound $M$ on $|${dName(n + 1)}(c)|$, then $|x|^{${n + 1}}$, then $${n + 1}!$. Underneath: the bound on the error.`,
         ),
       ],
       expression: `|R_{${n}}(x)| \\le M \\times \\frac{|x|^{${n + 1}}}{${n + 1}!}`,
@@ -3788,7 +3788,7 @@ const compareTree: Generator<CompareTreeParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `$e^{${k > 0 ? '' : '-'}${qTex(h)}}$ is estimated from ${polyWords(n)} of $e^{${k > 0 ? '' : '-'}x}$. The first term left out has size $D$; since ${why}, the Lagrange bound is $B = ${M === 1 ? '' : M}D$. Top row: $\\left(${qTex(h)}\\right)^{${n + 1}}$ and $${n + 1}!$. Then $D$, then $B$.`,
+          `$e^{${k > 0 ? '' : '-'}${qTex(h)}}$ is estimated from ${polyWords(n)} of $e^{${k > 0 ? '' : '-'}x}$. $D$ is the size of the first term left out; since ${why}, $B = ${M === 1 ? '' : M}D$. Top row: $\\left(${qTex(h)}\\right)^{${n + 1}}$ and $${n + 1}!$. Then $D$, then $B$.`,
         ),
       ],
       expression: `D = \\frac{\\left(${qTex(h)}\\right)^{${n + 1}}}{${n + 1}!}, \\quad B = ${M === 1 ? 'D' : `${M} \\times D`}`,
@@ -3871,7 +3871,7 @@ const comparePick: Generator<ComparePickParams> = {
     return choiceSlide(
       [
         say(
-          `$f(x) = ${fnTex(f)}$ is estimated at $x = ${qTex(h)}$ by ${polyWords(n)}. The first term left out has size $D = ${D}$, and the Lagrange bound is $B = ${B}$. Which is true of the size $E$ of the actual error?`,
+          `$f(x) = ${fnTex(f)}$ is estimated at $x = ${qTex(h)}$ by ${polyWords(n)}. The first term left out has size $D = ${D}$; the Lagrange bound is $B = ${B}$. Which is true of the actual error's size $E$?`,
         ),
       ],
       formChoices(opt(correct), wrong.map(opt), saltOf(f, h.n, h.d, n)),
@@ -4147,7 +4147,7 @@ const degreeSlider: Generator<SliderParams> = {
       kind: 'slider',
       prompt: [
         say(
-          `For $f(x) = ${fnTex(f)}$ and $x \\ge 0$, the Lagrange bound on the error of $P_{${n}}(x)$ is $${formula}$${grows ? ', since $M = e^{x}$ grows with $x$' : ''}. It is drawn below, with a dashed line at $${fmt(tol)}$. Slide to the largest $x$ on the scale at which the bound is at most $${fmt(tol)}$.`,
+          `For $f(x) = ${fnTex(f)}$ and $x \\ge 0$, the Lagrange bound on the error of $P_{${n}}(x)$ is $${formula}$${grows ? ', since $M = e^{x}$ grows with $x$' : ''}, drawn below. Slide to the largest $x$ on the scale where it is at most $${fmt(tol)}$.`,
         ),
       ],
       min: 0,
@@ -4492,7 +4492,7 @@ const centreTree: Generator<CentreAtParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `$f(x) = ${cfnTex(g)}$ is replaced at $x = ${decQ(x)}$ by $P_{${n}}(x)$, its Taylor polynomial about $x = ${g.a}$. Top row, left to right: $|x - ${g.a}|^{${n + 1}}$, then $M$, the largest $|${dName(n + 1)}(c)|$ for $c$ from $${decQ(lo)}$ to $${decQ(hi)}$, then $${n + 1}!$. Underneath: the bound on the error.`,
+          `$f(x) = ${cfnTex(g)}$ is replaced at $x = ${decQ(x)}$ by $P_{${n}}(x)$, its Taylor polynomial about $x = ${g.a}$. Top row: $|x - ${g.a}|^{${n + 1}}$, then $M$, the largest $|${dName(n + 1)}(c)|$ for $c$ from $${decQ(lo)}$ to $${decQ(hi)}$, then $${n + 1}!$. Underneath: the bound on the error.`,
         ),
       ],
       expression: `|R_{${n}}(x)| \\le M \\times \\frac{|x - ${g.a}|^{${n + 1}}}{${n + 1}!}`,
@@ -5055,7 +5055,7 @@ const ratioSteps: Generator<PowerParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `Find $L = \\lim_{n \\to \\infty} ${RATIO_TEX}$ for this series. The ratio is written out below with the signs dropped, since only its size matters. Tap each piece and give its value, or for a piece in $n$ what it tends to, then multiply.`,
+          `Find $L = \\lim_{n \\to \\infty} ${RATIO_TEX}$ for this series; the ratio is below, signs dropped. Tap each piece and give its value, or for a piece in $n$ what it tends to, then multiply.`,
         ),
         show(seriesSumTex(s)),
       ],
@@ -5435,7 +5435,7 @@ const shiftTree: Generator<PowerParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `For this series, find $L$, the limit of $${RATIO_TEX}$, then the radius $R$, then the ends of the interval it converges on. Top: $L$. Middle: $R$. Bottom, left to right: the left end and the right end.`,
+          `For this series, fill in $L$, the limit of $${RATIO_TEX}$; then the radius $R$; then the left and right ends of the interval it converges on.`,
         ),
       ],
       expression: seriesSumTex(s),
@@ -5643,7 +5643,7 @@ const singularSlider: Generator<SingParams> = {
       kind: 'slider',
       prompt: [
         say(
-          `This is $y = ${singTex(s)}$. The dot marks the centre $x = ${s.a}$ and the dashed lines are where it breaks. Slide out from the dot to the radius of convergence of its ${aboutWords(s.a)}.`,
+          `$y = ${singTex(s)}$: the dot is the centre $x = ${s.a}$, the dashed lines where it breaks. Slide out from the dot to the radius of convergence of its ${aboutWords(s.a)}.`,
         ),
       ],
       min: 0,

@@ -144,3 +144,17 @@ Generators in `src/content/generators/contestComposite.ts`.
 | Working in 3D | `cm-painted-cube`, `cm-painted-table`, `cm-stacked-cubes`, `cm-drilled-cube` | corners, edges, face middles and core; from above the tops make the bottom face; the tunnel takes two openings and adds four walls |
 
 Level check: 13 questions across all five lessons.
+
+## Level 7: Combinatorics (`cm-l7`)
+
+Generators in `src/content/generators/contestCounting.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Counting | `cm-digit-choices`, `cm-stripes`, `cm-stripes-table`, `cm-odd-even-digits` | fill the most restricted place first; a choice that depends on the last one can still have a fixed count; the units digit decides odd or even; split into cases when 0 is both even and barred from the front |
+| Venn Diagrams | `cm-venn-survey`, `cm-venn-count`, `cm-two-way-table`, `cm-venn-extremes` | fill from the middle out; adding the groups counts the overlap twice; a two-way table is the same four regions; the overlap is smallest with nobody outside, largest with one group inside the other |
+| Branch Diagrams | `cm-stairs`, `cm-dice-total`, `cm-stamp-ways`, `cm-stamp-table` | split on the first move, so each count is the sum of the ones before; split on the red die; list the cases by the biggest stamp |
+| Over-Counting | `cm-teams`, `cm-teams-tiles`, `cm-arrangements`, `cm-round-table` | count in order, divide by the orders of each group; divide by the orders of repeated letters; a circle counts each seating once per turn; glue a pair together, take together from all for apart |
+| Symmetry | `cm-ahead-of`, `cm-dice-compare`, `cm-perm-sum`, `cm-perm-sum-tiles` | swap two people and the orders pair up; ties aside, a swap splits the rest in half; x to m + 1 − x pairs high totals with low; each digit sits in each place equally often |
+
+Level check: 14 questions across all five lessons.

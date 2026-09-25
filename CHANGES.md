@@ -9,6 +9,12 @@ its pull request; the PR description holds the evidence.
   a one-time code on one device to type on the other; from then on lessons,
   bests and the streak are merged (never overwritten) through a small store on
   the Worker, a D1 database that wrangler creates with no dashboard setup.
+- **Top bars hide on scroll, and lists remember where you were (#197).** Less space
+  above "All courses" (the home screen matches). The top bar on the home
+  screen, a course page and a lesson slides away while scrolling down and
+  comes back on scrolling up. Leaving a lesson returns to that lesson on the
+  course page, and going back to the home screen returns to where it was
+  scrolled. Positions are kept in session storage, never the progress store.
 - **Complex square roots are taught before they are asked.** The Square Roots
   lesson now works an example of squaring, then finds a root step by step with
   no guessing, then practises gently: square a number, pick which candidate is
@@ -51,6 +57,8 @@ its pull request; the PR description holds the evidence.
   the Cloudflare build (proved on #190).
 - **Docs (#190).** HANDOFF and DECISIONS no longer say commits land on `main`
   directly.
+- **Maths content reviewer agent now runs on Opus** instead of Fable, and
+  `/apply-fixes` no longer says "Do not merge" (PRs merge themselves) (#199).
 
 ## 2026-09-24
 

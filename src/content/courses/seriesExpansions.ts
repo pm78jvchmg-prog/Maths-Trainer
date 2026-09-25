@@ -16,13 +16,19 @@
  * reading the radius off the coefficients, checking each end on its own for
  * the interval of convergence, series in x^m and in (x - a), and the radius
  * as the distance to the nearest singularity, complex ones included.
+ * Level 5 is the binomial series as a series: its coefficients derived from
+ * the derivatives at 0, its radius by the ratio test and the break where the
+ * bracket is 0, the rule taking one coefficient to the next, arctan and
+ * arcsin by integrating it term by term, and products with the standard
+ * series and where they hold. Binomial Expansion's levels 6 and 7 quote and
+ * use it; this level derives it (generators in `seriesBinomial.ts`).
  *
  * Differentiation, the sum to infinity and the binomial expansion are used
  * here, not taught again: the derivatives of e^x and ln x belong to
  * Differentiation's "Exponentials and Logarithms", those of sin and cos to its
  * "Trigonometric Functions", 1/(1 - x) is the sum to infinity from Sequences
  * and Series, and (1 + x)^n for a whole n is the Binomial Expansion's first
- * lesson. The binomial series for other n is only quoted. Each level closes
+ * lesson. Each level closes
  * with a level check: questions only, no teaching slides, one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
@@ -61,7 +67,7 @@ export const seriesExpansions: Course = {
   // After Parametric and Implicit (25), Integration (30), Vectors (40) and Matrices (50); before Differential Equations (70).
   position: 60,
   title: 'Series Expansions',
-  blurb: 'Functions as never-ending polynomials: Maclaurin and Taylor series, the standard series, estimates and their errors, limits, where a series is valid, and bounding the error.',
+  blurb: 'Functions as never-ending polynomials: Maclaurin and Taylor series, the standard series, estimates and their errors, limits, where a series is valid, bounding the error, and the binomial series.',
   levels: [
     {
       id: 'se-l1',
@@ -980,6 +986,213 @@ export const seriesExpansions: Course = {
         ask('ser-interval-tiles', 2),
         ask('ser-sub-pick', 2),
         ask('ser-singular-flow', 2),
+      ],
+    },
+
+    {
+      id: 'se-l5',
+      title: 'The Binomial Series',
+      lessons: [
+        {
+          id: 'se-l5-derive',
+          title: 'Deriving the Binomial Series',
+          slides: [
+            teach(
+              prose('For any number $n$ the binomial series is the Maclaurin series of $(1 + x)^{n}$ and is found like any other. Each derivative brings the power down and lowers it by one:'),
+              working("f'(x) &= n(1 + x)^{n - 1}", "f''(x) &= n(n - 1)(1 + x)^{n - 2}", "f'''(x) &= n(n - 1)(n - 2)", '&\\qquad \\times (1 + x)^{n - 3}'),
+              prose('At $x = 0$ the bracket is $1$, so only the numbers in front are left. Dividing by $k!$ gives each coefficient:'),
+              display('a_{k} = \\frac{n(n - 1)\\cdots(n - k + 1)}{k!}'),
+            ),
+            asking(
+              'ser-binom-deriv-table',
+              1,
+              prose('With $2x$ in the bracket, the chain rule brings out one more $2$ with each derivative. For $(1 + 2x)^{-1}$:'),
+              working("f'(0) &= (-1) \\times 2 = -2", "f''(0) &= (-1)(-2) \\times 2^{2} = 8", "f'''(0) &= (-1)(-2)(-3) \\times 2^{3}", '&= -48'),
+              prose('Dividing by $1!$, $2!$ and $3!$:'),
+              working('a_{1} &= -2', 'a_{2} &= 8 \\div 2 = 4', 'a_{3} &= -48 \\div 6 = -8'),
+            ),
+            ask('ser-binom-kth-deriv'),
+            asking(
+              'ser-binom-terms-tiles',
+              1,
+              prose('Those coefficients, in order, are the series:'),
+              display('(1 + 2x)^{-1} = 1 - 2x + 4x^{2} - 8x^{3} + \\cdots'),
+            ),
+            teach(
+              prose('A fraction for $n$ works the same way. For $(1 + x)^{1/2}$:'),
+              working("f'(0) &= \\tfrac{1}{2}", "f''(0) &= (\\tfrac{1}{2})(-\\tfrac{1}{2}) = -\\tfrac{1}{4}", "f'''(0) &= (\\tfrac{1}{2})(-\\tfrac{1}{2})(-\\tfrac{3}{2}) = \\tfrac{3}{8}"),
+              prose('Dividing by $1!$, $2!$ and $3!$:'),
+              display('(1 + x)^{1/2} = 1 + \\tfrac{1}{2}x - \\tfrac{1}{8}x^{2} + \\tfrac{1}{16}x^{3} + \\cdots'),
+              prose('For a whole $n$ of $0$ or more a factor reaches $0$ and the series stops. For any other $n$ no factor is ever $0$, and it goes on for ever.'),
+            ),
+            ask('ser-binom-kth-deriv+choice', 2),
+            ask('ser-binom-deriv-table', 2),
+            ask('ser-binom-terms-tiles', 2),
+            ask('ser-coef-typed'),
+          ],
+          skillCheck: [ask('ser-binom-deriv-table', 2), ask('ser-binom-kth-deriv', 2), ask('ser-binom-terms-tiles', 2)],
+        },
+        {
+          id: 'se-l5-radius',
+          title: 'The Radius of the Binomial Series',
+          slides: [
+            teach(
+              prose('The ratio test from the last level says where the series converges. One coefficient of $(1 + x)^{n}$ over the one before is'),
+              display('\\frac{a_{k + 1}}{a_{k}} = \\frac{n - k}{k + 1}'),
+              prose('For large $k$ the top and the bottom are both about $k$ in size, so the fraction tends to $1$ in size. With $bx$ in the bracket each term carries one more $b$:'),
+              display('L = |b| \\qquad R = \\frac{1}{|b|}'),
+              prose('That is also where the bracket is $0$, at $x = -\\frac{1}{b}$: the function breaks there, and a series reaches only as far as the nearest break.'),
+            ),
+            asking(
+              'ser-binom-ratio-flow',
+              1,
+              prose('For $(1 + 3x)^{-1/2}$:'),
+              display('\\left|\\frac{a_{k + 1}}{a_{k}}\\right| = \\left|\\frac{-\\frac{1}{2} - k}{k + 1}\\right| \\times 3 \\to 3'),
+              prose('So $L = 3$ and $R = \\frac{1}{3}$.'),
+            ),
+            ask('ser-binom-radius'),
+            asking(
+              'ser-binom-radius-slider',
+              1,
+              prose('$(2 - x)^{-1}$ shoots up where the bracket is $0$, at $x = 2$. That break is $2$ from the centre, so $R = 2$.'),
+            ),
+            teach(
+              prose('For $(a + bx)^{n}$ take $a$ out first. The number in front changes no ratio:'),
+              display('(a + bx)^{n} = a^{n}(1 + \\tfrac{b}{a}x)^{n}'),
+              display('L = \\frac{|b|}{a} \\qquad R = \\frac{a}{|b|}'),
+              prose('So $(4 - 6x)^{-1/2}$ converges for'),
+              display('|x| < \\frac{4}{6} = \\frac{2}{3}'),
+              prose('which is again the distance from $0$ to where the bracket is $0$.'),
+            ),
+            ask('ser-binom-radius+choice', 2),
+            ask('ser-binom-ratio-flow', 2),
+            ask('ser-binom-radius-slider', 2),
+            ask('bin-valid-flow', 2),
+          ],
+          skillCheck: [ask('ser-binom-radius', 2), ask('ser-binom-ratio-flow', 2), ask('ser-binom-radius-slider', 2)],
+        },
+        {
+          id: 'se-l5-recurrence',
+          title: 'One Coefficient from the Last',
+          slides: [
+            teach(
+              prose('Each coefficient of $(1 + x)^{n}$ is the one before times one more factor, over one more whole number:'),
+              display('a_{k + 1} = a_{k} \\times \\frac{n - k}{k + 1}'),
+              prose('With $bx$ in the bracket, each step also multiplies by $b$. For $(1 - 2x)^{-1/2}$ start from $a_{0} = 1$:'),
+              working(
+                'a_{1} &= 1 \\times \\tfrac{-1/2}{1} \\times (-2) = 1',
+                'a_{2} &= 1 \\times \\tfrac{-3/2}{2} \\times (-2) = \\tfrac{3}{2}',
+                'a_{3} &= \\tfrac{3}{2} \\times \\tfrac{-5/2}{3} \\times (-2) = \\tfrac{5}{2}',
+              ),
+            ),
+            ask('ser-binom-recur-steps'),
+            ask('ser-binom-recur-table'),
+            asking(
+              'ser-binom-coef',
+              1,
+              prose('Further along, run the steps on, or multiply every factor at once. For the $x^{4}$ term of $(1 + x)^{-2}$:'),
+              display('\\frac{(-2)(-3)(-4)(-5)}{4!} = \\frac{120}{24} = 5'),
+              prose('With $bx$ in the bracket, multiply by $b^{4}$ as well.'),
+            ),
+            teach(
+              prose('Signs follow the factors. For a negative $n$ every factor $n - k$ is negative, so the signs alternate, unless a negative $b$ flips every other term back:'),
+              display('\\begin{aligned} &(1 + x)^{-2} \\\\ &= 1 - 2x + 3x^{2} - 4x^{3} + \\cdots \\\\[6pt] &(1 - x)^{-2} \\\\ &= 1 + 2x + 3x^{2} + 4x^{3} + \\cdots \\end{aligned}'),
+            ),
+            ask('bin-negative-signs-flow'),
+            ask('ser-binom-coef+choice', 2),
+            ask('ser-binom-recur-table', 2),
+            ask('ser-binom-recur-steps', 2),
+          ],
+          skillCheck: [ask('ser-binom-recur-table', 2), ask('ser-binom-recur-steps', 2), ask('ser-binom-coef', 2)],
+        },
+        {
+          id: 'se-l5-inverse-trig',
+          title: 'Integrating to arctan and arcsin',
+          slides: [
+            teach(
+              prose('Two derivatives, given here, turn the binomial series into two new series:'),
+              display('\\begin{aligned} \\frac{d}{dx}\\arctan x &= \\frac{1}{1 + x^{2}} \\\\[6pt] \\frac{d}{dx}\\arcsin x &= \\frac{1}{\\sqrt{1 - x^{2}}} \\end{aligned}'),
+              prose('Expand $(1 + t^{2})^{-1}$ with $t^{2}$ in place of $x$, then integrate each term from $0$ to $x$:'),
+              display('(1 + t^{2})^{-1} = 1 - t^{2} + t^{4} - \\cdots \\qquad \\arctan x = x - \\frac{x^{3}}{3} + \\frac{x^{5}}{5} - \\cdots'),
+            ),
+            asking(
+              'ser-binom-int-tiles',
+              1,
+              prose('Any bracket $(1 + ct^{2})^{n}$ goes the same way, since each power integrates as'),
+              display('\\int_{0}^{x} t^{2k}\\,dt = \\frac{x^{2k + 1}}{2k + 1}'),
+              prose('For $(1 - 2t^{2})^{-1/2}$:'),
+              display('(1 - 2t^{2})^{-1/2} = 1 + t^{2} + \\tfrac{3}{2}t^{4} + \\cdots'),
+              prose('so its integral from $0$ to $x$ is'),
+              display('x + \\tfrac{1}{3}x^{3} + \\tfrac{3}{10}x^{5} + \\cdots'),
+            ),
+            asking(
+              'ser-binom-arc-coef',
+              1,
+              prose('For $\\arctan(2x)$, put $2x$ in place of $x$. The $x^{5}$ term is'),
+              display('\\frac{(2x)^{5}}{5} = \\frac{32}{5}x^{5}'),
+            ),
+            ask('ser-int-coef'),
+            teach(
+              prose('With $bx$ inside, the chain rule puts $b$ on top, and $b^{2}$ with the $t^{2}$. Each is $0$ at $x = 0$, so each is an integral from $0$:'),
+              display('\\arctan(bx) = \\int_{0}^{x} \\frac{b}{1 + b^{2}t^{2}}\\,dt'),
+              display('\\arcsin(bx) = \\int_{0}^{x} \\frac{b}{\\sqrt{1 - b^{2}t^{2}}}\\,dt'),
+              display('\\ln(1 + bx) = \\int_{0}^{x} \\frac{b}{1 + bt}\\,dt'),
+              prose('And $\\arcsin$ comes from'),
+              display('(1 - t^{2})^{-1/2} = 1 + \\tfrac{1}{2}t^{2} + \\tfrac{3}{8}t^{4} + \\cdots'),
+              display('\\arcsin x = x + \\frac{x^{3}}{6} + \\frac{3x^{5}}{40} + \\cdots'),
+            ),
+            ask('ser-binom-which-int'),
+            ask('ser-binom-arc-coef+choice', 2),
+            ask('ser-binom-int-tiles', 2),
+            ask('ser-binom-which-int', 2),
+          ],
+          skillCheck: [ask('ser-binom-int-tiles', 2), ask('ser-binom-arc-coef', 2), ask('ser-binom-which-int', 2)],
+        },
+        {
+          id: 'se-l5-products',
+          title: 'Binomial Series in Products',
+          slides: [
+            teach(
+              prose('To multiply two series, pair the terms whose powers add up to the one you want. For the $x^{2}$ term of $e^{x}(1 + x)^{-1}$:'),
+              display('e^{x} = 1 + x + \\tfrac{1}{2}x^{2} + \\cdots \\qquad (1 + x)^{-1} = 1 - x + x^{2} - \\cdots'),
+              prose('The pairs are the constant times $x^{2}$, $x$ times $x$, and $x^{2}$ times the constant:'),
+              display('1 \\times 1 + 1 \\times (-1) + \\tfrac{1}{2} \\times 1 = \\tfrac{1}{2}'),
+            ),
+            ask('ser-binom-pairs-tree'),
+            ask('ser-binom-product-coef'),
+            ask('ser-product-coef'),
+            teach(
+              prose('For $x^{3}$ there are four pairs. In $e^{x}(1 - x)^{-1}$ every coefficient of $(1 - x)^{-1}$ is $1$, so the $x^{3}$ coefficient is'),
+              display('1 + 1 + \\tfrac{1}{2} + \\tfrac{1}{6} = \\tfrac{8}{3}'),
+              prose('The product holds only where both series hold:'),
+              working('e^{cx} &: \\; \\text{every } x', '\\tfrac{1}{1 - cx} &: \\; |x| < \\tfrac{1}{|c|}', '(1 + bx)^{n} &: \\; |x| < \\tfrac{1}{|b|}'),
+              prose('Take the smaller:'),
+              working('e^{3x}(1 + 2x)^{-1/2} &: \\; |x| < \\tfrac{1}{2}', '\\tfrac{1}{1 - 4x}(1 + 2x)^{1/2} &: \\; |x| < \\tfrac{1}{4}'),
+            ),
+            ask('ser-binom-valid-flow'),
+            ask('ser-binom-product-coef+choice', 2),
+            ask('ser-binom-pairs-tree', 2),
+            ask('ser-binom-valid-flow', 2),
+          ],
+          skillCheck: [ask('ser-binom-pairs-tree', 2), ask('ser-binom-product-coef', 2), ask('ser-binom-valid-flow', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('ser-binom-deriv-table', 2),
+        ask('ser-binom-ratio-flow', 2),
+        ask('ser-binom-recur-steps', 2),
+        ask('ser-binom-int-tiles', 2),
+        ask('ser-binom-pairs-tree', 2),
+        ask('ser-binom-kth-deriv', 2),
+        ask('ser-binom-radius', 2),
+        ask('ser-binom-coef', 2),
+        ask('ser-binom-arc-coef', 2),
+        ask('ser-binom-valid-flow', 2),
+        ask('ser-binom-terms-tiles', 2),
+        ask('ser-binom-radius-slider', 2),
+        ask('ser-binom-recur-table', 2),
+        ask('ser-binom-which-int', 2),
+        ask('ser-binom-product-coef', 2),
       ],
     },
   ],

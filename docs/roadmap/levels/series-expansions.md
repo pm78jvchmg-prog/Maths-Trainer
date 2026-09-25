@@ -12,12 +12,14 @@ for); Error Terms (the Lagrange remainder, bounding the error of a Taylor
 polynomial rather than estimating it, the bound against the first term left
 out, choosing a degree to meet a tolerance, remainders about a centre); Radius of
 Convergence (the ratio test on a power series, checking the ends, why the
-radius is the distance to the nearest singularity).
+radius is the distance to the nearest singularity); The Binomial Series
+(the coefficients of (1 + bx)^n derived from the derivatives at 0, the radius
+by the ratio test and the break where the bracket is 0, (a + bx)^n by taking a
+out, the recurrence a_(k+1) = a_k (n - k)/(k + 1), arctan and arcsin by
+integrating term by term, products with the standard series and where they
+hold; C14-l5).
 
-Needs: The Binomial
-Series (the general (1 + x)^n for rational n derived rather than quoted,
-(a + bx)^n by taking a out, validity; after C7 Binomial level 6 has landed);
-Differentiating and Composing Series (term-by-term differentiation, series of
+Needs: Differentiating and Composing Series (term-by-term differentiation, series of
 tan x and e^(sin x) by composing, reading higher derivatives at 0 off a
 series); Series Solutions of Differential Equations (substituting a power
 series into y' = f(x, y) and y'' + ... = 0, the recurrence for the

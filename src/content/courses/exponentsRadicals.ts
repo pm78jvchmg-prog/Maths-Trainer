@@ -936,7 +936,8 @@ export const exponentsRadicals: Course = {
                 'Sometimes the front numbers multiply to 10 or more, and the answer is not in standard form yet. One more step fixes it.',
               ),
               working(
-                '(3 \\times 10^{4}) \\times (5 \\times 10^{6}) &= 15 \\times 10^{10}',
+                '& (3 \\times 10^{4}) \\times (5 \\times 10^{6})',
+                '&= 15 \\times 10^{10}',
                 '&= 1.5 \\times 10 \\times 10^{10}',
                 '&= 1.5 \\times 10^{11}',
               ),

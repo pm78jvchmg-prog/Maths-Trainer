@@ -9,6 +9,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:fast": "vitest run --exclude '**/{generators.sweep-*,parametricImplicit,differentialEquations,seriesExpansions,kinematics}.test.ts'",
     "test:watch": "vitest"
   },
   "dependencies": {

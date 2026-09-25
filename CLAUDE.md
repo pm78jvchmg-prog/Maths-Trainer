@@ -508,6 +508,15 @@ full suite, lint, and — for anything with a visible surface — the change
 actually exercised in a browser. A test suite cannot tell you that a dot is
 clipped in half by the edge of its viewBox.
 
+`.github/workflows/checks.yml` runs one job, **Fast checks**, on every pull
+request: `npm ci`, the app, node and eval typechecks, `npm run lint`, and
+`npm run test:fast`, which is every test file except the `generators.sweep-NN`
+shards and the four slowest per-family generator files (listed in the
+workflow), to spare the private repo's Actions minutes. It blocks a merge only
+once the owner adds "Fast checks" to the auto-merge ruleset as a required
+check; until then auto-merge still waits on the Cloudflare build alone. Either
+way, run the full `npm test` before a change to a generator lands.
+
 The app is installed to an iPhone Home Screen and must work offline — the
 service worker precaches everything including KaTeX fonts and mathjs. Do not add
 runtime network dependencies.

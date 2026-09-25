@@ -1,0 +1,57 @@
+# Typecheck, lint and the fast tests on every pull request.
+#
+# Auto-merge lands a pull request as soon as the checks the "auto merge"
+# ruleset requires have passed, and until this job existed the only one was
+# the Cloudflare build, so a red suite could merge straight to production.
+# This job only blocks a merge once it is added to that ruleset as a required
+# check, under the name "Fast checks".
+#
+# Fast checks only, on the owner's decision: the repository is private and
+# Actions minutes are limited. `npm run test:fast` leaves out the generator
+# sweep shards (src/content/generators/generators.sweep-NN.test.ts), which take
+# the best part of an hour of CPU, and the four per-family generator property
+# files that each take over a minute on two cores: parametricImplicit (564 s),
+# differentialEquations (373 s), seriesExpansions (92 s) and kinematics (83 s).
+# Measured on two cores, the whole job took 29 minutes with those four files
+# and 6.5 without (tests 5.7). Run the full `npm test` locally before landing a
+# change to a generator.
+#
+# A newer push to the same pull request cancels the run it replaces.
+
+name: Checks
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fast:
+    name: Fast checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck (app)
+        run: npx tsc --noEmit -p tsconfig.app.json
+      - name: Typecheck (node)
+        run: npx tsc --noEmit -p tsconfig.node.json
+      - name: Typecheck (eval)
+        run: npx tsc --noEmit -p tsconfig.eval.json
+      - name: Lint
+        run: npm run lint
+      # A hosted runner for a private repository has two cores, and vitest
+      # runs one worker on two cores unless told otherwise.
+      - name: Tests, without the generator sweeps
+        run: npm run test:fast -- --maxWorkers=2

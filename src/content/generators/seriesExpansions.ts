@@ -247,9 +247,9 @@ function goesOn(f: Fn, p: number): boolean {
 
 const powerTex = (p: number, v: string): string => (p === 0 ? '' : p === 1 ? v : `${v}^{${p}}`);
 
-/** `c x^p` as the learner reads it: `-\frac{4}{3}x^{3}`, `x^{2}`, `5`. */
+/** `c x^p` as the learner reads it: `-\frac{4}{3}x^{3}`, `x^{2}`, `5`, and `0` rather than `0x^{2}`. */
 export function monoTex(c: Q, p: number, v = 'x'): string {
-  if (p === 0) return qTex(c);
+  if (p === 0 || isZero(c)) return qTex(c);
   const size = abs(c);
   return `${c.n < 0 ? '-' : ''}${eq(size, ONE) ? '' : qTex(size)}${powerTex(p, v)}`;
 }
@@ -2760,7 +2760,8 @@ interface IntStepsParams {
 function atTex(c: Q, p: number, h: Q): string {
   const x = h.d === 1 && h.n > 0 ? `${h.n}` : `(${qTex(h)})`;
   const power = p === 1 ? x : `${x}^{${p}}`;
-  return eq(c, ONE) ? power : `${qTex(c)}${power}`;
+  if (eq(c, ONE)) return power;
+  return eq(c, neg(ONE)) ? `-${power}` : `${qTex(c)}${power}`;
 }
 
 /** Steps: ∫_0^h f(t) dt from three integrated terms, each evaluated, then added. */

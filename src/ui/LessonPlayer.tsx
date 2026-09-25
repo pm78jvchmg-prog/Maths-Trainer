@@ -283,7 +283,6 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
         )}
         <SlideView
           slide={slide.slide}
-          id={slide.id}
           feedback={session.feedback}
           answer={answer}
           onAnswer={changeAnswer}

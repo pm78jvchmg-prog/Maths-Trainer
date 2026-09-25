@@ -11,7 +11,6 @@ import {
   MathSlot,
   applyKey,
   deleteBack,
-  docFromAnswer,
   docFromKeys,
   fnTex,
   isFilled,
@@ -48,8 +47,6 @@ import { canonicalForces } from '../content/forces';
 
 export interface SlideProps {
   slide: Slide;
-  /** The resolved slide's id, used to key the answer editor's draft. */
-  id: string;
   feedback: Feedback;
   /** Current draft answer, lifted so the player can enable/disable Check. */
   answer: Answer;
@@ -141,42 +138,29 @@ const BASE_KEYS: KeypadKey[] = [
 ];
 
 /**
- * The editor's tree, kept out of the session.
+ * The editor's tree lives in this component's state, kept out of the session.
  *
  * The session stores what gets graded — the mathjs string — and nothing else,
  * so the reducer, the invariants and every test are untouched by this. Which
  * slot the caret sits in is no more the session's business than which key was
  * pressed last.
  *
- * Keyed by slide id because the player remounts the whole slide subtree on
- * every move, so stepping back and forward through the guided deck would
- * otherwise show an empty slot beside an answer the session still holds.
+ * Nothing is restored on a return visit: the player remounts the slide on
+ * every move and clears the draft as it does, so the box always opens as the
+ * question sets it — empty, or holding its prefill.
  */
-const drafts = new Map<string, Doc>();
-
 export function ExpressionSlide({
   slide,
-  id,
   feedback,
-  answer,
   onAnswer,
   canEdit,
   }: SlideProps) {
   const locked = isLocked(feedback, canEdit);
-  const current = typeof answer === 'string' ? answer : '';
 
   // What the box holds before the learner has pressed anything: empty, or the
   // part of the answer the question has already written in for them.
   const start = docFromKeys(slide.kind === 'expression' ? slide.prefill : undefined);
-
-  // The draft is trusted only while it still serialises to the answer the
-  // session holds. Anything else — a fresh slide, or an answer cleared from
-  // outside the editor — rebuilds from the string, one atom per character.
-  const [doc, setDoc] = useState<Doc>(() => {
-    const cached = drafts.get(id);
-    if (cached && toAnswer(cached.nodes) === current) return cached;
-    return current === '' ? start : docFromAnswer(current);
-  });
+  const [doc, setDoc] = useState<Doc>(start);
 
   if (slide.kind !== 'expression') return null;
 
@@ -185,7 +169,6 @@ export function ExpressionSlide({
 
   const apply = (next: Doc) => {
     if (locked) return;
-    drafts.set(id, next);
     setDoc(next);
     // Only what was already written in is no answer yet, so Check stays off
     // rather than grading the question's own half of the expression.
@@ -198,7 +181,6 @@ export function ExpressionSlide({
   // the learner looked at the middle of their own answer.
   const move = (next: Doc) => {
     if (locked) return;
-    drafts.set(id, next);
     setDoc(next);
   };
 
@@ -847,8 +829,8 @@ export function hasAnswer(slide: Slide, answer: Answer): boolean {
   // that is a choice, where the untouched curve is not.
   if (slide.kind === 'transform') return typeof answer === 'string' && answer !== '';
   // Answerable once the expression is a single number, however it got there:
-  // an illegal reduction still settles its line, and Check has to be reachable
-  // or the learner could never find out that it was illegal.
+  // a wrong value still settles its line, and Check has to be reachable or the
+  // learner could never find out that it was wrong. The value is the only test.
   if (slide.kind === 'reduce') return reduceComplete(slide.expr, answer);
   // A decision tree is answerable once the walk has reached a leaf. Mid-walk
   // the learner has chosen something, but not an answer.
@@ -863,10 +845,4 @@ export function hasAnswer(slide: Slide, answer: Answer): boolean {
     );
   }
   return typeof answer === 'string' && answer.trim() !== '';
-}
-
-/** Local draft-answer state, reset by SlideView when the slide changes. */
-export function useDraftAnswer(): [Answer, (a: Answer) => void] {
-  const [answer, setAnswer] = useState<Answer>('');
-  return [answer, setAnswer];
 }

@@ -17,7 +17,6 @@ import {
   applyKey,
   deleteBack,
   docFromKeys,
-  docFromAnswer,
   insertAtom,
   insertFraction,
   insertRoot,
@@ -85,11 +84,6 @@ describe('editing', () => {
   it('treats an empty slot as nothing to grade', () => {
     expect(isFilled(insertFraction(EMPTY_DOC).nodes)).toBe(false);
     expect(isFilled(type(insertFraction(EMPTY_DOC), '1').nodes)).toBe(true);
-  });
-
-  it('round-trips a stored answer', () => {
-    const text = '((3)/(4))x^2';
-    expect(toAnswer(docFromAnswer(text).nodes)).toBe(text);
   });
 });
 
@@ -290,12 +284,6 @@ describe('trig function keys', () => {
   it('opens a prefill with the caret inside the function', () => {
     const doc = type(docFromKeys([{ insert: '6' }, key('sin')]), '150');
     expect(checkAnswer(toAnswer(doc.nodes), '3').status).toBe('correct');
-  });
-
-  it('reads a stored degree function back as the key, not as its mathjs name', () => {
-    const doc = docFromAnswer('4(sind(30))');
-    expect(toTex(doc.nodes)).toBe('4(\\sin(30))');
-    expect(toAnswer(doc.nodes)).toBe('4(sind(30))');
   });
 });
 

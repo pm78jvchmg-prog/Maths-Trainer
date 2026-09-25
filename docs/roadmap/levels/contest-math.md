@@ -316,3 +316,17 @@ Generators in `src/content/generators/contestAnalyticGeometry.ts`.
 | Complex Number Geometry | `cm-ag-rotate`, `cm-ag-turn-area`, `cm-ag-modulus`, `cm-ag-reach` | times i turns 90° about 0, so move the centre there first; z, iz, −z, −iz make a square of area 2\|z\|²; moduli multiply, and an even power never needs the root; the nearest and farthest points lie on the line through the centre |
 
 Level check: 13 questions across all four lessons.
+
+## Level 20: Trigonometry (`cm-l20`)
+
+Generators in `src/content/generators/contestTrigonometry.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Trigonometric Functions | `cm-tr-other-ratio`, `cm-tr-exact-table`, `cm-tr-big-angle`, `cm-tr-square-sum` | a triple gives every ratio and the quadrant gives the sign; measure from the nearer side of the axis; whole turns change nothing; sin²x pairs with sin²(90° − x) to make 1 |
+| Law of Cosines | `cm-tr-cos-side`, `cm-tr-cos-angle`, `cm-tr-cos-table`, `cm-tr-parallelogram` | cos 60° = 1/2 takes ab off, cos 120° = −1/2 adds it; the law turned round gives the angle, and (a + b + c)(a + b − c) = k ab is its top in disguise; a parallelogram's cosines cancel, and a median is half a diagonal |
+| Law of Sines | `cm-tr-circumradius`, `cm-tr-sine-table`, `cm-tr-sine-side`, `cm-tr-ssa` | a/sin A is the diameter, and 150° has the sine of 30°; the third angle first; the height decides two, one or no triangles, and the two lengths multiply to b² − a² |
+| Trigonometric Identities | `cm-tr-sum-product`, `cm-tr-tan-ratio`, `cm-tr-double-table`, `cm-tr-max-value` | square sin θ + cos θ; divide by cos θ, or by cos² θ over sin² θ + cos² θ; the double angles from the triangle; a sin x + b cos x reaches √(a² + b²), not a + b |
+| Roots of Unity | `cm-tr-common-roots`, `cm-tr-unity-count-table`, `cm-tr-root-polygon`, `cm-tr-unity-product` | common roots are the gcd-th roots; count the angles in a window; the roots of z^n = c are a regular polygon of n triangles; z^n − 1 over z − 1 is the product over the other roots |
+
+Level check: 14 questions across all five lessons.

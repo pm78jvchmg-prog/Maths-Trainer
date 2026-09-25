@@ -1915,7 +1915,7 @@ const fracCompareTree: Generator<Split> = {
       kind: 'tree',
       prompt: [
         say(
-          `Compare coefficients in $${polyTex(splitTop(params))} = A${pbr(b)} + B${pbr(a)}$. Top row: what the $x$ terms say $A + B$ is, then what the numbers say $${lettersSum(b, a)}$ is. Next: the second minus $${paren(a)}$ times the first, which is $${lettersSum(b - a, 0)}$. Then $A$, and then $B$.`,
+          `Compare coefficients in $${polyTex(splitTop(params))} = A${pbr(b)} + B${pbr(a)}$. Top row: $A + B$ from the $x$ terms, then $${lettersSum(b, a)}$ from the numbers. Next: the second minus $${paren(a)}$ times the first, $${lettersSum(b - a, 0)}$. Then $A$, then $B$.`,
         ),
       ],
       expression: splitFractionTex(params),
@@ -2014,13 +2014,13 @@ const fracThreeCoverTree: Generator<ThreeParams> = {
   id: 'frac-three-cover-tree',
   sample: sampleThree,
   render: (params): Slide => {
-    const { own, o1, o2, r, t, u, v, w, k, letter } = threeCover(params);
+    const { o1, o2, r, t, u, v, w, k, letter } = threeCover(params);
     const answer = [t, u, v, w, k];
     return {
       kind: 'tree',
       prompt: [
         say(
-          `This splits as $${threeLettersTex(params)}$. To find $${letter}$, cover $${pbr(own)}$ and put $x = ${r}$ into the rest. Top row: the top at $x = ${r}$, then $${br(o1)}$ and $${br(o2)}$ there. Below: the two brackets multiplied, then $${letter}$.`,
+          `This splits as $${threeLettersTex(params)}$. Find $${letter}$ by cover-up. Top row: the top at $x = ${r}$, then $${br(o1)}$ and $${br(o2)}$ there. Below: those two multiplied, then $${letter}$.`,
         ),
       ],
       expression: threeFractionTex(params),
@@ -3947,7 +3947,7 @@ const fracQuadRestTree: Generator<QuadImproperParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `This is a whole number plus $${quadLettersTex(params)}$. Top row: the whole number, from the $x^{3}$ terms; the top at $x = ${-a}$; and $${sqTex(c)}$ there. Below: $C$. Last: $A$, from the $x^{2}$ terms, $${x2Line}$.`,
+          `This is a whole number plus $${quadLettersTex(params)}$. Top row: the whole number; the top at $x = ${-a}$; and $${sqTex(c)}$ there. Below: $C$. Last: $A$, from the $x^{2}$ terms, $${x2Line}$.`,
         ),
       ],
       expression: quadImproperFractionTex(params),

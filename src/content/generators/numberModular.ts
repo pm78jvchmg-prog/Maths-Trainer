@@ -446,7 +446,7 @@ const congCombineSteps: Generator<CombineParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `Find the residue of this modulo $${n}$. Reduce each number first, then combine them from the left, reducing as you go: every value you choose is a residue from $0$ to $${n - 1}$.`,
+          `Find the residue of this modulo $${n}$, reducing as you go: every value is a residue from $0$ to $${n - 1}$.`,
         ),
         say('Tap the part you would do **next**, then choose what it becomes.'),
       ],
@@ -915,7 +915,7 @@ const congSquareTree: Generator<SquareParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `Find $${a}^{${e}}$ modulo $${n}$ by repeated squaring. Each power is the square of the one it comes from, reduced modulo $${n}$, and $${e} = ${[...used].reverse().join(' + ')}$ puts the last one together.`,
+          `Find $${a}^{${e}}$ modulo $${n}$ by repeated squaring, with $${e} = ${[...used].reverse().join(' + ')}$.`,
         ),
         say(`From the top, the boxes hold ${powers.map((p) => `$${a}^{${p}}$`).join(', ')} and then $${a}^{${e}}$.`),
       ],

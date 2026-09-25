@@ -2329,7 +2329,7 @@ const betweenTree: Generator<TreeParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `Between $x = ${lower}$ and $x = ${upper}$ the curve $y_1 = ${polyTex(top)}$ lies above $y_2 = ${polyTex(bottom)}$. Fill the top row with the integral of each curve on its own, $y_1$ first, and the box below with the area between them.`,
+          text: `Between $x = ${lower}$ and $x = ${upper}$ the curve $y_1 = ${polyTex(top)}$ lies above $y_2 = ${polyTex(bottom)}$. Top row: the integral of each curve alone, $y_1$ first. Below: the area between them.`,
         },
       ],
       expression: `\\int_{${lower}}^{${upper}} y_1 \\, dx - \\int_{${lower}}^{${upper}} y_2 \\, dx`,
@@ -2943,7 +2943,7 @@ const sixthRule: Generator<SixthParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `Two curves meet at $x = ${p}$ and $x = ${q}$, and top minus bottom is $${polyTex(gap)}$, which is $${k === 1 ? '' : k}${factorTex(p)}${rightFactorTex(q)}$. For a gap of that shape the area is $\\frac{k}{6}(q - p)^{3}$. Tap the part you would do **next**, then choose what it comes to.`,
+          text: `Two curves meet at $x = ${p}$ and $x = ${q}$, and top minus bottom is $${polyTex(gap)}$, which is $${k === 1 ? '' : k}${factorTex(p)}${rightFactorTex(q)}$. Tap the part you would do **next**, then choose what it comes to.`,
         },
       ],
       expr: bin('/', bin('*', num(k), pow(bin('-', num(q), num(p)), num(3))), num(6)),
@@ -3133,7 +3133,7 @@ const crossingTree: Generator<CrossingParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `The curves $y_1 = ${polyTex(first)}$ and $y_2 = ${polyTex(second)}$ cross at $x = ${cross}$. Write $D(x) = y_1 - y_2$. Fill the top row with the integral of $D$ over each piece, left piece first, and the box below with the total area.`,
+          text: `The curves $y_1 = ${polyTex(first)}$ and $y_2 = ${polyTex(second)}$ cross at $x = ${cross}$. Top row: the integral of $y_1 - y_2$ over each piece, left first. Below: the total area.`,
         },
       ],
       expression: `\\left|\\int_{${lower}}^{${cross}} D \\, dx\\right| + \\left|\\int_{${cross}}^{${upper}} D \\, dx\\right|`,
@@ -4236,7 +4236,7 @@ interface YVolumeParams extends RearrangeParams {
 function yRegionText({ riser, u1, u2, givenInX }: YVolumeParams): string {
   const [x1, x2] = [riserX(riser, u1), riserX(riser, u2)];
   return givenInX
-    ? `The arc of $y = ${riserTex(riser)}$ from $x = ${x1}$ to $x = ${x2}$ and the $y$-axis bound a region, which is rotated $360^{\\circ}$ about the $y$-axis.`
+    ? `The region between the $y$-axis and the arc of $y = ${riserTex(riser)}$ from $x = ${x1}$ to $x = ${x2}$ is rotated $360^{\\circ}$ about the $y$-axis.`
     : `The region between $y = ${riserTex(riser)}$, the $y$-axis and the lines $y = ${riserAt(riser, x1)}$ and $y = ${riserAt(riser, x2)}$ is rotated $360^{\\circ}$ about the $y$-axis.`;
 }
 
@@ -4433,7 +4433,7 @@ const volumeAxisFlow: Generator<AxisFlowParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${region} Decide how to set up the volume integral. Each answer chooses what gets asked next.`,
+          text: `${region} Set up the volume integral. Each answer chooses what gets asked next.`,
         },
       ],
       subject: `y = ${riserTex(riser)}`,
@@ -4796,7 +4796,7 @@ const volumeOuterInner: Generator<HollowParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `The region between $y_1 = ${polyTex(top)}$ and $y_2 = ${profileTex(bottom)}$, from $x = ${a}$ to $x = ${b}$, is rotated $360^{\\circ}$ about the $x$-axis. Fill the top row with the volume each curve sweeps out on its own, $y_1$ first, and the box below with the volume of the hollow solid.`,
+          text: `The region between $y_1 = ${polyTex(top)}$ and $y_2 = ${profileTex(bottom)}$, from $x = ${a}$ to $x = ${b}$, is rotated $360^{\\circ}$ about the $x$-axis. Top row: the volume each curve sweeps alone, $y_1$ first. Below: the hollow solid's volume.`,
         },
       ],
       expression: `\\pi \\int_{${a}}^{${b}} y_1^{2} \\, dx - \\pi \\int_{${a}}^{${b}} y_2^{2} \\, dx`,
@@ -8938,7 +8938,7 @@ const betweenTilesSum: Generator<StripParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `Here $f(x) = ${polyTex(f)}$, and $A$ is the area under it from $x = ${a}$ to $x = ${a + n * h}$. Work out the left and right sums with ${n} strips of width $${h}$, then fill in the bounds they give.`,
+          text: `$A$ is the area under $f(x) = ${polyTex(f)}$ from $x = ${a}$ to $x = ${a + n * h}$. Fill in the bounds the left and right sums give, with ${n} strips of width $${h}$.`,
         },
       ],
       template: '{0} < A < {1}',

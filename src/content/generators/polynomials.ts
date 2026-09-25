@@ -1137,7 +1137,7 @@ const polyStrandsTree: Generator<ExpandParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `The $x^{2}$ term and the $x$ term each come from two products. Top row, left to right: $${ax} \\times ${factor(dx)}$, $${factor(String(b))} \\times ${cx2}$, $${ax} \\times ${factor(String(e))}$ and $${factor(String(b))} \\times ${factor(dx)}$. Underneath, collect each pair: the $x^{2}$ term, then the $x$ term.`,
+          `Top row: $${ax} \\times ${factor(dx)}$, $${factor(String(b))} \\times ${cx2}$, $${ax} \\times ${factor(String(e))}$ and $${factor(String(b))} \\times ${factor(dx)}$. Underneath, collect each pair: the $x^{2}$ term, then the $x$ term.`,
         ),
       ],
       expression: expandTex(params),
@@ -1748,7 +1748,7 @@ const polyDivideSteps: Generator<DivideParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `Divide by $(${linTex(a)})$. Each step takes away enough copies of $(${linTex(a)})$ to clear the first term, which leaves a new first term; what is left at the end is the remainder. Tap the part you would do **next**, then choose what it leaves.`,
+          `Divide by $(${linTex(a)})$. Tap the part you would do **next**, then choose what it leaves.`,
         ),
       ],
       start: [termTex(1, 3), placeTerm(p[1], 2), placeTerm(p[2], 1), placeTerm(p[3], 0)],
@@ -1819,7 +1819,7 @@ const polySyntheticTree: Generator<SyntheticParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `Synthetic division by $(${linTex(a)})$ uses $${a}$ and the coefficients of $p(x)$. Bring the first coefficient down, then at each step multiply by $${a}$ and add the next coefficient. Fill in from the top: the quotient's coefficients, then the remainder.`,
+          `Divide $p(x)$ by $(${linTex(a)})$ synthetically. Fill in from the top: the quotient's coefficients, then the remainder.`,
         ),
         show(`\\begin{array}{r|rrrr} ${a} & ${p.join(' & ')} \\end{array}`),
       ],
@@ -2170,7 +2170,7 @@ const polyFactorTree: Generator<FactorCheckParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `Is $(${linTex(a)})$ a factor of $p(x) = ${polyTex(p)}$? Work out $p(${a})$ in pieces. Top row, left to right: the value of each term at $x = ${a}$. Then add them in pairs, then the total. A total of $0$ means it is a factor.`,
+          `Is $(${linTex(a)})$ a factor of $p(x) = ${polyTex(p)}$? Top row: each term of $p(${a})$. Then add them in pairs, then the total.`,
         ),
       ],
       expression: substitutedTex(p, a),
@@ -3758,7 +3758,7 @@ const polyRepeatTree: Generator<RepeatParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `Does the curve touch or cross the $x$-axis at $x = ${r}$? Test a point either side. Top row, left to right: $${fa}$ and $${fb}$ at $x = ${t1}$, then the same at $x = ${t2}$. Underneath, $p(${t1})$ and $p(${t2})$${lead < 0 ? ', minus sign included' : ''}.`,
+          `Does the curve touch or cross the $x$-axis at $x = ${r}$? Test either side. Top row: $${fa}$ and $${fb}$ at $x = ${t1}$, then at $x = ${t2}$. Underneath, $p(${t1})$ and $p(${t2})$${lead < 0 ? ', minus sign included' : ''}.`,
         ),
       ],
       expression: `p(x) = ${formTex(repeatForm(params))}`,
@@ -4225,7 +4225,7 @@ const polySketchExpandSteps: Generator<ExpandFormParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `${described}, so its equation is $y = ${formTex(rootsForm(roots, powers, a))}$. Expand it: ${squared ? 'the square' : 'two brackets'} first, then the ${squared ? 'other bracket' : 'third'}, then the $${a}$. Tap the part you would do **next**, then choose what it comes to.`,
+          `${described}, so $y = ${formTex(rootsForm(roots, powers, a))}$. Expand it. Tap the part you would do **next**, then choose what it comes to.`,
         ),
       ],
       start: [String(a), ...roots.map((root, i) => factorTex(plainFactor(root, powers[i])))],
@@ -4880,7 +4880,7 @@ const polyNewRootsSteps: Generator<NewRootsParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `$p(x) = ${polyTex(p)}$ has roots ${THREE_ROOTS}, so $\\Sigma\\alpha = ${s1}$, $\\Sigma\\alpha\\beta = ${s2}$ and $\\alpha\\beta\\gamma = ${s3}$. The line below is the cubic with roots $${newRootsLabel(params)}$, written from those sums. Work out each coefficient: tap the part you would do **next**, then choose what it comes to.`,
+          `$p(x) = ${polyTex(p)}$ has roots ${THREE_ROOTS}, so $\\Sigma\\alpha = ${s1}$, $\\Sigma\\alpha\\beta = ${s2}$ and $\\alpha\\beta\\gamma = ${s3}$. Below is the cubic with roots $${newRootsLabel(params)}$. Tap the part you would do **next**, then choose what it comes to.`,
         ),
       ],
       start,
@@ -5168,7 +5168,7 @@ const polyApRootsTree: Generator<ApParams> = {
       kind: 'tree',
       prompt: [
         say(
-          'The roots of this cubic are $\\alpha - d$, $\\alpha$ and $\\alpha + d$, with $d > 0$. Top row: their sum, which is $3\\alpha$, then their product. Next $\\alpha$, then $\\alpha^{2} - d^{2}$, which is the product divided by $\\alpha$. Last $d^{2}$, and $d$.',
+          'This cubic has roots $\\alpha - d$, $\\alpha$ and $\\alpha + d$, with $d > 0$. Top row: their sum, $3\\alpha$, then their product. Next $\\alpha$, then $\\alpha^{2} - d^{2}$. Last $d^{2}$, and $d$.',
         ),
       ],
       expression: polyTex(p),
@@ -5214,7 +5214,7 @@ const polyMissingCoeffSteps: Generator<RootsLeadParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `Two of the roots of $f(x) = ${withLetters(p, ['k'])} = 0$ are $${r1}$ and $${r2}$. The line below finds $k$: the third root $\\gamma$ from $\\alpha\\beta\\gamma = ${overLead(p[3], p[0], true)}$, then $k$ from $\\alpha + \\beta + \\gamma = ${lead === 1 ? '-k' : lead === -1 ? 'k' : `-\\frac{k}{${lead}}`}$. Tap the part you would do **next**, then choose what it comes to.`,
+          `Two roots of $f(x) = ${withLetters(p, ['k'])} = 0$ are $${r1}$ and $${r2}$. The line below finds $k$: the third root $\\gamma$ from $\\alpha\\beta\\gamma = ${overLead(p[3], p[0], true)}$, then $k$ from $\\alpha + \\beta + \\gamma = ${lead === 1 ? '-k' : lead === -1 ? 'k' : `-\\frac{k}{${lead}}`}$. Tap the part you would do **next**, then choose what it comes to.`,
         ),
       ],
       start,
@@ -5696,7 +5696,7 @@ const polyLongQuadSteps: Generator<QuadDivideParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `Divide by $(${divisor})$. Each step takes away enough of $(${divisor})$ to clear the first term, which changes the two terms after it. When what is left has no $x^{2}$ term, that is the remainder. Tap the part you would do **next**, then choose what it leaves.`,
+          `Divide by $(${divisor})$ until what is left has no $x^{2}$ term. Tap the part you would do **next**, then choose what it leaves.`,
         ),
       ],
       start: p.map((c, i) => (i === 0 ? termTex(c, n) : placeTerm(c, n - i))),
@@ -5754,7 +5754,7 @@ const polyQuadQuotientTree: Generator<QuadDivideParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `Divide $p(x)$ by $(${polyTex(d)})$ by comparing coefficients in $p(x) = (${polyTex(d)})(ax^{2} + bx + c) + rx + s$. Work down from the top: $a$ from the $x^{4}$ terms, then $b$ from the $x^{3}$ terms and $c$ from the $x^{2}$ terms. The bottom row is the remainder, $r$ and then $s$.`,
+          `Divide $p(x)$ by $(${polyTex(d)})$ by comparing coefficients in $p(x) = (${polyTex(d)})(ax^{2} + bx + c) + rx + s$. From the top: $a$, $b$ and $c$. The bottom row is the remainder, $r$ then $s$.`,
         ),
       ],
       expression: pDisplay(p),
@@ -6296,7 +6296,7 @@ const polyTwiceTree: Generator<TwiceParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `Is $(${linTex(a)})^{2}$ a factor of $p(x)$? Divide by $(${linTex(a)})$ with synthetic division, then divide the quotient by $(${linTex(a)})$ again. Down the left: the first division, ending in its remainder. On the right: the second division's middle number, then its remainder.`,
+          `Is $(${linTex(a)})^{2}$ a factor of $p(x)$? Down the left: synthetic division by $(${linTex(a)})$, ending in its remainder. On the right: the quotient divided by $(${linTex(a)})$ again, its middle number then its remainder.`,
         ),
         show(`\\begin{array}{r|rrrr} ${a} & ${p.join(' & ')} \\end{array}`),
       ],
@@ -7116,7 +7116,7 @@ const polyQuarticDivideSteps: Generator<QuarticParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `$p(${a}) = 0$, so $(${linTex(a)})$ is a factor. Divide by it: each step takes away enough of $(${linTex(a)})$ to clear the first term, which leaves a new first term. Tap the part you would do **next**, then choose what it leaves.`,
+          `$p(${a}) = 0$, so $(${linTex(a)})$ is a factor. Divide by it. Tap the part you would do **next**, then choose what it leaves.`,
         ),
       ],
       start: p.map((c, i) => (i === 0 ? termTex(c, 4) : placeTerm(c, 4 - i))),
@@ -7520,7 +7520,7 @@ const polySignTable: Generator<SignTableParams> = {
       kind: 'table',
       prompt: [
         say(
-          `Complete the sign diagram of $p(x) = ${formTex(form)}$, whose critical values are $${roots.join(',\\ ')}$. Each row tests one value of $x$ from a stretch between them: fill in the sign of the factor that is missing, then the sign of $p(x)$, their product.`,
+          `Complete the sign diagram of $p(x) = ${formTex(form)}$, critical values $${roots.join(',\\ ')}$. Each row is a test value from one stretch: fill in the missing factor's sign, then the sign of $p(x)$.`,
         ),
       ],
       columns: ['x', ...form.factors.map((f) => factorTex(f).slice(1, -1)), 'p(x)'],
@@ -8605,7 +8605,7 @@ const boxTex = ({ L, W }: Sheet): string => `x(${L} - 2x)(${W} - 2x)`;
 const lastCut = ({ W }: Sheet): number => W / 2 - 1;
 
 function sheetStory({ L, W }: Sheet): string {
-  return `A sheet of card $${L}$ cm by $${W}$ cm has a square of side $x$ cm cut from each corner, and the sides are folded up to make an open box.`;
+  return `A square of side $x$ cm is cut from each corner of a card $${L}$ cm by $${W}$ cm, and the sides fold up into an open box.`;
 }
 
 /**
@@ -8642,8 +8642,8 @@ const polyBoxSidesTiles: Generator<BoxSidesParams> = {
         say(sheetStory({ L, W })),
         say(
           height
-            ? 'Its volume is height times length times width. Build the formula: the height, then the length of the base, then its width.'
-            : 'Its volume is height times length times width. Fill in the length and the width of the base.',
+            ? 'Build its volume: the height, then the length of the base, then its width.'
+            : 'Fill in the length and the width of the base.',
         ),
       ],
       template: height ? 'V = {0}({1})({2})' : 'V = x({0})({1})',
@@ -8673,7 +8673,7 @@ const polyBoxExpandSteps: Generator<Sheet> = {
       kind: 'steps',
       prompt: [
         say(sheetStory(sheet)),
-        say(`Its volume is $V = ${boxTex(sheet)}$. Multiply it out: the base's two brackets first, then the height. Tap the part you would do **next**, then choose what it comes to.`),
+        say(`Multiply out $V = ${boxTex(sheet)}$: the base's brackets first, then the height. Tap the part you would do **next**, then choose what it comes to.`),
       ],
       start: ['x', `(${L} - 2x)`, `(${W} - 2x)`],
       reductions: [
@@ -8770,7 +8770,7 @@ const polyBoxDomainFlow: Generator<BoxDomainParams> = {
     }
     return {
       kind: 'flow',
-      prompt: [say(sheetStory(params)), say('Work out which cuts give a box, one decision at a time.')],
+      prompt: [say(sheetStory(params)), say('Work out which cuts give a box.')],
       subject: `V = ${boxTex(params)}`,
       steps,
       answer: ['$x > 0$', `$${W} - 2x$`, range, ...(whole ? [`$${half - 1}$`] : [])],
@@ -8884,7 +8884,7 @@ const polyBoxValueTree: Generator<BoxCutParams> = {
       prompt: [
         say(sheetStory(params)),
         say(
-          `Work out its volume when $x = ${x}$. Along the top, the length and the width of the base; under them, the area of the base; last, the volume, which is that area times the height.`,
+          `Find its volume when $x = ${x}$. Top row: the base's length and width; then its area; last, the volume.`,
         ),
       ],
       expression: `${x}(${L} - 2 \\times ${x})(${W} - 2 \\times ${x})`,
@@ -8959,7 +8959,7 @@ const polyBoxTable: Generator<BoxTableParams> = {
       kind: 'table',
       prompt: [
         say(sheetStory(params)),
-        say(`Its volume is $V = ${boxTex(params)}$. Fill in the gaps in the table, one row for each whole-number cut.`),
+        say(`Fill in the table for $V = ${boxTex(params)}$, one row per whole-number cut.`),
       ],
       // Braced, so KaTeX keeps each header on one line rather than breaking at the minus.
       columns: ['x', `{${L} - 2x}`, `{${W} - 2x}`, 'V'],
@@ -9019,7 +9019,7 @@ const polyBoxBestSlider: Generator<Sheet> = {
       prompt: [
         say(sheetStory(sheet)),
         show(`V = ${boxTex(sheet)}`),
-        say('The graph shows $V$ for every cut from $0$ to where the base runs out. Slide to the whole-number cut that makes the biggest box.'),
+        say('Slide to the whole-number cut that makes the biggest box.'),
       ],
       min: 0,
       max: end,
@@ -9136,7 +9136,7 @@ const polyBoxCubicSteps: Generator<BoxCubicParams> = {
       prompt: [
         say(sheetStory(params)),
         say(
-          `The box must hold $${T}$ cm³. Turn that into a cubic equal to $0$${factored ? ', multiplying out first' : ''}, then divide through by $4$. Tap the part you would do **next**, then choose what it becomes.`,
+          `The box holds $${T}$ cm³. Make a cubic equal to $0$${factored ? ', multiplying out first' : ''}, then divide by $4$. Tap the part you would do **next**, then choose what it becomes.`,
         ),
       ],
       start: [factored ? boxTex(params) : polyTex(cubic), '=', String(T)],
@@ -9172,7 +9172,7 @@ const polyBoxDivideTree: Generator<BoxCutParams> = {
       prompt: [
         say(sheetStory(params)),
         say(
-          `For a box holding $${T}$ cm³, $V = ${T}$ divides by $4$ into $f(x) = 0$, and $x = ${x}$ is one solution. Divide $f(x)$ by $(${linTex(x)})$: bring the first coefficient down, then at each step multiply by $${x}$ and add the next. Fill in from the top, ending with the remainder.`,
+          `For a box holding $${T}$ cm³, $V = ${T}$ divided by $4$ is $f(x) = 0$, with solution $x = ${x}$. Divide $f(x)$ by $(${linTex(x)})$: bring the first coefficient down, then multiply by $${x}$ and add the next. Fill in from the top, ending with the remainder.`,
         ),
         show(`\\begin{array}{r|rrrr} ${x} & ${f.join(' & ')} \\end{array}`),
       ],
@@ -9315,9 +9315,9 @@ const polyBoxRootFlow: Generator<BoxRootParams> = {
       prompt: [
         say(sheetStory(target)),
         say(
-          `The box must hold $${T}$ cm³. Everything on one side and divided by $4$, that is $f(x) = 0$ below.${
+          `For a box holding $${T}$ cm³, $V = ${T}$ rearranged and divided by $4$ is $f(x) = 0$ below.${
             given === null ? '' : ` One solution is $x = ${given}$.`
-          } Solve it one decision at a time.`,
+          } Solve it.`,
         ),
       ],
       subject: `${polyTex(f)} = 0`,
@@ -9351,7 +9351,7 @@ const polyBoxOtherRoot: Generator<BoxOtherParams> = {
         say(
           given === null
             ? `Two different cuts make a box holding $${target.T}$ cm³. Find the ${larger ? 'larger' : 'smaller'} one.`
-            : `Cutting $x = ${given}$ makes a box holding $${target.T}$ cm³. One other cut makes a box of the same volume. Find it.`,
+            : `Cutting $x = ${given}$ makes a box holding $${target.T}$ cm³. Find the other cut that does.`,
         ),
       ],
       lead: 'x =',
@@ -9841,7 +9841,7 @@ const polyModelCount: Generator<ModelCountParams> = {
       prompt: [
         say(sheetStory(params)),
         show(`V = ${boxTex(params)}`),
-        say(`The cut is a whole number of centimetres. How many different cuts make a box that holds at least $${T}$ cm³?`),
+        say(`How many whole-centimetre cuts make a box holding at least $${T}$ cm³?`),
       ],
       lead: '\\text{cuts} =',
       keypad: [],

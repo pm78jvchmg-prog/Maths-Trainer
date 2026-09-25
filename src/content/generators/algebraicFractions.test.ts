@@ -477,7 +477,7 @@ describe('inequalities with fractions, from what the learner is shown', () => {
     for (const { slide, seed, difficulty } of slides('frac-ineq-graph-slider')) {
       if (slide.kind !== 'slider') throw new Error('expected slider');
       const text = (slide.prompt[0] as { text: string }).text;
-      const shown = /answer to \$([^$]*)\$/.exec(text)![1];
+      const shown = /^For \$([^$]*)\$:/.exec(text)![1];
       const { left, right } = sides(shown);
       if (text.includes('to where it shoots off')) expect(at(bottoms(shown)[0], slide.answer), `seed ${seed} d${difficulty}`).toBeCloseTo(0, 9);
       else expect(at(left, slide.answer), `seed ${seed} d${difficulty}`).toBeCloseTo(at(right, slide.answer), 9);

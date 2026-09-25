@@ -830,7 +830,7 @@ const growPctSlider: Generator<PassParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${context.opening(proseNum(a), p)} The dashed line is ${unit}${proseNum(target)}, and each dot is the value at the end of a year. Slide to the first whole year it is more than ${unit}${proseNum(target)}.`,
+          text: `${context.opening(proseNum(a), p)} Each dot is a year's end. Slide to the first whole year it is more than ${unit}${proseNum(target)}, the dashed line.`,
         },
       ],
       min: 0,

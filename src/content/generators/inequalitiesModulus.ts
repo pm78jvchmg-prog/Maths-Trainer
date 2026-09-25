@@ -4775,7 +4775,7 @@ const testPointTree: Generator<PointTestParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `Test $x = ${t}$ by squaring: $(${uTex(params)})^2 - (${vTex(params)})^2$ is (first − second)(first + second), and its sign says whether $x = ${t}$ is in the set. Fill in both insides at $x = ${t}$, then their difference and sum, then the product.`,
+          text: `Test $x = ${t}$ by squaring: $(${uTex(params)})^2 - (${vTex(params)})^2$ is (first − second)(first + second); its sign decides. Fill in both insides at $x = ${t}$, then their difference and sum, then the product.`,
         },
       ],
       expression: bothTex(params, op),
@@ -6806,7 +6806,7 @@ function pointTestTree(id: string, s: 1 | -1): Generator<TestParams> {
         prompt: [
           {
             kind: 'prose',
-            text: `Is $${ptTex(p.point)}$ in this region? At $x = ${x}$, fill in the inside of the modulus, then the modulus, then the height of the ${shape}, then how far $y = ${y}$ is above that height (negative if below).`,
+            text: `Is $${ptTex(p.point)}$ in this region? At $x = ${x}$ fill in the inside of the modulus, the modulus, the ${shape}'s height, then how far $y = ${y}$ is above it (negative if below).`,
           },
         ],
         expression: edgeTex(p),

@@ -304,7 +304,7 @@ const launchTiles: Generator<Flight> = {
       kind: 'tiles',
       prompt: [
         prose(
-          `${LAUNCHES[f.ctx].opening(h0, v)} Gravity pulls it back by $\\frac{1}{2}gt^{2}$ metres after $t$ seconds; take $g = 10$. Build its height $h$ metres after $t$ seconds.`,
+          `${LAUNCHES[f.ctx].opening(h0, v)} Take $g = 10$. Build its height $h$ metres after $t$ seconds.`,
         ),
       ],
       template: 'h = {0} + {1}t - {2}t^2',
@@ -340,7 +340,7 @@ function areaTex({ ctx, n }: AreaParams): string {
 function areaStory({ ctx, n }: AreaParams): string {
   return ctx === 'pen'
     ? `A rectangular pen is made from ${2 * n} m of fencing. One side is $x$ m long.`
-    : `A rectangular pen is fenced off against a long wall, using ${n} m of fencing for the other three sides. The two sides that meet the wall are $x$ m each.`;
+    : `A rectangular pen against a wall has ${n} m of fencing on its other three sides, the two meeting the wall $x$ m each.`;
 }
 
 /** The area model and its standard slips, for the pick-one form. */
@@ -452,7 +452,7 @@ const flightEvaluate: Generator<EvalParams> = {
       kind: 'reduce',
       prompt: [
         ...flightIntro(params),
-        prose(`How high is the ${LAUNCHES[params.ctx].noun} after ${k} ${k === 1 ? 'second' : 'seconds'}? Put $t = ${k}$ in and work it out one piece at a time.`),
+        prose(`How high is the ${LAUNCHES[params.ctx].noun} after ${k} ${k === 1 ? 'second' : 'seconds'}? Tap the part you would do **next**, then choose what it comes to.`),
       ],
       expr,
       banks,
@@ -810,9 +810,9 @@ interface CostParams {
 }
 
 const COST_STORIES: readonly string[] = [
-  'Making $x$ hundred chairs a week costs a workshop $C$ thousand pounds, where $C$ is the expression below.',
-  'Running a machine at speed setting $x$ costs $C$ pounds an hour, where $C$ is the expression below.',
-  'A bakery that makes $x$ hundred loaves a day spends $C$ tens of pounds on them, where $C$ is the expression below.',
+  'Making $x$ hundred chairs a week costs a workshop $C$ thousand pounds, with $C$ below.',
+  'Running a machine at speed setting $x$ costs $C$ pounds an hour, with $C$ below.',
+  'A bakery making $x$ hundred loaves a day spends $C$ tens of pounds, with $C$ below.',
 ];
 
 /**
@@ -840,7 +840,7 @@ const costSteps: Generator<CostParams> = {
       kind: 'steps',
       prompt: [
         prose(
-          `${COST_STORIES[ctx]} Complete the square to find the least cost. Tap the part you would do **next**, then choose what it comes to.`,
+          `${COST_STORIES[ctx]} Complete the square for the least cost. Tap the part you would do **next**, then choose what it comes to.`,
         ),
       ],
       start: [`x^{2} - ${2 * h}x`, '+', `${c}`],
@@ -972,7 +972,7 @@ const bestSlider: Generator<BestParams> = {
         ? [
             prose(`${areaStory({ ctx, n })} Its area is $A$ square metres, where`),
             display(`A = ${areaTex({ ctx, n })}`),
-            prose('Slide to the value of $x$ that gives the greatest area.'),
+            prose('Slide to the $x$ that gives the greatest area.'),
           ]
         : [
             prose('A stall makes $P$ pounds profit a day when it charges $x$ pounds an item, where'),
@@ -1207,7 +1207,7 @@ const reachFlow: Generator<ReachParams> = {
       kind: 'flow',
       prompt: [
         ...reachIntro(params),
-        prose(`${reachQuestion(params)} Solving gives $t = ${t1}$ or $t = ${t2}$. Decide which answers the question.`),
+        prose(`${reachQuestion(params)} Solving gives $t = ${t1}$ or $t = ${t2}$. Which answers it?`),
       ],
       subject: `h = ${reachHeight(params)}`,
       steps: [
@@ -1261,7 +1261,7 @@ const reachTiles: Generator<ReachParams> = {
       kind: 'tiles',
       prompt: [
         ...reachIntro(params),
-        prose(`To find when it is ${H} m up, set $h = ${H}$. Rearrange into this form: everything on one side, then divide by $-5$.`),
+        prose(`Set $h = ${H}$ and rearrange into this form.`),
       ],
       template: 't^2 {0}t {1} = 0',
       bank: bankOf(answer, [

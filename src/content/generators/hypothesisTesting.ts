@@ -197,10 +197,10 @@ const pct = (p: number): number => Math.round(p * 100);
 
 const claimText = (c: Context, p: number): string => `${c.who} claims that ${pct(p)}% of ${c.unit} ${c.event}.`;
 
-function suspicionText(c: Context, p: number, tail: Tail): string {
-  if (tail === 'up') return `A researcher suspects that more than ${pct(p)}% of ${c.unit} ${c.event}.`;
-  if (tail === 'down') return `A researcher suspects that fewer than ${pct(p)}% of ${c.unit} ${c.event}.`;
-  return `A researcher suspects that the proportion of ${c.unit} that ${c.event} is not ${pct(p)}%.`;
+function suspicionText(_c: Context, p: number, tail: Tail): string {
+  if (tail === 'up') return 'A researcher suspects the true percentage is higher.';
+  if (tail === 'down') return 'A researcher suspects the true percentage is lower.';
+  return `A researcher suspects the true percentage is not ${pct(p)}%.`;
 }
 
 /** What `H_1` says, in the scenario's words. */
@@ -218,7 +218,7 @@ function verdict(words: string, level: number, reject: boolean): string {
 }
 
 const sampleText = (c: Context, n: number, x: number): string =>
-  `In a sample of ${n} ${c.unit}, the number that ${c.event} is $${x}$.`;
+  `In a sample of ${n} ${c.unit}, $${x}$ ${c.event}.`;
 
 const pickCtx = (rng: Rng): number => rng.int(0, CONTEXTS.length - 1);
 
@@ -341,7 +341,7 @@ const claimFlow: Generator<ClaimParams> = {
       kind: 'flow',
       prompt: [
         say(`${claimText(c, p)} ${suspicionText(c, p, tail)}${hard ? ` ${sampleText(c, n, x)}` : ''}`),
-        say('Work through the questions to reach the alternative hypothesis, $H_1$.'),
+        say('Find the alternative hypothesis, $H_1$.'),
       ],
       subject: hard ? `X = ${x}, \\; n = ${n}` : `H_0: p = ${P}`,
       steps,
@@ -400,7 +400,7 @@ const hypothesesTiles: Generator<HypTilesParams> = {
       kind: 'tiles',
       prompt: [
         say(`${claimText(c, p)} ${suspicionText(c, p, tail)} ${sampleText(c, n, x)}`),
-        say('Complete the hypotheses for a test of the claim.'),
+        say('Complete the hypotheses.'),
       ],
       template: 'H_0: p = {0}, \\quad H_1: p {1} {2}',
       bank: tokenBank(answer, [...others, fmt(x / n), fmt(1 - p)], 4),
@@ -511,7 +511,7 @@ const expected: Generator<ExpectedParams> = {
         say(
           gap
             ? `In fact $X = ${x}$. By how much does that differ from what $H_0: p = ${fmt(p)}$ expects? Give the observed count minus the expected one.`
-            : `If $H_0: p = ${fmt(p)}$ is true, what is the expected value of $X$?`,
+            : `If $H_0: p = ${fmt(p)}$ is true, what is $E(X)$?`,
         ),
       ],
       lead: gap ? `${x} - E(X) =` : 'E(X) =',
@@ -1192,9 +1192,9 @@ const regionTable: Generator<RegionParams & { k: number }> = {
     return {
       kind: 'table',
       prompt: [
-        say(`${claimText(ctxt, p)} ${suspicionText(ctxt, p, 'up')} The test uses a sample of ${n} at the ${level}% level, and under $H_0$, $${model(n, p)}$.`),
+        say(`${claimText(ctxt, p)} ${suspicionText(ctxt, p, 'up')} Sample of ${n}, ${level}% level; under $H_0$, $${model(n, p)}$.`),
         quotes(n, p, [k - 1, k, k + 1]),
-        say('Fill in the probability of each candidate region, then the actual significance level of the test.'),
+        say('Fill in each candidate region\'s probability, then the actual significance level.'),
       ],
       columns: ['c', 'P(X \\ge c)'],
       rows: [[`${k}`, null], [`${k + 1}`, null], [`${k + 2}`, null], ['\\text{actual level}', null]],
@@ -1633,10 +1633,10 @@ const SUSPECT: Record<Tail, string> = { up: 'has increased', down: 'has decrease
 
 function meanClaim(sc: MeanScene): string {
   const c = MEAN_CONTEXTS[sc.ctx];
-  return `The mean ${c.quantity} is claimed to be $${sc.mu}$ ${c.unit}, with standard deviation $${sigmaOf(sc)}$ ${c.unit}.`;
+  return `The mean ${c.quantity} is claimed to be $${sc.mu}$ ${c.unit}, standard deviation $${sigmaOf(sc)}$ ${c.unit}.`;
 }
 
-const meanSuspicion = (sc: MeanScene): string => `It is suspected that the mean ${SUSPECT[sc.tail]}.`;
+const meanSuspicion = (sc: MeanScene): string => `A researcher suspects it ${SUSPECT[sc.tail]}.`;
 
 const meanSample = (sc: MeanScene): string =>
   `A random sample of $${sc.n}$ has mean $\\bar{x} = ${fmt(xbarOf(sc))}$ ${MEAN_CONTEXTS[sc.ctx].unit}.`;
@@ -1760,7 +1760,7 @@ const meanSpreadTree: Generator<MeanScene> = {
       kind: 'tree',
       prompt: [
         say(`The ${c.quantity} has standard deviation $${sigma}$ ${c.unit}. A random sample of $${sc.n}$ is taken.`),
-        say('Work down to the standard deviation of $\\bar{X}$: first $\\sigma^2$, then $\\frac{\\sigma^2}{n}$, then its square root.'),
+        say('Fill in $\\sigma^2$, then $\\frac{\\sigma^2}{n}$, then its square root, the standard deviation of $\\bar{X}$.'),
       ],
       expression: '\\sqrt{\\sigma^2 / n}',
       nodes: [
@@ -1832,8 +1832,8 @@ const meanSpreadChoice: Generator<SpreadParams> = {
     ).slice(0, 4);
     return choiceSlide(
       [
-        say(`The ${c.quantity} has standard deviation $${sigma}$ ${c.unit}. With samples of $${from}$, the standard deviation of $\\bar{X}$ is $${fmt(before)}$.`),
-        say(`What is it with samples of $${to}$ instead?`),
+        say(`The ${c.quantity} has standard deviation $${sigma}$ ${c.unit}. With samples of $${from}$, $\\bar{X}$ has standard deviation $${fmt(before)}$.`),
+        say(`What is it with samples of $${to}$?`),
       ],
       opts,
     );
@@ -1942,7 +1942,7 @@ const zSlider: Generator<MeanScene> = {
       kind: 'slider',
       prompt: [
         say(`${meanClaim(sc)} ${meanSuspicion(sc)} ${meanSample(sc)}`),
-        say(`The shaded tail is the critical region at the ${sc.level}% level. Work out $z$ and slide the line to it.`),
+        say(`The shaded tail is the ${sc.level}% critical region. Slide the line to $z$.`),
       ],
       min: -Z_SPAN,
       max: Z_SPAN,
@@ -2297,7 +2297,7 @@ const meanXbar: Generator<MeanScene> = {
     return {
       kind: 'expression',
       prompt: [
-        say(`${meanClaim(sc)} ${meanSuspicion(sc)} A random sample of $${sc.n}$ is to be taken, and the test is at the ${fmt(sc.level)}% level.`),
+        say(`${meanClaim(sc)} ${meanSuspicion(sc)} The test uses a random sample of $${sc.n}$ at the ${fmt(sc.level)}% level.`),
         say(`Find ${ask} that would lead to rejecting $H_0$, in ${c.unit}.`),
       ],
       lead: '\\bar{x} =',
@@ -2388,7 +2388,7 @@ const falseAlarms: Generator<AlarmParams> = {
             ? `A test of ${c.who.toLowerCase()}'s claim about ${c.unit} has actual significance level $${P4(level)}$.`
             : `${c.who} tests its claim about ${c.unit} at the ${fmt(level / 100)}% level.`,
         ),
-        say(`Suppose the claim is true, and the test is run on ${runs} separate samples. How many of them would you expect to reject $H_0$ wrongly?`),
+        say(`If the claim is true and the test is run on ${runs} separate samples, how many would you expect to reject $H_0$ wrongly?`),
       ],
       lead: '\\text{expected} =',
       keypad: [],
@@ -2435,8 +2435,8 @@ const nChoice: Generator<GrowParams> = {
     const wrong = [z1 * ratio, z1, z1 / ratio, z2 * 2].filter((v) => terminates(v, 3));
     return choiceSlide(
       [
-        say(`The ${c.quantity} has standard deviation $${sigma}$ ${c.unit}. A sample of $${from}$ has a mean $${fmt(d)}$ ${c.unit} above the claimed mean, giving $z = ${fmt(z1)}$.`),
-        say(`A sample of $${to}$ has the same mean. What is its $z$?`),
+        say(`The ${c.quantity} has standard deviation $${sigma}$ ${c.unit}. A sample of $${from}$ with mean $${fmt(d)}$ ${c.unit} above the claim gives $z = ${fmt(z1)}$.`),
+        say(`What $z$ does a sample of $${to}$ with the same mean give?`),
       ],
       options({ tex: fmt(z2), answer: fmt(z2) }, ...wrong.map((v) => ({ tex: fmt(v), answer: fmt(v) }))).slice(0, 4),
     );
@@ -2480,7 +2480,7 @@ const levelsFlow: Generator<DecideParams> = {
       kind: 'flow',
       prompt: [
         say(`${meanClaim(sc)} ${meanSuspicion(sc)} ${meanSample(sc)}`),
-        say(sc.hard ? 'Work out $z$, then decide at which levels the test rejects $H_0$.' : `The test statistic is $z = ${zText}$. Decide at which levels the test rejects $H_0$.`),
+        say(sc.hard ? 'Work out $z$. At which levels does the test reject $H_0$?' : `$z = ${zText}$. At which levels does the test reject $H_0$?`),
       ],
       subject: `H_1: \\mu ${OP[sc.tail]} ${sc.mu}`,
       steps: [
@@ -2666,7 +2666,7 @@ function sampleScene(rng: Rng, { nMin, nMax, levels = [1, 5, 10], tails = ONE_TA
 const sceneText = ({ ctx, n, p0, tail, level }: ErrorScene): string =>
   `${claimText(CONTEXTS[ctx], p0)} ${suspicionText(CONTEXTS[ctx], p0, tail)} The test uses a sample of ${n} at the ${level}% level.`;
 
-const truthText = (ctx: number, p: number): string => `In fact, ${pct(p)}% of ${CONTEXTS[ctx].unit} ${CONTEXTS[ctx].event}.`;
+const truthText = (_ctx: number, p: number): string => `In fact, the true percentage is ${pct(p)}%.`;
 
 const regionSentence = ({ tail, c }: Pick<ErrorScene, 'tail' | 'c'>): string => `The critical region is $${regionTex(tail, c)}$.`;
 
@@ -2740,7 +2740,7 @@ function outcomeText({ ctx, p0, tail, level, reject, words }: OutcomeParams): st
 }
 
 const factText = ({ ctx, p0, p1, truth }: OutcomeParams): string =>
-  truth ? `In fact, exactly ${pct(p0)}% of ${CONTEXTS[ctx].unit} ${CONTEXTS[ctx].event}, as claimed.` : truthText(ctx, p1);
+  truth ? `In fact, the true percentage is ${pct(p0)}%, as claimed.` : truthText(ctx, p1);
 
 function outcomeSolution(params: OutcomeParams): SolutionStep[] {
   const { p0, p1, truth, reject, level } = params;
@@ -2813,7 +2813,7 @@ const errorFlow: Generator<ErrorFlowParams> = {
         say(
           `${decided ? `The test is at the ${level}% level, and its p-value is $${P4(pv)}$.` : outcomeText(params)} ${factText(params)}`,
         ),
-        say('Work through the questions to name what happened.'),
+        say('Name what happened.'),
       ],
       subject: `H_0: p = ${fmt(p0)}, \\quad H_1: p ${OP[tail]} ${fmt(p0)}`,
       steps: [
@@ -2890,7 +2890,7 @@ const errorTiles: Generator<ErrorTilesParams> = {
       prompt: [
         say(`${claimText(ctxt, p0)} ${suspicionText(ctxt, p0, tail)}`),
         say(`At the ${level}% level, with a sample of ${n}, the critical region is $${regionTex(tail, c)}$.`),
-        say(`Complete the description of a Type ${which} error: which counts cause it, and what $p$ is when it happens.`),
+        say(`Complete the Type ${which} error: the counts that cause it, and $p$ when it happens.`),
       ],
       template: `\\text{Type ${which}: } X {0} {1} \\text{ when } p {2} {3}`,
       bank: tokenBank(answer, ['\\le', '\\ge', `${c - 1}`, `${c}`, `${c + 1}`, '=', OP[tail], OP[up ? 'down' : 'up'], fmt(1 - p0)], 5),
@@ -2952,8 +2952,8 @@ const errorLine: Generator<ErrorLineParams> = {
           : [say(regionSentence(sc))]),
         say(
           which === 'I'
-            ? 'Suppose $H_0$ is true. Shade the counts that would lead to a Type I error.'
-            : `${truthText(ctx, p1)} Shade the counts that would lead to a Type II error.`,
+            ? 'If $H_0$ is true, shade the counts giving a Type I error.'
+            : `${truthText(ctx, p1)} Shade the counts giving a Type II error.`,
         ),
       ],
       min: -1,
@@ -3023,7 +3023,7 @@ function sampleRule(rng: Rng, tails: Tail[]): RuleParams {
 function ruleText({ ctx, n, tail, a, b }: RuleParams): string {
   const c = CONTEXTS[ctx];
   const when = tail === 'up' ? `${b} or more` : tail === 'down' ? `${a} or fewer` : `${a} or fewer, or ${b} or more`;
-  return `A researcher samples ${n} ${c.unit} and decides in advance to reject the claim if ${when} of them ${c.event}.`;
+  return `In a sample of ${n} ${c.unit}, the claim will be rejected if ${when} ${c.event}.`;
 }
 
 const ruleQuotes = ({ n, p0, tail, a, b }: RuleParams): number[] =>
@@ -3098,7 +3098,7 @@ const sizeSum: Generator<RuleParams & { named: boolean }> = {
         say(`${claimText(c, p0)} ${suspicionText(c, p0, 'two')} ${ruleText(rule)}`),
         say(`Under $H_0$, $${model(n, p0)}$.`),
         ...quotesAt(n, p0, ruleQuotes(rule)),
-        say(`Work out the probability of a Type I error, one step at a time.${named ? ' Read each cumulative from the table first.' : ''}`),
+        say(`Find the probability of a Type I error, one step at a time.${named ? ' Read each cumulative from the table first.' : ''}`),
       ],
       start: named
         ? [le(a), '+', '(', '1', '-', le(b - 1), ')']
@@ -3343,7 +3343,7 @@ const betaFlow: Generator<ErrorScene> = {
         say(sceneText(sc)),
         say(`${regionSentence(sc)} ${truthText(sc.ctx, p1)}`),
         ...quotesAt(n, p1, [edgeOf(sc) - 1, edgeOf(sc), edgeOf(sc) + 1]),
-        say('Work through the questions to the probability of a Type II error.'),
+        say('Find the probability of a Type II error.'),
       ],
       subject: `${regionTex(tail, c)}, \\quad p = ${fmt(p1)}`,
       steps: [
@@ -3407,7 +3407,7 @@ const powerExpr: Generator<BetaParams> = {
   sample: sampleBeta,
   render: (sc): Slide => ({
     kind: 'expression',
-    prompt: [...betaPrompt(sc), say('Find the power of the test: the probability that it rejects $H_0$ when $p$ is really this value.')],
+    prompt: [...betaPrompt(sc), say('Find the power of the test.')],
     lead: '\\text{power} =',
     keypad: [],
     answer: typed(10000 - betaOf(sc, sc.p1)),
@@ -3453,7 +3453,6 @@ const powerPairTree: Generator<PairParams> = {
       kind: 'tree',
       prompt: [
         say(`${sceneText(sc)} ${regionSentence(sc)}`),
-        say(`Two alternatives are checked: $p = ${fmt(p1)}$ and $p = ${fmt(p2)}$.`),
         ...quotesAt(n, p1, quotableOnly(n, p1, [k, other])),
         ...quotesAt(n, p2, quotableOnly(n, p2, [k, other])),
         say(`Top row: P(Type II) if $p = ${fmt(p1)}$, then if $p = ${fmt(p2)}$. Bottom row: the power of each.`),
@@ -3552,8 +3551,8 @@ const powerChoice: Generator<ChangeParams> = {
     const c = CONTEXTS[ctx];
     const setup =
       change === 'looser' || change === 'stricter'
-        ? `At the ${from}% level the critical region is $${regionTex(tail, cFrom)}$. The level is changed to ${to}%, and the region becomes $${regionTex(tail, cTo)}$. The true proportion is ${pct(pFrom)}% throughout.`
-        : `At the ${from}% level the critical region is $${regionTex(tail, cFrom)}$. The errors are worked out for a true proportion of ${pct(pFrom)}%, then again for ${pct(pTo)}%.`;
+        ? `At the ${from}% level the critical region is $${regionTex(tail, cFrom)}$; at ${to}% it is $${regionTex(tail, cTo)}$. The true proportion is ${pct(pFrom)}% throughout.`
+        : `At the ${from}% level the critical region is $${regionTex(tail, cFrom)}$. The true proportion is ${pct(pFrom)}%, then ${pct(pTo)}%.`;
     const all: Change[] = ['looser', 'stricter', 'further', 'closer'];
     return keyedChoice(
       [
@@ -3742,7 +3741,7 @@ function sampleMeanErr(rng: Rng): MeanErrScene {
 
 function meanErrText(sc: MeanErrScene): string {
   const c = MEAN_CONTEXTS[sc.ctx];
-  return `The mean ${c.quantity} is claimed to be $${sc.mu}$ ${c.unit}, with standard deviation $${sigmaOf(sc)}$ ${c.unit}. It is suspected that the mean ${SUSPECT[sc.tail]}. A test at the ${sc.level}% level uses a random sample of $${sc.n}$.`;
+  return `The mean ${c.quantity} is claimed to be $${sc.mu}$ ${c.unit}, standard deviation $${sigmaOf(sc)}$ ${c.unit}. A researcher suspects it ${SUSPECT[sc.tail]}, and tests a random sample of $${sc.n}$ at the ${sc.level}% level.`;
 }
 
 const meanTruth = (sc: MeanErrScene): string => `In fact the mean is $${fmt(mTrue(sc))}$ ${MEAN_CONTEXTS[sc.ctx].unit}.`;
@@ -3819,7 +3818,7 @@ const meanMissTree: Generator<MeanErrScene & { hint: boolean }> = {
       prompt: [
         say(`${meanErrText(sc)} ${meanTruth(sc)}${sc.hint ? ` The standard deviation of $\\bar{X}$ is $${sc.s}$ ${MEAN_CONTEXTS[sc.ctx].unit}.` : ''}`),
         ...phiQuotes([Math.abs(z), sc.dh / 100]),
-        say('Top: the critical value of $\\bar{x}$. Then that boundary as a $z$ under the true mean. Then the probability of a Type II error.'),
+        say('Top: the critical value of $\\bar{x}$. Then its $z$ under the true mean. Then P(Type II).'),
       ],
       expression: 'P(\\text{Type II})',
       nodes: [
@@ -3899,10 +3898,10 @@ const betaNTable: Generator<NBetaParams> = {
       kind: 'table',
       prompt: [
         say(
-          `The mean ${c.quantity} is claimed to be $${mu}$ ${c.unit}, with standard deviation $${sigma}$ ${c.unit}. It is suspected that the mean ${SUSPECT[tail]}, and a test at the ${level}% level is planned. In fact the mean is $${fmt(truth)}$ ${c.unit}.`,
+          `The mean ${c.quantity} is claimed to be $${mu}$ ${c.unit}, standard deviation $${sigma}$ ${c.unit}. A researcher suspects it ${SUSPECT[tail]} and plans a test at the ${level}% level. In fact the mean is $${fmt(truth)}$ ${c.unit}.`,
         ),
         say(
-          `For each sample size, $z$ is the boundary of the critical region standardised under the true mean. ${given ? 'Fill in' : 'Fill in $z$ and'} $\\beta = P(\\text{Type II})$.`,
+          `$z$ is the critical boundary standardised under the true mean. ${given ? 'Fill in' : 'Fill in $z$ and'} $\\beta = P(\\text{Type II})$.`,
         ),
         ...phiQuotes(zs.map(Math.abs)),
       ],
@@ -3988,8 +3987,8 @@ const meanErrorChoice: Generator<MeanChangeParams> = {
       sc.change === 'bigger' || sc.change === 'smaller'
         ? `The sample size is changed from $${sc.n}$ to $${sc.n2}$, still at the ${sc.level}% level.`
         : sc.change === 'stricter' || sc.change === 'looser'
-          ? `The level is changed from ${sc.level}% to ${sc.level2}%, with the same sample size.`
-          : `The test is left as it is, but the true mean turns out to be $${fmt(mTrue(shifted))}$ ${c.unit} instead.`;
+          ? `The level is changed from ${sc.level}% to ${sc.level2}%, same sample size.`
+          : `Nothing changes, but the true mean turns out to be $${fmt(mTrue(shifted))}$ ${c.unit} instead.`;
     const right = MEAN_CHANGE_ANSWER[meanChangeKey(sc.change)];
     return keyedChoice(
       [say(`${meanErrText(sc)} ${meanTruth(sc)}`), say(setup), say('What happens to the probabilities of the two errors?')],
@@ -4227,7 +4226,7 @@ function corrSuspicion(c: CorrContext, tail: Tail, worded: boolean): string {
 }
 
 const corrSample = (c: CorrContext, n: number, rh: number): string =>
-  `They record ${c.x} and ${c.y} for a random sample of ${n} ${c.items}, giving $r = ${R4(rh)}$.`;
+  `A random sample of ${n} ${c.items} gives $r = ${R4(rh)}$.`;
 
 /** What `H_1` says, in the scenario's words. */
 const corrWords = (c: CorrContext, tail: Tail): string => `there is ${SIGN_WORD[tail]}correlation between ${c.x} and ${c.y}`;
@@ -4431,7 +4430,7 @@ const rhoFlow: Generator<RhoClaimParams> = {
       kind: 'flow',
       prompt: [
         say(`${corrSuspicion(c, tail, hard)} ${corrSample(c, n, rh)}`),
-        say('Work through the questions to reach the alternative hypothesis, $H_1$.'),
+        say('Find the alternative hypothesis, $H_1$.'),
       ],
       subject: hard ? `r = ${R4(rh)}` : 'H_0: \\rho = 0',
       steps,
@@ -4454,7 +4453,7 @@ const rhoTiles: Generator<RhoClaimParams> = {
     const others = TAILS.filter((t) => t !== tail).map((t) => OP[t]);
     return {
       kind: 'tiles',
-      prompt: [say(`${corrSuspicion(c, tail, hard)} ${corrSample(c, n, rh)}`), say('Complete the hypotheses for a test of the suspicion.')],
+      prompt: [say(`${corrSuspicion(c, tail, hard)} ${corrSample(c, n, rh)}`), say('Complete the hypotheses.')],
       template: 'H_0: \\rho = {0}, \\quad H_1: \\rho {1} {2}',
       bank: tokenBank(answer, [...others, R4(rh), R4(-rh), '1'], hard ? 4 : 3),
       answer,
@@ -4721,7 +4720,7 @@ const pmccFlow: Generator<LookupParams> = {
       prompt: [
         PMCC_INTRO,
         lookupExcerpt(params),
-        say(`${c.who} records ${c.x} and ${c.y} for each of ${n} ${c.items}, to test $H_0: \\rho = 0$ against $H_1: \\rho > 0$ at the ${fmt(level)}% level.`),
+        say(`${c.who} tests $H_0: \\rho = 0$ against $H_1: \\rho > 0$ at the ${fmt(level)}% level, with a pair for each of ${n} ${c.items}.`),
       ],
       subject: 'H_1: \\rho > 0',
       steps: [
@@ -4765,7 +4764,7 @@ const rhoDecisionFlow: Generator<CorrScene> = {
     const reject = rhoRejects(sc.rh, sc.tail, c);
     return {
       kind: 'flow',
-      prompt: [PMCC_INTRO, sceneExcerpt(sc), say(sceneSetup(sc)), say('Work through the test to its conclusion.')],
+      prompt: [PMCC_INTRO, sceneExcerpt(sc), say(sceneSetup(sc)), say('Reach the conclusion.')],
       subject: `r = ${R4(sc.rh)}, \\; ${rhoH1(sc.tail)}`,
       steps: [
         {
@@ -4921,7 +4920,7 @@ const rhoCriticalSlider: Generator<RegionSceneParams> = {
         PMCC_INTRO,
         regionExcerpt(sc),
         say(regionSetup(sc)),
-        say(`The curve shows how $r$ from ${sc.n} pairs falls if $\\rho = 0$. Slide the line to the edge of the critical region, as near as the slider allows.`),
+        say(`The curve shows $r$ from ${sc.n} pairs if $\\rho = 0$. Slide the line to the edge of the critical region, as near as the slider allows.`),
       ],
       min: -1,
       max: 1,
@@ -5067,7 +5066,7 @@ const rhoColumn: Generator<CorrScene> = {
             ? `${corrSuspicion(ctxt, sc.tail, true)} They will test it at the ${fmt(sc.level)}% level with a random sample of ${sc.n} ${ctxt.items}.`
             : corrTest(sc.tail, sc.level, sc.n),
         ),
-        say('The table of critical values has columns for the one-tailed levels 10%, 5%, 2.5%, 1% and 0.5%. Which column does this test read? Give its level, in %.'),
+        say('The table\'s one-tailed columns are 10%, 5%, 2.5%, 1% and 0.5%. Which column does this test read, in %?'),
       ],
       lead: '\\text{column} =',
       keypad: [],
@@ -5298,8 +5297,8 @@ const rhoShiftFlow: Generator<ShiftParams> = {
       prompt: [
         PMCC_INTRO,
         pmccExcerpt(ns, levels),
-        say(`A test for positive correlation between ${ctxt.x} and ${ctxt.y} at the ${fmt(l1)}% level, with a sample of ${n1}, found $r = ${R4(rh)}$ against a critical value of $${R4(c1)}$.`),
-        say(`Suppose the same $r$ were tested ${change} instead.`),
+        say(`A ${fmt(l1)}% test for positive correlation between ${ctxt.x} and ${ctxt.y}, with a sample of ${n1}, found $r = ${R4(rh)}$ against a critical value of $${R4(c1)}$.`),
+        say(`Suppose the same $r$ were tested ${change}.`),
       ],
       subject: `r = ${R4(rh)}, \\; H_1: \\rho > 0`,
       steps: [

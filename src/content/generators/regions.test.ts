@@ -218,7 +218,7 @@ interface Story {
 }
 
 function storyOf(text: string): Story {
-  const [, xItem, yItem] = /Let \$x\$ be the number of ([a-z ]+) and \$y\$ the number of ([a-z ]+)\./.exec(text)!;
+  const [, xItem, yItem] = /\$x\$ is the number of ([a-z ]+), \$y\$ of ([a-z ]+)\./.exec(text)!;
   const first = text.split('. ')[0];
   const each = (item: string) => Number(new RegExp(`${item}[^$]*\\$(\\d+)\\$`, 'i').exec(first)![1]);
   const [, capWord, total] = new RegExp(`must be ${WORD} (?:£)?\\$(\\d+)\\$`).exec(text)!;

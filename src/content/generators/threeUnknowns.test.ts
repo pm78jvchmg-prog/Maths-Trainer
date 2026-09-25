@@ -270,7 +270,7 @@ describe('the story generators', () => {
     for (const { slide, where } of draws('lin-tri-words-tiles')) {
       if (slide.kind !== 'tiles') throw new Error(`${where} is not tiles`);
       const text = proseOf(slide);
-      const [, a, b, c] = /Let \$x\$ be the price of one ([a-z ]+), \$y\$ of one ([a-z ]+) and \$z\$ of one ([a-z ]+), in/.exec(text)!;
+      const [, a, b, c] = /the prices of one ([a-z ]+), one ([a-z ]+) and one ([a-z ]+), in/.exec(text)!;
       const [, list, total] = /buys (.+) for (?:£\$(\d+)\$|\$\d+\$p)/.exec(text)!;
       const cost = total ?? /for \$(\d+)\$p/.exec(text)![1];
       const count = (item: string) => Number(new RegExp(`\\$(\\d+)\\$ ${item}s?(?![a-z])`).exec(list)![1]);
@@ -300,7 +300,7 @@ describe('the story generators', () => {
         v = [y + d, y, k * y];
       } else {
         // Three pair totals: each sentence names two of the three and a number.
-        const names = [...text.matchAll(/\$[xyz]\$ (?:be )?(?:the price of |the mass of )?([A-Za-z ]+?)(?:'s age| in pence| in kg)?(?:,| and|\.)/g)].map((m) => m[1].trim());
+        const [, ...names] = /\$z\$ are the (?:prices in pence|ages|masses in kg) of (.+?), (.+?) and (.+?)\./.exec(text)!;
         const sentences = text.split('. ').filter((s) => /\$\d+\$/.test(s));
         const rows = sentences.slice(0, 3).map((s) => {
           const lower = s.toLowerCase();

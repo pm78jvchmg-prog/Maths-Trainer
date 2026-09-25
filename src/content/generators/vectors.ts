@@ -4903,7 +4903,7 @@ const linesMeetSlider: Generator<MeetParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: 'The solid line is $\\ell_1$, with a dot at every whole value of $\\lambda$ and $A$ where $\\lambda = 0$. The dashed line is $\\ell_2$. Slide $\\lambda$ until the marker passes through the point where they cross.',
+          text: 'The solid line $\\ell_1$ has a dot at every whole $\\lambda$, with $A$ at $\\lambda = 0$; $\\ell_2$ is dashed. Slide $\\lambda$ to where they cross.',
         },
         ...meetDisplays(params),
       ],

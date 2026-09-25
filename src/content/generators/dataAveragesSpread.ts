@@ -626,7 +626,7 @@ const totalTiles: Generator<MissingParams> = {
       kind: 'tiles',
       prompt: [
         say(
-          `The mean of ${n} values is $${fmt(m)}$. The values are ${listProse(params.known)} and $x$. Fill in the working: all ${n} values add up to ${n} times the mean, and $x$ is what is left after the others.`,
+          `The mean of ${n} values is $${fmt(m)}$. The values are ${listProse(params.known)} and $x$. Fill in the working.`,
         ),
       ],
       template: `x = ${n} \\times {0} - {1} = {2}`,
@@ -689,7 +689,7 @@ const combinedTree: Generator<CombinedParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `There are ${nA} in ${a}, with a mean of $${fmt(mA)}$, and ${nB} in ${b}, with a mean of $${fmt(mB)}$. Find the mean of everyone together. Top row, left to right: the total for ${a}, the total for ${b}, and how many there are altogether. Then the combined total, then the combined mean.`,
+          `There are ${nA} in ${a}, with a mean of $${fmt(mA)}$, and ${nB} in ${b}, with a mean of $${fmt(mB)}$. Top row: the totals for ${a} and ${b}, then how many altogether. Then the combined total, then the combined mean.`,
         ),
       ],
       expression: '\\bar{x} = \\frac{\\text{total}}{n}',
@@ -3312,7 +3312,7 @@ const boxFence: Generator<BoxFenceParams> = {
       prompt: [
         boxFigure(box, scale),
         say(
-          `The cross at $${fmt(box.outliers[0])}$ is plotted as an outlier. Check it: read the quartiles off the box and work out the ${side} fence. Tap the part you would do next, then choose what it comes to.`,
+          `The cross at $${fmt(box.outliers[0])}$ is plotted as an outlier. Work out the ${side} fence from the box's quartiles. Tap the part you would do next, then choose what it comes to.`,
         ),
       ],
       start: [upper ? 'Q_3' : 'Q_1', upper ? '+' : '-', '1.5', '\\times', '(', 'Q_3', '-', 'Q_1', ')'],
@@ -3772,7 +3772,7 @@ function histFigure(p: HistParams, rule: HistRule, hide?: number): string {
 
 const histPrompt = (p: HistParams, rule: HistRule, ask: string): Block[] => [
   { kind: 'diagram', svg: histFigure(p, rule) },
-  say(`${GROUPED_CONTEXTS[p.context]} The histogram's vertical scale is frequency density. ${ask}`),
+  say(`${GROUPED_CONTEXTS[p.context]} The vertical scale is frequency density. ${ask}`),
 ];
 
 const classOf = (p: HistParams, i: number): string => classTex(p.bounds[i], p.bounds[i + 1]);
@@ -4718,7 +4718,7 @@ const cfBelowSlider: Generator<CfAtParams> = {
       kind: 'slider',
       prompt: [
         say(
-          `The curve shows ${cfIntro(params)}. Slide the line to the curve's height at $${x}$, to read off how many values are less than $${x}$.${params.guided ? ` The dashed line marks $${x}$.` : ''}`,
+          `The curve shows ${cfIntro(params)}. Slide the line to the curve's height at $${x}$: how many values are less than $${x}$.${params.guided ? ` The dashed line marks $${x}$.` : ''}`,
         ),
       ],
       min: 0,
@@ -5407,7 +5407,7 @@ const interpTiles: Generator<InterpParams> = {
       kind: 'tiles',
       prompt: interpPrompt(
         params,
-        `Estimate the ${pctName(params.pct)} by interpolating inside its class. Fill in the working: the class's lower boundary, plus (position take the values before it) over its frequency, times its width.`,
+        `Estimate the ${pctName(params.pct)} by interpolating inside its class. Fill in the working.`,
       ),
       template: '{0} + ({1} - {2}) \\div {3} \\times {4} = {5}',
       bank: valueBank(answer, slips, 4),

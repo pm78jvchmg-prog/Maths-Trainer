@@ -227,3 +227,15 @@ Generators in `src/content/generators/contestAdvancedAlgebra.ts`.
 | Logarithms | `cm-aa-log-chain`, `cm-aa-log-tiles`, `cm-aa-log-equation`, `cm-aa-log-power` | change of base makes a chain cancel; logs add by multiplying inside; a log to base bᵉ is 1/e of one to base b; b^(log_b c) = c |
 
 Level check: 13 questions across all six lessons.
+
+## Level 13: Inequalities (`cm-l13`)
+
+Generators in `src/content/generators/contestInequalities.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Basic Inequalities | `cm-in-flip`, `cm-in-count-integers`, `cm-in-bounds`, `cm-in-square-min` | dividing by a negative turns the sign round, in all three parts at once; count from the first integer inside to the last, and a square has two roots; a difference is least with the first low and the second high, a product needs all four corners; a square is never negative |
+| AM-GM | `cm-in-amgm-min`, `cm-in-product-table`, `cm-in-pen-tiles`, `cm-in-fixed-sum` | a fixed product makes the sum least when the parts are equal, after splitting a fraction to find it; the closest factor pair has the smallest sum; a fixed area is fenced least by equal parts, against a wall $2x$ and the far side; a fixed sum makes the product greatest, so the wall pen is twice as long as deep |
+| Cauchy-Schwarz | `cm-in-cs-max`, `cm-in-cs-table`, `cm-in-cs-min`, `cm-in-titu` | $(ax + by)^2 \le (a^2 + b^2)(x^2 + y^2)$ caps a line on a circle; equality is in step with the coefficients; turned round it is the least sum of squares on a line; the fractions form for a fixed sum of bottoms |
+
+Level check: 12 questions across all three lessons.

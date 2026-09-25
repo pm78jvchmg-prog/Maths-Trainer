@@ -5,9 +5,6 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-25
 
-- **Exponential Models teaches before it asks (#206).** 37 questions came
-  before the worked example they needed; examples moved earlier or added as
-  lead-ins, questions reordered. Audit: `teach-before-ask.md` in project files.
 - **Streak no longer counts a day twice after travelling west (#196).** A play dated
   a day or two before the last one is a day already counted and changes
   nothing, and the home screen reads it as done. A day the calendar skipped

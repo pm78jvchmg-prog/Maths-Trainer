@@ -33,8 +33,35 @@ const ask = (generatorId: string, difficulty = 1): SlideRef => ({
   difficulty,
 });
 
+/**
+ * A question with its worked example on the same slide. Used where a question
+ * needs a step the teaching slide before it did not work through, so the
+ * example sits with the question rather than after it.
+ */
+const askAfter = (lead: Block[], generatorId: string, difficulty = 1): SlideRef => ({
+  type: 'generated',
+  generatorId,
+  difficulty,
+  leadIn: lead,
+});
+
 const prose = (text: string) => ({ kind: 'prose' as const, text });
 const maths = (tex: string) => ({ kind: 'display' as const, tex });
+
+/**
+ * Setting up a growth or decay model from words, for `log-decay-slider`, which
+ * draws either. Each lesson that asks it needs the setting-up shown in that
+ * lesson, so the example travels with the question.
+ */
+const modelLead: Block[] = [
+  prose(
+    'A sample of 800 grams divided by 2 every hour is $800 \\div 2^{t}$ after $t$ hours. To find when it is 100 grams, multiply both sides by $2^{t}$, then divide by 100:',
+  ),
+  maths('\\begin{aligned} 800 \\div 2^{t} &= 100 \\\\ 2^{t} &= \\frac{800}{100} = 8 \\end{aligned}'),
+  prose(
+    'And $8 = 2^{3}$, so $t = 3$. Growth goes the other way: $50 \\times 3^{t} = 450$ gives $3^{t} = \\frac{450}{50} = 9$, so $t = 2$.',
+  ),
+];
 
 /**
  * A figure for a teaching slide, drawn by the same helper the level-5
@@ -81,7 +108,6 @@ export const logarithms: Course = {
             ),
             ask('log-to-index'),
             ask('log-from-index'),
-            ask('log-evaluate'),
             teach(
               prose(
                 'Converting between the two forms is the single most useful move in the topic, and it is worth doing automatically.',
@@ -96,17 +122,22 @@ export const logarithms: Course = {
             ),
             ask('log-from-index'),
             ask('log-to-index'),
-            ask('log-tree'),
             teach(
               prose('Two values come free, whatever the base.'),
               maths('\\log_{b}\\left(1\\right) = 0 \\qquad \\log_{b}\\left(b\\right) = 1'),
               prose(
-                'Anything to the power zero is 1, which gives the first. Anything to the power one is itself, which gives the second. Both are worth recognising instantly rather than working out.',
+                'Anything to the power zero is 1, which gives the first. Anything to the power one is itself, which gives the second.',
               ),
               prose(
-                'Base 10 is common enough that it is often written with no base at all, and base $e$ has a symbol of its own, $\\ln$. Level 3 is about that one.',
+                'Any other value is found by counting up the powers of the base. For $\\log_{4}\\left(1024\\right)$, the powers of 4 are',
+              ),
+              maths('4,\\ 16,\\ 64,\\ 256,\\ 1024'),
+              prose(
+                'That is five steps, so $4^{5} = 1024$ and $\\log_{4}\\left(1024\\right) = 5$.',
               ),
             ),
+            ask('log-evaluate'),
+            ask('log-tree'),
             ask('log-evaluate'),
             ask('log-sum-tree'),
           ],
@@ -230,7 +261,16 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-domain'),
-            ask('log-domain-flow'),
+            askAfter(
+              [
+                prose(
+                  'A positive argument that is not a power of the base still has a logarithm. It is just not whole. Bracket it between two powers:',
+                ),
+                maths('3^{2} = 9 < 20 < 27 = 3^{3}'),
+                prose('So $\\log_{3}\\left(20\\right)$ lies between 2 and 3.'),
+              ],
+              'log-domain-flow',
+            ),
             ask('log-evaluate'),
             teach(
               prose('The base has restrictions too: it must be positive, and it must not be 1.'),
@@ -300,23 +340,37 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-arithmetic'),
-            ask('log-combine'),
-            ask('log-law-flow'),
+            ask('log-combine-steps'),
             teach(
               prose('Dividing powers subtracts their indices, which gives the second law.'),
               maths(
                 '\\log_{b}\\left(m\\right) - \\log_{b}\\left(n\\right) = \\log_{b}\\left(\\frac{m}{n}\\right)',
               ),
               prose(
-                'The order matters in the same way as for ordinary subtraction: the first argument goes on top. Reversing it gives the reciprocal, whose logarithm is the negative of the right answer.',
+                'The first argument goes on top: $\\log_{2}\\left(12\\right) - \\log_{2}\\left(3\\right) = \\log_{2}\\left(4\\right) = 2$. Reversing it gives the reciprocal, whose logarithm is the negative of the right answer.',
               ),
               prose(
-                'Adding the arguments is the error to guard against. $\\log\\left(8\\right) + \\log\\left(4\\right)$ is $\\log\\left(32\\right)$, not $\\log\\left(12\\right)$ — the logarithms add, and that is exactly why the arguments multiply.',
+                'A number in front is repeated addition, so the first law puts it back inside as an index:',
+              ),
+              maths(
+                '\\begin{aligned} 2\\log_{2}\\left(5\\right) &= \\log_{2}\\left(5\\right) + \\log_{2}\\left(5\\right) \\\\ &= \\log_{2}\\left(5 \\times 5\\right) \\\\ &= \\log_{2}\\left(5^{2}\\right) \\end{aligned}',
+              ),
+              prose(
+                'Read backwards, the index comes out in front: $\\log_{2}\\left(5^{2}\\right) = 2\\log_{2}\\left(5\\right)$. The next lesson is about this law.',
               ),
             ),
+            ask('log-combine'),
+            askAfter(
+              [
+                prose(
+                  'Every law also runs backwards, splitting one logarithm into two. Since $10 = 2 \\times 5$ and $\\frac{7}{3}$ is $7 \\div 3$:',
+                ),
+                maths('\\log_{3}\\left(10\\right) = \\log_{3}\\left(2\\right) + \\log_{3}\\left(5\\right)'),
+                maths('\\log_{3}\\left(\\frac{7}{3}\\right) = \\log_{3}\\left(7\\right) - \\log_{3}\\left(3\\right)'),
+              ],
+              'log-split',
+            ),
             ask('log-arithmetic'),
-            ask('log-split'),
-            ask('log-law-flow'),
             teach(
               prose('Both laws need the *same base* on every term. Without that nothing can be combined.'),
               maths('\\log_{2}\\left(8\\right) + \\log_{3}\\left(9\\right)'),
@@ -327,8 +381,9 @@ export const logarithms: Course = {
                 'So the first thing to check on any combining question is whether the bases match. If they do not, the laws are simply not available.',
               ),
             ),
-            ask('log-combine+choice'),
+            ask('log-law-flow'),
             ask('log-split'),
+            ask('log-sum-tree'),
           ],
           skillCheck: [ask('log-arithmetic', 2), ask('log-arithmetic', 2), ask('log-combine', 2)],
         },
@@ -516,7 +571,7 @@ export const logarithms: Course = {
           slides: [
             teach(
               prose(
-                'When both sides can be written as powers of one base, an equation like $2^{x} = 32$ needs no logarithms at all — match the indices.',
+                'When both sides can be written as powers of one base, no logarithms are needed: $2^{x} = 32 = 2^{5}$, so match the indices and $x = 5$.',
               ),
               prose(
                 'But $2^{x} = 30$ cannot be done that way, because 30 is not a power of 2. This is what logarithms were built for.',
@@ -529,7 +584,7 @@ export const logarithms: Course = {
             ),
             ask('log-solve-exponential'),
             ask('log-exponential-tiles'),
-            ask('log-method-flow'),
+            ask('log-solve-exponential+choice'),
             teach(
               prose(
                 'Any base will do for the logarithms you take, provided the same one is used on both sides. The answer comes out the same.',
@@ -542,9 +597,18 @@ export const logarithms: Course = {
               ),
               maths('\\log_{a}\\left(c\\right) = \\frac{\\log_{b}\\left(c\\right)}{\\log_{b}\\left(a\\right)}'),
             ),
-            ask('log-decay-slider'),
-            ask('log-solve-exponential+choice'),
+            askAfter(
+              [
+                prose(
+                  'When the base is $e$, take natural logarithms. $\\ln$ is the logarithm to base $e$, so $\\ln\\left(e\\right) = 1$:',
+                ),
+                maths('e^{3x} = 10 \\implies 3x\\ln\\left(e\\right) = \\ln\\left(10\\right)'),
+                prose('So $3x = \\ln\\left(10\\right)$ and $x = \\frac{\\ln\\left(10\\right)}{3}$.'),
+              ],
+              'log-method-flow',
+            ),
             ask('log-exponential-tiles'),
+            askAfter(modelLead, 'log-decay-slider'),
             teach(
               prose(
                 'The answer is a quotient of logarithms, not the logarithm of a quotient. Those are different numbers.',
@@ -598,7 +662,7 @@ export const logarithms: Course = {
                 'Divide the whole logarithm by the coefficient, not part of it: $\\frac{\\ln\\left(20\\right)}{3}$ is not $\\ln\\left(\\frac{20}{3}\\right)$.',
               ),
             ),
-            ask('log-decay-slider'),
+            askAfter(modelLead, 'log-decay-slider'),
             ask('log-method-flow'),
             ask('log-exponential-tiles'),
             teach(
@@ -635,20 +699,27 @@ export const logarithms: Course = {
                 'Dividing by the starting amount first is always worth doing. It leaves the simplest possible exponential inequality.',
               ),
             ),
-            ask('log-growth'),
-            ask('log-growth+choice'),
-            ask('log-decay-slider'),
-            teach(
-              prose('Then take logarithms and divide, exactly as before.'),
-              maths('t > \\frac{\\ln\\left(100\\right)}{\\ln\\left(3\\right)} \\approx 4.19'),
-              prose(
-                'So the threshold is crossed during the fifth step. If only whole steps count, the answer is 5.',
-              ),
-              prose(
-                'Rounding the wrong way is the characteristic error in every question of this shape. At $t = 4$ the quantity is still below the threshold, so 4 is not an answer — round *up*.',
-              ),
+            askAfter(
+              [
+                prose('Then take logarithms and divide, exactly as before:'),
+                maths('t > \\frac{\\ln\\left(100\\right)}{\\ln\\left(3\\right)} \\approx 4.19'),
+                prose(
+                  'At $t = 4$ the amount is $100 \\times 3^{4} = 8100$, still below 10000, so 4 is not an answer. Round *up*: 5 whole steps.',
+                ),
+              ],
+              'log-growth',
             ),
+            ask('log-growth+choice'),
             ask('log-method-flow'),
+            teach(
+              prose('Some quantities shrink by division instead of growing.'),
+              prose(
+                'A sample of 800 grams divided by 2 every hour is $800 \\div 2^{t}$ after $t$ hours. To find when it is 100 grams, multiply both sides by $2^{t}$, then divide by 100:',
+              ),
+              maths('\\begin{aligned} 800 \\div 2^{t} &= 100 \\\\ 2^{t} &= \\frac{800}{100} = 8 \\end{aligned}'),
+              prose('And $8 = 2^{3}$, so $t = 3$: halving three times gives 400, 200, 100.'),
+            ),
+            ask('log-decay-slider'),
             ask('log-natural'),
             ask('log-decay-slider'),
             teach(
@@ -689,7 +760,7 @@ export const logarithms: Course = {
             ),
             ask('log-growth', 2),
             ask('log-natural+choice', 2),
-            ask('log-decay-slider', 2),
+            askAfter(modelLead, 'log-decay-slider', 2),
             teach(
               prose(
                 'Once the model is written down the method is fixed: substitute, divide out the starting value, take logarithms, divide.',
@@ -756,8 +827,8 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-change-base'),
-            ask('log-change-base-tiles'),
             ask('log-change-base+choice'),
+            ask('log-change-base-slider'),
             teach(
               prose(
                 'Nothing in the formula needs $\\ln$. Any new base works, provided the same one is used top and bottom.',
@@ -772,8 +843,8 @@ export const logarithms: Course = {
                 '\\log_{8}\\left(64\\right) = \\frac{\\log_{2}\\left(64\\right)}{\\log_{2}\\left(8\\right)} = \\frac{6}{3} = 2',
               ),
             ),
+            ask('log-change-base-tiles'),
             ask('log-quotient-reduce'),
-            ask('log-change-base-slider'),
             ask('log-change-base-tiles'),
             teach(
               prose(
@@ -919,7 +990,6 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-common-base-tiles'),
-            ask('log-solve-common'),
             ask('log-quotient-reduce'),
             teach(
               prose(
@@ -929,8 +999,8 @@ export const logarithms: Course = {
               prose('A reciprocal on the right only makes the index negative.'),
               maths('8^{x} = \\frac{1}{4} \\implies 2^{3x} = 2^{-2} \\implies x = -\\frac{2}{3}'),
             ),
+            ask('log-solve-common'),
             ask('log-solve-common+choice'),
-            ask('log-base-flow'),
             ask('log-common-base-tiles'),
             teach(
               prose(
@@ -942,6 +1012,7 @@ export const logarithms: Course = {
             ),
             ask('log-base-flow'),
             ask('log-quotient-reduce+choice'),
+            ask('log-base-flow'),
           ],
           skillCheck: [
             ask('log-solve-common', 2),
@@ -997,7 +1068,16 @@ export const logarithms: Course = {
                 'Every point on $y = \\log_{a} x$ is $(a^{k}, k)$. Two are on every such curve: $(1, 0)$, because $a^{0} = 1$, and $(a, 1)$, because $a^{1} = a$.',
               ),
             ),
-            ask('log-graph-read'),
+            askAfter(
+              [
+                prose(
+                  'A point can also give the base. If $(9, 2)$ is on $y = \\log_{a} x$, then $\\log_{a}\\left(9\\right) = 2$. In index form:',
+                ),
+                maths('a^{2} = 9 \\implies a = 3'),
+                prose('A base is positive, so $-3$ is not a choice.'),
+              ],
+              'log-graph-read',
+            ),
             ask('log-graph-slider'),
             ask('log-graph-points-tiles'),
             teach(
@@ -1084,7 +1164,17 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-inverse-point'),
-            ask('log-graph-match'),
+            askAfter(
+              [
+                prose(
+                  'A marked point gives the base. $(9, 2)$ on $y = \\log_{a} x$ says $\\log_{a}\\left(9\\right) = 2$, so $a^{2} = 9$ and $a = 3$.',
+                ),
+                prose(
+                  'On $y = a^{x}$ the coordinates swap roles: $(2, 9)$ says $a^{2} = 9$, so again $a = 3$.',
+                ),
+              ],
+              'log-graph-match',
+            ),
             ask('log-mirror-slider'),
             teach(
               prose('Functions that swap $x$ and $y$ like this are **inverses**: each undoes the other.'),
@@ -1141,9 +1231,17 @@ export const logarithms: Course = {
                 'Only the inside change moves the asymptote. It sits where the bracket is zero: $x - 3 = 0$, so $x = 3$.',
               ),
             ),
-            ask('log-transform-match'),
-            ask('log-transform-slider'),
-            ask('log-transform-tiles'),
+            askAfter(
+              [
+                prose(
+                  'The curve crosses the $x$-axis where the whole right-hand side is zero. For $y = \\log_{2}\\left(x - 3\\right) - 1$:',
+                ),
+                maths('\\log_{2}\\left(x - 3\\right) - 1 = 0'),
+                maths('\\log_{2}\\left(x - 3\\right) = 1'),
+                maths('x - 3 = 2^{1} = 2 \\implies x = 5'),
+              ],
+              'log-transform-slider',
+            ),
             teach(
               prose('Multiplying works the same way round. Outside, $y = 3\\log_{2} x$ stretches every height by 3.'),
               prose(
@@ -1153,19 +1251,23 @@ export const logarithms: Course = {
                 'Neither stretch moves the asymptote, since $3x = 0$ still means $x = 0$. But the inside one moves the intercept to $x = \\frac{1}{3}$.',
               ),
             ),
+            ask('log-transform-match'),
             ask('log-transform-flow'),
             ask('log-transform-match'),
-            ask('log-transform-tiles'),
             teach(
-              prose('Two facts pin down any transformed curve.'),
               prose(
-                'The asymptote is where the inside of the logarithm is zero. The $x$-intercept is where the whole right-hand side is zero.',
+                'Two points pin down a curve $y = p\\log_{3} x + q$. Take $(1, 1)$ and $(3, 7)$.',
               ),
-              maths('y = \\log_{2}\\left(x - 3\\right) - 1'),
-              maths('x - 3 = 0 \\implies x = 3'),
-              maths('\\log_{2}\\left(x - 3\\right) = 1 \\implies x = 5'),
+              prose('At $x = 1$, $\\log_{3} 1 = 0$, so the height is $q$ alone: $q = 1$.'),
+              prose('At $x = 3$, $\\log_{3} 3 = 1$, so the height is $p + q = 7$, which gives $p = 6$.'),
+              maths('y = 6\\log_{3} x + 1'),
+              prose(
+                'So use $x = 1$ for $q$, then $x$ equal to the base for $p + q$.',
+              ),
             ),
+            ask('log-transform-tiles'),
             ask('log-transform-slider'),
+            ask('log-transform-tiles'),
             ask('log-transform-flow'),
           ],
           skillCheck: [
@@ -1211,7 +1313,6 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-meet-slider'),
-            ask('log-compare-bases'),
             ask('log-inequality-tiles'),
             teach(
               graph({
@@ -1231,6 +1332,7 @@ export const logarithms: Course = {
             ),
             ask('log-compare-bases'),
             ask('log-meet-slider'),
+            ask('log-compare-bases'),
           ],
           skillCheck: [
             ask('log-solve-graph', 2),
@@ -1273,12 +1375,13 @@ export const logarithms: Course = {
                 'The product law split off $k$ and the power law brought $n$ down. In this level $\\log$ means $\\log_{10}$.',
               ),
               prose('So $\\log y$ plotted against $\\log x$ is a straight line: gradient $n$, intercept $\\log k$.'),
+              prose('Natural logs work the same way: $\\ln y = \\ln k + n\\ln x$.'),
             ),
             ask('log-lin-power-tiles'),
-            ask('log-lin-power-read'),
-            ask('log-lin-power-evaluate'),
             teach(
-              prose('Take $y = 100x^{3}$. Its logs are $\\log y = 2 + 3\\log x$.'),
+              prose(
+                'Take $y = 100x^{3}$. Its logs are $\\log y = 2 + 3\\log x$, a line through $(1, 5)$ and $(2, 8)$.',
+              ),
               graph({
                 xMin: -0.32,
                 xMax: 4,
@@ -1286,28 +1389,36 @@ export const logarithms: Course = {
                 yMax: 15.5,
                 curves: [{ f: (x) => 2 + 3 * x }],
                 marks: [
-                  { x: 0, y: 2 },
+                  { x: 1, y: 5 },
                   { x: 2, y: 8 },
                 ],
-                // The intercept is ringed but not labelled: that close to the
-                // x-axis there is no room, and the prose names it.
-                labels: [{ x: 2, y: 8, text: '(2, 8)' }],
+                labels: [
+                  { x: 1, y: 5, text: '(1, 5)' },
+                  { x: 2, y: 8, text: '(2, 8)' },
+                ],
                 axisNames: { x: 'log x', y: 'log y' },
-                label: 'The straight line log y = 2 + 3 log x',
+                label: 'The straight line log y = 2 + 3 log x through (1, 5) and (2, 8)',
               }),
+              maths('\\text{gradient} = \\frac{8 - 5}{2 - 1} = 3'),
+              maths('\\text{intercept} = 5 - 3 \\times 1 = 2'),
               prose(
-                'The gradient is the power itself: $n = 3$. The intercept is $\\log k = 2$, still a logarithm, so undo it: $k = 10^{2} = 100$.',
+                'The gradient is the power itself: $n = 3$. The intercept is $\\log k = 2$, still a logarithm, so undo it: $k = 10^{2} = 100$. With natural logs, $\\ln k = 2$ would give $k = e^{2}$.',
               ),
             ),
+            ask('log-lin-power-read'),
             ask('log-lin-power-read+choice'),
-            ask('log-lin-power-slider'),
             ask('log-lin-power-tiles'),
             teach(
               prose(
                 'The line does the model\'s work in logs. At $x = 1000$, $\\log x = 3$, so $\\log y = 2 + 3 \\times 3 = 11$ and $y = 10^{11}$.',
               ),
+              prose(
+                'Backwards, $\\log y = 14$ needs $2 + 3\\log x = 14$, so $3\\log x = 12$ and $\\log x = 4$.',
+              ),
               prose('Natural logs work the same way: $y = e^{2}x^{3}$ gives $\\ln y = 2 + 3\\ln x$.'),
             ),
+            ask('log-lin-power-evaluate'),
+            ask('log-lin-power-slider'),
             ask('log-lin-power-evaluate+choice'),
             ask('log-lin-power-slider'),
           ],
@@ -1327,12 +1438,16 @@ export const logarithms: Course = {
               prose(
                 'Now the straight line is $\\log y$ against $x$ itself, not against $\\log x$. Its gradient is $\\log b$ and its intercept is $\\log a$.',
               ),
+              prose(
+                'With $e$ as the base, the model is usually written $y = ae^{kx}$. Since $\\ln e = 1$, natural logs give a gradient of $k$ itself:',
+              ),
+              maths('y = 5e^{2x} \\implies \\ln y = \\ln 5 + 2x'),
             ),
             ask('log-lin-exp-tiles'),
-            ask('log-lin-exp-read'),
-            ask('log-lin-exp-evaluate'),
             teach(
-              prose('Take $y = 10 \\times 100^{x}$. Its logs are $\\log y = 1 + 2x$.'),
+              prose(
+                'Take $y = 10 \\times 100^{x}$. Its logs are $\\log y = 1 + 2x$, a line through $(1, 3)$ and $(3, 7)$.',
+              ),
               graph({
                 xMin: -0.32,
                 xMax: 4,
@@ -1340,27 +1455,33 @@ export const logarithms: Course = {
                 yMax: 10,
                 curves: [{ f: (x) => 1 + 2 * x }],
                 marks: [
-                  { x: 0, y: 1 },
+                  { x: 1, y: 3 },
                   { x: 3, y: 7 },
                 ],
-                labels: [{ x: 3, y: 7, text: '(3, 7)' }],
+                labels: [
+                  { x: 1, y: 3, text: '(1, 3)' },
+                  { x: 3, y: 7, text: '(3, 7)' },
+                ],
                 axisNames: { x: 'x', y: 'log y' },
-                label: 'The straight line log y = 1 + 2x',
+                label: 'The straight line log y = 1 + 2x through (1, 3) and (3, 7)',
               }),
+              maths('\\text{gradient} = \\frac{7 - 3}{3 - 1} = 2'),
+              maths('\\text{intercept} = 3 - 2 \\times 1 = 1'),
               prose(
-                'This time both are logarithms. $\\log b = 2$ gives $b = 10^{2} = 100$, and $\\log a = 1$ gives $a = 10$.',
+                'This time both are logarithms. $\\log b = 2$ gives $b = 10^{2} = 100$, and $\\log a = 1$ gives $a = 10$. With natural logs, $\\ln b = 2$ would give $b = e^{2}$.',
               ),
             ),
+            ask('log-lin-exp-read'),
             ask('log-lin-exp-read+choice'),
-            ask('log-lin-exp-slider'),
             ask('log-lin-exp-tiles'),
             teach(
               prose(
-                'With $e$ as the base, the model is usually written $y = ae^{kx}$. Since $\\ln e = 1$, natural logs give a gradient of $k$ itself:',
+                'Putting a value of $x$ in works along the line. On $\\log y = 1 + 2x$, $x = 2$ gives $\\log y = 1 + 2 \\times 2 = 5$, so $y = 10^{5}$.',
               ),
-              maths('y = 5e^{2x}'),
-              maths('\\ln y = \\ln 5 + 2x'),
+              prose('Backwards, $\\log y = 7$ needs $1 + 2x = 7$, so $2x = 6$ and $x = 3$.'),
             ),
+            ask('log-lin-exp-evaluate'),
+            ask('log-lin-exp-slider'),
             ask('log-lin-exp-evaluate+choice'),
             ask('log-lin-exp-slider'),
           ],
@@ -1380,29 +1501,33 @@ export const logarithms: Course = {
               ),
               maths('\\text{gradient} = \\frac{11 - 5}{3 - 1} = 3'),
               maths('\\text{intercept} = 5 - 3 \\times 1 = 2'),
-              prose('So the line is $\\log y = 2 + 3\\log x$, and the model is $y = 100x^{3}$.'),
+              prose(
+                'So the line is $\\log y = 2 + 3\\log x$: $n = 3$ and $\\log k = 2$, so $k = 10^{2} = 100$ and the model is $y = 100x^{3}$.',
+              ),
             ),
             ask('log-lin-gradient-tree'),
-            ask('log-lin-model-tiles'),
-            ask('log-lin-model-match'),
             teach(
               prose('The intercept is a logarithm, so the last step is always to undo it.'),
-              maths('\\log k = 2 \\implies k = 100'),
+              maths('\\log k = 2 \\implies k = 10^{2} = 100'),
               maths('\\ln k = 2 \\implies k = e^{2}'),
               prose('Stopping at $k = 2$ is the most common slip in this topic.'),
             ),
             ask('log-lin-constant-steps'),
             ask('log-lin-gradient-tree'),
-            ask('log-lin-model-match'),
+            ask('log-lin-constant-steps'),
             teach(
               prose(
-                'Against $x$ rather than $\\log x$, the same working gives an exponential model. There the gradient is a logarithm too, so undo both.',
+                'Against $x$ rather than $\\log x$, the same working gives an exponential model $y = ab^{x}$. There the gradient is a logarithm too, so undo both. Take $(1, 3)$ and $(2, 5)$:',
               ),
+              maths('\\text{gradient} = \\frac{5 - 3}{2 - 1} = 2'),
+              maths('\\text{intercept} = 3 - 2 \\times 1 = 1'),
               maths('\\log y = 1 + 2x'),
               prose('So $\\log a = 1$ and $\\log b = 2$, which give $a = 10$ and $b = 100$.'),
             ),
             ask('log-lin-model-tiles'),
-            ask('log-lin-constant-steps'),
+            ask('log-lin-model-match'),
+            ask('log-lin-model-tiles'),
+            ask('log-lin-model-match'),
           ],
           skillCheck: [
             ask('log-lin-model-match', 2),
@@ -1424,23 +1549,26 @@ export const logarithms: Course = {
             ),
             ask('log-lin-axes-flow'),
             ask('log-lin-straight-choice'),
-            ask('log-lin-predict'),
             teach(
               prose(
                 'A line of best fit through real data predicts the same way. Work along the line in logs, then undo the log at the end.',
               ),
               maths('\\log y = 1 + 2\\log x'),
               prose('At $x = 100$, $\\log x = 2$, so $\\log y = 1 + 2 \\times 2 = 5$ and $y = 10^{5}$.'),
-              prose('Stopping at $5$ answers with $\\log y$, not $y$.'),
+              prose(
+                'Backwards, $y = 10^{7}$ means $\\log y = 7$. Then $1 + 2\\log x = 7$, so $\\log x = 3$ and $x = 10^{3}$.',
+              ),
+              prose('With natural logs, undo with $e$: $\\ln y = 5$ gives $y = e^{5}$.'),
             ),
-            ask('log-lin-predict+choice'),
-            ask('log-lin-power-slider'),
+            ask('log-lin-predict'),
             ask('log-lin-axes-flow'),
             teach(
               prose(
-                'Backwards works too. To find the $x$ that gives $y = 10^{7}$ on the line $\\log y = 1 + 3x$, solve $1 + 3x = 7$: $x = 2$.',
+                'A line against $x$ itself works backwards the same way. To find the $x$ that gives $y = 10^{7}$ on the line $\\log y = 1 + 3x$, solve $1 + 3x = 7$: $3x = 6$, so $x = 2$.',
               ),
             ),
+            ask('log-lin-predict+choice'),
+            ask('log-lin-power-slider'),
             ask('log-lin-straight-choice'),
             ask('log-lin-exp-slider'),
           ],
@@ -1613,25 +1741,31 @@ export const logarithms: Course = {
               maths('u^2 - 3u + 2 = 0'),
               prose('So $u = 1$ or $u = 2$. Each is a value of $\\log x$, so undo it: $x = 10$ or $x = 100$.'),
             ),
-            ask('log-cmp-sub-tiles'),
             ask('log-cmp-sub-steps'),
+            teach(
+              prose('Never divide through by $\\log x$. It can be zero, and dividing loses that root:'),
+              maths('(\\log x)^2 = 3\\log x'),
+              maths('u^2 - 3u = 0'),
+              maths('u(u - 3) = 0'),
+              prose('So $u = 0$ or $u = 3$: $x = 10^{0} = 1$ or $x = 10^{3} = 1000$.'),
+            ),
+            ask('log-cmp-sub-tiles'),
             ask('log-cmp-sub-root'),
             teach(
               prose('A squared logarithm is not the logarithm of a square:'),
               maths('(\\log x)^2 = u^2'),
               maths('\\log(x^2) = 2\\log x = 2u'),
-              prose('The laws hide $u$ in other places too: $\\log(10x) = 1 + u$.'),
+              prose('The laws hide $u$ in other places too: $\\log(10x) = \\log 10 + \\log x = 1 + u$.'),
+              prose('A quotient splits the same way. With $u = \\log_{2} x$:'),
+              maths(
+                '\\begin{aligned} \\log_{2}\\left(\\frac{x^{3}}{16}\\right) &= \\log_{2}(x^{3}) - \\log_{2} 16 \\\\ &= 3u - 4 \\end{aligned}',
+              ),
             ),
             ask('log-cmp-hidden'),
             ask('log-cmp-sub-root+choice'),
             ask('log-cmp-sub-steps'),
-            teach(
-              prose('Never divide through by $\\log x$. It can be zero, and dividing loses that root:'),
-              maths('(\\log x)^2 = 3\\log x'),
-              prose('Moved to one side, $u^2 - 3u = 0$ gives $u = 0$ or $u = 3$: $x = 1$ or $x = 1000$.'),
-            ),
-            ask('log-cmp-sub-tiles'),
             ask('log-cmp-hidden'),
+            ask('log-cmp-sub-tiles'),
           ],
           skillCheck: [
             ask('log-cmp-sub-root', 2),
@@ -1658,7 +1792,18 @@ export const logarithms: Course = {
               maths('\\log_{2} x + \\log_{4} x = 6'),
               prose('So $\\frac{3}{2}\\log_{2} x = 6$, $\\log_{2} x = 4$ and $x = 16$.'),
             ),
-            ask('log-cmp-base-tiles'),
+            askAfter(
+              [
+                prose(
+                  'A cube base gives a third in the same way. Since $27 = 3^{3}$, $\\log_{27} x = \\frac{\\log_{3} x}{3}$:',
+                ),
+                maths('\\log_{3} x + \\log_{27} x = 4'),
+                prose(
+                  'So $\\frac{4}{3}\\log_{3} x = 4$, $\\log_{3} x = 4 \\times \\frac{3}{4} = 3$ and $x = 3^{3} = 27$.',
+                ),
+              ],
+              'log-cmp-base-tiles',
+            ),
             ask('log-cmp-mixed'),
             ask('log-cmp-system+choice'),
             teach(

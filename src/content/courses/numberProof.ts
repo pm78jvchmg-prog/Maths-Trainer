@@ -57,6 +57,14 @@ const askWith = (generatorId: string, text: string, difficulty = 1): SlideRef =>
   leadIn: [prose(text)],
 });
 
+/** An exercise with a worked example above it, on the same slide. */
+const askAfter = (generatorId: string, difficulty: number, ...leadIn: Block[]): SlideRef => ({
+  type: 'generated',
+  generatorId,
+  difficulty,
+  leadIn,
+});
+
 export const numberProof: Course = {
   id: 'number-proof',
   category: 'algebra-fundamentals',
@@ -189,19 +197,35 @@ export const numberProof: Course = {
               prose('So $n^2 + n$ is always even, and so is $n^2 + n + 8$: an even number plus $8$.'),
             ),
             ask('num-factorised'),
-            ask('num-always-divides'),
-            ask('num-order-multiples'),
             teach(
               prose(
-                'Of three consecutive whole numbers, one is a multiple of $3$ and at least one is even, so their product is a multiple of $6$.',
+                'Of three consecutive whole numbers, one is a multiple of $3$ and at least one is even, so their product is a multiple of $6$. That is why $n^3 - n = (n - 1)n(n + 1)$ always is.',
               ),
-              maths('n^3 - n = (n - 1)n(n + 1)'),
               prose(
-                'That is why $n^3 - n$ is always a multiple of $6$. To find the largest number that always divides, factorise, then try small values of $n$: nothing bigger than their HCF can work.',
+                'To find the largest number that always divides, factorise, then try small values of $n$: nothing bigger than their HCF can work. For $3n(n + 1)$:',
+              ),
+              maths('\\begin{gathered} n = 1, 2, 3\\colon\\ 6, \\; 18, \\; 36 \\\\ \\text{HCF} = 6 \\end{gathered}'),
+              prose('And $6$ always works: $n(n + 1)$ is even, and $3$ times an even number is a multiple of $6$. So the answer is $6$.'),
+            ),
+            ask('num-always-divides'),
+            ask('num-order-multiples'),
+            askAfter(
+              'num-factorised',
+              2,
+              prose('To factorise a cubic, find a root first: try the negatives of the numbers that divide the constant. For $n^3 + 9n^2 + 26n + 24$:'),
+              maths('\\begin{aligned} n = -1&\\colon\\ -1 + 9 - 26 + 24 = 6 \\\\ n = -2&\\colon\\ -8 + 36 - 52 + 24 = 0 \\end{aligned}'),
+              prose('So $(n + 2)$ is a factor. The rest is $n^2 + bn + 12$, since $2 \\times 12 = 24$, and the $n^2$ terms give $b + 2 = 9$, so $b = 7$:'),
+              maths('\\begin{aligned} &(n + 2)(n^2 + 7n + 12) \\\\ &= (n + 2)(n + 3)(n + 4) \\end{aligned}'),
+            ),
+            askAfter(
+              'num-always-divides',
+              2,
+              prose('Two consecutive even numbers, $2n + 2$ and $2n + 4$, multiply to'),
+              maths('\\begin{aligned} &2(n + 1) \\times 2(n + 2) \\\\ &= 4(n + 1)(n + 2) \\end{aligned}'),
+              prose(
+                '$(n + 1)(n + 2)$ is even, so the product is a multiple of $4 \\times 2 = 8$. Check: $n = 1, 2, 3$ give $24, 48, 80$, with HCF $8$. An odd $n = 2k + 1$ makes $n^2 - 1 = (n - 1)(n + 1) = 2k(2k + 2)$, two consecutive even numbers, so a multiple of $8$ too.',
               ),
             ),
-            ask('num-factorised', 2),
-            ask('num-always-divides', 2),
             ask('num-order-multiples', 2),
             teach(
               prose('A difference of two squares hides a multiple too. Expand both brackets, subtract, then take out the common factor:'),
@@ -250,7 +274,15 @@ export const numberProof: Course = {
               ),
             ),
             ask('num-recurring-steps'),
-            ask('num-recurring', 2),
+            askAfter(
+              'num-recurring',
+              2,
+              prose(
+                'When a digit comes before the repeat, as in $0.8\\dot{3}$, use two multiples that both end in $.\\dot{3}$: $10x$ moves the $8$ past the point, and $100x$ moves one repeat past it too.',
+              ),
+              maths('\\begin{aligned} 100x &= 83.\\dot{3} \\\\ 10x &= 8.\\dot{3} \\\\ 90x &= 75 \\end{aligned}'),
+              prose('So $x = \\frac{75}{90} = \\frac{5}{6}$.'),
+            ),
           ],
           skillCheck: [ask('num-rational-choice', 2), ask('num-terminating', 2), ask('num-recurring', 2)],
         },
@@ -334,8 +366,6 @@ export const numberProof: Course = {
               ),
             ),
             ask('prf-case-split'),
-            ask('prf-case-tiles'),
-            ask('prf-cases-tree'),
             teach(
               prose('Claim: $n^2 + n$ is always even. Take the two cases in turn. If $n = 2k$:'),
               maths('\\begin{aligned} n^2 + n &= 4k^2 + 2k \\\\ &= 2(2k^2 + k) \\end{aligned}'),
@@ -345,12 +375,12 @@ export const numberProof: Course = {
                 'Even in both cases, and the two cases are every integer, so $n^2 + n$ is always even. The proof ends by saying the cases cover everything.',
               ),
             ),
+            ask('prf-case-tiles'),
+            ask('prf-cases-tree'),
             askWith(
               'proof-order-cases',
               'A claim about every number is settled by all its cases, or unsettled by one that fails. Put this one in order.',
             ),
-            ask('prf-case-remainder'),
-            ask('prf-case-split', 2),
             teach(
               prose('Only the remainder matters. If $n$ leaves remainder $2$ on division by $3$, then $n = 3k + 2$ and'),
               maths('\\begin{aligned} n^2 &= 9k^2 + 12k + 4 \\\\ &= 3(3k^2 + 4k + 1) + 1 \\end{aligned}'),
@@ -358,6 +388,8 @@ export const numberProof: Course = {
                 'So $n^2$ leaves remainder $1$, the same as $2^2 = 4$ does. Working with the remainder alone gets there faster.',
               ),
             ),
+            ask('prf-case-remainder'),
+            ask('prf-case-split', 2),
             ask('prf-case-tiles', 2),
             ask('prf-case-remainder', 2),
           ],
@@ -386,16 +418,22 @@ export const numberProof: Course = {
               maths('\\begin{aligned} &41^2 + 41 + 41 \\\\ &= 41(41 + 1 + 1) \\\\ &= 41 \\times 43 \\end{aligned}'),
               prose('So look for the value that gives every term a common factor.'),
             ),
-            ask('proof-order-cases'),
+            askWith(
+              'prf-always',
+              '"Always even" is a claim about every $k$, so one odd value sinks it. $3k + 1$ at $k = 0$ is $1$, odd: not always even. $2k + 4 = 2(k + 2)$ is $2$ times a whole number, so it is even for every $k$.',
+            ),
             ask('prf-counter-pick', 2),
             ask('prf-counter', 2),
             teach(
               prose(
                 'Examples cannot prove a claim about every number, but one example can disprove it. So before trying to prove a claim, test a few values: if one fails, you are done.',
               ),
+              prose(
+                'To prove it, name the numbers with letters so every case is covered at once. Two consecutive numbers are $n$ and $n + 1$, and their sum is $2n + 1$: odd for every $n$. Checking $3 + 4 = 7$ proves only that one case.',
+              ),
             ),
             ask('prf-counter-flow', 2),
-            ask('proof-order-cases', 2),
+            ask('prf-proof-or-example', 2),
           ],
           skillCheck: [ask('prf-counter', 2), ask('prf-counter-pick', 2), ask('prf-counter-flow', 2)],
         },
@@ -414,19 +452,14 @@ export const numberProof: Course = {
             ),
             ask('prf-assume'),
             ask('prf-negate'),
-            ask('prf-contra-flow'),
-            teach(
-              prose(
-                'The classic: $\\sqrt{2}$ is irrational. Suppose $\\sqrt{2} = \\frac{a}{b}$, with $a$ and $b$ whole numbers sharing no factor. Squaring,',
-              ),
-              maths('a^2 = 2b^2'),
-              prose(
-                'So $a^2$ is even, which makes $a$ even: $a = 2c$. Then $4c^2 = 2b^2$, so $b^2 = 2c^2$ and $b$ is even too. Both even contradicts "no common factor", so $\\sqrt{2}$ is irrational.',
-              ),
+            askAfter(
+              'prf-contra-flow',
+              1,
+              prose('Prove by contradiction: if $n^2 + 5$ is even, then $n$ is odd.'),
+              prose('Assume the opposite: $n^2 + 5$ is even **and** $n$ is even. Then $n = 2k$, and'),
+              maths('\\begin{aligned} n^2 + 5 &= 4k^2 + 5 \\\\ &= 2(2k^2 + 2) + 1 \\end{aligned}'),
+              prose('That is odd, which contradicts "$n^2 + 5$ is even". So the assumption is false, and the claim is true.'),
             ),
-            ask('prf-order-contradiction'),
-            ask('prf-negate', 2),
-            ask('prf-assume', 2),
             teach(
               prose(
                 'There are infinitely many primes. Suppose not: then some list $p_1, p_2, \\dots, p_n$ holds every prime. Let',
@@ -434,6 +467,21 @@ export const numberProof: Course = {
               maths('N = p_1 p_2 \\cdots p_n + 1'),
               prose(
                 'Dividing $N$ by any prime on the list leaves remainder $1$, so none of them divides it. But every whole number above $1$ has a prime factor, so some prime is missing from the list: a contradiction.',
+              ),
+              prose(
+                'The same shape shows there is no largest multiple of $4$. Suppose $N$ is the largest. Then $N + 4$ is a multiple of $4$ and bigger than $N$: a contradiction.',
+              ),
+            ),
+            ask('prf-order-contradiction'),
+            ask('prf-negate', 2),
+            ask('prf-assume', 2),
+            teach(
+              prose(
+                'The classic: $\\sqrt{2}$ is irrational. Suppose $\\sqrt{2} = \\frac{a}{b}$, with $a$ and $b$ whole numbers sharing no factor. Squaring,',
+              ),
+              maths('a^2 = 2b^2'),
+              prose(
+                'So $a^2$ is even, which makes $a$ even: $a = 2c$. Then $4c^2 = 2b^2$, so $b^2 = 2c^2$ and $b$ is even too. Both even contradicts "no common factor", so $\\sqrt{2}$ is irrational.',
               ),
             ),
             ask('prf-order-contradiction', 2),
@@ -453,7 +501,6 @@ export const numberProof: Course = {
             ),
             ask('prf-find-flaw'),
             ask('prf-missing-line'),
-            ask('prf-method-flow'),
             teach(
               prose('Choosing a method:'),
               prose('**Counterexample** when one failing value would settle it.'),
@@ -461,6 +508,7 @@ export const numberProof: Course = {
               prose('**Contradiction** when the claim says something cannot happen: irrational, or infinitely many.'),
               prose('**Direct** proof otherwise: from what you know, one step at a time.'),
             ),
+            ask('prf-method-flow'),
             ask('proof-order-direct', 2),
             ask('prf-find-flaw', 2),
             ask('prf-missing-line', 2),
@@ -571,7 +619,17 @@ export const numberProof: Course = {
               prose('$64$ has only one real cube root, so nothing but $x = 4$ gives $x^3 = 64$.'),
             ),
             ask('prf-converse-flow', 2),
-            ask('prf-counter-line', 2),
+            askAfter(
+              'prf-counter-line',
+              2,
+              prose(
+                'A square can be big on both sides of $0$. $x > 2 \\Rightarrow x^2 > 4$ is true; for its converse, first solve $x^2 > 4$. $(-3)^2 = 9 > 4$, so negatives count:',
+              ),
+              maths('x^2 > 4 \\Leftrightarrow x < -2 \\text{ or } x > 2'),
+              prose(
+                'The converse $x^2 > 4 \\Rightarrow x > 2$ breaks where $x^2 > 4$ but $x \\le 2$: that is $x < -2$. With $\\ge$ the end counts too: $x^2 \\ge 4$ holds at $x = -2$.',
+              ),
+            ),
           ],
           skillCheck: [ask('prf-converse', 2), ask('prf-counter-converse', 2), ask('prf-counter-line', 2)],
         },
@@ -671,7 +729,14 @@ export const numberProof: Course = {
               ),
             ),
             ask('prf-direction-choice'),
-            ask('prf-order-iff'),
+            askAfter(
+              'prf-order-iff',
+              1,
+              prose('A worked proof of $2x + 3 = 11 \\Leftrightarrow x = 4$, one half at a time:'),
+              prose('($\\Rightarrow$) Assume $2x + 3 = 11$. Taking away $3$ gives $2x = 8$, so $x = 4$.'),
+              prose('($\\Leftarrow$) Assume $x = 4$. Then $2x + 3 = 2 \\times 4 + 3 = 11$.'),
+              prose('Both directions hold, so $2x + 3 = 11 \\Leftrightarrow x = 4$.'),
+            ),
             ask('prf-arrow', 2),
             teach(
               prose('Claim: $n$ is even $\\Leftrightarrow$ $n^2$ is even.'),
@@ -729,29 +794,32 @@ export const numberProof: Course = {
               ),
             ),
             ask('prf-ind-covers'),
+            teach(
+              prose(
+                'A written proof has four parts, in this order: **base case**, **hypothesis**, **step**, **conclusion**. Here they are for $1 + 3 + \\dots + (2n - 1) = n^2$, $n \\ge 1$.',
+              ),
+              prose('**Base case:** at $n = 1$ the left side is $1$ and the right side is $1^2 = 1$.'),
+              prose('**Hypothesis:** assume it holds at $n = k$: $1 + 3 + \\dots + (2k - 1) = k^2$.'),
+              prose('**Step:** at $n = k + 1$ the sum gains one term, $2k + 1$. So it is $k^2 + 2k + 1 = (k + 1)^2$, the claim at $n = k + 1$.'),
+              prose('**Conclusion:** it holds at $n = 1$, and whenever it holds at $n = k$ it holds at $n = k + 1$, so it holds for every $n \\ge 1$.'),
+              prose('Assuming the claim at $n = k$ is not cheating: the base case supplies the first "if".'),
+            ),
             ask('prf-ind-part-flow'),
             ask('prf-ind-skeleton'),
             teach(
+              prose('The step has to reach the claim at $n = k + 1$, so write that down first: put $k + 1$ in place of every $n$. Both sides change.'),
+              maths('\\begin{aligned} n = k &: \\; 2^k > 4k \\\\ n = k + 1 &: \\; 2^{k+1} > 4(k + 1) \\end{aligned}'),
               prose(
-                'A written proof has four parts, in this order. **Base case:** check the first value. **Hypothesis:** assume the claim at $n = k$. **Step:** use that to reach the claim at $n = k + 1$. **Conclusion:** it holds for every $n$ from the start.',
-              ),
-              prose(
-                'Assuming the claim at $n = k$ is not cheating. The step only says "if it holds at $k$, then it holds at $k + 1$", and the base case supplies the first "if".',
+                'For a sum there is one more term on the left: $1 + 3 + \\dots + (2k - 1) + (2k + 1) = (k + 1)^2$.',
               ),
             ),
             ask('prf-ind-next-claim'),
             ask('prf-ind-part-flow', 2),
             ask('prf-ind-covers', 2),
-            teach(
-              prose('The step has to reach the claim at $n = k + 1$, so write that down first: put $k + 1$ in place of every $n$.'),
-              prose(
-                'For $1 + 3 + \\dots + (2n - 1) = n^2$ it is $1 + 3 + \\dots + (2k - 1) + (2k + 1) = (k + 1)^2$: one more term on the left, and $k + 1$ in the formula.',
-              ),
-            ),
-            ask('prf-ind-skeleton', 2),
+            ask('prf-ind-skeleton'),
             ask('prf-ind-next-claim', 2),
           ],
-          skillCheck: [ask('prf-ind-skeleton', 2), ask('prf-ind-next-claim', 2), ask('prf-ind-part-flow', 2)],
+          skillCheck: [ask('prf-ind-skeleton'), ask('prf-ind-next-claim', 2), ask('prf-ind-part-flow', 2)],
         },
         {
           id: 'np-l4-sums',
@@ -768,7 +836,6 @@ export const numberProof: Course = {
             ),
             ask('prf-ind-next-term'),
             ask('prf-ind-sum-check'),
-            ask('prf-ind-order-sum'),
             teach(
               prose(
                 'Claim: $1 + 2 + 3 + \\dots + n = \\tfrac{1}{2}n(n + 1)$. The step is the same move: the assumed sum plus the next term, $k + 1$.',
@@ -780,6 +847,7 @@ export const numberProof: Course = {
                 'Take out the common factor $(k + 1)$ rather than multiplying out: it lands straight on the right side at $n = k + 1$.',
               ),
             ),
+            ask('prf-ind-order-sum'),
             ask('prf-ind-sum-steps'),
             ask('prf-ind-next-term', 2),
             ask('prf-ind-sum-check', 2),
@@ -807,24 +875,27 @@ export const numberProof: Course = {
               ),
             ),
             ask('prf-ind-quotient'),
-            ask('prf-ind-rewrite'),
-            ask('prf-ind-divides-steps'),
             teach(
-              prose('The step needs $3^k - 1$ inside $3^{k+1} - 1$. Since $3^{k+1} = 3 \\times 3^k$,'),
-              maths('\\begin{aligned} 3^{k+1} - 1 &= 3(3^k - 1) + 2 \\\\ &= 3(2m) + 2 \\\\ &= 2(3m + 1) \\end{aligned}'),
+              prose('The step needs $3^k - 1$ inside $3^{k+1} - 1$. Since $3^{k+1} = 3 \\times 3^k$, three lots of $3^k - 1$ is $3^{k+1} - 3$, which is $2$ short:'),
+              maths('3^{k+1} - 1 = 3(3^k - 1) + 2'),
+              prose('Now put in the hypothesis, $3^k - 1 = 2m$, and take out the $2$:'),
+              maths('\\begin{aligned} 3^{k+1} - 1 &= 3(2m) + 2 \\\\ &= 6m + 2 \\\\ &= 2(3m + 1) \\end{aligned}'),
               prose(
                 'which is a multiple of $2$. The same rewrite shows $b^n - 1$ is a multiple of $b - 1$: $b^{k+1} - 1 = b(b^k - 1) + (b - 1)$.',
               ),
             ),
+            ask('prf-ind-rewrite'),
+            ask('prf-ind-divides-steps'),
             ask('prf-ind-order-divides'),
-            ask('prf-ind-quotient', 2),
-            ask('prf-ind-rewrite', 2),
             teach(
               prose(
-                'A different constant leaves a different remainder. For $4^n + 2$ and $3$: $4^{k+1} + 2 = 4(4^k + 2) - 6$.',
+                'A different constant leaves a different correction. For $4^n + 2$ and $3$: four lots of $4^k + 2$ is $4^{k+1} + 8$, which is $6$ too many, so',
               ),
-              prose('Both parts have to be multiples of $3$. $4(3m)$ is, and so is $6$, so $4^{k+1} + 2 = 3(4m - 2)$.'),
+              maths('\\begin{aligned} 4^{k+1} + 2 &= 4(4^k + 2) - 6 \\\\ &= 4(3m) - 6 \\\\ &= 12m - 6 \\\\ &= 3(4m - 2) \\end{aligned}'),
+              prose('With numbers: at $k = 1$, $4^1 + 2 = 6 = 3 \\times 2$, so $m = 2$, and $4^2 + 2 = 3(4 \\times 2 - 2) = 3 \\times 6 = 18$.'),
             ),
+            ask('prf-ind-quotient', 2),
+            ask('prf-ind-rewrite', 2),
             ask('prf-ind-divides-steps', 2),
             ask('prf-ind-order-divides', 2),
           ],
@@ -840,25 +911,33 @@ export const numberProof: Course = {
                 'So the base case is $n = 3$, and what gets proved is "for every $n \\ge 3$". A base case goes where the claim starts holding for good, and you find that by checking.',
               ),
             ),
-            ask('prf-ind-first-n'),
+            {
+              type: 'generated',
+              generatorId: 'prf-ind-first-n',
+              difficulty: 1,
+              leadIn: [
+                prose('$n!$, read "$n$ factorial", multiplies every whole number from $n$ down to $1$: $3! = 3 \\times 2 \\times 1 = 6$, and $4! = 24$. Check $n! > 4n$ the same way:'),
+                maths('\\begin{gathered} n = 2\\colon\\ 2 < 8 \\\\ n = 3\\colon\\ 6 < 12 \\\\ n = 4\\colon\\ 24 > 16 \\end{gathered}'),
+                prose('It holds from $n = 4$ on.'),
+              ],
+            },
             ask('prf-ind-base-choice'),
-            ask('prf-ind-ineq-flow'),
             teach(
               prose('The step for an inequality is a chain. Assume $2^k > 2k$ for some $k \\ge 3$. Then'),
               maths('\\begin{aligned} 2^{k+1} &= 2 \\times 2^k \\\\ &> 4k = 2k + 2k \\\\ &\\ge 2k + 2 = 2(k + 1) \\end{aligned}'),
-              prose('Split off one factor, use the hypothesis, then finish with a fact about $k$: here $2k \\ge 2$.'),
+              prose('Split off one factor, use the hypothesis, then finish with a fact about $k$: here $2k \\ge 2$, since $k \\ge 1$.'),
             ),
+            ask('prf-ind-ineq-flow'),
             ask('prf-ind-order-inequality'),
             ask('prf-ind-first-n', 2),
-            ask('prf-ind-ineq-flow', 2),
             teach(
               prose(
-                'Factorials go the same way. For $n! > 2^n$, true from $n = 4$: $(k + 1)! = (k + 1) \\times k! > (k + 1) \\times 2^k$, and $k + 1 > 2$ finishes it.',
+                'Factorials go the same way: split off one factor, $(k + 1)! = (k + 1) \\times k!$. For $n! > 4n$, true from $n = 4$, assume $k! > 4k$:',
               ),
-              prose(
-                'Watch for a claim that holds early, stops, then holds for good. $2^n > n^2$ is true at $n = 1$, false at $2$, $3$ and $4$, and true from $5$ on. Its base case is $n = 5$.',
-              ),
+              maths('\\begin{aligned} (k + 1)! &= (k + 1) \\times k! \\\\ &> (k + 1) \\times 4k \\\\ &\\ge 4(k + 1) \\end{aligned}'),
+              prose('The last line holds because $k \\ge 1$. Watch for a claim that holds early, stops, then holds for good: $2^n > n^2$ is true at $n = 1$, false at $2$, $3$ and $4$, and true from $5$ on. Its base case is $n = 5$.'),
             ),
+            ask('prf-ind-ineq-flow', 2),
             ask('prf-ind-base-choice', 2),
             ask('prf-ind-order-inequality', 2),
           ],
@@ -876,17 +955,17 @@ export const numberProof: Course = {
                 'But at $n = 1$ the left side is $1$ and the right side is $2$, and the claim is false for every $n$. Without a base case the dominoes never start.',
               ),
             ),
+            teach(
+              prose(
+                'Two more slips. A step that assumes the claim at $n = k + 1$ is circular: that is exactly what it had to show. "Assume $1 + 3 + \\dots + (2k + 1) = (k + 1)^2$" assumes the answer; the hypothesis may only assume $n = k$.',
+              ),
+              prose(
+                'And a base case at the wrong $n$ proves nothing. Test the claim there. For $3^n > 4n$ from $n = 1$: at $n = 1$, $3 < 4$, so that base case is false. At $n = 2$, $9 > 8$: the base case belongs at $n = 2$.',
+              ),
+            ),
             ask('prf-ind-flaw'),
             ask('prf-ind-test-tree'),
             ask('prf-ind-read-flow'),
-            teach(
-              prose(
-                'Two more slips. A step that assumes the claim at $n = k + 1$ is circular: that is exactly what it had to show.',
-              ),
-              prose(
-                'And a base case at the wrong $n$ proves less than the claim says. A base case at $n = 3$ covers $n \\ge 3$ only, whatever the claim promises.',
-              ),
-            ),
             ask('prf-ind-skeleton'),
             ask('prf-ind-flaw', 2),
             ask('prf-ind-test-tree', 2),
@@ -1026,7 +1105,12 @@ export const numberProof: Course = {
               prose('So $13 = 247x + 52y$ with $x = -1$ and $y = 5$. Check: $260 - 247 = 13$.'),
             ),
             ask('euc-back-order'),
-            ask('euc-find-y'),
+            askAfter(
+              'euc-find-y',
+              1,
+              prose('Given one of $x$ and $y$, put it in and solve for the other. $30x + 18y = 6$ with $x = -1$:'),
+              maths('\\begin{aligned} 30 \\times (-1) &= -30 \\\\ 18y &= 6 - (-30) = 36 \\\\ y &= 36 \\div 18 = 2 \\end{aligned}'),
+            ),
             teach(
               prose(
                 'The same working fits a table. The rows for $a$ and $b$ are $x = 1, y = 0$ and $x = 0, y = 1$. Each new row is the row two above it, take $q$ times the row above.',
@@ -1065,7 +1149,14 @@ export const numberProof: Course = {
               prose('So $x = -3$, $y = 15$ solves $247x + 52y = 39$.'),
             ),
             ask('euc-scale'),
-            ask('euc-scale', 2),
+            askAfter(
+              'euc-scale',
+              2,
+              prose(
+                'The run may list the two numbers the other way round from the equation. Match each number to its own letter. The run gave $13 = 5 \\times 52 - 1 \\times 247$; for $247x + 52y = 39$, times $3$:',
+              ),
+              prose('$247$ goes with $x$, so $x = -1 \\times 3 = -3$. $52$ goes with $y$, so $y = 5 \\times 3 = 15$.'),
+            ),
             teach(
               prose(
                 'In a story, $x$ and $y$ count things, so both have to be positive. To make $38$p from $5$p and $7$p stamps, try $x = 1, 2, 3, \\dots$ until $38 - 5x$ is a multiple of $7$.',
@@ -1110,7 +1201,10 @@ export const numberProof: Course = {
                 'For both parts positive, start from the smallest positive $x$ and count the steps until $y$ reaches $0$ or below.',
               ),
               prose(
-                '$3x + 5y = 41$: the smallest positive $x$ is $2$, with $y = 7$. Steps add $5$ to $x$ and take $3$ from $y$: $(2, 7)$, $(7, 4)$, $(12, 1)$, then $y = -2$. Three solutions.',
+                'With no solution given, find one first. For $3x + 5y = 41$, try $x = 1, 2, \\dots$ until $41 - 3x$ is a multiple of $5$: $x = 1$ leaves $38$, no; $x = 2$ leaves $35 = 5 \\times 7$, so $y = 7$.',
+              ),
+              prose(
+                'That is the smallest positive $x$. Steps add $5$ to $x$ and take $3$ from $y$: $(2, 7)$, $(7, 4)$, $(12, 1)$, then $y = -2$. Three solutions.',
               ),
             ),
             ask('euc-count-positive'),
@@ -1268,7 +1362,16 @@ export const numberProof: Course = {
               ),
             ),
             ask('cong-last-product'),
-            ask('cong-last-square'),
+            askAfter(
+              'cong-last-square',
+              1,
+              prose(
+                'The last digit of a square depends only on the last digit of the number squared. Squaring $0$ to $9$ gives $0, 1, 4, 9, 16, 25, 36, 49, 64, 81$, which end in $0, 1, 4, 9, 6, 5, 6, 9, 4, 1$.',
+              ),
+              prose('So no square ends in $2$, $3$, $7$ or $8$: $7543$ cannot be a square. Two endings say more. A number ending in $5$ is $10a + 5$, and one ending in $0$ is $10a$:'),
+              maths('\\begin{aligned} (10a + 5)^2 &= 100(a^2 + a) + 25 \\\\ (10a)^2 &= 100a^2 \\end{aligned}'),
+              prose('So a square ending in $5$ ends in $25$, and one ending in $0$ ends in $00$. $1345$ ends in $45$, so it cannot be a square.'),
+            ),
             ask('cong-last-product+choice', 2),
             teach(
               prose('Last digits of powers come round in a cycle. The powers of $7$ end in'),
@@ -1313,7 +1416,16 @@ export const numberProof: Course = {
                 'Modulo $11$, $10 \\equiv -1$ and $100 \\equiv 1$, so a number is congruent to its digits added and taken away in turn: $726 \\equiv 7 - 2 + 6 = 11 \\equiv 0$, and $726 = 66 \\times 11$.',
               ),
             ),
-            ask('cong-missing-digit'),
+            askAfter(
+              'cong-missing-digit',
+              1,
+              prose(
+                '$4\\square7$ is divisible by $9$. The digits shown add to $4 + 7 = 11$, and the digit sum must be a multiple of $9$. The next one is $18$, so the missing digit is $18 - 11 = 7$. Check: $477 = 9 \\times 53$.',
+              ),
+              prose(
+                'For a remainder, the digit sum must be that much over a multiple of $9$. $2\\square5$ leaves $4$: the digits add to $7$, and $7 + 6 = 13 = 9 + 4$, so the digit is $6$. Check: $265 = 9 \\times 29 + 4$.',
+              ),
+            ),
             ask('cong-ten-tiles', 2),
             ask('cong-digit-order', 2),
             teach(

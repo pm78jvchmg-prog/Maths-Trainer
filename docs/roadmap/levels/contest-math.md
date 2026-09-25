@@ -158,3 +158,16 @@ Generators in `src/content/generators/contestCounting.ts`.
 | Symmetry | `cm-ahead-of`, `cm-dice-compare`, `cm-perm-sum`, `cm-perm-sum-tiles` | swap two people and the orders pair up; ties aside, a swap splits the rest in half; x to m + 1 − x pairs high totals with low; each digit sits in each place equally often |
 
 Level check: 14 questions across all five lessons.
+
+## Level 8: Probability (`cm-l8`)
+
+Generators in `src/content/generators/contestProbability.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Probability by Outcomes | `cm-pr-dice-sum`, `cm-pr-dice-table`, `cm-pr-order`, `cm-pr-coins` | count outcomes, never totals; a pair on two dice is two outcomes; the head-counts are a row of Pascal's triangle |
+| PIE and Complements | `cm-pr-cards`, `cm-pr-pie-count`, `cm-pr-venn`, `cm-pr-at-least-one` | add the two and take off the overlap; both is a multiple of the LCM; neither is one minus either; at least one is one minus none |
+| Choosing | `cm-pr-committee`, `cm-pr-committee-table`, `cm-pr-both-chosen`, `cm-pr-bag-tree`, `cm-pr-same-colour` | every set of k is equally likely; choose from each group and multiply; the named people take their places first; without putting back, the second branches change |
+| Symmetry and Conditional | `cm-pr-line-up`, `cm-pr-beats`, `cm-pr-cond-dice`, `cm-pr-bags-tree`, `cm-pr-bags-bayes` | every place is as likely as every other; swap two people or two dice; turn a die over to mirror a total; given means throw the rest away; a red counter keeps only the red paths |
+
+Level check: 13 questions across all four lessons.

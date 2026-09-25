@@ -5,13 +5,6 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-25
 
-- **Wrong options are now checked by value (#204).** The sweep reads every
-  choice option's label as a value and fails when a wrong option equals the
-  right one or another wrong one. It found four questions with a second right
-  answer (`mat-det-property` at a determinant of 1 or -1, `frac-lcd`,
-  `fun-composite-order`, and `bin-sum-which` at `a + k = -2`) and eleven with
-  two wrong options worth the same; all fixed. Eleven form questions are
-  exempt, each with its reason.
 - **Top bars hide on scroll, and lists remember where you were (#197).** Less space
   above "All courses" (the home screen matches). The top bar on the home
   screen, a course page and a lesson slides away while scrolling down and

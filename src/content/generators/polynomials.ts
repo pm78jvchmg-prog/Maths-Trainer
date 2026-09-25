@@ -39,7 +39,7 @@ import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
 import { canonicalPieces, formatSet, type Piece } from '../numberLine';
 import { sumTex, termTex } from './calculus';
-import { coeffTex } from './format';
+import { coeffTex, fracTex, say } from './format';
 import { numberLineSvg } from './inequalitiesModulus';
 import { windowFor } from './numberLine';
 
@@ -205,7 +205,6 @@ function chain(...lines: string[]): string {
   return `\\begin{aligned} ${lines.join(' \\\\ ')} \\end{aligned}`;
 }
 
-const say = (text: string): Block => ({ kind: 'prose', text });
 const show = (tex: string): Block => ({ kind: 'display', tex });
 /**
  * A long line as inline maths in prose, which wraps between terms where a
@@ -4371,20 +4370,7 @@ function coefMark(k: number): string {
   return String(k);
 }
 
-function gcdOf(a: number, b: number): number {
-  return b === 0 ? Math.abs(a) : gcdOf(b, a % b);
-}
-
-/** n/d in lowest terms, the sign in front, as the learner reads it. */
-function fracTex(n: number, d: number): string {
-  const g = gcdOf(n, d) || 1;
-  const sign = n * d < 0 ? '-' : '';
-  const top = Math.abs(n / g);
-  const bottom = Math.abs(d / g);
-  return bottom === 1 ? `${sign}${top}` : `${sign}\\frac{${top}}{${bottom}}`;
-}
-
-/** The same for the grader. Never displayed. */
+/** The fraction `fracTex` shows, for the grader. Never displayed. */
 const fracAnswer = (n: number, d: number): string => `(${n})/(${d})`;
 
 /** c/a as a line of working: just c when a is 1, with a minus in front when asked. */

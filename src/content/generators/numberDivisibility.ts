@@ -22,7 +22,6 @@ import {
   choiceSlide,
   factorTex,
   fillBank,
-  gcd,
   isPrime,
   lin,
   mod,
@@ -30,11 +29,11 @@ import {
   orderSolution,
   pickDistractors,
   polyTex,
-  say,
   stackTex,
   turned,
   type Proof,
 } from './numberProof';
+import { gcd, say } from './format';
 
 /* ---------- shared helpers ---------- */
 

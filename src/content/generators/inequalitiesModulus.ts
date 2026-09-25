@@ -38,6 +38,7 @@ import { options } from '../choiceVariant';
 import { sumTex, termTex } from './calculus';
 import { bankOf, numberTile, offer, signedTile } from './quadratics';
 import { windowFor } from './numberLine';
+import { fracTex } from './format';
 
 /* ---------- The inequality sign ---------- */
 
@@ -127,23 +128,6 @@ function surdTex(h: number, sign: 1 | -1, k: number): string {
   const root = `\\sqrt{${k}}`;
   if (h === 0) return sign < 0 ? `-${root}` : root;
   return `${h} ${sign < 0 ? '-' : '+'} ${root}`;
-}
-
-function gcd(a: number, b: number): number {
-  return b === 0 ? Math.abs(a) : gcd(b, a % b);
-}
-
-/** num / den in lowest terms, the sign in front: `-\frac{13}{3}`, or a whole number. */
-function fracTex(num: number, den: number): string {
-  const g = gcd(num, den) || 1;
-  let n = num / g;
-  let d = den / g;
-  if (d < 0) {
-    n = -n;
-    d = -d;
-  }
-  if (d === 1) return `${n}`;
-  return `${n < 0 ? '-' : ''}\\frac{${Math.abs(n)}}{${d}}`;
 }
 
 /** Draw until `accept` holds, falling back to a fixed draw that passes. */

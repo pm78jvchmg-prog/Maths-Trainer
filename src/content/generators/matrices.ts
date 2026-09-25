@@ -20,7 +20,7 @@ import {
   VECTOR_TEMPLATE,
 } from './vectorFormat';
 import { spanFor, transformGridSvg, type Mirror } from './transformFigure';
-import { fracTex } from './parametricImplicit';
+import { fracTex } from './format';
 
 interface MatrixPairParams {
   a: number;

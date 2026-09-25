@@ -27,16 +27,15 @@ import { options } from '../choiceVariant';
 import {
   choiceSlide,
   fillBank,
-  gcd,
   mod,
   orderSlide,
   orderSolution,
   pickDistractors,
-  say,
   stackTex,
   turned,
   type Proof,
 } from './numberProof';
+import { gcd, say } from './format';
 import { treeBank } from './parametricImplicit';
 
 /* ---------- the run ---------- */

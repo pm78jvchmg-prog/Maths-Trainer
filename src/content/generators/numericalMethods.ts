@@ -47,12 +47,12 @@ import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
 import { ALGEBRA_KEYS, ROOT_KEYS, sumTex, termTex } from './calculus';
 import { ITERATES, bracketTex, fixedScheme, written, type FixedFamily } from './iterationTable';
+import { gcd, say } from './format';
 
 /* ================================================================
  * Shared helpers
  * ================================================================ */
 
-const say = (text: string): Block => ({ kind: 'prose', text });
 const show = (tex: string): Block => ({ kind: 'display', tex });
 
 /** A value as it is written: no float dust, no trailing zeros. */
@@ -3568,10 +3568,6 @@ const meanHeightSlider: Generator<MeanHeightParams> = {
 /* ================================================================
  * Level 3: bounds and errors, shared helpers
  * ================================================================ */
-
-function gcd(a: number, b: number): number {
-  return b === 0 ? Math.abs(a) : gcd(b, a % b);
-}
 
 /** The other sign of a written number. */
 function flipped(token: string): string {

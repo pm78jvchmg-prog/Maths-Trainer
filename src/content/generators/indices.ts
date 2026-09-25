@@ -24,7 +24,7 @@ import { markerWindow, plotSvg } from '../figures';
 // restated so a question cannot be built against a rule the widget has moved.
 import { defaultSliderValue } from '../../ui/sliderValue';
 import { ALGEBRA_KEYS, termTex } from './calculus';
-import { surdAnswer, surdParts, surdTex } from './format';
+import { gcd, surdAnswer, surdParts, surdTex } from './format';
 import type { Rng } from '../../engine/rng';
 import { growthGenerators } from './growth';
 
@@ -33,10 +33,6 @@ const SURD_KEYS: KeypadKey[] = [...ALGEBRA_KEYS, { insert: 'sqrt(' }];
 
 /** Numbers whose square root does not simplify, for the surd questions. */
 const SURD_FREE: number[] = [2, 3, 5, 6, 7, 10, 11, 13, 14, 15, 17, 19, 21, 22, 23];
-
-function gcd(a: number, b: number): number {
-  return b === 0 ? a : gcd(b, a % b);
-}
 
 /**
  * Every whole-number root worth asking about, as `base = root^den`.

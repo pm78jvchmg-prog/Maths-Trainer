@@ -33,6 +33,7 @@ import { hashSeed, type Rng } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import { ALGEBRA_KEYS, EXP_KEYS, TRIG_KEYS, sumTex, termAnswer, termTex } from './calculus';
 import { TRIPLES } from './complexPlane';
+import { fracTex, gcdOrOne } from './format';
 
 /* ---------- Shared helpers ---------- */
 
@@ -263,29 +264,9 @@ export function stepBank(value: string, ...candidates: string[]): string[] {
   return bank.sort((a, b) => hashSeed(a) - hashSeed(b));
 }
 
-/** A fraction as the learner reads it, lowest terms, sign out front. */
-export function fracTex(top: number, bottom: number): string {
-  const g = gcd(top, bottom);
-  let p = top / g;
-  let q = bottom / g;
-  if (q < 0) {
-    p = -p;
-    q = -q;
-  }
-  if (q === 1) return `${p}`;
-  return `${p < 0 ? '-' : ''}\\frac{${Math.abs(p)}}{${q}}`;
-}
-
-/** The same fraction for mathjs. */
+/** The fraction `fracTex` shows, for mathjs. */
 function fracAnswer(top: number, bottom: number): string {
   return `(${top})/(${bottom})`;
-}
-
-export function gcd(a: number, b: number): number {
-  let x = Math.abs(a);
-  let y = Math.abs(b);
-  while (y) [x, y] = [y, x % y];
-  return x || 1;
 }
 
 /** Leibniz notation for a derivative. */
@@ -341,7 +322,7 @@ export function polyMul(a: readonly number[], b: readonly number[]): number[] {
 
 /** A fraction in lowest terms with a positive bottom. */
 function lowest(top: number, bottom: number): Frac {
-  const g = gcd(top, bottom);
+  const g = gcdOrOne(top, bottom);
   const sign = bottom < 0 ? -1 : 1;
   return [(sign * top) / g + 0, (sign * bottom) / g];
 }
@@ -2069,7 +2050,7 @@ function slopeParts(terms: Term[]): { top: Term[]; bottom: Term[] } {
     top = negate(top);
     bottom = negate(bottom);
   }
-  const g = [...top, ...bottom].reduce((acc, t) => gcd(acc, t.c), 0);
+  const g = [...top, ...bottom].reduce((acc, t) => gcdOrOne(acc, t.c), 0);
   if (g > 1) {
     top = top.map((t) => ({ ...t, c: t.c / g }));
     bottom = bottom.map((t) => ({ ...t, c: t.c / g }));
@@ -3290,7 +3271,7 @@ export function shifted(u: readonly number[], k: number): number[] {
  * of the bottom moved to the top, and an all-negative top pulled out front.
  */
 function ratTex(top: readonly number[], den: number, power = 0): string {
-  const g = [...top, den].reduce((acc, v) => gcd(acc, v), 0);
+  const g = [...top, den].reduce((acc, v) => gcdOrOne(acc, v), 0);
   let p = top.map((v) => v / g);
   let q = den / g;
   if (q < 0) {
@@ -3317,7 +3298,7 @@ function timesTex(n: number, dd: number, body: string): string {
 
 /** n over d times a body: -\frac{3}{4\sin^{3} t}. */
 function overBodyTex(n: number, dd: number, body: string): string {
-  const g = gcd(n, dd);
+  const g = gcdOrOne(n, dd);
   let p = n / g;
   let q = dd / g;
   if (q < 0) {
@@ -3720,7 +3701,7 @@ function sampleGeneralD2(rng: Rng, difficulty: number): GeneralD2Params {
     const curve = { x, y };
     const { X1, N } = secondAt(curve, k);
     if (Math.abs(X1) < 2 || N === 0) continue;
-    const g = gcd(N, X1 ** 3);
+    const g = gcdOrOne(N, X1 ** 3);
     if (Math.abs(X1 ** 3 / g) > 32 || Math.abs(N / g) > 60) continue;
     const [x0, y0] = pointAt(curve, k);
     if (Math.abs(x0) > 30 || Math.abs(y0) > 40) continue;
@@ -4334,7 +4315,7 @@ const implD2Tiles: Generator<ConicParams> = {
 
 /** A over B in lowest terms with the sign kept on B: [A', B', C', g]. */
 function reducedConic(params: ConicParams): [number, number, number] {
-  const g = gcd(params.A, params.B);
+  const g = gcdOrOne(params.A, params.B);
   return [params.A / g, params.B / g, conicRhs(params) / g];
 }
 
@@ -4515,7 +4496,7 @@ const implD2PointTree: Generator<ConicParams> = {
       const g = -(A * p) / (B * q);
       const top = q - p * g;
       const v: Frac = [-A * top, B * q * q];
-      return Math.abs(g) <= 12 && Math.abs(top) <= 40 && top !== 0 && Math.abs(v[1] / gcd(...v)) <= 16;
+      return Math.abs(g) <= 12 && Math.abs(top) <= 40 && top !== 0 && Math.abs(v[1] / gcdOrOne(...v)) <= 16;
     }),
   render: (params): Slide => {
     const { A, B, p, q } = params;
@@ -5513,7 +5494,7 @@ export const inTNormal = (params: InTParams): [number, number, number] => {
 
 /** (top/bottom) t^power as the learner reads it, the fraction in lowest terms. */
 export function tPowerTex(top: number, bottom: number, power: number): string {
-  const g = gcd(top, bottom);
+  const g = gcdOrOne(top, bottom);
   let n = top / g;
   let dd = bottom / g;
   if (dd < 0) {
@@ -5847,7 +5828,7 @@ export interface AgainParams {
 export function againNormal({ curve, k }: AgainParams): [number, number, number] {
   const [dx, dy] = ratesAt(curve, k);
   const [x0, y0] = pointAt(curve, k);
-  const g = gcd(dx, dy) * (dx < 0 ? -1 : 1);
+  const g = gcdOrOne(dx, dy) * (dx < 0 ? -1 : 1);
   const A = dx / g;
   const B = dy / g;
   return [A, B, A * x0 + B * y0];
@@ -6531,7 +6512,7 @@ export interface InverseSineParams {
 }
 
 /** Triples in lowest terms up to 41, so a/c is a new fraction on every row. */
-const LOWEST_TRIPLES = TRIPLES.filter(([a, b, c]) => gcd(a, b) === 1 && c <= 41);
+const LOWEST_TRIPLES = TRIPLES.filter(([a, b, c]) => gcdOrOne(a, b) === 1 && c <= 41);
 
 function sampleInverseSine(rng: Rng, inv: InverseSineParams['inv'][], ks: number[]): InverseSineParams {
   const [a, b, c] = rng.pick(LOWEST_TRIPLES);
@@ -7622,7 +7603,7 @@ function sampleRate(rng: Rng, difficulty: number, given: 'x' | 'y', whole = diff
     });
     const params: RateParams = { curve, given, r };
     const [top, bottom] = rateFound(params);
-    const den = Math.abs(bottom / gcd(top, bottom));
+    const den = Math.abs(bottom / gcdOrOne(top, bottom));
     if (whole ? den !== 1 : den > 12) continue;
     if (Math.abs(top / bottom) > 40 || Math.abs(top) > 99) continue;
     return params;
@@ -8173,7 +8154,7 @@ const paramDirectionGradient: Generator<MotionParams> = {
   sample: (rng, difficulty) =>
     sampleMotion(rng, difficulty, ({ curve, k }) => {
       const [dx, dy] = ratesAt(curve, k);
-      return Math.abs(dx / gcd(dx, dy)) <= 12 && Math.abs(dx) !== Math.abs(dy);
+      return Math.abs(dx / gcdOrOne(dx, dy)) <= 12 && Math.abs(dx) !== Math.abs(dy);
     }),
   choices: ({ curve, k }) => {
     const [dx, dy] = ratesAt(curve, k);

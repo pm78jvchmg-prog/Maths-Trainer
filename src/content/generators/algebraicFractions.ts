@@ -36,12 +36,12 @@ import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
 import { canonicalPieces, formatSet, type Piece } from '../numberLine';
 import { termTex } from './calculus';
+import { gcd, say } from './format';
 import { type Poly, addPoly, divideBy, fromRoots, mulPoly, polyTex, scalePoly, valueAt } from './polynomials';
 import { windowFor } from './numberLine';
 
 /* ---------- display ---------- */
 
-const say = (text: string): Block => ({ kind: 'prose', text });
 const show = (tex: string): Block => ({ kind: 'display', tex });
 
 /** The inside of the bracket (x + c): x + 3, x - 2, or x. */
@@ -222,12 +222,6 @@ function distinct(rng: Rng, count: number, max: number, avoid: number[] = []): n
     const out = Array.from({ length: count }, () => nonZero(rng, max));
     if (new Set(out).size === count && out.every((v) => !avoid.includes(v))) return out;
   }
-}
-
-function gcd(a: number, b: number): number {
-  let [x, y] = [Math.abs(a), Math.abs(b)];
-  while (y) [x, y] = [y, x % y];
-  return x;
 }
 
 /** The largest whole number dividing every coefficient. */

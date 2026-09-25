@@ -28,6 +28,7 @@ import { options } from '../choiceVariant';
 import { bin, log, num, pow, type Expr } from '../expr';
 import { markerWindow, plotSvg, type PlotOptions } from '../figures';
 import { EXP_KEYS } from './calculus';
+import { fracTex, gcd } from './format';
 
 /** Solving for an index needs a logarithm key. */
 const LOG_KEYS: KeypadKey[] = [...EXP_KEYS, { insert: 'log(' }];
@@ -2011,13 +2012,6 @@ const methodFlow: Generator<MethodParams> = {
 /** For an answer that is an exact fraction, which the base keypad cannot type. */
 const FRACTION_KEYS: KeypadKey[] = [{ insert: '/' }, { insert: '(' }, { insert: ')' }];
 
-function gcd(a: number, b: number): number {
-  let x = Math.abs(a);
-  let y = Math.abs(b);
-  while (y !== 0) [x, y] = [y, x % y];
-  return x;
-}
-
 /** p/q in lowest terms, with any sign carried on the numerator. */
 function reduced(p: number, q: number): [number, number] {
   const g = gcd(p, q);
@@ -2025,14 +2019,7 @@ function reduced(p: number, q: number): [number, number] {
   return [(sign * p) / g, (sign * q) / g];
 }
 
-/** A fraction as the learner reads it. A whole number stays whole. */
-function fracTex(p: number, q: number): string {
-  const [n, d] = reduced(p, q);
-  if (d === 1) return `${n}`;
-  return n < 0 ? `-\\frac{${-n}}{${d}}` : `\\frac{${n}}{${d}}`;
-}
-
-/** The same fraction for the checker. Never displayed. */
+/** The fraction `fracTex` shows, for the checker. Never displayed. */
 function fracAnswer(p: number, q: number): string {
   const [n, d] = reduced(p, q);
   return `(${n}) / (${d})`;

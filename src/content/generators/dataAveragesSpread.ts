@@ -49,12 +49,12 @@ import { markerWindow, plotSvg } from '../figures';
 import { fmt } from './numericalMethods';
 import { defaultSliderValue } from '../../ui/sliderValue';
 import { mix, steered, stepBank } from './parametricImplicit';
+import { say } from './format';
 
 /* ================================================================
  * Shared helpers
  * ================================================================ */
 
-const say = (text: string): Block => ({ kind: 'prose', text });
 const show = (tex: string): Block => ({ kind: 'display', tex });
 
 const total = (xs: readonly number[]): number => xs.reduce((acc, x) => acc + x, 0);

@@ -24,6 +24,7 @@ import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
 import { canonicalSet } from '../numberLine';
 import { EXP_KEYS } from './calculus';
+import { gcd } from './format';
 // Where a slider's handle rests before it is touched, so no answer sits there.
 import { defaultSliderValue } from '../../ui/sliderValue';
 import type { Rng } from '../../engine/rng';
@@ -7150,19 +7151,15 @@ function pounds(x: number): string {
   return `£${String(pence / 100).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 }
 
-function gcdOf(a: number, b: number): number {
-  return b === 0 ? Math.abs(a) : gcdOf(b, a % b);
-}
-
 /** p/q in lowest terms as TeX, a whole number bare. */
 function fracOf(p: number, q: number): string {
-  const g = gcdOf(p, q);
+  const g = gcd(p, q);
   return q / g === 1 ? String(p / g) : `\\frac{${p / g}}{${q / g}}`;
 }
 
 /** p/q in lowest terms for mathjs. */
 function fracAnswer(p: number, q: number): string {
-  const g = gcdOf(p, q);
+  const g = gcd(p, q);
   return q / g === 1 ? String(p / g) : `${p / g}/${q / g}`;
 }
 
@@ -8011,7 +8008,7 @@ const expmEValue: Generator<EValueParams> = {
     {
       tex: chain(
         `1 ${x < 0 ? '-' : '+'} \\frac{${Math.abs(x)}}{${n}} &= \\frac{${n + x}}{${n}}`,
-        `\\left(\\frac{${n + x}}{${n}}\\right)^{${n}} &= \\frac{${(n + x) ** n}}{${n ** n}}${gcdOf((n + x) ** n, n ** n) > 1 ? ` = ${fracOf((n + x) ** n, n ** n)}` : ''}`,
+        `\\left(\\frac{${n + x}}{${n}}\\right)^{${n}} &= \\frac{${(n + x) ** n}}{${n ** n}}${gcd((n + x) ** n, n ** n) > 1 ? ` = ${fracOf((n + x) ** n, n ** n)}` : ''}`,
       ),
     },
     { text: `As $n$ grows, $\\left(1 ${x < 0 ? '-' : '+'} \\frac{${Math.abs(x)}}{n}\\right)^{n}$ gets closer and closer to $${ePow(String(x))}$.` },

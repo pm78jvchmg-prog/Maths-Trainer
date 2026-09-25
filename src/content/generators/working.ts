@@ -27,9 +27,9 @@
  * repetition rule in `shapeVariety.ts`. A generator asking something no
  * existing generator asks gets a name of its own instead.
  */
-import type { Block, Generator, Slide } from '../types';
+import type { Generator, Slide } from '../types';
 import { hashSeed } from '../../engine/rng';
-import { nonZero, surdTex } from './format';
+import { nonZero, say, surdTex } from './format';
 import { signedTile } from './quadratics';
 
 /* ---------- Shared helpers ---------- */
@@ -71,11 +71,6 @@ function stepBank(value: string, ...candidates: string[]): string[] {
     if (!bank.includes(candidate)) bank.push(candidate);
   }
   return scatter(bank);
-}
-
-/** Prose prompt, the only kind these widgets need above their own figure. */
-function say(text: string): Block {
-  return { kind: 'prose', text };
 }
 
 /** `+ 3` or `- 3`, for appending to a term the learner reads. */

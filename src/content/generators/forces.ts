@@ -62,6 +62,7 @@ import { canonicalForces, type Direction, type ForceArrow, type ForceScene } fro
 import { markerWindow, plotSvg, vectorSvg } from '../figures';
 import { fmt } from './numericalMethods';
 import { mix, stepBank, steered, turned } from './parametricImplicit';
+import { gcd, say } from './format';
 import { WORKING_KEYS } from './workingKeys';
 
 /* ================================================================
@@ -71,7 +72,6 @@ import { WORKING_KEYS } from './workingKeys';
 /** g, in m s^-2. Stated in the prose of every question that uses it. */
 export const G = 9.8;
 
-const say = (text: string): Block => ({ kind: 'prose', text });
 const show = (tex: string): Block => ({ kind: 'display', tex });
 const picture = (svg: string): Block => ({ kind: 'diagram', svg });
 
@@ -2854,12 +2854,8 @@ function sliderMuTex(params: Pick<SlopeSliderParams, 't' | 'parts'>): string {
   const mu = sliderMu(params);
   if (params.t === A34) return fmt(mu);
   if (Number.isInteger(mu)) return fmt(mu);
-  const g = gcdOf(params.parts, 6);
+  const g = gcd(params.parts, 6);
   return `\\tfrac{${params.parts / g}}{${6 / g}}`;
-}
-
-function gcdOf(a: number, b: number): number {
-  return b === 0 ? Math.abs(a) : gcdOf(b, a % b);
 }
 
 /** The size of the acceleration: down the slope when released, the deceleration when sent up it. */

@@ -48,12 +48,12 @@ import { markerWindow, plotSvg } from '../figures';
 import { nCr } from './binomialExpansion';
 import { fmt } from './numericalMethods';
 import { stepBank, tokenBank, treeBank } from './parametricImplicit';
+import { say } from './format';
 
 /* ================================================================
  * Shared helpers
  * ================================================================ */
 
-const say = (text: string): Block => ({ kind: 'prose', text });
 const show = (tex: string): Block => ({ kind: 'display', tex });
 
 /** Display lines stacked on their `&`, so a list of cumulatives never runs off a phone. */

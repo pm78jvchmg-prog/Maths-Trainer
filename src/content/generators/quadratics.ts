@@ -24,7 +24,7 @@ import type { Generator, KeypadKey, Slide } from '../types';
 import { markerWindow, parabolaSvg } from '../figures';
 import { options } from '../choiceVariant';
 import { ALGEBRA_KEYS, termTex } from './calculus';
-import { fracTex } from './parametricImplicit';
+import { fracTex } from './format';
 import { bin, num, pow } from '../expr';
 
 /** Roots can be surds, so the formula questions need a root key. */

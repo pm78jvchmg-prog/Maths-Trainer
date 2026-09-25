@@ -32,10 +32,9 @@ import { orderBank } from './proofOrder';
 import { canonicalPieces, formatSet, type Piece } from '../numberLine';
 import { windowFor } from './numberLine';
 import { stepBank, treeBank } from './parametricImplicit';
+import { gcd, say } from './format';
 
 /* ---------- shared helpers ---------- */
-
-export const say = (text: string): Block => ({ kind: 'prose', text });
 
 export function isPrime(n: number): boolean {
   if (n < 2) return false;
@@ -47,13 +46,6 @@ export function isPrime(n: number): boolean {
 export function smallestFactor(n: number): number {
   for (let d = 2; d * d <= n; d += 1) if (n % d === 0) return d;
   return n;
-}
-
-export function gcd(a: number, b: number): number {
-  let x = Math.abs(a);
-  let y = Math.abs(b);
-  while (y) [x, y] = [y, x % y];
-  return x;
 }
 
 /** A remainder in 0..m - 1, whatever the sign of n. */

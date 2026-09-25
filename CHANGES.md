@@ -5,6 +5,9 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-25
 
+- **The game is renamed Excellent (#198).** Tab title, splash screen,
+  home screen icon label and README; the web address, repository and saved
+  progress keys are unchanged.
 - **Top bars hide on scroll, and lists remember where you were (#197).** Less space
   above "All courses" (the home screen matches). The top bar on the home
   screen, a course page and a lesson slides away while scrolling down and

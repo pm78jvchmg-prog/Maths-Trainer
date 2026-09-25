@@ -568,6 +568,13 @@ in the build, and `src/sync/sync.test.ts` runs it against Node's SQLite. Try it
 locally with `npm run build` then `npx wrangler dev --port 5199`; `npm run dev`
 has no `/api` and sync just reports offline.
 
+Cloudflare builds one pull request head at a time and posts its check only
+once a build starts, so with many pull requests open a head can wait well over
+twenty minutes without anything being wrong. Pushing to a waiting head sends it
+to the back of the queue. `.github/workflows/stuck-builds.yml` therefore re-kicks
+a pull request only when no Cloudflare build has started or finished anywhere
+for twenty minutes, and then only the oldest one; do not make it more eager.
+
 The app is installed to an iPhone Home Screen and must work offline — the
 service worker precaches everything including KaTeX fonts and mathjs. Do not add
 runtime network dependencies.

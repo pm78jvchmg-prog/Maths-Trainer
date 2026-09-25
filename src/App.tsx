@@ -112,7 +112,7 @@ function LibraryLine() {
  * from the first maths band to the last, deepening as the maths gets harder,
  * and a second, orange, run for the applied subjects.
  */
-const MATHS_BANDS = ['algebra-fundamentals', 'advanced-algebra', 'advanced-maths'];
+const MATHS_BANDS = ['algebra-fundamentals', 'advanced-algebra', 'advanced-maths', 'contest-math'];
 const BANDS = [
   { id: 'maths', holds: (id: string) => MATHS_BANDS.includes(id) },
   // Everything else, so a category added later cannot fall out of the list.

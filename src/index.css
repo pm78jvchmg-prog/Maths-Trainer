@@ -98,17 +98,17 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Sized by `installTopInset` (see `ui/fullHeight.ts`): on an installed iOS
-   app the window reports a status bar short of the screen, and both `100%`
-   and a `position: fixed` box stop at that short line, leaving a strip of the
-   app's base colour under the page. Sizing the document itself to the screen
-   reaches the bottom edge. `overflow: hidden` on both is what keeps that
-   taller document from scrolling as a whole, which dragged the background
-   with it and took the swipe from the course list. */
+/* The window an installed iOS app is given can stop a status bar short of
+   the screen, leaving a strip of plain colour below it. Nothing on the page
+   reaches that strip: a document or a fixed box sized to the whole screen was
+   still cut off at the window's edge on the owner's phone (iOS 27), and only
+   hid the bottom of every screen. So the page fills the window and no more.
+   `overflow: hidden` stops the page scrolling as a whole, which dragged the
+   background with it and took the swipe from the course list. */
 html,
 body,
 #root {
-  height: var(--app-height, 100%);
+  height: 100%;
 }
 
 html,
@@ -122,6 +122,14 @@ body {
    from handing the page a horizontal scrollbar it never loses. */
 #root {
   overflow: hidden;
+}
+
+/* On the home screen the page's base colour is the list's blue, so if iOS
+   paints the strip below a short window in the page's colour, it matches the
+   list rather than showing as a dark band. The glow and the bands cover the
+   rest, so nothing else on screen changes. */
+body:has(.band-maths) {
+  background-color: #1e2154;
 }
 
 body {

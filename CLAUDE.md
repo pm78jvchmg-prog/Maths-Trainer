@@ -406,7 +406,8 @@ it on every draw, which is why slopes run 25 to 40 degrees. `fd-pick` and
 `fd-fill` in `generators/forceDiagram.ts` are demonstrations no lesson asks
 yet.
 
-A `display` block is split at each top-level `\qquad` (`src/ui/displayPieces.ts`)
+Every display formula (a `display` block, a tree's expression, a worked
+solution's `tex` line) renders through `DisplayMath` in `src/ui/Math.tsx`. It is split at each top-level `\qquad` (`src/ui/displayPieces.ts`)
 and each piece is set **inline in display style**, not in KaTeX display mode,
 so pieces stack when they do not fit side by side and a long piece breaks after
 an `=` or `+`. Use `\qquad` between separate results on one display and

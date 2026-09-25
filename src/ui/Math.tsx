@@ -94,6 +94,29 @@ export function Prose({ text }: { text: string }) {
   );
 }
 
+/**
+ * A display formula, on its own line or panel. Every display in the app goes
+ * through here (teaching and question prompts, tree expressions, worked
+ * solutions), so none of them can scroll where another would wrap.
+ *
+ * Each piece (`displayPieces`) is set inline in display style rather than in
+ * display mode: display mode cannot break a line, so a formula wider than the
+ * phone scrolled sideways, while inline mode breaks after an `=` or a `+` only
+ * when the line does not fit. The piece's own overflow scroll is left for the
+ * rare formula with nowhere to break.
+ */
+export function DisplayMath({ tex }: { tex: string }) {
+  return (
+    <div className="display-math display-row">
+      {displayPieces(tex).map((piece, at) => (
+        <span key={at} className="display-piece">
+          <Tex tex={`\\displaystyle ${piece}`} />
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export function Blocks({ blocks }: { blocks: Block[] }) {
   return (
     <>
@@ -119,20 +142,7 @@ export function Blocks({ blocks }: { blocks: Block[] }) {
             />
           );
         }
-        // Each piece is set inline in display style rather than in display
-        // mode: display mode cannot break a line, so a formula wider than the
-        // phone scrolled sideways, while inline mode breaks after an `=` or a
-        // `+` only when the line does not fit. The piece's own overflow scroll
-        // is left for the rare formula with nowhere to break.
-        return (
-          <div key={idx} className="display-math display-row">
-            {displayPieces(block.tex).map((piece, at) => (
-              <span key={at} className="display-piece">
-                <Tex tex={`\\displaystyle ${piece}`} />
-              </span>
-            ))}
-          </div>
-        );
+        return <DisplayMath key={idx} tex={block.tex} />;
       })}
     </>
   );

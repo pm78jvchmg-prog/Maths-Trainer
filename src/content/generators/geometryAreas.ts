@@ -10,7 +10,7 @@
  */
 import type { ChoiceOption, Generator, Slide } from '../types';
 import { num, numberBank, numberOptions, say, typed } from './contestMath';
-import { type Pt, DASHED, SVG_CLOSE, centroid, choiceSlide, f1, fit, outline, seg, sideLabel, svgOpen, text } from './geometryKit';
+import { type Pt, DASHED, SVG_CLOSE, centroid, choiceSlide, cornerAngle, f1, fit, labelHalf, outline, seg, sideLabel, sideLabelAt, svgOpen, text } from './geometryKit';
 import { PI_KEYS, circleSvg, partCircleSvg, piAns, piOptions, piTex, rectSvg, sectorSvg } from './geometryLengths';
 
 const diagram = (svg: string) => ({ kind: 'diagram' as const, svg });
@@ -36,11 +36,6 @@ function heightMark(top: Pt, foot: Pt, towards: 1 | -1): string {
   );
 }
 
-/** Label a dashed height, beside it on the side away from the shape's middle. */
-function heightLabel(top: Pt, foot: Pt, label: string, awayFrom: Pt): string {
-  return sideLabel(top, foot, label, awayFrom, 14);
-}
-
 export interface TriShape {
   b: number;
   h: number;
@@ -51,7 +46,8 @@ export interface TriShape {
 /** A triangle on its base with its perpendicular height dashed in. */
 export function triHeightSvg({ b, h, p }: TriShape, baseLabel: string, heightText: string): string {
   const raw: Pt[] = [[0, 0], [b, 0], [p, -h]];
-  const pts = fit([...raw, [Math.min(0, p), 0], [Math.max(b, p), 0]], 220, 140, 40, 22).slice(0, 3);
+  // 50 clear either side, room for a height label outside the triangle.
+  const pts = fit([...raw, [Math.min(0, p), 0], [Math.max(b, p), 0]], 200, 140, 50, 22).slice(0, 3);
   const [A, B, C] = pts;
   const foot: Pt = [C[0], A[1]];
   const inside = centroid(pts);
@@ -60,9 +56,15 @@ export function triHeightSvg({ b, h, p }: TriShape, baseLabel: string, heightTex
   if (foot[0] < A[0]) parts.push(seg(foot, A, DASHED));
   if (foot[0] > B[0]) parts.push(seg(B, foot, DASHED));
   if (Math.abs(foot[0] - A[0]) > 1) parts.push(heightMark(C, foot, foot[0] < A[0] ? 1 : -1));
-  parts.push(sideLabel(A, B, baseLabel, inside, 14));
-  const outside: Pt = foot[0] <= A[0] + 1 ? [foot[0] + 50, foot[1] - 20] : foot[0] >= B[0] - 1 ? [foot[0] - 50, foot[1] - 20] : [foot[0] - 50, foot[1] - 20];
-  parts.push(Math.abs(foot[0] - A[0]) > 1 ? heightLabel(C, foot, heightText, outside) : sideLabel(A, C, heightText, inside, 14));
+  // A height that is a side of the triangle still meets the base square.
+  else parts.push(cornerAngle(B, A, C, '', { square: true }));
+  const base: [Pt, string] = [sideLabelAt(A, B, baseLabel, inside, 14), baseLabel];
+  parts.push(text(...base));
+  if (Math.abs(foot[0] - A[0]) <= 1) parts.push(sideLabel(A, C, heightText, inside, 14));
+  else {
+    const run: [Pt, Pt][] = foot[0] < A[0] ? [[foot, A]] : foot[0] > B[0] ? [[B, foot]] : [];
+    parts.push(heightLabel(pts, C, foot, heightText, run, [base]));
+  }
   parts.push(SVG_CLOSE);
   return parts.join('');
 }
@@ -82,14 +84,96 @@ export function quadHeightSvg({ b, a, h, off }: QuadShape, labels: { bottom: str
   const [P, Q, R, S] = pts;
   const inside = centroid(pts);
   const foot: Pt = [S[0], P[1]];
-  const parts = [svgOpen(190, 'A four-sided shape with its height'), outline(pts), heightMark(S, foot, 1)];
-  parts.push(sideLabel(P, Q, labels.bottom, inside, 14));
-  if (labels.top) parts.push(sideLabel(S, R, labels.top, inside, 14));
-  if (labels.slant) parts.push(sideLabel(Q, R, labels.slant, inside, 16));
-  // The height's label goes inside the shape, just right of the dashed line.
-  parts.push(text([S[0] + 8 + 3.8 * labels.height.length, (S[1] + foot[1]) / 2], labels.height));
+  // A top leaning past the end of the base has its height land beyond it, so
+  // the base runs on, dashed, to meet it.
+  const beyond = foot[0] > Q[0] + 1;
+  const parts = [svgOpen(190, 'A four-sided shape with its height'), outline(pts)];
+  if (beyond) parts.push(seg(Q, foot, DASHED));
+  parts.push(heightMark(S, foot, beyond ? -1 : 1));
+  const placed: [Pt, string][] = [[sideLabelAt(P, Q, labels.bottom, inside, 14), labels.bottom]];
+  if (labels.top) placed.push([sideLabelAt(S, R, labels.top, inside, 14), labels.top]);
+  // The sloping sides are equal; when the height crosses the right one, the left one carries the label.
+  if (labels.slant) placed.push([beyond ? sideLabelAt(P, S, labels.slant, inside, 16) : sideLabelAt(Q, R, labels.slant, inside, 16), labels.slant]);
+  for (const [at, value] of placed) parts.push(text(at, value));
+  parts.push(heightLabel(pts, S, foot, labels.height, beyond ? [[Q, foot]] : [], placed));
   parts.push(SVG_CLOSE);
   return parts.join('');
+}
+
+/** How close a line may come to the box a label takes up. */
+const LABEL_CLEAR = 4;
+
+/** Whether segment ab passes within LABEL_CLEAR of the box a label centred at `c` takes up. */
+function crosses(c: Pt, value: string, a: Pt, b: Pt): boolean {
+  const [hw, hh] = labelHalf(value);
+  const steps = Math.max(2, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 2));
+  for (let i = 0; i <= steps; i += 1) {
+    const x = a[0] + ((b[0] - a[0]) * i) / steps;
+    const y = a[1] + ((b[1] - a[1]) * i) / steps;
+    if (Math.abs(x - c[0]) < hw + LABEL_CLEAR && Math.abs(y - c[1]) < hh + LABEL_CLEAR) return true;
+  }
+  return false;
+}
+
+/** Whether `p` lies inside the polygon `pts`. */
+function inside(pts: Pt[], [x, y]: Pt): boolean {
+  let hit = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i, i += 1) {
+    const [xi, yi] = pts[i];
+    const [xj, yj] = pts[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit;
+  }
+  return hit;
+}
+
+/** Whether two labels, centred at `a` and `b`, come within LABEL_CLEAR of each other. */
+function overlaps(a: Pt, av: string, b: Pt, bv: string): boolean {
+  const [aw, ah] = labelHalf(av);
+  const [bw, bh] = labelHalf(bv);
+  return Math.abs(a[0] - b[0]) < aw + bw + LABEL_CLEAR && Math.abs(a[1] - b[1]) < ah + bh + LABEL_CLEAR;
+}
+
+/**
+ * A dashed height's label: beside the line and as near the middle
+ * of the height as it can be, clear of every line and label already drawn.
+ * Inside the shape first; a narrow shape has no room there (a parallelogram's
+ * label used to sit across its far side), so then outside, beside the height
+ * on the side away from the shape. The figure is 300 wide.
+ */
+function heightLabel(pts: Pt[], top: Pt, foot: Pt, value: string, lines: [Pt, Pt][], labels: [Pt, string][]): string {
+  const [hw] = labelHalf(value);
+  const edges = [...pts.map((p, i): [Pt, Pt] => [p, pts[(i + 1) % pts.length]]), ...lines, [top, foot] as [Pt, Pt]];
+  const at = (side: number, t: number): Pt => [top[0] + side * (hw + 7), top[1] + (foot[1] - top[1]) * t];
+  const clear = (c: Pt) =>
+    c[0] - hw > 2 && c[0] + hw < 298 && !edges.some(([a, b]) => crosses(c, value, a, b)) && !labels.some(([l, v]) => overlaps(c, value, l, v));
+  // Where each line crosses the level y.
+  const cuts = (y: number) =>
+    edges.flatMap(([a, b]) => (a[1] === b[1] || (y - a[1]) * (y - b[1]) > 0 ? [] : [a[0] + ((b[0] - a[0]) * (y - a[1])) / (b[1] - a[1])]));
+  // A side of the shape between a label and the height makes it read as that side's length.
+  const shielded = (c: Pt) => cuts(c[1]).some((x) => (x - c[0]) * (x - top[0]) < -1);
+  const away = top[0] < centroid(pts)[0] ? -1 : 1;
+  for (const wantInside of [true, false]) {
+    for (const t of [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8]) {
+      for (const side of [away, -away]) {
+        const c = at(side, t);
+        if (inside(pts, c) === wantInside && clear(c) && !shielded(c)) return text(c, value);
+      }
+    }
+  }
+  // Too narrow for any of those: the label goes out past the shape on the
+  // free side, joined to the height by a thin leader, so it is never read as
+  // the length of the side it sits beside.
+  const y = (top[1] + foot[1]) / 2;
+  const [, hh] = labelHalf(value);
+  const xs = [y - hh, y, y + hh].flatMap(cuts);
+  for (const side of [away, -away]) {
+    const edge = side > 0 ? Math.max(...xs) : Math.min(...xs);
+    const c: Pt = [edge + side * (hw + 12), y];
+    if (c[0] - hw < 2 || c[0] + hw > 298) continue;
+    const end: Pt = [c[0] - side * (hw + 3), y];
+    return `<line x1="${f1(top[0])}" y1="${f1(y)}" x2="${f1(end[0])}" y2="${f1(y)}" stroke="currentColor" stroke-width="1" opacity="0.7" />${text(c, value)}`;
+  }
+  return text(at(1, 0.5), value);
 }
 
 /** An L-shape split by a dashed line into two rectangles A and B, sides labelled. */

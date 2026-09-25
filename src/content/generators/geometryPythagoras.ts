@@ -33,6 +33,20 @@ const isSquare = (n: number) => Number.isInteger(Math.sqrt(n));
 /** A square root in TeX, written as the whole number when it is one. */
 const rootTex = (n: number) => (isSquare(n) ? `${Math.sqrt(n)}` : `\\sqrt{${n}}`);
 
+/**
+ * A chain of equal things, `c^2 = 30^2 + 16^2 = 900 + 256 = 1156`, for a
+ * worked solution. On one line it breaks after its last "=" on a phone once
+ * the numbers grow, leaving the result alone on a line of its own; from a
+ * dozen digits it is split into two pieces instead, the squares above and the
+ * arithmetic below.
+ */
+function chain(...parts: (string | number)[]): string {
+  const digits = parts.join('').replace(/\^2/g, '').replace(/\D/g, '').length;
+  if (digits < 12 || parts.length < 3) return parts.join(' = ');
+  const cut = parts.length - 2;
+  return `${parts.slice(0, cut).join(' = ')} \\qquad = ${parts.slice(cut).join(' = ')}`;
+}
+
 /* ================================================================
  * Triples
  * ================================================================ */
@@ -92,8 +106,13 @@ export function rightTriSvg(a: number, b: number, corner: Corner, labels: RightT
   if (labels.b) parts.push(sideLabel(R, B, labels.b, inside, 14, clear));
   if (labels.c) parts.push(sideLabel(A, B, labels.c, inside, 14));
   if (labels.angles) {
-    if (labels.angles[0]) parts.push(cornerAngle(R, A, B, labels.angles[0]));
-    if (labels.angles[1]) parts.push(cornerAngle(R, B, A, labels.angles[1]));
+    // A thin corner's label has to sit well down the triangle to clear both
+    // arms, so its wedge is drawn out to meet it: a 30° label left halfway
+    // along the long side beneath a small arc read as belonging to nothing.
+    const wedge = (deg: number) => (deg < 40 ? { r: 44, R: 66 } : {});
+    const atA = (Math.atan2(b, a) * 180) / Math.PI;
+    if (labels.angles[0]) parts.push(cornerAngle(R, A, B, labels.angles[0], wedge(atA)));
+    if (labels.angles[1]) parts.push(cornerAngle(R, B, A, labels.angles[1], wedge(90 - atA)));
   }
   parts.push(SVG_CLOSE);
   return parts.join('');
@@ -118,6 +137,9 @@ export function ladderSvg(foot: number, height: number, labels: { foot?: string;
 
 /** A rectangle w by h with its diagonal from bottom-left to top-right. */
 export function rectDiagSvg(w: number, h: number, labels: { bottom?: string; right?: string; diag?: string }): string {
+  // A tall thin rectangle leaves no room beside its diagonal for a label, so
+  // it is laid on its long side; the sides keep their own labels.
+  if (h > 1.6 * w) return rectDiagSvg(h, w, { ...labels, bottom: labels.right, right: labels.bottom });
   const [a, , c] = fit([[0, 0], [w, 0], [w, -h], [0, -h]], 190, 120, 55, 22);
   const pts: Pt[] = [a, [c[0], a[1]], c, [a[0], c[1]]];
   const [p0, p1, p2] = pts;
@@ -126,7 +148,11 @@ export function rectDiagSvg(w: number, h: number, labels: { bottom?: string; rig
   if (labels.bottom) parts.push(sideLabel(p0, p1, labels.bottom, inside, 14));
   if (labels.right) parts.push(sideLabel(p1, p2, labels.right, inside, 10 + 3.4 * labels.right.length));
   // The diagonal's label sits on the side away from the corner it cuts off.
-  if (labels.diag) parts.push(sideLabel(p0, p2, labels.diag, p1, 12));
+  // In a flat rectangle that side is a thin wedge under the top edge, roomy
+  // only toward its left end, so the label moves down the diagonal to there.
+  const t = p1[1] - p2[1] < 80 ? 0.3 : 0.5;
+  const along: Pt = [p0[0] + 2 * t * (p2[0] - p0[0]), p0[1] + 2 * t * (p2[1] - p0[1])];
+  if (labels.diag) parts.push(sideLabel(p0, along, labels.diag, p1, 12));
   parts.push(SVG_CLOSE);
   return parts.join('');
 }
@@ -178,7 +204,7 @@ function sampleHyp(rng: Rng, difficulty: number): HypParams {
 
 const hypSteps = ({ a, b, c }: HypParams) => [
   { text: 'Square the two shorter sides and add:' },
-  { tex: `c^2 = ${a}^2 + ${b}^2 = ${a * a} + ${b * b} = ${c * c}` },
+  { tex: chain('c^2', `${a}^2 + ${b}^2`, `${a * a} + ${b * b}`, c * c) },
   { text: 'Then take the square root:' },
   { tex: `c = \\sqrt{${c * c}} = ${c}` },
 ];
@@ -250,7 +276,7 @@ const geoPythTiles: Generator<HypParams> = {
     const { a, b, c } = p;
     return {
       kind: 'tiles',
-      prompt: [diagram(rightTriSvg(a, b, p.corner, { a: cm(a), b: cm(b), c: 'c' })), say('Find $c^2$, then the hypotenuse $c$ in cm.')],
+      prompt: [diagram(rightTriSvg(a, b, p.corner, { a: cm(a), b: cm(b), c: 'c' })), say('Find $c^2$, then the length of the hypotenuse $c$ in cm.')],
       template: 'c^2 = {0} \\qquad c = {1}',
       bank: numberBank([c * c, c], [a + b, (a + b) ** 2, a * a + b, c + 1, c * c - 1], 3, 1, 1),
       answer: [num(c * c), num(c)],
@@ -299,7 +325,7 @@ const geoTripleCheck: Generator<CheckParams> = {
     const [x, y, z] = [...sets[0]].sort((p, q) => p - q);
     return [
       { text: 'Square the two shorter lengths and add. Only this set gives the square of the longest:' },
-      { tex: `${x}^2 + ${y}^2 = ${x * x} + ${y * y} = ${z * z}` },
+      { tex: chain(`${x}^2 + ${y}^2`, `${x * x} + ${y * y}`, z * z) },
       { tex: `${z}^2 = ${z * z}` },
     ];
   },
@@ -416,7 +442,7 @@ const geoPythLeg: Generator<LegParams> = {
     const ans = p.askB ? p.b : p.a;
     return [
       { text: 'The hypotenuse is the longest side, so take the square of the other side away from its square:' },
-      { tex: `x^2 = ${p.c}^2 - ${known}^2 = ${p.c * p.c} - ${known * known} = ${ans * ans}` },
+      { tex: chain('x^2', `${p.c}^2 - ${known}^2`, `${p.c * p.c} - ${known * known}`, ans * ans) },
       { tex: `x = \\sqrt{${ans * ans}} = ${ans}` },
     ];
   },
@@ -512,7 +538,7 @@ const geoPythSurd: Generator<SurdParams> = {
   },
   solution(p) {
     const n = surdN(p);
-    const line = p.back ? `x^2 = ${p.x}^2 - ${p.y}^2 = ${p.x * p.x} - ${p.y * p.y} = ${n}` : `x^2 = ${p.x}^2 + ${p.y}^2 = ${p.x * p.x} + ${p.y * p.y} = ${n}`;
+    const line = p.back ? chain('x^2', `${p.x}^2 - ${p.y}^2`, `${p.x * p.x} - ${p.y * p.y}`, n) : chain('x^2', `${p.x}^2 + ${p.y}^2`, `${p.x * p.x} + ${p.y * p.y}`, n);
     return [{ tex: line }, { text: `$${n}$ is not a square number, so leave the answer as a root:` }, { tex: `x = \\sqrt{${n}}` }];
   },
 };
@@ -679,14 +705,14 @@ const geoLadder: Generator<LadderParams> = {
     if (p.ask === 'len') {
       return [
         { text: 'The ladder is the hypotenuse:' },
-        { tex: `x^2 = ${num(p.foot)}^2 + ${num(p.height)}^2 = ${num(p.foot ** 2)} + ${num(p.height ** 2)} = ${num(p.len ** 2)}` },
+        { tex: chain('x^2', `${num(p.foot)}^2 + ${num(p.height)}^2`, `${num(p.foot ** 2)} + ${num(p.height ** 2)}`, num(p.len ** 2)) },
         { tex: `x = \\sqrt{${num(p.len ** 2)}} = ${num(p.len)}` },
       ];
     }
     const other = p.ask === 'foot' ? p.height : p.foot;
     return [
       { text: 'The ladder is the hypotenuse, so take away:' },
-      { tex: `x^2 = ${num(p.len)}^2 - ${num(other)}^2 = ${num(p.len ** 2)} - ${num(other ** 2)} = ${num(p[p.ask] ** 2)}` },
+      { tex: chain('x^2', `${num(p.len)}^2 - ${num(other)}^2`, `${num(p.len ** 2)} - ${num(other ** 2)}`, num(p[p.ask] ** 2)) },
       { tex: `x = \\sqrt{${num(p[p.ask] ** 2)}} = ${num(p[p.ask])}` },
     ];
   },
@@ -730,14 +756,14 @@ const geoDiagonal: Generator<DiagParams> = {
     if (p.ask === 'd') {
       return [
         { text: 'The diagonal is the hypotenuse of the right-angled triangle it cuts off:' },
-        { tex: `x^2 = ${p.w}^2 + ${p.h}^2 = ${p.w * p.w} + ${p.h * p.h} = ${p.d * p.d}` },
+        { tex: chain('x^2', `${p.w}^2 + ${p.h}^2`, `${p.w * p.w} + ${p.h * p.h}`, p.d * p.d) },
         { tex: `x = \\sqrt{${p.d * p.d}} = ${p.d}` },
       ];
     }
     const other = p.ask === 'w' ? p.h : p.w;
     return [
       { text: 'The diagonal is the hypotenuse, so take away:' },
-      { tex: `x^2 = ${p.d}^2 - ${other}^2 = ${p.d * p.d} - ${other * other} = ${p[p.ask] ** 2}` },
+      { tex: chain('x^2', `${p.d}^2 - ${other}^2`, `${p.d * p.d} - ${other * other}`, p[p.ask] ** 2) },
       { tex: `x = \\sqrt{${p[p.ask] ** 2}} = ${p[p.ask]}` },
     ];
   },
@@ -802,7 +828,7 @@ const geoDistance: Generator<DistParams> = {
       { text: 'The steps across and up are the differences in the coordinates:' },
       { tex: `${minusTex(p.B[0], p.A[0])} = ${dx} \\qquad ${minusTex(p.B[1], p.A[1])} = ${dy}` },
       { text: 'They are the shorter sides of a right-angled triangle, and $AB$ is its hypotenuse:' },
-      { tex: `AB^2 = ${dx < 0 ? `(${dx})` : dx}^2 + ${dy < 0 ? `(${dy})` : dy}^2 = ${dx * dx} + ${dy * dy} = ${d * d}` },
+      { tex: chain('AB^2', `${dx < 0 ? `(${dx})` : dx}^2 + ${dy < 0 ? `(${dy})` : dy}^2`, `${dx * dx} + ${dy * dy}`, d * d) },
       { tex: `AB = \\sqrt{${d * d}} = ${d}` },
     ];
   },

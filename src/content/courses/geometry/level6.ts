@@ -95,7 +95,7 @@ export const pythagoras: Level = {
         teach(
           prose('To find a **shorter side**, start from the hypotenuse: its square minus the square of the side you know.'),
           diagram(rightTriSvg(5, 12, 0, { a: '5 cm', b: 'x', c: '13 cm' })),
-          display('x^2 = 13^2 - 5^2 = 169 - 25 = 144'),
+          display('x^2 = 13^2 - 5^2 \\qquad = 169 - 25 = 144'),
           display('x = \\sqrt{144} = 12'),
           prose('Take away for a shorter side, add for the hypotenuse. The answer must come out shorter than the hypotenuse.'),
         ),
@@ -167,7 +167,7 @@ export const pythagoras: Level = {
           prose('A ladder against a wall makes a right-angled triangle with the ground, and the **ladder is the hypotenuse**.'),
           diagram(ladderSvg(5, 12, { foot: '5 m', height: 'x', ladder: '13 m' })),
           prose('How far up the wall does it reach? Take away, since $x$ is a shorter side:'),
-          display('x^2 = 13^2 - 5^2 = 169 - 25 = 144'),
+          display('x^2 = 13^2 - 5^2 \\qquad = 169 - 25 = 144'),
           display('x = \\sqrt{144} = 12'),
           prose('Given the foot and the height, add instead to find the ladder.'),
         ),

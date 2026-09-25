@@ -621,9 +621,9 @@ const cmMapTiles: Generator<MapTilesParams> = {
       kind: 'tiles',
       prompt: [
         say(`A plan has a scale of $1 : ${big(metres * 100)}$, and a garden covers $${mapArea}\\text{ cm}^2$ on it.`),
-        say('Fill in what the plan stands for on the ground.'),
+        say('Fill in what the plan stands for on the ground, in metres and square metres.'),
       ],
-      template: `1\\text{ cm} \\to {0}\\text{ m}, \\quad 1\\text{ cm}^2 \\to {1}\\text{ m}^2, \\quad \\text{garden} = {2}\\text{ m}^2`,
+      template: `1\\text{ cm:}\\ {0} \\quad 1\\text{ cm}^2\\text{:}\\ {1} \\quad \\text{garden:}\\ {2}`,
       bank: numberBank([metres, sq, mapArea * sq], [metres * 100, mapArea * metres, 2 * metres, sq * 10], 3),
       answer: [num(metres), num(sq), num(mapArea * sq)],
     };
@@ -1486,12 +1486,17 @@ const cmParallelogramVertex: Generator<ParaParams> = {
     if (p.centre) {
       const M = [(p.A[0] + p.C[0]) / 2, (p.A[1] + p.C[1]) / 2];
       return {
-        kind: 'tiles',
+        // A table rather than tiles: two points of blanks run past a phone's width on one line.
+        kind: 'table',
         prompt: [
           say(`$ABCD$ is a parallelogram with $A = ${pt(p.A[0], p.A[1])}$ and $B = ${pt(p.B[0], p.B[1])}$. Its diagonals cross at $${pt(M[0], M[1])}$.`),
           say('Find $C$ and $D$.'),
         ],
-        template: 'C = ({0}, {1}), \\quad D = ({2}, {3})',
+        columns: ['\\text{point}', 'x', 'y'],
+        rows: [
+          ['C', null, null],
+          ['D', null, null],
+        ],
         bank: numberBank(
           [p.C[0], p.C[1], D[0], D[1]],
           [2 * p.A[0] - M[0], 2 * p.A[1] - M[1], M[0] + p.A[0], M[1] + p.A[1], M[0] + p.B[0], M[1] + p.B[1]],

@@ -668,7 +668,7 @@ const chainSetup = (a: number) =>
 const cmIsoscelesChain: Generator<ChainParams> = {
   id: 'cm-isosceles-chain',
   sample(rng, difficulty) {
-    const a = 2 * rng.int(10, 29);
+    const a = 2 * rng.int(10, 23);
     return { a, ask: difficulty >= 2 ? rng.pick(['ABD', 'ADB'] as const) : rng.pick(['DBC', 'BDC'] as const) };
   },
   render({ a, ask }) {
@@ -712,7 +712,7 @@ const cmIsoscelesChainTiles: Generator<ChainTilesParams> = {
   id: 'cm-isosceles-chain-tiles',
   sample(rng) {
     for (;;) {
-      const a = 2 * rng.int(10, 29);
+      const a = 2 * rng.int(10, 23);
       const last = rng.pick(['ABD', 'ADB'] as const);
       // At 36° the angle at A and ∠ABD are equal, and a bank cannot hold one tile twice.
       if (a === 36 && last === 'ABD') continue;

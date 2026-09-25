@@ -304,7 +304,7 @@ export const trigonometricFunctions: Course = {
               prose(
                 'The period also says when the next repeats happen: add it on, again and again. A buzzer that sounds every $5$ seconds, first at $t = 1$, sounds next at',
               ),
-              maths('1 + 5 = 6 \\qquad 6 + 5 = 11 \\qquad 11 + 5 = 16'),
+              maths('\\begin{gathered} 1 + 5 = 6 \\\\ 6 + 5 = 11 \\\\ 11 + 5 = 16 \\end{gathered}'),
               prose(
                 'Start adding from the first time, not after it: $1$ has already happened, so the next one is $6$.',
               ),
@@ -389,7 +389,7 @@ export const trigonometricFunctions: Course = {
               prose(
                 'Once the period is known, every future repeat is predictable. If a peak is at $t = 2$ with period $7$, add $7$ on each time:',
               ),
-              maths('2 + 7 = 9 \\qquad 9 + 7 = 16 \\qquad 16 + 7 = 23'),
+              maths('\\begin{gathered} 2 + 7 = 9 \\\\ 9 + 7 = 16 \\\\ 16 + 7 = 23 \\end{gathered}'),
               maths('t = 2 + 7n \\quad \\text{for whole numbers } n'),
               prose(
                 'Working backwards is just as valid: $n = -1$ gives a peak at $t = -5$. A periodic function has no start, which is what makes it worth studying as a whole rather than point by point.',
@@ -698,7 +698,7 @@ export const trigonometricFunctions: Course = {
                 '\\begin{aligned} \\sin(150^{\\circ}) &= 0.5 \\\\ \\sin(210^{\\circ}) &= -0.5 \\\\ \\sin(330^{\\circ}) &= -0.5 \\end{aligned}',
               ),
               prose('With a radius, multiply as before. Radius $7$, turned $210^{\\circ}$:'),
-              maths('7\\sin(210^{\\circ}) = 7 \\times (-0.5) = -3.5'),
+              maths('\\begin{aligned} 7\\sin(210^{\\circ}) &= 7 \\times (-0.5) \\\\ &= -3.5 \\end{aligned}'),
             ),
             ask('trig-sine-from-circle'),
             ask('trig-circle-coords', 2),
@@ -715,7 +715,7 @@ export const trigonometricFunctions: Course = {
                 '\\begin{aligned} \\cos(300^{\\circ}) &= 0.5 \\\\ \\cos(120^{\\circ}) &= -0.5 \\\\ \\cos(240^{\\circ}) &= -0.5 \\end{aligned}',
               ),
               prose('Settle the cosine, then multiply by the radius. Radius $5$, turned $240^{\\circ}$:'),
-              maths('5\\cos(240^{\\circ}) = 5 \\times (-0.5) = -2.5'),
+              maths('\\begin{aligned} 5\\cos(240^{\\circ}) &= 5 \\times (-0.5) \\\\ &= -2.5 \\end{aligned}'),
               prose('With two terms, settle each value, then each product, then combine:'),
               maths(
                 '\\begin{aligned} &4\\sin(90^{\\circ}) - \\cos(180^{\\circ}) \\\\ &= 4 \\times 1 - (-1) \\\\ &= 4 + 1 = 5 \\end{aligned}',
@@ -752,7 +752,7 @@ export const trigonometricFunctions: Course = {
               prose(
                 'On a circle of radius $r$ the displacement is $r\\cos(\\theta)$ and the height $r\\sin(\\theta)$. Radius $9$, turned $120^{\\circ}$:',
               ),
-              maths('9\\cos(120^{\\circ}) = 9 \\times (-0.5) = -4.5'),
+              maths('\\begin{aligned} 9\\cos(120^{\\circ}) &= 9 \\times (-0.5) \\\\ &= -4.5 \\end{aligned}'),
               prose('Two terms are each settled on their own, then added:'),
               maths(
                 '\\begin{aligned} &3\\cos(180^{\\circ}) + \\sin(90^{\\circ}) \\\\ &= 3 \\times (-1) + 1 \\\\ &= -3 + 1 = -2 \\end{aligned}',
@@ -852,7 +852,7 @@ export const trigonometricFunctions: Course = {
               prose(
                 'The same goes for a height on a bigger circle. $210^{\\circ}$ is a half turn past $30^{\\circ}$ and $\\sin(30^{\\circ}) = 0.5$, so on a circle of radius $5$:',
               ),
-              maths('5\\sin(210^{\\circ}) = 5 \\times (-0.5) = -2.5'),
+              maths('\\begin{aligned} 5\\sin(210^{\\circ}) &= 5 \\times (-0.5) \\\\ &= -2.5 \\end{aligned}'),
             ),
             ask('trig-related-angle'),
             ask('trig-related-angle', 2),
@@ -913,7 +913,7 @@ export const trigonometricFunctions: Course = {
                 'The range matters: between $0^{\\circ}$ and $360^{\\circ}$ every angle is an anticlockwise turn, but between $-180^{\\circ}$ and $180^{\\circ}$ the lower half of the circle is named by clockwise turns instead.',
               ),
               maths(
-                '\\begin{gathered} \\sin(\\theta) = -\\tfrac{1}{2} \\quad \\Rightarrow \\quad \\theta = -30^{\\circ} \\text{ or } -150^{\\circ} \\\\ (-180^{\\circ} < \\theta \\le 180^{\\circ}) \\end{gathered}',
+                '\\begin{gathered} \\sin(\\theta) = -\\tfrac{1}{2} \\\\ \\Rightarrow \\; \\theta = -30^{\\circ} \\text{ or } -150^{\\circ} \\\\ (-180^{\\circ} < \\theta \\le 180^{\\circ}) \\end{gathered}',
               ),
               prose(
                 'In that range $\\cos(\\theta) = \\tfrac{1}{2}$ gives $60^{\\circ}$ and $-60^{\\circ}$, and $\\cos(\\theta) = -\\tfrac{1}{2}$ gives $120^{\\circ}$ and $-120^{\\circ}$.',
@@ -1807,9 +1807,9 @@ export const trigonometricFunctions: Course = {
               prose(
                 'To evaluate one exactly, find the ratio underneath and turn it over. One over a fraction is the fraction upside down, and its sign stays as it was:',
               ),
-              maths('\\sec(60^{\\circ}) = \\frac{1}{\\cos(60^{\\circ})} = 1 \\div \\frac{1}{2} = 2'),
+              maths('\\begin{aligned} \\sec(60^{\\circ}) &= \\frac{1}{\\cos(60^{\\circ})} \\\\ &= 1 \\div \\frac{1}{2} = 2 \\end{aligned}'),
               maths(
-                '\\begin{aligned} \\tan(150^{\\circ}) &= -\\frac{1}{\\sqrt{3}} \\\\ \\cot(150^{\\circ}) &= 1 \\div \\left(-\\frac{1}{\\sqrt{3}}\\right) = -\\sqrt{3} \\end{aligned}',
+                '\\begin{aligned} \\tan(150^{\\circ}) &= -\\frac{1}{\\sqrt{3}} \\\\ \\cot(150^{\\circ}) &= 1 \\div \\left(-\\frac{1}{\\sqrt{3}}\\right) \\\\ &= -\\sqrt{3} \\end{aligned}',
               ),
               prose(
                 'Where $\\tan$ has no value, use cosine over sine: $\\cot(90^{\\circ}) = \\frac{\\cos(90^{\\circ})}{\\sin(90^{\\circ})} = \\frac{0}{1} = 0$.',

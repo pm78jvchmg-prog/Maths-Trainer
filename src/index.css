@@ -398,30 +398,39 @@ button {
   padding: 8px 20px 16px;
   display: flex;
   flex-direction: column;
+  /* The reading size of a lesson: teaching text and the prose around every
+     question. The page's 17px read as small on a phone held at arm's length. */
+  font-size: 19px;
 }
 
-/* Content sits low on the screen, within thumb reach, rather than stranding
-   the answer area above a screen-height gap. Working slides are the exception:
-   they gain a line per step, so they anchor to the top and grow downwards.
-   
-   Auto margins rather than `justify-content: center`, deliberately. Centring a
-   flex container that scrolls clips the overflow at the *top*, where there is
-   no way to scroll back to it — so a teaching slide longer than the screen
-   would lose its opening lines with no sign that it had. Auto margins collapse
-   to zero once the content no longer fits, which degrades to top-aligned and
-   fully scrollable. */
-.slide > :first-child {
-  margin-top: auto;
+/* Content sits in the middle of the space left under the header, rather than
+   stranding the answer area above a screen-height gap. Working slides are the
+   exception: they gain a line per step, so they anchor to the top and grow
+   downwards.
+
+   Two empty spacers either side of the content, rather than
+   `justify-content: center`, deliberately. Centring a flex container that
+   scrolls clips the overflow at the *top*, where there is no way to scroll
+   back to it — so a teaching slide longer than the screen would lose its
+   opening lines with no sign that it had. The spacers shrink to nothing once
+   the content no longer fits, which degrades to top-aligned and fully
+   scrollable.
+
+   They are pseudo-elements rather than auto margins on the first and last
+   child, which is what this used to be. Any rule as specific as
+   `.slide > .display-math` that sets a margin won that fight, so a teaching
+   slide ending in a formula panel lost its lower spacer and sank to the foot
+   of the screen under a screen-height gap. Nothing a child sets can reach
+   these. */
+.slide::before,
+.slide::after {
+  content: '';
+  flex: 1 0 0px;
 }
 
-.slide > :last-child {
-  margin-bottom: auto;
-}
-
-.slide.grow > :first-child,
-.slide.grow > :last-child {
-  margin-top: 0;
-  margin-bottom: 0;
+.slide.grow::before,
+.slide.grow::after {
+  content: none;
 }
 
 /* A slide is a scrolling flex column, and a flex item shrinks before its
@@ -522,7 +531,7 @@ button {
 }
 
 .prompt {
-  font-size: 18px;
+  font-size: 19px;
   margin-bottom: 18px;
 }
 
@@ -541,8 +550,15 @@ button {
 /* The result a teaching slide is building to, set on a panel so it reads as
    the thing to remember rather than as one more line of the paragraph. */
 .slide > .display-math {
+  /* As wide as its formula rather than the whole column, so a short result
+     is not lost in a slab of empty panel. Up to the column's width, where a
+     long one wraps as before. */
+  align-self: center;
+  width: fit-content;
+  min-width: 60%;
+  max-width: 100%;
   margin: 14px 0;
-  padding: 12px 14px;
+  padding: 10px 22px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
@@ -570,9 +586,11 @@ button {
   /* KaTeX draws a radical's tail a couple of pixels past the formula, which
      scrolled every piece holding a square root. Side padding absorbs it, and
      the matching negative margin gives that room back to the panel. */
-  padding: 0.3em 12px;
+  padding: 0.15em 12px;
   margin: 0 -12px;
-  line-height: 1.9;
+  /* KaTeX grows a line box to fit a tall fraction or power by itself, so
+     this is only the gap between lines of a formula that wraps. */
+  line-height: 1.5;
   text-align: center;
 }
 
@@ -1079,7 +1097,7 @@ button {
   border-radius: var(--radius);
   padding: 10px 0;
   margin-bottom: 12px;
-  font-size: 16px;
+  font-size: 17px;
   position: relative;
   overflow: hidden;
 }
@@ -3024,6 +3042,20 @@ button {
   .node {
     width: 54px;
     height: 54px;
+  }
+
+  /* A lesson on a tablet has a column 620px wide and is held further away
+     than a phone, so its reading sizes step up with it. */
+  .slide {
+    font-size: 21px;
+  }
+
+  .prompt {
+    font-size: 21px;
+  }
+
+  .display-math {
+    font-size: 22px;
   }
 }
 

@@ -228,7 +228,7 @@ button {
      is left to whatever sits at the bottom: the lesson footer pads for it
      itself, and a scrolling list runs under it. Padding for it here as well
      counted it twice, below the Check button and at the foot of every list. */
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
+  padding: var(--top-inset, env(safe-area-inset-top)) env(safe-area-inset-right) 0 env(safe-area-inset-left);
 }
 
 /* Read by a screen reader, not drawn: the verdict's live region, whose words
@@ -320,13 +320,13 @@ button {
 
 .app-lesson .lesson-header {
   position: absolute;
-  top: env(safe-area-inset-top);
+  top: var(--top-inset, env(safe-area-inset-top));
   left: env(safe-area-inset-left);
   right: env(safe-area-inset-right);
 }
 
 .app-lesson .lesson-header.hidden {
-  transform: translate3d(0, calc(-100% - env(safe-area-inset-top)), 0);
+  transform: translate3d(0, calc(-100% - var(--top-inset, env(safe-area-inset-top))), 0);
 }
 
 .app-lesson .slide {
@@ -3394,4 +3394,12 @@ button.streak-bar:active {
 
 .streak-sheet .sync-panel {
   text-align: left;
+}
+
+.streak-reading {
+  margin: 10px 0 0;
+  color: var(--text-dim);
+  font-size: 10px;
+  opacity: 0.6;
+  text-align: center;
 }

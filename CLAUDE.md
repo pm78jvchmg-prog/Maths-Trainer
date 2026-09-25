@@ -546,6 +546,13 @@ only once the owner adds "Fast checks" to the auto-merge ruleset as a required
 check; until then auto-merge still waits on the Cloudflare build alone. Either
 way, run the full `npm test` before a change to a generator lands.
 
+Cloudflare builds one pull request head at a time and posts its check only
+once a build starts, so with many pull requests open a head can wait well over
+twenty minutes without anything being wrong. Pushing to a waiting head sends it
+to the back of the queue. `.github/workflows/stuck-builds.yml` therefore re-kicks
+a pull request only when no Cloudflare build has started or finished anywhere
+for twenty minutes, and then only the oldest one; do not make it more eager.
+
 The app is installed to an iPhone Home Screen and must work offline — the
 service worker precaches everything including KaTeX fonts and mathjs. Do not add
 runtime network dependencies.

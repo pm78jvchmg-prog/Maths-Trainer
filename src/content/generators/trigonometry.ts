@@ -1018,7 +1018,7 @@ const unsimplified = (numerator: number, denominator: number): string => `${nume
 
 /** The wave written with its multiplier and shift, e.g. "2\\sin(3t) + 4". */
 function scaledWaveTex(a: number, fn: 'sin' | 'cos', inner: string, d: number): string {
-  return `${a === 1 ? '' : a}\\${fn}(${inner})${d === 0 ? '' : ` ${signedTex(d)}`}`;
+  return `${coefficientTex(a)}\\${fn}(${inner})${d === 0 ? '' : ` ${signedTex(d)}`}`;
 }
 
 interface PeriodFromBParams {
@@ -1754,7 +1754,7 @@ const waveSwing: Generator<SwingParams> = {
           text: 'Fill the top row with the greatest value this wave reaches and then the least, and underneath them the full swing from one to the other.',
         },
       ],
-      expression: `y = ${amplitude}\\${fn}(x) ${signedTex(midline)}`,
+      expression: `y = ${coefficientTex(amplitude)}\\${fn}(x) ${signedTex(midline)}`,
       nodes: [
         { id: 'peak', from: [] },
         { id: 'trough', from: [] },
@@ -2281,6 +2281,9 @@ function ratioTex(n: number, d: number): string {
 }
 
 /** n pi / d as the learner reads it, in lowest terms: `\frac{5\pi}{6}`, `\pi`, `-\frac{\pi}{3}`. */
+/** n twelfths of π left uncancelled, for comparing against the quarter marks: `\frac{5\pi}{12}`, `\frac{\pi}{12}`. */
+const twelfthsTex = (n: number): string => `\\frac{${n === 1 ? '' : n}\\pi}{12}`;
+
 function piTex(n: number, d: number): string {
   const g = gcd(n, d) || 1;
   const top = n / g;
@@ -2994,8 +2997,8 @@ const radQuadrantFlow: Generator<QuadrantParams> = {
       {
         // Over twelve already when nothing cancels, and then saying so twice reads as a typo.
         tex: [
-          ...new Set([piTex(k, 12), `\\frac{${k}\\pi}{12}`]),
-          ...(k > 24 ? [`2\\pi + \\frac{${k - 24}\\pi}{12}`] : []),
+          ...new Set([piTex(k, 12), twelfthsTex(k)]),
+          ...(k > 24 ? [`2\\pi + ${twelfthsTex(k - 24)}`] : []),
         ].join(' = '),
       },
       {

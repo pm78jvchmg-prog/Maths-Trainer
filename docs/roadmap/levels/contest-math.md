@@ -329,4 +329,16 @@ Generators in `src/content/generators/contestTrigonometry.ts`.
 | Trigonometric Identities | `cm-tr-sum-product`, `cm-tr-tan-ratio`, `cm-tr-double-table`, `cm-tr-max-value` | square sin θ + cos θ; divide by cos θ, or by cos² θ over sin² θ + cos² θ; the double angles from the triangle; a sin x + b cos x reaches √(a² + b²), not a + b |
 | Roots of Unity | `cm-tr-common-roots`, `cm-tr-unity-count-table`, `cm-tr-root-polygon`, `cm-tr-unity-product` | common roots are the gcd-th roots; count the angles in a window; the roots of z^n = c are a regular polygon of n triangles; z^n − 1 over z − 1 is the product over the other roots |
 
+## Level 21: More Advanced Combinatorics (`cm-l21`)
+
+Generators in `src/content/generators/contestAdvancedCounting.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Constructive Counting | `cm-ac-no-adjacent`, `cm-ac-gaps-table`, `cm-ac-increasing-digits`, `cm-ac-diagonal-crossings` | line up the others and choose gaps for the ones kept apart; a set of digits has one increasing order, and 0 can only end a decreasing one; four points make one crossing, and each chord adds one region plus its crossings |
+| Complementary Counting | `cm-ac-contains-digit`, `cm-ac-grid-avoid`, `cm-ac-committee`, `cm-ac-committee-tiles` | at least one is all less none, at least two the same is all less all different; take off the routes through a closed corner, adding back those through both; all teams less the teams of one kind |
+| Binomial Coefficients | `cm-ac-binom-coeff`, `cm-ac-expansion-table`, `cm-ac-hockey-stick`, `cm-ac-row-sum` | a coefficient is a choice of brackets times the other part's power; the constant term is where the powers cancel; a diagonal adds to the entry below it; a row adds to 2^n, and choosing the chair first gives n × 2^(n − 1) |
+| Principle of Inclusion-Exclusion | `cm-ac-pie-multiples`, `cm-ac-pie-table`, `cm-ac-derangements`, `cm-ac-onto` | add singles, take off pairs, add back the triple, with LCMs for pairs; nobody right is n!/0! − n!/1! + n!/2! − …; exactly j right is a choice times a derangement; nobody left empty takes off the shares missing someone |
+| Balls and Urns | `cm-ac-urns-minimum`, `cm-ac-urns-tiles`, `cm-ac-dice-cap`, `cm-ac-terms` | hand out the minimums, then balls and dividers; odd parts are 2a + 1; an upper limit is taken off by inclusion–exclusion; terms of an expansion are shares of the power, and a slack unknown turns at most into equal |
+
 Level check: 14 questions across all five lessons.

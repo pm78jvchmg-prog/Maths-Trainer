@@ -5,9 +5,29 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-25
 
-- **Exponential Models teaches before it asks (this PR).** 37 questions came
+- **Exponential Models teaches before it asks (#206).** 37 questions came
   before the worked example they needed; examples moved earlier or added as
   lead-ins, questions reordered. Audit: `teach-before-ask.md` in project files.
+- **Streak no longer counts a day twice after travelling west (#196).** A play dated
+  a day or two before the last one is a day already counted and changes
+  nothing, and the home screen reads it as done. A day the calendar skipped
+  going east costs no charge, and a clock set far wrong and put right keeps
+  the streak (the day it replaced is remembered). `src/store/streak.ts`.
+- **Home-screen colours: the seams were an old copy (this PR).** The current
+  build already runs one unbroken purple from Algebra Fundamentals to Advanced
+  Maths and orange from the Statistics heading down (#180); the iPad was still
+  showing an older version. The app now checks for a new version every time it
+  is brought back to the front, so one close and reopen picks it up. The purple now melts through rose into
+  the orange above Statistics instead of meeting it in a hard line.
+- **Checker: `+ C` and `2e-1`.** An integral answer's `C` was probed as 0, so
+  `x^2/2 + C*x` passed as the integral of x; `C` now takes a fixed non-zero
+  value, so only an added constant is forgiven (`2C` and `ln(C)` still pass).
+  A typed `2e-1` was read as 0.2; a digit before `e` is now read as a product,
+  so it is 2e − 1.
+- **Going back onto a slide finished with Show me no longer asks for it again
+  (#194).** It comes back showing the answer it showed, and Continue moves
+  on. A slide solved (first try or after a wrong answer) still comes back idle
+  with Continue beside Check. `canPassSolved` is now `canPassFinished`.
 - **Two grading bugs fixed (this PR).** `vec-parallel` could offer two
   parallel options, marking a correct pick wrong (~10% of draws). A negative
   base was shown unbracketed (`-1^{4}`) while the answer meant `(-1)^{4}`, in

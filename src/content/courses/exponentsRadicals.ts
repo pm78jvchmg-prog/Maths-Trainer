@@ -37,6 +37,23 @@ const ask = (generatorId: string, difficulty = 1): SlideRef => ({
   difficulty,
 });
 
+/**
+ * A question with its worked example on the same slide, above it. A question
+ * may only ask what the lesson has already shown with numbers, and where the
+ * example belongs with one question rather than a whole teach slide, it rides
+ * here as a `leadIn`.
+ */
+const asking = (
+  generatorId: string,
+  difficulty: number,
+  ...leadIn: ({ kind: 'prose'; text: string } | { kind: 'display'; tex: string })[]
+): SlideRef => ({
+  type: 'generated',
+  generatorId,
+  difficulty,
+  leadIn,
+});
+
 const prose = (text: string) => ({ kind: 'prose' as const, text });
 const maths = (tex: string) => ({ kind: 'display' as const, tex });
 
@@ -77,7 +94,19 @@ export const exponentsRadicals: Course = {
             ),
             ask('idx-multiply'),
             ask('idx-fill-multiply'),
-            ask('idx-evaluate-order'),
+            asking(
+              'idx-evaluate-order',
+              1,
+              prose(
+                'Powers often sit in a line with other operations. Brackets go first, then powers and roots, then multiplying, and adding last.',
+              ),
+              working(
+                '&2^{3} + (6 - 4)^{2} \\times \\sqrt{9}',
+                '&= 2^{3} + 2^{2} \\times \\sqrt{9}',
+                '&= 8 + 4 \\times 3',
+                '&= 8 + 12 = 20',
+              ),
+            ),
             ask('idx-multiply+choice'),
             teach(
               prose(
@@ -273,11 +302,18 @@ export const exponentsRadicals: Course = {
                 'The rule runs both ways, which is how an index is lifted off the bottom of a fraction: $\\frac{1}{x^{4}} = x^{-4}$.',
               ),
             ),
-            ask('idx-negative'),
+            asking(
+              'idx-negative',
+              1,
+              prose(
+                'With a number in front, only the part carrying the index moves. In $5x^{-2}$ the index belongs to the $x$, so the 5 stays on top.',
+              ),
+              working('5x^{-2} &= 5 \\times x^{-2}', '&= 5 \\times \\frac{1}{x^{2}} = \\frac{5}{x^{2}}'),
+            ),
             ask('idx-fill-negative'),
             ask('idx-negative+choice'),
             teach(
-              prose('With a coefficient in front, only the part actually carrying the index moves.'),
+              prose('A coefficient in front stays where it is, because only the part actually carrying the index moves.'),
               maths('5x^{-2} = \\frac{5}{x^{2}}'),
               prose(
                 'The 5 never had a negative index, so it stays on top. Writing $\\frac{1}{5x^{2}}$ drags it down with the $x$, and that is the mistake to watch for.',
@@ -336,12 +372,19 @@ export const exponentsRadicals: Course = {
               prose('In general the number on the bottom of the fraction is the root.'),
               maths('x^{\\frac{1}{n}} = \\sqrt[n]{x}'),
             ),
-            ask('idx-fractional'),
+            asking(
+              'idx-fractional',
+              1,
+              prose(
+                'For a number, read the index as a question: what number, raised to the power on the bottom, gives the base? For $32^{\\frac{1}{5}}$, work up the fifth powers of 1, 2, 3 and so on until one gives 32.',
+              ),
+              working('1^{5} &= 1', '2^{5} &= 2 \\times 2 \\times 2 \\times 2 \\times 2 = 32', '32^{\\frac{1}{5}} &= \\sqrt[5]{32} = 2'),
+            ),
             ask('idx-fill-root'),
             ask('idx-fractional+choice'),
             teach(
               prose(
-                'For actual numbers this becomes arithmetic you can do in your head, once the squares and cubes are familiar.',
+                'The same question works for every root, and it gets quick once the squares and cubes are familiar.',
               ),
               maths('9^{\\frac{1}{2}} = 3 \\qquad 27^{\\frac{1}{3}} = 3 \\qquad 16^{\\frac{1}{4}} = 2'),
               prose(
@@ -404,7 +447,18 @@ export const exponentsRadicals: Course = {
                 'Swapping the two numbers is the mistake to guard against: $\\frac{3}{4}$ means a fourth root and a cube, not a cube root and a fourth power.',
               ),
             ),
-            ask('idx-index-form'),
+            asking(
+              'idx-index-form',
+              1,
+              prose(
+                'Read the same rule backwards to write a root as an index: the root goes on the bottom, the power on top. A fraction line in front then makes the index negative, as in The Index Laws.',
+              ),
+              working(
+                '\\sqrt[4]{x^{3}} &= x^{\\frac{3}{4}}',
+                '\\frac{1}{\\sqrt[4]{x^{3}}} &= \\frac{1}{x^{\\frac{3}{4}}}',
+                '&= x^{-\\frac{3}{4}}',
+              ),
+            ),
             ask('idx-root-flow', 2),
             ask('idx-fill-fractional', 2),
             teach(
@@ -442,22 +496,32 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-equation'),
-            ask('idx-match-base'),
             ask('idx-equation+choice'),
             teach(
               prose(
-                'Sometimes the rewriting takes a step of its own. In $4^{n} = 64$ both sides are powers of 2, so rewrite and compare.',
+                'Sometimes the rewriting takes a step of its own. In $4^{n} = 64$ both sides are powers of 2. The left side is a power of a power, so its indices multiply.',
               ),
-              maths('4^{n} = 64 \\implies 2^{2n} = 2^{6} \\implies n = 3'),
+              working('4^{n} &= (2^{2})^{n} = 2^{2n}', '64 &= 2^{6}', '2n &= 6 \\implies n = 3'),
               prose(
-                'Checking directly agrees, since $4^{3} = 64$. Either route is fine; what matters is reaching a single shared base before comparing exponents.',
+                'Checking directly agrees, since $4^{3} = 64$. What matters is reaching a single shared base before comparing exponents.',
               ),
               prose(
                 'When no common base exists — $2^{n} = 10$, say — this method simply stops, and logarithms take over. That is a course of its own.',
               ),
             ),
+            ask('idx-match-base'),
             ask('idx-evaluate-roots'),
-            ask('idx-fractional', 2),
+            asking(
+              'idx-fractional',
+              2,
+              prose(
+                'Writing the base as a power also works out fractional indices. $81 = 3^{4}$, so the indices multiply:',
+              ),
+              working(
+                '81^{\\frac{1}{4}} &= (3^{4})^{\\frac{1}{4}} = 3^{1} = 3',
+                '81^{\\frac{3}{4}} &= (3^{4})^{\\frac{3}{4}} = 3^{3} = 27',
+              ),
+            ),
             ask('idx-match-base', 2),
             teach(
               prose('A negative or fractional answer is not a sign that something has gone wrong.'),
@@ -524,7 +588,17 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-evaluate-roots'),
-            ask('rad-estimate'),
+            asking(
+              'rad-estimate',
+              1,
+              prose(
+                'A surd is not a whole number, but its size is easy to pin down. For $\\sqrt{52}$, find the squares either side of 52.',
+              ),
+              working('7^{2} = 49 &< 52 < 64 = 8^{2}', '7 &< \\sqrt{52} < 8'),
+              prose(
+                '52 is 3 above 49 but 12 below 64, so $\\sqrt{52}$ is nearer 7. A calculator agrees: it is about 7.2.',
+              ),
+            ),
             ask('rad-fill-simplify', 2),
             teach(
               prose(
@@ -604,13 +678,23 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('rad-add'),
-            ask('rad-fill-simplify'),
-            ask('rad-add-steps'),
+            asking(
+              'rad-fill-simplify',
+              1,
+              prose(
+                'Adding often needs a surd simplified first: take out the largest square factor.',
+              ),
+              working('\\sqrt{50} &= \\sqrt{25} \\times \\sqrt{2}', '&= 5\\sqrt{2}'),
+            ),
             teach(
               prose(
-                'When the roots differ, nothing can be done — unless simplifying first makes them match.',
+                'When the roots differ, nothing can be done — unless simplifying first makes them match. Simplify each surd on its own, then add.',
               ),
-              maths('\\sqrt{8} + \\sqrt{18} = 2\\sqrt{2} + 3\\sqrt{2} = 5\\sqrt{2}'),
+              working(
+                '\\sqrt{8} &= \\sqrt{4} \\times \\sqrt{2} = 2\\sqrt{2}',
+                '\\sqrt{18} &= \\sqrt{9} \\times \\sqrt{2} = 3\\sqrt{2}',
+                '\\sqrt{8} + \\sqrt{18} &= 2\\sqrt{2} + 3\\sqrt{2} = 5\\sqrt{2}',
+              ),
               prose(
                 'Neither surd looked like a multiple of $\\sqrt{2}$ on the page, so a sum that appears impossible often only needs simplifying. Always simplify before concluding that two terms will not combine.',
               ),
@@ -618,8 +702,15 @@ export const exponentsRadicals: Course = {
                 'If they genuinely differ, as in $\\sqrt{2} + \\sqrt{3}$, the sum stays as it is. That is a complete answer, not an unfinished one.',
               ),
             ),
+            ask('rad-add-steps'),
             ask('rad-simplify'),
-            ask('rad-estimate'),
+            asking(
+              'rad-estimate',
+              1,
+              prose('A quick size check: find the squares either side of the number under the root.'),
+              working('5^{2} = 25 &< 30 < 36 = 6^{2}', '5 &< \\sqrt{30} < 6'),
+              prose('30 is 5 above 25 but 6 below 36, so $\\sqrt{30}$ is nearer 5. It is about 5.48.'),
+            ),
             ask('rad-fill-simplify', 2),
             teach(
               prose('Subtraction works the same way, and a coefficient of 1 is still a coefficient.'),
@@ -652,11 +743,22 @@ export const exponentsRadicals: Course = {
                 'Both forms are equal — about 0.577 either way. The second is simply the one everybody agrees to write down.',
               ),
             ),
-            ask('rad-rationalise'),
+            asking(
+              'rad-rationalise',
+              1,
+              prose(
+                'With a number on top, multiply top and bottom by the root just the same. Then cancel any factor the top and bottom share.',
+              ),
+              working(
+                '\\frac{10}{\\sqrt{6}} \\times \\frac{\\sqrt{6}}{\\sqrt{6}} &= \\frac{10\\sqrt{6}}{6}',
+                '&= \\frac{5\\sqrt{6}}{3}',
+              ),
+              prose('10 and 6 share a factor of 2, so both are halved.'),
+            ),
             ask('rad-fill-rationalise'),
             ask('rad-multiply'),
             teach(
-              prose('With a number on top, it comes along unchanged.'),
+              prose('The number on top comes along unchanged, and both halves of the fraction are multiplied.'),
               maths('\\frac{5}{\\sqrt{2}} = \\frac{5\\sqrt{2}}{2}'),
               prose(
                 'Two slips are worth naming. Multiplying only the bottom gives $\\frac{5}{2}$, which is a different number altogether. Multiplying only the top gives $\\frac{5\\sqrt{2}}{\\sqrt{2}}$, which has achieved nothing, since the root is still underneath.',
@@ -723,7 +825,6 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('sf-to-ordinary'),
-            ask('sf-form-flow'),
             ask('sf-to-ordinary+choice'),
             teach(
               prose(
@@ -741,13 +842,16 @@ export const exponentsRadicals: Course = {
               prose(
                 'A number can be the right size and still not be in standard form. $47 \\times 10^{5}$ equals $4\\,700\\,000$, but 47 is too big for a front number.',
               ),
-              maths('47 \\times 10^{5} = 4.7 \\times 10 \\times 10^{5} = 4.7 \\times 10^{6}'),
+              working('47 \\times 10^{5} &= 4.7 \\times 10 \\times 10^{5}', '&= 4.7 \\times 10^{6}'),
               prose(
                 'Making the front number ten times smaller means making the power ten times bigger, so the power goes up by one. The value never changes, only how it is written.',
               ),
+              prose('A front number under 1 is fixed the other way: ten times bigger in front, so the power goes down by one.'),
+              working('0.47 \\times 10^{7} &= 4.7 \\div 10 \\times 10^{7}', '&= 4.7 \\times 10^{6}'),
             ),
             ask('sf-form-flow'),
             ask('sf-power-slider'),
+            ask('sf-form-flow'),
           ],
           skillCheck: [
             ask('sf-write-tiles', 2),
@@ -781,7 +885,16 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('sf-write-small-tiles'),
-            ask('sf-form-flow', 2),
+            asking(
+              'sf-form-flow',
+              2,
+              prose(
+                'A front number of 10 or more is fixed by moving the point one place left. It is ten times smaller, so the power goes up by one, negative powers included.',
+              ),
+              working('23 \\times 10^{-5} &= 2.3 \\times 10 \\times 10^{-5}', '&= 2.3 \\times 10^{-4}'),
+              prose('A front number under 1 moves the other way, and the power goes down by one.'),
+              working('0.8 \\times 10^{-3} &= 8 \\div 10 \\times 10^{-3}', '&= 8 \\times 10^{-4}'),
+            ),
             ask('sf-small-power-slider'),
             teach(
               prose(
@@ -816,18 +929,30 @@ export const exponentsRadicals: Course = {
                 'The powers are added, exactly as in level 1: $10^{4} \\times 10^{6} = 10^{10}$. Multiplying them is the slip to avoid.',
               ),
             ),
-            ask('sf-split-tree'),
+            asking(
+              'sf-split-tree',
+              1,
+              prose(
+                'Sometimes the front numbers multiply to 10 or more, and the answer is not in standard form yet. One more step fixes it.',
+              ),
+              working(
+                '(3 \\times 10^{4}) \\times (5 \\times 10^{6}) &= 15 \\times 10^{10}',
+                '&= 1.5 \\times 10 \\times 10^{10}',
+                '&= 1.5 \\times 10^{11}',
+              ),
+              prose(
+                'Moving the point one place left makes 15 into 1.5, ten times smaller, so the power goes up by one to keep the value the same.',
+              ),
+            ),
             ask('sf-multiply'),
             ask('sf-multiply+choice'),
             teach(
               prose(
-                'Sometimes the front numbers multiply to 10 or more, and the answer is not in standard form yet.',
+                'That last step, fixing a front number of 10 or more, is worth practising on its own.',
               ),
-              maths(
-                '\\left(3 \\times 10^{4}\\right) \\times \\left(5 \\times 10^{6}\\right) = 15 \\times 10^{10} = 1.5 \\times 10^{11}',
-              ),
+              working('36 \\times 10^{5} &= 3.6 \\times 10 \\times 10^{5}', '&= 3.6 \\times 10^{6}'),
               prose(
-                'Moving the point one place left makes 15 into 1.5, ten times smaller, so the power goes up by one to keep the value the same.',
+                'A front number under 1 goes the other way. Ten times bigger in front means the power goes down by one: $0.4 \\times 10^{6} = 4 \\times 10^{5}$.',
               ),
             ),
             ask('sf-adjust-tiles'),
@@ -835,13 +960,15 @@ export const exponentsRadicals: Course = {
             ask('sf-adjust-tiles'),
             teach(
               prose('Dividing works the same way: divide the front numbers, and subtract the powers.'),
-              maths('\\frac{8 \\times 10^{9}}{2 \\times 10^{3}} = \\frac{8}{2} \\times 10^{9 - 3} = 4 \\times 10^{6}'),
+              working('\\frac{8 \\times 10^{9}}{2 \\times 10^{3}} &= \\frac{8}{2} \\times 10^{9 - 3}', '&= 4 \\times 10^{6}'),
               prose(
                 'Here the front number can come out less than 1: $\\frac{2}{5} = 0.4$. Then the point moves right, and the power goes **down** by one — $0.4 \\times 10^{6} = 4 \\times 10^{5}$.',
               ),
+              prose('A negative power underneath is still subtracted, and taking away a negative adds:'),
+              working('\\frac{6 \\times 10^{5}}{3 \\times 10^{-2}} &= 2 \\times 10^{5 - (-2)}', '&= 2 \\times 10^{7}'),
             ),
             ask('sf-divide'),
-            ask('sf-divide+choice'),
+            ask('sf-divide+choice', 2),
           ],
           skillCheck: [
             ask('sf-multiply', 2),
@@ -859,33 +986,43 @@ export const exponentsRadicals: Course = {
               ),
               maths('3.2 \\times 10^{4} + 1.5 \\times 10^{4} = 4.7 \\times 10^{4}'),
               prose(
-                'Three point two lots of $10^{4}$ and one point five more makes four point seven lots. The power does not change, because nothing was multiplied.',
+                'The power does not change, because nothing was multiplied. But adding can push the front number past 10, and subtracting can drop it below 1. Then adjust it back, just as after multiplying.',
+              ),
+              working('6.2 \\times 10^{5} + 4.5 \\times 10^{5} &= 10.7 \\times 10^{5}', '&= 1.07 \\times 10^{6}'),
+              working('5.2 \\times 10^{5} - 4.7 \\times 10^{5} &= 0.5 \\times 10^{5}', '&= 5 \\times 10^{4}'),
+            ),
+            ask('sf-adjust-tiles'),
+            teach(
+              prose(
+                'When the powers differ, rewrite the smaller number with the larger power first. Its front number gets ten times smaller to make up for the power being ten times bigger.',
+              ),
+              working(
+                '5 \\times 10^{3} &= 0.5 \\times 10^{4}',
+                '3.2 \\times 10^{4} + 0.5 \\times 10^{4} &= 3.7 \\times 10^{4}',
+              ),
+              prose(
+                'Adding 3.2 and 5 to get $8.2 \\times 10^{4}$ is the mistake this step prevents: $5 \\times 10^{3}$ is 5000, nowhere near $50\\,000$. Subtracting works the same way:',
+              ),
+              working(
+                '9 \\times 10^{4} &= 0.9 \\times 10^{5}',
+                '7.4 \\times 10^{5} - 0.9 \\times 10^{5} &= 6.5 \\times 10^{5}',
               ),
             ),
             ask('sf-add'),
             ask('sf-add-flow'),
-            ask('sf-add+choice'),
+            ask('sf-common-power'),
             teach(
-              prose(
-                'When the powers differ, rewrite the smaller number with the larger power first. Its front number gets smaller to make up for the bigger power.',
-              ),
-              maths('5 \\times 10^{3} = 0.5 \\times 10^{4}'),
-              maths('3.2 \\times 10^{4} + 5 \\times 10^{3} = 3.2 \\times 10^{4} + 0.5 \\times 10^{4} = 3.7 \\times 10^{4}'),
-              prose(
-                'Adding 3.2 and 5 to get $8.2 \\times 10^{4}$ is the mistake this step prevents: $5 \\times 10^{3}$ is 5000, nowhere near $50\\,000$.',
+              prose('One sum can need both steps: match the powers, add, then adjust the front number.'),
+              working(
+                '&9.6 \\times 10^{4} + 8 \\times 10^{3}',
+                '&= 9.6 \\times 10^{4} + 0.8 \\times 10^{4}',
+                '&= 10.4 \\times 10^{4}',
+                '&= 1.04 \\times 10^{5}',
               ),
             ),
-            ask('sf-common-power'),
+            ask('sf-add+choice'),
             ask('sf-add-flow'),
             ask('sf-common-power'),
-            teach(
-              prose(
-                'Adding can push the front number past 10, and subtracting can drop it below 1. Either way, finish by adjusting it back into standard form.',
-              ),
-              maths('6.2 \\times 10^{5} + 4.5 \\times 10^{5} = 10.7 \\times 10^{5} = 1.07 \\times 10^{6}'),
-              maths('5.2 \\times 10^{5} - 4.7 \\times 10^{5} = 0.5 \\times 10^{5} = 5 \\times 10^{4}'),
-            ),
-            ask('sf-adjust-tiles'),
             ask('sf-adjust-tiles'),
           ],
           skillCheck: [
@@ -918,19 +1055,29 @@ export const exponentsRadicals: Course = {
               prose(
                 'Each step up in the power is ten times bigger, so four steps is $10\\,000$ times — not 4 times, which is the easy slip.',
               ),
+              prose(
+                'When the front numbers differ, divide them too, and subtract the powers even when they are negative:',
+              ),
+              working(
+                '\\frac{8.4 \\times 10^{-2}}{2.1 \\times 10^{-6}} &= \\frac{8.4}{2.1} \\times 10^{-2 - (-6)}',
+                '&= 4 \\times 10^{4} = 40\\,000',
+              ),
             ),
             ask('sf-times-bigger'),
             ask('sf-power-slider'),
-            ask('sf-times-bigger+choice'),
+            ask('sf-times-bigger+choice', 2),
             teach(
               prose(
                 'Orders of magnitude make estimating quick. Round each front number to one significant figure, then multiply as usual.',
               ),
-              maths(
-                '\\left(3.9 \\times 10^{4}\\right) \\times \\left(2.1 \\times 10^{3}\\right) \\approx 4 \\times 2 \\times 10^{7} = 8 \\times 10^{7}',
+              working(
+                '&(3.9 \\times 10^{4}) \\times (6.2 \\times 10^{3})',
+                '&\\approx 4 \\times 6 \\times 10^{4 + 3}',
+                '&= 24 \\times 10^{7}',
+                '&= 2.4 \\times 10^{8}',
               ),
               prose(
-                'The exact answer is $8.19 \\times 10^{7}$. The estimate gets the power right and the front number close, which is usually all a check needs.',
+                '24 is too big for a front number, so the point moves left and the power goes up by one. The exact answer is $2.418 \\times 10^{8}$, so the estimate has the power right and the front number close. Negative powers add the same way: $10^{-5} \\times 10^{7} = 10^{2}$.',
               ),
             ),
             ask('sf-estimate'),
@@ -979,7 +1126,18 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('rad-expand-single'),
-            ask('rad-product-flow'),
+            asking(
+              'rad-product-flow',
+              1,
+              prose(
+                'Multiply the numbers in front together and the roots together. Then check the new root for a square factor.',
+              ),
+              working(
+                '2\\sqrt{6} \\times 4\\sqrt{3} &= 8\\sqrt{18}',
+                '&= 8 \\times \\sqrt{9} \\times \\sqrt{2}',
+                '&= 8 \\times 3\\sqrt{2} = 24\\sqrt{2}',
+              ),
+            ),
             ask('rad-expand-single+choice'),
             teach(
               prose(
@@ -1004,6 +1162,12 @@ export const exponentsRadicals: Course = {
               ),
               prose(
                 'A minus in front of a bracket changes the sign of both its terms, just as it would in algebra.',
+              ),
+              working(
+                '&5(2 + \\sqrt{3}) - 3(1 + 2\\sqrt{3})',
+                '&= 10 + 5\\sqrt{3} - (3 + 6\\sqrt{3})',
+                '&= 10 + 5\\sqrt{3} - 3 - 6\\sqrt{3}',
+                '&= 7 - \\sqrt{3}',
               ),
             ),
             ask('rad-collect'),
@@ -1031,7 +1195,18 @@ export const exponentsRadicals: Course = {
             ),
             ask('rad-expand-double'),
             ask('rad-product-flow'),
-            ask('rad-expand-double+choice'),
+            asking(
+              'rad-expand-double+choice',
+              2,
+              prose(
+                'A surd with a number in front multiplies in two parts: numbers with numbers, roots with roots. So $3\\sqrt{5} \\times 2\\sqrt{5} = 6 \\times 5 = 30$.',
+              ),
+              working(
+                '&(2 + 3\\sqrt{5})(1 + 2\\sqrt{5})',
+                '&= 2 + 4\\sqrt{5} + 3\\sqrt{5} + 30',
+                '&= 32 + 7\\sqrt{5}',
+              ),
+            ),
             teach(
               prose(
                 'Squaring a bracket is multiplying it by itself, so it has the same four products, and the two middle ones are equal.',
@@ -1043,7 +1218,18 @@ export const exponentsRadicals: Course = {
             ),
             ask('rad-square-tree'),
             ask('rad-product-flow', 2),
-            ask('rad-square-tree', 2),
+            asking(
+              'rad-square-tree',
+              2,
+              prose(
+                'With a minus in the bracket, the two middle products are both taken away. The last one is still added, because a negative times a negative is positive.',
+              ),
+              working(
+                '&(4 - \\sqrt{3})^{2}',
+                '&= 16 - 4\\sqrt{3} - 4\\sqrt{3} + 3',
+                '&= 19 - 8\\sqrt{3}',
+              ),
+            ),
             teach(
               prose('Now change one sign. The two middle products are equal and opposite, and cancel.'),
               working('&(3 + \\sqrt{5})(3 - \\sqrt{5})', '&= 9 - 3\\sqrt{5} + 3\\sqrt{5} - 5', '&= 4'),
@@ -1106,7 +1292,18 @@ export const exponentsRadicals: Course = {
                 'Dividing by a negative flips the sign of both terms. The answer is positive, as it must be: $\\sqrt{3}$ is about 1.73, so $-1 + \\sqrt{3}$ is about 0.73.',
               ),
             ),
-            ask('rad-conjugate-tree', 2),
+            asking(
+              'rad-conjugate-tree',
+              2,
+              prose(
+                'A number in front of the surd is squared along with it: $(3\\sqrt{2})^{2} = 9 \\times 2 = 18$. Then carry on as before.',
+              ),
+              working(
+                '\\frac{10}{4 + 3\\sqrt{2}} &= \\frac{10(4 - 3\\sqrt{2})}{16 - 18}',
+                '&= \\frac{40 - 30\\sqrt{2}}{-2}',
+                '&= -20 + 15\\sqrt{2}',
+              ),
+            ),
             ask('rad-conjugate-product+choice', 2),
           ],
           skillCheck: [
@@ -1336,7 +1533,14 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('ieq-quad-tiles'),
-            ask('ieq-reject-flow'),
+            asking(
+              'ieq-reject-flow',
+              1,
+              prose(
+                'A root of $y = 1$ is not rejected. Any number to the power 0 is 1, so it gives $x = 0$.',
+              ),
+              working('3^{x} &= 1 = 3^{0}', 'x &= 0'),
+            ),
             ask('ieq-hidden-solve'),
             teach(
               prose('When both roots are positive powers, both give a solution.'),
@@ -1482,7 +1686,17 @@ export const exponentsRadicals: Course = {
             ),
             ask('grow-chain-tree'),
             ask('grow-term'),
-            ask('grow-rule-tiles'),
+            asking(
+              'grow-rule-tiles',
+              1,
+              prose(
+                'From a table, divide each value by the one before to find the multiplier. The start is the value at $n = 0$.',
+              ),
+              maths(
+                '\\begin{array}{c|cccc} n & 0 & 1 & 2 & 3 \\\\ \\hline V & 5 & 15 & 45 & 135 \\end{array}',
+              ),
+              working('15 \\div 5 &= 3', '45 \\div 15 &= 3', 'V &= 5 \\times 3^{n}'),
+            ),
             teach(
               prose(
                 'Work out the power first, then multiply by the start. $3 \\times 2^{4}$ is $3 \\times 16 = 48$, while $(3 \\times 2)^{4} = 6^{4} = 1296$ is a different number entirely.',
@@ -1519,8 +1733,6 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('grow-pct-flow'),
-            ask('grow-pct-value'),
-            ask('grow-pct-tiles'),
             teach(
               prose('Over several years the multiplier is applied again each year, so two years at 5% is $1.05^{2}$.'),
               working('2000 \\times 1.05 &= 2100', '2100 \\times 1.05 &= 2205', '2000 \\times 1.05^{2} &= 2205'),
@@ -1528,9 +1740,9 @@ export const exponentsRadicals: Course = {
                 'Not 2200: the second 5% is worked out on 2100. To find when a value first passes a target, keep multiplying, one year at a time.',
               ),
             ),
+            ask('grow-pct-value'),
+            ask('grow-pct-tiles'),
             ask('grow-pct-slider'),
-            ask('grow-pct-value+choice', 2),
-            ask('grow-pct-tiles', 2),
             teach(
               prose(
                 'The power of the multiplier is the overall change. $1.1^{2} = 1.21$, so two years of 10% growth is a 21% rise, not 20%.',
@@ -1539,6 +1751,8 @@ export const exponentsRadicals: Course = {
                 'So the multiplier for $n$ years is the yearly one to the power $n$, never the yearly one times $n$: $1.1 \\times 2 = 2.2$ would more than double the value.',
               ),
             ),
+            ask('grow-pct-value+choice', 2),
+            ask('grow-pct-tiles', 2),
             ask('grow-pct-flow', 2),
             ask('grow-pct-slider', 2),
           ],
@@ -1559,7 +1773,6 @@ export const exponentsRadicals: Course = {
             ),
             ask('grow-decay-tiles'),
             ask('grow-trend-flow'),
-            ask('grow-half-life'),
             teach(
               prose('The half-life is the time something takes to halve. With a half-life of 6 hours, 18 hours is 3 half-lives:'),
               working('18 \\div 6 &= 3', '160 \\times 2^{-3} &= 20'),
@@ -1567,6 +1780,7 @@ export const exponentsRadicals: Course = {
                 'To find when it first drops below a value, halve and count: $160 \\to 80 \\to 40 \\to 20$ is first below 30 after 3 halvings, which is 18 hours. On a graph, the half-life is where the curve comes down to half its starting height.',
               ),
             ),
+            ask('grow-half-life'),
             ask('grow-halflife-slider'),
             ask('grow-decay-tiles', 2),
             ask('grow-half-life+choice', 2),
@@ -1635,7 +1849,15 @@ export const exponentsRadicals: Course = {
             ),
             ask('grow-find-start'),
             ask('grow-steps-tiles'),
-            ask('grow-find-start+choice', 2),
+            asking(
+              'grow-find-start+choice',
+              2,
+              prose(
+                'Decay undoes the same way. A sample that halves every day has 40 g left after 3 days. Going forwards divided by $2^{3}$, so going back multiplies by it.',
+              ),
+              working('\\text{start} &= 40 \\times 2^{3}', '&= 40 \\times 8 = 320'),
+              prose('Check forwards: $320 \\to 160 \\to 80 \\to 40$.'),
+            ),
             teach(
               prose(
                 'For the multiplier, compare two values some steps apart. If $V_{2} = 18$ and $V_{5} = 486$, three steps multiplied by $486 \\div 18 = 27$.',

@@ -178,7 +178,7 @@ export const vectors: Course = {
                   'Two vectors are **parallel** when one is a scalar multiple of the other. To find the multiple, divide matching components: both have to give the same $k$.',
                 ),
                 maths(
-                  '\\begin{pmatrix} 6 \\\\ -4 \\end{pmatrix} = k\\begin{pmatrix} 3 \\\\ -2 \\end{pmatrix}: \\quad k = \\frac{6}{3} = 2, \\quad \\frac{-4}{-2} = 2',
+                  '\\begin{aligned} \\begin{pmatrix} 6 \\\\ -4 \\end{pmatrix} &= k\\begin{pmatrix} 3 \\\\ -2 \\end{pmatrix} \\\\ k &= \\frac{6}{3} = 2, \\quad \\frac{-4}{-2} = 2 \\end{aligned}',
                 ),
               ],
               'vec-scalar-k',
@@ -534,7 +534,7 @@ export const vectors: Course = {
                 'Knowing one end and the midpoint finds the other end: go on from $M$ by the same journey again. With $A\\left(1, 5\\right)$ and $M\\left(3, 2\\right)$:',
               ),
               maths(
-                '\\overrightarrow{AM} = \\begin{pmatrix} 2 \\\\ -3 \\end{pmatrix} \\implies B = \\left(3 + 2, \\; 2 - 3\\right) = \\left(5, -1\\right)',
+                '\\begin{aligned} \\overrightarrow{AM} &= \\begin{pmatrix} 2 \\\\ -3 \\end{pmatrix} \\\\ \\implies B &= \\left(3 + 2, \\; 2 - 3\\right) \\\\ &= \\left(5, -1\\right) \\end{aligned}',
               ),
             ),
             ask('vec-midpoint'),
@@ -966,8 +966,8 @@ export const vectors: Course = {
                 prose(
                   'Rearranged, $\\cos\\theta = \\frac{\\mathbf{a} \\cdot \\mathbf{b}}{|\\mathbf{a}| \\, |\\mathbf{b}|}$. For $\\begin{pmatrix} 2 \\\\ 1 \\end{pmatrix}$ and $\\begin{pmatrix} 1 \\\\ 3 \\end{pmatrix}$, work out the three pieces, then divide:',
                 ),
-                maths('\\mathbf{a} \\cdot \\mathbf{b} = 2 + 3 = 5, \\quad |\\mathbf{a}| = \\sqrt{5}, \\quad |\\mathbf{b}| = \\sqrt{10}'),
-                maths('\\cos\\theta = \\frac{5}{\\sqrt{5}\\sqrt{10}} = \\frac{5}{\\sqrt{50}} = \\frac{5}{5\\sqrt{2}} = \\frac{1}{\\sqrt{2}}'),
+                maths('\\begin{aligned} \\mathbf{a} \\cdot \\mathbf{b} &= 2 + 3 = 5 \\\\ |\\mathbf{a}| &= \\sqrt{5} \\\\ |\\mathbf{b}| &= \\sqrt{10} \\end{aligned}'),
+                maths('\\begin{aligned} \\cos\\theta &= \\frac{5}{\\sqrt{5}\\sqrt{10}} = \\frac{5}{\\sqrt{50}} \\\\ &= \\frac{5}{5\\sqrt{2}} = \\frac{1}{\\sqrt{2}} \\end{aligned}'),
               ],
               'vec-angle',
             ),
@@ -1144,7 +1144,7 @@ export const vectors: Course = {
               prose(
                 'The scalar product shares out over a sum, and $\\mathbf{a} \\cdot \\mathbf{a} = |\\mathbf{a}|^2$. With $|\\mathbf{a}| = 3$ and $\\mathbf{a}$ perpendicular to $\\mathbf{b}$:',
               ),
-              maths('\\mathbf{a} \\cdot (\\mathbf{a} + 4\\mathbf{b}) = \\mathbf{a} \\cdot \\mathbf{a} + 4\\,\\mathbf{a} \\cdot \\mathbf{b} = 9 + 4(0) = 9'),
+              maths('\\begin{aligned} \\mathbf{a} \\cdot (\\mathbf{a} + 4\\mathbf{b}) &= \\mathbf{a} \\cdot \\mathbf{a} + 4\\,\\mathbf{a} \\cdot \\mathbf{b} \\\\ &= 9 + 4(0) = 9 \\end{aligned}'),
             ),
             ask('angle-dot-algebra', 2),
             askAfter(
@@ -1503,7 +1503,7 @@ export const vectors: Course = {
               prose(
                 'Direction $\\mathbf{b} = \\left(1, -1, 0\\right)$ against the plane ${y + z = 3}$, whose normal is $\\mathbf{n} = \\left(0, 1, 1\\right)$:',
               ),
-              maths('\\mathbf{b} \\cdot \\mathbf{n} = 0 - 1 + 0 = -1, \\quad |\\mathbf{b}| = \\sqrt{2}, \\quad |\\mathbf{n}| = \\sqrt{2}'),
+              maths('\\begin{aligned} \\mathbf{b} \\cdot \\mathbf{n} &= 0 - 1 + 0 = -1 \\\\ |\\mathbf{b}| &= \\sqrt{2} \\\\ |\\mathbf{n}| &= \\sqrt{2} \\end{aligned}'),
               maths('\\sin\\theta = \\frac{|-1|}{\\sqrt{2}\\sqrt{2}} = \\frac{1}{2} \\implies \\theta = 30^\\circ'),
             ),
             ask('angle-line-plane'),

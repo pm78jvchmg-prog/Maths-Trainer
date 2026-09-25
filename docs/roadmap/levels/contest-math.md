@@ -212,3 +212,43 @@ Generators in `src/content/generators/contestReframing.ts`.
 | Autobiographical Numbers | `cm-look-say`, `cm-look-say-table`, `cm-self-describing`, `cm-digital-root`, `cm-number-plus-digits` | read runs, not digits; back a term, read in pairs; the digits of a self-describing number add to its length, but every place must be checked; digit sums keep the remainder on division by 9; name the digits and let their size decide |
 
 Level check: 14 questions across all four lessons.
+
+## Level 12: More Advanced Algebra (`cm-l12`)
+
+Generators in `src/content/generators/contestAdvancedAlgebra.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Systems of Equations | `cm-aa-sum-diff`, `cm-aa-swap`, `cm-aa-swap-tiles`, `cm-aa-cyclic` | x² − y² is (x + y)(x − y), so divide; swapped coefficients: add for the sum, subtract for the difference; add every equation when each holds the same letters |
+| Rates and Ratios | `cm-aa-avg-speed`, `cm-aa-avg-speed-tiles`, `cm-aa-meet`, `cm-aa-fill-drain` | average speed is total distance over total time, never the average of the speeds; time the dog, don't follow it; a chase closes at the difference of the speeds; rates add, times do not |
+| Quadratics | `cm-aa-complete-square`, `cm-aa-square-tiles`, `cm-aa-shared-root`, `cm-aa-nested-root` | complete the square, and a square is never negative; subtract the quadratics so x² cancels, then the product of the roots; an endless root contains a copy of itself |
+| Exponents | `cm-aa-power-equation`, `cm-aa-power-equation-tiles`, `cm-aa-power-sum`, `cm-aa-factor-power` | put both sides over one base, a fraction being a negative power; k copies of bˣ make k × bˣ; take the smallest power out of the top and the bottom |
+| Special Functions | `cm-aa-floor-sum`, `cm-aa-floor-table`, `cm-aa-abs-sum`, `cm-aa-functional`, `cm-aa-pair-sum` | ⌊√n⌋ = k for 2k + 1 values of n; absolute values are distances on the number line; substitute x and c − x; f(x) + f(1 − x) = 1 pairs the ends |
+| Logarithms | `cm-aa-log-chain`, `cm-aa-log-tiles`, `cm-aa-log-equation`, `cm-aa-log-power` | change of base makes a chain cancel; logs add by multiplying inside; a log to base bᵉ is 1/e of one to base b; b^(log_b c) = c |
+
+Level check: 13 questions across all six lessons.
+
+## Level 13: Inequalities (`cm-l13`)
+
+Generators in `src/content/generators/contestInequalities.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Basic Inequalities | `cm-in-flip`, `cm-in-count-integers`, `cm-in-bounds`, `cm-in-square-min` | dividing by a negative turns the sign round, in all three parts at once; count from the first integer inside to the last, and a square has two roots; a difference is least with the first low and the second high, a product needs all four corners; a square is never negative |
+| AM-GM | `cm-in-amgm-min`, `cm-in-product-table`, `cm-in-pen-tiles`, `cm-in-fixed-sum` | a fixed product makes the sum least when the parts are equal, after splitting a fraction to find it; the closest factor pair has the smallest sum; a fixed area is fenced least by equal parts, against a wall $2x$ and the far side; a fixed sum makes the product greatest, so the wall pen is twice as long as deep |
+| Cauchy-Schwarz | `cm-in-cs-max`, `cm-in-cs-table`, `cm-in-cs-min`, `cm-in-titu` | $(ax + by)^2 \le (a^2 + b^2)(x^2 + y^2)$ caps a line on a circle; equality is in step with the coefficients; turned round it is the least sum of squares on a line; the fractions form for a fixed sum of bottoms |
+
+Level check: 12 questions across all three lessons.
+
+## Level 14: Polynomials (`cm-l14`)
+
+Generators in `src/content/generators/contestPolynomials.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Roots | `cm-po-remainder`, `cm-po-find-k`, `cm-po-sum-coeffs`, `cm-po-integer-roots` | the remainder on dividing by x − a is p(a), and x + a means p(−a); a factor or a remainder fixes k; p(1) adds the coefficients, and p(1) + p(−1) doubles the even ones; whole-number roots divide the constant term |
+| Equations | `cm-po-quartic`, `cm-po-shared-root`, `cm-po-shared-root-tiles`, `cm-po-reciprocal`, `cm-po-fixed-values` | only even powers make a quadratic in y = x², and a negative y gives no real x; subtract to cancel x² and leave the shared root; divide by x for x + 1/x, then square or cube; p(x) − c or p(x) − x has the given points as roots |
+| Vieta's Formulas | `cm-po-vieta-quad`, `cm-po-vieta-cubic`, `cm-po-vieta-table`, `cm-po-root-ratio` | the roots add to −b and multiply to c; squares, reciprocals and cubes of the roots from the sum and product; a cubic's signs alternate once the leading coefficient is divided out; name the roots r and kr, or r and r + d |
+| Transformations | `cm-po-shift-product`, `cm-po-roots-sum-sub`, `cm-po-new-roots-table`, `cm-po-squared-roots-tiles` | (k − r)(k − s)(k − t) is p(k), and (r + k)(s + k)(t + k) is −p(−k); p(ax + b) has roots (r − b)/a, the shift counted once per root; scaling the roots by k scales the coefficients by k, k², k³; roots r² and s² from Vieta |
+
+Level check: 14 questions across all four lessons.

@@ -274,3 +274,16 @@ Generators in `src/content/generators/contestFactors.ts`.
 | Counting Factors | `cm-fc-few-divisors`, `cm-fc-divisor-product`, `cm-fc-square-pairs`, `cm-fc-multiple-divisors`, `cm-fc-multiple-divisors-table` | divisors pair d with n/d, so only squares have an odd count and three divisors means a prime squared; the pairs multiply to N^{t/2}; the divisors of N² pair around N; a multiple of m is m times a divisor of N/m |
 
 Level check: 12 questions across all three lessons.
+
+## Level 17: Modular Arithmetic (`cm-l17`)
+
+Generators in `src/content/generators/contestModular.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| System of Congruences | `cm-md-remainder-shift`, `cm-md-crt-sieve`, `cm-md-crt-table`, `cm-md-same-gap` | put the remainder in place of N, then reduce once more; list the larger divisor's numbers and test the other, then step by the product for a third; every remainder the same distance short makes N + g a common multiple, so the LCM, not the product |
+| Fractions | `cm-md-inverse`, `cm-md-inverse-table`, `cm-md-linear`, `cm-md-decimal-digit` | add the modulus until the division comes out; a shared factor divides the modulus too and leaves several answers; a far decimal digit is its place modulo the block, after any digits before the repeat |
+| Units Digit | `cm-md-tower`, `cm-md-tower-table`, `cm-md-power-sum`, `cm-md-last-two` | a tower needs its exponent modulo 4, with 3 as −1; powers add a block of ten at a time, 45 or 33 a block; (10t + 1)^n is 1 + 10tn, and other bases repeat once a power ends in 01 |
+| Euler's Theorem | `cm-md-fermat`, `cm-md-cycle-table`, `cm-md-euler-tower`, `cm-md-phi` | cut the power down by p − 1, or by φ(n) for a composite modulus; the cycle's length divides p − 1; cut a tower's top down by p − 1 first; φ(n) keeps the same share for each prime |
+
+Level check: 13 questions across all four lessons.

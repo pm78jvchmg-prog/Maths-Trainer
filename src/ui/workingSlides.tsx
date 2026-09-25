@@ -8,7 +8,7 @@
  * right or wrong, and only the reducer knows which.
  */
 import { useLayoutEffect, useRef, useState } from 'react';
-import { Tex, Blocks, Inline } from './Math';
+import { Tex, Blocks, DisplayMath, Inline } from './Math';
 import type { Slide } from '../content/types';
 import { frameClass, isLocked, type SlideProps } from './slides';
 import { walkFlow } from './flow';
@@ -400,9 +400,7 @@ function TreeBody({
         <Blocks blocks={slide.prompt} />
       </div>
 
-      <div className="display-math">
-        <Tex tex={slide.expression} display />
-      </div>
+      <DisplayMath tex={slide.expression} />
 
       <div
         className={`answer-frame tree${feedback.kind === 'incorrect' ? ' wrong' : ''}`}

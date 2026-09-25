@@ -425,7 +425,8 @@ export const probability: Course = {
               prose(
                 'Sometimes the overlap has to be found first, from the addition rule. With $P(A) = 0.4$, $P(B) = 0.3$ and $P(A \\cup B) = 0.58$:',
               ),
-              working('P(A \\cap B) &= 0.4 + 0.3 - 0.58', '&= 0.12', 'P(A) \\times P(B) &= 0.4 \\times 0.3', '&= 0.12'),
+              working('& P(A \\cap B)', '= {} & 0.4 + 0.3 - 0.58', '= {} & 0.12'),
+              working('& P(A) \\times P(B)', '= {} & 0.4 \\times 0.3 = 0.12'),
               prose('They match, so $A$ and $B$ are independent.'),
               prose(
                 '"Neither" or "none" multiplies the complements. If three people each score with probability $0.2$, $0.5$ and $0.6$, the chance none of them does is $0.8 \\times 0.5 \\times 0.4 = 0.16$.',
@@ -671,13 +672,13 @@ export const probability: Course = {
                 '"Exactly two wins" happens on three paths: $W, W, L$ and $W, L, W$ and $L, W, W$. Here each is $0.6 \\times 0.6 \\times 0.4 = 0.144$, so the answer is $3 \\times 0.144 = 0.432$.',
               ),
               prose(
-                'When the stages have different probabilities the paths are no longer equal: work out each one, then add. Three sets of lights are green with $0.3$, $0.5$ and $0.8$. Exactly one green:',
+                'When the stages have different probabilities the paths are no longer equal: work out each one, then add. Three sets of lights are green with $0.3$, $0.5$ and $0.8$. Exactly one green is the paths $G, R, R$ then $R, G, R$ then $R, R, G$:',
               ),
               working(
-                'G, R, R &: 0.3 \\times 0.5 \\times 0.2 = 0.03',
-                'R, G, R &: 0.7 \\times 0.5 \\times 0.2 = 0.07',
-                'R, R, G &: 0.7 \\times 0.5 \\times 0.8 = 0.28',
-                '\\text{total} &: 0.03 + 0.07 + 0.28 = 0.38',
+                '0.3 \\times 0.5 \\times 0.2 &= 0.03',
+                '0.7 \\times 0.5 \\times 0.2 &= 0.07',
+                '0.7 \\times 0.5 \\times 0.8 &= 0.28',
+                '\\text{sum} &= 0.38',
               ),
             ),
             ask('prob-three-exactly-tiles'),
@@ -914,10 +915,11 @@ export const probability: Course = {
                 'To fill a diagram from a "given that", find the overlap first with the formula turned round, $P(A \\cap B) = P(B) \\times P(A \\mid B)$. With $P(A) = 0.5$, $P(B) = 0.4$ and $P(A \\mid B) = 0.3$:',
               ),
               working(
-                'P(A \\cap B) &= 0.4 \\times 0.3 = 0.12',
+                'A \\cap B &= 0.4 \\times 0.3 = 0.12',
                 'A \\text{ only} &= 0.5 - 0.12 = 0.38',
                 'B \\text{ only} &= 0.4 - 0.12 = 0.28',
-                '\\text{outside} &= 1 - 0.5 - 0.28 = 0.22',
+                '\\text{outside} &= 1 - 0.5 - 0.28',
+                '&= 0.22',
               ),
               diagram(vennSvg(['A', 'B'], ['0.38', '0.12', '0.28', '0.22'])),
               prose(
@@ -1005,7 +1007,8 @@ export const probability: Course = {
                 'The test from Independent Events says the same thing. If $P(A \\mid B) = P(A)$, then $P(A \\cap B) = P(B) \\times P(A \\mid B) = P(A) \\times P(B)$. On a Venn diagram of probabilities, add each circle\'s two regions first:',
               ),
               diagram(vennSvg(['A', 'B'], ['0.18', '0.12', '0.28', '0.42'])),
-              working('P(A) &= 0.18 + 0.12 = 0.3', 'P(B) &= 0.12 + 0.28 = 0.4', 'P(A) \\times P(B) &= 0.3 \\times 0.4', '&= 0.12 = P(A \\cap B)'),
+              working('P(A) &= 0.18 + 0.12 = 0.3', 'P(B) &= 0.12 + 0.28 = 0.4'),
+              working('& P(A) \\times P(B)', '= {} & 0.3 \\times 0.4', '= {} & 0.12 = P(A \\cap B)'),
               prose('They match, so $A$ and $B$ are independent. The other test agrees: $P(A \\mid B) = \\frac{0.12}{0.4} = 0.3 = P(A)$.'),
             ),
             ask('prob-ci-venn-tiles'),
@@ -1258,14 +1261,14 @@ export const probability: Course = {
           slides: [
             teach(
               prose(
-                'When every order is equally likely, a probability is the orders that fit over all the orders. Five people sit in a row at random, in any of $5! = 120$ orders. Count the ones that fit as Arranging Everything did:',
+                'When every order is equally likely, a probability is the orders that fit over all the orders. Five people sit in a row at random, in any of $5! = 120$ orders. Count the ones that fit as Arranging Everything did. For Jo and Sam together, Jo in seat 1, and Jo and Sam at the two ends:',
               ),
               working(
-                'P(\\text{Jo, Sam together}) &= \\tfrac{2 \\times 4!}{120}',
+                'P(\\text{together}) &= \\tfrac{2 \\times 4!}{120}',
                 '&= \\tfrac{48}{120} = \\tfrac{2}{5}',
-                'P(\\text{Jo in seat 1}) &= \\tfrac{4!}{120}',
+                'P(\\text{Jo 1st}) &= \\tfrac{4!}{120}',
                 '&= \\tfrac{24}{120} = \\tfrac{1}{5}',
-                'P(\\text{Jo, Sam at ends}) &= \\tfrac{2 \\times 3!}{120}',
+                'P(\\text{both ends}) &= \\tfrac{2 \\times 3!}{120}',
                 '&= \\tfrac{12}{120} = \\tfrac{1}{10}',
               ),
               prose(

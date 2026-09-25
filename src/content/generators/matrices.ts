@@ -17,10 +17,11 @@ import {
   nonZero,
   signedChoices,
   signedOffer,
+  solvedForTex,
   VECTOR_TEMPLATE,
 } from './vectorFormat';
 import { spanFor, transformGridSvg, type Mirror } from './transformFigure';
-import { fracTex } from './format';
+import { coeffTex, fracTex } from './format';
 
 interface MatrixPairParams {
   a: number;
@@ -408,7 +409,7 @@ const singular: Generator<SingularParams> = {
         text: 'A matrix has no inverse exactly when its determinant is zero. Such a matrix is called **singular**.',
       },
       { tex: `\\det = k\\left(${d}\\right) - \\left(${b}\\right)\\left(${c}\\right) = 0` },
-      { tex: `${d}k = ${b * c} \\implies k = \\frac{${b * c}}{${d}} = ${k}` },
+      { tex: solvedForTex(d, 'k', b * c, `k = \\frac{${b * c}}{${d}} = ${k}`) },
       {
         text: `So $k = ${k}$ makes the determinant zero. Every other value of $k$ gives an invertible matrix.`,
       },
@@ -2712,7 +2713,7 @@ const areaK: Generator<AreaKParams> = {
         text: `The area is scaled by $${image} \\div ${area} = ${Math.abs(det)}$. The shape is ${det > 0 ? 'kept the same way round, so the determinant is positive' : 'turned over, so the determinant is negative'}: it is $${det}$.`,
       },
       { tex: `\\det\\mathbf{M} = ${product} = ${det}` },
-      { tex: `${coefficient}k ${rest < 0 ? '-' : '+'} ${Math.abs(rest)} = ${det}` },
+      { tex: `${coeffTex(coefficient, 'k')} ${rest < 0 ? '-' : '+'} ${Math.abs(rest)} = ${det}` },
       { tex: `k = \\frac{${det - rest}}{${coefficient}} = ${entries[slot]}` },
       {
         text: 'Getting the sign of the determinant wrong gives a different $k$ that scales the area correctly but flips the shape when it should not, or the other way round.',
@@ -5852,7 +5853,7 @@ const sysParamK: Generator<SysParamParams> = {
     return [
       { text: 'A unique solution needs an inverse, so find where the determinant is zero.' },
       ...paramSteps(p),
-      { tex: `${C}k = ${-R} \\implies k = ${-R / C}` },
+      { tex: solvedForTex(C, 'k', -R, `k = ${-R / C}`) },
       { text: 'At any other value of $k$ the determinant is not zero and there is exactly one solution.' },
     ];
   },
@@ -5935,7 +5936,7 @@ const sysParamWhich: Generator<SysWhichParams> = {
       const [b, c, d] = entries;
       return [
         { text: 'Exactly one solution needs a non-zero determinant.' },
-        { text: `$\\det \\mathbf{A} = ${d}k - (${b})(${c}) = ${d === 1 ? '' : d}k${signedTex(-b * c)}$` },
+        { text: `$\\det \\mathbf{A} = ${coeffTex(d, 'k')} - (${b})(${c}) = ${coeffTex(d, 'k')}${signedTex(-b * c)}$` },
         { text: `That is zero only at $k = ${roots[0]}$, so every other value of $k$ gives exactly one solution.` },
       ];
     }
@@ -5990,7 +5991,7 @@ const sysParamOutcome: Generator<SysOutcomeParams> = {
     };
   },
   solution: ({ c, d, t, q0 }) => [
-    { text: `The determinant is $${d}k - (${d * t})(${c})$, which is zero when $k = ${c * t}$.` },
+    { text: `The determinant is $${coeffTex(d, 'k')} - (${d * t})(${c})$, which is zero when $k = ${c * t}$.` },
     {
       text: `At that value the first left-hand side is $${t}$ times the second: $${c * t}x + ${br(d * t)}y = ${t}(${termsTex([c, d], UNKNOWNS)})$.`,
     },
@@ -7031,7 +7032,7 @@ const invStdFlow: Generator<StdFlowParams> = {
     const path = stdFlowPath(m).join(',');
     const verdict =
       path === 'Yes,Yes'
-        ? `$\\mathbf{M}$ is $${a}$ times the identity, which sends $(1, m)$ to $(${a}, ${a}m)$ for every $m$: every line through $O$ is invariant.`
+        ? `$\\mathbf{M}$ is $${a}$ times the identity, which sends $(1, m)$ to $(${a}, ${coeffTex(a, 'm')})$ for every $m$: every line through $O$ is invariant.`
         : path === 'Yes,No'
           ? `$(1, 0)$ goes to $(${a}, 0)$ and $(0, 1)$ to $(0, ${d})$, so both axes map onto themselves. Any other direction is scaled by different amounts across and up, so it turns.`
           : path === 'No,Yes,Yes'

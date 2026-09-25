@@ -103,6 +103,16 @@ const paren = (v: number): string => (v < 0 ? `(${fmt(v)})` : fmt(v));
 /** A square, bracketed when negative. */
 const sq = (v: number): string => `${paren(v)}^{2}`;
 
+/**
+ * A number times a letter as written by hand: `2.5a`, `3v_{B}`, but `a` and
+ * `-a` for 1 and -1, so the equation of motion of a 1 kg particle does not
+ * read `T = 1a`.
+ */
+const timesTex = (v: number, symbol: string): string => (v === 1 ? symbol : v === -1 ? `-${symbol}` : `${fmt(v)}${symbol}`);
+
+/** The same following another term, its sign spaced out as `signed` spaces it: `+ 3m`, `- m`. */
+const signedTimesTex = (v: number, symbol: string): string => `${v < 0 ? '-' : '+'} ${timesTex(Math.abs(v), symbol)}`;
+
 /** `a i + b j` as the learner reads it. */
 export function ijTex(a: number, b: number): string {
   const coef = (v: number) => (v === 1 ? '' : v === -1 ? '-' : fmt(v));
@@ -842,9 +852,9 @@ const parallel: Generator<ParallelParams> = {
     const axis = typeof target === 'string';
     const third = axis
       ? target === 'i'
-        ? `(${fmt(known)}\\mathbf{i} + q\\mathbf{j})`
-        : `(p\\mathbf{i} ${signed(known)}\\mathbf{j})`
-      : `(p\\mathbf{i} ${signed(known)}\\mathbf{j})`;
+        ? `(${timesTex(known, '\\mathbf{i}')} + q\\mathbf{j})`
+        : `(p\\mathbf{i} ${signedTimesTex(known, '\\mathbf{j}')})`
+      : `(p\\mathbf{i} ${signedTimesTex(known, '\\mathbf{j}')})`;
     const along = axis ? `$\\mathbf{${target}}$` : `$${ijTex(target[0], target[1])}$`;
     const unknown = target === 'i' ? 'q' : 'p';
     return typed(
@@ -876,7 +886,7 @@ const parallel: Generator<ParallelParams> = {
     const [u, v] = target;
     return [
       { text: 'Add the forces first:' },
-      { tex: `\\mathbf{R} = (${fmt(sx)} + p)\\mathbf{i} ${signed(sy + known)}\\mathbf{j}` },
+      { tex: `\\mathbf{R} = (${fmt(sx)} + p)\\mathbf{i} ${signedTimesTex(sy + known, '\\mathbf{j}')}` },
       { text: `Parallel to $${ijTex(u, v)}$ means the parts are in the same ratio:` },
       { tex: aligned(`\\frac{${fmt(sx)} + p}{${fmt(sy + known)}} &= \\frac{${u}}{${v}}`, `${fmt(sx)} + p &= ${fmt((u * (sy + known)) / v)}`, `p &= ${fmt(ans)}`) },
     ];
@@ -2440,13 +2450,13 @@ const pulley: Generator<PulleyParams> = {
       setup === 'hang'
         ? [
             { text: '$A$ is heavier, so it moves down. One equation for each particle:' },
-            { tex: aligned(`A: \\; ${fmt(G * m1)} - T &= ${fmt(m1)}a`, `B: \\; T - ${fmt(G * m2)} &= ${fmt(m2)}a`) },
+            { tex: aligned(`A: \\; ${fmt(G * m1)} - T &= ${timesTex(m1, 'a')}`, `B: \\; T - ${fmt(G * m2)} &= ${timesTex(m2, 'a')}`) },
             { text: 'Add them, and $T$ drops out:' },
             { tex: `${fmt(G * (m1 - m2))} = ${fmt(m1 + m2)}a, \\quad a = ${fmt(a)}` },
           ]
         : [
             { text: `One equation for each particle${mu > 0 ? `; friction on $A$ is $\\mu R = ${fmt(mu)} \\times ${fmt(G * m1)} = ${fmt(mu * G * m1)}$` : ''}:` },
-            { tex: aligned(`A: \\; T${mu > 0 ? ` - ${fmt(mu * G * m1)}` : ''} &= ${fmt(m1)}a`, `B: \\; ${fmt(G * m2)} - T &= ${fmt(m2)}a`) },
+            { tex: aligned(`A: \\; T${mu > 0 ? ` - ${fmt(mu * G * m1)}` : ''} &= ${timesTex(m1, 'a')}`, `B: \\; ${fmt(G * m2)} - T &= ${timesTex(m2, 'a')}`) },
             { text: 'Add them, and $T$ drops out:' },
             { tex: `${fmt(G * m2 - mu * G * m1)} = ${fmt(m1 + m2)}a, \\quad a = ${fmt(a)}` },
           ];
@@ -2515,11 +2525,11 @@ const pulleyTiles: Generator<PulleyTilesParams> = {
     setup === 'hang'
       ? [
           { text: '$A$ is heavier and moves down: its weight wins against the tension. $B$ moves up: the tension wins against its weight.' },
-          { tex: aligned(`A: \\; ${fmt(G * m1)} - T &= ${m1}a`, `B: \\; T - ${fmt(G * m2)} &= ${m2}a`) },
+          { tex: aligned(`A: \\; ${fmt(G * m1)} - T &= ${timesTex(m1, 'a')}`, `B: \\; T - ${fmt(G * m2)} &= ${timesTex(m2, 'a')}`) },
         ]
       : [
           { text: `$A$ is pulled along by the tension against friction $\\mu R = ${fmt(mu)} \\times ${fmt(G * m1)}$. $B$ falls: its weight wins against the tension.` },
-          { tex: aligned(`A: \\; T - ${fmt(mu * G * m1)} &= ${m1}a`, `B: \\; ${fmt(G * m2)} - T &= ${m2}a`) },
+          { tex: aligned(`A: \\; T - ${fmt(mu * G * m1)} &= ${timesTex(m1, 'a')}`, `B: \\; ${fmt(G * m2)} - T &= ${timesTex(m2, 'a')}`) },
         ],
 };
 
@@ -3804,11 +3814,11 @@ function equationsOf(rig: Rig): [string, string] {
   const less = (v: number) => (v > 0 ? ` - ${fmt(v)}` : '');
   if (m.falls === 'A') {
     return [
-      `${fmt(m.along1)} - T${less(m.F1)} = ${fmt(rig.m1)}a`,
-      `T${less(m.along2)}${less(m.F2)} = ${fmt(rig.m2)}a`,
+      `${fmt(m.along1)} - T${less(m.F1)} = ${timesTex(rig.m1, 'a')}`,
+      `T${less(m.along2)}${less(m.F2)} = ${timesTex(rig.m2, 'a')}`,
     ];
   }
-  return [`T${less(m.along1)}${less(m.F1)} = ${fmt(rig.m1)}a`, `${fmt(m.along2)} - T${less(m.F2)} = ${fmt(rig.m2)}a`];
+  return [`T${less(m.along1)}${less(m.F1)} = ${timesTex(rig.m1, 'a')}`, `${fmt(m.along2)} - T${less(m.F2)} = ${timesTex(rig.m2, 'a')}`];
 }
 
 /** Both equations stacked, A's above B's, each aligned on its equals sign; narrow enough for a phone. */
@@ -4620,7 +4630,7 @@ function slackWorking(params: SlackParams, further: boolean): SolutionStep[] {
         ? 'Once $B$ lands the string goes slack. Only friction acts along the table, against $A$\'s motion:'
         : 'Once $B$ lands the string goes slack. Along the slope, gravity and friction both act down it, against $A$\'s motion:',
     },
-    { tex: table ? `${fmt(rig.m1)}d = ${fmt(rig.mu1)} \\times ${fmt(G * rig.m1)}, \\quad d = ${fmt(k.d)}` : `d = 9.8(${fmt(sinOf(rig.t1))}${rig.mu1 > 0 ? ` + ${fmt(rig.mu1)} \\times ${fmt(cosOf(rig.t1))}` : ''}) = ${fmt(k.d)}` },
+    { tex: table ? `${timesTex(rig.m1, 'd')} = ${fmt(rig.mu1)} \\times ${fmt(G * rig.m1)}, \\quad d = ${fmt(k.d)}` : `d = 9.8(${fmt(sinOf(rig.t1))}${rig.mu1 > 0 ? ` + ${fmt(rig.mu1)} \\times ${fmt(cosOf(rig.t1))}` : ''}) = ${fmt(k.d)}` },
     { text: 'It comes to rest when $v = 0$:' },
     { tex: `0 = ${fmt(k.v2)} - 2 \\times ${fmt(k.d)}s, \\quad s = ${fmt(k.s)}` },
   ];
@@ -5323,11 +5333,12 @@ const momentumTiles: Generator<MomentumIjParams> = {
       ? [
           { text: 'First the velocity: scale the direction to the right speed.' },
           { tex: `|${ijTex(dir[0], dir[1])}| = \\sqrt{${sq(dir[0])} + ${sq(dir[1])}} = ${fmt(Math.hypot(dir[0], dir[1]))}` },
-          { tex: `\\mathbf{v} = ${fmt(speed / Math.hypot(dir[0], dir[1]))}(${ijTex(dir[0], dir[1])}) = ${ijTex(v[0], v[1])}` },
+          // At a scale of 1 the direction already has the speed: nothing to multiply.
+          { tex: `\\mathbf{v} = ${speed === Math.hypot(dir[0], dir[1]) ? '' : `${fmt(speed / Math.hypot(dir[0], dir[1]))}(${ijTex(dir[0], dir[1])}) = `}${ijTex(v[0], v[1])}` },
         ]
       : []),
     { text: 'Momentum is the mass times the velocity, each component in turn:' },
-    { tex: `\\mathbf{p} = m\\mathbf{v} = ${fmt(m)}(${ijTex(v[0], v[1])}) = ${ijTex(m * v[0], m * v[1])}` },
+    { tex: `\\mathbf{p} = m\\mathbf{v} = ${m === 1 ? '' : `${fmt(m)}(${ijTex(v[0], v[1])}) = `}${ijTex(m * v[0], m * v[1])}` },
   ],
 };
 
@@ -5515,7 +5526,7 @@ function conservationWorking(c: Collision, find: 'A' | 'B'): SolutionStep[] {
   const known = find === 'B' ? c.mA * c.vA : c.mB * c.vB;
   const mass = find === 'B' ? c.mB : c.mA;
   const answer = find === 'B' ? c.vB : c.vA;
-  const unknown = `${fmt(mass)}v_{${find}}`;
+  const unknown = timesTex(mass, `v_{${find}}`);
   const rhs = find === 'B' ? `${fmt(c.mA)} \\times ${paren(c.vA)} + ${unknown}` : `${unknown} + ${fmt(c.mB)} \\times ${paren(c.vB)}`;
   return [
     { text: 'Total momentum before equals total momentum after:' },
@@ -5829,12 +5840,12 @@ const coalesce: Generator<CoalesceParams> = {
       lines.push({ tex: `${fmt(pBefore(c))} = ${fmt(c.mA + c.mB)}v, \\quad v = ${fmt(c.vA)}` });
     } else if (find === 'uB') {
       lines.push(
-        { tex: `${fmt(c.mA * c.uA)} + ${fmt(c.mB)}u_{B} = ${fmt((c.mA + c.mB) * c.vA)}` },
+        { tex: `${fmt(c.mA * c.uA)} + ${timesTex(c.mB, 'u_{B}')} = ${fmt((c.mA + c.mB) * c.vA)}` },
         { tex: `u_{B} = \\frac{${fmt((c.mA + c.mB) * c.vA)} ${signed(-c.mA * c.uA)}}{${fmt(c.mB)}} = ${fmt(c.uB)}` },
       );
     } else {
       lines.push(
-        { tex: `${fmt(c.mA * c.uA)} ${signed(c.uB)}m = ${fmt(c.mA * c.vA)} ${signed(c.vA)}m` },
+        { tex: `${fmt(c.mA * c.uA)} ${signedTimesTex(c.uB, 'm')} = ${fmt(c.mA * c.vA)} ${signedTimesTex(c.vA, 'm')}` },
         { tex: `m = \\frac{${fmt(c.mA * c.uA)} ${signed(-c.mA * c.vA)}}{${fmt(c.vA)} ${signed(-c.uB)}} = ${fmt(c.mB)}` },
       );
     }
@@ -6027,7 +6038,7 @@ const separateFlow: Generator<SeparateFlowParams> = {
           `${upper(names[0])}, of mass ${kg(s.m1)}, and ${names[1]}, of mass ${kg(s.m2)}, ${how}. Afterwards ${second} is ${moving(s.v2)}. ${RIGHT} What does ${first} do?`,
         ),
       ],
-      subject: `0 = ${fmt(s.m1)}v + ${fmt(s.m2)} \\times ${fmt(s.v2)}`,
+      subject: `0 = ${timesTex(s.m1, 'v')} + ${fmt(s.m2)} \\times ${fmt(s.v2)}`,
       steps: [
         {
           id: 'total',
@@ -6053,7 +6064,7 @@ const separateFlow: Generator<SeparateFlowParams> = {
     const p2 = s.m2 * s.v2;
     return [
       { text: 'Everything starts at rest, so the total momentum is zero before and after:' },
-      { tex: `0 = ${fmt(s.m1)}v + ${fmt(p2)}` },
+      { tex: `0 = ${timesTex(s.m1, 'v')} + ${fmt(p2)}` },
       { tex: `v = \\frac{${fmt(-p2)}}{${fmt(s.m1)}} = ${fmt(s.v1)}` },
       { text: `Negative, so ${first} moves left, at $${fmt(Math.abs(s.v1))}${MS}$.` },
     ];
@@ -6141,15 +6152,15 @@ const impulse: Generator<ImpulseParams> = {
     if (kind === 'rebound') {
       return [
         { text: `With right positive the ball arrives with $${fmt(u)}$ and leaves with $-v$, so the impulse is to the left:` },
-        { tex: `-${fmt(Math.abs(I))} = ${fmt(m)}(-v) - ${fmt(m)} \\times ${fmt(u)}` },
-        { tex: `${fmt(m)}v = ${fmt(Math.abs(I))} - ${fmt(m * u)} = ${fmt(-m * v)}, \\quad v = ${fmt(-v)}` },
+        { tex: `-${fmt(Math.abs(I))} = ${m === 1 ? '-v' : `${fmt(m)}(-v)`} - ${fmt(m)} \\times ${fmt(u)}` },
+        { tex: `${timesTex(m, 'v')} = ${fmt(Math.abs(I))} - ${fmt(m * u)} = ${fmt(-m * v)}${m === 1 ? '' : `, \\quad v = ${fmt(-v)}`}` },
       ];
     }
     if (kind === 'after') {
       return [
         { text: 'The impulse is the change in momentum, so add it to the momentum before:' },
-        { tex: `${fmt(m)}v = ${fmt(m * u)} ${signed(I)} = ${fmt(m * v)}` },
-        { tex: `v = \\frac{${fmt(m * v)}}{${fmt(m)}} = ${fmt(v)}` },
+        { tex: `${timesTex(m, 'v')} = ${fmt(m * u)} ${signed(I)} = ${fmt(m * v)}` },
+        ...(m === 1 ? [] : [{ tex: `v = \\frac{${fmt(m * v)}}{${fmt(m)}} = ${fmt(v)}` }]),
       ];
     }
     return [
@@ -6255,7 +6266,7 @@ const impulsePairTiles: Generator<ImpulsePairParams> = {
       { text: 'By the third law $B$ gets an equal and opposite impulse:' },
       { tex: `I_{B} = ${fmt(-IA)}` },
       { text: "That is the change in $B$'s momentum:" },
-      { tex: `${fmt(c.mB)}v_{B} = ${fmt(c.mB)} \\times ${paren(c.uB)} ${signed(-IA)} = ${fmt(c.mB * c.vB)}, \\quad v_{B} = ${fmt(c.vB)}` },
+      { tex: `${timesTex(c.mB, 'v_{B}')} = ${fmt(c.mB)} \\times ${paren(c.uB)} ${signed(-IA)} = ${fmt(c.mB * c.vB)}${c.mB === 1 ? '' : `, \\quad v_{B} = ${fmt(c.vB)}`}` },
     ];
   },
 };
@@ -6309,8 +6320,8 @@ const impulseSlider: Generator<ImpulseSliderParams> = {
     const I = m * (v - u);
     return [
       { text: 'The impulse is the change in momentum, so it moves the momentum along the line by that much:' },
-      { tex: `${fmt(m)}v = ${fmt(m)} \\times ${paren(u)} ${signed(I)} = ${fmt(m * v)}` },
-      { tex: `v = \\frac{${fmt(m * v)}}{${fmt(m)}} = ${fmt(v)}` },
+      { tex: `${timesTex(m, 'v')} = ${fmt(m)} \\times ${paren(u)} ${signed(I)} = ${fmt(m * v)}` },
+      ...(m === 1 ? [] : [{ tex: `v = \\frac{${fmt(m * v)}}{${fmt(m)}} = ${fmt(v)}` }]),
       ...(Math.sign(u) !== Math.sign(v) && v !== 0 ? [{ text: 'The sign has changed: the impulse was big enough to turn the particle round.' }] : []),
     ];
   },
@@ -6396,8 +6407,8 @@ const ft: Generator<FtParams> = {
     }
     return [
       law,
-      { tex: `${paren(F)} \\times ${fmt(t)} = ${fmt(m)}v - ${fmt(m)} \\times ${paren(u)}` },
-      { tex: `${fmt(m)}v = ${fmt(F * t)} ${signed(m * u)} = ${fmt(m * v)}, \\quad v = ${fmt(v)}` },
+      { tex: `${paren(F)} \\times ${fmt(t)} = ${timesTex(m, 'v')} - ${fmt(m)} \\times ${paren(u)}` },
+      { tex: `${timesTex(m, 'v')} = ${fmt(F * t)} ${signed(m * u)} = ${fmt(m * v)}${m === 1 ? '' : `, \\quad v = ${fmt(v)}`}` },
     ];
   },
   choices: ({ find, m, u, v, t, F }) => {
@@ -6558,11 +6569,11 @@ const impulseIjTiles: Generator<ImpulseIjParams> = {
   },
   solution: ({ kind, m, u, v, t }) => {
     const I: Pt = [m * (v[0] - u[0]), m * (v[1] - u[1])];
-    const change = { tex: `${fmt(m)}\\mathbf{v} = ${fmt(m)}(${ijTex(u[0], u[1])}) + (${ijTex(I[0], I[1])}) = ${ijTex(m * v[0], m * v[1])}` };
+    const change = { tex: `${timesTex(m, '\\mathbf{v}')} = ${timesTex(m, `(${ijTex(u[0], u[1])})`)} + (${ijTex(I[0], I[1])}) = ${ijTex(m * v[0], m * v[1])}` };
     if (kind === 'find') {
       return [
         { text: 'Impulse is the change in momentum, $m\\mathbf{v} - m\\mathbf{u}$, component by component:' },
-        { tex: `\\mathbf{I} = ${fmt(m)}(${ijTex(v[0], v[1])}) - ${fmt(m)}(${ijTex(u[0], u[1])}) = ${ijTex(I[0], I[1])}` },
+        { tex: `\\mathbf{I} = ${timesTex(m, `(${ijTex(v[0], v[1])})`)} - ${timesTex(m, `(${ijTex(u[0], u[1])})`)} = ${ijTex(I[0], I[1])}` },
       ];
     }
     return [
@@ -6633,7 +6644,7 @@ const ftTable: Generator<FtTableParams> = {
       return [
         { text: `Stage ${i + 1}: the impulse ${i === 0 ? 'changes the momentum it starts with' : 'starts from the velocity the last stage left'}.` },
         { tex: `Ft = ${paren(I / t)} \\times ${fmt(t)} = ${fmt(I)}` },
-        { tex: `${fmt(m)}v = ${fmt(m)} \\times ${paren(vs[i])} ${signed(I)} = ${fmt(m * vs[i + 1])}, \\quad v = ${fmt(vs[i + 1])}` },
+        { tex: `${timesTex(m, 'v')} = ${fmt(m)} \\times ${paren(vs[i])} ${signed(I)} = ${fmt(m * vs[i + 1])}${m === 1 ? '' : `, \\quad v = ${fmt(vs[i + 1])}`}` },
       ];
     }),
 };
@@ -7856,11 +7867,11 @@ function ladderWorking(p: LadderParams, upTo: 'S' | 'mu'): SolutionStep[] {
   const S = wallPush(p);
   const cos = cosOf(t);
   const sin = sinOf(t);
-  const rhs = `${fmt(W)} \\times ${fmt(L / 2)}\\cos\\alpha${P > 0 ? ` + ${fmt(P)} \\times ${fmt(s)}\\cos\\alpha` : ''}`;
+  const rhs = `${fmt(W)} \\times ${timesTex(L / 2, '\\cos\\alpha')}${P > 0 ? ` + ${fmt(P)} \\times ${timesTex(s, '\\cos\\alpha')}` : ''}`;
   const steps: SolutionStep[] = [
     ...angleStep(t, p.hard),
     { text: 'Take moments about the foot $A$: $R$ and $F$ both act there, so neither has a moment. The wall is smooth, so $S$ is horizontal, and its perpendicular distance from $A$ is the height of $B$; each weight\'s is its distance along the ladder times $\\cos\\alpha$.' },
-    { tex: `S \\times ${fmt(L)}\\sin\\alpha = ${rhs}` },
+    { tex: `S \\times ${timesTex(L, '\\sin\\alpha')} = ${rhs}` },
     { tex: `${fmt(L * sin)}S = ${fmt((W * L) / 2 * cos + P * s * cos)}, \\quad S = ${fmt(S)}` },
   ];
   if (upTo === 'mu') {
@@ -7908,7 +7919,7 @@ const ladder: Generator<LadderParams> = {
         { text: 'On the point of slipping friction is at its limit, and resolving gives $R$ and then $F$:' },
         { tex: `R = ${fmt(W)} + ${fmt(P)} = ${fmt(W + P)}, \\quad F = \\mu R = ${fmt(leastMu(p))} \\times ${fmt(W + P)} = ${fmt(S)}` },
         { text: 'Horizontally $S = F$. Then moments about $A$, with the person $s$ metres up:' },
-        { tex: `${fmt(S)} \\times ${fmt(L)}\\sin\\alpha = ${fmt(W)} \\times ${fmt(L / 2)}\\cos\\alpha + ${fmt(P)}s\\cos\\alpha` },
+        { tex: `${fmt(S)} \\times ${timesTex(L, '\\sin\\alpha')} = ${fmt(W)} \\times ${timesTex(L / 2, '\\cos\\alpha')} + ${fmt(P)}s\\cos\\alpha` },
         { tex: `${fmt(S * L * sinOf(t))} = ${fmt((W * L) / 2 * cosOf(t))} + ${fmt(P * cosOf(t))}s, \\quad s = ${fmt(p.s)}` },
       ];
     }

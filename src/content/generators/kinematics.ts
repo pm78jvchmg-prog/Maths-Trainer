@@ -71,6 +71,13 @@ const par = (value: number): string => (value < 0 ? `(${fmt(value)})` : fmt(valu
 /** `+ 3` or `- 3`, for a term that follows another. */
 const signed = (value: number): string => (value < 0 ? `- ${fmt(-value)}` : `+ ${fmt(value)}`);
 
+/** A number times a letter as written by hand: `3t`, `-2s`, but `t` and `-s` for 1 and -1. */
+const timesTex = (value: number, letter: string): string =>
+  value === 1 ? letter : value === -1 ? `-${letter}` : `${fmt(value)}${letter}`;
+
+/** The same following another term: `+ 3t`, `- t`. */
+const signedTimesTex = (value: number, letter: string): string => `${value < 0 ? '-' : '+'} ${timesTex(Math.abs(value), letter)}`;
+
 /** Lines of working stacked on their `&`, so they never run off a phone. */
 function aligned(...lines: string[]): string {
   return `\\begin{aligned} ${lines.join(' \\\\ ')} \\end{aligned}`;
@@ -1092,7 +1099,7 @@ const stTable: Generator<StTableParams> = {
     const corners = tableCorners(params);
     const [[v1, d1], , [v3]] = params.stages;
     return [
-      { text: `For the first ${d1} s, $s$ changes by $${v1}$ every second: $s = ${params.s0} ${signed(v1)}t$, reaching $${corners[1][1]}$ at $t = ${corners[1][0]}$.` },
+      { text: `For the first ${d1} s, $s$ changes by $${v1}$ every second: $s = ${params.s0 === 0 ? timesTex(v1, 't') : `${params.s0} ${signedTimesTex(v1, 't')}`}$, reaching $${corners[1][1]}$ at $t = ${corners[1][0]}$.` },
       { text: `It then stays at $s = ${corners[2][1]}$ until $t = ${corners[2][0]}$.` },
       { text: `After that $s$ changes by $${v3}$ every second, ending at $s = ${corners[3][1]}$ when $t = ${corners[3][0]}$.` },
     ];
@@ -2979,8 +2986,8 @@ const catchTree: Generator<CatchParams> = {
       ];
     }
     return [
-      { tex: `\\tfrac{1}{2} \\times ${accels[1]}t^{2} = ${w}t + \\tfrac{1}{2} \\times ${accels[0]}t^{2}` },
-      { tex: aligned(`\\tfrac{1}{2} \\times ${gap}t^{2} &= ${w}t`, `t &= \\frac{2 \\times ${w}}{${gap}} = ${t}`) },
+      { tex: `\\tfrac{1}{2} \\times ${timesTex(accels[1], 't^{2}')} = ${w}t + \\tfrac{1}{2} \\times ${timesTex(accels[0], 't^{2}')}` },
+      { tex: aligned(`\\tfrac{1}{2} \\times ${timesTex(gap, 't^{2}')} &= ${w}t`,`t &= \\frac{2 \\times ${w}}{${gap}} = ${t}`) },
       { tex: `s = \\tfrac{1}{2} \\times ${accels[1]} \\times ${t}^{2} = ${s}` },
     ];
   },
@@ -3164,8 +3171,8 @@ const catchTimeGen: Generator<CatchTimeParams> = {
     }
     return [
       { text: 'Measure from where the second starts. They meet when the chaser has covered the head start plus what the leader has gone since:' },
-      { tex: `\\tfrac{1}{2} \\times ${w2}t^{2} = ${d} + ${w1}t` },
-      { tex: `${fmt(w2 / 2)}t^{2} - ${w1}t - ${d} = 0` },
+      { tex: `\\tfrac{1}{2} \\times ${timesTex(w2, 't^{2}')} = ${d} + ${timesTex(w1, 't')}` },
+      { tex: `${timesTex(w2 / 2, 't^{2}')} - ${timesTex(w1, 't')} - ${d} = 0` },
       { text: `The quadratic formula gives $t = ${fmt(t)}$; the other root is negative.` },
     ];
   },
@@ -4040,7 +4047,7 @@ const expTree: Generator<ExpTreeParams> = {
     const gap = S - B;
     if (B === 0) {
       return [
-        { text: `Differentiating $${expTex(A, k)}$ gives $${expTex(A * k, k)}$, which is $${k}$ times $s$: so $v = ${k}s$, and differentiating again, $a = ${k}v$.` },
+        { text: `Differentiating $${expTex(A, k)}$ gives $${expTex(A * k, k)}$, which is $${k}$ times $s$: so $v = ${timesTex(k, 's')}$, and differentiating again, $a = ${timesTex(k, 'v')}$.` },
         { tex: aligned(`v &= ${k} \\times ${S} = ${k * S}`, `a &= ${k} \\times ${par(k * S)} = ${k * k * S}`) },
       ];
     }

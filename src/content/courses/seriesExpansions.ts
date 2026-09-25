@@ -244,7 +244,8 @@ export const seriesExpansions: Course = {
             teach(
               prose('The series needs $\\ln(1 + \\ldots)$. When the bracket starts with another number, take it out first, since the log of a product is a sum of logs:'),
               working(
-                '\\ln(4 + 2x) &= \\ln\\big(4(1 + \\tfrac{x}{2})\\big)',
+                '&\\ln(4 + 2x)',
+                '&= \\ln\\big(4(1 + \\tfrac{x}{2})\\big)',
                 '&= \\ln 4 + \\ln(1 + \\tfrac{x}{2})',
                 '&= \\ln 4 + \\frac{x}{2} - \\frac{x^{2}}{8} + \\cdots',
               ),
@@ -255,7 +256,7 @@ export const seriesExpansions: Course = {
               'ser-log-coef+choice',
               2,
               prose('A product splits into a sum of logs, a quotient into a difference. Then each log has its own series. For the $x^{2}$ coefficient of $\\ln\\frac{1 + 2x}{1 - x}$:'),
-              display('\\ln\\frac{1 + 2x}{1 - x} = \\ln(1 + 2x) - \\ln(1 - x)'),
+              display('\\begin{aligned} &\\ln\\frac{1 + 2x}{1 - x} \\\\ &= \\ln(1 + 2x) - \\ln(1 - x) \\end{aligned}'),
               prose(
                 'Their $x^{2}$ coefficients are $-\\frac{2^{2}}{2} = -2$ and $-\\frac{(-1)^{2}}{2} = -\\frac{1}{2}$, so the answer is $-2 - \\left(-\\frac{1}{2}\\right) = -\\frac{3}{2}$.',
               ),
@@ -460,7 +461,7 @@ export const seriesExpansions: Course = {
             ),
             teach(
               prose('When the top is several functions, expand each one. The low powers cancel, and the first power left decides the limit:'),
-              working('e^{x} &= 1 + x + \\tfrac{1}{2}x^{2} + \\cdots', '\\cos x &= 1 - \\tfrac{1}{2}x^{2} + \\cdots', 'e^{x} - \\cos x - x &= x^{2} + \\cdots'),
+              working('e^{x} &= 1 + x + \\tfrac{1}{2}x^{2} + \\cdots', '\\cos x &= 1 - \\tfrac{1}{2}x^{2} + \\cdots'), working('&e^{x} - \\cos x - x', '&= x^{2} + \\cdots'),
               prose(
                 'The $1$s cancel, the $x$ is taken off, and the $x^{2}$ coefficient is $\\frac{1}{2} - \\left(-\\frac{1}{2}\\right) = 1$. So $\\frac{e^{x} - \\cos x - x}{x^{2}} \\to 1$.',
               ),

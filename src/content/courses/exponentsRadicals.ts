@@ -989,25 +989,21 @@ export const exponentsRadicals: Course = {
               prose(
                 'The power does not change, because nothing was multiplied. But adding can push the front number past 10, and subtracting can drop it below 1. Then adjust it back, just as after multiplying.',
               ),
-              working('6.2 \\times 10^{5} + 4.5 \\times 10^{5} &= 10.7 \\times 10^{5}', '&= 1.07 \\times 10^{6}'),
-              working('5.2 \\times 10^{5} - 4.7 \\times 10^{5} &= 0.5 \\times 10^{5}', '&= 5 \\times 10^{4}'),
+              working('&6.2 \\times 10^{5} + 4.5 \\times 10^{5}', '&= 10.7 \\times 10^{5}', '&= 1.07 \\times 10^{6}'),
+              working('&5.2 \\times 10^{5} - 4.7 \\times 10^{5}', '&= 0.5 \\times 10^{5}', '&= 5 \\times 10^{4}'),
             ),
             ask('sf-adjust-tiles'),
             teach(
               prose(
                 'When the powers differ, rewrite the smaller number with the larger power first. Its front number gets ten times smaller to make up for the power being ten times bigger.',
               ),
-              working(
-                '5 \\times 10^{3} &= 0.5 \\times 10^{4}',
-                '3.2 \\times 10^{4} + 0.5 \\times 10^{4} &= 3.7 \\times 10^{4}',
-              ),
+              working('5 \\times 10^{3} &= 0.5 \\times 10^{4}'),
+              working('&3.2 \\times 10^{4} + 0.5 \\times 10^{4}', '&= 3.7 \\times 10^{4}'),
               prose(
                 'Adding 3.2 and 5 to get $8.2 \\times 10^{4}$ is the mistake this step prevents: $5 \\times 10^{3}$ is 5000, nowhere near $50\\,000$. Subtracting works the same way:',
               ),
-              working(
-                '9 \\times 10^{4} &= 0.9 \\times 10^{5}',
-                '7.4 \\times 10^{5} - 0.9 \\times 10^{5} &= 6.5 \\times 10^{5}',
-              ),
+              working('9 \\times 10^{4} &= 0.9 \\times 10^{5}'),
+              working('&7.4 \\times 10^{5} - 0.9 \\times 10^{5}', '&= 6.5 \\times 10^{5}'),
             ),
             ask('sf-add'),
             ask('sf-add-flow'),

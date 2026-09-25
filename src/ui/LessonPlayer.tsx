@@ -14,7 +14,7 @@ import {
   currentSlide,
   currentDeck,
   canGoBack,
-  canPassSolved,
+  canPassFinished,
   canRetry,
   skillCheckScore,
   scorePercent,
@@ -318,11 +318,17 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
           ref={currentPane}
           onClick={retryOnTap ? tapQuestion : undefined}
         >
-          {/* Only when stepping *back* onto a solved slide. While the verdict for
-              this answer is still on screen, saying it was already solved reads
-              as a comment on the answer just given rather than on the history. */}
-          {canPassSolved(session) && (
-            <p className="lesson-meta">Already solved — answer again or continue.</p>
+          {/* Only when stepping *back* onto a finished slide. While the verdict
+              for this answer is still on screen, saying it was already solved
+              reads as a comment on the answer just given rather than on the
+              history. A slide whose answer was shown comes back showing it, so
+              this line appears there only after Try again. */}
+          {canPassFinished(session) && (
+            <p className="lesson-meta">
+              {session.states[slide.id]?.solved
+                ? 'Already solved — answer again or continue.'
+                : 'Answer already shown — try it or continue.'}
+            </p>
           )}
           <SlideView
             slide={slide.slide}
@@ -341,7 +347,7 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
         canSubmit={hasAnswer(slide.slide, answer)}
         isLastQuestion={isLastQuestion}
         assessment={session.assessment}
-        canPass={canPassSolved(session)}
+        canPass={canPassFinished(session)}
         onSubmit={() => act({ type: 'submit', answer })}
         onTryAgain={() => act({ type: 'tryAgain' })}
         onReveal={() => act({ type: 'reveal' })}

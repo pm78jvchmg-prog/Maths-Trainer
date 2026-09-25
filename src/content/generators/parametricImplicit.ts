@@ -65,19 +65,19 @@ const XY_KEYS: KeypadKey[] = [spaced('x'), spaced('y'), ...OPERATOR_KEYS];
 const FRACTION_KEYS: KeypadKey[] = [{ insert: '/' }];
 
 /** A coefficient in front of something: 1 and -1 are implied. */
-const coef = (c: number): string => (c === 1 ? '' : c === -1 ? '-' : `${c}`);
+export const coef = (c: number): string => (c === 1 ? '' : c === -1 ? '-' : `${c}`);
 
 /** `+ 3` or `- 3`, for appending to a term the learner reads. */
-const signed = (c: number): string => (c < 0 ? `- ${-c}` : `+ ${c}`);
+export const signed = (c: number): string => (c < 0 ? `- ${-c}` : `+ ${c}`);
 
 /** A number standing alone as a tile: a negative spelled as `signed` spells it, since TeX draws `-3` and `- 3` alike. */
-const bareTile = (c: number): string => (c < 0 ? signed(c) : `${c}`);
+export const bareTile = (c: number): string => (c < 0 ? signed(c) : `${c}`);
 
 /** A number that may follow an operator: negatives are bracketed. */
-const bracketed = (n: number): string => (n < 0 ? `(${n})` : `${n}`);
+export const bracketed = (n: number): string => (n < 0 ? `(${n})` : `${n}`);
 
 /** A point as the learner reads it. */
-const pair = (x: number, y: number): string => `(${x}, ${y})`;
+export const pair = (x: number, y: number): string => `(${x}, ${y})`;
 
 const prose = (text: string): Block => ({ kind: 'prose', text });
 const display = (tex: string): Block => ({ kind: 'display', tex });
@@ -371,14 +371,14 @@ export function valueAt(coefficients: readonly number[], value: number): number 
 }
 
 /** A polynomial of a given degree with a non-zero leading coefficient. */
-function randomPoly(rng: Rng, degree: number, size: number): number[] {
+export function randomPoly(rng: Rng, degree: number, size: number): number[] {
   const lead = rng.int(1, size) * rng.sign();
   const rest = Array.from({ length: degree }, () => rng.int(-size, size));
   return [lead, ...rest];
 }
 
 /** a (t - v)^2 + c, expanded: a quadratic whose derivative vanishes at t = v. */
-function vertexPoly(a: number, v: number, c: number): number[] {
+export function vertexPoly(a: number, v: number, c: number): number[] {
   return [a, -2 * a * v, a * v * v + c];
 }
 
@@ -386,7 +386,7 @@ function vertexPoly(a: number, v: number, c: number): number[] {
 const visible = (tex: string): number => tex.replace(/\\[a-z]+/g, ' ').replace(/[{}^_]/g, '').length;
 
 /** The curve's two equations: side by side when they fit a phone, stacked when not. */
-function curveBlocks(curve: ParamCurve): Block[] {
+export function curveBlocks(curve: ParamCurve): Block[] {
   const x = `x = ${polyTex(curve.x)}`;
   const y = `y = ${polyTex(curve.y)}`;
   if (visible(x) + visible(y) <= 24) return [display(`${x}, \\quad ${y}`)];
@@ -400,10 +400,10 @@ export const curveSources = (curve: ParamCurve): { x: string; y: string } => ({
 });
 
 /** The point at a value of t. */
-const pointAt = (curve: ParamCurve, t: number): [number, number] => [valueAt(curve.x, t), valueAt(curve.y, t)];
+export const pointAt = (curve: ParamCurve, t: number): [number, number] => [valueAt(curve.x, t), valueAt(curve.y, t)];
 
 /** [dx/dt, dy/dt] at a value of t. */
-const ratesAt = (curve: ParamCurve, t: number): [number, number] => [
+export const ratesAt = (curve: ParamCurve, t: number): [number, number] => [
   valueAt(derived(curve.x), t),
   valueAt(derived(curve.y), t),
 ];

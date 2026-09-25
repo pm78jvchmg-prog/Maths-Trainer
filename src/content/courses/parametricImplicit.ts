@@ -11,6 +11,10 @@
  */
 import type { Block, Course, SlideRef } from '../types';
 import { areaSvg, paramSvg } from '../generators/parametricImplicit';
+import { level8 } from './parametric/level8';
+import { level9 } from './parametric/level9';
+import { level10 } from './parametric/level10';
+import { level11 } from './parametric/level11';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -1767,5 +1771,10 @@ export const parametricImplicit: Course = {
         ask('param-trig-area-tiles', 2),
       ],
     },
+    // Levels 8 to 11 are written under parametric/ and shown on the Basics card; see placement.ts.
+    level8,
+    level9,
+    level10,
+    level11,
   ],
 };

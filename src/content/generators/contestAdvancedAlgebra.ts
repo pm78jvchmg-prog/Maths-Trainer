@@ -676,7 +676,12 @@ interface NestedParams {
   minus: boolean;
 }
 
-const nestedTex = (a: number, op: string) => `\\sqrt{${a} ${op} \\sqrt{${a} ${op} \\sqrt{${a} ${op} \\cdots}}}`;
+// Three levels deep for short numbers; two for four-digit ones, which would
+// otherwise run past the edge of a phone.
+const nestedTex = (a: number, op: string) =>
+  a >= 1000
+    ? `\\sqrt{${a} ${op} \\sqrt{${a} ${op} \\cdots}}`
+    : `\\sqrt{${a} ${op} \\sqrt{${a} ${op} \\sqrt{${a} ${op} \\cdots}}}`;
 
 const cmAaNestedRoot: Generator<NestedParams> = {
   id: 'cm-aa-nested-root',
@@ -1204,8 +1209,8 @@ const cmAaLogChain: Generator<ChainParams> = {
     const m = a ** j;
     const term = (base: number, arg: number) => `\\log_{${base}} ${arg}`;
     const tex = flip
-      ? `${term(a + 1, a)} \\times ${term(a + 2, a + 1)} \\times \\cdots \\times ${term(m, m - 1)}`
-      : `${term(a, a + 1)} \\times ${term(a + 1, a + 2)} \\times \\cdots \\times ${term(m - 1, m)}`;
+      ? `${term(a + 1, a)} \\cdot ${term(a + 2, a + 1)} \\cdots ${term(m, m - 1)}`
+      : `${term(a, a + 1)} \\cdot ${term(a + 1, a + 2)} \\cdots ${term(m - 1, m)}`;
     return typed([say('Work out the product'), show(tex)], flip ? `1/${j}` : j, '\\text{product} =', flip ? FRACTION_KEYS : []);
   },
   choices({ a, j, flip }) {

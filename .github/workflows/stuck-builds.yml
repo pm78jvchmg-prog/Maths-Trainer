@@ -8,18 +8,26 @@
 # rest until the thread happened to push again. Nothing in the repository can
 # re-run a Cloudflare build, but any new commit gets a build of its own.
 #
-# So every ten minutes this finds each open, non-draft pull request whose head
-# has had only a queued Cloudflare suite for over twenty minutes, and merges
-# main into it (GitHub's "Update branch"). That is a real commit, not an empty
-# one, and it only happens to a pull request that is otherwise stranded. It
-# fails harmlessly on a branch that is already up to date or conflicts with
+# So every thirty minutes this finds each open, non-draft pull request whose
+# head has had only a queued Cloudflare suite for over twenty minutes, and
+# merges main into it (GitHub's "Update branch"). That is a real commit, not an
+# empty one, and it only happens to a pull request that is otherwise stranded.
+# It fails harmlessly on a branch that is already up to date or conflicts with
 # main; that is reported as a warning.
+#
+# A stranded head is therefore updated somewhere between twenty and fifty
+# minutes after its suite opened, later still when GitHub starts a scheduled
+# run late, which it does under load. The schedule used to be every ten
+# minutes; each run bills at least a minute, so that was about 4,300
+# job-minutes a month against about 1,440 now, and on a private repository the
+# Actions quota it drains is the same one the auto-merge workflow runs on.
+# To unstick a pull request sooner, run this by hand (workflow_dispatch).
 
 name: Stuck builds
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '*/30 * * * *'
   workflow_dispatch:
 
 permissions:

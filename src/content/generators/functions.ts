@@ -2135,7 +2135,10 @@ function imageOf({ p, q, sx, sy, fx, fy, h, k }: PointParams): [number, number] 
 /** The transformed equation, written the way the lessons write it. */
 function pointEq({ sx, sy, fx, fy, h, k }: PointParams): string {
   const innerCoef = sx === 1 ? '' : factorTex(1 / sx);
-  const inside = fx ? (h === 0 ? `-${innerCoef}x` : `-(${shiftedX(h)})`) : sx !== 1 ? `${innerCoef}x` : shiftedX(h);
+  // A stretch across with a move keeps the move in its own bracket,
+  // f(½(x - 1)), or the equation shown would not be the one graded.
+  const stretched = h === 0 ? `${innerCoef}x` : `${innerCoef}(${shiftedX(h)})`;
+  const inside = fx ? (h === 0 ? `-${innerCoef}x` : `-(${shiftedX(h)})`) : sx !== 1 ? stretched : shiftedX(h);
   const outer = `${fy ? '-' : ''}${sy === 1 ? '' : factorTex(sy)}f(${inside})`;
   return `y = ${outer}${tail(k)}`;
 }

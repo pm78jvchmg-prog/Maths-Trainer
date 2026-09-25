@@ -3088,7 +3088,7 @@ function stationarySolution(params: StationaryParams): SolutionStep[] {
   return [
     { text: 'Horizontal: the top of the gradient is zero.', tex: `${xyTex(top)} = 0` },
     { tex: lineTex(k, 1) },
-    { text: `Put $${lineTex(k, 1)}$ into the curve's equation.`, tex: `${S}x^{2} = ${stationaryRhs(params)}` },
+    { text: `Put $${lineTex(k, 1)}$ into the curve's equation.`, tex: `${coef(S)}x^{2} = ${stationaryRhs(params)}` },
     { tex: `x = \\pm ${x0}` },
     { text: `So the points are $${pair(x0, k * x0)}$ and $${pair(-x0, -k * x0)}$.` },
   ];
@@ -7944,7 +7944,7 @@ const implRateStill: Generator<StillParams> = {
       { text: `Differentiate with respect to $t$. In front of $${DXDT}$:`, tex: fx },
       { text: `and in front of $${DYDT}$:`, tex: fy },
       { text: `$${DYDT} = 0$ while $${DXDT}$ is not zero needs the first bracket to vanish.`, tex: `${fx} = 0, \\quad ${lineTex(k, 1)}` },
-      { text: `Put $${lineTex(k, 1)}$ into the curve's equation.`, tex: `${S}x^{2} = ${stationaryRhs(params)}, \\quad x = \\pm ${x0}` },
+      { text: `Put $${lineTex(k, 1)}$ into the curve's equation.`, tex: `${coef(S)}x^{2} = ${stationaryRhs(params)}, \\quad x = \\pm ${x0}` },
       { text: `So $y$ stands still at $${pair(x0, k * x0)}$ and $${pair(-x0, -k * x0)}$.` },
     ];
   },

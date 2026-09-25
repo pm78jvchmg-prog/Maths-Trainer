@@ -1771,7 +1771,7 @@ const zOf = ({ k, sigma }: { k: number; sigma: number }): number => clean(k / si
 function zSolution({ mu, sigma, k, words }: ZParams): SolutionStep[] {
   return [
     ...(words ? [] : [{ text: `The variance is $${sigma * sigma}$, so $\\sigma = ${sigma}$.` }]),
-    { tex: aligned(`z &= \\frac{x - \\mu}{\\sigma} = \\frac{${mu + k} - ${mu}}{${sigma}}`, `&= \\frac{${k}}{${sigma}} = ${fmt(zOf({ k, sigma }))}`) },
+    { tex: aligned(`z &= \\frac{x - \\mu}{\\sigma} = \\frac{${mu + k} - ${paren(mu)}}{${sigma}}`, `&= \\frac{${k}}{${sigma}} = ${fmt(zOf({ k, sigma }))}`) },
   ];
 }
 
@@ -2617,7 +2617,7 @@ const findChoice: Generator<FindParams> = {
   render: (params): Slide => {
     const { ask, mu, sigma, x, z } = params;
     const prob = fmt(statedProb(params));
-    const top = ask === 'mu' ? `${fmt(x)} - \\mu` : `${fmt(x)} - ${fmt(mu)}`;
+    const top = ask === 'mu' ? `${fmt(x)} - \\mu` : `${fmt(x)} - ${paren(mu)}`;
     const under = ask === 'mu' ? String(sigma) : '\\sigma';
     const squared = ask === 'mu' ? String(sigma * sigma) : '\\sigma^2';
     return choiceSlide(
@@ -3211,7 +3211,7 @@ const bothCheckTable: Generator<BothParams> = {
   },
   solution: ({ mu, sigma, lo, hi }) =>
     [lo, hi].flatMap((k) => [
-      { tex: aligned(`z &= \\frac{${fmt(k.x)} - ${fmt(mu)}}{${sigma}}`, `&= ${fmt(k.z)}`) },
+      { tex: aligned(`z &= \\frac{${fmt(k.x)} - ${paren(mu)}}{${sigma}}`, `&= ${fmt(k.z)}`) },
       { tex: belowLine(clean(k.z * sigma), sigma) },
       { text: k.dir === 'below' ? `That is the $${fmt(statedOf(k))}$ stated.` : `So $P(X > ${fmt(k.x)}) = ${fmt(statedOf(k))}$, as stated.` },
     ]),
@@ -3273,7 +3273,7 @@ function newSolution(params: NewParams): SolutionStep[] {
   const { mu, sigma, c, zc } = params;
   const steps: SolutionStep[] = [
     ...bothSolution(params),
-    { tex: aligned(`z &= \\frac{${c} - ${fmt(mu)}}{${sigma}}`, `&= ${fmt(zc)}`) },
+    { tex: aligned(`z &= \\frac{${c} - ${paren(mu)}}{${sigma}}`, `&= ${fmt(zc)}`) },
     { tex: belowLine(clean(zc * sigma), sigma) },
   ];
   if (params.op === 'above') steps.push({ tex: aligned(`${newEvent(params)} &= 1 - ${fmt(below(zc))}`, `&= ${fmt(newProb(params))}`) });
@@ -4364,7 +4364,7 @@ function routeSolution(params: RouteParams): SolutionStep[] {
   const steps: SolutionStep[] = [
     { text: `$np = ${fmt(mu)}$ and $n(1 - p) = ${fmt(clean(n - mu))}$ are both above $5$, so approximate by $${nApprox(n, p)}$, with $\\sigma = ${sigma}$.` },
     { tex: aligned(`& ${xEventTex(event)}`, `&\\approx ${yEventTex({ lo, hi })}`) },
-    ...bounds.map((b, i) => ({ tex: aligned(`z &= \\frac{${fmt(b)} - ${fmt(mu)}}{${sigma}}`, `&= ${fmt(zs[i])}`) })),
+    ...bounds.map((b, i) => ({ tex: aligned(`z &= \\frac{${fmt(b)} - ${paren(mu)}}{${sigma}}`, `&= ${fmt(zs[i])}`) })),
   ];
   const lower = (z: number) => (z >= 0 ? `\\Phi(${fmt(z)})` : `1 - \\Phi(${fmt(-z)})`);
   if (bounds.length === 2) {
@@ -5339,7 +5339,7 @@ function comboProbSolution(p: ComboProbParams): SolutionStep[] {
   const z = comboZ(p);
   return [
     ...comboSolution(p).slice(1),
-    { tex: aligned(`z &= \\frac{${fmt(p.k)} - ${fmt(comboMean(p))}}{${comboSd(p)}}`, `&= ${fmt(z)}`) },
+    { tex: aligned(`z &= \\frac{${fmt(p.k)} - ${paren(comboMean(p))}}{${comboSd(p)}}`, `&= ${fmt(z)}`) },
     { tex: aligned(...sideLines(z, p.op, comboProbValue(p))) },
   ];
 }
@@ -5400,7 +5400,7 @@ function biggerSolution(p: BiggerParams): SolutionStep[] {
     { text: `Let $D = X - Y$. Then $${biggerEvent(p)}$ is $P(D ${p.dir === 'more' ? '>' : '<'} 0)$.` },
     { tex: aligned(...meanLines(p, 'D')) },
     { tex: aligned(...varLines(p, 'D')) },
-    { tex: aligned(`z &= \\frac{0 - ${fmt(comboMean(p))}}{${comboSd(p)}}`, `&= ${fmt(z)}`) },
+    { tex: aligned(`z &= \\frac{0 - ${paren(comboMean(p))}}{${comboSd(p)}}`, `&= ${fmt(z)}`) },
     { tex: aligned(...sideLines(z, op, biggerValue(p))) },
   ];
 }
@@ -6126,7 +6126,7 @@ function seLines(p: MeanParams): SolutionStep {
 }
 
 const zLine = (p: MeanParams, d: number): SolutionStep => ({
-  tex: aligned(`z &= \\frac{${p.mu + d} - ${p.mu}}{${seOf(p)}}`, `&= ${fmt(xbarZ(p, d))}`),
+  tex: aligned(`z &= \\frac{${p.mu + d} - ${paren(p.mu)}}{${seOf(p)}}`, `&= ${fmt(xbarZ(p, d))}`),
 });
 
 function xbarProbSolution(p: XbarProbParams): SolutionStep[] {

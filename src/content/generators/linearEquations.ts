@@ -35,7 +35,7 @@ import { bankFor, bin, num, type Expr } from '../expr';
 import { ALGEBRA_KEYS, sumTex, termTex } from './calculus';
 import { bankOf, numberTile, offer, signedTile } from './quadratics';
 import { windowFor } from './numberLine';
-import { coeffTex, gcd } from './format';
+import { coeffTex, gcd, negatedTex } from './format';
 
 /* ---------- Formatting ---------- */
 
@@ -5712,7 +5712,7 @@ function rayWords(k: number, op: Ineq): string {
 /** m times a number, as a substitution is written out: `3 \times (-2)`, `-4`. */
 function timesTex(m: number, t: number): string {
   if (m === 1) return br(t);
-  if (m === -1) return `-${br(t)}`;
+  if (m === -1) return negatedTex(t);
   return `${m} \\times ${br(t)}`;
 }
 

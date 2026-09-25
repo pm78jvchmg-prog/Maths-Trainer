@@ -1168,7 +1168,7 @@ const deGeneralTree: Generator<PowerSideParams> = {
     const a = alpha * (n + 1);
     return [
       { text: `Add one to each power and divide by the new power. On the $y$ side, $y^{${m}}$ becomes $\\frac{y^{${m + 1}}}{${m + 1}}$, so $${b} \\div ${m + 1} = ${beta}$.` },
-      { text: `On the $x$ side, $${n === 0 ? `${a}` : `x^{${n}}`}$ becomes ${n === 0 ? `$${a === 1 ? '' : a}x$` : `$\\frac{x^{${n + 1}}}{${n + 1}}$, so $${a} \\div ${n + 1} = ${alpha}$`}.` },
+      { text: `On the $x$ side, $${n === 0 ? `${a}` : `x^{${n}}`}$ becomes ${n === 0 ? `$${coef(a)}x$` : `$\\frac{x^{${n + 1}}}{${n + 1}}$, so $${a} \\div ${n + 1} = ${alpha}$`}.` },
       { text: 'One constant covers both sides.', tex: `${termTex(beta, m + 1).replace('x', 'y')} = ${termTex(alpha, n + 1)} + C` },
     ];
   },
@@ -3923,7 +3923,13 @@ const deIfExponentSteps: Generator<FactorParams> = {
         span: [0, 1],
         operator: 0,
         value: inside,
-        bank: stepBank(inside, `I = e^{\\ln ${Math.abs(n)}${bracket}}`, `I = e^{\\ln ${bracket}^{${-n}}}`, `I = ${n}e^{\\ln ${bracket}}`),
+        // At n = -1 the first two slips are both the bracket alone, and the bank keeps it once.
+        bank: stepBank(
+          inside,
+          `I = e^{\\ln ${coef(Math.abs(n))}${bracket}}`,
+          `I = e^{\\ln ${n === -1 ? bracket : `${bracket}^{${-n}}`}}`,
+          `I = ${coef(n)}e^{\\ln ${bracket}}`,
+        ),
       });
     }
     reductions.push({
@@ -7391,7 +7397,8 @@ const deShmPeriod: Generator<PeriodParams> = {
         : [{ text: `The number multiplying $t$ is $\\omega$.`, tex: `\\omega = ${w}` }];
     return [
       ...read,
-      { text: 'One full swing takes $\\omega t$ through $2\\pi$:', tex: `T = \\frac{2\\pi}{\\omega} = \\frac{2\\pi}{${w}} = ${piMultipleTex(2, w)}` },
+      // 2pi/w is already in lowest terms when w is odd, and is not written twice.
+      { text: 'One full swing takes $\\omega t$ through $2\\pi$:', tex: `T = \\frac{2\\pi}{\\omega} = ${[...new Set([`\\frac{2\\pi}{${w}}`, piMultipleTex(2, w)])].join(' = ')}` },
     ];
   },
 };
@@ -7836,7 +7843,7 @@ export interface LeastKParams {
   critical: boolean;
 }
 
-export const leastKTex = ({ w, m }: LeastKParams): string => `${coef(m)}${D2T} + k${D1T} + ${m * w * w}x = 0`;
+export const leastKTex = ({ w, m }: LeastKParams): string => `${coef(m)}${D2T} + k${D1T} + ${coef(m * w * w)}x = 0`;
 
 /** The least k that stops the oscillation, 2mω, typed. */
 const deDampLeast: Generator<LeastKParams> = {
@@ -7862,7 +7869,7 @@ const deDampLeast: Generator<LeastKParams> = {
     mode: 'exact',
   }),
   solution: ({ w, m }) => [
-    ...(m === 1 ? [] : [{ text: `Divide every term by $${m}$.`, tex: `${D2T} + \\frac{k}{${m}}${D1T} + ${w * w}x = 0` }]),
+    ...(m === 1 ? [] : [{ text: `Divide every term by $${m}$.`, tex: `${D2T} + \\frac{k}{${m}}${D1T} + ${coef(w * w)}x = 0` }]),
     {
       text: `It oscillates while the auxiliary equation has complex roots, and stops once its discriminant reaches $0$${m === 1 ? '' : `, with $\\frac{k}{${m}}$ in place of $k$`}.`,
       tex: `${m === 1 ? 'k^2' : `\\left(\\frac{k}{${m}}\\right)^2`} = 4 \\times ${w * w} = ${4 * w * w}`,

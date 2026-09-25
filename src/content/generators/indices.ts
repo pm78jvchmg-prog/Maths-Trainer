@@ -274,9 +274,14 @@ const negativeIndex: Generator<{ a: number; c: number }> = {
       text: 'A negative exponent means one over the positive power. The sign of the exponent has nothing to do with the sign of the answer.',
     },
     { tex: `${termTex(c, -a)} = \\frac{${c}}{x^{${a}}}` },
-    {
-      text: `Note the coefficient stays on top. $${termTex(c, -a)}$ is $\\frac{${c}}{x^{${a}}}$, not $\\frac{1}{${c}x^{${a}}}$ — only the $x$ carried the negative index.`,
-    },
+    // At c = 1 there is no coefficient to drag down, and the warning would read 1/(1x^a).
+    ...(c === 1
+      ? []
+      : [
+          {
+            text: `Note the coefficient stays on top. $${termTex(c, -a)}$ is $\\frac{${c}}{x^{${a}}}$, not $\\frac{1}{${c}x^{${a}}}$ — only the $x$ carried the negative index.`,
+          },
+        ]),
   ],
 };
 

@@ -18,6 +18,7 @@ import { markerWindow, plotSvg } from '../figures';
 // restated so a question cannot be built against a rule the widget has moved.
 import { defaultSliderValue } from '../../ui/sliderValue';
 import type { Rng } from '../../engine/rng';
+import { aOrAn } from './format';
 
 /* ---------- shared helpers ---------- */
 
@@ -574,7 +575,7 @@ const growPctFlow: Generator<PctFlowParams> = {
       const candidates = candidateMultipliers(p, up);
       const fork = {
         id: up ? 'up' : 'down',
-        ask: `Which multiplier makes a $${p}\\%$ ${up ? 'increase' : 'decrease'}?`,
+        ask: `Which multiplier makes ${aOrAn(p)} $${p}\\%$ ${up ? 'increase' : 'decrease'}?`,
         branches: turned(
           candidates.map((c, i) =>
             n === 1
@@ -696,7 +697,7 @@ const growPctTiles: Generator<PctCalcParams> = {
     const c = yearly(p, up);
     return [
       {
-        text: `A ${p}% ${up ? 'rise' : 'fall'} leaves ${c}% of the amount, so each year multiplies by $${dec(c)}$.`,
+        text: `${aOrAn(p, true)} ${p}% ${up ? 'rise' : 'fall'} leaves ${c}% of the amount, so each year multiplies by $${dec(c)}$.`,
       },
       { tex: `${a} \\times ${dec(c)}^{${n}}` },
       { text: `The start is multiplied once by the whole power: the index ${n} counts the years.` },
@@ -757,7 +758,7 @@ const growPctValue: Generator<PctCalcParams> = {
     const c = yearly(p, up);
     const value = wholeAfter(a, c, n) ?? 0;
     const steps: SolutionStep[] = [
-      { text: `A ${p}% ${up ? 'rise' : 'fall'} multiplies by $${dec(c)}$ each year.` },
+      { text: `${aOrAn(p, true)} ${p}% ${up ? 'rise' : 'fall'} multiplies by $${dec(c)}$ each year.` },
       {
         tex: chain(
           `& ${texNum(a)} \\times ${dec(c)}^{${n}}`,

@@ -1052,7 +1052,7 @@ const fracSumCoefficient: Generator<SumCoefficientParams> = {
     return [
       { text: `Over $${pbr(p)}${pbr(q)}$ the top is $${m}${pbr(q)} ${op} ${n}${pbr(p)}$.` },
       ask === 'a'
-        ? { text: `The $x$ terms: $${m}x ${op} ${n}x = ${termTex(a, 1)}$, so $a = ${a}$.` }
+        ? { text: `The $x$ terms: $${termTex(m, 1)} ${op} ${termTex(n, 1)} = ${termTex(a, 1)}$, so $a = ${a}$.` }
         : { text: `The numbers: $${m} \\times ${paren(q)} ${op} ${n} \\times ${paren(p)} = ${b}$, so $b = ${b}$.` },
       { tex: frac(polyTex(addTop(params)), `${pbr(p)}${pbr(q)}`) },
     ];
@@ -3970,7 +3970,7 @@ const fracQuadRestTree: Generator<QuadImproperParams> = {
         text: `Put $x = ${-a}$: the whole number times the bottom is zero there too, so only $C$ survives. $${valueAt(top, -a)} = ${lettersCombo([[square, 'C']])}$, so $C = ${C}$.`,
       },
       {
-        text: `The $x^{2}$ terms: the whole number times the bottom puts in ${Q * a === 0 ? 'no $x^{2}$ term' : `$${Q * a}x^{2}$`}, so $${Q * a === 0 ? '' : `${Q * a} + `}A + C = ${top[1]}$ and $A = ${A}$.`,
+        text: `The $x^{2}$ terms: the whole number times the bottom puts in ${Q * a === 0 ? 'no $x^{2}$ term' : `$${termTex(Q * a, 2)}$`}, so $${Q * a === 0 ? '' : `${Q * a} + `}A + C = ${top[1]}$ and $A = ${A}$.`,
       },
       { tex: quadImproperAnswerTex(params) },
     ];

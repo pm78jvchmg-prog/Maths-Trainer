@@ -49,7 +49,7 @@ import { markerWindow, plotSvg } from '../figures';
 import { fmt } from './numericalMethods';
 import { defaultSliderValue } from '../../ui/sliderValue';
 import { mix, steered, stepBank } from './parametricImplicit';
-import { say } from './format';
+import { nth, say } from './format';
 
 /* ================================================================
  * Shared helpers
@@ -304,10 +304,10 @@ const medianMode: Generator<MedianModeParams> = {
     }
     const n = s.length;
     if (n % 2 === 1) {
-      steps.push({ text: `With ${n} values the middle one is the ${(n + 1) / 2}th, which is $${s[(n - 1) / 2]}$.` });
+      steps.push({ text: `With ${n} values the middle one is the ${nth((n + 1) / 2)}, which is $${s[(n - 1) / 2]}$.` });
     } else {
       steps.push(
-        { text: `With ${n} values there are two in the middle, the ${n / 2}th and the ${n / 2 + 1}th: $${s[n / 2 - 1]}$ and $${s[n / 2]}$.` },
+        { text: `With ${n} values there are two in the middle, the ${nth(n / 2)} and the ${nth(n / 2 + 1)}: $${s[n / 2 - 1]}$ and $${s[n / 2]}$.` },
         { tex: `\\text{median} = \\frac{${s[n / 2 - 1]} + ${s[n / 2]}}{2} = ${fmt(median(s))}` },
       );
     }
@@ -982,9 +982,9 @@ const freqChoice: Generator<FreqChoiceParams> = {
     let running = 0;
     const counts = params.fs.map((f) => (running += f));
     return [
-      { text: `There are $${n}$ values, so the median is the ${p}th.` },
+      { text: `There are $${n}$ values, so the median is the ${nth(p)}.` },
       { text: `Counting through the frequencies: ${counts.map((c, i) => `up to $${params.xs[i]}$ makes $${c}$`).join(', ')}.` },
-      { text: `The ${p}th value is $${freqMedian(params)}$.` },
+      { text: `The ${nth(p)} value is $${freqMedian(params)}$.` },
     ];
   },
 };
@@ -1199,9 +1199,9 @@ const modalClass: Generator<ClassChoiceParams> = {
     let running = 0;
     const counts = params.fs.map((f) => (running += f));
     return [
-      { text: `There are $${n}$ values, so the median is the ${p}th.` },
+      { text: `There are $${n}$ values, so the median is the ${nth(p)}.` },
       { text: `Running totals of the frequencies: ${counts.map((c) => `$${c}$`).join(', ')}.` },
-      { text: `The ${p}th value falls in $${classTex(params.bounds[i], params.bounds[i + 1])}$.` },
+      { text: `The ${nth(p)} value falls in $${classTex(params.bounds[i], params.bounds[i + 1])}$.` },
     ];
   },
 };
@@ -1436,7 +1436,19 @@ interface LineParams {
 }
 
 /** `a + bx` as the learner reads it. */
-const lineTex = (a: number, b: number): string => `${fmt(a)} ${b < 0 ? '-' : '+'} ${fmt(Math.abs(b))}x`;
+/** a + bx as written by hand: no 0 in front, and x rather than 1x. */
+function lineTex(a: number, b: number): string {
+  const slope = `${Math.abs(b) === 1 ? '' : fmt(Math.abs(b))}x`;
+  if (a === 0) return b < 0 ? `-${slope}` : slope;
+  return `${fmt(a)} ${b < 0 ? '-' : '+'} ${slope}`;
+}
+
+/** The same line with x put in, before it is worked out. */
+function lineAtTex(a: number, b: number, x: number): string {
+  const times = `${fmt(Math.abs(b))} \\times ${fmt(x)}`;
+  if (a === 0) return b < 0 ? `-${times}` : times;
+  return `${fmt(a)} ${b < 0 ? '-' : '+'} ${times}`;
+}
 
 /**
  * An estimate from a line of best fit's equation, at an x inside the data.
@@ -1474,7 +1486,7 @@ const lineEstimate: Generator<LineParams> = {
   }),
   solution: ({ a, b, x }) => [
     { text: `Put $x = ${fmt(x)}$ into the equation of the line:` },
-    { tex: `y = ${fmt(a)} ${b < 0 ? '-' : '+'} ${fmt(Math.abs(b))} \\times ${fmt(x)} = ${fmt(a + b * x)}` },
+    { tex: `y = ${lineAtTex(a, b, x)} = ${fmt(a + b * x)}` },
     { text: `$x = ${fmt(x)}$ is inside the data, so this is interpolation.` },
   ],
 };
@@ -2858,7 +2870,7 @@ const stemQuartiles: Generator<StemParams> = {
     const { s, k, q1, q2, q3 } = quartiles(params.codes);
     const v = (c: number) => fmt(stemValue(c, params.key));
     return [
-      { text: `The leaves are already in order, top to bottom. There are $${s.length}$, so the quartiles are the ${k + 1}th, ${2 * k + 2}th and ${3 * k + 3}th leaves.` },
+      { text: `The leaves are already in order, top to bottom. There are $${s.length}$, so the quartiles are the ${nth(k + 1)}, ${nth(2 * k + 2)} and ${nth(3 * k + 3)} leaves.` },
       { text: `${stemKeyProse(params)} Counting along:` },
       { tex: aligned(`Q_1 &= ${v(q1)}`, `Q_2 &= ${v(q2)}`, `Q_3 &= ${v(q3)}`) },
       { tex: `\\text{IQR} = ${v(q3)} - ${v(q1)} = ${fmt(stemValue(q3, params.key) - stemValue(q1, params.key))}` },
@@ -4450,7 +4462,7 @@ function pctName(pct: number): string {
   if (pct === 50) return 'median';
   if (pct === 25) return 'lower quartile';
   if (pct === 75) return 'upper quartile';
-  return `${pct}th percentile`;
+  return `${nth(pct)} percentile`;
 }
 
 function pctSymbol(pct: number): string {
@@ -5299,7 +5311,7 @@ const pctRank: Generator<CfAboveParams> = {
     return [
       { text: `Up to the curve and across: $${fmt(c)}$ of the $${n}$ values are less than $${fmt(params.x)}$.` },
       { tex: `\\frac{${fmt(c)}}{${n}} \\times 100 = ${fmt((100 * c) / n)}\\%` },
-      { text: `So $${fmt(params.x)}$ sits at about the ${fmt((100 * c) / n)}th percentile.` },
+      { text: `So $${fmt(params.x)}$ sits at about the ${nth(Number(fmt((100 * c) / n)), fmt((100 * c) / n))} percentile.` },
     ];
   },
 };

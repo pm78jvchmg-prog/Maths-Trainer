@@ -62,7 +62,7 @@ import { canonicalForces, type Direction, type ForceArrow, type ForceScene } fro
 import { markerWindow, plotSvg, vectorSvg } from '../figures';
 import { fmt } from './numericalMethods';
 import { mix, stepBank, steered, turned } from './parametricImplicit';
-import { gcd, say } from './format';
+import { aOrAn, gcd, say } from './format';
 import { WORKING_KEYS } from './workingKeys';
 
 /* ================================================================
@@ -2989,7 +2989,7 @@ const MOTION_SCENES: ((P: number, m: number) => PairScene)[] = [
     slips: [`The pin pulls the magnet towards it with less than ${N(P)}`, `The magnet pushes the pin away with ${N(P)}`, `The Earth pulls the pin down with ${N(P)}`],
   }),
   (P, m) => ({
-    given: `In a lift accelerating upwards, the floor pushes up on a ${m} kg passenger with a force of ${N(P)}.`,
+    given: `In a lift accelerating upwards, the floor pushes up on ${aOrAn(m)} ${m} kg passenger with a force of ${N(P)}.`,
     partner: `The passenger pushes down on the floor with ${N(P)}`,
     slips: [`The Earth pulls the passenger down with ${N(P)}`, `The passenger pushes down on the floor with ${N(G * m)}`, `The passenger pulls the Earth up with ${N(P)}`],
   }),
@@ -3000,25 +3000,25 @@ export function pairScene({ kind, thing, holder, m, scene, P }: PairParams): Pai
   switch (kind) {
     case 'restWeight':
       return {
-        given: `A ${m} kg ${thing} rests on a ${holder}. The Earth pulls the ${thing} down with its weight, ${W}.`,
+        given: `${aOrAn(m, true)} ${m} kg ${thing} rests on a ${holder}. The Earth pulls the ${thing} down with its weight, ${W}.`,
         partner: `The ${thing} pulls the Earth up with ${W}`,
         slips: [`The ${holder} pushes the ${thing} up with ${W}`, `The ${thing} pushes the ${holder} down with ${W}`, `The ${thing} pulls the Earth down with ${W}`],
       };
     case 'restContact':
       return {
-        given: `A ${m} kg ${thing} rests on a ${holder}. The ${holder} pushes up on the ${thing} with ${W}.`,
+        given: `${aOrAn(m, true)} ${m} kg ${thing} rests on a ${holder}. The ${holder} pushes up on the ${thing} with ${W}.`,
         partner: `The ${thing} pushes down on the ${holder} with ${W}`,
         slips: [`The Earth pulls the ${thing} down with ${W}`, `The ${thing} pulls the Earth up with ${W}`, `The ${holder} pushes down on the ${thing} with ${W}`],
       };
     case 'hangTension':
       return {
-        given: `A ${m} kg ${thing} hangs at rest from a ${holder}. The ${holder} pulls up on the ${thing} with ${W}.`,
+        given: `${aOrAn(m, true)} ${m} kg ${thing} hangs at rest from a ${holder}. The ${holder} pulls up on the ${thing} with ${W}.`,
         partner: `The ${thing} pulls down on the ${holder} with ${W}`,
         slips: [`The Earth pulls the ${thing} down with ${W}`, `The ${thing} pulls the Earth up with ${W}`, `The ${holder} pulls down on the ${thing} with ${W}`],
       };
     case 'hangWeight':
       return {
-        given: `A ${m} kg ${thing} hangs at rest from a ${holder}. The Earth pulls the ${thing} down with its weight, ${W}.`,
+        given: `${aOrAn(m, true)} ${m} kg ${thing} hangs at rest from a ${holder}. The Earth pulls the ${thing} down with its weight, ${W}.`,
         partner: `The ${thing} pulls the Earth up with ${W}`,
         slips: [`The ${holder} pulls up on the ${thing} with ${W}`, `The ${thing} pulls down on the ${holder} with ${W}`, `The ${thing} pulls the Earth down with ${W}`],
       };

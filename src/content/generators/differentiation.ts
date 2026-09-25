@@ -23,6 +23,16 @@ import {
   ddx,
 } from './calculus';
 import { bin, num, pow, valueOf, type Expr } from '../expr';
+
+/** A number as a factor, or added or taken away in a line of working, bracketed when negative. */
+const paren = (value: number): string => (value < 0 ? `(${value})` : `${value}`);
+
+/** `x - 3`, `x + 3`, or `x` alone: a letter less a number, signs tidied. */
+const letterLess = (letter: string, value: number): string =>
+  value === 0 ? letter : `${letter} ${value < 0 ? '+' : '-'} ${Math.abs(value)}`;
+
+/** `+ 3` or `- 3`: a signed term after the first. */
+const signedTerm = (value: number, body = ''): string => `${value < 0 ? '-' : '+'} ${Math.abs(value)}${body}`;
 import { markerWindow, plotSvg } from '../figures';
 
 /** A non-zero integer, for sampling where 0 would make a degenerate question. */
@@ -475,7 +485,7 @@ export const quotientRule: Generator<QuotientParams> = {
         tex: `\\frac{${a}\\left(${v}\\right) - \\left(${u}\\right)${c}}{\\left(${v}\\right)^{2}}`,
       },
       {
-        text: `The $x$ terms in the numerator cancel, leaving $${a} \\times ${d} - ${b} \\times ${c} = ${a * d - b * c}$.`,
+        text: `The $x$ terms in the numerator cancel, leaving $${a} \\times ${paren(d)} - ${paren(b)} \\times ${paren(c)} = ${a * d - b * c}$.`,
         tex: `\\frac{dy}{dx} = \\frac{${a * d - b * c}}{\\left(${v}\\right)^{2}}`,
       },
     ];
@@ -705,7 +715,7 @@ export const evaluateDerivative: Generator<EvaluateParams> = {
       },
       {
         text: `Only now substitute $x = ${at}$.`,
-        tex: `f'(${at}) = ${3 * a}\\left(${at}\\right)^{2} + ${2 * b}\\left(${at}\\right) + ${c}`,
+        tex: `f'(${at}) = ${3 * a}\\left(${at}\\right)^{2} ${signedTerm(2 * b, `\\left(${at}\\right)`)} ${signedTerm(c)}`,
       },
       {
         text: 'So the gradient of the tangent at that point is:',
@@ -830,9 +840,9 @@ const evaluateSteps: Generator<EvaluateStepsParams> = {
       },
       {
         text: `Work the power out before the multiplication: $x = ${at}$ is squared first, then multiplied by $${coefficient}$.`,
-        tex: `f'(${at}) = ${coefficient}\\left(${at}\\right)^{2} + ${b} = ${coefficient} \\times ${square} + ${b}`,
+        tex: `f'(${at}) = ${coefficient}\\left(${at}\\right)^{2} + ${paren(b)} = ${coefficient} \\times ${square} + ${paren(b)}`,
       },
-      { tex: `= ${product} + ${b} = ${total}` },
+      { tex: `= ${product} + ${paren(b)} = ${total}` },
       {
         text:
           at < 0
@@ -1652,7 +1662,8 @@ const tangentLine: Generator<TangentParams> = {
       },
       {
         text: 'A tangent is a straight line through that point with that gradient. Start from point-gradient form and rearrange.',
-        tex: `y - ${height} = ${m}\\left(x - ${at}\\right)`,
+        // y - y1 = m(x - x1) with the point put in and its signs tidied: y + 2 = -2(x + 2).
+        tex: `${letterLess('y', height)} = ${m === 1 ? '' : m === -1 ? '-' : m}\\left(${letterLess('x', at)}\\right)`,
       },
       {
         text: `The order matters the same way it always has: substituting into the curve before differentiating would give a constant, whose gradient is $0$ rather than the $${m}$ found above.`,

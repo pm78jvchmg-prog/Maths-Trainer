@@ -11,7 +11,7 @@ import { options } from '../choiceVariant';
 import { hashSeed } from '../../engine/rng';
 import { vectorSvg } from '../figures';
 import { ALGEBRA_KEYS } from './calculus';
-import { coeffTex, gcd } from './format';
+import { coeffTex, gcd, plusMinus } from './format';
 import {
   bankOf,
   columnTex,
@@ -473,7 +473,7 @@ const perpendicular: Generator<PerpendicularParams> = {
             : `${a * cx} + ${b}k = 0 \\implies k = \\frac{${-a * cx}}{${b}} = ${k}`,
       },
       {
-        text: `Check it: $\\left(${a}\\right)\\left(${cx}\\right) + \\left(${b}\\right)\\left(${k}\\right) = ${a * cx} + ${b * k} = 0$.`,
+        text: `Check it: $\\left(${a}\\right)\\left(${cx}\\right) + \\left(${b}\\right)\\left(${k}\\right) = ${a * cx} ${plusMinus(b * k)} = 0$.`,
       },
       {
         text: 'Perpendicularity is the scalar product being zero, not the vectors being negatives of each other. Those are opposite directions, whose scalar product is as negative as it can get.',

@@ -6393,8 +6393,8 @@ const ft: Generator<FtParams> = {
     if (find === 'F') {
       return [
         law,
-        { tex: `${fmt(t)}F = ${fmt(m)} \\times ${paren(v)} - ${fmt(m)} \\times ${paren(u)} = ${fmt(m * (v - u))}` },
-        { tex: `F = \\frac{${fmt(m * (v - u))}}{${fmt(t)}} = ${fmt(F)}` },
+        { tex: `${timesTex(t, 'F')} = ${fmt(m)} \\times ${paren(v)} - ${fmt(m)} \\times ${paren(u)} = ${fmt(m * (v - u))}` },
+        ...(t === 1 ? [] : [{ tex: `F = \\frac{${fmt(m * (v - u))}}{${fmt(t)}} = ${fmt(F)}` }]),
         ...(F < 0 ? [{ text: 'Negative: the force acts to the left.' }] : []),
       ];
     }
@@ -6580,7 +6580,7 @@ const impulseIjTiles: Generator<ImpulseIjParams> = {
       ...(kind === 'force'
         ? [
             { text: 'The impulse of a constant force is $\\mathbf{F}t$:' },
-            { tex: `\\mathbf{I} = ${fmt(t)}(${ijTex(I[0] / t, I[1] / t)}) = ${ijTex(I[0], I[1])}` },
+            { tex: `\\mathbf{I} = ${t === 1 ? '' : `${fmt(t)}(${ijTex(I[0] / t, I[1] / t)}) = `}${ijTex(I[0], I[1])}` },
           ]
         : []),
       { text: 'The impulse adds to the momentum, $m\\mathbf{v} = m\\mathbf{u} + \\mathbf{I}$:' },

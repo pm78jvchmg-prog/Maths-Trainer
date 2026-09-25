@@ -154,7 +154,18 @@ function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
                       aria-label={`${course.title}: ${course.blurb}`}
                       onClick={() => onOpen(course)}
                     >
-                      <div className="course-card-title">{course.title}</div>
+                      {/* Marks earned sits on the title line, at the owner's
+                          ask, so the pips below get the card's full width. */}
+                      <div className="course-card-head">
+                        <div className="course-card-title">{course.title}</div>
+                        {mastery.played > 0 && (
+                          <span
+                            className={`mastery${mastery.fraction >= MASTERED_AT ? ' mastered' : ''}`}
+                          >
+                            {masteryPercent(mastery)}%
+                          </span>
+                        )}
+                      </div>
                       <div className="course-progress">
                         {/* One pip per level, filled as far as the level is
                             finished. A pip per lesson ran to 47 on a card this
@@ -179,19 +190,13 @@ function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
                             );
                           })}
                         </span>
-                        {/* Lessons finished, then marks earned. The pair is the
-                            point: you can finish every lesson in a course and
-                            still be some way off knowing it. */}
+                        {/* Lessons finished, here, and marks earned, on the
+                            title line. The pair is the point: you can finish
+                            every lesson in a course and still be some way off
+                            knowing it. */}
                         <span className="progress-count">
                           {done}/{total}
                         </span>
-                        {mastery.played > 0 && (
-                          <span
-                            className={`mastery${mastery.fraction >= MASTERED_AT ? ' mastered' : ''}`}
-                          >
-                            {masteryPercent(mastery)}%
-                          </span>
-                        )}
                       </div>
                     </button>
                   );

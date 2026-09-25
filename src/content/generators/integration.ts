@@ -5935,7 +5935,7 @@ const repeatedIntegrate: Generator<RepeatedParams> = {
     return [
       { tex: `${repeatedSplitTex(params)}` },
       { text: `The first part is a logarithm. The second is $${coeffTex(B, `(${bracketTex(a)})^{-2}`)}$, which integrates by the power rule, not to a log.` },
-      { tex: `\\int ${coeffTex(B, `(${bracketTex(a)})^{-2}`)} dx =${B < 0 ? '' : '-'}\\frac{${Math.abs(B)}}{${bracketTex(a)}}` },
+      { tex: `\\int ${coeffTex(B, `(${bracketTex(a)})^{-2}`)} dx = ${B < 0 ? '' : '-'}\\frac{${Math.abs(B)}}{${bracketTex(a)}}` },
       { tex: `${lnTermTex(A, a, true)}${fractionTermTex(-B, a, false)} + C` },
     ];
   },

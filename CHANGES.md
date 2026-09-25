@@ -5,12 +5,6 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-25
 
-- **Inequalities & the Modulus Function teaches before it asks.** All 47
-  flags from the teach-before-ask audit fixed across its seven levels: worked
-  examples moved ahead of the questions that need them (the sign flip, the
-  discriminant test, the dot rule for poles, reading a V back to its equation,
-  the two-case check), missing steps written out with numbers, and questions
-  reordered so each follows its example. No generator or answer changed.
 - **Checker: `+ C` and `2e-1`.** An integral answer's `C` was probed as 0, so
   `x^2/2 + C*x` passed as the integral of x; `C` now takes a fixed non-zero
   value, so only an added constant is forgiven (`2C` and `ln(C)` still pass).

@@ -130,3 +130,44 @@ Generators in `src/content/generators/contestSimilarity.ts`.
 | Coordinate Geometry | `cm-coord-distance`, `cm-parallelogram-vertex`, `cm-collinear`, `cm-coord-area` | Pythagoras; A + C = B + D; equal steps across, equal steps up; the shoelace |
 
 Level check: 12 questions across all five lessons.
+
+## Level 6: Composite Figures (`cm-l6`)
+
+Generators in `src/content/generators/contestComposite.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Composites | `cm-garden-path`, `cm-overlap-squares`, `cm-arch-area`, `cm-arch-tiles` | outer rectangle less the lawn, or paths less their crossing; a square turned about the centre always covers a quarter; a semicircle is half a circle, and two cut-out halves make one |
+| Lunes and Leaves | `cm-leaf`, `cm-arbelos`, `cm-lune`, `cm-lune-table` | two quarter circles less the square; the arbelos is π/4 × AC × CB, and CD² = AC × CB; the semicircles cancel, so the lunes are the triangle |
+| Inscribed Figures | `cm-incircle-right`, `cm-semicircle-square`, `cm-equilateral-circles`, `cm-ring-chord` | equal tangents give r = (a + b − c)/2; the centre is the middle of the square's base; the centre is a third of the way up, so R = 2r; the ring needs only half the chord |
+| Ratios Meet Geometry | `cm-point-in-rectangle`, `cm-triangle-bands`, `cm-hexagon-table`, `cm-square-cevian` | opposite triangles make half; equal strips go 1 : 3 : 5 : 7; a hexagon is six equal triangles; the hourglass puts P a third of the way up |
+| Working in 3D | `cm-painted-cube`, `cm-painted-table`, `cm-stacked-cubes`, `cm-drilled-cube` | corners, edges, face middles and core; from above the tops make the bottom face; the tunnel takes two openings and adds four walls |
+
+Level check: 13 questions across all five lessons.
+
+## Level 7: Combinatorics (`cm-l7`)
+
+Generators in `src/content/generators/contestCounting.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Counting | `cm-digit-choices`, `cm-stripes`, `cm-stripes-table`, `cm-odd-even-digits` | fill the most restricted place first; a choice that depends on the last one can still have a fixed count; the units digit decides odd or even; split into cases when 0 is both even and barred from the front |
+| Venn Diagrams | `cm-venn-survey`, `cm-venn-count`, `cm-two-way-table`, `cm-venn-extremes` | fill from the middle out; adding the groups counts the overlap twice; a two-way table is the same four regions; the overlap is smallest with nobody outside, largest with one group inside the other |
+| Branch Diagrams | `cm-stairs`, `cm-dice-total`, `cm-stamp-ways`, `cm-stamp-table` | split on the first move, so each count is the sum of the ones before; split on the red die; list the cases by the biggest stamp |
+| Over-Counting | `cm-teams`, `cm-teams-tiles`, `cm-arrangements`, `cm-round-table` | count in order, divide by the orders of each group; divide by the orders of repeated letters; a circle counts each seating once per turn; glue a pair together, take together from all for apart |
+| Symmetry | `cm-ahead-of`, `cm-dice-compare`, `cm-perm-sum`, `cm-perm-sum-tiles` | swap two people and the orders pair up; ties aside, a swap splits the rest in half; x to m + 1 − x pairs high totals with low; each digit sits in each place equally often |
+
+Level check: 14 questions across all five lessons.
+
+## Level 8: Probability (`cm-l8`)
+
+Generators in `src/content/generators/contestProbability.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Probability by Outcomes | `cm-pr-dice-sum`, `cm-pr-dice-table`, `cm-pr-order`, `cm-pr-coins` | count outcomes, never totals; a pair on two dice is two outcomes; the head-counts are a row of Pascal's triangle |
+| PIE and Complements | `cm-pr-cards`, `cm-pr-pie-count`, `cm-pr-venn`, `cm-pr-at-least-one` | add the two and take off the overlap; both is a multiple of the LCM; neither is one minus either; at least one is one minus none |
+| Choosing | `cm-pr-committee`, `cm-pr-committee-table`, `cm-pr-both-chosen`, `cm-pr-bag-tree`, `cm-pr-same-colour` | every set of k is equally likely; choose from each group and multiply; the named people take their places first; without putting back, the second branches change |
+| Symmetry and Conditional | `cm-pr-line-up`, `cm-pr-beats`, `cm-pr-cond-dice`, `cm-pr-bags-tree`, `cm-pr-bags-bayes` | every place is as likely as every other; swap two people or two dice; turn a die over to mirror a total; given means throw the rest away; a red counter keeps only the red paths |
+
+Level check: 13 questions across all four lessons.

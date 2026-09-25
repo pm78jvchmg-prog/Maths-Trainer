@@ -28,7 +28,7 @@ import type { Block, ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } f
 import { bin, num, pow, valueOf, type Expr } from '../expr';
 import { markerWindow, plotSvg } from '../figures';
 import { sumTex, termTex } from './calculus';
-import { fracTex, gcdOrOne } from './format';
+import { coeffTex, fracTex, gcdOrOne } from './format';
 import { lin, orderSlide, orderSolution, pickDistractors, polyTex as kPoly, type Distractor, type Proof } from './numberProof';
 
 /* ---------- shared ---------- */
@@ -36,6 +36,11 @@ import { lin, orderSlide, orderSolution, pickDistractors, polyTex as kPoly, type
 /** `+ 4` or `- 4`, for a term written after another. */
 function signed(value: number): string {
   return value < 0 ? `- ${-value}` : `+ ${value}`;
+}
+
+/** A rule's constant put in after a term, with its space: ` + 3`, ` - 3`, and nothing for 0, as the rule itself is written. */
+function plusB(b: number): string {
+  return b === 0 ? '' : ` ${signed(b)}`;
 }
 
 /** `$22$nd`: a position written as an ordinal in prose. */
@@ -315,8 +320,8 @@ const ruleTable: Generator<RuleTableParams> = {
           tex: chain(
             ...blanks.map((i) =>
               mode === 'linear'
-                ? `u_{${i + 1}} &= ${a} \\times ${i + 1} ${signed(b)} = ${terms[i]}`
-                : `u_{${i + 1}} &= ${times(a)}${i + 1}^{2} ${signed(b)} = ${terms[i]}`,
+                ? `u_{${i + 1}} &= ${a} \\times ${i + 1}${plusB(b)} = ${terms[i]}`
+                : `u_{${i + 1}} &= ${times(a)}${i + 1}^{2}${plusB(b)} = ${terms[i]}`,
             ),
           ),
         },
@@ -496,7 +501,7 @@ const methodFlow: Generator<MethodParams> = {
       const value = sq ? sq * k * k + b : a * k + b;
       return [
         { text: `Only $n$ appears on the right of $${methodRule(params)}$, so it is position-to-term.` },
-        { tex: sq ? `u_{${k}} = ${times(sq)}${k}^{2} ${signed(b)} = ${value}` : `u_{${k}} = ${a} \\times ${k} ${signed(b)} = ${value}` },
+        { tex: sq ? `u_{${k}} = ${times(sq)}${k}^{2}${plusB(b)} = ${value}` : `u_{${k}} = ${a} \\times ${k}${plusB(b)} = ${value}` },
       ];
     }
     return [
@@ -620,7 +625,7 @@ const apTree: Generator<ApTreeParams> = {
   solution: ({ a, d, p, q, k }) => [
     { text: `From $u_{${p}}$ to $u_{${q}}$ is $${q - p}$ steps of $d$.` },
     { tex: chain(`${q - p}d &= ${ap(a, d, q)} - ${br(ap(a, d, p))} = ${(q - p) * d}`, `d &= ${d}`) },
-    { text: `$u_{${p}} = a + ${p - 1}d$, so step back from $u_{${p}}$.` },
+    { text: `$u_{${p}} = a + ${coeffTex(p - 1, 'd')}$, so step back from $u_{${p}}$.` },
     { tex: `a = ${ap(a, d, p)} - ${p - 1} \\times ${br(d)} = ${a}` },
     ...(k ? [{ tex: chain(`u_{${k}} &= ${a} + ${k - 1} \\times ${br(d)}`, `&= ${ap(a, d, k)}`) }] : []),
   ],
@@ -3585,7 +3590,8 @@ const limitAsk: Generator<LimitParams> = {
     if (form === 'over') {
       return [
         settle,
-        { tex: chain(`L &= \\frac{L ${signed(c)}}{${b}}`, `${b}L &= L ${signed(c)}`, `${lead(b - 1)}L &= ${c}`, `L &= ${L}`) },
+        // With b = 2 the gathered line already reads L = c, so it is the last.
+        { tex: chain(`L &= \\frac{L ${signed(c)}}{${b}}`, `${b}L &= L ${signed(c)}`, `${lead(b - 1)}L &= ${c}`, ...(b === 2 ? [] : [`L &= ${L}`])) },
       ];
     }
     if (form === 'minus') {
@@ -5062,7 +5068,8 @@ const splitTiles: Generator<SplitTilesParams> = {
   render: (params): Slide => {
     const { form, a, b } = params;
     const [x2, x1, x0] = splitCoefficients(params);
-    const per = (value: number) => `${token(value)}n`;
+    // Signed like `token`, as a term is written: +3n, but +n, -n, and +0 rather than +1n, -1n, +0n.
+    const per = (value: number) => (value === 0 ? token(0) : `${value < 0 ? '-' : '+'}${coeffTex(Math.abs(value), 'n')}`);
     let template: string;
     let answer: string[];
     let slips: string[];
@@ -5107,7 +5114,7 @@ const splitTiles: Generator<SplitTilesParams> = {
     const parts = sumTex([
       x2 === 0 ? '0' : `${x2 === 1 ? '' : x2}\\sum r^2`,
       x1 === 0 ? '0' : `${x1 === 1 ? '' : x1 === -1 ? '-' : x1}\\sum r`,
-      x0 === 0 ? '0' : `${x0}n`,
+      x0 === 0 ? '0' : coeffTex(x0, 'n'),
     ]);
     return [
       ...(params.form === 'pq' || params.form === 'square' ? [{ tex: `${splitTermTex(params)} = ${expanded}` }] : []),

@@ -26,7 +26,7 @@ import { options } from '../choiceVariant';
 import { ALGEBRA_KEYS, EXP_KEYS, TRIG_KEYS, ROOT_KEYS, termTex, termAnswer, sumTex, sumAnswer } from './calculus';
 import { bin, num, pow, valueOf, type Expr } from '../expr';
 import { markerWindow, plotSvg } from '../figures';
-import { gcd } from './format';
+import { coeffTex, gcd } from './format';
 
 /** The algebra keys plus the constant of integration. */
 const INTEGRAL_KEYS: KeypadKey[] = [...ALGEBRA_KEYS, { insert: 'C' }];
@@ -47,12 +47,13 @@ function reduce(num: number, den: number): { n: number; d: number } {
  * A term with a fractional coefficient, as it would be written by hand.
  *
  * Falls through to `termTex` whenever the fraction turns out to be a whole
- * number, so `\frac{4}{2}x` never reaches the learner.
+ * number, so `\frac{4}{2}x` never reaches the learner. Power 0 is the bare
+ * coefficient, `\frac{3}{2}`, never `\frac{3}{2}x^{0}`.
  */
 function fracTermTex(num: number, den: number, power: number): string {
   const { n, d } = reduce(num, den);
   if (d === 1) return termTex(n, power);
-  const variable = power === 1 ? 'x' : `x^{${power}}`;
+  const variable = power === 0 ? '' : power === 1 ? 'x' : `x^{${power}}`;
   return `${n < 0 ? '-' : ''}\\frac{${Math.abs(n)}}{${d}}${variable}`;
 }
 
@@ -307,10 +308,10 @@ const integrateExponential: Generator<ExponentialParams> = {
     const kx = termTex(k, 1);
     const co = (num: number, den: number) => fracTermTex(num, den, 0);
     return options(
-      { tex: `${co(a, k)}e^{${kx}} + C`, answer: `((${a})/(${k})) * e^((${k}) * x)` },
-      { tex: `${termTex(a, 0)}e^{${kx}} + C`, answer: `(${a}) * e^((${k}) * x)` },
-      { tex: `${termTex(a * k, 0)}e^{${kx}} + C`, answer: `(${a * k}) * e^((${k}) * x)` },
-      { tex: `${co(a, k)}e^{${termTex(k, 1)}} \\times x + C`, answer: `((${a})/(${k})) * x * e^((${k}) * x)` },
+      { tex: `${inFront(co(a, k))}e^{${kx}} + C`, answer: `((${a})/(${k})) * e^((${k}) * x)` },
+      { tex: `${inFront(termTex(a, 0))}e^{${kx}} + C`, answer: `(${a}) * e^((${k}) * x)` },
+      { tex: `${inFront(termTex(a * k, 0))}e^{${kx}} + C`, answer: `(${a * k}) * e^((${k}) * x)` },
+      { tex: `${inFront(co(a, k))}e^{${termTex(k, 1)}} \\times x + C`, answer: `((${a})/(${k})) * x * e^((${k}) * x)` },
     );
   },
   sample: (rng, difficulty) => ({
@@ -338,7 +339,7 @@ const integrateExponential: Generator<ExponentialParams> = {
         text: `Differentiating $e^{${termTex(k, 1)}}$ multiplies it by $${k}$, by the chain rule. Integrating must therefore divide by $${k}$.`,
       },
       { tex: `\\int e^{kx} \\, dx = \\frac{e^{kx}}{k} + C` },
-      { tex: `${integralTex(a === 1 ? `e^{${termTex(k, 1)}}` : `${a}e^{${termTex(k, 1)}}`)} = ${coefficient}e^{${termTex(k, 1)}} + C` },
+      { tex: `${integralTex(a === 1 ? `e^{${termTex(k, 1)}}` : `${a}e^{${termTex(k, 1)}}`)} = ${inFront(coefficient)}e^{${termTex(k, 1)}} + C` },
       {
         text: 'The exponential is the one function that survives both operations unchanged in shape — only the constant in front moves. Forgetting to divide by the $x$ coefficient is the error here, and differentiating the answer back catches it immediately.',
       },
@@ -387,7 +388,7 @@ const integrateTrig: Generator<TrigParams> = {
       { tex: '\\int \\sin(kx) \\, dx = -\\frac{\\cos(kx)}{k} + C' },
       { tex: '\\int \\cos(kx) \\, dx = \\frac{\\sin(kx)}{k} + C' },
       {
-        tex: `${integralTex(`${a === 1 ? '' : a}\\${fn}\\left(${termTex(k, 1)}\\right)`)} = ${sign}${size}\\${other}\\left(${termTex(k, 1)}\\right) + C`,
+        tex: `${integralTex(`${a === 1 ? '' : a}\\${fn}\\left(${termTex(k, 1)}\\right)`)} = ${sign}${inFront(size)}\\${other}\\left(${termTex(k, 1)}\\right) + C`,
       },
       {
         text:
@@ -981,10 +982,10 @@ const substitution: Generator<SubstitutionParams> = {
     const bracket = `\\left(x^{2} ${b < 0 ? '-' : '+'} ${Math.abs(b)}\\right)`;
     const inner = `(x^2 + (${b}))`;
     return options(
-      { tex: `${fracTermTex(a, 2 * n, 0)}${bracket}^{${n}} + C`, answer: `((${a})/(2 * (${n}))) * ${inner}^(${n})` },
-      { tex: `${fracTermTex(a, n, 0)}${bracket}^{${n}} + C`, answer: `((${a})/(${n})) * ${inner}^(${n})` },
-      { tex: `${fracTermTex(a, 2, 0)}${bracket}^{${n}} + C`, answer: `((${a})/2) * ${inner}^(${n})` },
-      { tex: `${fracTermTex(a, 2 * n, 0)}${bracket}^{${power}} + C`, answer: `((${a})/(2 * (${n}))) * ${inner}^(${power})` },
+      { tex: `${inFront(fracTermTex(a, 2 * n, 0))}${bracket}^{${n}} + C`, answer: `((${a})/(2 * (${n}))) * ${inner}^(${n})` },
+      { tex: `${inFront(fracTermTex(a, n, 0))}${bracket}^{${n}} + C`, answer: `((${a})/(${n})) * ${inner}^(${n})` },
+      { tex: `${inFront(fracTermTex(a, 2, 0))}${bracket}^{${n}} + C`, answer: `((${a})/2) * ${inner}^(${n})` },
+      { tex: `${inFront(fracTermTex(a, 2 * n, 0))}${bracket}^{${power}} + C`, answer: `((${a})/(2 * (${n}))) * ${inner}^(${power})` },
     );
   },
   sample: (rng, difficulty) => ({
@@ -1018,8 +1019,8 @@ const substitution: Generator<SubstitutionParams> = {
         text: `Put $u = x^{2} ${b < 0 ? '-' : '+'} ${Math.abs(b)}$. Then $\\frac{du}{dx} = 2x$, so $${termTex(a, 1)} \\, dx$ becomes $\\frac{${a}}{2} \\, du$.`,
       },
       { tex: `${integralTex(`${termTex(a, 1)}${bracket}^{${power}}`)} = \\frac{${a}}{2}\\int u^{${power}} \\, du` },
-      { tex: `= \\frac{${a}}{2} \\times \\frac{u^{${n}}}{${n}} = ${coefficient}u^{${n}}` },
-      { tex: `= ${coefficient}${bracket}^{${n}} + C` },
+      { tex: `= \\frac{${a}}{2} \\times \\frac{u^{${n}}}{${n}} = ${inFront(coefficient)}u^{${n}}` },
+      { tex: `= ${inFront(coefficient)}${bracket}^{${n}} + C` },
       {
         text: 'The substitution works because the $x$ outside the bracket is, up to a constant, the derivative of what is inside. Spotting that pairing is the whole skill — without it the substitution leaves a stray $x$ behind and nothing has been gained.',
       },
@@ -5275,7 +5276,7 @@ const recombine: Generator<Split> = {
     const { A, B, a, b } = params;
     return [
       { text: 'Put both over the common bottom. Each top is multiplied by the bracket it is missing.' },
-      { tex: `\\frac{${A}(${bracketTex(b)}) ${B < 0 ? '-' : '+'} ${Math.abs(B)}(${bracketTex(a)})}{(${bracketTex(a)})(${bracketTex(b)})}` },
+      { tex: `\\frac{${coeffTex(A, `(${bracketTex(b)})`)} ${B < 0 ? '-' : '+'} ${coeffTex(Math.abs(B), `(${bracketTex(a)})`)}}{(${bracketTex(a)})(${bracketTex(b)})}` },
       { tex: `= ${splitFractionTex(params)}` },
       { text: 'Partial fractions is this run backwards: from the single fraction to the two simple ones.' },
     ];
@@ -5779,7 +5780,7 @@ const divideFirst: Generator<DivideParams> = {
       {
         tex: stacked(
           `${polyTex(divideTop(params))}`,
-          `= ${k}(${polyTex(splitBottom(params))})`,
+          `= ${coeffTex(k, `(${polyTex(splitBottom(params))})`)}`,
           `\\quad ${sumTex(['x', polyTex(splitTop(params))]).slice(1)}`,
         ),
       },
@@ -5866,7 +5867,7 @@ function repeatedSplitTex({ A, B, a }: RepeatedParams): string {
 function repeatedSolution(params: RepeatedParams) {
   const { A, B, a } = params;
   return [
-    { text: `Write the top in terms of the bracket: $${polyTex(repeatedTop(params))} = ${A}(${bracketTex(a)}) ${B < 0 ? '-' : '+'} ${Math.abs(B)}$.` },
+    { text: `Write the top in terms of the bracket: $${polyTex(repeatedTop(params))} = ${coeffTex(A, `(${bracketTex(a)})`)} ${B < 0 ? '-' : '+'} ${Math.abs(B)}$.` },
     { text: 'Divide each part by the bracket squared:' },
     { tex: `${repeatedSplitTex(params)}` },
     { text: `So $A = ${A}$, the $x$ coefficient of the top, and $B = ${B}$, the top's value at $x = ${-a}$.` },
@@ -5934,8 +5935,8 @@ const repeatedIntegrate: Generator<RepeatedParams> = {
     const { A, B, a } = params;
     return [
       { tex: `${repeatedSplitTex(params)}` },
-      { text: `The first part is a logarithm. The second is $${B}(${bracketTex(a)})^{-2}$, which integrates by the power rule, not to a log.` },
-      { tex: `\\int ${B}(${bracketTex(a)})^{-2} dx = ${B < 0 ? '' : '-'}\\frac{${Math.abs(B)}}{${bracketTex(a)}}` },
+      { text: `The first part is a logarithm. The second is $${coeffTex(B, `(${bracketTex(a)})^{-2}`)}$, which integrates by the power rule, not to a log.` },
+      { tex: `\\int ${coeffTex(B, `(${bracketTex(a)})^{-2}`)} dx = ${B < 0 ? '' : '-'}\\frac{${Math.abs(B)}}{${bracketTex(a)}}` },
       { tex: `${lnTermTex(A, a, true)}${fractionTermTex(-B, a, false)} + C` },
     ];
   },
@@ -6669,7 +6670,7 @@ const workSteps: Generator<PowerTailParams> = {
               bracket(`${k * (n - 1)}`, n - 1),
               bracket(`${k}`, n - 1, ''),
               // A logarithm, as if every power of x went that way.
-              `\\left[${k}\\ln x\\right]_{${a}}^{t}`,
+              `\\left[${inFront(`${k}`)}\\ln x\\right]_{${a}}^{t}`,
             ],
           ),
         },
@@ -6947,7 +6948,7 @@ const verdict: Generator<VerdictParams> = {
             { text: 'So the integral diverges. For an exponential to converge on an infinite interval, it has to decay.' },
           ]
         : [
-            { text: `$\\int_{0}^{t} ${expTex(k, rate)} \\, dx = ${ratioTex(reduce(k, rate))}\\left(1 - ${expTex(1, rate).replace('x', 't')}\\right)$.` },
+            { text: `$\\int_{0}^{t} ${expTex(k, rate)} \\, dx = ${inFront(ratioTex(reduce(k, rate)))}\\left(1 - ${expTex(1, rate).replace('x', 't')}\\right)$.` },
             { text: 'As $t$ grows the exponential shrinks to $0$.' },
             { tex: `\\text{Converges to } ${ratioTex(value ?? reduce(0, 1))}` },
           ];
@@ -6964,7 +6965,7 @@ const verdict: Generator<VerdictParams> = {
         {
           text:
             power.m === power.q
-              ? `The integral is $${k}\\ln x$, and $\\ln x$ has no limit ${kind === 'tail' ? 'as $x$ grows' : 'as $x \\to 0$'}.`
+              ? `The integral is $${inFront(`${k}`)}\\ln x$, and $\\ln x$ has no limit ${kind === 'tail' ? 'as $x$ grows' : 'as $x \\to 0$'}.`
               : `The antiderivative has $x^{${ratioTex(after)}}$ in it, which grows without limit ${kind === 'tail' ? 'as $x$ grows' : 'as $x \\to 0$'}.`,
         },
         { text: 'So the integral diverges.' },
@@ -7619,6 +7620,12 @@ function heightsTex(xs: number[], h: number): string {
   return h === 1 ? inside : `${h}\\left[${inside}\\right]`;
 }
 
+/** The same with the middle heights elided, and likewise no 1 in front: `2\left[f(0) + \dots + f(8)\right]`. */
+function elidedHeightsTex(xs: number[], h: number): string {
+  const inside = `f(${xs[0]}) + \\dots + f(${xs[xs.length - 1]})`;
+  return h === 1 ? inside : `${h}\\left[${inside}\\right]`;
+}
+
 /** A rectangle sum's name: `L_{4}` or `R_{4}`. */
 const sumName = (side: Side, n: number): string => `${side === 'left' ? 'L' : 'R'}_{${n}}`;
 
@@ -7944,7 +7951,7 @@ const whichSum: Generator<StripParams> = {
       {
         text: `Each rectangle meets the curve at its ${side} edge, so the heights are read at $x = ${xs.join(', ')}$. That is the ${side} sum.`,
       },
-      { tex: `${h}\\left[f(${xs[0]}) + \\dots + f(${xs[n - 1]})\\right]` },
+      { tex: elidedHeightsTex(xs, h) },
       { text: 'Each height is multiplied by the width, which is the same for every strip, so it comes outside the bracket.' },
     ];
   },
@@ -8006,7 +8013,7 @@ const sumEnds: Generator<EndsParams> = {
             ? `The left sum uses every edge but the last, $x = ${b}$, since no strip starts there.`
             : `The right sum uses every edge but the first, $x = ${a}$, since no strip ends there.`,
       },
-      { tex: `${h}\\left[f(${xs[0]}) + \\dots + f(${xs[n - 1]})\\right]` },
+      { tex: elidedHeightsTex(xs, h) },
     ];
   },
 };
@@ -8190,9 +8197,12 @@ function sumLimitSolution(params: SumLimitParams) {
   const { power, c, b } = params;
   const A = sumLimitA(params);
   const kPower = power === 1 ? 'k' : 'k^{2}';
+  const edge = `\\frac{${b === 1 ? '' : b}k}{n}`;
+  // c x at the edge is c(edge), or the edge alone; only a square needs its power.
+  const height = power === 1 ? (c === 1 ? edge : `${c}\\left(${edge}\\right)`) : `${c === 1 ? '' : c}\\left(${edge}\\right)^{${power}}`;
   return [
     {
-      text: `Strips of width $\\frac{${b}}{n}$ have right edges at $x = \\frac{${b}k}{n}$, so the $k$th height is $${c === 1 ? '' : c}\\left(\\frac{${b}k}{n}\\right)^{${power}}$. Width times height, added up:`,
+      text: `Strips of width $\\frac{${b}}{n}$ have right edges at $x = ${edge}$, so the $k$th height is $${height}$. Width times height, added up:`,
     },
     { tex: `\\frac{${A}}{n^{${power + 1}}} \\sum_{k=1}^{n} ${kPower}` },
     {

@@ -285,7 +285,7 @@ export const complexPart: Generator<PartParams> = {
     {
       text: wantReal
         ? `So the real part is $${a}$. Note it is the number without the $i$.`
-        : `So the imaginary part is $${b}$ — the coefficient of $i$, not $${b}i$ itself.`,
+        : `So the imaginary part is $${b}$ — the coefficient of $i$, not $${coeffTex(b)}$ itself.`,
     },
   ],
 };
@@ -531,7 +531,7 @@ export const imaginaryCollect: Generator<CollectParams> = {
   render: ({ a, b, c, bank }) => ({
     kind: 'tiles',
     prompt: [{ kind: 'prose', text: 'Collect the terms, one step at a time.' }],
-    template: `${a}i + ${b}i - ${c}i = {0}i - ${c}i = {1}i`,
+    template: `${a}i + ${b}i - ${coeffTex(c)} = {0}i - ${coeffTex(c)} = {1}i`,
     bank,
     answer: [`${a + b}`, `${a + b - c}`],
   }),
@@ -542,7 +542,7 @@ export const imaginaryCollect: Generator<CollectParams> = {
     },
     {
       text: 'Then the subtraction, keeping its sign attached to the term it belongs to.',
-      tex: `${a + b}i - ${c}i = ${a + b - c}i`,
+      tex: `${a + b}i - ${coeffTex(c)} = ${a + b - c}i`,
     },
     {
       text: `Adding all three instead would give $${a + b + c}i$, which is the usual slip here.`,

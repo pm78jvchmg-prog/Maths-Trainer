@@ -2270,6 +2270,18 @@ const deLimitFlow: Generator<LimitFlowParams> = {
 export const limitSolutionTex = ({ ctx, L, start, top, bottom }: LimitParams): string =>
   `${LIMIT_STORIES[ctx].sym} = ${L} ${signed(start - L)}e^{-${decimal(top, bottom)}t}`;
 
+/**
+ * `a + be^{-kt}` as written by hand, for a slip in the bank: a start of 0 can
+ * make either number 0, and a zero term drops out rather than reading
+ * `+ 0e^{-kt}` or `0 - 50e^{-kt}`.
+ */
+function levelPlusExpTex(a: number, b: number, k: string): string {
+  const exp = `e^{-${k}t}`;
+  if (b === 0) return `${a}`;
+  if (a === 0) return `${b < 0 ? '-' : ''}${coef(Math.abs(b))}${exp}`;
+  return `${a} ${b < 0 ? '-' : '+'} ${coef(Math.abs(b))}${exp}`;
+}
+
 export const limitSolutionAnswer = ({ L, start, top, bottom }: LimitParams): string =>
   `${L} + (${start - L})*e^(-(${top / bottom})*t)`;
 
@@ -2309,8 +2321,8 @@ const deLimitSteps: Generator<LimitParams> = {
           bank: stepBank(
             particular,
             `${s} = ${L} ${signed(L - start)}e^{-${k}t}`,
-            `${s} = ${L} ${signed(-start)}e^{-${k}t}`,
-            `${s} = ${start} ${signed(-L)}e^{-${k}t}`,
+            `${s} = ${levelPlusExpTex(L, -start, k)}`,
+            `${s} = ${levelPlusExpTex(start, -L, k)}`,
           ),
         },
       ],
@@ -3500,7 +3512,7 @@ const deIfDivide: Generator<LinearDe> = {
       ...(de.written === 'scaled'
         ? [{ label: `$${pTex({ ...de, k: de.k * de.scale })}$`, outcome: 'That is before dividing: the $y$ term has to be divided too.' }]
         : de.written === 'timesX'
-          ? [{ label: `$${de.k}$`, outcome: `Dividing by $x$ divides the $y$ term too, so $${de.k}y$ becomes $${pTex(de)}y$.` }]
+          ? [{ label: `$${de.k}$`, outcome: `Dividing by $x$ divides the $y$ term too, so $${coef(de.k)}y$ becomes $${pTex(de)}y$.` }]
           : []),
       { label: `$${pTex(flipped)}$`, outcome: '$P$ comes with its sign: it is what multiplies $y$ on the left.' },
       { label: `$${factorTex(de)}$`, outcome: 'That is the integrating factor, which is found from $P$. $P$ itself multiplies $y$.' },
@@ -4261,7 +4273,8 @@ const deIfPowerSteps: Generator<LinearDe> = {
           span: [0, 1],
           operator: 0,
           value: integrated,
-          bank: stepBank(integrated, `${Iy} = ${termTex(q, k + m + 1)} + C`, `${Iy} = ${termTex(q * (k + m), k + m - 1)} + C`, `${Iy} = ${antiTex(de)}`),
+          // Differentiating a constant power leaves 0, and 0 + C is written C.
+          bank: stepBank(integrated, `${Iy} = ${termTex(q, k + m + 1)} + C`, `${Iy} = ${k + m === 0 ? 'C' : `${termTex(q * (k + m), k + m - 1)} + C`}`, `${Iy} = ${antiTex(de)}`),
         },
         {
           span: [0, 1],
@@ -5516,7 +5529,7 @@ function ivpSteps(de: SecondIvp): SolutionStep[] {
         : undefined;
   const solve =
     kind === 'real'
-      ? `Take $${p}$ times the first equation from the second: $${q - p}B = ${v0 - p * y0}$.`
+      ? `Take $${p}$ times the first equation from the second: $${coef(q - p)}B = ${v0 - p * y0}$.`
       : kind === 'repeated'
         ? `$A = ${y0}$ straight away, so $B = ${v0} ${signed(-p * A)}$.`
         : p === 0
@@ -8109,7 +8122,7 @@ function dampedIvpSteps(de: SecondIvp): SolutionStep[] {
         kind === 'real'
           ? `At $t = 0$ each exponential is $1$, and differentiating brings down $${p}$ and $${q}$:`
           : kind === 'repeated'
-            ? `At $t = 0$, $x = A$, and by the product rule $\\dot{x}(0) = ${p}A + B$:`
+            ? `At $t = 0$, $x = A$, and by the product rule $\\dot{x}(0) = ${coef(p)}A + B$:`
             : `At $t = 0$, $x = A$, and by the product rule $\\dot{x}(0) = \\alpha A + \\beta B$:`,
       tex: equations,
     },

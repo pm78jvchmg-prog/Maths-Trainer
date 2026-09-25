@@ -36,7 +36,7 @@ import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
 import { canonicalPieces, formatSet, type Piece } from '../numberLine';
 import { termTex } from './calculus';
-import { gcd, say } from './format';
+import { coeffTex, gcd, say } from './format';
 import { type Poly, addPoly, divideBy, fromRoots, mulPoly, polyTex, scalePoly, valueAt } from './polynomials';
 import { windowFor } from './numberLine';
 
@@ -879,6 +879,11 @@ function addTex({ m, n, p, q, minus }: AddParams): string {
   return `${frac(String(m), br(p))} ${minus ? '-' : '+'} ${frac(String(n), br(q))}`;
 }
 
+/** k(x + a) multiplied out, as a clause. A top of 1 has nothing to multiply, so the bracket stays as it is. */
+function strandTex(k: number, a: number): string {
+  return k === 1 ? `$${pbr(a)}$ stays as it is` : `$${k}${pbr(a)} = ${polyTex([k, k * a])}$`;
+}
+
 function sampleAdd(rng: Rng, minus: boolean, max = 6): AddParams {
   for (;;) {
     const [p, q] = distinct(rng, 2, 6);
@@ -929,9 +934,13 @@ const fracAddTree: Generator<AddParams> = {
     const op = minus ? '-' : '+';
     return [
       { text: `The common bottom is $${pbr(p)}${pbr(q)}$. Each fraction is multiplied top and bottom by the bracket it is missing:` },
-      { tex: frac(`${m}${pbr(q)} ${op} ${n}${pbr(p)}`, `${pbr(p)}${pbr(q)}`) },
+      { tex: frac(`${coeffTex(m, pbr(q))} ${op} ${coeffTex(n, pbr(p))}`, `${pbr(p)}${pbr(q)}`) },
       {
-        text: `$${m}${pbr(q)} = ${polyTex([m, m * q])}$ and $${n}${pbr(p)} = ${polyTex([n, n * p])}$.${minus ? ' The minus sign takes away the whole of the second, both of its terms.' : ''}`,
+        text: `${
+          m === 1 && n === 1
+            ? `$${pbr(q)}$ and $${pbr(p)}$ stay as they are.`
+            : `${strandTex(m, q)} and ${strandTex(n, p)}.`
+        }${minus ? ' The minus sign takes away the whole of the second, both of its terms.' : ''}`,
       },
       { tex: frac(polyTex(addTop(params)), `${pbr(p)}${pbr(q)}`) },
     ];
@@ -997,14 +1006,14 @@ const fracSumTiles: Generator<SumTilesParams> = {
     if (shared) {
       return [
         { text: `The second bottom already contains $${pbr(p)}$, so only the first fraction needs changing: multiply it top and bottom by $${pbr(q)}$.` },
-        { tex: frac(`${m}${pbr(q)} ${op} ${n}`, `${pbr(p)}${pbr(q)}`) },
-        { text: `$${m}${pbr(q)} ${op} ${n} = ${polyTex(top)}$.` },
+        { tex: frac(`${coeffTex(m, pbr(q))} ${op} ${n}`, `${pbr(p)}${pbr(q)}`) },
+        { text: `$${coeffTex(m, pbr(q))} ${op} ${n} = ${polyTex(top)}$.` },
       ];
     }
     return [
       { text: `Multiply each fraction top and bottom by the bracket it is missing:` },
-      { tex: frac(`${m}${pbr(q)} ${op} ${n}${pbr(p)}`, `${pbr(p)}${pbr(q)}`) },
-      { text: `The minus takes away all of $${n}${pbr(p)} = ${polyTex([n, n * p])}$, both terms, so the top is $${polyTex(top)}$.` },
+      { tex: frac(`${coeffTex(m, pbr(q))} ${op} ${coeffTex(n, pbr(p))}`, `${pbr(p)}${pbr(q)}`) },
+      { text: `The minus takes away all of $${n === 1 ? pbr(p) : `${n}${pbr(p)} = ${polyTex([n, n * p])}`}$, both terms, so the top is $${polyTex(top)}$.` },
     ];
   },
 };
@@ -1050,7 +1059,7 @@ const fracSumCoefficient: Generator<SumCoefficientParams> = {
     const op = minus ? '-' : '+';
     const [a, b] = addTop(params);
     return [
-      { text: `Over $${pbr(p)}${pbr(q)}$ the top is $${m}${pbr(q)} ${op} ${n}${pbr(p)}$.` },
+      { text: `Over $${pbr(p)}${pbr(q)}$ the top is $${coeffTex(m, pbr(q))} ${op} ${coeffTex(n, pbr(p))}$.` },
       ask === 'a'
         ? { text: `The $x$ terms: $${termTex(m, 1)} ${op} ${termTex(n, 1)} = ${termTex(a, 1)}$, so $a = ${a}$.` }
         : { text: `The numbers: $${m} \\times ${paren(q)} ${op} ${n} \\times ${paren(p)} = ${b}$, so $b = ${b}$.` },
@@ -1274,7 +1283,7 @@ const fracEquationSolve: Generator<SolveParams> = {
       const v = q - n;
       return [
         { text: `Get the fraction on its own: $${frac(String(m), br(p))} = ${v}$.` },
-        { text: `Multiply both sides by $${pbr(p)}$: $${m} = ${v}${pbr(p)}$, so $${br(p)} = ${m / v}$.` },
+        { text: `Multiply both sides by $${pbr(p)}$: $${m} = ${coeffTex(v, pbr(p))}$, so $${br(p)} = ${m / v}$.` },
         { tex: `x = ${r}` },
       ];
     }
@@ -2231,8 +2240,8 @@ function repeatedSolution(params: RepeatedParams): SolutionStep[] {
   }
   return [
     { text: `Multiply both sides by the bottom: $${polyTex(top)} = A${pbr(a)}${pbr(b)} + B${pbr(b)} + C${pbr(a)}^{2}$.` },
-    { text: `Put $x = ${-a}$: only $B$ survives, $${atA} = ${paren(dA)}B$, so $B = ${B}$.` },
-    { text: `Put $x = ${-b}$: only $C$ survives, $${atB} = ${dB}C$, so $C = ${C}$.` },
+    { text: `Put $x = ${-a}$: only $B$ survives, $${atA} = ${Math.abs(dA) === 1 ? coeffTex(dA, 'B') : `${paren(dA)}B`}$, so $B = ${B}$.` },
+    { text: `Put $x = ${-b}$: only $C$ survives, $${atB} = ${coeffTex(dB, 'C')}$, so $C = ${C}$.` },
     { text: `No value of $x$ isolates $A$, so compare the $x^{2}$ terms: $A + C = ${x2}$, so $A = ${A}$.` },
     { tex: repeatedSplitTex(params) },
   ];
@@ -2595,7 +2604,7 @@ const fracImproperQuotient: Generator<ImproperParams> = {
       return [
         { text: `Multiplied out, the bottom is $${bottom}$. Both have degree 2, so the whole part is the ratio of the $x^{2}$ terms: $${top[0]}$.` },
         { text: `Take $${top[0]}$ lots of the bottom away and what is left has degree 1:` },
-        { tex: chain(`&${polyTex(top)}`, `&\\quad - ${paren(top[0])}(${bottom})`, `=\\;&${polyTex(splitTop(params))}`) },
+        { tex: chain(`&${polyTex(top)}`, `&\\quad - ${top[0] === 1 ? '' : paren(top[0])}(${bottom})`, `=\\;&${polyTex(splitTop(params))}`) },
       ];
     }
     return [
@@ -2693,7 +2702,7 @@ const fracIntegrateTiles: Generator<IntegrateParams> = {
       steps.push({ text: `$${fracTerm(B, br(b))}$ integrates to $${lnTerm(B, b, true)}$.` });
       steps.push({ text: `$${lnTerm(A, a, true)} ${lnTerm(B, b, false)} + \\text{const}$` });
     } else {
-      steps.push({ text: `$${fracTerm(B, `${pbr(a)}^{2}`)}$ is $${B}${pbr(a)}^{-2}$, which integrates to $${fracTerm(-B, br(a))}$: a power, not a logarithm.` });
+      steps.push({ text: `$${fracTerm(B, `${pbr(a)}^{2}`)}$ is $${coeffTex(B, `${pbr(a)}^{-2}`)}$, which integrates to $${fracTerm(-B, br(a))}$: a power, not a logarithm.` });
       steps.push({ text: `$${fracTerm(C, br(b))}$ integrates to $${lnTerm(C, b, true)}$.` });
       steps.push({ text: `$${lnTerm(A, a, true)} ${signedFracTerm(-B, br(a))} ${lnTerm(C, b, false)} + \\text{const}$` });
     }
@@ -2746,7 +2755,7 @@ const fracIntegrateWhich: Generator<IntegrateWhichParams> = {
     const { A, B, a, b, square } = params;
     if (square) {
       return [
-        { text: `Write it as a power: $${fracTerm(B, `${pbr(a)}^{2}`)} = ${B}${pbr(a)}^{-2}$.` },
+        { text: `Write it as a power: $${fracTerm(B, `${pbr(a)}^{2}`)} = ${coeffTex(B, `${pbr(a)}^{-2}`)}$.` },
         { text: 'Raise the power by one and divide by the new power, $-1$:' },
         { tex: `${fracTerm(-B, br(a))} + \\text{const}` },
         { text: 'Differentiate it back to check: the power $-1$ comes down and cancels the minus sign.' },
@@ -2823,8 +2832,8 @@ function seriesSolution(params: SeriesParams): SolutionStep[] {
   const { A, B, p, q } = params;
   return [
     { text: `Each part is its numerator times a series:` },
-    { text: `$${fracTerm(A, oneMinus(p))} = ${A}(${geometricTex(p)})$` },
-    { text: `$${fracTerm(B, oneMinus(q))} = ${B}(${geometricTex(q)})$` },
+    { text: `$${fracTerm(A, oneMinus(p))} = ${coeffTex(A, `(${geometricTex(p)})`)}$` },
+    { text: `$${fracTerm(B, oneMinus(q))} = ${coeffTex(B, `(${geometricTex(q)})`)}$` },
     {
       text: `Add power by power. The number: $${A} ${signed(B)} = ${seriesCoefficient(params, 0)}$. The $x$ term: $${A} \\times ${paren(p)} ${signed(B)} \\times ${paren(q)} = ${seriesCoefficient(params, 1)}$. In general the $x^{k}$ term is $${A} \\times ${paren(p)}^{k} ${signed(B)} \\times ${paren(q)}^{k}$.`,
     },
@@ -3800,7 +3809,7 @@ function quadImproperSolution(params: QuadImproperParams): SolutionStep[] {
   const cubic = polyTex(quadCubic(params));
   return [
     { text: `The bottom multiplies out to $${cubic}$, a cubic like the top, so divide first. The $x^{3}$ terms give the whole number, $${Q}$.` },
-    { tex: chain(`&${polyTex(quadImproperTop(params))}`, `=\\;&${paren(Q)}(${cubic})`, `&\\quad + (${polyTex(quadSplitTop(params))})`) },
+    { tex: chain(`&${polyTex(quadImproperTop(params))}`, `=\\;&${Q === 1 ? '' : paren(Q)}(${cubic})`, `&\\quad + (${polyTex(quadSplitTop(params))})`) },
     { text: `Split what is left as before: cover-up gives $C = ${C}$, and comparing coefficients gives $A = ${A}$ and $B = ${B}$.` },
     { tex: quadImproperAnswerTex(params) },
   ];
@@ -5902,7 +5911,7 @@ const fracHoleTree: Generator<Rational> = {
       ...cancelStep(r),
       { tex: chain(`&${factorisedRatTex(r)}`, `=\\;&${simplifiedTex(r)}`) },
       { text: `The original has no value at $x = ${h}$, but the simplified form does:` },
-      { tex: `${frac(r.k === 1 ? `${h} ${signed(-z)}` : `${r.k}(${h} ${signed(-z)})`, `${h} ${signed(-p)}`)} = ${frac(String(r.k * (h - z)), String(h - p))} = ${y}` },
+      { tex: `${frac(r.k === 1 ? `${h} ${signed(-z)}` : coeffTex(r.k, `(${h} ${signed(-z)})`), `${h} ${signed(-p)}`)} = ${frac(String(r.k * (h - z)), String(h - p))} = ${y}` },
       { text: `So the hole is at $(${h}, ${y})$.` },
     ];
   },
@@ -6731,7 +6740,8 @@ function farTex(s: Series, c: number, top = '1'): string {
 
 /** f times what is inside, the 1 dropped: \frac{1}{2}\left(…\right), or the inside alone. */
 function scaledTex(f: Exact, inside: string): string {
-  return sameExact(f, [1, 1]) ? inside : `${exactTex(f)}\\left(${inside}\\right)`;
+  if (sameExact(f, [1, 1])) return inside;
+  return `${sameExact(f, [-1, 1]) ? '-' : exactTex(f)}\\left(${inside}\\right)`;
 }
 
 /**

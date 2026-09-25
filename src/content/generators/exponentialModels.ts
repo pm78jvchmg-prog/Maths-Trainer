@@ -2067,7 +2067,7 @@ const expmCoolTiles: Generator<CoolTileParams> = {
       template: `T = {0} ${story.rising ? '-' : '+'} {1}`,
       bank: fillBank(answer, [
         `${start}`,
-        `${start}e^{-${k}t}`,
+        `${start === 1 ? '' : start}e^{-${k}t}`,
         `${gap}e^{${k}t}`,
         `${start + level}e^{-${k}t}`,
         `${gap}`,
@@ -3666,7 +3666,7 @@ function lnTex(c: number, b: number): string {
 /** (n ln b) / h, as a whole multiple of ln b where it divides. */
 function lnOver(n: number, b: number, h: number): string {
   if (n % h === 0) return lnTex(n / h, b);
-  return `${n < 0 ? '-' : ''}\\frac{${texNum(Math.abs(n))}\\ln ${b}}{${h}}`;
+  return `${n < 0 ? '-' : ''}\\frac{${lnTex(Math.abs(n), b)}}{${h}}`;
 }
 
 /** The signed whole multiple of ln b that the rate comes to at t = m × h. */
@@ -5872,7 +5872,8 @@ const expmGapFlow: Generator<GapParams> = {
                 outcome: `That swaps the powers. $${P}$ has the $2$ in its power, so it is the one with $u^{2}$.`,
               },
               {
-                label: `$${texNum(a - q)}u$`,
+                // Zero when the two coefficients match: the slip then reads 0, not 0u.
+                label: a === q ? '$0$' : `$${texNum(a - q)}u$`,
                 outcome: '$u^{2}$ and $u$ are different powers, so the two terms do not combine.',
               },
             ],
@@ -6508,8 +6509,8 @@ function logMidSolution({ b, h, j, l }: LogMidParams): SolutionStep[] {
     {
       text:
         h === 1
-          ? `So $t\\ln ${b} = ${j}\\ln ${b}$ and $t = ${j}$.`
-          : `So $\\frac{t}{${h}}\\ln ${b} = ${j}\\ln ${b}$, $\\frac{t}{${h}} = ${j}$ and $t = ${j * h}$.`,
+          ? `So $t\\ln ${b} = ${lnTex(j, b)}$ and $t = ${j}$.`
+          : `So $\\frac{t}{${h}}\\ln ${b} = ${lnTex(j, b)}$, $\\frac{t}{${h}} = ${j}$ and $t = ${j * h}$.`,
     },
     { text: 'That is where the S-curve is steepest: it speeds up before it and slows down after.' },
   ];
@@ -6626,9 +6627,9 @@ const expmLogisticHalfSteps: Generator<LogMidParams> = {
         {
           span: [0, 1],
           operator: 0,
-          value: `${up} = ${j}\\ln ${b}`,
+          value: `${up} = ${lnTex(j, b)}`,
           bank: stepsBank([
-            `${up} = ${j}\\ln ${b}`,
+            `${up} = ${lnTex(j, b)}`,
             ...(j === 1 || sameLog(j ** b, a) ? [] : [`${up} = ${b}\\ln ${j}`]),
             `${up} = ${j + 1}\\ln ${b}`,
             `${up} = \\ln ${a + 1}`,

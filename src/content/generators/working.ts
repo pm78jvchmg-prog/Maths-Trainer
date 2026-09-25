@@ -29,7 +29,7 @@
  */
 import type { Generator, Slide } from '../types';
 import { hashSeed } from '../../engine/rng';
-import { nonZero, say, surdTex } from './format';
+import { coeffTex, nonZero, say, surdTex } from './format';
 import { signedTile } from './quadratics';
 
 /* ---------- Shared helpers ---------- */
@@ -814,6 +814,11 @@ interface SurdAddParams {
   q: number;
 }
 
+/** The slip of swapping p√m for m√p; with p = 1 that is just m, never m√1. */
+function swappedSurd(m: number, p: number): string {
+  return p === 1 ? `${m}` : `${m}\\sqrt{${p}}`;
+}
+
 /** sqrt(A) + sqrt(B) where both simplify to multiples of the same surd. */
 const surdAddSteps: Generator<SurdAddParams> = {
   id: 'rad-add-steps',
@@ -844,9 +849,9 @@ const surdAddSteps: Generator<SurdAddParams> = {
           value: surdTex(left),
           bank: stepBank(
             surdTex(left),
-            `${p}\\sqrt{${p * m}}`,
+            coeffTex(p, `\\sqrt{${p * m}}`),
             `${p * m}\\sqrt{${m}}`,
-            `${m}\\sqrt{${p}}`,
+            swappedSurd(m, p),
             `\\sqrt{${p * m}}`,
           ),
         },
@@ -855,9 +860,9 @@ const surdAddSteps: Generator<SurdAddParams> = {
           value: surdTex(right),
           bank: stepBank(
             surdTex(right),
-            `${q}\\sqrt{${q * m}}`,
+            coeffTex(q, `\\sqrt{${q * m}}`),
             `${q * m}\\sqrt{${m}}`,
-            `${m}\\sqrt{${q}}`,
+            swappedSurd(m, q),
             `\\sqrt{${q * m}}`,
           ),
         },
@@ -941,7 +946,8 @@ const completeSquareSteps: Generator<CompleteSquareParams> = {
           value: finished,
           bank: stepBank(
             finished,
-            `${bracket} ${signed(c + square)}`,
+            // At c = -square this slip leaves the bare square, not (x + a)^2 + 0.
+            c + square === 0 ? bracket : `${bracket} ${signed(c + square)}`,
             `${bracket} ${signed(square - c)}`,
             `${bracket} ${signed(c)}`,
             `(x ${signed(b)})^{2} ${signed(c - square)}`,

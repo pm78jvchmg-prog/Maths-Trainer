@@ -276,6 +276,19 @@ const DXDT = d('x', 't');
 const DYDT = d('y', 't');
 
 /**
+ * A number's token with a derivative written after it, the 1 dropped as a
+ * right term drops it: `3\frac{dy}{dx}`, but `\frac{dy}{dx}` for `1`,
+ * `-\frac{dy}{dx}` for `-1` and `(-\frac{dy}{dx})` for `(-1)`. Used for the
+ * slips a bank offers, so a wrong tile is written the same way as a right one.
+ */
+function timesRateTex(token: string, rate: string = DYDX): string {
+  if (token === '1') return rate;
+  if (token === '-1') return `-${rate}`;
+  if (token === '(-1)') return `(-${rate})`;
+  return `${token}${rate}`;
+}
+
+/**
  * A rate differentiated then evaluated: `4t + 1 = 5`. A constant derivative
  * has nothing to put t into, so it is written once: `-1`, not `-1 = -1`.
  */
@@ -2694,11 +2707,11 @@ const implDeriveSteps: Generator<CurveParams> = {
           ? [`(${monoTex(c * t.a, t.a - 1, t.b)} + ${monoTex(c * t.b, t.a, t.b - 1)})`, withDy(c * t.a * t.b, t.a - 1, t.b - 1)]
           : t.b > 0
             ? [monoTex(c * t.b, t.a, t.b - 1), withDy(c * t.b, t.a, t.b)]
-            : [`${right}${DYDX}`, monoTex(c * t.a, t.a, t.b)];
+            : [timesRateTex(right), monoTex(c * t.a, t.a, t.b)];
       return { span: [termAt[i], termAt[i] + 1], value: right, bank: stepBank(right, ...slips) };
     });
     const [right, ...wrong] = diffOptions(curve.terms);
-    reductions.push({ span: [rhsAt, rhsAt + 1], value: '0', bank: stepBank('0', `${curve.rhs}`, `${curve.rhs}${DYDX}`) });
+    reductions.push({ span: [rhsAt, rhsAt + 1], value: '0', bank: stepBank('0', `${curve.rhs}`, timesRateTex(`${curve.rhs}`)) });
     reductions.push({
       span: [0, start.length],
       operator: equalsAt,
@@ -2835,7 +2848,7 @@ function pointSolution(curve: ImplicitCurve): SolutionStep[] {
   const [n, dd] = partsAtPoint(curve);
   return [
     ...collectedSteps(curve.terms),
-    { text: `Put in $x = ${curve.p}$ and $y = ${curve.q}$.`, tex: `${n} + ${bracketed(dd)}${DYDX} = 0` },
+    { text: `Put in $x = ${curve.p}$ and $y = ${curve.q}$.`, tex: `${n} + ${timesRateTex(bracketed(dd))} = 0` },
     { text: 'Solve for the gradient.', tex: `${DYDX} = ${-n / dd}` },
   ];
 }
@@ -2874,10 +2887,10 @@ const implAtSteps: Generator<CurveParams> = {
       const c = i === 0 ? t.c : Math.abs(t.c);
       const right = termAtPointTex(c, t.a, t.b, p, q);
       const swapped = termAtPointTex(c, t.a, t.b, q, p);
-      const bare = t.b > 0 ? termAtPointTex(c, t.a, t.b, p, q, true) : `${right}${DYDX}`;
+      const bare = t.b > 0 ? termAtPointTex(c, t.a, t.b, p, q, true) : timesRateTex(right);
       return { span: [termAt[i], termAt[i] + 1], value: right, bank: stepBank(right, swapped, bare, termAtPointTex(c + 1, t.a, t.b, p, q)) };
     });
-    reductions.push({ span: [rhsAt, rhsAt + 1], value: '0', bank: stepBank('0', `${curve.rhs}`, `${curve.rhs}${DYDX}`) });
+    reductions.push({ span: [rhsAt, rhsAt + 1], value: '0', bank: stepBank('0', `${curve.rhs}`, timesRateTex(`${curve.rhs}`)) });
     const [n, dd] = partsAtPoint(curve);
     reductions.push({
       span: [0, start.length],
@@ -5098,7 +5111,7 @@ function implNormalGradientSteps(curve: ImplicitCurve): SolutionStep[] {
   const [n, dd] = partsAtPoint(curve);
   return [
     ...collectedSteps(curve.terms),
-    { text: `Put in $x = ${curve.p}$ and $y = ${curve.q}$.`, tex: `${n} + ${bracketed(dd)}${DYDX} = 0` },
+    { text: `Put in $x = ${curve.p}$ and $y = ${curve.q}$.`, tex: `${n} + ${timesRateTex(bracketed(dd))} = 0` },
     { text: "Solve for the tangent's gradient.", tex: `${DYDX} = ${fracTex(-n, dd)}` },
     { text: 'The normal is at right angles to the tangent: turn the fraction over and change its sign.', tex: fracTex(dd, n) },
   ];
@@ -7681,7 +7694,7 @@ const implRateTSteps: Generator<RateParams> = {
         ),
       };
     });
-    reductions.push({ span: [rhsAt, rhsAt + 1], value: '0', bank: stepBank('0', `${curve.rhs}`, `${curve.rhs}${DYDT}`) });
+    reductions.push({ span: [rhsAt, rhsAt + 1], value: '0', bank: stepBank('0', `${curve.rhs}`, timesRateTex(`${curve.rhs}`, DYDT)) });
     const answer = (f: Frac) => `${DYDT} = ${fracTex(...f)}`;
     reductions.push({
       span: [0, start.length],

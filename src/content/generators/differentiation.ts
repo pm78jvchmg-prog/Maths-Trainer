@@ -643,7 +643,7 @@ export const expLogDerivative: Generator<ExpLogParams> = {
         },
         {
           text: `Here $u = ${exponent}$, so $\\frac{du}{dx} = ${k}$.`,
-          tex: `\\frac{dy}{dx} = ${a === 1 ? '' : a} \\times ${k} \\times e^{${exponent}} = ${termTex(a * k, 0)}e^{${exponent}}`,
+          tex: `\\frac{dy}{dx} = ${a === 1 ? '' : `${a} \\times `}${k} \\times e^{${exponent}} = ${a * k === 1 ? '' : a * k}e^{${exponent}}`,
         },
       ];
     }

@@ -177,6 +177,11 @@ function chain(...lines: string[]): string {
   return `\\begin{aligned} ${lines.join(' \\\\ ')} \\end{aligned}`;
 }
 
+/** The last two lines of solving for x, the second dropped when the first already reads `x = value`. */
+function solvedLines(gathered: string, solved: string): string[] {
+  return gathered === solved ? [solved] : [gathered, solved];
+}
+
 /* ---------- sampling ---------- */
 
 function nz(rng: Rng, max: number): number {
@@ -1502,7 +1507,12 @@ function secondGeneralTex(p: MeetParams): string {
 function meetSolution(p: MeetParams): SolutionStep[] {
   return [
     { text: 'Where the lines meet, both give the same $y$. Set the right-hand sides equal:' },
-    { tex: chain(`${rhsTex(q(p.m1), q(c1Of(p)))} &= ${rhsTex(q(p.m2), q(c2Of(p)))}`, `${termOf(q(p.m1 - p.m2))} &= ${c2Of(p) - c1Of(p)}`, `x &= ${p.x}`) },
+    {
+      tex: chain(
+        `${rhsTex(q(p.m1), q(c1Of(p)))} &= ${rhsTex(q(p.m2), q(c2Of(p)))}`,
+        ...solvedLines(`${termOf(q(p.m1 - p.m2))} &= ${c2Of(p) - c1Of(p)}`, `x &= ${p.x}`),
+      ),
+    },
     { text: `Then $y$ from either line: $y = ${p.m1} \\times ${paren(p.x)} ${signedN(c1Of(p))} = ${p.y}$.` },
     { text: `They meet at $${pt(p.x, p.y)}$.` },
   ];
@@ -1650,8 +1660,7 @@ const coordMeetY: Generator<MeetPointParams> = {
       {
         tex: chain(
           `${termOf(q(a))} ${b < 0 ? '-' : '+'} (${rhsTex(q(p.m1), q(c1Of(p)))}) &= ${r}`,
-          `${termOf(q(a + b * p.m1))} ${signedN(b * c1Of(p))} &= ${r}`,
-          `x &= ${p.x}`,
+          ...solvedLines(`${termOf(q(a + b * p.m1))}${b * c1Of(p) === 0 ? '' : ` ${signedN(b * c1Of(p))}`} &= ${r}`, `x &= ${p.x}`),
         ),
       },
     ];

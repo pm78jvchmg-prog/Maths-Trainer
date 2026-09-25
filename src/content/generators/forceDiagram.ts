@@ -24,7 +24,7 @@
 import type { Generator, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
 import { canonicalForces, type Direction, type ForceArrow, type ForceScene } from '../forces';
-import { aOrAn } from './format';
+import { aOrAn, coeffTex } from './format';
 
 type Side = 'left' | 'right';
 const other = (side: Side): Side => (side === 'left' ? 'right' : 'left');
@@ -78,7 +78,7 @@ const weight = (m: number): Candidate => ({
   id: 'down',
   label: 'W',
   acts: true,
-  why: `The weight $W = ${m}g$ always acts, straight down.`,
+  why: `The weight $W = ${coeffTex(m, 'g')}$ always acts, straight down.`,
 });
 
 function levelPick(rng: Rng): PickParams {

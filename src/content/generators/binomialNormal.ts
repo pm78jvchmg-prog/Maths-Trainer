@@ -1614,7 +1614,7 @@ const rulePercentGen: Generator<RulePercentParams> = {
   },
   solution: (params) => {
     const { mu, sigma, form, a, b } = params;
-    const at = (k: number) => `${mu + k * sigma} \\text{ is } \\mu ${k < 0 ? '-' : '+'} ${Math.abs(k)}\\sigma`;
+    const at = (k: number) => `${mu + k * sigma} \\text{ is } \\mu${k === 0 ? '' : ` ${k < 0 ? '-' : '+'} ${Math.abs(k)}\\sigma`}`;
     const lines: SolutionStep[] = [];
     if (form !== 'below') lines.push({ tex: at(a) });
     if (form !== 'above') lines.push({ tex: at(b) });

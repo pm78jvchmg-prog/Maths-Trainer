@@ -160,14 +160,25 @@ const expandBrackets: Generator<PairParams> = {
   ],
 };
 
+/**
+ * (x + a)(x + b) for an option label. A slip can make one constant 0, and that
+ * bracket is then the plain x, written first: x(x - 3), not (x - 3)(x + 0).
+ */
+function linearPairTex(a: number, b: number): string {
+  const bracket = (c: number) => `\\left(x ${signedTile(c)}\\right)`;
+  if (a === 0) return `x${bracket(b)}`;
+  if (b === 0) return `x${bracket(a)}`;
+  return `${bracket(a)}${bracket(b)}`;
+}
+
 /** Factorising x^2 + bx + c, the reverse of the above. */
 const factorise: Generator<PairParams> = {
   id: 'quad-factorise',
   choices: ({ p, q }) =>
     options(
       { tex: `\\left(x ${signedTile(p)}\\right)\\left(x ${signedTile(q)}\\right)`, answer: `(x + (${p})) * (x + (${q}))` },
-      { tex: `\\left(x ${signedTile(p)}\\right)\\left(x ${signedTile(q + 1)}\\right)`, answer: `(x + (${p})) * (x + (${q + 1}))` },
-      { tex: `\\left(x ${signedTile(p + q)}\\right)\\left(x ${signedTile(p * q)}\\right)`, answer: `(x + (${p + q})) * (x + (${p * q}))` },
+      { tex: linearPairTex(p, q + 1), answer: `(x + (${p})) * (x + (${q + 1}))` },
+      { tex: linearPairTex(p + q, p * q), answer: `(x + (${p + q})) * (x + (${p * q}))` },
       // Flipping both signs only changes the factorisation while the two roots
       // are not each other's negatives; at q = -p it is the same pair commuted.
       ...(q === -p
@@ -291,7 +302,8 @@ const factoriseWithCoefficient: Generator<CoefficientParams> = {
       ...(p * s + q === 0
         ? []
         : [{ tex: `\\left(${factorTile(p, -q)}\\right)\\left(${factorTile(1, -s)}\\right)`, answer: `((${p})*x + (${-q})) * (x + (${-s}))` }]),
-      { tex: `\\left(${factorTile(p, q)}\\right)\\left(${factorTile(1, s + 1)}\\right)`, answer: `((${p})*x + (${q})) * (x + (${s + 1}))` },
+      // At s = -1 the second bracket would read (x + 0): it is the plain x, in front.
+      { tex: s + 1 === 0 ? `x\\left(${factorTile(p, q)}\\right)` : `\\left(${factorTile(p, q)}\\right)\\left(${factorTile(1, s + 1)}\\right)`, answer: `((${p})*x + (${q})) * (x + (${s + 1}))` },
       // Moving the coefficient to the other bracket changes the product only
       // while the two constants differ; at q = s it is the same product.
       ...(q === s
@@ -408,7 +420,8 @@ const completeSquare: Generator<SquareParams> = {
     options(
       { tex: `\\left(x ${signedTile(p)}\\right)^{2} ${signedTile(q)}`, answer: `(x + (${p}))^2 + (${q})` },
       { tex: `\\left(x ${signedTile(2 * p)}\\right)^{2} ${signedTile(q)}`, answer: `(x + (${2 * p}))^2 + (${q})` },
-      { tex: `\\left(x ${signedTile(p)}\\right)^{2} ${signedTile(p * p + q)}`, answer: `(x + (${p}))^2 + (${p * p + q})` },
+      // At q = -p^2 this slip leaves the bare square: written (x + p)^2, not (x + p)^2 + 0.
+      { tex: `\\left(x ${signedTile(p)}\\right)^{2}${p * p + q === 0 ? '' : ` ${signedTile(p * p + q)}`}`, answer: `(x + (${p}))^2 + (${p * p + q})` },
       { tex: `\\left(x ${signedTile(-p)}\\right)^{2} ${signedTile(q)}`, answer: `(x + (${-p}))^2 + (${q})` },
     ),
   sample: (rng, difficulty) => ({

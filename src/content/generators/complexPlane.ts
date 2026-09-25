@@ -2473,7 +2473,7 @@ export const unitySumPower: Generator<SumPowerParams> = {
       return [
         { text: `The roots are $\\omega^{k}$ for $k = 0, \\ldots, ${n - 1}$, so raised to the power ${p} they become $\\omega^{${p}k}$.` },
         {
-          text: `${p} is a multiple of ${n}, so every one of those is $\\left(\\omega^{${n}}\\right)^{${p / n}k} = 1$.`,
+          text: `${p} is a multiple of ${n}, so every one of those is $\\left(\\omega^{${n}}\\right)^{${coeffTex(p / n, 'k')}} = 1$.`,
           tex: `\\underbrace{1 + 1 + \\cdots + 1}_{${n}} = ${n}`,
         },
       ];
@@ -3543,6 +3543,17 @@ type AlongAsk = 'distance' | 'real' | 'imag';
 interface HalfPointParams { p: number; q: number; index: number; k: number; ask: AlongAsk; style: Shift }
 
 /**
+ * The start plus k steps in the direction re + im i. A diagonal direction keeps
+ * its bracket, `2 + 3i + 2(1 - i)`; a lone 1 or i is added as it is, `2 + 3i - 2i`,
+ * since `+ (1)` or `+ 2(i)` reads like a placeholder.
+ */
+function stepsAlongTex(p: number, q: number, k: number, re: number, im: number): string {
+  if (re !== 0 && im !== 0) return `${complexTex(p, q)} + ${coeffTex(k, `(${complexTex(re, im)})`)}`;
+  const step = complexTex(k * re, k * im);
+  return step.startsWith('-') ? `${complexTex(p, q)} - ${step.slice(1)}` : `${complexTex(p, q)} + ${step}`;
+}
+
+/**
  * $\arg(z - a) = \theta$ starts at a and heads off at angle $\theta$. A point
  * along it is named in a way that has one answer: a distance for a half-line
  * along a grid line, a real or imaginary part for a diagonal one, whose
@@ -3583,7 +3594,7 @@ export const locusHalflinePoint: Generator<HalfPointParams> = {
         text: `The half-line starts at $${complexTex(p, q)}$ and heads off at angle $${tex}$, which is the direction of $${complexTex(re, im)}$.`,
       },
       {
-        text: `Take ${k} of those steps from the start: $${complexTex(p, q)} + ${k}(${complexTex(re, im)})$.`,
+        text: `Take ${k} of those steps from the start: $${stepsAlongTex(p, q, k, re, im)}$.`,
         tex: `z = ${complexTex(p + k * re, q + k * im)}`,
       },
     ];
@@ -3697,7 +3708,7 @@ export const locusHalflineThrough: Generator<HalfThroughParams> = {
     const { re, im, tex } = ANGLES[index];
     return [
       {
-        text: `The half-line starts at $${complexTex(p, q)}$ and runs only one way, in the direction of $${complexTex(re, im)}$ at angle $${tex}$. ${k} step${k === 1 ? '' : 's'} along it: $${complexTex(p, q)} + ${k}(${complexTex(re, im)})$.`,
+        text: `The half-line starts at $${complexTex(p, q)}$ and runs only one way, in the direction of $${complexTex(re, im)}$ at angle $${tex}$. ${k} step${k === 1 ? '' : 's'} along it: $${stepsAlongTex(p, q, k, re, im)}$.`,
         tex: `z = ${complexTex(p + k * re, q + k * im)}`,
       },
       {
@@ -4730,7 +4741,7 @@ export const expformRead: Generator<ReadParams> = {
         num(modTex(mod), modAnswer(mod)),
         num(`-${modTex(mod)}`, `-${modAnswer(mod)}`),
         num(`${mod.a * mod.a * mod.s}`, `${mod.a * mod.a * mod.s}`),
-        num(mod.s === 2 ? `${mod.a}` : `${mod.a}\\sqrt{2}`, mod.s === 2 ? `${mod.a}` : `${mod.a}*sqrt(2)`),
+        num(mod.s === 2 ? `${mod.a}` : modTex({ a: mod.a, s: 2 }), mod.s === 2 ? `${mod.a}` : `${mod.a}*sqrt(2)`),
       ), mix(params.a, params.s, params.m, params.d, 1));
     }
     const ang = ({ m, d }: Angle) => num(angleTex(m, d), angleAnswer(m, d));
@@ -7709,7 +7720,7 @@ export const trigidSeriesGeometric: Generator<GeometricParams> = {
     const last = p + s * (count - 1);
     return [
       { text: `The first term is $${eTex(p)}$.` },
-      { text: `The powers go up by $${s}i\\theta$ each time, so each term is the one before times $${eTex(s)}$.` },
+      { text: `The powers go up by $${coeffTex(s, 'i\\theta')}$ each time, so each term is the one before times $${eTex(s)}$.` },
       {
         text: `The powers of $e^{i\\theta}$ run from $${p}$ to $${last}$ in steps of $${s}$:`,
         tex: `N = ${s === 1 ? `${last} - ${p} + 1` : `\\tfrac{${last} - ${p}}{${s}} + 1`} = ${count}`,

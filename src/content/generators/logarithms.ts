@@ -4227,7 +4227,7 @@ const transformSlider: Generator<TransformSliderParams> = {
     if (ask === 'asymptote') {
       return [
         { text: 'The curve runs down beside the line where the inside of the logarithm reaches zero.' },
-        { tex: `${shiftedX(k)} = 0 \\implies x = ${k}` },
+        { tex: k === 0 ? 'x = 0' : `${shiftedX(k)} = 0 \\implies x = ${k}` },
         {
           text:
             c === 0
@@ -4241,7 +4241,7 @@ const transformSlider: Generator<TransformSliderParams> = {
       { text: 'The curve crosses the $x$-axis where $y = 0$.' },
       { tex: `${shiftedLogTex(base, k, c)} = 0` },
       { tex: `\\log_{${base}}\\left(${shiftedX(k)}\\right) = ${-c}` },
-      { tex: `${shiftedX(k)} = ${base}^{${-c}} = ${across} \\implies x = ${k + across}` },
+      { tex: `${shiftedX(k)} = ${base}^{${-c}} = ${across}${k === 0 ? '' : ` \\implies x = ${k + across}`}` },
     ];
   },
 };

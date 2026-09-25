@@ -554,7 +554,10 @@ const SIMPLIFY_CHOICE_FORMS: ChoiceForm[] = [
     expr: (c, _k, v) => `${c}\\sin^2 ${v} + ${c}\\cos^2 ${v}`,
     right: (_c, k) => `${k}`,
     wrong: (c, k, v) => [`${2 * k}`, `${c}\\tan^2 ${v}`, '0'],
-    why: (c, k, v) => `Take out the $${k}$: $${c}(\\sin^2 ${v} + \\cos^2 ${v}) = ${c} \\times 1$.`,
+    why: (c, k, v) =>
+      k === 1
+        ? `This is the identity $\\sin^2 ${v} + \\cos^2 ${v} = 1$ itself.`
+        : `Take out the $${k}$: $${c}(\\sin^2 ${v} + \\cos^2 ${v}) = ${c} \\times 1$.`,
   },
   {
     hard: false,
@@ -2189,6 +2192,12 @@ const TAN_SHIFT_PROMPTS = [
   'Find the exact value of $\\tan x$.',
 ];
 
+/** A multiple of t as written by hand: `\frac{3}{2}\,t`, but `t` and `-t` rather than `1\,t` and `-1\,t`. */
+function tCoefTex(r: Rat): string {
+  const size = ratTex(r);
+  return size === '1' ? 't' : size === '-1' ? '-t' : `${size}\\,t`;
+}
+
 /** Undo a compound angle: tan(x + 45) = k, so tan x = ? */
 const tanShiftSolve: Generator<TanShiftParams> = {
   id: 'tid-tan-shift-solve',
@@ -2228,13 +2237,13 @@ const tanShiftSolve: Generator<TanShiftParams> = {
       ? [
           { text: 'With $\\tan 45^{\\circ} = 1$, write $t$ for $\\tan x$:' },
           { tex: `\\frac{t + 1}{1 - t} = ${k}` },
-          { tex: `t + 1 = ${k}(1 - t) \\quad \\Rightarrow \\quad ${ratTex(addRat(p.k, [1, 1]))}\\,t = ${ratTex(addRat(p.k, [-1, 1]))}` },
+          { tex: `t + 1 = ${k}(1 - t) \\quad \\Rightarrow \\quad ${tCoefTex(addRat(p.k, [1, 1]))} = ${ratTex(addRat(p.k, [-1, 1]))}` },
           { tex: `\\tan x = ${ratTex(t)}` },
         ]
       : [
           { text: 'With $\\tan 45^{\\circ} = 1$, write $t$ for $\\tan x$:' },
           { tex: `\\frac{t - 1}{1 + t} = ${k}` },
-          { tex: `t - 1 = ${k}(1 + t) \\quad \\Rightarrow \\quad ${ratTex(addRat([1, 1], [-p.k[0], p.k[1]]))}\\,t = ${ratTex(addRat([1, 1], p.k))}` },
+          { tex: `t - 1 = ${k}(1 + t) \\quad \\Rightarrow \\quad ${tCoefTex(addRat([1, 1], [-p.k[0], p.k[1]]))} = ${ratTex(addRat([1, 1], p.k))}` },
           { tex: `\\tan x = ${ratTex(t)}` },
         ];
   },
@@ -2952,7 +2961,7 @@ const DOUBLE_STEPS: StepsForm[] = [
     hard: false,
     start: (c, _k, v) => [`${c}\\sin 2${v}`, '\\div', `2\\cos ${v}`],
     reductions: (c, k, v) => [
-      { span: [0, 1], value: `${2 * k}\\sin ${v}\\cos ${v}`, bank: [`${k}\\sin ${v}\\cos ${v}`, `${2 * k}\\sin ${v}`, `${c}\\cos 2${v}`] },
+      { span: [0, 1], value: `${2 * k}\\sin ${v}\\cos ${v}`, bank: [`${co(k)}\\sin ${v}\\cos ${v}`, `${2 * k}\\sin ${v}`, `${c}\\cos 2${v}`] },
       { span: [0, 3], value: `${c}\\sin ${v}`, bank: [`${2 * k}\\sin ${v}`, `${c}\\cos ${v}`, `${c}\\tan ${v}`] },
     ],
     why: (c, k, v) => [
@@ -2964,8 +2973,8 @@ const DOUBLE_STEPS: StepsForm[] = [
     hard: false,
     start: (c, _k, v) => [`${c}(1 - \\cos 2${v})`, '\\div', `\\sin ${v}`],
     reductions: (_c, k, v) => [
-      { span: [0, 1], value: `${2 * k}\\sin^2 ${v}`, bank: [`${k}\\sin^2 ${v}`, `${2 * k}\\cos^2 ${v}`, `-${2 * k}\\sin^2 ${v}`] },
-      { span: [0, 3], value: `${2 * k}\\sin ${v}`, bank: [`${k}\\sin ${v}`, `${2 * k}\\cos ${v}`, `${2 * k}\\sin^2 ${v}`] },
+      { span: [0, 1], value: `${2 * k}\\sin^2 ${v}`, bank: [`${co(k)}\\sin^2 ${v}`, `${2 * k}\\cos^2 ${v}`, `-${2 * k}\\sin^2 ${v}`] },
+      { span: [0, 3], value: `${2 * k}\\sin ${v}`, bank: [`${co(k)}\\sin ${v}`, `${2 * k}\\cos ${v}`, `${2 * k}\\sin^2 ${v}`] },
     ],
     why: (_c, k, v) => [
       { text: `$\\cos 2${v} = 1 - 2\\sin^2 ${v}$, so $1 - \\cos 2${v} = 2\\sin^2 ${v}$.` },
@@ -2976,8 +2985,8 @@ const DOUBLE_STEPS: StepsForm[] = [
     hard: false,
     start: (c, _k, v) => [`${c}(1 + \\cos 2${v})`, '\\div', `\\cos ${v}`],
     reductions: (_c, k, v) => [
-      { span: [0, 1], value: `${2 * k}\\cos^2 ${v}`, bank: [`${k}\\cos^2 ${v}`, `${2 * k}\\sin^2 ${v}`, `${2 * k}\\cos^2 ${v} - ${k}`] },
-      { span: [0, 3], value: `${2 * k}\\cos ${v}`, bank: [`${k}\\cos ${v}`, `${2 * k}\\sin ${v}`, `${2 * k}\\cos^2 ${v}`] },
+      { span: [0, 1], value: `${2 * k}\\cos^2 ${v}`, bank: [`${co(k)}\\cos^2 ${v}`, `${2 * k}\\sin^2 ${v}`, `${2 * k}\\cos^2 ${v} - ${k}`] },
+      { span: [0, 3], value: `${2 * k}\\cos ${v}`, bank: [`${co(k)}\\cos ${v}`, `${2 * k}\\sin ${v}`, `${2 * k}\\cos^2 ${v}`] },
     ],
     why: (_c, k, v) => [
       { text: `$\\cos 2${v} = 2\\cos^2 ${v} - 1$, so $1 + \\cos 2${v} = 2\\cos^2 ${v}$.` },
@@ -2988,7 +2997,7 @@ const DOUBLE_STEPS: StepsForm[] = [
     hard: false,
     start: (c, _k, v) => [`${c}\\sin 2${v}`, '\\div', `\\sin ${v}`],
     reductions: (c, k, v) => [
-      { span: [0, 1], value: `${2 * k}\\sin ${v}\\cos ${v}`, bank: [`${k}\\sin ${v}\\cos ${v}`, `${2 * k}\\sin ${v}`, `${c}\\cos 2${v}`] },
+      { span: [0, 1], value: `${2 * k}\\sin ${v}\\cos ${v}`, bank: [`${co(k)}\\sin ${v}\\cos ${v}`, `${2 * k}\\sin ${v}`, `${c}\\cos 2${v}`] },
       { span: [0, 3], value: `${2 * k}\\cos ${v}`, bank: [`${c}\\cos ${v}`, `${2 * k}\\sin ${v}`, `${c}\\cos 2${v}`] },
     ],
     why: (_c, k, v) => [
@@ -3018,7 +3027,7 @@ const DOUBLE_STEPS: StepsForm[] = [
     hard: true,
     start: (c, _k, v) => [`${c}(1 - \\cos 2${v})`, '\\div', `\\sin 2${v}`],
     reductions: (c, k, v) => [
-      { span: [0, 1], value: `${2 * k}\\sin^2 ${v}`, bank: [`${k}\\sin^2 ${v}`, `${2 * k}\\cos^2 ${v}`, `${c}\\sin 2${v}`] },
+      { span: [0, 1], value: `${2 * k}\\sin^2 ${v}`, bank: [`${co(k)}\\sin^2 ${v}`, `${2 * k}\\cos^2 ${v}`, `${c}\\sin 2${v}`] },
       { span: [2, 3], value: `2\\sin ${v}\\cos ${v}`, bank: [`2\\sin ${v}`, `\\sin ${v}\\cos ${v}`, `2\\cos^2 ${v}`] },
       { span: [0, 3], value: `${c}\\tan ${v}`, bank: [`${c}\\cot ${v}`, `${2 * k}\\tan ${v}`, `${c}\\sin ${v}`] },
     ],

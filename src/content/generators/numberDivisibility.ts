@@ -33,7 +33,7 @@ import {
   turned,
   type Proof,
 } from './numberProof';
-import { gcd, say } from './format';
+import { coeffTex, gcd, say } from './format';
 
 /* ---------- shared helpers ---------- */
 
@@ -959,7 +959,8 @@ type MultiplesParams =
 function pairParityProof(c: number, difficulty: number): Proof {
   const odd = c % 2 === 1;
   const word = odd ? 'odd' : 'even';
-  const form = odd ? `2(m + ${(c - 1) / 2}) + 1` : `2(m + ${c / 2})`;
+  const half = odd ? (c - 1) / 2 : c / 2;
+  const form = odd ? `2(m + ${half}) + 1` : `2(m + ${half})`;
   const middle =
     difficulty >= 2
       ? [
@@ -972,8 +973,9 @@ function pairParityProof(c: number, difficulty: number): Proof {
     steps: [
       `Factorising, $n^2 + n + ${c} = n(n + 1) + ${c}$.`,
       ...middle,
-      `Then $n^2 + n + ${c} = 2m + ${c} = ${form}$${odd ? '' : ', a multiple of $2$'}.`,
-      `$m + ${odd ? (c - 1) / 2 : c / 2}$ is a whole number, so $n^2 + n + ${c}$ is ${word}.`,
+      // At c = 1, 2m + 1 is already the form: rewriting it as 2(m + 0) + 1 would add nothing.
+      `Then $n^2 + n + ${c} = 2m + ${c}${half === 0 ? '' : ` = ${form}`}$${odd ? '' : ', a multiple of $2$'}.`,
+      `$${half === 0 ? 'm' : `m + ${half}`}$ is a whole number, so $n^2 + n + ${c}$ is ${word}.`,
     ],
     pool: [
       {
@@ -986,7 +988,7 @@ function pairParityProof(c: number, difficulty: number): Proof {
       },
       {
         text: `Factorising, $n^2 + n + ${c} = n(n + ${c})$.`,
-        why: `$n(n + ${c})$ multiplies out to $n^2 + ${c}n$, not $n^2 + n + ${c}$.`,
+        why: `$n(n + ${c})$ multiplies out to $n^2 + ${coeffTex(c, 'n')}$, not $n^2 + n + ${c}$.`,
       },
     ],
   };

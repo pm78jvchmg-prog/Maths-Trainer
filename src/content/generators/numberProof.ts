@@ -32,7 +32,7 @@ import { orderBank } from './proofOrder';
 import { canonicalPieces, formatSet, type Piece } from '../numberLine';
 import { windowFor } from './numberLine';
 import { stepBank, treeBank } from './parametricImplicit';
-import { gcd, say } from './format';
+import { coeffTex, gcd, say } from './format';
 
 /* ---------- shared helpers ---------- */
 
@@ -503,7 +503,9 @@ const prfParityFlow: Generator<ParityFlowParams> = {
     const expr = flowExpr(params);
     const coefs = flowExpanded(params);
     const s = coefs[coefs.length - 1];
-    const inside = [...coefs.slice(0, -1).map((c, i) => termTex(c / 2, coefs.length - 1 - i)), String(Math.floor(s / 2))];
+    const half = Math.floor(s / 2);
+    // A constant of 1 leaves nothing inside the bracket but the k terms: 2(2k) + 1, not 2(2k + 0) + 1.
+    const inside = [...coefs.slice(0, -1).map((c, i) => termTex(c / 2, coefs.length - 1 - i)), ...(half === 0 ? [] : [String(half)])];
     return [
       { text: `$n$ is ${params.r ? 'odd' : 'even'}, so start from $n = ${lin(2, params.r)}$.` },
       { tex: stackTex(`${expr} = ${polyTex(coefs)}`) },
@@ -1562,10 +1564,12 @@ function contraText({ family, p, m, n, c }: ContraParams): {
     case 'parity': {
       const odd = c % 2 === 1;
       const other = odd ? 'even' : 'odd';
+      // c can be 0, and then the expression is n^2, not n^2 + 0.
+      const expr = c === 0 ? 'n^2' : `n^2 + ${c}`;
       return {
-        claim: `if $n^2 + ${c}$ is even, then $n$ is ${odd ? 'odd' : 'even'}`,
-        assume: [`$n^2 + ${c}$ is even and $n$ is ${other}`, `$n^2 + ${c}$ is odd`, `$n$ is ${odd ? 'odd' : 'even'}`],
-        lead: [`$n^2 + ${c}$ is odd`, `$n^2 + ${c}$ is a multiple of $4$`, `$n = ${c}$`],
+        claim: `if $${expr}$ is even, then $n$ is ${odd ? 'odd' : 'even'}`,
+        assume: [`$${expr}$ is even and $n$ is ${other}`, `$${expr}$ is odd`, `$n$ is ${odd ? 'odd' : 'even'}`],
+        lead: [`$${expr}$ is odd`, `$${expr}$ is a multiple of $4$`, `$n = ${c}$`],
       };
     }
   }
@@ -1624,7 +1628,7 @@ const prfContraFlow: Generator<ContraParams> = {
       sqrt: `Squaring $\\sqrt{${p}} = \\frac{a}{b}$ gives $a^2 = ${p}b^2$, so $${p}$ divides $a$; writing $a = ${p}k$ gives $b^2 = ${p}k^2$, so $${p}$ divides $b$ too. That is a common factor.`,
       combo: `$${m}a + ${n}b = ${g}(${m / g}a + ${n / g}b)$ is a multiple of $${g}$, so $${c}$ would be too. It is not.`,
       largest: `$N + ${m}$ is a multiple of $${m}$ and bigger than $N$, so $N$ was not the largest.`,
-      parity: `If $n$ is ${c % 2 === 1 ? 'even, $n = 2k$ and $n^2 + ' + c + ' = 4k^2 + ' + c + '$' : 'odd, $n = 2k + 1$ and $n^2 + ' + c + ' = 4k^2 + 4k + ' + (c + 1) + '$'}, which is odd.`,
+      parity: `If $n$ is ${c % 2 === 1 ? 'even, $n = 2k$ and $n^2 + ' + c + ' = 4k^2 + ' + c + '$' : 'odd, $n = 2k + 1$ and $' + (c === 0 ? 'n^2' : 'n^2 + ' + c) + ' = 4k^2 + 4k + ' + (c + 1) + '$'}, which is odd.`,
     };
     const { assume } = contraText(params);
     return [
@@ -1932,14 +1936,14 @@ function missingProof(params: MissingParams): MissingProof {
             lines,
             template: `(n + ${a})^2 = {0} + {1} + {2}`,
             answer: ['n^2', `${2 * a}n`, String(a * a)],
-            distractors: [`${a}n`, String(2 * a), `${a * a}n`, String(a * a + 1)],
+            distractors: [coeffTex(a, 'n'), String(2 * a), coeffTex(a * a, 'n'), String(a * a + 1)],
           }
         : {
             claim,
             lines,
             template: `(n - ${a})^2 = {0} - {1} + {2}`,
             answer: ['n^2', `${2 * a}n`, String(a * a)],
-            distractors: [`${a}n`, String(2 * a), `${a * a}n`, String(a * a + 1)],
+            distractors: [coeffTex(a, 'n'), String(2 * a), coeffTex(a * a, 'n'), String(a * a + 1)],
           };
     }
   }

@@ -27,6 +27,17 @@
  * formatted for the other slot.
  */
 import { options } from '../choiceVariant';
+import { coeffTex } from './format';
+
+/**
+ * The last line of solving `c k = rhs` for an unknown: `3k = 12 \implies k = 4`,
+ * `-k = 12 \implies k = -12`, and for c = 1 just `k = 12`, since there is
+ * nothing to divide by and `k = 12 \implies k = 12` reads as a typo. `then`
+ * is what follows the arrow, so a step can show its division.
+ */
+export function solvedForTex(c: number, letter: string, rhs: number, then: string): string {
+  return c === 1 ? `${letter} = ${rhs}` : `${coeffTex(c, letter)} = ${rhs} \\implies ${then}`;
+}
 
 export function nonZero(value: number, fallback: number): number {
   return value === 0 ? fallback : value;

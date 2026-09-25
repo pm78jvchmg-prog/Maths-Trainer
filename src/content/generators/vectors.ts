@@ -19,6 +19,7 @@ import {
   nonZero,
   signedChoices,
   signedOffer,
+  solvedForTex,
   VECTOR_TEMPLATE,
 } from './vectorFormat';
 import { surdParts } from './format';
@@ -27,12 +28,12 @@ import { WORKING_KEYS } from './workingKeys';
 /** Magnitudes are surds. */
 const SURD_KEYS: KeypadKey[] = [...ALGEBRA_KEYS, { insert: 'sqrt(' }];
 
-/** A vector in i, j form, for prose and solutions. */
+/**
+ * A vector in i, j form, for prose and solutions. The same as `ijOf`, which
+ * also leaves out a zero component: `-2\mathbf{j}`, not `0\mathbf{i} - 2\mathbf{j}`.
+ */
 function ijTex(x: number, y: number): string {
-  const first = x === 1 ? '\\mathbf{i}' : x === -1 ? '-\\mathbf{i}' : `${x}\\mathbf{i}`;
-  const size = Math.abs(y);
-  const second = `${y < 0 ? '-' : '+'} ${size === 1 ? '' : size}\\mathbf{j}`;
-  return `${first} ${second}`;
+  return ijOf([x, y]);
 }
 
 /* ---------- Level 1: vectors ---------- */
@@ -491,11 +492,13 @@ interface ParallelParams {
 /** Which vector is parallel to a given one. */
 const parallel: Generator<ParallelParams> = {
   id: 'vec-parallel',
-  sample: (rng, difficulty) => ({
-    x: nonZero(rng.int(difficulty > 1 ? -8 : 1, 8), 3),
-    y: nonZero(rng.int(difficulty > 1 ? -8 : -6, 8), -2),
-    k: nonZero(rng.int(difficulty > 1 ? -4 : 2, 4), 2),
-  }),
+  sample: (rng, difficulty) => {
+    const x = nonZero(rng.int(difficulty > 1 ? -8 : 1, 8), 3);
+    const y = nonZero(rng.int(difficulty > 1 ? -8 : -6, 8), -2);
+    const k = nonZero(rng.int(difficulty > 1 ? -4 : 2, 4), 2);
+    // k = 1 would offer the given vector itself as the parallel one.
+    return { x, y, k: k === 1 ? -2 : k };
+  },
   render: ({ x, y, k }): Slide => {
     const options = distinctOptions([
       { id: 'scaled', label: ijTex(k * x, k * y), tex: true },
@@ -520,7 +523,7 @@ const parallel: Generator<ParallelParams> = {
     {
       text: 'Two vectors are parallel when one is a scalar multiple of the other — the *same* multiple applied to every component.',
     },
-    { tex: `${k}\\left(${ijTex(x, y)}\\right) = ${ijTex(k * x, k * y)}` },
+    { tex: `${coeffTex(k, `\\left(${ijTex(x, y)}\\right)`)} = ${ijTex(k * x, k * y)}` },
     {
       text: `So $${ijTex(k * x, k * y)}$ is parallel, because both components were multiplied by $${k}$.`,
     },
@@ -2444,7 +2447,7 @@ const collinearK: Generator<CollinearKParams> = {
         text: 'On one line means $\\overrightarrow{AC}$ is a multiple of $\\overrightarrow{AB}$. The across components say which multiple.',
       },
       { tex: `\\overrightarrow{AB} = ${columnTex(dx, dy)} \\qquad \\overrightarrow{AC} = \\begin{pmatrix} ${cx - ax} \\\\ k - ${ay < 0 ? `\\left(${ay}\\right)` : ay} \\end{pmatrix}` },
-      { tex: `${cx - ax} = ${t} \\times ${dx < 0 ? `\\left(${dx}\\right)` : dx} \\implies \\overrightarrow{AC} = ${t}\\overrightarrow{AB}` },
+      { tex: `${cx - ax} = ${t} \\times ${dx < 0 ? `\\left(${dx}\\right)` : dx} \\implies \\overrightarrow{AC} = ${coeffTex(t, '\\overrightarrow{AB}')}` },
       { text: `So the up component of $\\overrightarrow{AC}$ must be $${t}$ times $${dy}$ as well, which is $${t * dy}$.` },
       { tex: `k = ${ay} + ${t * dy < 0 ? `\\left(${t * dy}\\right)` : t * dy} = ${k}` },
     ];
@@ -2513,7 +2516,7 @@ const onLine: Generator<OnLineParams> = {
         text: 'A point $C$ is on the line through $A$ and $B$ exactly when $\\overrightarrow{AC}$ is a multiple of $\\overrightarrow{AB}$.',
       },
       { tex: `\\overrightarrow{AB} = ${columnTex(dx, dy)}` },
-      { tex: `C${pointTex(cx, cy)}: \\quad \\overrightarrow{AC} = ${columnTex(t * dx, t * dy)} = ${t}\\overrightarrow{AB}` },
+      { tex: `C${pointTex(cx, cy)}: \\quad \\overrightarrow{AC} = ${columnTex(t * dx, t * dy)} = ${coeffTex(t, '\\overrightarrow{AB}')}` },
       {
         text: `The same multiple, $${t}$, works across and up. For each of the other points, the multiple needed across is not the one needed up, so they sit just off the line.`,
       },
@@ -3308,7 +3311,7 @@ const pathParallel: Generator<PathParallelParams> = {
       {
         text: 'Two vectors are parallel when one is a scalar multiple of the other. With $\\mathbf{a}$ and $\\mathbf{b}$ that means the *same* multiple on both coefficients.',
       },
-      { tex: `${tex(k * r, k * s)} = ${ratioTex(scale)}\\left(${tex(j * r, j * s)}\\right)` },
+      { tex: `${tex(k * r, k * s)} = ${scale.n < 0 ? '-' : ''}${termTex(ratio(Math.abs(scale.n), scale.d), `\\left(${tex(j * r, j * s)}\\right)`)}` },
       {
         text: `Both coefficients are multiplied by $${ratioTex(scale)}$, so the two are parallel${scale.n < 0 ? ', pointing opposite ways' : ''}.`,
       },
@@ -4087,7 +4090,7 @@ const lineTwoPointsAtTree: Generator<TwoPointsAtParams> = {
     { text: 'The direction is the journey from $A$ to $B$: destination minus start.' },
     { tex: `\\overrightarrow{AB} = ${columnTex(dx, dy)}` },
     { text: `The point where $t = ${k}$ is $${k}$ of those journeys from $A$.` },
-    { tex: `${k}\\overrightarrow{AB} = ${columnTex(k * dx, k * dy)}` },
+    { tex: `${coeffTex(k, '\\overrightarrow{AB}')} = ${columnTex(k * dx, k * dy)}` },
     { tex: `${columnTex(ax, ay)} + ${columnTex(k * dx, k * dy)} = ${columnTex(ax + k * dx, ay + k * dy)}` },
     {
       text: `Starting from $B$ instead lands one whole step further on, at $${pointTex(ax + dx + k * dx, ay + dy + k * dy)}$: that is $t = ${k + 1}$ on this line.`,
@@ -4235,10 +4238,13 @@ const lineContains: Generator<ContainsParams> = {
     const [tx, ty] = containsTs(params);
     const px = ax + tx * bx;
     const py = ay + ty * by;
+    // A component that already reads `t = 2` has nothing left to solve.
+    const solve = (c: number, b: number, value: number, t: number) =>
+      affTex(c, b, 't') === 't' ? `t = ${t}` : `${affTex(c, b, 't')} = ${value} \\implies t = ${t}`;
     return [
       { text: 'Set the line equal to $P$ and solve each component for $t$ separately.' },
-      { tex: `${affTex(ax, bx, 't')} = ${px} \\implies t = ${tx}` },
-      { tex: `${affTex(ay, by, 't')} = ${py} \\implies t = ${ty}` },
+      { tex: solve(ax, bx, px, tx) },
+      { tex: solve(ay, by, py, ty) },
       delta === 0
         ? { text: `Both components give $t = ${tx}$, so a single value of $t$ reaches $P$ and it is on the line.` }
         : {
@@ -5382,7 +5388,7 @@ const crossUnknown: Generator<UnknownParams> = {
       { text: `Write the $${AXES[i]}$ component with $k$ in place: $a_${AXES[j]} b_${AXES[k]} - a_${AXES[k]} b_${AXES[j]}$.` },
       { tex: `${entry(a, 'a', j)}${entry(b, 'b', k)} - ${entry(a, 'a', k)}${entry(b, 'b', j)} = ${n}` },
       { tex: `${affTex(rest, coef, 'k')} = ${n}` },
-      { tex: `${coef}k = ${n - rest} \\implies k = ${value}` },
+      { tex: solvedForTex(coef, 'k', n - rest, `k = ${value}`) },
     ];
   },
 };
@@ -5922,7 +5928,7 @@ const planeMissing: Generator<MissingPlaneParams> = {
       { text: 'A point on the plane satisfies its equation, so substitute its coordinates with $k$ in place.' },
       { tex: `${substituteTex(n, terms)} = ${d}` },
       { tex: `${affTex(rest, n[pos], 'k')} = ${d}` },
-      { tex: `${n[pos]}k = ${d - rest} \\implies k = ${q[pos]}` },
+      { tex: solvedForTex(n[pos], 'k', d - rest, `k = ${q[pos]}`) },
     ];
   },
 };
@@ -6193,7 +6199,7 @@ function linePlaneSolution(params: LinePlaneParams) {
     { tex: `\\mathbf{r} = ${columnOf(a.map((x, i) => affTex(x, b[i], 't')))}` },
     { text: 'Put it into the plane\'s equation. The terms without $t$ come from $\\mathbf{a} \\cdot \\mathbf{n}$ and the terms in $t$ from $\\mathbf{b} \\cdot \\mathbf{n}$:' },
     { tex: `${affTex(an, bn, 't')} = ${d}` },
-    { tex: `${bn}t = ${d - an} \\implies t = ${t}` },
+    { tex: solvedForTex(bn, 't', d - an, `t = ${t}`) },
     { text: `Put $t = ${t}$ back into the line to find the point.` },
     { tex: `${addMultipleTex(colTex(a), t, colTex(b))} = ${colTex(P)}` },
     { text: `So they meet at $${point3Tex(P)}$.` },
@@ -6723,7 +6729,7 @@ const mechWhen: Generator<WhenParams> = {
     return [
       { text: lead },
       { tex: `${affTex(r0[idx], v[idx], 't')} = ${p[idx]}` },
-      { tex: `${v[idx]}t = ${p[idx] - r0[idx]} \\implies t = ${t}` },
+      { tex: solvedForTex(v[idx], 't', p[idx] - r0[idx], `t = ${t}`) },
       ask === 'point'
         ? {
             text: `The $${other === 0 ? '\\mathbf{i}' : '\\mathbf{j}'}$ component checks it: $${r0[other]} + ${paren(v[other])} \\times ${t} = ${p[other]}$, as it should.`,
@@ -7648,7 +7654,7 @@ const mechForceK: Generator<ForceKParams> = {
     const s = r[1] / dir[1];
     return [
       { text: `Parallel to $${ijOf(dir)}$ means the resultant is a multiple of it, $s${ijBr(dir)}$ for some number $s$. The $\\mathbf{j}$ components have no unknown in them:` },
-      { tex: `${forces[0][1]} + ${paren(forces[1][1])} = ${r[1]} = ${dir[1]}s` },
+      { tex: `${forces[0][1]} + ${paren(forces[1][1])} = ${r[1]} = ${coeffTex(dir[1], 's')}` },
       { tex: `s = ${s}` },
       { text: `So the $\\mathbf{i}$ component of the resultant is $${s} \\times ${paren(dir[0])} = ${r[0]}$:` },
       { tex: `${forces[0][0]} + k = ${r[0]} \\implies k = ${k}` },
@@ -7835,7 +7841,7 @@ function collisionSolution(params: MeetParamsMotion) {
       text: `A collision needs both particles in the same place at the same time, so every component matches for one value of $t$. Set the $${unit}$ components equal:`,
     },
     { tex: `${affTex(a0[idx], va[idx], 't')} = ${affTex(b0[idx], vb[idx], 't')}` },
-    { tex: `${va[idx] - vb[idx]}t = ${b0[idx] - a0[idx]} \\implies t = ${time}` },
+    { tex: solvedForTex(va[idx] - vb[idx], 't', b0[idx] - a0[idx], `t = ${time}`) },
     {
       text: `The other component has to agree at that same time, and it does: both come to $${p[other]}$. So they collide when $t = ${time}$, at $${ijOf(p)}$.`,
     },
@@ -8469,7 +8475,7 @@ function unknownKSolution(params: UnknownKParams, perpendicular: boolean) {
     },
     { tex: `${kProductsTex(params)} = ${target}` },
     { tex: `${affTex(rest, coef, 'k')} = ${target}` },
-    { tex: `${coef === 1 ? '' : coef === -1 ? '-' : coef}k = ${target - rest} \\implies k = ${k}` },
+    { tex: solvedForTex(coef, 'k', target - rest, `k = ${k}`) },
     {
       text: `Check it: with $k = ${k}$ the three products add to $${rest} + ${paren(coef * k)} = ${target}$.`,
     },
@@ -9673,7 +9679,7 @@ const angleLinePlaneKind: Generator<SitParams> = {
     if (rel !== 'neither' && (setting === 'line') === (rel === 'perpendicular')) {
       return [
         { text: intro },
-        { tex: `${first} = ${m}${second}` },
+        { tex: `${first} = ${coeffTex(m, second)}` },
         {
           text:
             setting === 'line'

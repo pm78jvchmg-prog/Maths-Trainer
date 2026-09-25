@@ -150,11 +150,11 @@ Outline: Natural Units, Lagrangian Mechanics.
 
 | Lesson | Source | Leans on |
 | --- | --- | --- |
-| Dimensions | UP1 1.4 Dimensional analysis | choice, table |
-| Formulas from Dimensions | UP1 1.4 | tiles, expr |
-| Natural Units | Tong; UP1 1.2 | expr, choice |
-| The Lagrangian | Tong ch. 2 | tiles, choice |
-| Euler-Lagrange Equations | Tong ch. 2 | tiles, flow |
+| Dimensions | UP1 1.4 Dimensional analysis | expr, table, flow, slider |
+| Formulas from Dimensions | UP1 1.4 | tree, slider, flow, expr |
+| Natural Units | Tong; UP1 1.2 | expr, table, tree, flow |
+| The Lagrangian | Tong ch. 2 | expr, tree, table, flow |
+| Euler-Lagrange Equations | Tong ch. 2 | expr, tree, table, flow |
 
 ## Rules
 

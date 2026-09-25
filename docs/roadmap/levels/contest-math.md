@@ -199,3 +199,16 @@ Generators in `src/content/generators/contestFactorization.ts`.
 | Cryptograms | `cm-fz-crypt-reverse`, `cm-fz-crypt-place`, `cm-fz-crypt-divisible`, `cm-fz-crypt-block` | AB + BA = 11(A + B), ABC − CBA = 99(A − C); ABC + AB + A = 111A + 11B + C; split the divisor into tests that share no factor; ABCABC = ABC × 7 × 11 × 13 |
 
 Level check: 13 questions across all five lessons.
+
+## Level 11: Reframing Problems (`cm-l11`)
+
+Generators in `src/content/generators/contestReframing.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Reframing Problems | `cm-knockout`, `cm-chocolate`, `cm-grid-paths`, `cm-grid-table`, `cm-share-sweets` | count the players knocked out, not the rounds; each snap makes one more piece; a route is a word of R's and U's; each corner is the one to its left plus the one below; a share is a row of sweets and dividers |
+| Key Strategies | `cm-work-backwards`, `cm-backwards-table`, `cm-queue`, `cm-snail`, `cm-count-squares` | undo the steps last first; add back, then double; draw the queue so nobody is counted twice; draw the last day, when it climbs out without slipping; count small squares first, and a rectangle is two lines each way |
+| Color Cube Assembly | `cm-cube-shell`, `cm-shell-tiles`, `cm-dice-cube`, `cm-red-surface` | only the hidden core can be another colour; a corner die shows three faces meeting at a corner, never two opposite; put the red where the most shows, or hide it |
+| Autobiographical Numbers | `cm-look-say`, `cm-look-say-table`, `cm-self-describing`, `cm-digital-root`, `cm-number-plus-digits` | read runs, not digits; back a term, read in pairs; the digits of a self-describing number add to its length, but every place must be checked; digit sums keep the remainder on division by 9; name the digits and let their size decide |
+
+Level check: 14 questions across all four lessons.

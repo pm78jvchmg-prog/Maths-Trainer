@@ -10,7 +10,7 @@
 import type { ChoiceOption, Generator, KeypadKey, Slide } from '../types';
 import { options } from '../choiceVariant';
 import { num, numberBank, numberOptions, say, typed } from './contestMath';
-import { type Pt, DASHED, SVG_CLOSE, angle, centroid, choiceSlide, dot, f1, fit, outline, seg, sideLabel, svgOpen, text, ticks, toward } from './geometryKit';
+import { type Pt, DASHED, SVG_CLOSE, angle, centroid, choiceSlide, dir, dot, f1, fit, outline, reach, seg, sideLabel, svgOpen, text, ticks, toward } from './geometryKit';
 
 const diagram = (svg: string) => ({ kind: 'diagram' as const, svg });
 const cm = (v: number) => `${num(v)} cm`;
@@ -53,8 +53,10 @@ export function triangleSidesSvg(a: number, b: number, c: number, labels: [strin
   const [p, q, r] = trianglePts(a, b, c);
   const inside = centroid([p, q, r]);
   const parts = [svgOpen(190, 'A triangle with its sides labelled'), outline([p, q, r])];
-  if (labels[0]) parts.push(sideLabel(p, r, labels[0], inside, 22));
-  if (labels[1]) parts.push(sideLabel(q, r, labels[1], inside, 22));
+  // A ticked side's label stands off far enough to clear the tick as well.
+  const clear = tick ? 11 : 5;
+  if (labels[0]) parts.push(sideLabel(p, r, labels[0], inside, 22, clear));
+  if (labels[1]) parts.push(sideLabel(q, r, labels[1], inside, 22, clear));
   if (labels[2]) parts.push(sideLabel(p, q, labels[2], inside, 14));
   if (tick) parts.push(ticks(p, r, 1), ticks(q, r, 1));
   parts.push(SVG_CLOSE);
@@ -102,10 +104,15 @@ export function lShapeSvg(s: LShape, labels: Partial<Record<LSide, string>>): st
     ['H', pts[5], pts[0], 30],
   ];
   const parts = [svgOpen(200, 'An L-shape'), outline(pts)];
+  const notch = centroid([pts[2], pts[4]]);
   for (const [side, p, q, gap] of sides) {
     const label = labels[side];
-    // The notch's own sides face into the cut-out, so they are labelled from the shape's inside out.
-    if (label) parts.push(sideLabel(p, q, label, side === 'a' || side === 'b' ? pts[0] : inside, gap));
+    // The notch's two sides meet at one corner, and both labelled out into
+    // the cut-out they sat on top of each other when the notch was small. So
+    // the upright side is labelled in the cut-out and the level one just
+    // under itself, inside the shape's lower arm, which always has room.
+    const away = side === 'b' ? pts[0] : side === 'a' ? notch : inside;
+    if (label) parts.push(sideLabel(p, q, label, away, gap));
   }
   parts.push(SVG_CLOSE);
   return parts.join('');
@@ -179,7 +186,9 @@ export function sectorSvg(theta: number, o: { angle: string; radius?: string; ar
     // Along the first radius, outside the sector; inside it when the sector
     // leaves too thin a gap outside.
     const mid = toward(C, start, R * 0.6);
-    const off = toward(mid, theta > 250 ? start + 90 : start - 90, 13);
+    const side = theta > 250 ? start + 90 : start - 90;
+    // Far enough out that the whole word clears the radius, not just its centre.
+    const off = toward(mid, side, Math.max(13, 5 + reach(o.radius, dir(side))));
     parts.push(text(off, o.radius));
   }
   if (o.arc) {
@@ -257,7 +266,7 @@ const geoPerimPoly: Generator<PerimParams> = {
     }
     if (p.shape === 'iso') {
       return [
-        { text: `The marks show the two sloping sides are equal, both $${x}$ cm. Add all three sides:` },
+        { text: `The marks show the two sloping sides are equal, both $${x}\\text{ cm}$. Add all three sides:` },
         { tex: `${x} + ${x} + ${z} = ${perimOf(p)}` },
       ];
     }
@@ -301,7 +310,7 @@ const geoRectMissing: Generator<RectMissingParams> = {
       p.shape === 'rect'
         ? rectSvg(x, y, cm(x), 'x')
         : triangleSidesSvg(x, x, y, p.askBase ? [cm(x), '', 'x'] : ['x', '', cm(y)], true);
-    return typed([diagram(svg), say(`The perimeter is $${P}$ cm. Find $x$.`)], missingAnswer(p), 'x =');
+    return typed([diagram(svg), say(`The perimeter is $${P}\\text{ cm}$. Find $x$.`)], missingAnswer(p), 'x =');
   },
   choices(p) {
     const P = missingPerim(p);
@@ -369,20 +378,30 @@ function lLabels(p: LParams, asked: [string, string]): Partial<Record<LSide, str
   return out;
 }
 
-function lMissingSteps(p: LParams, names: [string, string]) {
+/**
+ * The two missing sides' working. `lettered` names them `a` and `b`, as the
+ * table's figure does; otherwise they are named in words, and a word inside a
+ * line of working is set as `\text`, never as a run of italic letters.
+ */
+function lMissingSteps(p: LParams, lettered: boolean) {
   if (p.missing === 'notch') {
+    const [across, down] = lettered ? ['$a$', '$b$'] : ['the step across', 'the step down'];
+    const [acrossTex, downTex] = lettered ? ['a', 'b'] : ['\\text{step across}', '\\text{step down}'];
     return [
-      { text: `The top and ${names[0]} together are as wide as the bottom:` },
-      { tex: `${names[0]} = ${p.W} - ${p.W - p.a} = ${p.a}` },
-      { text: `The right side and ${names[1]} together are as tall as the left:` },
-      { tex: `${names[1]} = ${p.H} - ${p.H - p.b} = ${p.b}` },
+      { text: `The top and ${across} together are as wide as the bottom:` },
+      { tex: `${acrossTex} = ${p.W} - ${p.W - p.a} = ${p.a}` },
+      { text: `The right side and ${down} together are as tall as the left:` },
+      { tex: `${downTex} = ${p.H} - ${p.H - p.b} = ${p.b}` },
     ];
   }
+  const [bottom, right] = lettered ? ['The bottom, $a$, is', 'The right side, $b$, is'] : ['The bottom is', 'The right side is'];
+  // Unlettered, the sentence already names the side, so the line is the sum alone.
+  const [bottomTex, rightTex] = lettered ? ['a = ', 'b = '] : ['', ''];
   return [
-    { text: `The bottom, ${names[0]}, is as wide as the top and the step together:` },
-    { tex: `${names[0]} = ${p.W - p.a} + ${p.a} = ${p.W}` },
-    { text: `The right side, ${names[1]}, is the left side's height less the step:` },
-    { tex: `${names[1]} = ${p.H} - ${p.b} = ${p.H - p.b}` },
+    { text: `${bottom} as wide as the top and the step together:` },
+    { tex: `${bottomTex}${p.W - p.a} + ${p.a} = ${p.W}` },
+    { text: `${right} the left side's height less the step:` },
+    { tex: `${rightTex}${p.H} - ${p.b} = ${p.H - p.b}` },
   ];
 }
 
@@ -410,7 +429,7 @@ const geoLShapeSides: Generator<LParams> = {
     };
   },
   solution(p) {
-    return [...lMissingSteps(p, ['a', 'b']), { text: 'Then add all six sides:' }, { tex: `${allSides(p).join(' + ')} = ${lPerim(p)}` }];
+    return [...lMissingSteps(p, true), { text: 'Then add all six sides:' }, { tex: `${allSides(p).join(' + ')} = ${lPerim(p)}` }];
   },
 };
 
@@ -428,7 +447,7 @@ const geoPerimLShape: Generator<LParams> = {
     return numberOptions(P, [given.reduce((x, y) => x + y, 0), P - 2 * p.a, P + 2 * p.b, P - 4], 1, 1);
   },
   solution(p) {
-    return [...lMissingSteps(p, ['the step across', 'the step down']), { text: 'Then add all six sides:' }, { tex: `${allSides(p).join(' + ')} = ${lPerim(p)}` }];
+    return [...lMissingSteps(p, false), { text: 'Then add all six sides:' }, { tex: `${allSides(p).join(' + ')} = ${lPerim(p)}` }];
   },
 };
 
@@ -505,7 +524,7 @@ const geoCircBack: Generator<CircBackParams> = {
   },
   render({ r, ask }) {
     return typed(
-      [say(`A circle has a circumference of $${piTex(2 * r)}$ cm. Find its ${ask === 'r' ? 'radius' : 'diameter'}, in cm.`)],
+      [say(`A circle has a circumference of $${piTex(2 * r)}\\text{ cm}$. Find its ${ask === 'r' ? 'radius' : 'diameter'}, in cm.`)],
       ask === 'r' ? r : 2 * r,
       ask === 'r' ? 'r =' : 'd =',
     );
@@ -541,7 +560,7 @@ const geoSemiPerim: Generator<PartParams> = {
     return {
       kind: 'tiles',
       prompt: [diagram(partCircleSvg(p.kind, cm(p.r))), say(`Find the perimeter of this ${p.kind === 'semi' ? 'semicircle' : 'quarter circle'}, in cm.`)],
-      template: 'P = {0}\\pi + {1}',
+      template: 'P = {0}\\pi + {} {1}',
       bank: numberBank([k, straight], slips, 3, 1, 1),
       answer: [num(k), num(straight)],
     };
@@ -618,7 +637,9 @@ const geoArcFraction: Generator<FractionParams> = {
       seen.add(v);
       wrong.push(fracTex(p, q));
     }
-    const opts: ChoiceOption[] = [{ tex: fracTex(theta, 360), correct: true }, ...wrong.map((tex) => ({ tex }))];
+    // An option is set inline, where \frac shrinks to a footnote; \dfrac keeps it the size of the maths it answers.
+    const big = (tex: string) => tex.replace('\\frac', '\\dfrac');
+    const opts: ChoiceOption[] = [{ tex: big(fracTex(theta, 360)), correct: true }, ...wrong.map((tex) => ({ tex: big(tex) }))];
     return choiceSlide([diagram(sectorSvg(theta, { angle: `${theta}°` })), say('What fraction of the whole circle is the shaded sector?')], opts);
   },
   solution({ theta }) {
@@ -717,7 +738,7 @@ const geoSectorPerim: Generator<ArcParams> = {
     return {
       kind: 'tiles',
       prompt: [diagram(sectorSvg(p.theta, { angle: `${p.theta}°`, radius: cm(p.r) })), say('Find the perimeter of the sector, in cm.')],
-      template: 'P = {0}\\pi + {1}',
+      template: 'P = {0}\\pi + {} {1}',
       bank: numberBank([k, 2 * p.r], slips, 3, 1, 1),
       answer: [num(k), num(2 * p.r)],
     };

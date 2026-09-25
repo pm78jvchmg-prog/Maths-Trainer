@@ -98,18 +98,22 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Sized by `installTopInset` (see `ui/fullHeight.ts`): on an installed iOS
+   app the window reports a status bar short of the screen, and both `100%`
+   and a `position: fixed` box stop at that short line, leaving a strip of the
+   app's base colour under the page. Sizing the document itself to the screen
+   reaches the bottom edge. `overflow: hidden` on both is what keeps that
+   taller document from scrolling as a whole, which dragged the background
+   with it and took the swipe from the course list. */
 html,
-body {
-  height: 100%;
-  overflow: hidden;
+body,
+#root {
+  height: var(--app-height, 100%);
 }
 
-/* Pinned to the window, so the document itself never scrolls: a page that
-   scrolled as a whole dragged the background with it and took the swipe
-   from the course list. */
-#root {
-  position: fixed;
-  inset: 0;
+html,
+body {
+  overflow: hidden;
 }
 
 /* A screen enters by sliding in from the side, and for those ~240ms it sticks

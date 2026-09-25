@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dropsTopInset } from './fullHeight';
+import { appHeight, dropsTopInset } from './fullHeight';
 
 // A 430x932 iPhone with a 59pt status bar.
 const iphone = { screenWidth: 430, screenHeight: 932, landscape: false };
@@ -23,5 +23,19 @@ describe('dropsTopInset', () => {
 
   it('ignores a gap far larger than two status bars', () => {
     expect(dropsTopInset({ ...iphone, innerHeight: 500, standalone: true })).toBe(false);
+  });
+});
+
+describe('appHeight', () => {
+  it('takes the screen when the installed window is one status bar short', () => {
+    expect(appHeight({ ...iphone, innerHeight: 873, standalone: true })).toBe(932);
+  });
+
+  it('keeps the window height when placed below the status bar', () => {
+    expect(appHeight({ ...iphone, innerHeight: 814, standalone: true })).toBe(814);
+  });
+
+  it('keeps the window height in a browser tab', () => {
+    expect(appHeight({ ...iphone, innerHeight: 739, standalone: false })).toBe(739);
   });
 });

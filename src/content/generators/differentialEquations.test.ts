@@ -103,8 +103,10 @@ import {
 const SEEDS = 200;
 
 // Symbolic differentiation across 400 draws a family overruns vitest's 5s default
-// once other files compete for the CPU, as the oracle in generators.test.ts does.
-vi.setConfig({ testTimeout: 60_000 });
+// once other files compete for the CPU, as the oracle in the generator sweep does.
+// 60s was not enough either: "puts the conditions in and ends on the one
+// solution that meets them" takes 48s alone and ran 63s in a full run.
+vi.setConfig({ testTimeout: 180_000 });
 
 function draws<P>(generator: Generator<P>): { params: P; slide: Slide; seed: number }[] {
   return [1, 2].flatMap((difficulty) =>

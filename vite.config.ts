@@ -1,8 +1,16 @@
+/// <reference types="vitest/config" />
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  test: {
+    // Vitest's 5 s default is shorter than several property tests take once
+    // the workers share the CPU: tests that take 2.6 to 4.1 s alone ran 5.7 to
+    // 7.5 s in a full run and failed it. A budget rather than fewer samples, as
+    // CLAUDE.md asks; a test that needs longer still says so itself.
+    testTimeout: 30_000,
+  },
   build: {
     rolldownOptions: {
       output: {

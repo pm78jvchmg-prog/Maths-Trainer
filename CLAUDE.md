@@ -414,10 +414,26 @@ complementary rather than redundant:
 
 ## Testing strategy
 
-`src/content/generators/generators.test.ts` holds the **generic** generator
-property tests and course-integrity checks for *every* course. New generators
-and courses are picked up automatically via `src/content/registry.ts` and
-`src/content/courses/index.ts` — there is nothing to register in the test file.
+The **generic** generator property tests cover *every* generator, and the
+course-integrity checks in `src/content/generators/generators.test.ts` cover
+*every* course. New generators and courses are picked up automatically via
+`src/content/registry.ts` and `src/content/courses/index.ts` — there is nothing
+to register in any test file.
+
+The generator sweep is written once, in
+`src/content/generators/sweep/generatorSweep.ts`, and run from the 24
+`generators.sweep-NN.test.ts` shards beside `generators.test.ts`, which vitest
+spreads across its workers. As one file it ran in one worker, close to an hour
+at 4.7 GB. The per-generator checks that other sections and older code
+comments credit to `generators.test.ts` are in the sweep. Each shard is one
+line that reads its number from its own file name, and a generator's shard is
+a hash of its id.
+`generators.test.ts` keeps a guard that every shard file exists and that between
+them they sweep each registered generator exactly once, so changing the count
+means changing `SWEEP_SHARDS` and the files together. A generator's draws are
+made by its first test and dropped after its last, not held for the whole run.
+To sweep one generator, `npx vitest run generators.sweep -t '^<id> >'` (escape
+the `+` of a `+choice` id).
 
 Per generator, across 200 seeds × 2 difficulties:
 
@@ -432,11 +448,13 @@ derivative. Expression slides may declare `source`, the function the question is
 about; the test differentiates it with `mathjs.derivative` and compares against
 the generator's answer. Populate `source` on any new calculus generator.
 
-The oracle test carries an explicit 60s timeout. It is the slowest test by far
-— symbolic differentiation plus 24 probes per draw — and overruns vitest's 5s
-default once the other files compete for CPU, which shows up as an intermittent
-failure that passes when the file is run alone. If you add a slow sweep here,
-give it a budget rather than trimming its sample count.
+Every test gets 30s (`testTimeout` in `vite.config.ts`). Vitest's 5s default
+failed tests that take 2.6 to 4.1s alone once the workers shared the CPU,
+which shows up as an intermittent failure that passes when the file is run
+alone. The oracle test carries an explicit 60s of its own. It is the slowest
+test in the sweep by far — symbolic differentiation plus 24 probes per draw. If
+you add a slow sweep here, give it a budget rather than trimming its sample
+count.
 
 When adding a guard test, **verify it can fail** — reintroduce the bug, watch it
 go red, then restore. Several guards here were confirmed that way, and one

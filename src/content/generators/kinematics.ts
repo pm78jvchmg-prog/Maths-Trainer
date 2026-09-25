@@ -2537,7 +2537,7 @@ const gravHeight: Generator<GravParams> = {
     const texts = {
       height: `A ${what} is thrown straight up at ${u} m/s. Taking $g = 9.8$ m/s², find its height above the point of projection after ${t} s, in metres.`,
       velocity: `A ${what} is thrown straight up at ${u} m/s. Taking up as positive and $g = 9.8$ m/s², find its velocity after ${t} s, in m/s.`,
-      time: `A ${what} is thrown straight up at ${u} m/s from a clifftop ${fmt(cliffOf(k, t))} m above the sea. Taking $g = 9.8$ m/s², how many seconds until it hits the sea?`,
+      time: `A ${what} is thrown straight up at ${u} m/s from the edge of a cliff ${fmt(cliffOf(k, t))} m above the sea. Taking $g = 9.8$ m/s², how many seconds until it hits the sea?`,
       impact: `A ${what} is thrown straight up at ${u} m/s from a clifftop and hits the sea ${t} s later. Taking $g = 9.8$ m/s², find its speed as it hits the sea, in m/s.`,
       cliff: `A ${what} is thrown straight up at ${u} m/s from a clifftop and hits the sea ${t} s later. Taking $g = 9.8$ m/s², find the height of the cliff, in metres.`,
     };

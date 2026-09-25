@@ -3790,11 +3790,11 @@ function wordsStages(w: WordTreeParams): string[][] {
 function wordsSentence(w: WordTreeParams): string {
   if (w.bag) {
     const { colours, letters } = WORD_BAGS[w.context];
-    const [, many] = THINGS[w.thing];
-    return `A ${w.holder} holds ${w.counts[0]} ${colours[0]} and ${w.counts[1]} ${colours[1]} ${many}. One is taken at random and ${w.replace ? 'put back' : 'not put back'}, then a second. $${letters[0]}$ is ${colours[0]}, $${letters[1]}$ ${colours[1]}.`;
+    const [one, many] = THINGS[w.thing];
+    return `A ${w.holder} holds ${w.counts[0]} ${colours[0]} and ${w.counts[1]} ${colours[1]} ${many}. One ${one} is taken at random and ${w.replace ? 'put back' : 'not put back'}, then a second is taken. $${letters[0]}$ stands for ${colours[0]} and $${letters[1]}$ for ${colours[1]}.`;
   }
   const ctx = WORD_EVENTS[w.context];
-  return `$${ctx.letters[0]}$: ${ctx.a}, probability $${fmt(w.p)}$. $${ctx.letters[1]}$: ${ctx.b}, probability $${fmt(w.q)}$. They are independent.`;
+  return `The probability that ${ctx.a} is $${fmt(w.p)}$; call this event $${ctx.letters[0]}$. Independently, the probability that ${ctx.b} is $${fmt(w.q)}$; call this $${ctx.letters[1]}$.`;
 }
 
 function wordsValue(w: WordTreeParams): Prob {
@@ -4224,7 +4224,7 @@ const threeAtLeast: Generator<ThreeParams> = {
       prompt: [
         say(threeSentence(params)),
         threePicture(params),
-        say(`Find the probability of at least one $${want}$. Top row: $P(${other})$ at each stage. Then $P(${other}, ${other}, ${other})$, then the answer.`),
+        say(`Find the probability of at least one $${want}$ in three steps. Top row: $P(${other})$ at each stage. Then $P(${other}, ${other}, ${other})$, then the answer.`),
       ],
       expression: `1 - P(${other}, ${other}, ${other})`,
       nodes: [
@@ -4525,7 +4525,7 @@ const vennCount: Generator<TotalsParams> = {
     const ctx = VENN[params.context];
     const how = TOTALS_ASK[params.ask];
     return countSlide(
-      [say(totalsSentence(params)), say(`Find $${how.tex(ctx.A, ctx.B)}$, the number ${how.words(ctx.A, ctx.B)}. $${ctx.A}$ is the set who ${ctx.aText}, $${ctx.B}$ who ${ctx.bText}.`)],
+      [say(totalsSentence(params)), say(`Find $${how.tex(ctx.A, ctx.B)}$, the number ${how.words(ctx.A, ctx.B)}. $${ctx.A}$ is the set who ${ctx.aText} and $${ctx.B}$ the set who ${ctx.bText}.`)],
       `${how.tex(ctx.A, ctx.B)} =`,
       totalsAnswer(params),
     );
@@ -4961,7 +4961,7 @@ const venn3Chance: Generator<ChanceParams> = {
       [
         say(`The Venn diagram shows ${total} ${ctx.who}. ${venn3Key(ctx)}`),
         picture(venn3Svg(n, params.regions.map(String))),
-        say(`Find the probability that one ${ctx.one} chosen at random ${e.words(n, params.set, params.other)}.`),
+        say(`One ${ctx.one} is chosen at random. Find the probability that the ${ctx.one} ${e.words(n, params.set, params.other)}.`),
       ],
       `${e.tex(n, params.set, params.other)} =`,
       fans([chanceFavourable(params).fav, total]),
@@ -5308,7 +5308,7 @@ export const COND_STORIES = [
 type Story = (typeof COND_STORIES)[number];
 
 function storySentence(s: Story): string {
-  return `$${s.A}$: ${s.a}. $${s.B}$: ${s.b}.`;
+  return `$${s.A}$ is the event that ${s.a}, and $${s.B}$ that ${s.b}.`;
 }
 
 /** "On a rainy day, the probability that Sam is on time is $0.7$." */
@@ -5388,7 +5388,7 @@ const condTableTiles: Generator<CondParams> = {
       prompt: [
         show(twoWayTex(params, !params.hard)),
         say(
-          `One ${ctx.one} is chosen at random. $A$: the ${ctx.one} ${askText}. $B$: the ${ctx.one} ${givenText}. Give each probability out of all the ${ctx.who}.`,
+          `One ${ctx.one} is chosen at random. $A$ is the event that the ${ctx.one} ${askText}, and $B$ that the ${ctx.one} ${givenText}. Give each probability out of all the ${ctx.who}.`,
         ),
       ],
       template: 'P(A \\mid B) = {0} \\div {1} = {2}',
@@ -5618,7 +5618,7 @@ const condAndTree: Generator<CondAndParams> = {
       prompt: [
         say(storySentence(s)),
         say(
-          `$P(${s.A}) = ${fmt(params.a / 100)}$. ${sentence} Find $P(${A} \\cap ${s.B})$. Top row: $P(${A})$, then $${condTex(s.B, A)}$. Then multiply.`,
+          `The probability that ${s.a} is $${fmt(params.a / 100)}$. ${sentence} Find the probability that ${params.onA ? s.a : s.notA} and ${s.b}. Top row: $P(${A})$, then $${condTex(s.B, A)}$. Then multiply.`,
         ),
       ],
       expression: `P(${A} \\cap ${s.B})`,

@@ -16,6 +16,7 @@ import { categories } from '../content/courses';
 import { libraryProgress } from '../store/mastery';
 import { useProgress } from '../store/progress';
 import { SyncDevices } from './SyncDevices';
+import { lastReading } from './fullHeight';
 import { MAX_CHARGES, bestStreak, localDay, recentDays, resolveStreak, useStreak } from '../store/streak';
 import type { DayKind } from '../store/streak';
 
@@ -148,6 +149,9 @@ export function StreakView({ onClose }: { onClose: () => void }) {
         <button type="button" className="primary-button" onClick={close}>
           Done
         </button>
+        {/* Temporary: what the phone reports about its screen, so the gap at
+            the foot of an installed app can be fixed from a screenshot. */}
+        {lastReading && <p className="streak-reading">{lastReading}</p>}
       </div>
     </dialog>
   );

@@ -750,7 +750,7 @@ const commonFactor: Generator<CommonFactorParams> = {
         },
         { tex: `${quadraticTex(k * m, k * n, 0)} = ${k}x\\left(${factorTile(m, n)}\\right)` },
         {
-          text: `Divide each term by $${k}x$ rather than by $${k}$ alone: $${k * m}x^{2} \\div ${k}x = ${m}x$, and $${k * n}x \\div ${k}x = ${n}$. Leaving the $x$ behind is the usual half-done answer.`,
+          text: `Divide each term by $${k}x$ rather than by $${k}$ alone: $${termTex(k * m, 2)} \\div ${k}x = ${termTex(m, 1)}$, and $${termTex(k * n, 1)} \\div ${k}x = ${n}$. Leaving the $x$ behind is the usual half-done answer.`,
         },
       ];
     }

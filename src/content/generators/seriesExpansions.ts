@@ -897,9 +897,11 @@ const expTerm: Generator<ExpTermParams> = {
   }),
   solution: ({ f, n }) => {
     const u = uTex(f.k);
+    // k^n in front of x^n, with no 1 written.
+    const kn = qTex(pow(f.k, n));
     return [
       { text: `The $u^{${n}}$ term of $e^{u}$ is $\\frac{u^{${n}}}{${n}!}$. Put $u = ${u}$:` },
-      { tex: `${lead(f.scale)}\\frac{(${u})^{${n}}}{${n}!} = ${lead(f.scale)}\\frac{${qTex(pow(f.k, n))}x^{${n}}}{${fact(n)}} = ${monoTex(coefOf(f, n), n)}` },
+      { tex: `${lead(f.scale)}\\frac{(${u})^{${n}}}{${n}!} = ${lead(f.scale)}\\frac{${kn === '1' ? '' : kn === '-1' ? '-' : kn}x^{${n}}}{${fact(n)}} = ${monoTex(coefOf(f, n), n)}` },
     ];
   },
   choices: ({ f, n }) => {
@@ -980,7 +982,7 @@ const expSlider: Generator<ExpSliderParams> = {
             { f: poly, accent: true },
           ],
           verticals: [{ x: a, dashed: true }],
-          label: `The curve y = e to the ${k}x, dashed, and its Maclaurin polynomial of degree ${params.deg}, with a line at x = ${dec(a)}`,
+          label: `The curve y = e to the ${lead(k)}x, dashed, and its Maclaurin polynomial of degree ${params.deg}, with a line at x = ${dec(a)}`,
         }),
         ...markerWindow(SLIDER_LO, SLIDER_HI, 'y'),
         axis: 'y',

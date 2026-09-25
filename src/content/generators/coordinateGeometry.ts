@@ -8309,7 +8309,8 @@ const ratioPrompt = (p: RatioParams): string =>
 function collectedRatio(p: RatioParams, m = 3, flipConstant = false): string {
   const [a, b] = p.O;
   const k = m * (a * a + b * b - ratioR2(p)) * (flipConstant ? -1 : 1);
-  return `${sumTex([`${m}x^2`, `${m}y^2`, termOf(q(-2 * m * a)), termOf(q(-2 * m * b), 'y'), String(k)])} = 0`;
+  const sq = m === 1 ? '' : String(m);
+  return `${sumTex([`${sq}x^2`, `${sq}y^2`, termOf(q(-2 * m * a)), termOf(q(-2 * m * b), 'y'), String(k)])} = 0`;
 }
 
 /** The squaring-out and the collecting, then the centre and radius. */

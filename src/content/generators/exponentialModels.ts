@@ -24,7 +24,7 @@ import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
 import { canonicalSet } from '../numberLine';
 import { EXP_KEYS } from './calculus';
-import { gcd } from './format';
+import { aOrAn, gcd } from './format';
 // Where a slider's handle rests before it is touched, so no answer sits there.
 import { defaultSliderValue } from '../../ui/sliderValue';
 import type { Rng } from '../../engine/rng';
@@ -2750,8 +2750,8 @@ const MODEL_STORIES: Record<ModelKind, ((x: number, y: number) => string)[]> = {
     (x) => `A rumour known to ${x} people spreads at a rate proportional to how many know it.`,
   ],
   decay: [
-    (x) => `A ${x * 10} mg dose of a drug leaves the blood at a rate proportional to the amount left.`,
-    (x, y) => `A ${x * 5} g radioactive sample halves every ${y % 9 + 2} days.`,
+    (x) => `${aOrAn(x * 10, true)} ${x * 10} mg dose of a drug leaves the blood at a rate proportional to the amount left.`,
+    (x, y) => `${aOrAn(x * 5, true)} ${x * 5} g radioactive sample halves every ${y % 9 + 2} days.`,
     (x, y) => `A car worth £${x * 1000} loses value continuously at ${y % 10 + 5}% a year.`,
   ],
   fall: [

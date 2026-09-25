@@ -6297,8 +6297,10 @@ const tripleChoice: Generator<TripleChoiceParams> = {
 /**
  * fn(x/2) = k or fn(3x) = k with 0 <= x < top. Solve for the whole bracket over
  * its own range, then undo the halving or the tripling. A 3x equation that is
- * typed or slid keeps k to 0 and +-1: sin 3x = 1/2 gives x = 10 degrees, which
- * is off the 30-and-45 lattice every typed angle here sits on.
+ * typed keeps k to 0 and +-1: sin 3x = 1/2 gives x = 10 degrees, which is off
+ * the 30-and-45 lattice every typed angle here sits on. A slid one may also
+ * take +-root 2 over 2, or +-1 for a tangent, whose solutions are all multiples
+ * of 15 degrees, but is only ever asked for one of them on that lattice.
  */
 interface MultiEq {
   kind: 'half' | 'triple';
@@ -6439,6 +6441,19 @@ const multiEqFlow: Generator<MultiFlowParams> = {
   solution: (p) => multiSteps(multiFlowEq(p), MULTI_LETTERS[p.v]),
 };
 
+/** How a slider names a solution, by `end`: see `MultiSliderParams`. Before the equations, which are filtered with it. */
+const SLIDER_WORDS = ['smallest', 'largest', 'second smallest', 'second largest', 'third smallest', 'third largest'];
+
+/** 3x equations with six solutions from 0 to 360, every one a multiple of 15 degrees. */
+const TRIPLE_ROOT_TWO: [Fn, number][] = [
+  ['sin', Math.SQRT2 / 2],
+  ['sin', -Math.SQRT2 / 2],
+  ['cos', Math.SQRT2 / 2],
+  ['cos', -Math.SQRT2 / 2],
+  ['tan', 1],
+  ['tan', -1],
+];
+
 /** Equations whose solutions from 0 to 360 are all multiples of 15 degrees. */
 const SLIDER_EQS: TaggedEq[] = [
   ...(['sin', 'cos', 'tan'] as const).flatMap((fn) =>
@@ -6446,6 +6461,7 @@ const SLIDER_EQS: TaggedEq[] = [
   ),
   ...TRIPLE_TYPED.map(([fn, value]) => ({ kind: 'triple' as const, fn, value, top: 360, hard: false })),
   { kind: 'triple', fn: 'tan', value: 0, top: 360, hard: true } as TaggedEq,
+  ...TRIPLE_ROOT_TWO.map(([fn, value]) => ({ kind: 'triple' as const, fn, value, top: 360, hard: true })),
 ].filter((eq) => sliderEnds(eq, 2).length > 0);
 
 /** Every solution strictly inside 0 to 360. */
@@ -6455,35 +6471,56 @@ function openSolutions(eq: MultiEq): number[] {
 
 interface MultiSliderParams {
   eq: number;
-  /** 0: the smallest; 1: the largest; 2: the second smallest, asked only of harder draws. */
+  /**
+   * The solution's place, counted from one end: even from the smallest, odd
+   * from the largest, and the pair further in each time. 0 and 1 are the ends;
+   * 2 to 5, second and third from an end, are asked only of harder draws.
+   */
   end: number;
 }
-
-const SLIDER_WORDS = ['smallest', 'largest', 'second smallest'];
 
 /** The solution each word names. */
 function sliderPick(eq: MultiEq, end: number): number {
   const all = openSolutions(eq);
-  return end === 0 ? all[0] : end === 1 ? all[all.length - 1] : all[1];
+  const inward = Math.floor(end / 2);
+  return end % 2 === 0 ? all[inward] : all[all.length - 1 - inward];
 }
 
-/** The words a slider may ask with: never one naming 180, where an untouched handle rests. */
+/**
+ * The words a slider may ask with. Easier draws name an end; harder ones name
+ * any solution by its place from the nearer end, so each is named once. Never
+ * one at 180, where an untouched handle rests, nor one off the 30-and-45 lattice.
+ */
 function sliderEnds(eq: MultiEq, difficulty: number): number[] {
   const all = openSolutions(eq);
   if (all.length === 0) return [];
-  const ends = all.length === 1 ? [0] : [0, 1, ...(difficulty > 1 && all.length > 2 ? [2] : [])];
-  return ends.filter((end) => sliderPick(eq, end) !== 180);
+  const ends =
+    all.length === 1
+      ? [0]
+      : difficulty > 1
+        ? all.map((_, i) => (2 * i <= all.length - 1 ? 2 * i : 2 * (all.length - 1 - i) + 1)).filter((end) => end < SLIDER_WORDS.length)
+        : [0, 1];
+  return ends.filter((end) => {
+    const x = sliderPick(eq, end);
+    return x !== 180 && (x % 30 === 0 || x % 45 === 0);
+  });
 }
 
 /** The curve and the level drawn: slide to one solution, named by its place. */
 const multiEqSlider: Generator<MultiSliderParams> = {
   id: 'tid-multi-eq-slider',
-  // Harder draws always have more than one solution to sort through: never an
-  // equation with a single answer, which is the difficulty-1 question again.
+  // Harder draws are all 3x equations with more than one solution, named by
+  // place rather than only by end: a root-two or tangent level, or the second
+  // or third from an end, which difficulty 1 never asks. Each question is drawn
+  // equally often, so an equation with more places to ask is not rarer.
   sample: (rng, difficulty) => {
-    const eqs = SLIDER_EQS.map((e, i) => ({ e, i })).filter(
-      ({ e }) => (difficulty > 1 ? openSolutions(e).length > 1 : !e.hard) && sliderEnds(e, difficulty).length > 0,
-    );
+    if (difficulty > 1) {
+      const questions = SLIDER_EQS.flatMap((e, eq) =>
+        e.kind === 'triple' && openSolutions(e).length > 1 ? sliderEnds(e, difficulty).map((end) => ({ eq, end })) : [],
+      );
+      return rng.pick(questions);
+    }
+    const eqs = SLIDER_EQS.map((e, i) => ({ e, i })).filter(({ e }) => !e.hard && sliderEnds(e, difficulty).length > 0);
     const eq = rng.pick(eqs).i;
     return { eq, end: rng.pick(sliderEnds(SLIDER_EQS[eq], difficulty)) };
   },

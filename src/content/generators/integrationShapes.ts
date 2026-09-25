@@ -171,8 +171,8 @@ const termTiles: Generator<TwoTermParams> = {
       {
         text: 'An integral of a sum is the sum of the integrals, so each term goes through the power rule on its own.',
       },
-      { tex: `\\int ${termTex(a, m)} \\, dx = \\frac{${a}x^{${m + 1}}}{${m + 1}} = ${termTex(first, m + 1)}` },
-      { tex: `\\int ${termTex(b, n)} \\, dx = \\frac{${b}x^{${n + 1}}}{${n + 1}} = ${termTex(second, n + 1)}` },
+      { tex: `\\int ${termTex(a, m)} \\, dx = \\frac{${termTex(a, m + 1)}}{${m + 1}} = ${termTex(first, m + 1)}` },
+      { tex: `\\int ${termTex(b, n)} \\, dx = \\frac{${termTex(b, n + 1)}}{${n + 1}} = ${termTex(second, n + 1)}` },
       { tex: `${twoTermIntegral(params)} = ${termTex(first, m + 1)} + ${termTex(second, n + 1)} + C` },
       {
         text: `Divide by the *new* index every time. Dividing $${a}$ by $${m}$ rather than by $${m + 1}$ is the slip, and differentiating the answer back catches it at once.`,
@@ -459,7 +459,7 @@ const rewritePower: Generator<RewriteParams> = {
         {
           text: `Now the power rule applies unchanged: adding one to $-${n}$ gives $-${n - 1}$, and the division is by $-${n - 1}$.`,
         },
-        { tex: `\\int ${coeffTex(a, `x^{-${n}}`)} \\, dx = \\frac{${a}x^{-${n - 1}}}{-${n - 1}} = ${termTex(-a / (n - 1), -(n - 1))} + C` },
+        { tex: `\\int ${coeffTex(a, `x^{-${n}}`)} \\, dx = \\frac{${coeffTex(a, `x^{-${n - 1}}`)}}{-${n - 1}} = ${termTex(-a / (n - 1), -(n - 1))} + C` },
         {
           text: 'Both minus signs are real and both have to be carried. Trying to integrate while the term is still a fraction is where the guessing starts.',
         },
@@ -623,7 +623,7 @@ const whichRule: Generator<RuleParams> = {
     if (route === 'log') {
       return [
         { text: `$\\frac{${a}}{x}$ is $${coeffTex(a, 'x^{-1}')}$, and $-1$ is the single index the power rule cannot reach — adding one to it gives zero, and the rule would divide by zero.` },
-        { tex: `\\int \\frac{${a}}{x} \\, dx = ${a}\\ln|x| + C` },
+        { tex: `\\int \\frac{${a}}{x} \\, dx = ${coeffTex(a, '\\ln|x|')} + C` },
         {
           text: 'The modulus signs matter, because $\\frac{1}{x}$ is defined on both sides of zero and $\\ln x$ is defined on only one.',
         },
@@ -648,10 +648,10 @@ const whichRule: Generator<RuleParams> = {
       kind === 'exp' ? coeffTex(a, `e^{${termTex(n, 1)}}`) : coeffTex(a, `\\${kind}\\left(${termTex(n, 1)}\\right)`);
     const integrated =
       kind === 'exp'
-        ? `\\frac{${a}e^{${termTex(n, 1)}}}{${n}}`
+        ? `\\frac{${coeffTex(a, `e^{${termTex(n, 1)}}`)}}{${n}}`
         : kind === 'sin'
-          ? `-\\frac{${a}\\cos\\left(${termTex(n, 1)}\\right)}{${n}}`
-          : `\\frac{${a}\\sin\\left(${termTex(n, 1)}\\right)}{${n}}`;
+          ? `-\\frac{${coeffTex(a, `\\cos\\left(${termTex(n, 1)}\\right)`)}}{${n}}`
+          : `\\frac{${coeffTex(a, `\\sin\\left(${termTex(n, 1)}\\right)`)}}{${n}}`;
     return [
       { text: `$${shown}$ is not a power of $x$ at all, so neither of the first two routes reaches it; it is one of the three standard results.` },
       { tex: `\\int ${shown} \\, dx = ${integrated} + C` },
@@ -732,10 +732,10 @@ const standardTiles: Generator<StandardParams> = {
     const sign = form === 'sin' ? -1 : 1;
     return [
       { text: 'Each term is its own standard result, and each divides by the coefficient of $x$ inside it.' },
-      { tex: `\\int ${coeffTex(first * k, exponential)} \\, dx = \\frac{${first * k}${exponential}}{${k}} = ${coeffTex(first, exponential)}` },
+      { tex: `\\int ${coeffTex(first * k, exponential)} \\, dx = \\frac{${coeffTex(first * k, exponential)}}{${k}} = ${coeffTex(first, exponential)}` },
       {
         tex: `\\int ${coeffTex(second * m, wave)} \\, dx = ${
-          form === 'sin' ? `-\\frac{${second * m}${other}}{${m}}` : `\\frac{${second * m}${other}}{${m}}`
+          form === 'sin' ? `-\\frac{${coeffTex(second * m, other)}}{${m}}` : `\\frac{${coeffTex(second * m, other)}}{${m}}`
         } = ${coeffTex(sign * second, other)}`,
       },
       {
@@ -869,7 +869,7 @@ function definitePieces({ form, scale, n, b }: DefiniteShapeParams): {
   }
   return {
     integrand: `${termTex(2 * scale, 1)} ${b < 0 ? '-' : '+'} ${Math.abs(b)}`,
-    antiderivative: `${termTex(scale, 2)} ${b < 0 ? '-' : '+'} ${Math.abs(b)}x`,
+    antiderivative: `${termTex(scale, 2)} ${b < 0 ? '-' : '+'} ${termTex(Math.abs(b), 1)}`,
     at: (x) => scale * x * x + b * x,
   };
 }
@@ -1123,7 +1123,7 @@ const substitutionTiles: Generator<SubstitutionSetupParams> = {
       {
         text: `The integrand carries $${termTex(a, 1)} \\, dx$, which is $${half}$ lots of $2x \\, dx$, so it becomes $${half} \\, du$.`,
       },
-      { tex: `\\int ${termTex(a, 1)}\\left(${inner}\\right)^{${power}} \\, dx = ${coeffTex(half, '')}\\int u^{${power}} \\, du = \\frac{${half}u^{${n}}}{${n}} + C` },
+      { tex: `\\int ${termTex(a, 1)}\\left(${inner}\\right)^{${power}} \\, dx = ${coeffTex(half, '')}\\int u^{${power}} \\, du = \\frac{${coeffTex(half, `u^{${n}}`)}}{${n}} + C` },
       {
         text: 'A constant factor left over is no obstacle. An $x$ left over is: it means the substitution has failed and a different $u$ is needed.',
       },

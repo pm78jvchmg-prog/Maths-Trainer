@@ -29,6 +29,7 @@ import { options } from '../choiceVariant';
 import { bankFor, bin, num, pow, type Expr } from '../expr';
 import { sumTex, termTex } from './calculus';
 import { bankOf, numberTile, offer, signedTile } from './quadratics';
+import { negatedTex } from './format';
 
 /* ---------- Formatting ---------- */
 
@@ -3404,7 +3405,7 @@ function endSteps(params: EndParams, end: 'left' | 'right'): SolutionStep[] {
   const limit = limitTex(limitAt(params, end));
   if (form === 'ratio') {
     return [
-      { text: `When $x$ is ${big}, the numbers added on hardly matter: $\\frac{${linTex(a, b)}}{${shiftedX(h)}}$ is nearly $\\frac{${a}x}{x} = ${a}$.` },
+      { text: `When $x$ is ${big}, the numbers added on hardly matter: $\\frac{${linTex(a, b)}}{${shiftedX(h)}}$ is nearly $\\frac{${termTex(a, 1)}}{x} = ${a}$.` },
       { tex: `y \\to ${limit}` },
     ];
   }
@@ -3578,7 +3579,7 @@ const leadingFlow: Generator<LeadParams> = {
       const power = deg === 2 ? 'x^2' : 'x';
       return [
         { text: `Both have $${power}$ as their highest power. When $x$ is large the rest hardly matters:` },
-        { tex: `\\frac{${top}}{${bottom}} \\approx \\frac{${a}${power}}{${c}${power}} = ${a / c}` },
+        { tex: `\\frac{${top}}{${bottom}} \\approx \\frac{${termTex(a, deg === 2 ? 2 : 1)}}{${termTex(c, deg === 2 ? 2 : 1)}} = ${a / c}` },
         { text: `So $y$ heads for $${a / c}$.` },
       ];
     }
@@ -5441,7 +5442,7 @@ function pieceAt({ sq, m, q }: Piece, x: number): number {
 function pieceSubTex({ sq, m, q }: Piece, x: number): string {
   if (sq) return `${br(x)}^2 ${q === 0 ? '' : signedTile(q)}`;
   if (m === 0) return `${q}`;
-  return `${m === 1 ? '' : m === -1 ? '-' : `${m} \\times `}${br(x)} ${q === 0 ? '' : signedTile(q)}`;
+  return `${m === 1 ? br(x) : m === -1 ? negatedTex(x) : `${m} \\times ${br(x)}`} ${q === 0 ? '' : signedTile(q)}`;
 }
 
 type PieceKind = 'lin' | 'const' | 'sq';

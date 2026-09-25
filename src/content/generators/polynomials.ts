@@ -39,7 +39,7 @@ import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
 import { canonicalPieces, formatSet, type Piece } from '../numberLine';
 import { sumTex, termTex } from './calculus';
-import { coeffTex, fracTex, say } from './format';
+import { aOrAn, coeffTex, fracTex, say } from './format';
 import { numberLineSvg } from './inequalitiesModulus';
 import { windowFor } from './numberLine';
 
@@ -1375,14 +1375,15 @@ function reduceBanks(expr: Expr): Record<string, string[]> {
  */
 function substitutedTex(p: Poly, a: number, total?: number, name = 'p'): string {
   const n = degreeOf(p);
-  const shown = a < 0 ? `(${a})` : `${a}`;
+  // Bracketed when negative, and at 0 too, so a leading minus reads -(0) rather than -0.
+  const shown = a <= 0 ? `(${a})` : `${a}`;
   const pieces = p
     .map((c, i) => {
       const k = n - i;
       if (c === 0) return '';
       const power = k === 0 ? '' : k === 1 ? shown : `${shown}^{${k}}`;
       const size = Math.abs(c);
-      const body = k === 0 ? `${size}` : size === 1 ? power : a < 0 ? `${size}${power}` : `${size} \\times ${power}`;
+      const body = k === 0 ? `${size}` : size === 1 ? power : a <= 0 ? `${size}${power}` : `${size} \\times ${power}`;
       return c < 0 ? `-${body}` : body;
     })
     .filter(Boolean);
@@ -9232,7 +9233,7 @@ function boxRootSolution(params: BoxRootParams): SolutionStep[] {
     },
     { tex: chain(`&(${linTex(first)})(${polyTex(quotient)})`, `=\\;&(${linTex(first)})(${linTex(others[0])})(${linTex(others[1])})`) },
     {
-      text: `So $x = ${target.k}$, $${target.m}$ or $${target.n}$. A box needs $0 < x < ${target.W / 2}$, so $x = ${target.n}$ is thrown out: cutting $${target.n}$ cm squares from a $${target.W}$ cm side is impossible. Both $x = ${target.k}$ and $x = ${target.m}$ make a box holding $${T}$ cm³.`,
+      text: `So $x = ${target.k}$, $${target.m}$ or $${target.n}$. A box needs $0 < x < ${target.W / 2}$, so $x = ${target.n}$ is thrown out: cutting $${target.n}$ cm squares from ${aOrAn(target.W)} $${target.W}$ cm side is impossible. Both $x = ${target.k}$ and $x = ${target.m}$ make a box holding $${T}$ cm³.`,
     },
   ];
 }

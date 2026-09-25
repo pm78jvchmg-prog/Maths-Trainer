@@ -27,8 +27,8 @@ import type { ChoiceOption, Generator, KeypadKey, Slide } from '../types';
 import { options } from '../choiceVariant';
 import { bin, log, num, pow, type Expr } from '../expr';
 import { markerWindow, plotSvg, type PlotOptions } from '../figures';
-import { EXP_KEYS } from './calculus';
-import { fracTex, gcd } from './format';
+import { EXP_KEYS, termTex } from './calculus';
+import { fracTex, gcd, plusMinus } from './format';
 
 /** Solving for an index needs a logarithm key. */
 const LOG_KEYS: KeypadKey[] = [...EXP_KEYS, { insert: 'log(' }];
@@ -659,7 +659,7 @@ const naturalLog: Generator<NaturalParams> = {
     prompt: [
       { kind: 'prose', text: 'Solve for $x$, exactly. Leave a natural logarithm in your answer.' },
     ],
-    lead: `e^{${k === 1 ? '' : k}x} = ${target} \\implies x =`,
+    lead: `e^{${termTex(k, 1)}} = ${target} \\implies x =`,
     keypad: LOG_KEYS,
     answer: `log(${target}) / (${k})`,
     domain: 'real',
@@ -670,7 +670,7 @@ const naturalLog: Generator<NaturalParams> = {
       text: 'The natural logarithm is the logarithm to base $e$, which makes it the exact inverse of the exponential function. Applying it to $e$ raised to something simply removes the exponential.',
     },
     { tex: `\\ln\\left(e^{y}\\right) = y` },
-    { tex: `e^{${k === 1 ? '' : k}x} = ${target} \\implies ${k === 1 ? '' : k}x = \\ln\\left(${target}\\right)` },
+    { tex: `e^{${termTex(k, 1)}} = ${target} \\implies ${termTex(k, 1)} = \\ln\\left(${target}\\right)` },
     { tex: `x = ${lnOver(target, k)}` },
     {
       text: 'Taking logarithms to any other base would work too, but it would leave a logarithm of $e$ behind to simplify. Matching the base to the exponential is what keeps the working clean.',
@@ -2558,16 +2558,34 @@ const productFlow: Generator<ProductFlowParams> = {
     // What a cancelled middle would leave, from the numbers in this product.
     // Only a chain reaches this step on the right path; a wrong turn reaches it
     // from the others too, and must not be shown a c this product never used.
-    const [one, other] =
+    const pairs: [number, number][] =
       route === 'reciprocal'
-        ? [logTex(a, `${a}`), logTex(b, `${b}`)]
+        ? [
+            [a, a],
+            [b, b],
+          ]
         : route === 'none'
-          ? [logTex(a, `${d}`), logTex(c, `${b}`)]
-          : [logTex(a, `${c}`), logTex(c, `${a}`)];
+          ? [
+              [a, d],
+              [c, b],
+            ]
+          : [
+              [a, c],
+              [c, a],
+            ];
+    const [one, other] = pairs.map(([base, argument]) => logTex(base, `${argument}`));
     const right = `$${one}$`;
+    // Any leaf can be reached, and read, from any route, so each says only what
+    // that answer claims, and a fact about it, never a verdict on this product.
+    // On the reciprocal route both of these are worth exactly 1: that path is
+    // wrong only for having said the two are not reciprocals.
+    const says = ([base, argument]: [number, number]) =>
+      `That says the product is $${logTex(base, `${argument}`)}$, which is $${
+        base === argument ? '1' : `\\frac{${lnTex(argument)}}{${lnTex(base)}}`
+      }$.`;
     const left = [
-      { label: right, outcome: `That reads the product as $${one}$.` },
-      { label: `$${other}$`, outcome: `That reads the product as $${other}$.` },
+      { label: right, outcome: says(pairs[0]) },
+      { label: `$${other}$`, outcome: says(pairs[1]) },
     ];
     return {
       kind: 'flow',
@@ -2586,7 +2604,7 @@ const productFlow: Generator<ProductFlowParams> = {
             { label: 'Yes', to: 'both' },
             {
               label: 'No',
-              outcome: 'Nothing cancels. The product stays as two logarithms.',
+              outcome: 'That says no number is shared, so nothing cancels and the product stays as two logarithms.',
             },
           ],
         },
@@ -2594,13 +2612,13 @@ const productFlow: Generator<ProductFlowParams> = {
           id: 'both',
           ask: "Is each one's base the other one's argument?",
           branches: [
-            { label: 'Yes', outcome: 'They are reciprocals, so the product is exactly 1.' },
+            { label: 'Yes', outcome: 'That says they are reciprocals, so the product is exactly 1.' },
             { label: 'No', to: 'left' },
           ],
         },
         {
           id: 'left',
-          ask: 'The shared number cancels. Which single logarithm is left?',
+          ask: 'Suppose the shared number cancels. Which single logarithm is left?',
           branches: (a + c) % 2 === 0 ? left : [left[1], left[0]],
         },
       ],
@@ -5952,7 +5970,7 @@ const linAxesFlow: Generator<AxesFlowParams> = {
               ? 'A square root is the power $\\frac{1}{2}$, so this is a constant times a power of $x$.'
               : `$${subject}$ is a constant times a fixed power of $x$: a power model.`,
       },
-      { tex: `\\log y = \\log ${a} + ${power}\\log x` },
+      { tex: `\\log y = \\log ${a} ${typeof power === 'number' ? plusMinus(power) : `+ ${power}`}\\log x` },
       { text: `A straight line in $\\log x$, with gradient $${power}$.` },
     ];
   },
@@ -6044,7 +6062,7 @@ const linStraightChoice: Generator<StraightParams> = {
     };
   },
   solution: ({ mode, model, a, n, feature }) => {
-    const line = model === 'power' ? `\\log y = \\log ${a} + ${n}\\log x` : `\\log y = \\log ${a} + x\\log ${n}`;
+    const line = model === 'power' ? `\\log y = \\log ${a} ${plusMinus(n)}\\log x` : `\\log y = \\log ${a} + x\\log ${n}`;
     const opening = {
       text:
         model === 'power'
@@ -6752,7 +6770,7 @@ const cmpQuotientTree: Generator<DifferenceParams> = {
       },
       { tex: rhs === 'log' ? `${quotientTex(p, q)} = ${K}` : `${quotientTex(p, q)} = ${base}^{${c}} = ${K}` },
       { tex: `${shifted(p)} = ${K}x${signed(K * q)}` },
-      { tex: `${p - K * q} = ${K - 1}x` },
+      { tex: `${p - K * q} = ${termTex(K - 1, 1)}` },
       { tex: `x = ${x0}` },
       { text: `Check: at $x = ${x0}$ both arguments are positive, $${p + x0}$ and $${q + x0}$.` },
     ];
@@ -6870,7 +6888,7 @@ const cmpNumber: Generator<NumberParams> = {
       { text: 'The quotient law collapses the left, then index form drops the logarithm.' },
       { tex: `${quotientTex(p, q)} = ${base}^{${c}} = ${K}` },
       { tex: `${shifted(p)} = ${K}(${shifted(q)})` },
-      { tex: `${p - K * q} = ${K - 1}x \\implies x = ${x0}` },
+      { tex: `${p - K * q} = ${termTex(K - 1, 1)} \\implies x = ${x0}` },
       { text: `Check: at $x = ${x0}$ both arguments are positive, so it stands.` },
     ];
   },

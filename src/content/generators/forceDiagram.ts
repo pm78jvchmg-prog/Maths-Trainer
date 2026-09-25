@@ -24,6 +24,7 @@
 import type { Generator, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
 import { canonicalForces, type Direction, type ForceArrow, type ForceScene } from '../forces';
+import { aOrAn } from './format';
 
 type Side = 'left' | 'right';
 const other = (side: Side): Side => (side === 'left' ? 'right' : 'left');
@@ -96,7 +97,7 @@ function levelPick(rng: Rng): PickParams {
   if (kind === 'rest') {
     return {
       scene,
-      story: `A ${kg(m)} box rests on a rough floor. Nothing pushes or pulls it.`,
+      story: `${aOrAn(m, true)} ${kg(m)} box rests on a rough floor. Nothing pushes or pulls it.`,
       arrows: [
         weight(m),
         reaction,
@@ -110,7 +111,7 @@ function levelPick(rng: Rng): PickParams {
     const pull = rng.int(4, 40);
     return {
       scene,
-      story: `A ${kg(m)} box is pulled to the ${side} along a smooth floor by a horizontal force of ${inN(pull)}.`,
+      story: `${aOrAn(m, true)} ${kg(m)} box is pulled to the ${side} along a smooth floor by a horizontal force of ${inN(pull)}.`,
       arrows: [
         weight(m),
         reaction,
@@ -123,7 +124,7 @@ function levelPick(rng: Rng): PickParams {
   const smooth = kind === 'slideSmooth';
   return {
     scene,
-    story: `A ${kg(m)} box was pushed and let go. It is now sliding to the ${side} across a ${
+    story: `${aOrAn(m, true)} ${kg(m)} box was pushed and let go. It is now sliding to the ${side} across a ${
       smooth ? 'smooth' : 'rough'
     } floor, with nothing pushing it.`,
     arrows: [
@@ -165,7 +166,7 @@ function slopePick(rng: Rng): PickParams {
   if (kind === 'rest') {
     return {
       scene,
-      story: `A ${kg(m)} box rests on ${on}. The slope is rough.`,
+      story: `${aOrAn(m, true)} ${kg(m)} box rests on ${on}. The slope is rough.`,
       arrows: [
         weight(m),
         normal,
@@ -180,7 +181,7 @@ function slopePick(rng: Rng): PickParams {
     const smooth = kind === 'slideSmooth';
     return {
       scene,
-      story: `A ${kg(m)} box slides down ${on}. The slope is ${smooth ? 'smooth' : 'rough'}.`,
+      story: `${aOrAn(m, true)} ${kg(m)} box slides down ${on}. The slope is ${smooth ? 'smooth' : 'rough'}.`,
       arrows: [
         weight(m),
         normal,
@@ -201,7 +202,7 @@ function slopePick(rng: Rng): PickParams {
   if (kind === 'string') {
     return {
       scene,
-      story: `A ${kg(m)} box is held at rest on ${on} by a string parallel to the slope. The slope is smooth.`,
+      story: `${aOrAn(m, true)} ${kg(m)} box is held at rest on ${on} by a string parallel to the slope. The slope is smooth.`,
       arrows: [
         weight(m),
         normal,
@@ -216,7 +217,7 @@ function slopePick(rng: Rng): PickParams {
   const rough = kind === 'pullRough';
   return {
     scene,
-    story: `A ${kg(m)} box is pulled up ${on} by a force of ${inN(pull)} parallel to the slope. The slope is ${
+    story: `${aOrAn(m, true)} ${kg(m)} box is pulled up ${on} by a force of ${inN(pull)} parallel to the slope. The slope is ${
       rough ? 'rough' : 'smooth'
     }.`,
     arrows: [
@@ -248,7 +249,7 @@ function hangingPick(rng: Rng): PickParams {
   const rSide: Side = rng.pick(['left', 'right'] as const);
   return {
     scene: { surface: 'hanging' },
-    story: `A ${kg(m)} box ${story}. Nothing else touches it.`,
+    story: `${aOrAn(m, true)} ${kg(m)} box ${story}. Nothing else touches it.`,
     arrows: [
       weight(m),
       { id: 'up', label: 'T', acts: true, why: 'The string pulls up along itself: tension $T$.' },
@@ -372,7 +373,7 @@ const forceFill: Generator<FillParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `A ${kg(p.m)} box is pulled to the ${p.side} along a ${floor} floor by a horizontal force $P$ of ${inN(p.pull)}.${motion}`,
+          text: `${aOrAn(p.m, true)} ${kg(p.m)} box is pulled to the ${p.side} along a ${floor} floor by a horizontal force $P$ of ${inN(p.pull)}.${motion}`,
         },
         {
           kind: 'prose',

@@ -5502,7 +5502,8 @@ const fabsArmTiles: Generator<ArmParams4> = {
       );
     } else {
       steps.push(
-        { text: `$(-x)^2 = x^2$ and $${b}(-x) = ${-b}x$, and the number stays.` },
+        // No 1 in front: at b = 1 the x term simply becomes -x, and at b = -1 it is -(-x) = x.
+        { text: `$(-x)^2 = x^2$ and ${b === 1 ? '$x$ becomes $-x$' : `$${b === -1 ? '-' : b}(-x) = ${termTex(-b, 1)}$`}, and the number stays.` },
         { tex: `y = ${quadTex(1, -b, c)}` },
       );
     }
@@ -7831,7 +7832,8 @@ function subTex({ m, q }: Lin, x: number): string {
   if (m === 0) return `${q}`;
   const size = Math.abs(m) === 1 ? br(x) : `${Math.abs(m)} \\times ${br(x)}`;
   if (m < 0 && q > 0) return `${q} - ${size}`;
-  const head = m < 0 ? `-${size}` : size;
+  // A minus straight onto 0 is bracketed, as a negative number is: -(0), not -0.
+  const head = m < 0 ? `-${size === '0' ? '(0)' : size}` : size;
   return q === 0 ? head : `${head} ${signedTile(q)}`;
 }
 
@@ -8852,7 +8854,8 @@ function kTidyTex({ f, side, slope }: KParams): string {
     const lead = c === 1 ? 'k' : c === -1 ? '-k' : `${c}k`;
     return q === 0 ? lead : `${lead} ${signedTile(q)}`;
   }
-  return m === 0 ? 'k' : `${m * c} + k`;
+  // At a join at 0 the other term is gone: k, not 0 + k (whose sign slip would read -0 + k).
+  return m === 0 || c === 0 ? 'k' : `${m * c} + k`;
 }
 
 function sampleK(rng: Rng, difficulty: number): KParams {
@@ -8875,7 +8878,8 @@ function kSolution(p: KParams): SolutionStep[] {
     { text: `For $f$ to be continuous, both pieces must give the same value at $x = ${c}$.` },
     { text: `The ${p.side === 0 ? 'right' : 'left'} piece gives $${subTex(other, c)} = ${known}$.` },
     { tex: `${kTidyTex(p)} = ${known}` },
-    { tex: `k = ${kValue(p)}` },
+    // Already k = known when k stands alone, which is not written twice.
+    ...(kTidyTex(p) === 'k' ? [] : [{ tex: `k = ${kValue(p)}` }]),
   ];
 }
 

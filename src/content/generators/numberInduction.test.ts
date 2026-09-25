@@ -16,6 +16,7 @@ const {
   ODD_C,
   NAT_C,
   INEQ_ALL,
+  INEQ_WIDE,
   sumTerm,
   sumRight,
   sumTermTex,
@@ -115,7 +116,7 @@ describe('inequalities', () => {
     valueOf(ineqLeft(claim, `${n}`), {}) > valueOf(ineqRight(claim, `${n}`), {});
 
   it('puts the base case where the claim starts holding for good', () => {
-    for (const claim of INEQ_ALL) {
+    for (const claim of [...INEQ_ALL, ...INEQ_WIDE]) {
       const N = ineqStart(claim);
       expect(N, `${claim.shape} ${claim.b} ${claim.a}`).toBeGreaterThanOrEqual(2);
       expect(holds(claim, N - 1), `${claim.shape} ${claim.a} at ${N - 1}`).toBe(false);
@@ -126,7 +127,7 @@ describe('inequalities', () => {
   });
 
   it('writes the claim at k + 1 as the claim with k + 1 in place of n', () => {
-    for (const claim of INEQ_ALL) {
+    for (const claim of [...INEQ_ALL, ...INEQ_WIDE]) {
       for (let k = 1; k <= 6; k += 1) {
         const n = k + 1;
         expect(valueOf(ineqLeft(claim, 'k + 1'), { k })).toBe(valueOf(ineqLeft(claim, 'n'), { n }));
@@ -145,7 +146,7 @@ describe('inequalities', () => {
       powSq: (k) => 2 * k * k > (k + 1) ** 2,
       factSq: (k) => (k + 1) * k * k >= (k + 1) ** 2,
     };
-    for (const claim of INEQ_ALL) {
+    for (const claim of [...INEQ_ALL, ...INEQ_WIDE]) {
       for (let k = ineqStart(claim); k <= 15; k += 1) {
         expect(finish[claim.shape](k, claim.b, claim.a), `${claim.shape} ${claim.a} at k = ${k}`).toBe(true);
       }

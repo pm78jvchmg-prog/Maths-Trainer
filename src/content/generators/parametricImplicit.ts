@@ -2294,7 +2294,13 @@ const implChainTerm: Generator<ChainTermParams> = {
     const kind = rng.pick(kinds);
     // Harder draws reach further as well as taking a sign.
     const k = difficulty >= 2 ? rng.int(1, 9) * rng.sign() : rng.int(1, 6);
-    return { kind, k, n: rng.int(2, difficulty >= 2 ? 7 : 5) };
+    const n = rng.int(2, difficulty >= 2 ? 7 : 5);
+    // One that would read as a difficulty-1 term takes the other sign, so no
+    // harder draw is an easier question again. Only a power shows n, and
+    // difficulty 1 takes it up to 5.
+    const easyN = kind === 'power' || kind === 'xpower' ? n <= 5 : true;
+    const easy = difficulty >= 2 && kind !== 'ln' && k >= 1 && k <= 6 && easyN;
+    return { kind, k: easy ? -k : k, n };
   },
   render: (params): Slide => {
     const labels = chainTermOptions(params);
@@ -3082,7 +3088,7 @@ function stationarySolution(params: StationaryParams): SolutionStep[] {
   return [
     { text: 'Horizontal: the top of the gradient is zero.', tex: `${xyTex(top)} = 0` },
     { tex: lineTex(k, 1) },
-    { text: `Put $${lineTex(k, 1)}$ into the curve's equation.`, tex: `${S}x^{2} = ${stationaryRhs(params)}` },
+    { text: `Put $${lineTex(k, 1)}$ into the curve's equation.`, tex: `${coef(S)}x^{2} = ${stationaryRhs(params)}` },
     { tex: `x = \\pm ${x0}` },
     { text: `So the points are $${pair(x0, k * x0)}$ and $${pair(-x0, -k * x0)}$.` },
   ];
@@ -7938,7 +7944,7 @@ const implRateStill: Generator<StillParams> = {
       { text: `Differentiate with respect to $t$. In front of $${DXDT}$:`, tex: fx },
       { text: `and in front of $${DYDT}$:`, tex: fy },
       { text: `$${DYDT} = 0$ while $${DXDT}$ is not zero needs the first bracket to vanish.`, tex: `${fx} = 0, \\quad ${lineTex(k, 1)}` },
-      { text: `Put $${lineTex(k, 1)}$ into the curve's equation.`, tex: `${S}x^{2} = ${stationaryRhs(params)}, \\quad x = \\pm ${x0}` },
+      { text: `Put $${lineTex(k, 1)}$ into the curve's equation.`, tex: `${coef(S)}x^{2} = ${stationaryRhs(params)}, \\quad x = \\pm ${x0}` },
       { text: `So $y$ stands still at $${pair(x0, k * x0)}$ and $${pair(-x0, -k * x0)}$.` },
     ];
   },

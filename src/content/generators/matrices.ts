@@ -7091,12 +7091,16 @@ const invOffsetCoeffs: Generator<OffsetCoeffsParams> = {
   },
   solution: ({ m, g, row }) => {
     const [a, b, c, d] = m;
+    // Each coordinate before and after collecting, written once if collecting changes nothing.
+    const coordinate = (p: number, q: number) =>
+      [...new Set([termsTex([p, q], ['x', `(${slopeTex(g)} + c)`]), termsTex([p + q * g, q], ['x', 'c'])])].join(' = ');
     return [
       { text: `Multiply $(x, \\; ${slopeTex(g)} + c)$ by $\\mathbf{M}$. The ${row === 0 ? 'top' : 'bottom'} row gives $${row === 0 ? "x'" : "y'"}$.` },
-      { text: `$x' = ${a}x + ${br(b)}(${slopeTex(g)} + c) = ${a + b * g}x + ${br(b)}c$` },
-      { text: `$y' = ${c}x + ${br(d)}(${slopeTex(g)} + c) = ${c + d * g}x + ${br(d)}c$` },
+      { text: `$x' = ${coordinate(a, b)}$` },
+      { text: `$y' = ${coordinate(c, d)}$` },
+      { text: `So the numbers in front of $x$ and $c$ in $${row === 0 ? "x'" : "y'"}$ are $${row === 0 ? a + b * g : c + d * g}$ and $${row === 0 ? b : d}$.` },
       {
-        text: `For the line to be invariant, $y' = ${g}x' + c$ has to hold for every $x$. The $x$ terms give the same condition on the gradient as before, and the $c$ terms give $${d}c = ${g * b}c + c$.`,
+        text: `For the line to be invariant, $y' = ${slopeTex(g, "x'")} + c$ has to hold for every $x$. The $x$ terms give the same condition on the gradient as before, and the $c$ terms give $${termsTex([d], ['c'])} = ${termsTex([g * b, 1], ['c', 'c'])}$.`,
       },
     ];
   },

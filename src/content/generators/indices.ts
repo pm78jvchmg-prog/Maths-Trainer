@@ -274,9 +274,14 @@ const negativeIndex: Generator<{ a: number; c: number }> = {
       text: 'A negative exponent means one over the positive power. The sign of the exponent has nothing to do with the sign of the answer.',
     },
     { tex: `${termTex(c, -a)} = \\frac{${c}}{x^{${a}}}` },
-    {
-      text: `Note the coefficient stays on top. $${termTex(c, -a)}$ is $\\frac{${c}}{x^{${a}}}$, not $\\frac{1}{${c}x^{${a}}}$ — only the $x$ carried the negative index.`,
-    },
+    // At c = 1 there is no coefficient to drag down, and the warning would read 1/(1x^a).
+    ...(c === 1
+      ? []
+      : [
+          {
+            text: `Note the coefficient stays on top. $${termTex(c, -a)}$ is $\\frac{${c}}{x^{${a}}}$, not $\\frac{1}{${c}x^{${a}}}$ — only the $x$ carried the negative index.`,
+          },
+        ]),
   ],
 };
 
@@ -414,15 +419,16 @@ const multiplySurds: Generator<{ a: number; b: number }> = {
   solution: ({ a, b }) => {
     const { k, m } = surdParts(a * b);
     // The product can hold a square factor, and the question says simplify.
+    // When it is a perfect square outright, the root is a whole number.
     const simplify: SolutionStep[] =
       k === 1
         ? []
-        : [
-            { text: `$${a * b}$ has the square factor $${k * k}$, which comes out as its root:` },
-            {
-              tex: `\\sqrt{${a * b}} = ${m === 1 ? surdTex(a * b) : `\\sqrt{${k * k}} \\times \\sqrt{${m}} = ${surdTex(a * b)}`}`,
-            },
-          ];
+        : m === 1
+          ? [{ text: `$${a * b}$ is a perfect square:` }, { tex: `\\sqrt{${a * b}} = ${k}` }]
+          : [
+              { text: `$${a * b}$ has the square factor $${k * k}$, which comes out as its root:` },
+              { tex: `\\sqrt{${a * b}} = \\sqrt{${k * k}} \\times \\sqrt{${m}} = ${surdTex(a * b)}` },
+            ];
     return [
       { text: 'Roots multiply straight across: the product of the roots is the root of the product.' },
       { tex: `\\sqrt{${a}} \\times \\sqrt{${b}} = \\sqrt{${a} \\times ${b}} = \\sqrt{${a * b}}` },

@@ -93,28 +93,23 @@ export const differentiation: Course = {
             teach(
               {
                 kind: 'prose',
-                text: 'Two special cases fall straight out of the rule. Since $x = x^{1}$, differentiating gives $1x^{0}$, which is just $1$. And a constant is $ax^{0}$, so its derivative is $0$ — a flat line has no gradient.',
-              },
-              { kind: 'display', tex: '\\frac{d}{dx}(2x) = 2 \\qquad \\frac{d}{dx}(c) = 0' },
-              {
-                kind: 'prose',
-                text: 'A polynomial is differentiated one term at a time, each by the power rule. A derivative is a function in its own right, so a number can then be put into it: that gives the gradient at that one point.',
-              },
-              { kind: 'display', tex: 'f(x) = x^{3} + 6x^{2} + 2x' },
-              { kind: 'display', tex: "f'(x) = 3x^{2} + 12x + 2" },
-              {
-                kind: 'display',
-                tex: "\\begin{aligned} f'(1) &= 3(1)^{2} + 12(1) + 2 \\\\ &= 3 + 12 + 2 = 17 \\end{aligned}",
+                text: 'Since $x = x^{1}$, the rule turns $2x$ into $2x^{0} = 2$. A constant is $ax^{0}$, so its derivative is $0$.',
               },
               {
                 kind: 'prose',
-                text: 'Differentiate first, then substitute. A minus sign stays with its term, and a negative $x$ is squared before anything multiplies it:',
+                text: 'A polynomial is differentiated term by term. Then a number can be put into the derivative, for the gradient at that point:',
               },
-              { kind: 'display', tex: 'f(x) = 2x^{3} - x^{2} + 9x' },
-              { kind: 'display', tex: "f'(x) = 6x^{2} - 2x + 9" },
               {
                 kind: 'display',
-                tex: "\\begin{aligned} f'(-2) &= 6(-2)^{2} - 2(-2) + 9 \\\\ &= 24 + 4 + 9 = 37 \\end{aligned}",
+                tex: "\\begin{aligned} f(x) &= x^{3} + 6x^{2} + 2x \\\\ f'(x) &= 3x^{2} + 12x + 2 \\\\ f'(1) &= 3 + 12 + 2 = 17 \\end{aligned}",
+              },
+              {
+                kind: 'prose',
+                text: 'A minus sign stays with its term, and a negative $x$ is squared first:',
+              },
+              {
+                kind: 'display',
+                tex: "\\begin{aligned} f(x) &= 2x^{3} - x^{2} + 9x \\\\ f'(x) &= 6x^{2} - 2x + 9 \\\\ f'(-2) &= 6(-2)^{2} - 2(-2) + 9 \\\\ &= 24 + 4 + 9 = 37 \\end{aligned}",
               },
             ),
             ask('evaluate-derivative'),
@@ -220,14 +215,13 @@ export const differentiation: Course = {
                 kind: 'prose',
                 text: 'Because the derivative is itself a function of $x$, you can ask for the gradient at a particular point by substituting a value in afterwards.',
               },
-              { kind: 'display', tex: "f(x) = x^{2} \\implies f'(x) = 2x \\implies f'(3) = 6" },
               {
-                kind: 'prose',
-                text: 'The order matters. Differentiate first, then substitute. Putting $x = 3$ in first gives the constant $9$, whose derivative is $0$ — a number has no gradient, so the information you wanted is destroyed before you can ask for it.',
+                kind: 'display',
+                tex: "\\begin{aligned} f(x) &= x^{2} \\\\ f'(x) &= 2x \\\\ f'(3) &= 6 \\end{aligned}",
               },
               {
                 kind: 'prose',
-                text: 'Read the answer as a rate: at $x = 3$ the curve $y = x^{2}$ is climbing six units of height for every one across. The tangent there has gradient $6$, and a moment later the gradient is something else.',
+                text: 'Differentiate first, then substitute. Putting $x = 3$ in first gives the constant $9$, whose derivative is $0$.',
               },
               // f(x) = x^2, tangent at x = 3 has gradient 6 — the exact
               // numbers the paragraph above just computed.
@@ -245,19 +239,11 @@ export const differentiation: Course = {
               }),
               {
                 kind: 'prose',
-                text: 'The dashed line is that tangent, touching the curve only at the ringed point $(3, 9)$ — its slope is the $6$ just calculated.',
-              },
-              {
-                kind: 'prose',
-                text: 'The sign carries meaning too. A negative derivative means the curve is falling at that point, and a derivative of zero means it is momentarily flat — which is how stationary points are found.',
-              },
-              {
-                kind: 'prose',
-                text: 'A negative $x$ is squared on its own first, which makes it positive. With $f\'(x) = 6x^{2} - 14x$:',
+                text: 'The dashed tangent at $(3, 9)$ has slope $6$. A negative $x$ is squared on its own first: with $f\'(x) = 6x^{2} - 14x$,',
               },
               {
                 kind: 'display',
-                tex: "\\begin{aligned} &f'(-2) \\\\ &= 6 \\times (-2)^{2} \\\\ &\\quad + (-14) \\times (-2) \\\\ &= 24 + 28 = 52 \\end{aligned}",
+                tex: "\\begin{aligned} f'(-2) &= 6(-2)^{2} - 14(-2) \\\\ &= 24 + 28 = 52 \\end{aligned}",
               },
             ),
             ask('df-evaluate-steps'),
@@ -342,20 +328,16 @@ export const differentiation: Course = {
             teach(
               {
                 kind: 'prose',
-                text: 'A tangent is a straight line, and a straight line is fixed by a gradient and a point on it. The derivative supplies the gradient; the curve itself supplies the point.',
+                text: 'A tangent is a straight line: differentiate and put the $x$-value in for its gradient $m$, and put the same value into the curve for its point.',
               },
               { kind: 'display', tex: 'y - y_{1} = m\\left(x - x_{1}\\right)' },
-              {
-                kind: 'prose',
-                text: 'Three steps, always in this order: differentiate to get the gradient function, substitute the given $x$-value into it for $m$, then substitute the same value into the original curve for the point.',
-              },
               {
                 kind: 'prose',
                 text: 'Worked in full: for $f(x) = x^{2} + 1$ at $x = 2$, the derivative is $f\'(x) = 2x$, so $m = 4$. The point is $f(2) = 5$, giving $(2, 5)$.',
               },
               {
                 kind: 'display',
-                tex: 'y - 5 = 4\\left(x - 2\\right) \\implies y = 4x - 3',
+                tex: '\\begin{aligned} y - 5 &= 4\\left(x - 2\\right) \\\\ y &= 4x - 3 \\end{aligned}',
               },
               graph({
                 xMin: -1,
@@ -371,11 +353,7 @@ export const differentiation: Course = {
               }),
               {
                 kind: 'prose',
-                text: 'The dashed line is that tangent, touching the curve only at the ringed point $(2, 5)$.',
-              },
-              {
-                kind: 'prose',
-                text: 'A negative $x$ works the same way; watch the signs when the point goes into the bracket. For $y = x^{2} + 8x$ at $x = -3$: $\\frac{dy}{dx} = 2x + 8$, so $m = 2$, and $y = 9 - 24 = -15$.',
+                text: 'A negative $x$ works the same way; watch the signs in the bracket. For $y = x^{2} + 8x$ at $x = -3$: $\\frac{dy}{dx} = 2x + 8$, so $m = 2$, and $y = 9 - 24 = -15$.',
               },
               {
                 kind: 'display',
@@ -394,7 +372,7 @@ export const differentiation: Course = {
                 kind: 'prose',
                 text: 'The other is using the curve\'s height as if it were the gradient. A quick check catches both: the point you found must actually satisfy the line you write down.',
               },
-              { kind: 'display', tex: "m = f'(x_{1}) \\qquad c = f(x_{1}) - m x_{1}" },
+              { kind: 'display', tex: "\\begin{aligned} m &= f'(x_{1}) \\\\ c &= f(x_{1}) - m x_{1} \\end{aligned}" },
               {
                 kind: 'prose',
                 text: 'With a number in front of $x^{2}$: for $y = -x^{2} + 3x + 12$ at $x = -1$, $\\frac{dy}{dx} = -2x + 3$, so $m = 5$. The height is $-1 - 3 + 12 = 8$.',
@@ -563,11 +541,7 @@ export const differentiation: Course = {
               },
               {
                 kind: 'prose',
-                text: 'The numerator starts with the derivative of the top. Swapping those two terms is the most common slip.',
-              },
-              {
-                kind: 'prose',
-                text: 'Swapping them negates the whole answer, which is a hard error to spot afterwards because the expression still looks plausible. "Derivative of the top first" is the phrase worth fixing in memory.',
+                text: 'The numerator starts with the derivative of the top. Swapping those two terms negates the whole answer, and is the most common slip.',
               },
               {
                 kind: 'prose',
@@ -853,41 +827,7 @@ export const differentiation: Course = {
               },
               {
                 kind: 'display',
-                tex: '\\frac{d}{dx}\\sin x = \\cos x \\qquad \\frac{d}{dx}\\cos x = -\\sin x',
-              },
-              {
-                kind: 'prose',
-                text: 'The minus sign on cosine is not arbitrary: at $x = 0$ the cosine curve is at its peak and about to fall, so its gradient must be negative just after.',
-              },
-              {
-                kind: 'prose',
-                text: 'The same reasoning fixes the other one. At $x = 0$ the sine curve is climbing at its steepest, and $\\cos 0 = 1$ is exactly that gradient — the largest value cosine ever takes.',
-              },
-              {
-                kind: 'prose',
-                text: 'If the sign will not stay in memory, sketch the curve and read the gradient off it. That takes a few seconds and is more reliable than a mnemonic.',
-              },
-              // cos peaks at x = 0; sin passes through 0 there with gradient
-              // cos(0) = 1, its steepest — the two claims just made.
-              graph({
-                xMin: -3.2,
-                xMax: 4.2,
-                curves: [
-                  { f: Math.cos, accent: true },
-                  { f: Math.sin, dashed: true },
-                ],
-                verticals: [{ x: 0 }],
-                marks: [
-                  { x: 0, y: 1 },
-                  { x: 0, y: 0 },
-                ],
-                yMin: -1.3,
-                yMax: 1.3,
-                label: 'cos x and sin x near x = 0',
-              }),
-              {
-                kind: 'prose',
-                text: 'The solid curve is $\\cos x$, at its peak exactly at $x = 0$. The dashed curve is $\\sin x$, crossing $0$ there as steeply as it ever climbs.',
+                tex: '\\begin{aligned} \\frac{d}{dx}\\sin x &= \\cos x \\\\ \\frac{d}{dx}\\cos x &= -\\sin x \\end{aligned}',
               },
               {
                 kind: 'prose',
@@ -934,15 +874,32 @@ export const differentiation: Course = {
                 kind: 'prose',
                 text: 'Differentiating four times returns you to the original function, which is why sine and cosine describe things that oscillate forever.',
               },
-              { kind: 'display', tex: '\\sin x \\to \\cos x \\to -\\sin x \\to -\\cos x \\to \\sin x' },
               {
-                kind: 'prose',
-                text: 'Two steps in, the function has become its own negative. That is the signature of oscillation: acceleration always pointing back towards the middle, which is exactly what a pendulum or a spring does.',
+                kind: 'display',
+                tex: '\\begin{aligned} \\sin x &\\to \\cos x \\to -\\sin x \\\\ &\\to -\\cos x \\to \\sin x \\end{aligned}',
               },
               {
                 kind: 'prose',
-                text: 'Compare it with $e^{x}$, which returns to itself after *one* step and therefore grows rather than oscillates. The length of the cycle is what decides the behaviour.',
+                text: 'The minus sign on cosine is not arbitrary: at $x = 0$ the cosine curve (solid) is at its peak and about to fall, so its gradient must be negative just after. The sine curve (dashed) climbs steepest there, at gradient $\\cos 0 = 1$.',
               },
+              // cos peaks at x = 0; sin passes through 0 there with gradient
+              // cos(0) = 1, its steepest — the two claims just made.
+              graph({
+                xMin: -3.2,
+                xMax: 4.2,
+                curves: [
+                  { f: Math.cos, accent: true },
+                  { f: Math.sin, dashed: true },
+                ],
+                verticals: [{ x: 0 }],
+                marks: [
+                  { x: 0, y: 1 },
+                  { x: 0, y: 0 },
+                ],
+                yMin: -1.3,
+                yMax: 1.3,
+                label: 'cos x and sin x near x = 0',
+              }),
             ),
             askAfter(
               [
@@ -967,35 +924,9 @@ export const differentiation: Course = {
                 text: '$e^{x}$ is the function that is its own derivative. Its gradient at every point equals its height at that point, which is what makes $e$ the natural base.',
               },
               { kind: 'display', tex: '\\frac{d}{dx}e^{x} = e^{x}' },
-              // Tangents at x = 0 and x = 1: slope matches height at both,
-              // which is the claim the paragraph above just made.
-              graph({
-                xMin: -2,
-                xMax: 1.8,
-                curves: [
-                  { f: Math.exp },
-                  { f: (x) => x + 1, dashed: true, accent: true },
-                  { f: (x) => Math.E * x, dashed: true, accent: true },
-                ],
-                marks: [
-                  { x: 0, y: 1 },
-                  { x: 1, y: Math.E },
-                ],
-                yMin: -1,
-                yMax: 6,
-                label: 'y = e^x with tangents at x = 0 and x = 1',
-              }),
               {
                 kind: 'prose',
-                text: 'At $x = 0$ the curve has height $1$ and the tangent there has slope $1$; at $x = 1$ the height is $e \\approx 2.72$ and so is the slope. Height and gradient never separate.',
-              },
-              {
-                kind: 'prose',
-                text: 'That property is what $e$ is *for*. Other bases very nearly work: $2^{x}$ differentiates to about $0.69 \\times 2^{x}$, and $3^{x}$ to about $1.10 \\times 3^{x}$. Somewhere between $2$ and $3$ the stray constant is exactly $1$, and that number is $e$.',
-              },
-              {
-                kind: 'prose',
-                text: 'The power rule does not apply here. In $x^{2}$ the variable is the base, in $e^{x}$ it is the exponent, and bringing the power down would be answering a different question.',
+                text: 'The power rule does not apply: in $e^{x}$ the variable is the exponent, not the base.',
               },
               {
                 kind: 'prose',
@@ -1058,11 +989,32 @@ export const differentiation: Course = {
                 kind: 'prose',
                 text: 'Most real expressions need more than one rule, nested. $x^{2}\\sin(3x)$ is a product whose second factor needs the chain rule, so both are used, outermost first.',
               },
-              { kind: 'display', tex: '\\frac{d}{dx}\\left(x^{2}\\sin 3x\\right) = 2x\\sin 3x + 3x^{2}\\cos 3x' },
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} &\\frac{d}{dx}\\left(x^{2}\\sin 3x\\right) \\\\ &= 2x\\sin 3x + 3x^{2}\\cos 3x \\end{aligned}',
+              },
               {
                 kind: 'prose',
-                text: 'Differentiating is mechanical in a way that integrating is not: follow the structure and the answer comes out. That reliability is what makes it worth drilling until it is automatic.',
+                text: 'And $e^{x}$ is special because its gradient equals its height everywhere: at $x = 0$ both are $1$, at $x = 1$ both are $e \\approx 2.72$.',
               },
+              // Tangents at x = 0 and x = 1: slope matches height at both,
+              // which is the claim the paragraph above just made.
+              graph({
+                xMin: -2,
+                xMax: 1.8,
+                curves: [
+                  { f: Math.exp },
+                  { f: (x) => x + 1, dashed: true, accent: true },
+                  { f: (x) => Math.E * x, dashed: true, accent: true },
+                ],
+                marks: [
+                  { x: 0, y: 1 },
+                  { x: 1, y: Math.E },
+                ],
+                yMin: -1,
+                yMax: 6,
+                label: 'y = e^x with tangents at x = 0 and x = 1',
+              }),
             ),
             // The last three slides of the lesson: every rule has now been
             // taught, so the closing questions are about choosing between
@@ -1260,28 +1212,19 @@ export const differentiation: Course = {
               prose(
                 'Differentiating the derivative gives the **second derivative**, written $f\'\'(x)$ or $\\frac{d^{2}y}{dx^{2}}$. It measures how fast the gradient itself is changing.',
               ),
-              { kind: 'display', tex: 'y = x^{3} - 3x^{2}' },
-              { kind: 'display', tex: '\\frac{dy}{dx} = 3x^{2} - 6x' },
-              { kind: 'display', tex: '\\frac{d^{2}y}{dx^{2}} = 6x - 6' },
-              prose(
-                'Nothing new is needed: the same rules, used twice. A fraction is rewritten as a negative power first, and its sign changes on each pass:',
-              ),
-              { kind: 'display', tex: 'y = 2x^{2} + \\frac{7}{x} = 2x^{2} + 7x^{-1}' },
-              { kind: 'display', tex: '\\frac{dy}{dx} = 4x - 7x^{-2}' },
               {
                 kind: 'display',
-                tex: '\\frac{d^{2}y}{dx^{2}} = 4 + 14x^{-3} = 4 + \\frac{14}{x^{3}}',
+                tex: '\\begin{aligned} y &= x^{3} - 3x^{2} \\\\ \\frac{dy}{dx} &= 3x^{2} - 6x \\\\ \\frac{d^{2}y}{dx^{2}} &= 6x - 6 \\end{aligned}',
               },
               prose(
-                'The power went $-1$, then $-2$, then $-3$; the $7$ became $-7$, then $(-7)(-2) = 14$. An exponential or a sine brings its inside number down on each pass, and $\\sin$ to $\\cos$ and back picks up one minus sign:',
+                'Nothing new is needed: the same rules, used twice. A fraction becomes a negative power first, and its sign changes on each pass:',
               ),
               {
                 kind: 'display',
-                tex: '\\begin{aligned} 7e^{2x} &\\to 14e^{2x} \\\\ &\\to 28e^{2x} \\\\ 7\\sin(2x) &\\to 14\\cos(2x) \\\\ &\\to -28\\sin(2x) \\\\ 6\\cos(3x) &\\to -18\\sin(3x) \\\\ &\\to -54\\cos(3x) \\end{aligned}',
+                tex: '\\begin{aligned} y &= 2x^{2} + 7x^{-1} \\\\ \\frac{dy}{dx} &= 4x - 7x^{-2} \\\\ \\frac{d^{2}y}{dx^{2}} &= 4 + 14x^{-3} \\end{aligned}',
               },
             ),
             ask('df-second-derivative'),
-            ask('df-second-derivative+choice', 2),
             ask('df-sp-roots'),
             teach(
               prose(
@@ -1317,9 +1260,17 @@ export const differentiation: Course = {
               prose(
                 '$y = x^{4}$ and $y = x^{3}$ both have $f\'(0) = 0$ and $f\'\'(0) = 0$, yet the first has a minimum there and the second does not. The next lesson has a test that always works.',
               ),
+              prose(
+                'Second derivatives of $e^{kx}$, $\\sin$ and $\\cos$ bring $k$ down on each pass, and $\\sin$ to $\\cos$ and back picks up one minus sign:',
+              ),
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} 7e^{2x} &\\to 14e^{2x} \\to 28e^{2x} \\\\ 7\\sin 2x &\\to 14\\cos 2x \\\\ &\\to -28\\sin 2x \\\\ 6\\cos 3x &\\to -18\\sin 3x \\\\ &\\to -54\\cos 3x \\end{aligned}',
+              },
             ),
             ask('df-nature-flow', 2),
             ask('df-sp-y+choice', 2),
+            ask('df-second-derivative+choice', 2),
           ],
           skillCheck: [ask('df-second-derivative', 2), ask('df-second-at'), ask('df-nature-flow', 2)],
         },
@@ -2269,25 +2220,11 @@ export const differentiation: Course = {
               ),
               { kind: 'display', tex: '\\frac{dA}{dx} = 20 - 2x = 0' },
               prose('So $x = 10$ and $A = 10 \\times 10 = 100$: the best rectangle is a square.'),
-              prose('A bracket that is squared is multiplied out first. For the box, square the bracket, then multiply by $x$:'),
+              prose('For the box $V = x(30 - 2x)^{2}$, square the bracket, multiply by $x$, then differentiate:'),
               {
                 kind: 'display',
-                tex: '\\begin{aligned} &(30 - 2x)^{2} \\\\ &= 900 - 120x + 4x^{2} \\\\ &V = 4x^{3} - 120x^{2} + 900x \\end{aligned}',
+                tex: '\\begin{aligned} &(30 - 2x)^{2} \\\\ &\\quad = 900 - 120x + 4x^{2} \\\\ &V = 4x^{3} - 120x^{2} + 900x \\\\ &\\frac{dV}{dx} = 12x^{2} - 240x + 900 \\\\ &\\phantom{\\frac{dV}{dx}} = 12(x^{2} - 20x + 75) \\\\ &\\phantom{\\frac{dV}{dx}} = 12(x - 5)(x - 15) \\end{aligned}',
               },
-              {
-                kind: 'display',
-                tex: '\\begin{aligned} \\frac{dV}{dx} &= 12x^{2} - 240x + 900 \\\\ &= 12(x^{2} - 20x + 75) \\\\ &= 12(x - 5)(x - 15) \\end{aligned}',
-              },
-              graph({
-                xMin: -0.5,
-                xMax: 16,
-                yMin: -150,
-                yMax: 2300,
-                curves: [{ f: (x) => x * (30 - 2 * x) ** 2 }],
-                verticals: [{ x: 0, dashed: false }],
-                marks: [{ x: 5, y: 2000 }],
-                label: 'The volume of the box against x, peaking at x = 5',
-              }),
               prose(
                 'At $x = 15$ the base is $0$ wide and there is no box, so the best is $x = 5$: a base $20$ cm wide and $V = 5 \\times 20^{2} = 2000$ $\\text{cm}^{3}$.',
               ),

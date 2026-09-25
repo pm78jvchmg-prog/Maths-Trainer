@@ -373,3 +373,51 @@ describe('a noisy point up to a constant', () => {
     expect(check('abs(x)', 'x', upToConstant)).toBe('incorrect');
   });
 });
+
+/**
+ * The arbitrary constant used to be bound to 0, so any term it multiplied
+ * vanished: `x^2/2 + C*x` probed as `x^2/2` and passed as the integral of x.
+ */
+describe('the arbitrary constant in upToConstant', () => {
+  const upToConstant: CheckOptions = { mode: 'upToConstant' };
+
+  it('forgives an added constant', () => {
+    expect(check('x^2/2 + C', 'x^2/2', upToConstant)).toBe('correct');
+    expect(check('x^2/2', 'x^2/2 + C', upToConstant)).toBe('correct');
+  });
+
+  it('rejects C multiplying a term that varies', () => {
+    expect(check('x^2/2 + C*x', 'x^2/2', upToConstant)).toBe('incorrect');
+    expect(check('C*x^2/2', 'x^2/2', upToConstant)).toBe('incorrect');
+    expect(check('x^2/2 + C*sin(x)', 'x^2/2', upToConstant)).toBe('incorrect');
+  });
+
+  it('accepts any expression in C alone, since that is still just a constant', () => {
+    // 2C, C^2 and ln(C) name a constant as arbitrary as C itself.
+    expect(check('x^2/2 + 2C', 'x^2/2', upToConstant)).toBe('correct');
+    expect(check('x^2/2 + C^2', 'x^2/2', upToConstant)).toBe('correct');
+    expect(check('ln(x) + ln(C)', 'ln(x)', upToConstant)).toBe('correct');
+  });
+});
+
+/**
+ * mathjs reads `2e-1` as 0.2. On the keypad e is Euler's number, so the
+ * learner's `2e-1` must be read as 2e - 1, never as a power of ten.
+ */
+describe('a digit typed before e', () => {
+  it('is read as a product with e, not as scientific notation', () => {
+    expect(check('2e-1', '2*e - 1')).toBe('correct');
+    expect(check('2e-1', '0.2')).toBe('incorrect');
+    expect(check('2e+1', '2*e + 1')).toBe('correct');
+    expect(check('2e3', '6*e')).toBe('correct');
+    expect(check('2e3', '2000')).toBe('incorrect');
+    expect(check('1.5e-1', '1.5*e - 1')).toBe('correct');
+    expect(check('2e-x', '2*e - x')).toBe('correct');
+  });
+
+  it('leaves e written apart from a digit alone', () => {
+    expect(check('e-1', 'e - 1')).toBe('correct');
+    expect(check('2e', '2*e')).toBe('correct');
+    expect(check('e^(2)-1', 'e^2 - 1')).toBe('correct');
+  });
+});

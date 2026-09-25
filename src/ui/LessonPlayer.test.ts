@@ -151,6 +151,26 @@ describe('the skill check', () => {
   });
 });
 
+describe('the question dots', () => {
+  it('fill a past question only if it scored', () => {
+    const threeQuestions: Lesson = {
+      id: 'player-test-dots',
+      title: 'Player test dots',
+      assessment: true,
+      slides: [],
+      skillCheck: [choice(CHECK_1, 'no'), choice(CHECK_2, 'yes'), choice(FIRST, 'no')],
+    };
+    play(threeQuestions);
+    answer('Yes'); // wrong
+    tap('Continue');
+    answer('Yes'); // right
+    tap('Continue');
+
+    const dots = [...document.querySelectorAll('.dot')].map((dot) => dot.className);
+    expect(dots).toEqual(['dot missed', 'dot done', 'dot active']);
+  });
+});
+
 describe('leaving', () => {
   it('asks before a level check is abandoned, and staying keeps the question', () => {
     const { onExit } = play(levelCheck);

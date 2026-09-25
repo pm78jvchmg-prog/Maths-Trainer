@@ -306,8 +306,18 @@ button {
   background: var(--surface-raised);
 }
 
+/* A past question that scored. */
 .dot.done {
   background: var(--correct);
+}
+
+/* A past question that did not score: a quiet hollow ring rather than a red
+   dot, and hollow against filled so the two differ in shape as well as
+   colour. Every past level-check question used to be mint, so a wrong answer
+   sat green in the header once the check moved on. */
+.dot.missed {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--text-dim);
 }
 
 /* The question being asked, in the accent rather than mint: mint means right,

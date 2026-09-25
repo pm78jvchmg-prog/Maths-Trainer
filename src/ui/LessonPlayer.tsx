@@ -224,14 +224,22 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
             aria-label={`Question ${session.index + 1} of ${deck.length}`}
             style={{ '--count': deck.length } as CSSProperties}
           >
-            {deck.map((_, idx) => (
-              <span
-                key={idx}
-                className={`dot${idx < session.index ? ' done' : ''}${
-                  idx === session.index ? ' active' : ''
-                }`}
-              />
-            ))}
+            {/* A past question is mint only if it scored, the same test as the
+                summary's count (`firstTry`); one that did not is a hollow ring,
+                so the difference is not carried by colour alone. Nothing here
+                says more than the verdict bar already did. */}
+            {deck.map((item, idx) => {
+              const past = idx < session.index;
+              const scored = past && session.states[item.id]?.firstTry === true;
+              return (
+                <span
+                  key={idx}
+                  className={`dot${past ? (scored ? ' done' : ' missed') : ''}${
+                    idx === session.index ? ' active' : ''
+                  }`}
+                />
+              );
+            })}
           </div>
         ) : (
           <div

@@ -81,7 +81,7 @@ export const NEW_COURSES: NewCourse[] = [
     blurb: 'Roots and areas pinned down by sign changes, iteration, tangents and trapezia.',
     category: 'advanced-algebra',
     position: 50,
-    levels: ['nm-l1', 'nm-l2'],
+    levels: ['nm-l1', 'nm-l2', 'nm-l8'],
   },
   {
     id: 'roots-of-polynomials',

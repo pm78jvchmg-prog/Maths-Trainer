@@ -287,3 +287,19 @@ Generators in `src/content/generators/contestModular.ts`.
 | Euler's Theorem | `cm-md-fermat`, `cm-md-cycle-table`, `cm-md-euler-tower`, `cm-md-phi` | cut the power down by p − 1, or by φ(n) for a composite modulus; the cycle's length divides p − 1; cut a tower's top down by p − 1 first; φ(n) keeps the same share for each prime |
 
 Level check: 13 questions across all four lessons.
+
+## Level 18: Synthetic Geometry (`cm-l18`)
+
+Generators in `src/content/generators/contestSyntheticGeometry.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Pythagorean Theorem | `cm-sg-british-flag`, `cm-sg-broken-pole`, `cm-sg-pole-tiles`, `cm-sg-unfold` | opposite corners' squares add to the same; the fallen part is the hypotenuse and the squares cancel; unfold the faces, or unroll the cylinder, and the path is straight |
+| Triangle Areas | `cm-sg-heron`, `cm-sg-heron-table`, `cm-sg-inradius`, `cm-sg-extended-sides` | Heron from three sides; the longest side has the shortest height; area is r times half the perimeter, and any inside point splits it the same way; triangles on equal bases under one height have equal area |
+| Similar Triangles | `cm-sg-inscribed-square`, `cm-sg-angle-similar`, `cm-sg-angle-similar-tiles`, `cm-sg-parallel-area` | the triangle above the square is similar; one equal angle plus a shared one makes AB squared equal AD times AC; areas go by the square of the ratio to the whole side |
+| Angle Bisector Theorem | `cm-sg-bisector-split`, `cm-sg-bisector-length`, `cm-sg-bisector-tiles`, `cm-sg-incentre-ratio` | the bisector splits the far side as the near sides; AD squared is AB times AC less BD times DC; the incentre cuts AD in the ratio (AB + AC) to BC |
+| Power of a Point | `cm-sg-chords`, `cm-sg-secants`, `cm-sg-power-radius`, `cm-sg-power-table` | every chord through P has the same product of pieces; from outside, measure both lengths from P, and a tangent squared is that product; the diameter gives (r - d)(r + d) |
+| Cyclic Quadrilaterals | `cm-sg-cyclic-angles`, `cm-sg-cyclic-table`, `cm-sg-ptolemy`, `cm-sg-brahmagupta` | angles on one arc are equal and opposite angles add to 180; the diagonals multiply to the sum of opposite products; Brahmagupta is Heron for four sides, and with a circle inside it is the square root of abcd |
+| Circles | `cm-sg-pitot`, `cm-sg-tangent-table`, `cm-sg-parallel-chords`, `cm-sg-tangent-angle` | two tangents from a point are equal, so opposite sides add to the same; half-chord, distance and radius make a right triangle; the angle at the centre is 180 less the angle between the tangents |
+
+Level check: 14 questions across all seven lessons.

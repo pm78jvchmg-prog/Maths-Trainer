@@ -89,16 +89,46 @@ export const differentiation: Course = {
             ),
             ask('power-rule'),
             ask('df-power-tiles'),
-            ask('power-rule+choice'),
+            ask('df-power-tiles', 2),
+            teach(
+              {
+                kind: 'prose',
+                text: 'Two special cases fall straight out of the rule. Since $x = x^{1}$, differentiating gives $1x^{0}$, which is just $1$. And a constant is $ax^{0}$, so its derivative is $0$ — a flat line has no gradient.',
+              },
+              { kind: 'display', tex: '\\frac{d}{dx}(2x) = 2 \\qquad \\frac{d}{dx}(c) = 0' },
+              {
+                kind: 'prose',
+                text: 'A polynomial is differentiated one term at a time, each by the power rule. A derivative is a function in its own right, so a number can then be put into it: that gives the gradient at that one point.',
+              },
+              { kind: 'display', tex: 'f(x) = x^{3} + 6x^{2} + 2x' },
+              { kind: 'display', tex: "f'(x) = 3x^{2} + 12x + 2" },
+              {
+                kind: 'display',
+                tex: "\\begin{aligned} f'(1) &= 3(1)^{2} + 12(1) + 2 \\\\ &= 3 + 12 + 2 = 17 \\end{aligned}",
+              },
+              {
+                kind: 'prose',
+                text: 'Differentiate first, then substitute. A minus sign stays with its term, and a negative $x$ is squared before anything multiplies it:',
+              },
+              { kind: 'display', tex: 'f(x) = 2x^{3} - x^{2} + 9x' },
+              { kind: 'display', tex: "f'(x) = 6x^{2} - 2x + 9" },
+              {
+                kind: 'display',
+                tex: "\\begin{aligned} f'(-2) &= 6(-2)^{2} - 2(-2) + 9 \\\\ &= 24 + 4 + 9 = 37 \\end{aligned}",
+              },
+            ),
+            ask('evaluate-derivative'),
+            ask('df-evaluate-steps'),
+            ask('evaluate-derivative', 2),
             teach(
               {
                 kind: 'prose',
                 text: 'The rule does not care whether the power is large, or negative. A negative power still comes down as a multiplier and still decreases by one — which makes it more negative.',
               },
-              { kind: 'display', tex: '\\frac{d}{dx}\\left(x^{-2}\\right) = -2x^{-3}' },
+              { kind: 'display', tex: '\\frac{d}{dx}\\left(3x^{-2}\\right) = 3 \\times (-2)x^{-3} = -6x^{-3}' },
               {
                 kind: 'prose',
-                text: 'Watch the sign: differentiating $x^{-2}$ gives a negative result, because increasing $x$ makes $x^{-2}$ smaller.',
+                text: 'Watch the sign: differentiating $x^{-2}$ gives a negative result, because increasing $x$ makes $x^{-2}$ smaller. And the power goes from $-2$ to $-3$, never to $-1$.',
               },
               {
                 kind: 'prose',
@@ -110,32 +140,7 @@ export const differentiation: Course = {
                 text: 'Converting to index form before differentiating is almost always the right first move. A root or a fraction that has not been rewritten is where most power-rule questions go wrong.',
               },
             ),
-            ask('df-power-tiles', 2),
-            askAfter(
-              [
-                prose(
-                  'A derivative is a function in its own right, so a number can be put into it. Doing that gives the gradient at that one point rather than everywhere.',
-                ),
-              ],
-              'evaluate-derivative',
-            ),
-            ask('df-evaluate-steps'),
-            teach(
-              {
-                kind: 'prose',
-                text: 'Two special cases fall straight out of the rule. Since $x = x^{1}$, differentiating gives $1x^{0}$, which is just $1$. And a constant is $ax^{0}$, so its derivative is $0$ — a flat line has no gradient.',
-              },
-              { kind: 'display', tex: '\\frac{d}{dx}(x) = 1 \\qquad \\frac{d}{dx}(c) = 0' },
-              {
-                kind: 'prose',
-                text: 'Both agree with the picture. $y = x$ is a straight line of gradient $1$ everywhere, and $y = c$ is a horizontal line with no gradient at all.',
-              },
-              {
-                kind: 'prose',
-                text: 'Neither is a rule to memorise separately — they are the power rule applied to $x^{1}$ and $x^{0}$. Whenever a case looks special, check whether writing it as a power makes it ordinary.',
-              },
-            ),
-            ask('evaluate-derivative', 2),
+            ask('power-rule', 2),
             ask('df-evaluate-steps+choice'),
           ],
           skillCheck: [ask('power-rule', 2), ask('power-rule'), ask('power-rule', 2)],
@@ -187,6 +192,16 @@ export const differentiation: Course = {
                 kind: 'prose',
                 text: 'A constant *multiplier* is a different matter and does survive: $\\frac{d}{dx}(5x^{2}) = 10x$. Multiplying stretches the curve vertically and so does change its gradient, where adding merely lifts it.',
               },
+              {
+                kind: 'prose',
+                text: 'The derivative is a function of $x$, so a number can be put into it to get the gradient at one point. Differentiate first, and take each power before multiplying:',
+              },
+              { kind: 'display', tex: 'f(x) = 6x^{3} + x^{2} + 7' },
+              { kind: 'display', tex: "f'(x) = 18x^{2} + 2x" },
+              {
+                kind: 'display',
+                tex: "\\begin{aligned} f'(2) &= 18 \\times 2^{2} + 2 \\times 2 \\\\ &= 18 \\times 4 + 4 = 76 \\end{aligned}",
+              },
             ),
             ask('df-power-tiles', 2),
             askAfter(
@@ -232,6 +247,14 @@ export const differentiation: Course = {
               {
                 kind: 'prose',
                 text: 'The sign carries meaning too. A negative derivative means the curve is falling at that point, and a derivative of zero means it is momentarily flat — which is how stationary points are found.',
+              },
+              {
+                kind: 'prose',
+                text: 'A negative $x$ is squared on its own first, which makes it positive. With $f\'(x) = 6x^{2} - 14x$:',
+              },
+              {
+                kind: 'display',
+                tex: "\\begin{aligned} f'(-2) &= 6 \\times (-2)^{2} + (-14) \\times (-2) \\\\ &= 24 + 28 = 52 \\end{aligned}",
               },
             ),
             ask('df-evaluate-steps'),
@@ -323,11 +346,6 @@ export const differentiation: Course = {
                 kind: 'prose',
                 text: 'Three steps, always in this order: differentiate to get the gradient function, substitute the given $x$-value into it for $m$, then substitute the same value into the original curve for the point.',
               },
-            ),
-            ask('evaluate-derivative'),
-            ask('df-tangent-line'),
-            ask('df-tangent-line+choice'),
-            teach(
               {
                 kind: 'prose',
                 text: 'Worked in full: for $f(x) = x^{2} + 1$ at $x = 2$, the derivative is $f\'(x) = 2x$, so $m = 4$. The point is $f(2) = 5$, giving $(2, 5)$.',
@@ -352,10 +370,18 @@ export const differentiation: Course = {
                 kind: 'prose',
                 text: 'The dashed line is that tangent, touching the curve only at the ringed point $(2, 5)$.',
               },
+              {
+                kind: 'prose',
+                text: 'A negative $x$ works the same way; watch the signs when the point goes into the bracket. For $y = x^{2} + 8x$ at $x = -3$: $\\frac{dy}{dx} = 2x + 8$, so $m = 2$, and $y = 9 - 24 = -15$.',
+              },
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} y + 15 &= 2\\left(x + 3\\right) \\\\ y &= 2x - 9 \\end{aligned}',
+              },
             ),
-            ask('evaluate-derivative', 2),
-            ask('df-evaluate-steps'),
-            ask('df-stationary-slider'),
+            ask('evaluate-derivative'),
+            ask('df-tangent-line'),
+            ask('df-tangent-line+choice'),
             teach(
               {
                 kind: 'prose',
@@ -366,9 +392,40 @@ export const differentiation: Course = {
                 text: 'The other is using the curve\'s height as if it were the gradient. A quick check catches both: the point you found must actually satisfy the line you write down.',
               },
               { kind: 'display', tex: "m = f'(x_{1}) \\qquad c = f(x_{1}) - m x_{1}" },
+              {
+                kind: 'prose',
+                text: 'With a number in front of $x^{2}$: for $y = -x^{2} + 3x + 12$ at $x = -1$, $\\frac{dy}{dx} = -2x + 3$, so $m = 5$. The height is $-1 - 3 + 12 = 8$.',
+              },
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} y - 8 &= 5\\left(x + 1\\right) \\\\ y &= 5x + 13 \\end{aligned}',
+              },
+              {
+                kind: 'prose',
+                text: 'Check: at $x = -1$ the line gives $-5 + 13 = 8$, the height of the curve.',
+              },
             ),
-            ask('df-stationary-slider', 2),
+            ask('evaluate-derivative', 2),
+            ask('df-evaluate-steps'),
             ask('df-evaluate-steps+choice'),
+            teach(
+              {
+                kind: 'prose',
+                text: 'A **horizontal** tangent has gradient $0$. So to find where a curve has one, differentiate and set the derivative equal to zero, then solve.',
+              },
+              { kind: 'display', tex: 'y = x^{2} - 12x' },
+              { kind: 'display', tex: '\\frac{dy}{dx} = 2x - 12 = 0 \\implies x = 6' },
+              {
+                kind: 'prose',
+                text: 'With a minus in front, the steps are the same: for $y = -x^{2} + 14x + 1$, $\\frac{dy}{dx} = -2x + 14 = 0$, so $2x = 14$ and $x = 7$.',
+              },
+              {
+                kind: 'prose',
+                text: 'The number on its own at the end moves the curve up or down, not sideways, so it never changes where the flat point is.',
+              },
+            ),
+            ask('df-stationary-slider'),
+            ask('df-stationary-slider', 2),
           ],
           skillCheck: [ask('df-tangent-line', 2), ask('df-tangent-line'), ask('evaluate-derivative', 2)],
         },
@@ -414,6 +471,19 @@ export const differentiation: Course = {
                 kind: 'prose',
                 text: 'Each term differentiates exactly one of the factors and leaves the other alone. Checking that every term contains one dashed and one undashed letter catches most mistakes on sight.',
               },
+              {
+                kind: 'prose',
+                text: 'Worked in full for $y = (2x + 7)(x^{2} + 3)$. Write down all four pieces first — most product-rule mistakes are bookkeeping, not calculus:',
+              },
+              {
+                kind: 'display',
+                tex: "\\begin{aligned} u &= 2x + 7, & u' &= 2 \\\\ v &= x^{2} + 3, & v' &= 2x \\end{aligned}",
+              },
+              { kind: 'prose', text: 'Then assemble $u\'v + uv\'$, expand each bracket and collect like terms:' },
+              {
+                kind: 'display',
+                tex: "\\begin{aligned} \\frac{dy}{dx} &= 2(x^{2} + 3) + (2x + 7)2x \\\\ &= 2x^{2} + 6 + 4x^{2} + 14x \\\\ &= 6x^{2} + 14x + 6 \\end{aligned}",
+              },
             ),
             ask('product-rule'),
             ask('df-product-tiles'),
@@ -421,15 +491,15 @@ export const differentiation: Course = {
             teach(
               {
                 kind: 'prose',
-                text: 'It helps to write down $u$, $v$, $u\'$ and $v\'$ before assembling anything. Most product-rule mistakes are bookkeeping, not calculus.',
+                text: 'For the gradient at one point, put the number into each of the four pieces first, then assemble. For $y = (2x + 7)(x^{2} + 3)$ at $x = 1$:',
               },
               {
                 kind: 'display',
-                tex: 'u = 2x + 1, \\quad v = x^{2}, \\quad u\' = 2, \\quad v\' = 2x',
+                tex: "u = 9, \\quad v = 4, \\quad u' = 2, \\quad v' = 2",
               },
               {
-                kind: 'prose',
-                text: 'Then assemble: $u\'v + uv\'$ is $2x^{2} + (2x + 1)2x$, which tidies to $6x^{2} + 2x$.',
+                kind: 'display',
+                tex: "\\begin{aligned} u'v + uv' &= 2 \\times 4 + 9 \\times 2 \\\\ &= 8 + 18 = 26 \\end{aligned}",
               },
               {
                 kind: 'prose',
@@ -496,6 +566,23 @@ export const differentiation: Course = {
                 kind: 'prose',
                 text: 'Swapping them negates the whole answer, which is a hard error to spot afterwards because the expression still looks plausible. "Derivative of the top first" is the phrase worth fixing in memory.',
               },
+              {
+                kind: 'prose',
+                text: 'Worked in full for $y = \\frac{2x + 7}{x + 9}$. Write the four pieces down first:',
+              },
+              {
+                kind: 'display',
+                tex: "\\begin{aligned} u &= 2x + 7, & u' &= 2 \\\\ v &= x + 9, & v' &= 1 \\end{aligned}",
+              },
+              {
+                kind: 'prose',
+                text: 'Then the numerator $u\'v - uv\'$, expanded. The $x$ terms cancel, leaving a single number:',
+              },
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} &2(x + 9) - (2x + 7)(1) \\\\ &= 2x + 18 - 2x - 7 = 11 \\end{aligned}',
+              },
+              { kind: 'display', tex: '\\frac{dy}{dx} = \\frac{11}{(x + 9)^{2}}' },
             ),
             ask('quotient-rule'),
             ask('df-quotient-tiles'),
@@ -609,6 +696,14 @@ export const differentiation: Course = {
                 kind: 'prose',
                 text: 'Differentiating the inside as well as the outside, and writing $3(2x)^{2}\\cdot 2x$, is the other classic error. Bring the inside down as a multiplier; leave the copy inside the bracket alone.',
               },
+              {
+                kind: 'prose',
+                text: 'A negative outer power works the same way. The $-2$ comes down, the power drops to $-3$, and the inside still gives its $2x$:',
+              },
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} &\\frac{d}{dx}\\left(x^{2}+9\\right)^{-2} \\\\ &= -2\\left(x^{2}+9\\right)^{-3} \\cdot 2x \\\\ &= -4x\\left(x^{2}+9\\right)^{-3} \\end{aligned}',
+              },
             ),
             askAfter(
               [
@@ -681,6 +776,14 @@ export const differentiation: Course = {
               {
                 kind: 'prose',
                 text: 'Watch two things: the minus sign that comes down with the power, and the power in the denominator, which goes *up* by one rather than down.',
+              },
+              {
+                kind: 'prose',
+                text: 'When the inside is a quadratic, its derivative is a function of $x$, and that whole thing is the chain factor:',
+              },
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} &\\frac{d}{dx}\\left(x^{2} - 8\\right)^{3} \\\\ &= 3\\left(x^{2} - 8\\right)^{2} \\times 2x \\\\ &= 6x\\left(x^{2} - 8\\right)^{2} \\end{aligned}',
               },
             ),
             askAfter(
@@ -783,35 +886,45 @@ export const differentiation: Course = {
                 kind: 'prose',
                 text: 'The solid curve is $\\cos x$, at its peak exactly at $x = 0$. The dashed curve is $\\sin x$, crossing $0$ there as steeply as it ever climbs.',
               },
+              {
+                kind: 'prose',
+                text: 'With anything other than a bare $x$ inside, the chain rule applies as usual — multiply by the derivative of the inside. A number in front just carries through.',
+              },
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} \\frac{d}{dx}\\sin(3x) &= \\cos(3x) \\times 3 \\\\ &= 3\\cos(3x) \\end{aligned}',
+              },
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} &\\frac{d}{dx}10\\cos(5x) \\\\ &= 10 \\times (-\\sin(5x)) \\times 5 \\\\ &= -50\\sin(5x) \\end{aligned}',
+              },
+              {
+                kind: 'prose',
+                text: 'A number added inside differentiates to nothing, so it changes no multiplier: $\\frac{d}{dx}9\\sin(3x + 1) = 27\\cos(3x + 1)$, with the bracket copied as it was.',
+              },
             ),
             ask('trig-derivative'),
-            ask('df-standard-tiles'),
             ask('trig-derivative+choice'),
             teach(
               {
                 kind: 'prose',
-                text: 'With anything other than a bare $x$ inside, the chain rule applies as usual — multiply by the derivative of the inside.',
-              },
-              { kind: 'display', tex: '\\frac{d}{dx}\\sin(3x) = 3\\cos(3x)' },
-              {
-                kind: 'prose',
-                text: 'The $3$ appears because $\\sin(3x)$ completes its cycle three times as fast, so it is three times as steep everywhere. Squashing a curve horizontally makes it steeper by the same factor.',
+                text: 'The $3$ in $\\frac{d}{dx}\\sin(3x) = 3\\cos(3x)$ appears because $\\sin(3x)$ completes its cycle three times as fast, so it is three times as steep everywhere. These formulas hold only in radians; in degrees an awkward constant appears.',
               },
               {
                 kind: 'prose',
-                text: 'These formulas hold only in radians. In degrees an awkward constant appears, which is the practical reason radians are the default in calculus.',
+                text: 'That extra multiplier is the chain rule, and it behaves the same way with a bracket on the outside as it does with a sine:',
+              },
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} \\frac{d}{dx}(10x - 1)^{5} &= 5(10x - 1)^{4} \\times 10 \\\\ &= 50(10x - 1)^{4} \\end{aligned}',
+              },
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} \\frac{d}{dx}\\left(x^{2} + 1\\right)^{3} &= 3\\left(x^{2} + 1\\right)^{2} \\times 2x \\\\ &= 6x\\left(x^{2} + 1\\right)^{2} \\end{aligned}',
               },
             ),
-            ask('df-standard-tiles', 2),
-            askAfter(
-              [
-                prose(
-                  'That extra multiplier is the chain rule, and it behaves the same way with a bracket on the outside as it does with a sine.',
-                ),
-              ],
-              'chain-rule',
-              2,
-            ),
+            ask('df-chain-tiles', 2),
+            ask('chain-rule', 2),
             ask('chain-rule+choice', 2),
             teach(
               {
@@ -879,27 +992,43 @@ export const differentiation: Course = {
               },
               {
                 kind: 'prose',
-                text: 'It is also why exponential growth models itself so neatly: a quantity growing in proportion to its own size is exactly a quantity whose derivative is itself.',
+                text: 'The power rule does not apply here. In $x^{2}$ the variable is the base, in $e^{x}$ it is the exponent, and bringing the power down would be answering a different question.',
               },
               {
                 kind: 'prose',
-                text: 'The power rule does not apply here. In $x^{2}$ the variable is the base, in $e^{x}$ it is the exponent, and bringing the power down would be answering a different question.',
+                text: 'With $kx$ in the exponent, the chain rule multiplies by the derivative of the inside, $k$. A number in front carries through:',
               },
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} \\frac{d}{dx}13e^{2x} &= 13 \\times e^{2x} \\times 2 \\\\ &= 26e^{2x} \\end{aligned}',
+              },
+              {
+                kind: 'prose',
+                text: 'The natural logarithm is the inverse of $e^{x}$, and differentiates to something with no logarithm in it at all. A number in front carries through:',
+              },
+              { kind: 'display', tex: '\\frac{d}{dx}\\ln x = \\frac{1}{x} \\qquad \\frac{d}{dx}13\\ln x = \\frac{13}{x}' },
             ),
             ask('exp-log-derivative'),
-            ask('df-standard-tiles'),
             ask('exp-log-derivative+choice'),
             teach(
               {
                 kind: 'prose',
-                text: 'The natural logarithm is its inverse, and differentiates to something with no logarithm in it at all — which is the most surprising result in this lesson.',
+                text: 'A surprising consequence: $\\ln(kx)$ also differentiates to $\\frac{1}{x}$, whatever $k$ is. The chain rule gives one over the inside, times the derivative of the inside, and the $k$ cancels:',
               },
-              { kind: 'display', tex: '\\frac{d}{dx}\\ln x = \\frac{1}{x}' },
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} \\frac{d}{dx}13\\ln(3x) &= 13 \\times \\frac{1}{3x} \\times 3 \\\\ &= \\frac{13}{x} \\end{aligned}',
+              },
               {
                 kind: 'prose',
-                text: 'A surprising consequence: $\\ln(kx)$ also differentiates to $\\frac{1}{x}$, whatever $k$ is — multiplying inside a log only adds a constant, and constants vanish.',
+                text: 'So a number in front of the logarithm survives, and a number inside it never does. The same two-part pattern — a new function, and a multiplier — covers sine and cosine from the last lesson:',
+              },
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} \\frac{d}{dx}13\\sin(3x) &= 39\\cos(3x) \\\\ \\frac{d}{dx}10\\cos(5x) &= -50\\sin(5x) \\end{aligned}',
               },
             ),
+            ask('df-standard-tiles'),
             ask('df-standard-tiles', 2),
             askAfter(
               [
@@ -1062,33 +1191,50 @@ export const differentiation: Course = {
               ),
               { kind: 'display', tex: '\\frac{dy}{dx} = 0' },
               prose(
-                'For a cubic the derivative is a quadratic, so there are usually two answers, and factorising is the quickest way to both.',
+                'For a cubic the derivative is a quadratic, so there are usually two answers, and factorising is the quickest way to both. Take out the common factor first:',
+              ),
+              { kind: 'display', tex: 'y = 2x^{3} - 12x^{2} - 30x' },
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} \\frac{dy}{dx} &= 6x^{2} - 24x - 30 \\\\ &= 6(x^{2} - 4x - 5) \\\\ &= 6(x - 5)(x + 1) = 0 \\end{aligned}',
+              },
+              prose(
+                'A product is zero only when one of its factors is, so $x = 5$ or $x = -1$: each bracket\'s number with its sign flipped.',
               ),
             ),
             ask('df-sp-roots'),
-            ask('df-sp-slider'),
             ask('df-sp-roots', 2),
             teach(
               prose(
                 'A stationary point is a *point*, so it needs a $y$-coordinate too. That comes from the curve: put the $x$ you found back into $y$, not into $\\frac{dy}{dx}$.',
               ),
               { kind: 'display', tex: 'y = x^{3} - 3x^{2} - 9x + 5' },
-              prose('At $x = 3$ that gives $y = 27 - 27 - 27 + 5 = -22$, so the point is $(3, -22)$.'),
+              prose('At $x = 3$ that gives $y = 27 - 27 - 27 + 5 = -22$, so the point is $(3, -22)$. At $x = -1$ it gives $y = -1 - 3 + 9 + 5 = 10$.'),
               prose(
                 'Putting it into the derivative instead gives $0$ every time. That is how the point was found in the first place, and it says nothing about its height.',
+              ),
+              prose(
+                'The heights also say which point is which. A cubic\'s hump is always higher than its dip, so of $(-1, 10)$ and $(3, -22)$ the **local maximum** is at $x = -1$ and the **local minimum** at $x = 3$ — just as the graph above shows.',
               ),
             ),
             ask('df-sp-y'),
             ask('df-sp-y-tree'),
+            ask('df-sp-slider'),
             ask('df-sp-slider', 2),
             teach(
               prose(
-                'You can say how many stationary points a cubic has before solving anything. Its derivative is a quadratic, and a quadratic\'s discriminant counts its roots.',
+                'You can say how many stationary points a cubic has before solving anything. Its derivative is a quadratic, and a quadratic\'s discriminant $b^{2} - 4ac$ counts its roots.',
               ),
-              { kind: 'display', tex: 'y = ax^{3} + bx^{2} + cx + d' },
-              { kind: 'display', tex: '\\frac{dy}{dx} = 3ax^{2} + 2bx + c' },
               prose(
                 'A positive discriminant means two stationary points, zero means one, and negative means none at all: the curve runs the same way from end to end.',
+              ),
+              { kind: 'display', tex: 'y = x^{3} + 5x^{2} + 10x' },
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} \\frac{dy}{dx} &= 3x^{2} + 10x + 10 \\\\ b^{2} - 4ac &= 10^{2} - 4 \\times 3 \\times 10 \\\\ &= 100 - 120 = -20 \\end{aligned}',
+              },
+              prose(
+                'Negative, so no stationary points. For $y = x^{3} - 12x^{2} + 48x$ the derivative is $3x^{2} - 24x + 48$, and $(-24)^{2} - 4 \\times 3 \\times 48 = 576 - 576 = 0$: exactly one. For $y = 2x^{3} - 12x^{2} - 30x$ above it is $(-24)^{2} - 4 \\times 6 \\times (-30) = 576 + 720 = 1296$, positive: two.',
               ),
               prose(
                 'Take the discriminant of the *derivative*. The cubic\'s own roots are where it crosses the axis, which is a different question.',
@@ -1111,7 +1257,22 @@ export const differentiation: Course = {
               { kind: 'display', tex: 'y = x^{3} - 3x^{2}' },
               { kind: 'display', tex: '\\frac{dy}{dx} = 3x^{2} - 6x' },
               { kind: 'display', tex: '\\frac{d^{2}y}{dx^{2}} = 6x - 6' },
-              prose('Nothing new is needed: the same rules, used twice.'),
+              prose(
+                'Nothing new is needed: the same rules, used twice. A fraction is rewritten as a negative power first, and its sign changes on each pass:',
+              ),
+              { kind: 'display', tex: 'y = 2x^{2} + \\frac{7}{x} = 2x^{2} + 7x^{-1}' },
+              { kind: 'display', tex: '\\frac{dy}{dx} = 4x - 7x^{-2}' },
+              {
+                kind: 'display',
+                tex: '\\frac{d^{2}y}{dx^{2}} = 4 + 14x^{-3} = 4 + \\frac{14}{x^{3}}',
+              },
+              prose(
+                'The power went $-1$, then $-2$, then $-3$; the $7$ became $-7$, then $(-7)(-2) = 14$. An exponential or a sine brings its inside number down on each pass, and $\\sin$ to $\\cos$ and back picks up one minus sign:',
+              ),
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} 7e^{2x} &\\to 14e^{2x} \\to 28e^{2x} \\\\ 7\\sin(2x) &\\to 14\\cos(2x) \\to -28\\sin(2x) \\\\ 6\\cos(3x) &\\to -18\\sin(3x) \\to -54\\cos(3x) \\end{aligned}',
+              },
             ),
             ask('df-second-derivative'),
             ask('df-second-derivative+choice', 2),
@@ -1171,10 +1332,34 @@ export const differentiation: Course = {
               prose(
                 'Test close enough to the point that no other stationary point lies in between, or the sign you find belongs to a different stretch of the curve.',
               ),
+              prose(
+                'Worked: $f\'(x) = 2x(x - 6)$ is zero at $x = 0$. Test $x = -1$ before it and $x = 1$ after it:',
+              ),
+              {
+                kind: 'display',
+                tex: "\\begin{aligned} f'(-1) &= 2(-1)(-7) = 14 > 0 \\\\ f'(1) &= 2(1)(-5) = -10 < 0 \\end{aligned}",
+              },
+              prose(
+                'Positive then negative: a maximum. With $f\'(x) = -(x - 5)^{2}$, flat at $x = 5$, both $f\'(4)$ and $f\'(6)$ come to $-1$: the same sign both sides, so a stationary point of inflection.',
+              ),
             ),
             ask('df-sign-tiles'),
-            ask('df-factored-nature'),
             ask('df-sign-tiles', 2),
+            teach(
+              prose(
+                'When the derivative comes factorised, the signs can be read without substituting. A factor raised to an **odd** power changes sign at its root; one raised to an **even** power does not.',
+              ),
+              { kind: 'display', tex: '\\frac{dy}{dx} = (x - 2)^{2}(x + 1)' },
+              prose(
+                'At $x = 2$ the squared bracket keeps its sign, so the gradient does too: a stationary point of inflection. At $x = -1$ the single bracket flips from negative to positive: a minimum.',
+              ),
+              prose(
+                'To know which way it flips, put the root into every *other* factor. Near $x = -1$, $(x - 2)^{2}$ is about $(-3)^{2} = 9$, positive, so the gradient has the sign of $(x + 1)$: negative, then positive. A cubed bracket such as $(x - 4)^{3}$ flips just as a single one does.',
+              ),
+            ),
+            ask('df-factored-nature'),
+            ask('df-factored-nature', 2),
+            ask('df-sp-slider'),
             teach(
               prose(
                 'Here are $y = x^{4}$ and $y = x^{3}$ (dashed). Both are flat at $x = 0$, and both have $f\'\'(0) = 0$.',
@@ -1191,20 +1376,12 @@ export const differentiation: Course = {
               prose(
                 '$x^{4}$ has gradient $4x^{3}$, negative before $0$ and positive after: a minimum. $x^{3}$ has gradient $3x^{2}$, positive on both sides: it pauses and carries on climbing.',
               ),
+              prose(
+                'So when $f\'\'$ is zero at a stationary point, fall back on the sign test. When it is not zero, it still decides as before: $f\'\'(x) = 6x - 6$ at $x = 3$ is $12$, positive, a minimum.',
+              ),
             ),
             ask('df-nature-flow', 2),
-            ask('df-factored-nature', 2),
             ask('df-second-at'),
-            teach(
-              prose(
-                'When the derivative comes factorised, the signs can be read without substituting. A factor raised to an **odd** power changes sign at its root; one raised to an **even** power does not.',
-              ),
-              { kind: 'display', tex: '\\frac{dy}{dx} = (x - 2)^{2}(x + 1)' },
-              prose(
-                'At $x = 2$ the squared bracket keeps its sign, so the gradient does too: a stationary point of inflection. At $x = -1$ the single bracket flips from negative to positive: a minimum.',
-              ),
-            ),
-            ask('df-sp-slider'),
             ask('df-second-at+choice', 2),
           ],
           skillCheck: [ask('df-sign-tiles'), ask('df-factored-nature', 2), ask('df-sign-tiles', 2)],
@@ -1218,11 +1395,13 @@ export const differentiation: Course = {
               prose(
                 'A function is **increasing** where its gradient is positive and **decreasing** where it is negative. One substitution into $f\'(x)$ settles it at any point.',
               ),
+              { kind: 'display', tex: "f(x) = x^{3} - 75x \\implies f'(x) = 3x^{2} - 75" },
+              {
+                kind: 'display',
+                tex: "\\begin{aligned} f'(1) &= 3 - 75 = -72 \\\\ f'(6) &= 108 - 75 = 33 \\\\ f'(5) &= 75 - 75 = 0 \\end{aligned}",
+              },
               prose(
-                'Only the sign matters, so once you can see which way the arithmetic will come out there is no need to finish it.',
-              ),
-              prose(
-                'Where $f\'(x) = 0$ the function is doing neither: it is stationary.',
+                'So $f$ is decreasing at $x = 1$, increasing at $x = 6$, and at $x = 5$, where $f\'(x) = 0$, it is doing neither: it is stationary. Only the sign matters, so once you can see which way the arithmetic will come out there is no need to finish it.',
               ),
             ),
             ask('df-increasing-at'),
@@ -1256,6 +1435,14 @@ export const differentiation: Course = {
               prose(
                 'A square is never negative, so $f\'(x)$ is always at least $3$: no stationary points, and the curve climbs from left to right without a pause.',
               ),
+              prose(
+                'The discriminant $b^{2} - 4ac$ of $f\'(x)$ counts the stationary points without solving anything:',
+              ),
+              prose('For $3x^{2} + 3$ it is $0^{2} - 4 \\times 3 \\times 3 = -36$, negative: no stationary points.'),
+              prose(
+                'For $3x^{2} - 30x + 75$ it is $(-30)^{2} - 4 \\times 3 \\times 75 = 900 - 900 = 0$: exactly one.',
+              ),
+              prose('For $3x^{2} - 75$ it is $0^{2} - 4 \\times 3 \\times (-75) = 900$, positive: two.'),
             ),
             ask('df-increasing-tiles', 2),
             ask('df-sp-count', 2),
@@ -1283,9 +1470,14 @@ export const differentiation: Course = {
                 marks: [{ x: 2, y: 2 }],
                 label: 'A cubic that bends downwards on the left and upwards on the right',
               }),
+              prose('That curve is $y = x^{3} - 6x^{2} + 9x$. Differentiate twice, then put each $x$ in and read the sign:'),
+              {
+                kind: 'display',
+                tex: "\\begin{aligned} f'(x) &= 3x^{2} - 12x + 9 \\\\ f''(x) &= 6x - 12 \\\\ f''(1) &= -6 < 0 \\\\ f''(3) &= 6 > 0 \\end{aligned}",
+              },
+              prose('So it is concave at $x = 1$ and convex at $x = 3$, as the picture shows.'),
             ),
             ask('df-concavity'),
-            ask('df-second-derivative', 2),
             ask('df-concavity', 2),
             teach(
               prose(
@@ -1296,19 +1488,41 @@ export const differentiation: Course = {
               prose(
                 'That is zero at $x = 2$ and changes sign there, so $(2, 2)$ is the point of inflection marked above. On a cubic it always sits exactly halfway between the turning points, here at $x = 1$ and $x = 3$.',
               ),
+              prose(
+                'A quartic can have two, because its $f\'\'(x)$ is a quadratic. Take out the common factor and factorise:',
+              ),
+              { kind: 'display', tex: 'y = x^{4} - 2x^{3} - 72x^{2}' },
+              {
+                kind: 'display',
+                tex: "\\begin{aligned} f'(x) &= 4x^{3} - 6x^{2} - 144x \\\\ f''(x) &= 12x^{2} - 12x - 144 \\\\ &= 12(x^{2} - x - 12) \\\\ &= 12(x - 4)(x + 3) \\end{aligned}",
+              },
+              prose(
+                'Each bracket is a single power, so $f\'\'$ changes sign at both roots: inflections at $x = 4$ and $x = -3$.',
+              ),
             ),
             ask('df-inflection-x'),
             ask('df-inflection-flow'),
             ask('df-inflection-x+choice', 2),
             teach(
               prose(
-                'Both conditions matter. $y = x^{4}$ has $f\'\'(0) = 0$ but bends upwards on both sides, so it has no inflection at all.',
+                'Both conditions matter. $y = x^{4}$ has $f\'\'(x) = 12x^{2}$, zero at $0$ but a square, so it is positive on both sides: no inflection at all.',
               ),
               prose(
                 'And an inflection may or may not be flat. If $f\'(x) = 0$ there too, it is a **stationary** point of inflection, like $x^{3}$ at $0$. Otherwise it is non-stationary, like the cubic above at $x = 2$.',
               ),
+              prose(
+                'Second derivatives of other functions follow the same rules used twice. A trig term brings its inside number down on each pass, and $\\sin$ to $\\cos$ and back picks up one minus sign:',
+              ),
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} y &= x^{3} + 6\\cos(2x) \\\\ \\frac{dy}{dx} &= 3x^{2} - 12\\sin(2x) \\\\ \\frac{d^{2}y}{dx^{2}} &= 6x - 24\\cos(2x) \\end{aligned}',
+              },
+              prose(
+                'Likewise $6e^{3x} \\to 18e^{3x} \\to 54e^{3x}$, and a fraction as a negative power: $\\frac{7}{x} = 7x^{-1} \\to -7x^{-2} \\to 14x^{-3}$.',
+              ),
             ),
             ask('df-inflection-flow', 2),
+            ask('df-second-derivative', 2),
             ask('df-second-derivative+choice', 2),
           ],
           skillCheck: [ask('df-inflection-x', 2), ask('df-concavity', 2), ask('df-inflection-flow', 2)],
@@ -1375,6 +1589,11 @@ export const differentiation: Course = {
               ),
               { kind: 'display', tex: 'y = -2(x + 1)(x - 2)(x - 4)' },
               { kind: 'display', tex: '+ \\quad - \\quad + \\quad -' },
+              prose(
+                'A squared bracket is the exception: it is never negative, so the sign does **not** flip at its root. In $y = x(x + 1)(x - 5)^{2}$ the far right is $+$; at $5$ the square keeps it $+$; at $0$ it flips to $-$; at $-1$ back to $+$:',
+              ),
+              { kind: 'display', tex: '+ \\quad - \\quad + \\quad +' },
+              prose('Check one stretch: at $x = 1$, $1 \\times 2 \\times 16 = 32$, positive, as the third sign says.'),
             ),
             ask('df-cs-signs'),
             ask('df-cs-y-int+choice', 2),
@@ -1447,7 +1666,6 @@ export const differentiation: Course = {
             ),
             ask('df-cs-turn', 2),
             ask('df-sp-slider'),
-            ask('df-cs-crossings'),
             teach(
               prose(
                 'A turning point can sit on the axis itself. That is a root the curve only touches, and it is where a squared bracket comes from.',
@@ -1457,7 +1675,11 @@ export const differentiation: Course = {
               prose(
                 'Its minimum is $(1, 0)$, on the axis, and its maximum is $(-1, 4)$. The curve crosses at $x = -2$ and touches at $x = 1$: two meetings, not three.',
               ),
+              prose(
+                'So the heights of the two turning points settle the count. For $y = x^{3} - 3x$ the maximum $(-1, 2)$ is above the axis and the minimum $(1, -2)$ below: three crossings. Both above, or both below, and only one outer arm crosses: once.',
+              ),
             ),
+            ask('df-cs-crossings'),
             ask('df-cs-crossings', 2),
             ask('df-nature-flow', 2),
           ],
@@ -1486,6 +1708,14 @@ export const differentiation: Course = {
               prose(
                 'There is no $y$ where the denominator is zero, so there is a vertical asymptote at $x = 1$. Far out the fraction shrinks to nothing, so $y$ levels out towards $1$: a horizontal asymptote at $y = 1$.',
               ),
+              prose(
+                'With $x$ on top as well, the vertical asymptote is found the same way. For the level far out, the numbers added on are tiny beside the $x$ terms, so compare the $x$ terms alone:',
+              ),
+              { kind: 'display', tex: 'y = \\frac{2x - 12}{x + 1}' },
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} x + 1 = 0 &\\implies x = -1 \\\\ y \\approx \\frac{2x}{x} = 2 &\\implies y = 2 \\end{aligned}',
+              },
             ),
             ask('df-cs-asymptotes'),
             ask('df-cs-rational-y'),
@@ -1495,7 +1725,10 @@ export const differentiation: Course = {
               { kind: 'display', tex: 'y = \\frac{2}{-1} + 1 = -1' },
               prose('For the $x$-axis put $y = 0$, and the fraction has to cancel the $1$:'),
               { kind: 'display', tex: '\\frac{2}{x - 1} = -1' },
-              prose('So $x - 1 = -2$, and the curve crosses at $x = -1$.'),
+              prose('Multiply both sides by $(x - 1)$: $2 = -(x - 1)$, so $x - 1 = -2$, and the curve crosses at $x = -1$.'),
+              prose(
+                'For $y = \\frac{2x - 12}{x + 1}$, $x = 0$ gives $\\frac{-12}{1} = -12$. And a fraction is zero only when its top is, so $2x - 12 = 0$: it crosses at $x = 6$.',
+              ),
             ),
             ask('df-cs-rational-root'),
             ask('df-cs-rational-y', 2),
@@ -1508,6 +1741,13 @@ export const differentiation: Course = {
               { kind: 'display', tex: 'y \\approx -2x^{3}' },
               prose(
                 'An odd power sends the two ends opposite ways; an even power sends them the same way. The sign in front says which: here the right end goes down and the left end up.',
+              ),
+              prose(
+                'Factorised, the leading term is hiding in the brackets. Multiplying out would start with the number in front times one $x$ from every bracket, so the powers add:',
+              ),
+              { kind: 'display', tex: 'y = -2x(x - 1)^{2} \\approx -2x \\times x^{2} = -2x^{3}' },
+              prose(
+                'Power $1 + 2 = 3$, odd, with $-2$ in front: up on the left, down on the right. $y = 3(x + 1)^{2}(x - 2)^{2}$ has power $4$, even, with $3$ in front: both ends up.',
               ),
             ),
             ask('df-cs-ends'),
@@ -1619,6 +1859,9 @@ export const differentiation: Course = {
               prose(
                 'Here $y = x^{3} - 3x$ turns at $x = -1$ and $x = 1$, so its gradient (dashed) crosses the axis there: positive, then negative, then positive. A cubic\'s gradient is always a parabola.',
               ),
+              prose(
+                'It reads backwards too. Given only the dashed graph of $f\'$: at $x = -1$ it crosses from above the axis to below, so $f$ stops rising and starts falling — a **maximum**. At $x = 1$ it crosses from below to above, so $f$ stops falling and starts rising — a **minimum**.',
+              ),
             ),
             ask('df-cs-gradient-shape'),
             ask('df-cs-read-gradient'),
@@ -1697,6 +1940,13 @@ export const differentiation: Course = {
               prose(
                 'Putting $t = 2$ into $V$ instead gives $26$ $\\text{cm}^{3}$. That is how much water there is, not how fast it is arriving, and its unit has no "per second" in it.',
               ),
+              prose(
+                'Run it backwards to find **when** a rate is reached: set the derivative equal to that rate and solve for $t$. With $F = 5t^{2} + 2t + 12$, when is $F$ rising at $37$ per hour?',
+              ),
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} \\frac{dF}{dt} = 10t + 2 &= 37 \\\\ 10t &= 35 \\\\ t &= 3.5 \\end{aligned}',
+              },
             ),
             ask('df-rc-rate-at'),
             ask('df-rc-rate-slider'),
@@ -1740,6 +1990,13 @@ export const differentiation: Course = {
               ),
               { kind: 'display', tex: '\\frac{dV}{dt} = 3(4)^{2} \\times 2' },
               { kind: 'display', tex: '= 48 \\times 2 = 96' },
+              prose(
+                'When the rate you know is the **volume\'s** and the one you want is the edge\'s, divide both sides of the chain by $\\frac{dV}{dx}$. An edge of $5$ cm with the volume growing at $150$ $\\text{cm}^{3}$ per second:',
+              ),
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} \\frac{dx}{dt} &= \\frac{dV}{dt} \\div \\frac{dV}{dx} \\\\ &= 150 \\div 3(5)^{2} \\\\ &= 150 \\div 75 = 2 \\end{aligned}',
+              },
             ),
             ask('df-rc-chain-tiles'),
             ask('df-rc-which-rate'),
@@ -1783,7 +2040,6 @@ export const differentiation: Course = {
               ),
             ),
             ask('df-rc-shape-k'),
-            ask('df-rc-shape-flow'),
             ask('df-rc-shape-k+choice', 2),
             teach(
               prose(
@@ -1794,8 +2050,9 @@ export const differentiation: Course = {
               prose('That is $2$ cm per second. The $\\pi$ on top cancels the $\\pi$ underneath, which is why the answer is a plain number.'),
             ),
             ask('df-rc-shape-back'),
-            ask('df-rc-shape-flow', 2),
+            ask('df-rc-shape-flow'),
             ask('df-rc-shape-back', 2),
+            ask('df-rc-shape-flow', 2),
             teach(
               prose(
                 'A cube or a box has no $\\pi$, and the numbers come out whole. A cube-shaped crystal gaining $96$ $\\text{cm}^{3}$ per second when its edge is $4$ cm has $\\frac{dV}{dx} = 3x^{2}$, so',
@@ -1834,7 +2091,6 @@ export const differentiation: Course = {
               ),
             ),
             ask('df-rc-sign'),
-            ask('df-rc-method-flow'),
             ask('df-rc-sign', 2),
             teach(
               prose(
@@ -1857,7 +2113,6 @@ export const differentiation: Course = {
               prose('That gives $t = 2$: $V$ increases fastest there, and stops increasing at $t = 4$.'),
             ),
             ask('df-rc-peak-tiles'),
-            ask('df-rc-method-flow', 2),
             ask('df-rc-peak-tiles', 2),
             teach(
               prose(
@@ -1865,11 +2120,19 @@ export const differentiation: Course = {
               ),
               { kind: 'display', tex: '\\delta y \\approx \\frac{dy}{dx} \\times \\delta x' },
               prose(
-                'For $y = x^{3}$ moving from $x = 2$ to $x = 2.1$: $\\frac{dy}{dx} = 12$, so $\\delta y \\approx 12 \\times 0.1 = 1.2$. The exact change is $1.261$, and the estimate gets closer as the nudge gets smaller.',
+                'For $y = x^{3}$ moving from $x = 2$ to $x = 2.1$: $\\frac{dy}{dx} = 12$, so $\\delta y \\approx 12 \\times 0.1 = 1.2$. The exact change is $1.261$, and the estimate gets closer as the nudge gets smaller. A shrink is a negative nudge: from $2$ to $1.9$ gives $12 \\times (-0.1) = -1.2$.',
+              ),
+              prose(
+                'Over a **long** stretch the rate changes too much for that, so work out the quantity at both ends and subtract. For $V = -t^{3} + 6t^{2} + 20$ above, $V(0) = 20$ and $V(4) = -64 + 96 + 20 = 52$: it rises by $32$.',
+              ),
+              prose(
+                'So each question about a changing quantity picks its tool. How fast at a given $t$: differentiate, then put $t$ in. When it stops increasing: set the rate to zero. When it increases fastest: set the rate\'s own derivative to zero. When it reaches a given rate: set the rate equal to it and solve — $3t(4 - t) = 9$ gives $t^{2} - 4t + 3 = 0$, so $t = 1$ or $t = 3$.',
               ),
             ),
             ask('df-rc-small-change'),
+            ask('df-rc-method-flow'),
             ask('df-rc-small-change+choice', 2),
+            ask('df-rc-method-flow', 2),
           ],
           skillCheck: [ask('df-rc-sign', 2), ask('df-rc-peak-tiles', 2), ask('df-rc-small-change', 2)],
         },
@@ -1919,9 +2182,13 @@ export const differentiation: Course = {
                 label: 'The area of the rectangle against x, a hump from x = 0 to x = 20',
               }),
               prose('Check it with a number you can picture: at $x = 5$ the rectangle is $5$ by $15$, and $A = 75$.'),
+              prose(
+                'Against a wall only three sides are fenced: two of $x$ and one of $y$. With $30$ m of fencing, $2x + y = 30$, so $y = 30 - 2x$ and',
+              ),
+              { kind: 'display', tex: 'A = x(30 - 2x)' },
+              prose('At $x = 5$: the bracket first, $30 - 10 = 20$, then $A = 5 \\times 20 = 100$.'),
             ),
             ask('df-op-build'),
-            ask('df-op-build+choice', 2),
             ask('df-op-value'),
             teach(
               prose(
@@ -1932,15 +2199,27 @@ export const differentiation: Course = {
                 'At $x = 5$ that is $5 \\times 20^{2} = 2000$ $\\text{cm}^{3}$: the bracket first, then the square, then the height.',
               ),
               prose(
-                'When an **area** is fixed rather than a perimeter, the constraint divides instead. A rectangle of area $50$ has $xy = 50$, so $y = \\frac{50}{x}$ and its perimeter is $2x + \\frac{100}{x}$.',
+                'Two positive numbers with $x + y = 40$ and $P = xy^{2}$ work the same way: $y = 40 - x$, and the square goes on the whole bracket, $P = x(40 - x)^{2}$.',
+              ),
+              prose(
+                'When an **area** is fixed rather than a perimeter, the constraint divides instead. A rectangle of area $50$ has $xy = 50$, so $y = \\frac{50}{x}$ and its perimeter is $2x + 2 \\times \\frac{50}{x} = 2x + \\frac{100}{x}$.',
               ),
             ),
+            ask('df-op-build+choice', 2),
             ask('df-op-eliminate'),
-            ask('df-op-value+choice', 2),
-            ask('df-op-eliminate', 2),
             teach(
               prose(
-                'Every length in the story has to be positive, and that bounds $x$. For the box, $x > 0$, and the base $30 - 2x$ must be more than zero too:',
+                'A fixed **volume** divides the same way. A closed cylinder holding $200\\pi$ has $\\pi r^{2}h = 200\\pi$, so $h = \\frac{200}{r^{2}}$, and in its surface area $2\\pi rh$ loses one power of $r$:',
+              ),
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} S &= 2\\pi r^{2} + 2\\pi r \\times \\frac{200}{r^{2}} \\\\ &= 2\\pi r^{2} + \\frac{400\\pi}{r} \\end{aligned}',
+              },
+              prose(
+                'An open box with a square base $x$ wide holding $40$ has $x^{2}h = 40$, so $h = \\frac{40}{x^{2}}$, and its four sides $4xh$ become $4x \\times \\frac{40}{x^{2}} = \\frac{160}{x}$.',
+              ),
+              prose(
+                'Every length in the story has to be positive, and that bounds $x$. For the box cut from the sheet, $x > 0$, and the base $30 - 2x$ must be more than zero too:',
               ),
               { kind: 'display', tex: '0 < x < 15' },
               graph({
@@ -1956,9 +2235,13 @@ export const differentiation: Course = {
                 ],
                 label: 'The volume of the box against x, zero at x = 0 and x = 15 with a hump between',
               }),
-              prose('At either end there is no box at all, so the best $x$ is somewhere strictly between.'),
+              prose(
+                'At either end there is no box at all, so the best $x$ is somewhere strictly between. Likewise the wall pen needs $30 - 2x > 0$, so $x < 15$; and two numbers adding to $40$ need $y = 40 - x > 0$, so $x < 40$.',
+              ),
             ),
             ask('df-op-domain'),
+            ask('df-op-eliminate', 2),
+            ask('df-op-value+choice', 2),
             ask('df-op-domain', 2),
           ],
           skillCheck: [ask('df-op-build', 2), ask('df-op-eliminate', 2), ask('df-op-domain', 2)],
@@ -1974,17 +2257,15 @@ export const differentiation: Course = {
               ),
               { kind: 'display', tex: '\\frac{dA}{dx} = 20 - 2x = 0' },
               prose('So $x = 10$ and $A = 10 \\times 10 = 100$: the best rectangle is a square.'),
-              prose(
-                'A fixed area gives a fraction. With $P = 2x + \\frac{100}{x}$, write the fraction as $100x^{-1}$ and use the power rule:',
-              ),
-              { kind: 'display', tex: '\\frac{dP}{dx} = 2 - \\frac{100}{x^{2}}' },
-            ),
-            ask('df-op-derivative'),
-            ask('df-op-derivative+choice', 2),
-            ask('df-op-best-value'),
-            teach(
-              prose('For the box, $V = x(30 - 2x)^{2} = 4x^{3} - 120x^{2} + 900x$, and the derivative factorises:'),
-              { kind: 'display', tex: '\\frac{dV}{dx} = 12(x - 5)(x - 15)' },
+              prose('A bracket that is squared is multiplied out first. For the box, square the bracket, then multiply by $x$:'),
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} (30 - 2x)^{2} &= 900 - 120x + 4x^{2} \\\\ V &= 4x^{3} - 120x^{2} + 900x \\end{aligned}',
+              },
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} \\frac{dV}{dx} &= 12x^{2} - 240x + 900 \\\\ &= 12(x^{2} - 20x + 75) \\\\ &= 12(x - 5)(x - 15) \\end{aligned}',
+              },
               graph({
                 xMin: -0.5,
                 xMax: 16,
@@ -1996,7 +2277,10 @@ export const differentiation: Course = {
                 label: 'The volume of the box against x, peaking at x = 5',
               }),
               prose(
-                'At $x = 15$ the base is $0$ wide and there is no box, so the best is $x = 5$: a base $20$ cm wide and $V = 2000$ $\\text{cm}^{3}$.',
+                'At $x = 15$ the base is $0$ wide and there is no box, so the best is $x = 5$: a base $20$ cm wide and $V = 5 \\times 20^{2} = 2000$ $\\text{cm}^{3}$.',
+              ),
+              prose(
+                'Two numbers with $x + y = 39$ and $P = x(39 - x)^{2}$ go the same way: $P = x^{3} - 78x^{2} + 1521x$, so $\\frac{dP}{dx} = 3x^{2} - 156x + 1521 = 3(x - 13)(x - 39)$. At $x = 39$, $y = 0$ and $P = 0$, so the best is $x = 13$.',
               ),
             ),
             ask('df-op-box-tree'),
@@ -2004,12 +2288,39 @@ export const differentiation: Course = {
             ask('df-op-box-tree', 2),
             teach(
               prose(
-                'An open box with a square base $x$ cm wide that must hold $32$ $\\text{cm}^{3}$ has height $\\frac{32}{x^{2}}$, so its surface area is',
+                'A fixed area gives a fraction. With $C = 3x + \\frac{75}{x}$, write the fraction as $75x^{-1}$ and use the power rule:',
               ),
-              { kind: 'display', tex: 'S = x^{2} + \\frac{128}{x}' },
-              { kind: 'display', tex: '\\frac{dS}{dx} = 2x - \\frac{128}{x^{2}} = 0' },
+              { kind: 'display', tex: '\\frac{dC}{dx} = 3 - 75x^{-2} = 3 - \\frac{75}{x^{2}}' },
+              prose('Set it to zero and multiply every term by $x^{2}$ to clear the fraction:'),
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} 3x^{2} - 75 &= 0 \\\\ x^{2} &= 25 \\end{aligned}',
+              },
               prose(
-                'That gives $x^{3} = 64$, so $x = 4$ and $S = 16 + 32 = 48$. A question asking for the least surface area wants $48$, not $4$.',
+                'A length is positive, so $x = 5$, and the least value is $C = 15 + \\frac{75}{5} = 30$. An open box holding $32$ has $S = x^{2} + \\frac{128}{x}$, and the same steps give a cube:',
+              ),
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} 2x - \\frac{128}{x^{2}} &= 0 \\\\ 2x^{3} - 128 &= 0 \\\\ x^{3} &= 64 \\end{aligned}',
+              },
+              prose(
+                'So $x = 4$ and $S = 16 + 32 = 48$. A question asking for the least surface area wants $48$, not $4$.',
+              ),
+            ),
+            ask('df-op-derivative'),
+            ask('df-op-best-value'),
+            ask('df-op-derivative+choice', 2),
+            teach(
+              prose(
+                'A cylinder\'s volume can come out as a bracket with $\\pi$ in front. The $\\pi$ is a constant multiplier, so it rides along and drops out when the derivative is set to zero:',
+              ),
+              { kind: 'display', tex: 'V = \\pi(243r - r^{3})' },
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} \\frac{dV}{dr} = \\pi(243 - 3r^{2}) &= 0 \\\\ r^{2} &= 81 \\end{aligned}',
+              },
+              prose(
+                'A radius is positive, so $r = 9$, and $V = \\pi(2187 - 729) = 1458\\pi$. Always give the quantity the question asks for: the best $r$, or the greatest $V$.',
               ),
             ),
             ask('df-op-slider', 2),
@@ -2173,6 +2484,16 @@ export const differentiation: Course = {
                 'The sensible domain is a check on everything: the answer must lie inside it, and the value at the answer must beat the values near its ends. For the box, $0 < x < 15$, and $x = 5$ gives far more than $x = 1$ or $x = 14$:',
               ),
               { kind: 'display', tex: 'V(1) = 784, \\quad V(14) = 56' },
+              prose(
+                'A fraction in the function works the same way, with one extra step: multiply through by $x^{2}$. For a surface area $S = x^{2} + \\frac{250}{x}$:',
+              ),
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} \\frac{dS}{dx} = 2x - \\frac{250}{x^{2}} &= 0 \\\\ 2x^{3} &= 250 \\\\ x^{3} &= 125 \\end{aligned}',
+              },
+              prose(
+                'So $x = 5$, and the least surface area is $S = 25 + \\frac{250}{5} = 25 + 50 = 75$.',
+              ),
             ),
             ask('df-op-domain', 2),
             ask('df-op-best-value+choice', 2),

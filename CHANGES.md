@@ -5,6 +5,43 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-25
 
+- **Calculus, series and trig questions are shorter (#237).** Set-ups are said
+  once and methods the lesson just taught are no longer repeated.
+- **The installed app fills the screen (#236).** The gap at the bottom of the
+  home screen on the installed app is filled.
+- **Statistics and algebra questions are shorter (#235).** Set-ups are said once
+  and methods the lesson just taught are no longer repeated.
+- **Home (#234).** One flat blue for the maths courses, richer orange cards, a
+  blue top bar, and no dark gap at the bottom of the screen on newer iPhones.
+- **Forces, Kinematics and Probability questions are shorter (#233).** Set-ups
+  are said once and methods the lesson just taught are no longer repeated.
+- **Contest Math Level 2 (#232).** Equations and Ratios (5 lessons and a level
+  check).
+- **Exponential Models questions are shorter (#231).** The tea question's
+  pick-one form now shows its story instead of a bare sum.
+- **Home screen (#230).** No empty band under the clock on newer iPhones,
+  brighter colours with a soft purple-to-orange blend, and the topics line and
+  Sync devices moved into the streak view.
+- **A streak charge on every day played (#229).** Streak charges are now earned
+  on every day played (up to two), and existing streaks are topped up on open.
+- **Contest Math (#228).** A new band between Advanced Maths and Statistics,
+  with Level 1, Mathematical Problem-Solving (5 lessons and a level check).
+- **Classical Mechanics (#227).** New course in Mechanics, Level 1 Describing
+  Motion (speeds and units, average speed, closing speeds, stopping distances,
+  stepping through time).
+- **The area slider is drawn as a real area (#226).** It now shows the shaded
+  area and an area-against-t graph with labelled axes, and every slider's line
+  matches its graph.
+- **Streak view (#225).** Tap the streak to see charges, the last five days, max
+  streak and lessons complete.
+- **Lesson slides are centred (#224).** Lesson slides sit in the middle of the
+  screen again rather than at the bottom, lesson text is larger, and formula
+  boxes fit their formula.
+- **Algebra on its own line (#223).** Equations inside a sentence now sit on
+  their own line, in every lesson.
+- **Brighter All courses button (#222).** The "All courses" button is lighter
+  and easier to see, and the top of each page no longer has a darker band before
+  the glow starts.
 - **Teach before ask: Logarithms, Polynomials, Sequences and proof, Partial and
   Algebraic Fractions, Hypothesis Testing and Complex Numbers (#220).** Every
   question now follows a worked example of its method in the same lesson.

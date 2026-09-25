@@ -280,7 +280,6 @@ export const trigonometricFunctions: Course = {
             ),
             ask('trig-is-periodic'),
             ask('trig-periodic-flow'),
-            ask('trig-cycle-count'),
             teach(
               prose(
                 'The test to apply is: does it come back to where it was, and does it take the same time every time? Both halves matter.',
@@ -292,7 +291,6 @@ export const trigonometricFunctions: Course = {
                 'The total distance a car has driven behaves the same way. Something can change fast, slowly, or in fits and starts and still not be periodic — the question is whether it comes back.',
               ),
             ),
-            ask('trig-repeat-times'),
             ask('trig-is-periodic', 2),
             ask('trig-periodic-flow', 2),
             teach(
@@ -304,9 +302,15 @@ export const trigonometricFunctions: Course = {
               ),
               maths('\\text{cycles} = \\frac{\\text{total time}}{\\text{period}}'),
               prose(
-                'This is why the period is the natural unit for anything that repeats: it converts an awkward stretch of time into a plain count.',
+                'The period also says when the next repeats happen: add it on, again and again. A buzzer that sounds every $5$ seconds, first at $t = 1$, sounds next at',
+              ),
+              maths('1 + 5 = 6 \\qquad 6 + 5 = 11 \\qquad 11 + 5 = 16'),
+              prose(
+                'Start adding from the first time, not after it: $1$ has already happened, so the next one is $6$.',
               ),
             ),
+            ask('trig-cycle-count'),
+            ask('trig-repeat-times'),
             ask('trig-cycle-count', 2),
             ask('trig-repeat-times', 2),
           ],
@@ -344,9 +348,12 @@ export const trigonometricFunctions: Course = {
               prose(
                 'They must be *consecutive*. Two peaks with another peak between them are two periods apart, not one.',
               ),
+              prose(
+                'The period then counts cycles: with a period of $7$, a stretch of $35$ seconds holds $35 \\div 7 = 5$ cycles.',
+              ),
             ),
             ask('trig-period-from-peaks'),
-            ask('trig-read-graph'),
+            ask('trig-read-period'),
             ask('trig-cycle-count'),
             teach(
               prose(
@@ -376,19 +383,20 @@ export const trigonometricFunctions: Course = {
               ),
             ),
             ask('trig-period-from-peaks+choice', 2),
-            ask('trig-read-graph', 2),
-            ask('trig-repeat-times', 2),
+            ask('trig-read-period', 2),
+            ask('trig-cycle-count', 2),
             teach(
               prose(
-                'Once the period is known, every future repeat is predictable. If a peak is at $t = 2$ with period $7$, there are peaks at $9$, $16$, $23$, and so on.',
+                'Once the period is known, every future repeat is predictable. If a peak is at $t = 2$ with period $7$, add $7$ on each time:',
               ),
+              maths('2 + 7 = 9 \\qquad 9 + 7 = 16 \\qquad 16 + 7 = 23'),
               maths('t = 2 + 7n \\quad \\text{for whole numbers } n'),
               prose(
                 'Working backwards is just as valid: $n = -1$ gives a peak at $t = -5$. A periodic function has no start, which is what makes it worth studying as a whole rather than point by point.',
               ),
             ),
             ask('trig-repeat-times'),
-            ask('trig-cycle-count', 2),
+            ask('trig-repeat-times', 2),
           ],
           skillCheck: [
             ask('trig-period-from-peaks', 2),
@@ -424,12 +432,15 @@ export const trigonometricFunctions: Course = {
                 'The dashed curve is the original and the solid one is $f(t - 3)$. The peak that was at $1.5$ now arrives at $4.5$ — the shape has not changed at all, only when it happens.',
               ),
               prose(
+                'The period, the gap from one peak to the next, is the same on both: the next solid peak is at $10.5$, and $10.5 - 4.5 = 6$.',
+              ),
+              prose(
                 'Subtracting shifts right. That reads backwards to most people the first time, and it is worth being clear about why.',
               ),
             ),
             ask('trig-horizontal-shift'),
             ask('trig-period-from-peaks'),
-            ask('trig-read-graph'),
+            ask('trig-read-period'),
             teach(
               prose(
                 'The reason is that the bracket is an *input*, not an output. For $f(t - 3)$ to do what $f$ did at $0$, the bracket must equal $0$ — so $t$ must be $3$.',
@@ -441,10 +452,13 @@ export const trigonometricFunctions: Course = {
               prose(
                 'If you ever lose the thread, solve the bracket for a single known point rather than trying to remember the rule.',
               ),
+              prose(
+                'The repeats keep their spacing wherever the graph sits. Peaks every $6$ seconds, the first at $t = 4$, come next at $4 + 6 = 10$, $10 + 6 = 16$ and $16 + 6 = 22$.',
+              ),
             ),
             ask('trig-horizontal-shift', 2),
             ask('trig-repeat-times'),
-            ask('trig-read-graph', 2),
+            ask('trig-read-period', 2),
             teach(
               prose(
                 'A horizontal shift changes nothing else. The period is the same, the maximum and minimum are the same, and the midline is the same.',
@@ -491,9 +505,13 @@ export const trigonometricFunctions: Course = {
               prose(
                 'The dashed line is the midline. The curve spends as long above it as below, and the two ringed points are the highest and lowest the tide reaches.',
               ),
+              prose(
+                'How far the tide swings either side of the midline is its **amplitude**: from $6$ up to $9$ is $3$. It is half the gap between the extremes, not the whole gap:',
+              ),
+              maths('\\text{amplitude} = \\frac{9 - 3}{2} = \\frac{6}{2} = 3'),
             ),
             ask('trig-midline'),
-            ask('trig-read-graph'),
+            ask('trig-read-midline'),
             ask('trig-describe-wave'),
             teach(
               prose(
@@ -506,10 +524,17 @@ export const trigonometricFunctions: Course = {
               prose(
                 'A vertical shift leaves the period untouched, and leaves the size of the swing untouched. It moves the whole picture up or down and nothing else.',
               ),
+              prose(
+                'A formula shows both numbers. $\\sin(x)$ and $\\cos(x)$ both swing between $1$ and $-1$ about $0$. In $y = 8\\sin(x) + 1$ the $8$ makes that $8$ either side, and the $+ 1$ lifts the midline to $1$:',
+              ),
+              maths(
+                '\\begin{aligned} \\text{greatest} &= 1 + 8 = 9 \\\\ \\text{least} &= 1 - 8 = -7 \\\\ \\text{full swing} &= 9 - (-7) = 16 \\end{aligned}',
+              ),
+              prose('The full swing is twice the amplitude of $8$, never the amplitude itself.'),
             ),
             ask('trig-midline+choice', 2),
             ask('trig-wave-swing'),
-            ask('trig-read-graph', 2),
+            ask('trig-read-midline', 2),
             teach(
               prose(
                 'One caution. The midline is the mean of the two *extremes*, not the average value over time.',
@@ -578,6 +603,12 @@ export const trigonometricFunctions: Course = {
               prose(
                 'So a tide with midline $6$ m and amplitude $3$ m runs between $3$ m and $9$ m, which is where we started. Being able to go either way is worth more than either formula on its own.',
               ),
+              prose(
+                'A formula hands over both. $\\sin(x)$ and $\\cos(x)$ swing between $1$ and $-1$, so in $y = 2\\cos(x) + 10$ the multiplier $2$ is the amplitude and the $10$ added on is the midline:',
+              ),
+              maths(
+                '\\begin{aligned} \\text{greatest} &= 10 + 2 = 12 \\\\ \\text{least} &= 10 - 2 = 8 \\\\ \\text{full swing} &= 12 - 8 = 4 \\end{aligned}',
+              ),
             ),
             ask('trig-amplitude+choice', 2),
             ask('trig-wave-swing'),
@@ -635,8 +666,21 @@ export const trigonometricFunctions: Course = {
                 'That height *is* the sine of the angle turned. Not a ratio of two sides — a height.',
               ),
               maths('\\sin(\\theta) = \\text{height of the point after turning } \\theta'),
+              prose(
+                'Its distance to the right of the centre is the other coordinate, the **cosine**. It starts at $1$, is $0$ at a quarter turn, $-1$ at a half turn and $0$ again at three quarters.',
+              ),
+              maths(
+                '\\begin{array}{c|cccc} \\theta & 0^{\\circ} & 90^{\\circ} & 180^{\\circ} & 270^{\\circ} \\\\ \\hline \\sin & 0 & 1 & 0 & -1 \\\\ \\cos & 1 & 0 & -1 & 0 \\end{array}',
+              ),
+              prose(
+                'On a circle of radius $r$ every length is $r$ times as big: the height is $r\\sin(\\theta)$ and the displacement is $r\\cos(\\theta)$. Radius $3$, turned $270^{\\circ}$:',
+              ),
+              maths(
+                '\\begin{aligned} 3\\sin(270^{\\circ}) &= 3 \\times (-1) = -3 \\\\ 3\\cos(270^{\\circ}) &= 3 \\times 0 = 0 \\end{aligned}',
+              ),
+              prose('A sine is a plain number, so find it before anything multiplies or adds to it:'),
+              maths('\\begin{aligned} 5\\sin(90^{\\circ}) + 1 &= 5 \\times 1 + 1 \\\\ &= 5 + 1 = 6 \\end{aligned}'),
             ),
-            ask('trig-sine-from-circle'),
             ask('trig-circle-coords'),
             ask('trig-evaluate-exact'),
             teach(
@@ -644,28 +688,40 @@ export const trigonometricFunctions: Course = {
                 'Defining it this way costs nothing for the angles you already know and gains everything for the ones you do not.',
               ),
               prose(
-                'A triangle cannot have an angle of $150^{\\circ}$, but a point can certainly turn that far, and when it does it is still above the centre — so $\\sin(150^{\\circ})$ is positive, and equals $\\sin(30^{\\circ})$.',
+                'Turn $30^{\\circ}$ up and $30^{\\circ}$ down from the start. The two points and the centre make a triangle with two sides of $1$ and $60^{\\circ}$ between them, so it is equilateral and the two points are $1$ apart. The upper one is half of that above the centre:',
               ),
-              maths('\\sin(150^{\\circ}) = \\sin(30^{\\circ}) = 0.5'),
+              maths('\\sin(30^{\\circ}) = \\tfrac{1}{2} = 0.5'),
               prose(
-                'Past a half turn the point is below the centre and the sine is negative. Nothing special happens at $90^{\\circ}$; the point simply keeps going.',
+                'A triangle cannot have an angle of $150^{\\circ}$, but a point can turn that far: it is the $30^{\\circ}$ point reflected across the vertical axis, at the same height. Past a half turn the same heights come again below the centre: $210^{\\circ}$ is $30^{\\circ}$ past a half turn, and $330^{\\circ}$ is $30^{\\circ}$ short of a full one.',
               ),
+              maths(
+                '\\begin{aligned} \\sin(150^{\\circ}) &= 0.5 \\\\ \\sin(210^{\\circ}) &= -0.5 \\\\ \\sin(330^{\\circ}) &= -0.5 \\end{aligned}',
+              ),
+              prose('With a radius, multiply as before. Radius $7$, turned $210^{\\circ}$:'),
+              maths('7\\sin(210^{\\circ}) = 7 \\times (-0.5) = -3.5'),
             ),
-            ask('trig-sine-from-circle+choice', 2),
-            ask('trig-height-steps'),
+            ask('trig-sine-from-circle'),
             ask('trig-circle-coords', 2),
+            ask('trig-sine-from-circle+choice', 2),
             teach(
               prose(
-                'On a circle of radius $r$ the whole picture scales. Every height is $r$ times what it was on the unit circle.',
+                'The same triangle gives the cosine. Turn $60^{\\circ}$: the point, the centre and the start make a triangle with two sides of $1$ and $60^{\\circ}$ between them, equilateral again, so the point sits straight above the middle of the side along the axis:',
               ),
-              maths('\\text{height} = r\\sin(\\theta)'),
+              maths('\\cos(60^{\\circ}) = \\tfrac{1}{2} = 0.5'),
               prose(
-                'So the radius is the amplitude: it is how far the height swings from the centre line. The midline is the height of the centre, which so far has been $0$.',
+                '$300^{\\circ}$ is that point reflected below the axis, the same distance to the right. $120^{\\circ}$ and $240^{\\circ}$ are the same two points reflected to the left, so the displacement is negative.',
               ),
-              prose(
-                'Plotting height against angle gives the sine curve. Its period is one full turn, because that is when the point is back where it started.',
+              maths(
+                '\\begin{aligned} \\cos(300^{\\circ}) &= 0.5 \\\\ \\cos(120^{\\circ}) &= -0.5 \\\\ \\cos(240^{\\circ}) &= -0.5 \\end{aligned}',
+              ),
+              prose('Settle the cosine, then multiply by the radius. Radius $5$, turned $240^{\\circ}$:'),
+              maths('5\\cos(240^{\\circ}) = 5 \\times (-0.5) = -2.5'),
+              prose('With two terms, settle each value, then each product, then combine:'),
+              maths(
+                '\\begin{aligned} &4\\sin(90^{\\circ}) - \\cos(180^{\\circ}) \\\\ &= 4 \\times 1 - (-1) \\\\ &= 4 + 1 = 5 \\end{aligned}',
               ),
             ),
+            ask('trig-height-steps'),
             ask('trig-height-steps', 2),
             ask('trig-evaluate-exact+choice', 2),
           ],
@@ -685,7 +741,21 @@ export const trigonometricFunctions: Course = {
               ),
               maths('\\cos(\\theta) = \\text{horizontal displacement of the point}'),
               prose(
-                'It starts at $1$, since the point begins at the far right. After a quarter turn it is directly above the centre, so the displacement is $0$. At a half turn it is at the far left, giving $-1$.',
+                'It starts at $1$, since the point begins at the far right. After a quarter turn it is directly above the centre, so the displacement is $0$. At a half turn it is at the far left, giving $-1$. The height, the sine, runs $0$, $1$, $0$, $-1$ over the same quarter turns.',
+              ),
+              prose(
+                'At $60^{\\circ}$ the point, the centre and the start make a triangle with two sides of $1$ and $60^{\\circ}$ between them, so it is equilateral: the point is straight above the middle of the unit along the axis, and $\\cos(60^{\\circ}) = 0.5$. Reflecting that point gives the rest:',
+              ),
+              maths(
+                '\\begin{aligned} \\cos(60^{\\circ}) = \\cos(300^{\\circ}) &= 0.5 \\\\ \\cos(120^{\\circ}) = \\cos(240^{\\circ}) &= -0.5 \\end{aligned}',
+              ),
+              prose(
+                'On a circle of radius $r$ the displacement is $r\\cos(\\theta)$ and the height $r\\sin(\\theta)$. Radius $9$, turned $120^{\\circ}$:',
+              ),
+              maths('9\\cos(120^{\\circ}) = 9 \\times (-0.5) = -4.5'),
+              prose('Two terms are each settled on their own, then added:'),
+              maths(
+                '\\begin{aligned} &3\\cos(180^{\\circ}) + \\sin(90^{\\circ}) \\\\ &= 3 \\times (-1) + 1 \\\\ &= -3 + 1 = -2 \\end{aligned}',
               ),
             ),
             ask('trig-cosine-from-circle'),
@@ -700,7 +770,11 @@ export const trigonometricFunctions: Course = {
                 'Cosine is a quarter turn ahead of sine. Everything from the previous lesson about shifting a graph sideways applies here, and this is the tidiest example of it.',
               ),
               prose(
-                'A practical consequence: any question about cosine can be answered by shifting a sine question, and the other way round. They are not two facts to learn but one.',
+                'It hands over the sine half values too. $\\cos(60^{\\circ}) = \\sin(150^{\\circ})$, and $150^{\\circ}$ is the $30^{\\circ}$ point reflected across the vertical axis, at the same height:',
+              ),
+              maths('\\sin(30^{\\circ}) = \\sin(150^{\\circ}) = 0.5'),
+              prose(
+                'Below the centre the same heights are negative, $\\sin(210^{\\circ}) = \\sin(330^{\\circ}) = -0.5$. So radius $7$ turned $330^{\\circ}$ is $7 \\times (-0.5) = -3.5$ above the centre, which is $3.5$ below it.',
               ),
             ),
             ask('trig-cosine-from-circle+choice', 2),
@@ -755,8 +829,10 @@ export const trigonometricFunctions: Course = {
               prose(
                 'The reflection keeps the height and flips the displacement, so the sine is unchanged and the cosine changes sign.',
               ),
+              prose(
+                'Signs come straight from the picture. Sine is the height, so it is positive whenever the point is above the centre; cosine is the displacement, positive whenever the point is to the right. After $120^{\\circ}$ the point is above the centre and to its left, so $\\sin(120^{\\circ})$ is positive and $\\cos(120^{\\circ})$ is negative.',
+              ),
             ),
-            ask('trig-related-angle'),
             ask('trig-quadrant-flow'),
             ask('trig-circle-coords'),
             teach(
@@ -773,10 +849,14 @@ export const trigonometricFunctions: Course = {
               prose(
                 'Given a value, the same rules hand over the answer: if $\\sin(40^{\\circ}) \\approx 0.643$ then $\\sin(220^{\\circ}) \\approx -0.643$; the digits are the same and only the sign needs deciding.',
               ),
+              prose(
+                'The same goes for a height on a bigger circle. $210^{\\circ}$ is a half turn past $30^{\\circ}$ and $\\sin(30^{\\circ}) = 0.5$, so on a circle of radius $5$:',
+              ),
+              maths('5\\sin(210^{\\circ}) = 5 \\times (-0.5) = -2.5'),
             ),
+            ask('trig-related-angle'),
             ask('trig-related-angle', 2),
             ask('trig-sine-from-circle'),
-            ask('trig-quadrant-flow', 2),
             teach(
               prose(
                 'Rather than memorising six rules, picture the point: sine is the height, so ask whether the reflected point is above or below the centre; cosine is the displacement, so ask whether it is left or right.',
@@ -786,6 +866,7 @@ export const trigonometricFunctions: Course = {
                 'These symmetries are what make a table of values from $0^{\\circ}$ to $90^{\\circ}$ enough for every angle there is; the sine of $140^{\\circ}$, $220^{\\circ}$, $320^{\\circ}$ and $-40^{\\circ}$ are all $0.643$ in size, with the sign read off the circle.',
               ),
             ),
+            ask('trig-quadrant-flow', 2),
             ask('trig-sine-from-circle', 2),
             ask('trig-circle-coords', 2),
           ],
@@ -805,47 +886,59 @@ export const trigonometricFunctions: Course = {
               ),
               maths('6\\sin(\\theta) = 3 \\quad \\Rightarrow \\quad \\sin(\\theta) = \\tfrac{3}{6} = \\tfrac{1}{2}'),
               prose(
-                'Dividing by the radius turns a question about a height into one about the sine alone; one answer is $30^{\\circ}$ from the table of exact values, but the previous lesson says $\\sin(150^{\\circ})$ is also $\\tfrac{1}{2}$, so there are two.',
+                'Dividing by the radius turns a question about a height into one about the sine alone. Which angle has a height of $\\tfrac{1}{2}$? Turn $30^{\\circ}$ up and $30^{\\circ}$ down from the start: the two points and the centre make a triangle with two sides of $1$ and $60^{\\circ}$ between them, so it is equilateral, the points are $1$ apart, and each is $\\tfrac{1}{2}$ from the axis. So $\\sin(30^{\\circ}) = \\tfrac{1}{2}$.',
+              ),
+              prose(
+                'Reflecting that picture in the diagonal line $y = x$ swaps the two coordinates and takes the $30^{\\circ}$ point to the $60^{\\circ}$ one, so $\\cos(60^{\\circ}) = \\tfrac{1}{2}$ as well. Multiplying back by a radius undoes the division: $5\\cos(60^{\\circ}) = 5 \\times 0.5 = 2.5$.',
+              ),
+              prose(
+                'The previous lesson showed $\\sin(150^{\\circ})$ is also $\\tfrac{1}{2}$, so there are two answers:',
               ),
               maths('\\sin(\\theta) = \\tfrac{1}{2} \\quad \\Rightarrow \\quad \\theta = 30^{\\circ} \\text{ or } 150^{\\circ}'),
               prose(
                 'Two, because the point passes every height twice in a turn, once going up and once coming down; giving only one is the standard slip.',
               ),
             ),
-            ask('trig-solve-height'),
-            ask('trig-related-angle', 2),
             ask('trig-quadrant-flow'),
+            ask('trig-height-steps'),
             teach(
               prose(
                 'Cosine works the same way with the other axis: a displacement of $\\tfrac{1}{2}$ happens at $60^{\\circ}$ and again at its reflection in the horizontal axis, $300^{\\circ}$.',
               ),
               maths('\\cos(\\theta) = \\tfrac{1}{2} \\quad \\Rightarrow \\quad \\theta = 60^{\\circ} \\text{ or } 300^{\\circ}'),
               prose(
-                'A negative value moves both answers to the other half of the circle: for $\\sin(\\theta) = -\\tfrac{1}{2}$ the point is below the centre, at $210^{\\circ}$ and $330^{\\circ}$; for $\\cos(\\theta) = -\\tfrac{1}{2}$ it is to the left, at $120^{\\circ}$ and $240^{\\circ}$.',
+                'A negative value moves both answers to the other half of the circle: for $\\sin(\\theta) = -\\tfrac{1}{2}$ the point is below the centre, at $180^{\\circ} + 30^{\\circ} = 210^{\\circ}$ and $360^{\\circ} - 30^{\\circ} = 330^{\\circ}$; for $\\cos(\\theta) = -\\tfrac{1}{2}$ it is to the left, at $180^{\\circ} - 60^{\\circ} = 120^{\\circ}$ and $180^{\\circ} + 60^{\\circ} = 240^{\\circ}$.',
               ),
               prose(
                 'The range matters: between $0^{\\circ}$ and $360^{\\circ}$ every angle is an anticlockwise turn, but between $-180^{\\circ}$ and $180^{\\circ}$ the lower half of the circle is named by clockwise turns instead.',
               ),
               maths(
-                '\\sin(\\theta) = -\\tfrac{1}{2} \\quad \\Rightarrow \\quad \\theta = -30^{\\circ} \\text{ or } -150^{\\circ} \\qquad (-180^{\\circ} < \\theta \\le 180^{\\circ})',
+                '\\begin{gathered} \\sin(\\theta) = -\\tfrac{1}{2} \\quad \\Rightarrow \\quad \\theta = -30^{\\circ} \\text{ or } -150^{\\circ} \\\\ (-180^{\\circ} < \\theta \\le 180^{\\circ}) \\end{gathered}',
+              ),
+              prose(
+                'In that range $\\cos(\\theta) = \\tfrac{1}{2}$ gives $60^{\\circ}$ and $-60^{\\circ}$, and $\\cos(\\theta) = -\\tfrac{1}{2}$ gives $120^{\\circ}$ and $-120^{\\circ}$.',
               ),
             ),
+            ask('trig-solve-height'),
             ask('trig-solve-height+choice', 2),
-            ask('trig-height-steps'),
             ask('trig-quadrant-flow', 2),
             teach(
               prose(
-                'The method is always the same: find the reference angle in the table, decide from the sign which half of the circle the point is in, and take the two angles there by symmetry.',
+                'The method is always the same: find the reference angle, $30^{\\circ}$ for sine or $60^{\\circ}$ for cosine, decide from the sign which half of the circle the point is in, and take the two angles there by symmetry.',
               ),
               prose(
-                'Same two points, different labels: $-30^{\\circ}$ is $330^{\\circ}$ and $-150^{\\circ}$ is $210^{\\circ}$; always read the range before writing the answer.',
+                'Same two points, different labels: $-30^{\\circ}$ is $330^{\\circ}$ and $-150^{\\circ}$ is $210^{\\circ}$; always read the range before writing the answer. Check each answer by substituting it back: $6\\sin(330^{\\circ})$ is $-3$, so $330^{\\circ}$ answers the question about $-3$ and not the one about $3$.',
               ),
               prose(
-                'Check each answer by substituting it back: $6\\sin(330^{\\circ})$ is $-3$, so $330^{\\circ}$ answers the question about $-3$ and not the one about $3$; pairing $30^{\\circ}$ with $210^{\\circ}$ is the slip that check catches.',
+                'The same symmetries relate any two angles. Take $25^{\\circ}$: $180^{\\circ} - 25^{\\circ} = 155^{\\circ}$ keeps the height and flips the displacement, $180^{\\circ} + 25^{\\circ} = 205^{\\circ}$ flips both, and $360^{\\circ} - 25^{\\circ} = 335^{\\circ}$, the same place as a clockwise $-25^{\\circ}$, keeps the displacement and flips the height:',
+              ),
+              maths(
+                '\\begin{aligned} \\cos(155^{\\circ}) &= -\\cos(25^{\\circ}) \\\\ \\sin(205^{\\circ}) &= -\\sin(25^{\\circ}) \\\\ \\cos(335^{\\circ}) &= \\cos(25^{\\circ}) \\end{aligned}',
               ),
             ),
-            ask('trig-height-steps', 2),
             ask('trig-related-angle'),
+            ask('trig-height-steps', 2),
+            ask('trig-related-angle', 2),
           ],
           skillCheck: [
             ask('trig-solve-height', 2),
@@ -922,6 +1015,13 @@ export const trigonometricFunctions: Course = {
               prose(
                 'A wheel making $4$ turns per second has a period of $\\frac{1}{4}$ of a second. One making a turn every $4$ seconds has a period of $4$ seconds. Read the units carefully — those are very different wheels.',
               ),
+              prose(
+                'Often the count and the time come together. A wheel making $5$ turns in $12$ seconds shares the $12$ seconds between $5$ turns:',
+              ),
+              maths('\\text{period} = \\frac{12}{5} = 2.4 \\text{ seconds}'),
+              prose(
+                'Once the period is known, add it on to list the later turns: a valve at the top at $t = 1$, with a period of $3$ seconds, is there again at $1 + 3 = 4$, $4 + 3 = 7$ and $7 + 3 = 10$.',
+              ),
             ),
             ask('trig-period-from-speed'),
             ask('trig-speed-comparison'),
@@ -937,9 +1037,12 @@ export const trigonometricFunctions: Course = {
               prose(
                 'It follows that speed and period can never both go up. If a graph repeats more often, each repeat must be shorter.',
               ),
+              prose(
+                'On a graph the period is still the gap from one peak to the next: peaks at $t = 2$ and $t = 5$ are $5 - 2 = 3$ apart, so the period is $3$.',
+              ),
             ),
             ask('trig-period-from-speed', 2),
-            ask('trig-read-graph'),
+            ask('trig-read-period'),
             ask('trig-speed-comparison', 2),
             teach(
               prose(
@@ -953,7 +1056,7 @@ export const trigonometricFunctions: Course = {
                 'Note that $\\sin(2t)$ is not $2\\sin(t)$. The first is twice as fast, the second is twice as tall. Where the number sits decides which.',
               ),
             ),
-            ask('trig-read-graph', 2),
+            ask('trig-read-period', 2),
             ask('trig-repeat-times', 2),
           ],
           skillCheck: [
@@ -1060,7 +1163,7 @@ export const trigonometricFunctions: Course = {
               ),
               maths('y = \\sin\\left(b(t - c)\\right)'),
               prose(
-                'The $b$ divides the period: larger $b$ means faster repeats. The $c$ shifts the graph right, exactly as it did in Level 1.',
+                'The $b$ divides the period: larger $b$ means faster repeats. The $c$ shifts the graph right, exactly as it did in Level 1. On a drawn graph the period is still the gap between consecutive peaks: peaks at $t = 1$ and $t = 5$ mean a period of $5 - 1 = 4$.',
               ),
               prose(
                 'Writing it with $b$ outside the inner bracket is deliberate. It makes $c$ a genuine shift in $t$; in the expanded form $\\sin(bt - bc)$ the shift is much harder to see.',
@@ -1068,7 +1171,7 @@ export const trigonometricFunctions: Course = {
             ),
             ask('trig-horizontal-shift'),
             ask('trig-period-from-speed'),
-            ask('trig-read-graph'),
+            ask('trig-read-period'),
             teach(
               prose(
                 'The order to read them in is: $b$ squashes first, then $c$ slides the squashed graph.',
@@ -1079,6 +1182,12 @@ export const trigonometricFunctions: Course = {
               maths('\\sin\\left(2(t - 3)\\right) \\ne \\sin(2t - 3)'),
               prose(
                 'The left-hand side is shifted right by $3$; the right-hand side by only $\\frac{3}{2}$. Keeping $b$ factored out is what stops that confusion.',
+              ),
+              prose(
+                'To find a value, work from the inside out: the bracket, then its sine, then the multiplier, then the shift. $\\sin(150^{\\circ}) = \\sin(30^{\\circ}) = \\tfrac{1}{2}$, since $150^{\\circ}$ is $30^{\\circ}$ short of a half turn; past a half turn the same values are negative, $\\sin(210^{\\circ}) = \\sin(330^{\\circ}) = -\\tfrac{1}{2}$. So $6\\sin(4x + 30) - 1$ at $x = 30$ is:',
+              ),
+              maths(
+                '\\begin{aligned} 4(30) + 30 &= 150^{\\circ} \\\\ \\sin(150^{\\circ}) &= \\tfrac{1}{2} \\\\ 6 \\times \\tfrac{1}{2} &= 3 \\\\ 3 - 1 &= 2 \\end{aligned}',
               ),
             ),
             ask('trig-horizontal-shift', 2),
@@ -1263,10 +1372,14 @@ export const trigonometricFunctions: Course = {
               prose(
                 'Any fraction of a turn is that fraction of $2\\pi$: a third of a turn is $\\frac{2\\pi}{3}$, three quarters is $\\frac{3\\pi}{2}$. Answers are usually left as a multiple of $\\pi$, typed with the $\\pi$ key, because $\\pi$ is not a tidy decimal.',
               ),
+              prose(
+                'A clock hand works the same way. The hour hand goes once round in $12$ hours, so in $4$ hours it turns $\\frac{4}{12} = \\frac{1}{3}$ of a turn; the minute hand does the same with $60$ minutes to a turn:',
+              ),
+              maths('\\frac{1}{3} \\times 2\\pi = \\frac{2\\pi}{3}'),
             ),
             ask('trig-rad-from-turn'),
-            ask('trig-rad-place'),
             ask('trig-rad-compare'),
+            ask('trig-rad-from-turn+choice'),
             teach(
               prose(
                 'The waves of level 3 look exactly the same with the axis in radians; only the numbers along the bottom change. One cycle of $\\sin(x)$ now ends at $2\\pi$, not at $360$.',
@@ -1283,9 +1396,16 @@ export const trigonometricFunctions: Course = {
               prose(
                 'The dashed lines are the quarter turns, $\\frac{\\pi}{2} \\approx 1.57$, $\\pi \\approx 3.14$, $\\frac{3\\pi}{2} \\approx 4.71$ and $2\\pi \\approx 6.28$. An angle written with no degree sign is in radians.',
               ),
+              prose(
+                'To place an angle on that axis, put about $3.14$ in for $\\pi$. Take $\\frac{5\\pi}{6}$:',
+              ),
+              maths('\\frac{5\\pi}{6} \\approx \\frac{5 \\times 3.14}{6} \\approx 2.62'),
+              prose(
+                'That is past $\\frac{\\pi}{2} \\approx 1.57$ and short of $\\pi \\approx 3.14$, so it sits between the first two dashed lines.',
+              ),
             ),
             ask('trig-rad-place'),
-            ask('trig-rad-from-turn+choice'),
+            ask('trig-rad-place'),
           ],
           skillCheck: [
             ask('trig-rad-arc-angle'),
@@ -1308,18 +1428,19 @@ export const trigonometricFunctions: Course = {
               maths('150^{\\circ} \\times \\frac{\\pi}{180} = \\frac{150\\pi}{180} = \\frac{5\\pi}{6}'),
             ),
             ask('trig-rad-from-degrees'),
-            ask('trig-rad-convert-tiles'),
             ask('trig-rad-from-degrees+choice'),
             teach(
               prose(
                 'The other way round, put $180^{\\circ}$ where the $\\pi$ is. That is the same as multiplying by $\\frac{180}{\\pi}$.',
               ),
-              maths('\\frac{5\\pi}{6} = \\frac{5 \\times 180^{\\circ}}{6} = 150^{\\circ}'),
+              maths('\\frac{5\\pi}{6} \\times \\frac{180}{\\pi} = \\frac{5 \\times 180^{\\circ}}{6} = 150^{\\circ}'),
               prose(
-                'Dividing first is often kinder: $\\frac{\\pi}{6}$ is $180^{\\circ} \\div 6 = 30^{\\circ}$, and $\\frac{5\\pi}{6}$ is five of those.',
+                'Dividing first is often kinder: $\\frac{\\pi}{6}$ is $180^{\\circ} \\div 6 = 30^{\\circ}$, and $\\frac{5\\pi}{6}$ is five of those:',
               ),
+              maths('\\frac{5\\pi}{6} = 5 \\times 30^{\\circ} = 150^{\\circ}'),
             ),
             ask('trig-rad-to-degrees'),
+            ask('trig-rad-convert-tiles'),
             ask('trig-rad-unit-tree'),
             ask('trig-rad-to-degrees+choice'),
             teach(
@@ -1356,10 +1477,17 @@ export const trigonometricFunctions: Course = {
               prose(
                 'The cosine row is the sine row backwards: as the point climbs the circle its height grows while its sideways distance shrinks. Past $\\frac{\\pi}{2}$ the sizes repeat and only the sign changes, and converting to degrees is always a safe way in.',
               ),
+              prose(
+                'Take $\\cos\\left(\\frac{2\\pi}{3}\\right)$. Put $180^{\\circ}$ for $\\pi$: $\\frac{2 \\times 180^{\\circ}}{3} = 120^{\\circ}$. That is $60^{\\circ}$ short of a half turn, so the size comes from the $60^{\\circ}$ column, $\\frac{1}{2}$. The point is left of the centre, so the displacement is negative:',
+              ),
+              maths('\\cos\\left(\\frac{2\\pi}{3}\\right) = \\cos(120^{\\circ}) = -\\frac{1}{2}'),
+              prose(
+                'Below the centre the height is negative instead: $\\frac{7\\pi}{6} = 210^{\\circ}$ is $30^{\\circ}$ past a half turn, so $\\sin\\left(\\frac{7\\pi}{6}\\right) = -\\frac{1}{2}$. And $\\frac{5\\pi}{3} = 300^{\\circ}$ is $60^{\\circ}$ short of a full turn, below the centre and to its right, so $\\cos\\left(\\frac{5\\pi}{3}\\right) = \\frac{1}{2}$ while $\\sin\\left(\\frac{5\\pi}{3}\\right) = -\\frac{\\sqrt{3}}{2}$.',
+              ),
             ),
+            ask('trig-rad-to-degrees+choice'),
             ask('trig-rad-value-tree'),
             ask('trig-rad-exact-value'),
-            ask('trig-rad-to-degrees+choice'),
             teach(
               prose(
                 'The sign still comes from where the point is. In radians the quarter-turn marks are $\\frac{\\pi}{2}$, $\\pi$ and $\\frac{3\\pi}{2}$, and writing the angle over the same denominator makes the comparison easy.',
@@ -1549,15 +1677,25 @@ export const trigonometricFunctions: Course = {
               prose(
                 'So $\\tan$ repeats every $180^{\\circ}$, half the period of sine and cosine. It has no amplitude either, since it has no highest or lowest value at all.',
               ),
+              prose(
+                'Its asymptotes are where the angle inside is $90^{\\circ}$, $270^{\\circ}$, $450^{\\circ}$ and so on, and it crosses the axis where the angle is $180^{\\circ}$, $360^{\\circ}$ and so on. With a number multiplying $x$, solve for $x$. For $y = \\tan(15x)$ the first asymptote is where $15x = 90^{\\circ}$, the second where $15x = 270^{\\circ}$, and the first crossing after $0$ where $15x = 180^{\\circ}$:',
+              ),
+              maths(
+                '\\begin{gathered} x = 90^{\\circ} \\div 15 = 6^{\\circ} \\\\ x = 270^{\\circ} \\div 15 = 18^{\\circ} \\\\ x = 180^{\\circ} \\div 15 = 12^{\\circ} \\end{gathered}',
+              ),
+              prose(
+                'A number in front, as in $3\\tan(15x)$, stretches the curve upwards but moves no asymptote and no crossing. The $15$ fits $15$ repeats into the space of one, so the period is a fifteenth of $180^{\\circ}$:',
+              ),
+              maths('\\begin{gathered} \\text{period of } \\tan(bx) = \\frac{180^{\\circ}}{b} \\\\ \\frac{180^{\\circ}}{15} = 12^{\\circ} \\end{gathered}'),
             ),
-            ask('trig-tan-asymptote-slider'),
             ask('trig-tan-period'),
-            ask('trig-tan-graph-match'),
+            ask('trig-tan-asymptote-slider'),
+            ask('trig-tan-period+choice'),
             teach(
               prose(
-                'Inside the bracket, $b$ works just as it did for sine: it fits $b$ repeats into the space of one.',
+                'The asymptotes sit one period apart, the first halfway through the first period. Written all at once, with $k$ standing for any whole number:',
               ),
-              maths('\\text{period of } \\tan(bx) = \\frac{180^{\\circ}}{b}'),
+              maths('\\begin{aligned} 15x &= 90^{\\circ} + 180^{\\circ} \\times k \\\\ x &= 6^{\\circ} + 12^{\\circ} \\times k \\end{aligned}'),
               graph({
                 xMin: 0,
                 xMax: 360,
@@ -1568,11 +1706,11 @@ export const trigonometricFunctions: Course = {
                 label: 'y = tan 2x from 0 to 360 degrees, with dashed asymptotes every 90 degrees from 45',
               }),
               prose(
-                'The asymptotes move with it. They sit where $bx$ is $90^{\\circ}$, $270^{\\circ}$ and so on, so for $\\tan(2x)$ the first is at $45^{\\circ}$ and the rest follow one period, $90^{\\circ}$, apart. A number in front, as in $3\\tan(2x)$, stretches the curve upwards but moves no asymptote and no crossing.',
+                'A graph runs this backwards. Measure the gap from one asymptote to the next, or from one crossing to the next: that is the period, and $b = \\frac{180^{\\circ}}{\\text{period}}$. The curve above has asymptotes $90^{\\circ}$ apart, so $b = \\frac{180}{90} = 2$ and it is $\\tan(2x)$. A gap of $360^{\\circ}$ would give $b = \\frac{1}{2}$, written $\\tan\\left(\\frac{x}{2}\\right)$.',
               ),
             ),
             ask('trig-tan-asymptote-tiles'),
-            ask('trig-tan-period+choice'),
+            ask('trig-tan-graph-match'),
             ask('trig-tan-asymptote-slider'),
             teach(
               prose(
@@ -1581,7 +1719,7 @@ export const trigonometricFunctions: Course = {
               maths('\\text{period of } \\tan(bx) = \\frac{\\pi}{b}'),
               maths('\\text{asymptotes at } x = \\frac{\\pi}{2b} + \\frac{\\pi}{b} \\times k'),
               prose(
-                'Here $k$ is any whole number. Every question about the tangent graph comes back to these two numbers: where the first asymptote is, and how far apart they are.',
+                'For $\\tan(7x)$ that is a period of $\\frac{\\pi}{7}$ and a first asymptote at $\\frac{\\pi}{14}$, the next at $\\frac{\\pi}{14} + \\frac{\\pi}{7} = \\frac{3\\pi}{14}$. Every question about the tangent graph comes back to these two numbers: where the first asymptote is, and how far apart they are.',
               ),
             ),
             ask('trig-tan-graph-match', 2),
@@ -1666,18 +1804,26 @@ export const trigonometricFunctions: Course = {
               prose(
                 'The pairing looks back to front, so go by the **third letter**: se**c** goes with **c**osine, co**s**ec with **s**ine, and co**t** with **t**angent.',
               ),
+              prose(
+                'To evaluate one exactly, find the ratio underneath and turn it over. One over a fraction is the fraction upside down, and its sign stays as it was:',
+              ),
+              maths('\\sec(60^{\\circ}) = \\frac{1}{\\cos(60^{\\circ})} = 1 \\div \\frac{1}{2} = 2'),
+              maths(
+                '\\begin{aligned} \\tan(150^{\\circ}) &= -\\frac{1}{\\sqrt{3}} \\\\ \\cot(150^{\\circ}) &= 1 \\div \\left(-\\frac{1}{\\sqrt{3}}\\right) = -\\sqrt{3} \\end{aligned}',
+              ),
+              prose(
+                'Where $\\tan$ has no value, use cosine over sine: $\\cot(90^{\\circ}) = \\frac{\\cos(90^{\\circ})}{\\sin(90^{\\circ})} = \\frac{0}{1} = 0$.',
+              ),
             ),
             ask('trig-recip-exact'),
             ask('trig-recip-tree'),
             ask('trig-recip-exact+choice'),
             teach(
               prose(
-                'To evaluate one exactly, find the ratio underneath and turn it over. One over a fraction is the fraction upside down, and its sign stays as it was.',
+                'The same works for any fraction: if $\\sin(\\theta) = \\frac{3}{5}$ then $\\operatorname{cosec}(\\theta) = \\frac{5}{3}$, and if $\\cos(\\theta) = -\\frac{4}{5}$ then $\\sec(\\theta) = -\\frac{5}{4}$.',
               ),
-              maths('\\sec(60^{\\circ}) = \\frac{1}{\\cos(60^{\\circ})} = 1 \\div \\frac{1}{2} = 2'),
-              prose(
-                'The same works for any fraction: if $\\sin(\\theta) = \\frac{3}{5}$ then $\\operatorname{cosec}(\\theta) = \\frac{5}{3}$. For $\\cot$, dividing cosine by sine cancels their common denominator.',
-              ),
+              prose('For $\\cot$, divide cosine by sine, and their common denominator cancels:'),
+              maths('\\cot(\\theta) = -\\frac{4}{5} \\div \\frac{3}{5} = -\\frac{4}{3}'),
             ),
             ask('trig-recip-from-values'),
             ask('trig-recip-tree', 2),
@@ -1740,7 +1886,6 @@ export const trigonometricFunctions: Course = {
               ),
             ),
             ask('trig-identity-square'),
-            ask('trig-identity-find'),
             ask('trig-identity-square', 2),
             teach(
               prose(
@@ -1749,7 +1894,17 @@ export const trigonometricFunctions: Course = {
               prose(
                 'So finding one ratio from another is two decisions: which identity has both of them in it, and which sign the quarter gives. With $\\tan(\\theta) = \\frac{3}{4}$ and $180^{\\circ} < \\theta < 270^{\\circ}$, cosine is negative there, so $\\sec(\\theta) = -\\frac{5}{4}$.',
               ),
+              prose(
+                'With $\\cot(\\theta) = -\\frac{12}{35}$ and $90^{\\circ} < \\theta < 180^{\\circ}$, the identity with both in it is the second one:',
+              ),
+              maths(
+                '\\begin{aligned} \\operatorname{cosec}^2(\\theta) &= 1 + \\frac{144}{1225} = \\frac{1369}{1225} \\\\ \\operatorname{cosec}(\\theta) &= \\pm\\frac{37}{35} \\end{aligned}',
+              ),
+              prose(
+                'Between $90^{\\circ}$ and $180^{\\circ}$ the point is above the centre, so sine is positive, and so is $\\operatorname{cosec}$: it is $\\frac{37}{35}$. Going the other way, from $\\operatorname{cosec}$ to $\\cot$, subtract the $1$ instead of adding it.',
+              ),
             ),
+            ask('trig-identity-find'),
             ask('trig-identity-flow'),
             ask('trig-identity-find+choice', 2),
           ],
@@ -1864,7 +2019,6 @@ export const trigonometricFunctions: Course = {
               ),
             ),
             ask('trig-inv-exact'),
-            ask('trig-inv-principal', 2),
             ask('trig-inv-exact+choice'),
             teach(
               prose(
@@ -1879,9 +2033,9 @@ export const trigonometricFunctions: Course = {
                 'So $\\cos^{-1}\\left(-\\frac{1}{2}\\right) = 180^{\\circ} - 60^{\\circ} = 120^{\\circ}$, which is $\\frac{2\\pi}{3}$.',
               ),
             ),
+            ask('trig-inv-principal', 2),
             ask('trig-inv-range-flow'),
             ask('trig-inv-negative-tree'),
-            ask('trig-inv-principal', 2),
             teach(
               prose('Side by side, the three ranges are:'),
               maths(
@@ -1891,6 +2045,7 @@ export const trigonometricFunctions: Course = {
                 'So before looking anything up, the sign of the input already says where the answer is: a positive input always lands in the first quarter, and a negative one below the axis, or past a quarter turn for $\\cos^{-1}$.',
               ),
             ),
+            ask('trig-inv-principal', 2),
             ask('trig-inv-range-flow', 2),
             ask('trig-inv-negative-tree', 2),
           ],
@@ -1979,11 +2134,20 @@ export const trigonometricFunctions: Course = {
               ),
               maths('\\sin\\left(\\sin^{-1}(x)\\right) = x'),
               prose(
-                'The other way round only works inside the range. $\\sin(150^{\\circ}) = \\frac{1}{2}$, and $\\sin^{-1}\\left(\\frac{1}{2}\\right)$ is $30^{\\circ}$, so',
+                'The other way round only works inside the range, $-90^{\\circ}$ to $90^{\\circ}$. Outside it, find the angle inside the range with the same sine. $150^{\\circ}$ is at the same height as $180^{\\circ} - 150^{\\circ} = 30^{\\circ}$, so',
               ),
               maths('\\sin^{-1}\\left(\\sin(150^{\\circ})\\right) = 30^{\\circ}'),
               prose(
-                'For an angle outside the range, find the angle inside it with the same sine; here $180^{\\circ} - 150^{\\circ}$. $\\cos^{-1}(\\cos\\theta)$ and $\\tan^{-1}(\\tan\\theta)$ work the same way, each with its own range.',
+                'Below the axis the mirror is $-180^{\\circ} - \\theta$: for $-150^{\\circ}$ that is $-180^{\\circ} + 150^{\\circ} = -30^{\\circ}$. A full turn changes nothing, so $320^{\\circ}$ gives $320^{\\circ} - 360^{\\circ} = -40^{\\circ}$. In radians the same moves use $\\pi$ for $180^{\\circ}$: $\\sin^{-1}\\left(\\sin\\frac{5\\pi}{6}\\right) = \\pi - \\frac{5\\pi}{6} = \\frac{\\pi}{6}$.',
+              ),
+              prose(
+                '$\\cos^{-1}$ answers from $0^{\\circ}$ to $180^{\\circ}$, and $\\theta$ and $-\\theta$ share a cosine: $\\cos^{-1}(\\cos(-50^{\\circ})) = 50^{\\circ}$, and $\\cos^{-1}(\\cos 290^{\\circ}) = 360^{\\circ} - 290^{\\circ} = 70^{\\circ}$.',
+              ),
+              prose(
+                '$\\tan^{-1}$ answers between $-90^{\\circ}$ and $90^{\\circ}$, and tangent repeats every $180^{\\circ}$, so take $180^{\\circ}$ off or add it on:',
+              ),
+              maths(
+                '\\begin{aligned} \\tan^{-1}(\\tan 130^{\\circ}) &= 130^{\\circ} - 180^{\\circ} \\\\ &= -50^{\\circ} \\end{aligned}',
               ),
             ),
             ask('trig-inv-undo'),
@@ -1998,19 +2162,27 @@ export const trigonometricFunctions: Course = {
                 "Pythagoras gives the third side, $\\sqrt{5^2 - 3^2} = 4$, and now every ratio of $\\theta$ can be read off. The answer stays a fraction, never a decimal from a calculator's angle.",
               ),
               maths('\\cos\\left(\\sin^{-1}\\left(\\frac{3}{5}\\right)\\right) = \\frac{4}{5}'),
+              prose(
+                'A tangent gives the two shorter sides instead: for $\\tan^{-1}\\left(\\frac{3}{4}\\right)$ the hypotenuse is $\\sqrt{3^2 + 4^2} = 5$, so $\\sin\\left(\\tan^{-1}\\left(\\frac{3}{4}\\right)\\right) = \\frac{3}{5}$.',
+              ),
             ),
             ask('trig-inv-side-tree'),
             ask('trig-inv-triangle'),
-            ask('trig-inv-side-tree', 2),
             teach(
               prose(
-                "A negative input moves the angle out of the first quarter, and the triangle's ratios pick up that quarter's signs. $\\sin^{-1}$ and $\\tan^{-1}$ of a negative number are below the axis, where cosine is still positive; $\\cos^{-1}$ of a negative number is past a quarter turn, where sine is still positive.",
+                "A negative input moves the angle out of the first quarter, and the triangle's ratios pick up that quarter's signs. $\\sin^{-1}$ and $\\tan^{-1}$ of a negative number are below the axis, where cosine is still positive and sine is negative; $\\cos^{-1}$ of a negative number is past a quarter turn, where sine is still positive and cosine is negative.",
               ),
-              maths('\\tan\\left(\\cos^{-1}\\left(-\\frac{3}{5}\\right)\\right) = -\\frac{4}{3}'),
               prose(
-                'The same goes for undoing: $\\sin^{-1}\\left(\\sin(-150^{\\circ})\\right)$ is $-30^{\\circ}$, since $-180^{\\circ} - (-150^{\\circ})$ is the angle in the range with the same sine.',
+                'Take $\\theta = \\cos^{-1}\\left(-\\frac{3}{5}\\right)$. Ignoring the sign, the triangle has adjacent $3$ and hypotenuse $5$, so the opposite side is $\\sqrt{5^2 - 3^2} = 4$. The angle is past a quarter turn, where sine is positive and cosine negative:',
+              ),
+              maths(
+                '\\begin{aligned} \\sin(\\theta) &= \\frac{4}{5} \\\\ \\tan(\\theta) &= \\frac{4}{-3} = -\\frac{4}{3} \\end{aligned}',
+              ),
+              prose(
+                'And for $\\tan^{-1}\\left(-\\frac{3}{4}\\right)$ the angle is below the axis, so its sine is $-\\frac{3}{5}$ and its cosine $\\frac{4}{5}$.',
               ),
             ),
+            ask('trig-inv-side-tree', 2),
             ask('trig-inv-triangle+choice', 2),
             ask('trig-inv-undo-flow', 2),
           ],
@@ -2131,7 +2303,6 @@ export const trigonometricFunctions: Course = {
               maths('h = 6 + 3\\sin(30t)'),
             ),
             ask('trig-model-extremes-tree'),
-            ask('trig-model-b'),
             ask('trig-model-build'),
             teach(
               prose(
@@ -2143,15 +2314,22 @@ export const trigonometricFunctions: Course = {
                 'A bigger $b$ means a faster cycle: $\\sin(60t)$ repeats every $6$ hours and $\\sin(15t)$ every $24$.',
               ),
             ),
+            ask('trig-model-b'),
             ask('trig-model-b+choice', 2),
             ask('trig-model-build+choice', 2),
             ask('trig-model-extremes-tree', 2),
             teach(
               prose(
-                'A model can be read backwards as a check. Sine runs from $-1$ to $1$, so $h = 6 + 3\\sin(30t)$ runs from $6 - 3 = 3$ up to $6 + 3 = 9$: exactly the tide described.',
+                'A model can be read backwards as a check. Sine runs from $-1$ to $1$, so $h = 6 + 3\\sin(30t)$ runs from $6 - 3 = 3$ up to $6 + 3 = 9$: exactly the tide described. Its period comes back too: $\\frac{360}{30} = 12$ hours.',
               ),
               prose(
                 'If the check does not land back on the numbers you started from, the midline and the amplitude have been swapped, or the whole swing has been used as the amplitude.',
+              ),
+              prose(
+                'When is it first highest? Sine starts on its midline rising and peaks a quarter of the way through a cycle, so the tide is first highest at $\\frac{12}{4} = 3$ hours. A cosine starts at its peak, so a cosine model is next highest one whole cycle after $t = 0$.',
+              ),
+              prose(
+                'A minus sign turns either one over: $-\\sin$ starts on its midline falling and peaks three quarters of the way through, and $-\\cos$ starts at its least and peaks halfway through. For $6 - 3\\sin(30t)$ that is $3 \\times \\frac{12}{4} = 9$ hours.',
               ),
             ),
             ask('trig-model-read'),
@@ -2177,6 +2355,9 @@ export const trigonometricFunctions: Course = {
               prose(
                 'A minus sign in front of the amplitude turns the curve upside down but does not change how far it swings: $18 - 5\\cos(15t)$ has the same least and greatest.',
               ),
+              prose(
+                'Sine starts on its midline rising, so the greenhouse is first warmest a quarter of a cycle in, $\\frac{24}{4} = 6$ hours after midnight; a cosine model would be at its warmest at the start of every cycle. The count runs backwards too: $4$ cycles in $48$ hours is one every $48 \\div 4 = 12$, so $b = \\frac{360}{12} = 30$.',
+              ),
             ),
             ask('trig-model-read'),
             ask('trig-model-b', 2),
@@ -2200,6 +2381,9 @@ export const trigonometricFunctions: Course = {
               }),
               prose(
                 'A buoy on the swell is $h = 10 + 2\\sin(30t)$ metres above the sea bed, $t$ seconds in. A cycle is $12$ seconds, so it is highest at $t = 3$, lowest at $t = 9$, and highest again at $t = 15$.',
+              ),
+              prose(
+                'A minus sign swaps the high and the low. $h = 10 - 2\\sin(30t)$ starts on its midline falling, so it is lowest a quarter of the way through, $t = 3$, and highest three quarters of the way, $t = 9$. $10 - 2\\cos(30t)$ starts at its lowest and is highest halfway through, $t = 6$.',
               ),
             ),
             ask('trig-model-peak-slider'),
@@ -2311,9 +2495,15 @@ export const trigonometricFunctions: Course = {
                 yMax: 10.5,
                 label: 'One cycle of h = 6 + 3 sin(30t) crossing the dashed line h = 7.5 at t = 1 and t = 5',
               }),
+              prose(
+                'A value below the midline makes the sine negative. When is a seat on $h = 20 + 10\\sin(15t)$ at $15$ m?',
+              ),
+              maths('\\begin{aligned} 10\\sin(15t) &= -5 \\\\ \\sin(15t) &= -\\tfrac{1}{2} \\end{aligned}'),
+              prose(
+                'Below the centre that happens at $180^{\\circ} + 30^{\\circ} = 210^{\\circ}$ and $360^{\\circ} - 30^{\\circ} = 330^{\\circ}$, so $t = \\frac{210}{15} = 14$ or $t = \\frac{330}{15} = 22$. A cosine model works the same way with its own angles: $\\cos = \\tfrac{1}{2}$ at $60^{\\circ}$ and $300^{\\circ}$, $\\cos = -\\tfrac{1}{2}$ at $120^{\\circ}$ and $240^{\\circ}$.',
+              ),
             ),
             ask('trig-model-when-tree'),
-            ask('trig-model-count'),
             ask('trig-model-when-tiles'),
             teach(
               prose(
@@ -2326,8 +2516,8 @@ export const trigonometricFunctions: Course = {
                 'A level between the least and the greatest is crossed twice a cycle, once going up and once coming down. The greatest and the least are each reached once a cycle, and a level outside them never.',
               ),
             ),
+            ask('trig-model-count'),
             ask('trig-model-when-tiles', 2),
-            ask('trig-model-above'),
             ask('trig-model-when-tree', 2),
             teach(
               prose(
@@ -2336,7 +2526,11 @@ export const trigonometricFunctions: Course = {
               prose(
                 'Check which side of the level you are on with a time in between: at $t = 3$, $h = 6 + 3\\sin(90^{\\circ}) = 9$, above. The time spent below is the rest of the cycle, $12 - 4 = 8$ hours.',
               ),
+              prose(
+                'For a level below the midline it is the other way round. The seat on $20 + 10\\sin(15t)$ is at $15$ m at $t = 14$ and $t = 22$, and at $t = 18$ it is at $20 + 10\\sin(270^{\\circ}) = 10$, below, so it spends $22 - 14 = 8$ minutes of each $24$ below $15$ m.',
+              ),
             ),
+            ask('trig-model-above'),
             ask('trig-model-above+choice', 2),
             ask('trig-model-count', 2),
           ],
@@ -2353,6 +2547,9 @@ export const trigonometricFunctions: Course = {
             teach(
               prose(
                 'Real readings rarely start at a neat point, so fitting a model means reading $a$, $b$, $c$ and $d$ off the data. Say a tidal river is highest, $7$ m, at $t = 2$ and next lowest, $3$ m, at $t = 8$, $t$ hours after noon.',
+              ),
+              prose(
+                'The model to fit is a shifted cosine, $L = d + a\\cos(b(t - c))$. This slide finds $a$, $b$ and $d$; the next finds $c$.',
               ),
               prose(
                 'As before, $d = \\frac{7 + 3}{2} = 5$ and $a = \\frac{7 - 3}{2} = 2$. Highest to lowest is half a cycle, $8 - 2 = 6$ hours, so the period is $12$ and $b = \\frac{360}{12} = 30$.',

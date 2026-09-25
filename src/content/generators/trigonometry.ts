@@ -834,6 +834,22 @@ const waveSlider: Generator<WaveSliderParams> = {
   },
 };
 
+/**
+ * The same slider, always asking about one feature.
+ *
+ * `trig-read-graph` picks the feature at random, so a lesson that has only
+ * taught the period could be handed an amplitude question. These pin it, for
+ * lessons that ask a slider question before every feature has been taught.
+ */
+const waveSliderAsking = (id: string, asks: WaveSliderParams['asks']): Generator<WaveSliderParams> => ({
+  ...waveSlider,
+  id,
+  sample: (rng, difficulty) => ({ ...waveSlider.sample(rng, difficulty), asks }),
+});
+
+const waveSliderPeriod = waveSliderAsking('trig-read-period', 'period');
+const waveSliderMidline = waveSliderAsking('trig-read-midline', 'midline');
+
 
 /* ---------- evaluating an exact-value expression ---------- */
 
@@ -7913,6 +7929,8 @@ export const trigonometryGenerators = [
   readParameters,
   evaluateWave,
   waveSlider,
+  waveSliderPeriod,
+  waveSliderMidline,
   evaluateExactTrig,
   periodFromB,
   relatedAngleGenerator,

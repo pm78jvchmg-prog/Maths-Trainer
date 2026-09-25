@@ -146,12 +146,13 @@ export function StreakView({ onClose }: { onClose: () => void }) {
         <p className="library-line streak-library">{libraryText(libraryProgress(categories, lessons))}</p>
         <SyncDevices />
 
+        {/* Temporary: what the phone reports about its screen, so the gap at
+            the foot of an installed app can be fixed from a screenshot. Above
+            Done, where the sheet cannot clip it. */}
+        {lastReading && <p className="streak-reading">{lastReading}</p>}
         <button type="button" className="primary-button" onClick={close}>
           Done
         </button>
-        {/* Temporary: what the phone reports about its screen, so the gap at
-            the foot of an installed app can be fixed from a screenshot. */}
-        {lastReading && <p className="streak-reading">{lastReading}</p>}
       </div>
     </dialog>
   );

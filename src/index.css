@@ -99,10 +99,22 @@
 }
 
 html,
-body,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Pinned to the top of the screen and sized by `installAppHeight`; see
+   `ui/fullHeight.ts` for why 100% alone stops a status bar short of the bottom
+   on the Home Screen. Fixed rather than sizing the document: a document taller
+   than the window it reports scrolls as a whole, dragging the background with
+   it and taking the swipe from the course list. A fixed box adds nothing to
+   what the page can scroll. */
 #root {
-  /* Set from the window by `installAppHeight`; see `ui/fullHeight.ts` for why
-     100% alone stops a status bar short of the bottom on the Home Screen. */
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
   height: var(--app-height, 100%);
 }
 
@@ -3397,7 +3409,7 @@ button.streak-bar:active {
 }
 
 .streak-reading {
-  margin: 10px 0 0;
+  margin: 0 0 12px;
   color: var(--text-dim);
   font-size: 10px;
   opacity: 0.6;

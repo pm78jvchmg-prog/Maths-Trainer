@@ -75,3 +75,17 @@ Generators in `src/content/generators/contestProblemSolving.ts`, helpers in
 | Math Requires Creativity | `cm-alternating-sum`, `cm-diff-squares`, `cm-diff-squares-tiles`, `cm-telescoping-product`, `cm-average-chain` | pair the terms; (A + B)(A − B); a product as a difference of squares; cancel down a row; shift so one number is 0 |
 
 Level check: 12 questions across all five lessons.
+
+## Level 2: Equations and Ratios (`cm-l2`)
+
+Generators in `src/content/generators/contestEquationsRatios.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Ratios and Percentages | `cm-percent-chain`, `cm-percent-swap`, `cm-reverse-percent`, `cm-ratio-share`, `cm-ratio-combine` | a change is a multiplier; x% of y is y% of x; divide to go back; the difference is a number of parts; match the shared quantity |
+| Simple Equations | `cm-brackets-equation`, `cm-three-scores`, `cm-three-scores-tiles`, `cm-halfway-speeds`, `cm-mixture` | multiply out and collect; name the smallest; equal distances make times the inverse ratio; count the one thing mixed |
+| Sequences and Series | `cm-arith-term`, `cm-sequence-table`, `cm-arith-sum`, `cm-odd-sums`, `cm-geo-past` | two terms give the step; pair first with last; odd numbers add to a square; write a geometric sequence out |
+| Equations with Ratios | `cm-ratio-change`, `cm-age-ratio`, `cm-ratio-expression`, `cm-work-together`, `cm-ratio-combine` | amounts as parts of k; both ages rise together; only the ratio matters, so pick numbers; add rates, not times |
+| Non-numeric Geometric Ratios | `cm-scale-factor`, `cm-scale-tiles`, `cm-half-rectangle`, `cm-midpoint-triangles`, `cm-nested-squares` | areas by k², volumes by k³; same base and height is half; midpoints make a quarter; a square in a circle in a square is half |
+
+Level check: 12 questions across all five lessons.

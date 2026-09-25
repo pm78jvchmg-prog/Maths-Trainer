@@ -11,6 +11,11 @@ its pull request; the PR description holds the evidence.
   showing an older version. The app now checks for a new version every time it
   is brought back to the front, so one close and reopen picks it up. The purple now melts through rose into
   the orange above Statistics instead of meeting it in a hard line.
+- **Checker: `+ C` and `2e-1`.** An integral answer's `C` was probed as 0, so
+  `x^2/2 + C*x` passed as the integral of x; `C` now takes a fixed non-zero
+  value, so only an added constant is forgiven (`2C` and `ln(C)` still pass).
+  A typed `2e-1` was read as 0.2; a digit before `e` is now read as a product,
+  so it is 2e − 1.
 - **Two grading bugs fixed (this PR).** `vec-parallel` could offer two
   parallel options, marking a correct pick wrong (~10% of draws). A negative
   base was shown unbracketed (`-1^{4}`) while the answer meant `(-1)^{4}`, in

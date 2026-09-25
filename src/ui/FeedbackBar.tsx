@@ -9,7 +9,7 @@
  * the `revealed` state.
  */
 import { useLayoutEffect, useRef, useState } from 'react';
-import { Blocks, Tex } from './Math';
+import { Blocks, DisplayMath } from './Math';
 import { packPages } from './solutionPages';
 import type { Feedback } from '../engine/session';
 import type { SolutionStep } from '../content/types';
@@ -49,9 +49,7 @@ function Step({ step }: { step: SolutionStep }) {
     <div className="solution-step">
       {step.text && <Blocks blocks={[{ kind: 'prose', text: step.text }]} />}
       {step.tex && (
-        <div className="display-math">
-          <Tex tex={step.tex} display />
-        </div>
+        <DisplayMath tex={step.tex} />
       )}
     </div>
   );

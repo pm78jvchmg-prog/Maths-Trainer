@@ -995,12 +995,20 @@ const distance: Generator<DistanceParams> = {
   id: 'vec-distance',
   choices: ({ ax, ay, bx, by }) => {
     const sq = (bx - ax) ** 2 + (by - ay) ** 2;
+    const added = (bx + ax) ** 2 + (by + ay) ** 2;
+    const across = Math.abs(bx - ax) + Math.abs(by - ay);
+    // Each slip with its value; one that lands on an earlier option's value
+    // (added = sq^2, so its root is sq) is left out rather than offered twice.
+    const slips: [string, number][] = [
+      // The components added rather than subtracted.
+      [`\\sqrt{${added}}`, Math.sqrt(added)],
+      [`${sq}`, sq],
+      [`${across}`, across],
+    ];
+    const kept = slips.filter(([, value], at) => value !== Math.sqrt(sq) && slips.findIndex(([, v]) => v === value) === at);
     return options(
       { tex: `\\sqrt{${sq}}`, answer: `sqrt(${sq})` },
-      // The components added rather than subtracted.
-      { tex: `\\sqrt{${(bx + ax) ** 2 + (by + ay) ** 2}}`, answer: `sqrt(${(bx + ax) ** 2 + (by + ay) ** 2})` },
-      { tex: `${sq}`, answer: `${sq}` },
-      { tex: `${Math.abs(bx - ax) + Math.abs(by - ay)}`, answer: `${Math.abs(bx - ax) + Math.abs(by - ay)}` },
+      ...kept.map(([tex]) => ({ tex, answer: tex.startsWith('\\sqrt') ? `sqrt(${added})` : tex })),
     );
   },
   sample: (rng, difficulty) => {

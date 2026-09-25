@@ -30,6 +30,10 @@ import { bin, num, pow } from '../expr';
 /** Roots can be surds, so the formula questions need a root key. */
 export const SURD_KEYS: KeypadKey[] = [...ALGEBRA_KEYS, { insert: 'sqrt(' }];
 
+/** Whether two pairs hold the same numbers, in either order. */
+const sameMultiset = (a: [number, number], b: [number, number]): boolean =>
+  (a[0] === b[0] && a[1] === b[1]) || (a[0] === b[1] && a[1] === b[0]);
+
 /** A non-zero integer, for sampling where 0 would make a degenerate question. */
 export function nonZero(value: number, fallback: number): number {
   return value === 0 ? fallback : value;
@@ -178,10 +182,16 @@ const factorise: Generator<PairParams> = {
     options(
       { tex: `\\left(x ${signedTile(p)}\\right)\\left(x ${signedTile(q)}\\right)`, answer: `(x + (${p})) * (x + (${q}))` },
       { tex: linearPairTex(p, q + 1), answer: `(x + (${p})) * (x + (${q + 1}))` },
-      { tex: linearPairTex(p + q, p * q), answer: `(x + (${p + q})) * (x + (${p * q}))` },
+      // The sum and product as the two constants, unless they are the pair
+      // above in another order: at p = q = 1 both read (x + 1)(x + 2).
+      ...(sameMultiset([p + q, p * q], [p, q + 1])
+        ? []
+        : [{ tex: linearPairTex(p + q, p * q), answer: `(x + (${p + q})) * (x + (${p * q}))` }]),
       // Flipping both signs only changes the factorisation while the two roots
       // are not each other's negatives; at q = -p it is the same pair commuted.
-      ...(q === -p
+      // Nor is it offered when it is a slip above in another order, as at
+      // p = 2, q = -1, where it and the sum-and-product pair are (x + 1)(x - 2).
+      ...(q === -p || sameMultiset([-p, -q], [p, q + 1]) || sameMultiset([-p, -q], [p + q, p * q])
         ? []
         : [{ tex: `\\left(x ${signedTile(-p)}\\right)\\left(x ${signedTile(-q)}\\right)`, answer: `(x + (${-p})) * (x + (${-q}))` }]),
     ),
@@ -304,11 +314,6 @@ const factoriseWithCoefficient: Generator<CoefficientParams> = {
         : [{ tex: `\\left(${factorTile(p, -q)}\\right)\\left(${factorTile(1, -s)}\\right)`, answer: `((${p})*x + (${-q})) * (x + (${-s}))` }]),
       // At s = -1 the second bracket would read (x + 0): it is the plain x, in front.
       { tex: s + 1 === 0 ? `x\\left(${factorTile(p, q)}\\right)` : `\\left(${factorTile(p, q)}\\right)\\left(${factorTile(1, s + 1)}\\right)`, answer: `((${p})*x + (${q})) * (x + (${s + 1}))` },
-      // Moving the coefficient to the other bracket changes the product only
-      // while the two constants differ; at q = s it is the same product.
-      ...(q === s
-        ? []
-        : [{ tex: `\\left(${factorTile(1, q)}\\right)\\left(${factorTile(p, s)}\\right)`, answer: `(x + (${q})) * ((${p})*x + (${s}))` }]),
     ),
   sample: (rng, difficulty) => ({
     p: rng.int(2, difficulty > 1 ? 6 : 4),

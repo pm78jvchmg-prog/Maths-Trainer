@@ -3,8 +3,10 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { installAppHeight } from './ui/fullHeight'
+import { installSync } from './sync/sync'
 
 installAppHeight()
+installSync()
 
 // Installed to a Home Screen, the app is mostly resumed rather than relaunched,
 // and a service worker only looks for a new version when the page loads. An

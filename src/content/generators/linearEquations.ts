@@ -4381,7 +4381,11 @@ function twiceFormula(params: TwiceParams): Formula & {
       right: `(${S} + ${p})/(${S} - ${q})`,
       slips: [
         { tex: fr(`${qY} - ${p}`, bottom), answer: `(${q}*${Y} - ${p})/(${Y} - 1)` },
-        { tex: fr(top, `${Y} + 1`), answer: `(${q}*${Y} + ${p})/(${Y} + 1)` },
+        // At p = q this slip and the one before both cancel to q, so the
+        // bottom's sign turns instead.
+        p === q
+          ? { tex: fr(top, `1 - ${Y}`), answer: `(${q}*${Y} + ${p})/(1 - ${Y})` }
+          : { tex: fr(top, `${Y} + 1`), answer: `(${q}*${Y} + ${p})/(${Y} + 1)` },
         { tex: fr(`${p} - ${qY}`, bottom), answer: `(${p} - ${q}*${Y})/(${Y} - 1)` },
       ],
       lines,

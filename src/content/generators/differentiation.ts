@@ -508,7 +508,11 @@ export const chainRule: Generator<ChainParams> = {
     return options(
       { tex: `${power}${bracket}\\left(${termTex(a * innerPower, innerPower - 1)}\\right)`, answer: `(${power}) * ${bracketAnswer} * (${termAnswer(a * innerPower, innerPower - 1)})` },
       { tex: `${power}${bracket}`, answer: `(${power}) * ${bracketAnswer}` },
-      { tex: `${bracket}\\left(${termTex(a * innerPower, innerPower - 1)}\\right)`, answer: `${bracketAnswer} * (${termAnswer(a * innerPower, innerPower - 1)})` },
+      // Forgetting the power is forgetting the chain factor when the two are
+      // the same number, as in 2(2x + 4) against (2x + 4)(2).
+      ...(innerPower === 1 && a === power
+        ? []
+        : [{ tex: `${bracket}\\left(${termTex(a * innerPower, innerPower - 1)}\\right)`, answer: `${bracketAnswer} * (${termAnswer(a * innerPower, innerPower - 1)})` }]),
       { tex: `${power}\\left(${inner}\\right)^{${power}}\\left(${termTex(a * innerPower, innerPower - 1)}\\right)`, answer: `(${power}) * ((${innerAnswer})^(${power})) * (${termAnswer(a * innerPower, innerPower - 1)})` },
     );
   },
@@ -588,7 +592,8 @@ export const expLogDerivative: Generator<ExpLogParams> = {
       ...(k === 1
         ? []
         : [opt(a * k, 'x', `(${a * k}) / x`), opt(a, `${k}x`, `(${a}) / ((${k}) * x)`)]),
-      ...(a === 1 ? [] : [opt(1, 'x', `1 / x`)]),
+      // At a = k the k-downstairs slip above already cancels to 1/x.
+      ...(a === 1 || a === k ? [] : [opt(1, 'x', `1 / x`)]),
     );
   },
   sample: (rng, difficulty) => ({

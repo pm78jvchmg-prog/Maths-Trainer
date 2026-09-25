@@ -96,7 +96,8 @@ const multiplyPowers: Generator<PairParams> = {
       { tex: powerTex(a + b), answer: powerAnswer(a + b) },
       { tex: powerTex(a * b), answer: powerAnswer(a * b) },
       { tex: powerTex(a + b + 1), answer: powerAnswer(a + b + 1) },
-      { tex: `${powerTex(a + b)}${powerTex(a + b)}`, answer: powerAnswer(2 * (a + b)) },
+      // Doubled is a*b too when 2(a + b) = ab, at 3 and 6 or 4 and 4.
+      ...(2 * (a + b) === a * b ? [] : [{ tex: `${powerTex(a + b)}${powerTex(a + b)}`, answer: powerAnswer(2 * (a + b)) }]),
     ),
   sample: (rng, difficulty) => ({
     a: rng.int(2, difficulty > 1 ? 12 : 9),
@@ -2453,17 +2454,16 @@ const sfWriteSmallTiles = writeTiles('sf-write-small-tiles', 'small');
  *
  * Drawn edge to edge in its own units, like `vectorSvg`, because the slider
  * places its marker as a fraction of the picture's width: the span -10 to 10
- * maps exactly onto the 280 units across. With `dot`, the number itself is
- * marked where it sits, between its own power and the next — which is the
- * picture of why the power is the tick just below it.
+ * maps exactly onto the 280 units across. The number itself is not marked:
+ * the owner found the dot that did so an unexplained grey blob, and took it out.
  */
-function powerLineSvg(sf: Sf, dot: boolean): string {
+function powerLineSvg(): string {
   const width = 280;
   const height = 56;
   const axis = 22;
   const x = (v: number) => (((v + 10) / 20) * width).toFixed(1);
   const parts = [
-    `<svg viewBox="0 0 ${width} ${height}" width="100%" role="img" aria-label="A line of powers of ten from ten to the minus nine up to ten to the nine${dot ? ', with a dot where the number sits' : ''}">`,
+    `<svg viewBox="0 0 ${width} ${height}" width="100%" role="img" aria-label="A line of powers of ten from ten to the minus nine up to ten to the nine">`,
     `<line x1="${x(-9.5)}" y1="${axis}" x2="${x(9.5)}" y2="${axis}" stroke="currentColor" stroke-width="1" opacity="0.55" />`,
   ];
   for (let k = -9; k <= 9; k += 1) {
@@ -2478,17 +2478,8 @@ function powerLineSvg(sf: Sf, dot: boolean): string {
       );
     }
   }
-  if (dot) {
-    const at = sf.n + Math.log10(Number(frontOf(sf.digits)));
-    parts.push(`<circle cx="${x(at)}" cy="${axis}" r="4.5" fill="currentColor" />`);
-  }
   parts.push('</svg>');
   return parts.join('');
-}
-
-interface PowerSliderParams extends Sf {
-  /** Mark the number on the line: at difficulty 1 only, as a support to take away. */
-  dot: boolean;
 }
 
 /**
@@ -2500,18 +2491,16 @@ interface PowerSliderParams extends Sf {
  * line both ways, so a large number can be given a negative power and a small
  * one a positive power, which are the slips worth being able to make.
  */
-function powerSlider(id: string, scale: Scale): Generator<PowerSliderParams> {
+function powerSlider(id: string, scale: Scale): Generator<Sf> {
   return {
     id,
-    sample: (rng, difficulty) => ({ ...drawSf(rng, scale, difficulty), dot: difficulty === 1 }),
+    sample: (rng, difficulty) => drawSf(rng, scale, difficulty),
     render: (params): Slide => ({
       kind: 'slider',
       prompt: [
         {
           kind: 'prose',
-          text: params.dot
-            ? `Slide to the power of ten that writes $${ordinaryTex(params)}$ in standard form. The dot shows where it sits on the line.`
-            : `Slide to the power of ten that writes $${ordinaryTex(params)}$ in standard form.`,
+          text: `Slide to the power of ten that writes $${ordinaryTex(params)}$ in standard form.`,
         },
       ],
       min: -9,
@@ -2519,7 +2508,7 @@ function powerSlider(id: string, scale: Scale): Generator<PowerSliderParams> {
       step: 1,
       answer: params.n,
       readout: `${frontOf(params.digits)} \\times 10^{{v}}`,
-      figure: { svg: powerLineSvg(params, params.dot), xMin: -10, xMax: 10 },
+      figure: { svg: powerLineSvg(), xMin: -10, xMax: 10 },
     }),
     solution: (params) => {
       const front = frontOf(params.digits);
@@ -4959,7 +4948,8 @@ const pythagSurd: Generator<PythagParams> = {
         right,
         { tex: `${x + y}`, answer: `${x + y}` },
         { tex: `\\sqrt{${x + y}}`, answer: `sqrt(${x + y})` },
-        ...(y !== x ? [{ tex: surdTex(y * y - x * x), answer: surdAnswer(y * y - x * x) }] : []),
+        // At y = x + 1, y^2 - x^2 is x + y: the slip before this one again.
+        ...(y !== x && y !== x + 1 ? [{ tex: surdTex(y * y - x * x), answer: surdAnswer(y * y - x * x) }] : []),
       );
     }
     if (shape === 'leg') {

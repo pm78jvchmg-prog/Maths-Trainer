@@ -19,12 +19,13 @@ import {
   skillCheckScore,
   scorePercent,
 } from '../engine/session';
-import type { Answer } from '../engine/session';
-import type { Lesson, GeneratorRegistry } from '../content/types';
+import type { Answer, Feedback } from '../engine/session';
+import type { Lesson, GeneratorRegistry, Slide } from '../content/types';
 import { SlideView } from './SlideView';
 import { hasAnswer } from './slides';
 import { FeedbackBar, VerdictAnnouncer } from './FeedbackBar';
 import { tapOnQuestion } from './questionTap';
+import { usePeekDrag } from './peekDrag';
 import { useHidingBar } from './hidingBar';
 
 interface Props {
@@ -110,6 +111,17 @@ function ConfirmLeave({
   );
 }
 
+// Working slides grow a line at a time, so they anchor to the top; anything
+// else sits low on the screen, within thumb reach.
+function growsKind(kind: Slide['kind']): boolean {
+  return kind === 'steps' || kind === 'tree' || kind === 'order' || kind === 'iterate';
+}
+
+// What a peeked slide is drawn with: as if untouched, since its answer is not
+// kept once the learner moves on, and with nowhere for an answer to go.
+const IDLE: Feedback = { kind: 'idle' };
+const ignoreAnswer = () => {};
+
 export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Props) {
   const [session, dispatch] = useReducer(
     reduce,
@@ -133,6 +145,13 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
 
   const slide = currentSlide(session);
   const deck = currentDeck(session);
+  // The slide a right-swipe peeks at: the one before, in the guided phase
+  // only. `canGoBack` is the same gate as the back control, so the sealed
+  // phases offer no peek either.
+  const previous = canGoBack(session) ? deck[session.index - 1] : undefined;
+  const { stage, currentPane, previousPane, peeking, onPointerDown: startPeek } = usePeekDrag(
+    previous !== undefined,
+  );
   const slideId = slide?.id;
   const { show } = bar;
   useEffect(() => {
@@ -169,13 +188,7 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
 
   const isSkillCheck = session.phase === 'skillCheck';
   const isTeach = slide.slide.kind === 'teach';
-  // Working slides grow a line at a time, so they anchor to the top; anything
-  // else sits low on the screen, within thumb reach.
-  const grows =
-    slide.slide.kind === 'steps' ||
-    slide.slide.kind === 'tree' ||
-    slide.slide.kind === 'order' ||
-    slide.slide.kind === 'iterate';
+  const grows = growsKind(slide.slide.kind);
   // A wrong answer the learner is still allowed to change. `canRetry` is the
   // same gate the widgets read, so a level check cannot pick up a second
   // attempt through this route either.
@@ -277,43 +290,65 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
         )}
       </header>
 
-      {/* Keying on the slide id remounts the widget between questions, so no
-          draft answer or keypad state can leak from one slide to the next.
-
-          The whole question area clears a wrong verdict when tapped. Reaching
-          the feedback bar to retry means moving your thumb to the bottom of the
-          screen and back for every slip, when the thing you want to change is
-          already under your finger — so any tap on the question counts as
-          "let me have another go". It is guarded by `canRetry`, so inside a
-          level check the tap does nothing and the one-attempt rule stands.
-          A tap a widget has already turned into an answer is that retry, and
-          the answer stands; see `tapOnQuestion`. */}
-      <main
-        className={`slide enter-${direction}${grows ? ' grow' : ''}${retryOnTap ? ' retryable' : ''}`}
-        key={slide.id}
-        onClick={retryOnTap ? tapQuestion : undefined}
-        onScroll={bar.onScroll}
-      >
-        {/* Only when stepping *back* onto a finished slide. While the verdict
-            for this answer is still on screen, saying it was already solved
-            reads as a comment on the answer just given rather than on the
-            history. A slide whose answer was shown comes back showing it, so
-            this line appears there only after Try again. */}
-        {canPassFinished(session) && (
-          <p className="lesson-meta">
-            {session.states[slide.id]?.solved
-              ? 'Already solved — answer again or continue.'
-              : 'Answer already shown — try it or continue.'}
-          </p>
+      {/* The stage holds the slide and, only while a right-swipe is held, the
+          one before it: a read-only look that dispatches nothing. See
+          `peekDrag.ts` for which drags start one. */}
+      <div className="slide-stage" ref={stage} onPointerDown={startPeek}>
+        {peeking && previous && (
+          <div
+            className={`slide slide-peek${growsKind(previous.slide.kind) ? ' grow' : ''}`}
+            ref={previousPane}
+            aria-hidden="true"
+            inert
+          >
+            <SlideView
+              slide={previous.slide}
+              feedback={IDLE}
+              answer=""
+              onAnswer={ignoreAnswer}
+              canEdit={false}
+            />
+          </div>
         )}
-        <SlideView
-          slide={slide.slide}
-          feedback={session.feedback}
-          answer={answer}
-          onAnswer={changeAnswer}
-          canEdit={canRetry(session)}
-        />
-      </main>
+        {/* Keying on the slide id remounts the widget between questions, so no
+            draft answer or keypad state can leak from one slide to the next.
+
+            The whole question area clears a wrong verdict when tapped. Reaching
+            the feedback bar to retry means moving your thumb to the bottom of the
+            screen and back for every slip, when the thing you want to change is
+            already under your finger — so any tap on the question counts as
+            "let me have another go". It is guarded by `canRetry`, so inside a
+            level check the tap does nothing and the one-attempt rule stands.
+            A tap a widget has already turned into an answer is that retry, and
+            the answer stands; see `tapOnQuestion`. */}
+        <main
+          className={`slide enter-${direction}${grows ? ' grow' : ''}${retryOnTap ? ' retryable' : ''}`}
+          key={slide.id}
+          ref={currentPane}
+          onClick={retryOnTap ? tapQuestion : undefined}
+          onScroll={bar.onScroll}
+        >
+          {/* Only when stepping *back* onto a finished slide. While the verdict
+              for this answer is still on screen, saying it was already solved
+              reads as a comment on the answer just given rather than on the
+              history. A slide whose answer was shown comes back showing it, so
+              this line appears there only after Try again. */}
+          {canPassFinished(session) && (
+            <p className="lesson-meta">
+              {session.states[slide.id]?.solved
+                ? 'Already solved — answer again or continue.'
+                : 'Answer already shown — try it or continue.'}
+            </p>
+          )}
+          <SlideView
+            slide={slide.slide}
+            feedback={session.feedback}
+            answer={answer}
+            onAnswer={changeAnswer}
+            canEdit={canRetry(session)}
+          />
+        </main>
+      </div>
 
       <VerdictAnnouncer feedback={session.feedback} />
       <FeedbackBar

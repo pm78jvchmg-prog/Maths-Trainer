@@ -1117,11 +1117,17 @@ const compositeOrder: Generator<OrderParams> = {
   id: 'fun-composite-order',
   sample: (rng, difficulty) => {
     const hard = difficulty > 1;
+    const outer = rng.pick(hard ? (['sq', 'recip', 'root'] as const) : (['sq'] as const));
+    const c = rng.int(0, 4);
+    const p = rng.pick(hard ? [1, 2, 3, -1] : [1, 1, 2, 3]);
+    const d = rng.pick(nonZeroRange(-7, 7));
     return {
-      outer: rng.pick(hard ? (['sq', 'recip', 'root'] as const) : (['sq'] as const)),
-      c: rng.int(0, 4),
-      p: rng.pick(hard ? [1, 2, 3, -1] : [1, 1, 2, 3]),
-      d: rng.pick(nonZeroRange(-7, 7)),
+      outer,
+      c,
+      p,
+      // With f = 1/x and g = px + p, the product (1/x)(px + p) is p + p/x,
+      // which is g(f(x)): a second right answer. -d is never p when d is.
+      d: outer === 'recip' && d === p ? -d : d,
       fg: hard ? rng.chance(0.5) : rng.chance(0.7),
     };
   },
@@ -2129,7 +2135,10 @@ function imageOf({ p, q, sx, sy, fx, fy, h, k }: PointParams): [number, number] 
 /** The transformed equation, written the way the lessons write it. */
 function pointEq({ sx, sy, fx, fy, h, k }: PointParams): string {
   const innerCoef = sx === 1 ? '' : factorTex(1 / sx);
-  const inside = fx ? (h === 0 ? `-${innerCoef}x` : `-(${shiftedX(h)})`) : sx !== 1 ? `${innerCoef}x` : shiftedX(h);
+  // A stretch across with a move keeps the move in its own bracket,
+  // f(½(x - 1)), or the equation shown would not be the one graded.
+  const stretched = h === 0 ? `${innerCoef}x` : `${innerCoef}(${shiftedX(h)})`;
+  const inside = fx ? (h === 0 ? `-${innerCoef}x` : `-(${shiftedX(h)})`) : sx !== 1 ? stretched : shiftedX(h);
   const outer = `${fy ? '-' : ''}${sy === 1 ? '' : factorTex(sy)}f(${inside})`;
   return `y = ${outer}${tail(k)}`;
 }

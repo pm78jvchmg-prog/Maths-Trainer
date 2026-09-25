@@ -413,6 +413,14 @@ it on every draw, which is why slopes run 25 to 40 degrees. `fd-pick` and
 `fd-fill` in `generators/forceDiagram.ts` are demonstrations no lesson asks
 yet.
 
+Every display formula (a `display` block, a tree's expression, a worked
+solution's `tex` line) renders through `DisplayMath` in `src/ui/Math.tsx`. It is split at each top-level `\qquad` (`src/ui/displayPieces.ts`)
+and each piece is set **inline in display style**, not in KaTeX display mode,
+so pieces stack when they do not fit side by side and a long piece breaks after
+an `=` or `+`. Use `\qquad` between separate results on one display and
+`\quad` inside one statement, which is never split. An `aligned` block or an
+`array` cannot break, so it still scrolls if it is wider than the phone.
+
 ## TeX escaping — the recurring hazard
 
 TeX lives inside JavaScript string literals, so **every backslash must be
@@ -464,6 +472,12 @@ Per generator, across 200 seeds × 2 difficulties:
 - the checker accepts the answer the generator claims, and rejects a perturbed one
 - tile banks actually contain the tokens their answers need
 - choice options are unique and include the correct id
+- no two choice options are worth the same, read by value off their labels
+  (`sweep/optionValue.ts`): a distractor equal to the right option is a
+  second right answer marked wrong, and two equal distractors are a free
+  elimination. Labels that are words, sets or anything else it cannot read
+  plainly are skipped. A question about *form* (`2 \times 3` as a matrix
+  order) goes in `SAME_VALUE_BY_DESIGN` with its reason, never a blanket skip
 - solutions exist and vary with the parameters
 
 **The oracle test is the important one.** The above only prove a generator agrees
@@ -545,6 +559,35 @@ answers — all to spare the private repo's Actions minutes. It blocks a merge
 only once the owner adds "Fast checks" to the auto-merge ruleset as a required
 check; until then auto-merge still waits on the Cloudflare build alone. Either
 way, run the full `npm test` before a change to a generator lands.
+
+**Progress sync** is the one server-side piece. `wrangler.jsonc` now names a
+Worker script, `worker/index.ts`, and routes only `/api/*` to it
+(`run_worker_first`); every other request is still a static file. Its storage
+is a D1 database named in the same file with no id: wrangler creates it on the
+first build and finds it by name on every build after, so there is nothing to
+set up in the dashboard, and the Worker makes its two tables on first use. Two
+other stores each failed the pull request's Cloudflare check: a Durable
+Object's migration cannot go through the preview build's `wrangler versions
+upload`, and a KV namespace with no id is created afresh by every build until
+production has the binding, so the second build fails on the name already
+taken. The store holds one opaque JSON document per sync group with a version,
+and a write against an old version is refused in the same SQL statement that
+would make it; all merge rules live in the app, in `src/sync/merge.ts` (per
+lesson the better best and later finish, the streak played forward with
+`playOn`, `lastPlayedAt` travelling with its day, `replaced` never shared), and
+are order-independent and idempotent. Local storage stays the source the app
+reads, so a lesson never waits on the network. The worker has its own
+`tsconfig.worker.json`, referenced from `tsconfig.json` so `tsc -b` checks it
+in the build, and `src/sync/sync.test.ts` runs it against Node's SQLite. Try it
+locally with `npm run build` then `npx wrangler dev --port 5199`; `npm run dev`
+has no `/api` and sync just reports offline.
+
+Cloudflare builds one pull request head at a time and posts its check only
+once a build starts, so with many pull requests open a head can wait well over
+twenty minutes without anything being wrong. Pushing to a waiting head sends it
+to the back of the queue. `.github/workflows/stuck-builds.yml` therefore re-kicks
+a pull request only when no Cloudflare build has started or finished anywhere
+for twenty minutes, and then only the oldest one; do not make it more eager.
 
 The app is installed to an iPhone Home Screen and must work offline — the
 service worker precaches everything including KaTeX fonts and mathjs. Do not add

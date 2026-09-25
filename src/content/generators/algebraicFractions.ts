@@ -820,8 +820,9 @@ const fracLcd: Generator<LcdParams> = {
   id: 'frac-lcd',
   sample: (rng, difficulty) => {
     const kind = difficulty > 1 ? rng.pick<LcdParams['kind']>(['hidden', 'quadratics']) : rng.pick<LcdParams['kind']>(['distinct', 'shared']);
+    // q = -p would make the slip x^2 + pq the answer multiplied out.
     const [p, q, r] = distinct(rng, 3, 6);
-    return { kind, p, q, r, m: rng.int(1, 9), n: rng.int(1, 9), minus: rng.chance(0.5) };
+    return { kind, p, q: kind === 'distinct' && q === -p ? r : q, r, m: rng.int(1, 9), n: rng.int(1, 9), minus: rng.chance(0.5) };
   },
   render: (params): Slide => {
     const { kind, p, q, r } = params;
@@ -832,7 +833,7 @@ const fracLcd: Generator<LcdParams> = {
         : kind === 'shared'
           ? firstFour(both, `${pbr(p)}^{2}${pbr(q)}`, br(q), `${pbr(p)}^{2}`)
           : kind === 'hidden'
-            ? firstFour(both, `${pbr(p)}(${polyTex(quad(p, q))})`, polyTex([1, p + q + 1, p * q + p]), `${pbr(p)}^{2}${pbr(q)}`)
+            ? firstFour(both, `${pbr(p)}(${polyTex(quad(p, q))})`, polyTex([1, p + q + 1, p * q + p]), `${pbr(p)}${pbr(q)}^{2}`)
             : firstFour(`${pbr(p)}${pbr(q)}${pbr(r)}`, `${pbr(p)}^{2}${pbr(q)}${pbr(r)}`, `${pbr(q)}${pbr(r)}`, `${pbr(p)}${pbr(q)}`);
     return choiceSlide([say('What is the simplest common denominator for this sum?'), show(lcdSum(params))], opts);
   },

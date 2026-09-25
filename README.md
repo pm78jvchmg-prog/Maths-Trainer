@@ -1,4 +1,4 @@
-# Maths Trainer
+# Excellent
 
 Single-player maths practice with Brilliant's lesson shape: short guided slides,
 one idea at a time, immediate feedback. No XP, no leagues, no points total. The

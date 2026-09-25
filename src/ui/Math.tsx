@@ -9,6 +9,7 @@ import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import type { Block } from '../content/types';
 import { Traversal } from './figures';
+import { displayPieces } from './displayPieces';
 
 function render(tex: string, displayMode: boolean, trust: boolean): string {
   try {
@@ -118,9 +119,18 @@ export function Blocks({ blocks }: { blocks: Block[] }) {
             />
           );
         }
+        // Each piece is set inline in display style rather than in display
+        // mode: display mode cannot break a line, so a formula wider than the
+        // phone scrolled sideways, while inline mode breaks after an `=` or a
+        // `+` only when the line does not fit. The piece's own overflow scroll
+        // is left for the rare formula with nowhere to break.
         return (
-          <div key={idx} className="display-math">
-            <Tex tex={block.tex} display />
+          <div key={idx} className="display-math display-row">
+            {displayPieces(block.tex).map((piece, at) => (
+              <span key={at} className="display-piece">
+                <Tex tex={`\\displaystyle ${piece}`} />
+              </span>
+            ))}
           </div>
         );
       })}

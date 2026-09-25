@@ -5,6 +5,12 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-25
 
+- **Formula boxes no longer scroll sideways (this PR).** Formulae set apart
+  with `\qquad` sit side by side while they fit and stack when they do not,
+  and a long formula breaks after an `=` or `+`: teaching displays that
+  scrolled at 393 px fell from 166 to 25 (the rest are tables and aligned
+  working with nowhere to break). The grey dot on the standard-form power
+  slider, and the sentence pointing at it, are gone (owner, Updates 3).
 - **Two grading bugs fixed (this PR).** `vec-parallel` could offer two
   parallel options, marking a correct pick wrong (~10% of draws). A negative
   base was shown unbracketed (`-1^{4}`) while the answer meant `(-1)^{4}`, in

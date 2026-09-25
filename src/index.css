@@ -83,14 +83,13 @@
   --lift: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 10px 24px -16px rgb(0 0 0 / 0.9);
 
   /* The foot of the screen. On the owner's installed iPhone app the window
-     stops 59pt short of the screen, and iOS paints the strip below it in one
-     flat colour the page cannot reach (sampled as #11121a, the page base the
-     app was installed with). So the page comes down to meet that colour
-     instead: a scrolling list fades into `--edge` over `--edge-fade`, and a
-     sheet's backdrop dims towards it, so the strip reads as the floor the
-     screen stands on rather than a band iOS left behind. If a reinstall ever
-     paints the strip another colour, this token is the one to change. */
-  --edge: #11121a;
+     stops 59pt short of the screen, and iOS paints the strip below it in the
+     page's own background colour (#249 turned it from #11121a to this navy;
+     nothing else on the page reaches it). So a list screen takes this colour
+     as its base and its last stretch fades into it, and the strip reads as
+     the floor the screen stands on, the same navy as the top bar, rather
+     than a band iOS left behind. */
+  --edge: #1e2154;
   --edge-fade: 56px;
 
   color-scheme: dark;
@@ -133,6 +132,13 @@ body {
    from handing the page a horizontal scrollbar it never loses. */
 #root {
   overflow: hidden;
+}
+
+/* A list screen's base is `--edge`, the colour iOS copies into the strip
+   below a short window, so the strip matches the fade at the foot of the
+   list. The glow and the bands cover the rest. A lesson keeps `--bg`. */
+body:has(.app-wide) {
+  background-color: var(--edge);
 }
 
 body {

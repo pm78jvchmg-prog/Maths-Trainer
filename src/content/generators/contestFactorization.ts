@@ -684,7 +684,7 @@ const cmFzTogether: Generator<TogetherParams> = {
     const L = lcm(lcm(a, b), c);
     const steps: SolutionStep[] = [
       { text: 'They meet again after the smallest time that is a multiple of all three gaps, the LCM. Take the highest power of each prime:' },
-      { tex: `${a} = ${factorTex(a)}, \\quad ${b} = ${factorTex(b)}, \\quad ${c} = ${factorTex(c)}` },
+      { tex: `${a} = ${factorTex(a)}, \\qquad ${b} = ${factorTex(b)}, \\qquad ${c} = ${factorTex(c)}` },
       { tex: `\\text{LCM} = ${factorTex(L)} = ${L}` },
     ];
     if (hours === 0) {
@@ -764,7 +764,7 @@ const cmFzPieces: Generator<PiecesParams> = {
     const lengths = parts.map((v) => g * v);
     const steps: SolutionStep[] = [
       { text: 'The piece must divide every length exactly, and be as large as possible: that is the HCF. Take the lower power of each shared prime:' },
-      { tex: lengths.map((v) => `${v} = ${factorTex(v)}`).join(', \\quad ') },
+      { tex: lengths.map((v) => `${v} = ${factorTex(v)}`).join(', \\qquad ') },
       { tex: `\\text{HCF} = ${factorTex(g)}${factorise(g).length > 1 || factorise(g)[0][1] > 1 ? ` = ${g}` : ''}` },
     ];
     if (parts.length === 3) {
@@ -1199,7 +1199,7 @@ const cmFzCryptReverse: Generator<ReverseParams> = {
       [
         say('$A$, $B$ and $C$ are digits, and $A$ and $C$ are not 0.'),
         show(`ABC - CBA = ${99 * (A - C)}`),
-        show(`A \\times C = ${A * C}, \\quad A + B + C = ${A + B + C}`),
+        show(`A \\times C = ${A * C}, \\qquad A + B + C = ${A + B + C}`),
         say('What is the three-digit number $ABC$?'),
       ],
       digitsValue(digits),
@@ -1365,7 +1365,7 @@ const cmFzCryptDivisible: Generator<DivisibleParams> = {
       steps.push({
         text: `A multiple of ${last} has its last ${places === 3 ? 'three' : 'two'} digits, here $${shapeTex(tail)}$, making a multiple of ${last}:`,
       });
-      steps.push({ tex: candidates.map((b) => digitsValue(fill(tail, 0, b))).join(', \\quad ') });
+      steps.push({ tex: candidates.map((b) => digitsValue(fill(tail, 0, b))).join(', \\qquad ') });
     }
     steps.push({ tex: `B = ${candidates.join(' \\text{ or } ')}` });
     const signs = p.shape.map((_, i) => (i % 2 === 0 ? 1 : -1));

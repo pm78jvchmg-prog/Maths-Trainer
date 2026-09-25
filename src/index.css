@@ -1564,23 +1564,35 @@ button {
     to bottom,
     rgb(138 134 255 / 0.24) 0%,
     rgb(112 92 250 / 0.3) 40%,
-    rgb(92 50 225 / 0.4) 75%,
-    rgb(70 24 190 / 0.55) 100%
+    rgb(92 50 225 / 0.4) 70%,
+    rgb(70 24 190 / 0.55) calc(100% - 320px),
+    /* The last stretch already leans towards rose, measured from the foot
+       so it stays the same length however many subjects the run holds. */
+    rgb(115 38 180 / 0.52) calc(100% - 150px),
+    /* Opaque where the runs meet (rgb(160 52 165 / 0.47) over the page), so
+       the pixel the two share cannot show as a hairline. */
+    rgb(84 34 91) 100%
   );
 }
 
 .band-applied {
   padding-top: 40px;
+  /* Tucked a pixel under the purple run: both are opaque at that edge, so
+     the overlap is invisible where a gap would show the page as a line. */
+  margin-top: -1px;
   padding-bottom: calc(20px + env(safe-area-inset-bottom));
   margin-bottom: calc(-20px - env(safe-area-inset-bottom));
-  /* Opens on the colour the purple run ends on and turns orange by the
-     Statistics heading, so the two runs meet as a blend rather than a line. */
+  /* Opens on the colour the purple run ends on and passes through rose to
+     orange over a few hundred pixels, so the two runs overlap as a blend
+     rather than meeting at a line. The stops are in pixels from the top, so
+     a subject added to either run does not stretch or squash the blend. */
   background: linear-gradient(
     to bottom,
-    rgb(70 24 190 / 0.55) 0,
-    rgb(200 60 150 / 0.42) 45px,
-    rgb(255 150 90 / 0.3) 110px,
-    rgb(240 120 40 / 0.3) 50%,
+    rgb(84 34 91) 0,
+    rgb(215 80 140 / 0.4) 130px,
+    rgb(250 130 100 / 0.33) 280px,
+    rgb(245 135 60 / 0.3) 420px,
+    rgb(240 120 40 / 0.3) 60%,
     rgb(160 60 10 / 0.5) 100%
   );
   --accent: #ffa45e;

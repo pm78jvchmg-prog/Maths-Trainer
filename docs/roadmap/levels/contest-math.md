@@ -171,3 +171,17 @@ Generators in `src/content/generators/contestProbability.ts`.
 | Symmetry and Conditional | `cm-pr-line-up`, `cm-pr-beats`, `cm-pr-cond-dice`, `cm-pr-bags-tree`, `cm-pr-bags-bayes` | every place is as likely as every other; swap two people or two dice; turn a die over to mirror a total; given means throw the rest away; a red counter keeps only the red paths |
 
 Level check: 13 questions across all four lessons.
+
+## Level 9: Fast Problem-Solving (`cm-l9`)
+
+Generators in `src/content/generators/contestFast.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Efficiency | `cm-friendly-product`, `cm-friendly-split-tiles`, `cm-regroup-sum`, `cm-divide-quick` | bring 25 and 4 together; split a number to free the partner; pair terms into hundreds, or round up and take off; dividing by 25 is × 4 ÷ 100 |
+| Calculations | `cm-near-hundred`, `cm-five-square`, `cm-mid-square-steps`, `cm-distribute` | take one gap off the other number, then add (or take off) the gaps’ product; tens × next up, then the units’ product; a difference of squares around a number ending in 5; split 99 as 100 − 1, or take a shared factor out |
+| Exponents | `cm-compare-powers`, `cm-units-sum`, `cm-power-digits`, `cm-power-digits-table` | give the powers a common exponent; last digits from their cycles, borrowing for a difference; each 2 with a 5 makes a 10, after rewriting 4, 8 and 25 |
+| Roots | `cm-root-between`, `cm-root-product`, `cm-surd-sum-tiles`, `cm-nested-root` | the squares either side; multiply under one root, and n(n + 1)(n + 2)(n + 3) + 1 is a square; pull square factors out and collect; two numbers adding to the whole part and multiplying to the inner root |
+| What’s the Number? | `cm-undo-number`, `cm-undo-table`, `cm-always-same`, `cm-place-value` | undo the steps, last first; follow n through and watch it cancel; swapping digits changes a number by 9(b − a); a digit written on the end makes 10N + d |
+
+Level check: 14 questions across all five lessons.

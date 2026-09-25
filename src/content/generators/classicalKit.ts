@@ -61,16 +61,18 @@ export function typed(prompt: Block[], lead: string, value: number): Slide {
  */
 export function numChoices(correct: number, wrong: number[], salt: number): ChoiceOption[] {
   const seen = new Set([fmt(correct)]);
-  const ok = (v: number) => Number.isFinite(v) && exact(v, 3) && !seen.has(fmt(v)) && (correct <= 0 || v > 0);
+  // An answer with four places would never meet a near miss of three, so they step finer for it.
+  const places = [0, 1, 2, 3, 4].find((dp) => exact(correct, dp)) ?? 4;
+  const ok = (v: number) => Number.isFinite(v) && exact(v, Math.max(3, places)) && !seen.has(fmt(v)) && (correct <= 0 || v > 0);
   const picked: number[] = [];
   for (const v of wrong) {
     if (picked.length === 3 || !ok(v)) continue;
     seen.add(fmt(v));
     picked.push(v);
   }
-  const unit = Number.isInteger(correct) ? 1 : 0.1;
+  const unit = places === 0 ? 1 : places <= 3 ? 0.1 : 0.001;
   const spare: number[] = [];
-  for (let step = 1; picked.length + spare.length < 7; step += 1) {
+  for (let step = 1; picked.length + spare.length < 7 && step < 1000; step += 1) {
     for (const v of [correct + step * unit, correct - step * unit]) {
       if (!ok(v)) continue;
       seen.add(fmt(v));
@@ -93,7 +95,7 @@ export function forks(right: number, wrong: number[], unit = 1): string[] {
     if (out.length < 3 && Number.isFinite(v) && v > 0 && exact(v, 3) && !out.includes(fmt(v))) out.push(fmt(v));
   };
   wrong.forEach(add);
-  for (let k = 1; out.length < 3; k += 1) {
+  for (let k = 1; out.length < 3 && k < 1000; k += 1) {
     add(right + k * unit);
     add(right - k * unit);
   }

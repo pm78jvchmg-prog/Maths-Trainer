@@ -1,0 +1,1121 @@
+/**
+ * Classical Mechanics, level 2: Motion in Two Dimensions (`clm-l2`).
+ *
+ * Projectiles launched horizontally and at an angle, after OpenStax
+ * University Physics 4.3; angular speed and angular acceleration, after 10.1
+ * and 10.2; and centripetal acceleration, after 4.4. Kinematics has no
+ * projectiles, so this is new ground, but its suvat equations are used, not
+ * taught again.
+ *
+ * With g = 9.8 the tidy cases are chosen, never rounded: a fall time t in
+ * halves gives a height 4.9t^2; a launch with vertical speed 4.9k is in the
+ * air for exactly k seconds and rises 1.225k^2; a vertical speed 1.4m rises
+ * 0.1m^2. Angles come from Pythagorean triples so both components are exact.
+ * Angular work is done in revolutions per second, where the numbers are
+ * whole, with radians per second asked as a whole multiple of pi.
+ */
+import type { ChoiceOption, Generator, KeypadKey, SolutionStep } from '../types';
+import type { Rng } from '../../engine/rng';
+import { options } from '../choiceVariant';
+import { steered, turned } from './parametricImplicit';
+import { WORKING_KEYS } from './workingKeys';
+import {
+  G_NOTE,
+  exact,
+  fmt,
+  forks,
+  metres,
+  ms,
+  ms2,
+  numChoices,
+  salted,
+  say,
+  secs,
+  track,
+  typed,
+  until,
+  valueBank,
+} from './classicalKit';
+
+const tidyBank = (answer: number[], wrong: number[], spare = 3): string[] =>
+  valueBank(
+    answer,
+    wrong.filter((v) => v > 0 && exact(v, 3)),
+    spare,
+  );
+
+const n3 = (v: number): number => Number(v.toFixed(6));
+
+/* ================================================================
+ * Launched horizontally
+ * ================================================================ */
+
+const LEDGES = ['a cliff top', 'a flat roof', 'a bridge', 'a table top', 'a wall', 'a balcony'];
+const THROWN = ['ball', 'stone', 'marble', 'parcel', 'dart'];
+
+interface FallParams {
+  where: string;
+  thing: string;
+  /** Fall time in half seconds. */
+  halves: number;
+  u: number;
+  find: 't' | 'R';
+}
+
+const fallHeight = (t: number): number => n3(4.9 * t * t);
+
+/** Expression: time to fall from a height when launched sideways (easy), or how far out it lands (hard). */
+const fallTime: Generator<FallParams> = {
+  id: 'clm-fall-time',
+  sample: (rng, difficulty) => ({
+    where: rng.pick(LEDGES),
+    thing: rng.pick(THROWN),
+    halves: rng.int(1, 8),
+    u: rng.int(2, 25),
+    find: difficulty > 1 ? 'R' : 't',
+  }),
+  render: ({ where, thing, halves, u, find }) => {
+    const t = halves / 2;
+    const setup = `A ${thing} is thrown horizontally at ${ms(u)} from ${where} ${metres(fallHeight(t))} above level ground. ${G_NOTE}`;
+    return find === 't'
+      ? typed([say(`${setup} How long does it take to land, in seconds?`)], 't =', t)
+      : typed([say(`${setup} How far from the foot of ${where.replace(/^a /, 'the ')} does it land, in metres?`)], 'R =', u * t);
+  },
+  solution: ({ halves, u, find }) => {
+    const t = halves / 2;
+    const h = fallHeight(t);
+    return [
+      { text: 'Downwards it starts at rest, whatever the sideways speed:' },
+      { tex: `${fmt(h)} = 4.9t^{2}` },
+      { tex: `t^{2} = ${fmt(h)} \\div 4.9 = ${fmt(t * t)}` },
+      { tex: `t = ${fmt(t)}` },
+      ...(find === 'R' ? [{ text: 'Sideways it keeps its speed the whole time:' }, { tex: `R = ${u} \\times ${fmt(t)} = ${fmt(u * t)}` }] : []),
+    ];
+  },
+  choices: ({ halves, u, find }) => {
+    const t = halves / 2;
+    return find === 't'
+      ? numChoices(t, [t * t, 2 * t, fallHeight(t) / 9.8], salted(halves, u))
+      : numChoices(u * t, [u * t * t, 2 * u * t, u * fallHeight(t)], salted(u, halves));
+  },
+};
+
+/** Tree: a sideways launch: the time to land, the vertical speed on landing, and the range. */
+const horizTree: Generator<FallParams> = {
+  id: 'clm-horiz-tree',
+  sample: (rng, difficulty) => ({
+    where: rng.pick(LEDGES),
+    thing: rng.pick(THROWN),
+    halves: difficulty > 1 ? rng.int(3, 10) : rng.int(2, 8),
+    u: difficulty > 1 ? rng.int(8, 30) : rng.int(2, 15),
+    find: 'R',
+  }),
+  render: ({ where, thing, halves, u }) => {
+    const t = halves / 2;
+    const vy = n3(9.8 * t);
+    return {
+      kind: 'tree',
+      prompt: [
+        say(`A ${thing} is thrown horizontally at ${ms(u)} from ${where} ${metres(fallHeight(t))} up. ${G_NOTE}`),
+        say('Find the time in the air, the downward speed as it lands, and how far out it lands.'),
+      ],
+      expression: 'h = \\tfrac{1}{2}gt^{2}',
+      nodes: [
+        { id: 't', from: [] },
+        { id: 'vy', from: ['t'] },
+        { id: 'R', from: ['t'] },
+      ],
+      bank: tidyBank([t, vy, u * t], [t * t, 4.9 * t, u * t * t, 2 * t]),
+      answer: [t, vy, u * t].map(fmt),
+    };
+  },
+  solution: ({ halves, u }) => {
+    const t = halves / 2;
+    return [
+      { tex: `t^{2} = \\frac{${fmt(fallHeight(t))}}{4.9} = ${fmt(t * t)}` },
+      { tex: `t = ${fmt(t)}` },
+      { tex: `v_{y} = 9.8 \\times ${fmt(t)} = ${fmt(9.8 * t)}` },
+      { tex: `R = ${u} \\times ${fmt(t)} = ${fmt(u * t)}` },
+    ];
+  },
+};
+
+interface LandParams {
+  thing: string;
+  halves: number;
+  u: number;
+  /** Hard: the landing point is given and the speed is asked. */
+  findSpeed: boolean;
+}
+
+const LAND_SPAN = 60;
+
+/** Slider: where a sideways launch lands along the ground (easy), or the speed that lands it at a mark (hard). */
+const horizSlider: Generator<LandParams> = {
+  id: 'clm-horiz-slider',
+  sample: (rng, difficulty) =>
+    until(
+      () => ({ thing: rng.pick(THROWN), halves: rng.int(1, 8), u: rng.int(2, 30), findSpeed: difficulty > 1 }),
+      ({ halves, u }) => (u * halves) / 2 <= LAND_SPAN && (u * halves) / 2 >= 4,
+    ),
+  render: ({ thing, halves, u, findSpeed }) => {
+    const t = halves / 2;
+    const R = u * t;
+    const h = fallHeight(t);
+    if (findSpeed) {
+      const figure = track(0, 40, [], 'A scale of launch speeds in metres per second');
+      return {
+        kind: 'slider',
+        prompt: [say(`A ${thing} thrown horizontally from ${metres(h)} up must land ${metres(R)} out from the foot. ${G_NOTE} Slide to the launch speed needed, in $\\text{m s}^{-1}$.`)],
+        min: 0,
+        max: 40,
+        step: 0.5,
+        answer: u,
+        readout: 'u = {v}',
+        figure: { svg: figure.svg, xMin: figure.xMin, xMax: figure.xMax, axis: 'x' },
+      };
+    }
+    const figure = track(0, LAND_SPAN, [{ at: 0, name: 'foot' }], 'Level ground marked in metres out from the foot of the drop');
+    return {
+      kind: 'slider',
+      prompt: [say(`A ${thing} is thrown horizontally at ${ms(u)} from ${metres(h)} up. ${G_NOTE} Slide to where it lands, in metres from the foot.`)],
+      min: 0,
+      max: LAND_SPAN,
+      step: 0.5,
+      answer: R,
+      readout: 'R = {v}',
+      figure: { svg: figure.svg, xMin: figure.xMin, xMax: figure.xMax, axis: 'x' },
+    };
+  },
+  solution: ({ halves, u, findSpeed }) => {
+    const t = halves / 2;
+    return [
+      { tex: `t^{2} = \\frac{${fmt(fallHeight(t))}}{4.9} = ${fmt(t * t)}` },
+      { tex: `t = ${fmt(t)}` },
+      findSpeed ? { tex: `u = \\frac{${fmt(u * t)}}{${fmt(t)}} = ${fmt(u)}` } : { tex: `R = ${u} \\times ${fmt(t)} = ${fmt(u * t)}` },
+    ];
+  },
+};
+
+interface ClearParams {
+  halves: number;
+  u: number;
+  /** The gap to clear, in whole metres, never equal to the range. */
+  D: number;
+  hard: boolean;
+}
+
+/** Flow: does a rider leaving a ramp sideways clear a gap? Time down, distance out, then the verdict. */
+const horizFlow: Generator<ClearParams> = {
+  id: 'clm-horiz-flow',
+  sample: (rng, difficulty) =>
+    until(
+      () => {
+        const halves = rng.int(1, 6);
+        const u = rng.int(4, 20);
+        const R = (u * halves) / 2;
+        const D = rng.chance(0.5) ? Math.ceil(R) + rng.int(1, 5) : Math.floor(R) - rng.int(1, 5);
+        return { halves, u, D, hard: difficulty > 1 };
+      },
+      ({ D }) => D >= 2,
+    ),
+  render: ({ halves, u, D, hard }) => {
+    const t = halves / 2;
+    const R = u * t;
+    const clears = R > D;
+    const YES = `Yes, by $${fmt(R - D)}\\text{ m}$`;
+    const NO = 'No, it lands short';
+    const fake = `Yes, by $${fmt(Math.abs(R - D) + 1)}\\text{ m}$`;
+    return {
+      kind: 'flow',
+      prompt: [
+        say(
+          hard
+            ? `A stunt rider leaves a level ramp at ${ms(u)} and drops ${metres(fallHeight(t))} to a landing platform. The platform starts ${metres(D)} out. ${G_NOTE} Does the rider reach it?`
+            : `A ball rolls off a ${metres(fallHeight(t))} high table at ${ms(u)}. A bucket stands with its near edge ${metres(D)} from the table's foot. ${G_NOTE} Does the ball get past the near edge?`,
+        ),
+      ],
+      subject: 'h = \\tfrac{1}{2}gt^{2} \\qquad R = ut',
+      steps: [
+        { id: 't', ask: 'Time to fall, in seconds:', branches: forks(t, [t * t, 2 * t, fallHeight(t) / 9.8], 0.5).map((label) => ({ label, to: 'R' })) },
+        { id: 'R', ask: 'Distance out when it lands, in metres:', branches: forks(R, [u * t * t, 2 * R, R / 2], 0.5).map((label) => ({ label, to: 'verdict' })) },
+        {
+          id: 'verdict',
+          ask: `Compare with the $${D}\\text{ m}$:`,
+          branches: [
+            { label: clears ? YES : fake, outcome: 'Sideways speed never changes; only the fall time limits the distance.' },
+            { label: NO, outcome: 'Sideways speed never changes; only the fall time limits the distance.' },
+          ],
+        },
+      ],
+      answer: [`$${fmt(t)}$`, `$${fmt(R)}$`, clears ? YES : NO],
+    };
+  },
+  solution: ({ halves, u, D }) => {
+    const t = halves / 2;
+    return [
+      { tex: `t^{2} = \\frac{${fmt(fallHeight(t))}}{4.9} = ${fmt(t * t)}` },
+      { tex: `t = ${fmt(t)}` },
+      { tex: `R = ${u} \\times ${fmt(t)} = ${fmt(u * t)}` },
+      { text: u * t > D ? `More than ${D} m, so it gets there.` : `Less than ${D} m, so it falls short.` },
+    ];
+  },
+};
+
+/* ================================================================
+ * Launched at an angle
+ * ================================================================ */
+
+interface Triangle {
+  o: number;
+  a: number;
+  h: number;
+}
+
+const EASY_TRI: Triangle[] = [
+  { o: 3, a: 4, h: 5 },
+  { o: 4, a: 3, h: 5 },
+];
+const ALL_TRI: Triangle[] = [
+  ...EASY_TRI,
+  { o: 5, a: 12, h: 13 },
+  { o: 12, a: 5, h: 13 },
+  { o: 8, a: 15, h: 17 },
+  { o: 15, a: 8, h: 17 },
+  { o: 7, a: 24, h: 25 },
+];
+
+interface LaunchRow {
+  tri: Triangle;
+  k: number;
+}
+
+/** Table: a launch speed and angle (as its tangent) split into horizontal and vertical parts. */
+const launchTable: Generator<{ rows: LaunchRow[] }> = {
+  id: 'clm-launch-table',
+  sample: (rng, difficulty) =>
+    until(
+      () => ({ rows: [0, 1, 2].map(() => ({ tri: rng.pick(difficulty > 1 ? ALL_TRI : EASY_TRI), k: rng.int(1, difficulty > 1 ? 4 : 6) })) }),
+      ({ rows }) => new Set(rows.map((r) => r.tri.h * r.k)).size === 3,
+    ),
+  render: ({ rows }) => {
+    const answer = rows.flatMap(({ tri, k }) => [tri.a * k, tri.o * k]);
+    return {
+      kind: 'table',
+      prompt: [say('Each row is a launch at speed $u$, in $\\text{m s}^{-1}$, at an angle $\\alpha$ above the horizontal. Fill in the horizontal and vertical parts of the velocity.')],
+      columns: ['u', '\\tan\\alpha', 'u_{x}', 'u_{y}'],
+      rows: rows.map(({ tri, k }) => [fmt(tri.h * k), `\\tfrac{${tri.o}}{${tri.a}}`, null, null]),
+      bank: tidyBank(answer, rows.flatMap(({ tri, k }) => [tri.h * k - tri.o * k, (tri.o + tri.a) * k])),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: ({ rows }) =>
+    rows.flatMap(({ tri, k }): SolutionStep[] => [
+      { text: `A triangle ${tri.o}, ${tri.a}, ${tri.h}: $\\cos\\alpha = \\tfrac{${tri.a}}{${tri.h}}$ and $\\sin\\alpha = \\tfrac{${tri.o}}{${tri.h}}$.` },
+      { tex: `u_{x} = ${tri.h * k} \\times \\tfrac{${tri.a}}{${tri.h}} = ${tri.a * k}` },
+      { tex: `u_{y} = ${tri.h * k} \\times \\tfrac{${tri.o}}{${tri.h}} = ${tri.o * k}` },
+    ]),
+};
+
+/** Launches whose vertical speed 4.9k comes from a speed and a triangle angle exactly. */
+interface Launch {
+  /** sin and cos of the angle, as a triangle. */
+  tri: Triangle;
+  /** Seconds in the air. */
+  k: number;
+}
+
+const ANGLED: Launch[] = (() => {
+  const out: Launch[] = [];
+  for (const tri of [
+    { o: 3, a: 4, h: 5 },
+    { o: 4, a: 3, h: 5 },
+    { o: 7, a: 24, h: 25 },
+    { o: 5, a: 12, h: 13 },
+  ]) {
+    for (let k = 1; k <= 10; k += 1) {
+      const u = (4.9 * k * tri.h) / tri.o;
+      if (exact(u, 2) && u <= 100) out.push({ tri, k });
+    }
+  }
+  return out;
+})();
+
+const launchSpeed = ({ tri, k }: Launch): number => n3((4.9 * k * tri.h) / tri.o);
+const launchUx = (l: Launch): number => n3((launchSpeed(l) * l.tri.a) / l.tri.h);
+
+interface FlightParams {
+  thing: string;
+  /** Horizontal speed; the vertical is 4.9k. */
+  ux: number;
+  k: number;
+  /** Hard: given as a speed and an angle instead. */
+  launch: Launch | null;
+}
+
+const KICKED = ['ball', 'stone', 'shot', 'rocket', 'water jet', 'golf ball'];
+
+const sampleFlight = (rng: Rng, hard: boolean): FlightParams => {
+  if (hard) {
+    const launch = rng.pick(ANGLED);
+    return { thing: rng.pick(KICKED), ux: launchUx(launch), k: launch.k, launch };
+  }
+  return { thing: rng.pick(KICKED), ux: rng.int(3, 30), k: rng.int(1, 6), launch: null };
+};
+
+const launchPhrase = ({ ux, k, launch }: FlightParams): string =>
+  launch
+    ? `at ${ms(launchSpeed(launch))} at an angle $\\alpha$ above the horizontal, where $\\tan\\alpha = \\tfrac{${launch.tri.o}}{${launch.tri.a}}$`
+    : `with a horizontal velocity of ${ms(ux)} and a vertical velocity of ${ms(n3(4.9 * k))} upwards`;
+
+const componentLines = ({ launch }: FlightParams): SolutionStep[] =>
+  launch
+    ? [
+        { text: `A ${launch.tri.o}, ${launch.tri.a}, ${launch.tri.h} triangle gives $\\cos\\alpha = \\tfrac{${launch.tri.a}}{${launch.tri.h}}$ and $\\sin\\alpha = \\tfrac{${launch.tri.o}}{${launch.tri.h}}$.` },
+        { tex: `u_{x} = ${fmt(launchSpeed(launch))} \\times \\tfrac{${launch.tri.a}}{${launch.tri.h}} = ${fmt(launchUx(launch))}` },
+        { tex: `u_{y} = ${fmt(launchSpeed(launch))} \\times \\tfrac{${launch.tri.o}}{${launch.tri.h}} = ${fmt(4.9 * launch.k)}` },
+      ]
+    : [];
+
+/** Tree: over level ground, the time of flight 2u_y/g, the greatest height u_y^2/2g and the range u_x T. */
+const flightTree: Generator<FlightParams> = {
+  id: 'clm-flight-tree',
+  sample: (rng, difficulty) => sampleFlight(rng, difficulty > 1),
+  render: (p) => {
+    const uy = n3(4.9 * p.k);
+    const H = n3(1.225 * p.k * p.k);
+    const R = n3(p.ux * p.k);
+    const answer = p.launch ? [p.ux, uy, p.k, H, R] : [p.k, H, R];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(`A ${p.thing} is launched from level ground ${launchPhrase(p)}. ${G_NOTE}`),
+        say(p.launch ? 'Top row: the horizontal and vertical parts of the velocity. Then the time in the air, the greatest height and the range.' : 'Find the time in the air, the greatest height and the range.'),
+      ],
+      expression: 'T = \\frac{2u_{y}}{g} \\qquad H = \\frac{u_{y}^{2}}{2g}',
+      nodes: p.launch
+        ? [
+            { id: 'ux', from: [] },
+            { id: 'uy', from: [] },
+            { id: 'T', from: ['uy'] },
+            { id: 'H', from: ['uy'] },
+            { id: 'R', from: ['ux', 'T'] },
+          ]
+        : [
+            { id: 'T', from: [] },
+            { id: 'H', from: [] },
+            { id: 'R', from: ['T'] },
+          ],
+      bank: tidyBank(answer, [p.k / 2, 2 * H, (p.ux * p.k) / 2, p.k * p.k]),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: (p) => {
+    const uy = 4.9 * p.k;
+    return [
+      ...componentLines(p),
+      { tex: `T = \\frac{2 \\times ${fmt(uy)}}{9.8} = ${p.k}` },
+      { tex: `H = \\frac{${fmt(uy)}^{2}}{2 \\times 9.8} = ${fmt(1.225 * p.k * p.k)}` },
+      { tex: `R = ${fmt(p.ux)} \\times ${p.k} = ${fmt(p.ux * p.k)}` },
+    ];
+  },
+};
+
+interface HeightParams {
+  m: number;
+  /** Hard: given as a speed and an angle with this sine, as a triangle. */
+  tri: Triangle | null;
+}
+
+const heightUy = ({ m }: HeightParams): number => n3(1.4 * m);
+
+/** Expression: the greatest height u_y^2/(2g), from the vertical speed (easy) or a speed and angle (hard). */
+const maxHeight: Generator<HeightParams> = {
+  id: 'clm-max-height',
+  sample: (rng, difficulty) =>
+    difficulty > 1
+      ? until(
+          () => ({ m: rng.int(2, 25), tri: rng.pick([{ o: 4, a: 3, h: 5 }, { o: 7, a: 24, h: 25 }, { o: 3, a: 4, h: 5 }]) }),
+          (p) => exact((1.4 * p.m * p.tri!.h) / p.tri!.o, 2),
+        )
+      : { m: rng.int(2, 32), tri: null },
+  render: (p) => {
+    const uy = heightUy(p);
+    const H = n3(0.1 * p.m * p.m);
+    if (p.tri) {
+      const u = n3((uy * p.tri.h) / p.tri.o);
+      return typed(
+        [say(`An arrow is shot at ${ms(u)} at an angle $\\alpha$ above the horizontal, where $\\sin\\alpha = ${fmt(p.tri.o / p.tri.h)}$. ${G_NOTE} How high does it rise above its starting point, in metres?`)],
+        'H =',
+        H,
+      );
+    }
+    return typed([say(`A ball leaves the ground with a vertical velocity of ${ms(uy)} upwards. ${G_NOTE} How high does it rise, in metres?`)], 'H =', H);
+  },
+  solution: (p) => {
+    const uy = heightUy(p);
+    return [
+      ...(p.tri ? [{ tex: `u_{y} = ${fmt((uy * p.tri.h) / p.tri.o)} \\times ${fmt(p.tri.o / p.tri.h)} = ${fmt(uy)}` }] : []),
+      { text: 'At the top the vertical velocity is zero, so $0 = u_{y}^{2} - 2gH$:' },
+      { tex: `H = \\frac{${fmt(uy)}^{2}}{2 \\times 9.8} = ${fmt(0.1 * p.m * p.m)}` },
+    ];
+  },
+  choices: (p) => {
+    const uy = heightUy(p);
+    const H = 0.1 * p.m * p.m;
+    return numChoices(H, [2 * H, uy * uy / 9.8, uy / 9.8, H / 2], salted(p.m, p.tri ? p.tri.o : 0));
+  },
+};
+
+/** Flow: time to the top u_y/g, time of flight (twice it), then the range. */
+const rangeFlow: Generator<FlightParams> = {
+  id: 'clm-range-flow',
+  sample: (rng, difficulty) => sampleFlight(rng, difficulty > 1),
+  render: (p) => {
+    const R = n3(p.ux * p.k);
+    return {
+      kind: 'flow',
+      prompt: [say(`A ${p.thing} is launched from level ground ${launchPhrase(p)}. ${G_NOTE} How far away does it land?`)],
+      subject: 'R = u_{x}T',
+      steps: [
+        {
+          id: 'top',
+          ask: 'Time to reach the top, when the vertical velocity is zero, in seconds:',
+          branches: forks(p.k / 2, [p.k, p.k * 2, 4.9 * p.k], 0.5).map((label) => ({ label, to: 'T' })),
+        },
+        {
+          id: 'T',
+          ask: 'So the whole time in the air, in seconds:',
+          branches: forks(p.k, [p.k / 2, p.k * 1.5, p.k + 1], 0.5).map((label) => ({ label, to: 'R' })),
+        },
+        {
+          id: 'R',
+          ask: 'And the range, in metres:',
+          branches: forks(R, [R / 2, 2 * R, n3(4.9 * p.k * p.k)], 0.5).map((label) => ({ label, outcome: 'The flight is symmetric: as long coming down as going up.' })),
+        },
+      ],
+      answer: [`$${fmt(p.k / 2)}$`, `$${p.k}$`, `$${fmt(R)}$`],
+    };
+  },
+  solution: (p) => [
+    ...componentLines(p),
+    { tex: `t_{\\text{top}} = \\frac{${fmt(4.9 * p.k)}}{9.8} = ${fmt(p.k / 2)}` },
+    { tex: `T = 2 \\times ${fmt(p.k / 2)} = ${p.k}` },
+    { tex: `R = ${fmt(p.ux)} \\times ${p.k} = ${fmt(p.ux * p.k)}` },
+  ],
+};
+
+/* ================================================================
+ * Angular speed
+ * ================================================================ */
+
+const PI_KEYS: KeypadKey[] = [{ insert: 'pi', label: 'π' }, ...WORKING_KEYS];
+
+const piTex = (k: number): string => (k === 1 ? '\\pi' : `${fmt(k)}\\pi`);
+
+function piChoices(k: number, wrong: number[], salt: number): ChoiceOption[] {
+  const seen = new Set([k]);
+  const picked: number[] = [];
+  for (const w of [...wrong, k + 1, k - 1, k + 2, 2 * k + 1]) {
+    if (picked.length === 3 || w <= 0 || !exact(w, 2) || seen.has(w)) continue;
+    seen.add(w);
+    picked.push(w);
+  }
+  const as = (v: number) => ({ tex: piTex(v), answer: `${fmt(v)}*pi` });
+  const spare = [k + 3, k + 4, k * 3].filter((v) => !seen.has(v)).map(as);
+  return steered(options(as(k), ...picked.map(as)), salt, spare);
+}
+
+const SPINNERS = ['A washing machine drum', 'A bicycle wheel', 'A record', 'A ceiling fan', 'A drill bit', 'A potter\'s wheel', 'A car engine'];
+
+interface RpmParams {
+  who: string;
+  /** Half turns per second: the angular speed is k pi rad/s and the rpm is 30k. */
+  k: number;
+  to: 'rad' | 'rpm';
+}
+
+/** Expression: rev/min to rad/s (a whole multiple of pi), or back (hard, either way). */
+const rpmConvert: Generator<RpmParams> = {
+  id: 'clm-rpm-convert',
+  sample: (rng, difficulty) => ({
+    who: rng.pick(SPINNERS),
+    k: rng.int(1, 60),
+    to: difficulty > 1 ? rng.pick<RpmParams['to']>(['rad', 'rpm']) : 'rad',
+  }),
+  render: ({ who, k, to }) =>
+    to === 'rad'
+      ? {
+          kind: 'expression',
+          prompt: [say(`${who} turns at $${30 * k}$ revolutions per minute. Find its angular speed in $\\text{rad s}^{-1}$, as a multiple of $\\pi$.`)],
+          lead: '\\omega =',
+          keypad: PI_KEYS,
+          answer: `${k}*pi`,
+          domain: 'real',
+          mode: 'exact',
+        }
+      : typed([say(`${who} turns at $${piTex(k)}\\text{ rad s}^{-1}$. How many revolutions is that per minute?`)], 'f =', 30 * k),
+  solution: ({ k, to }) => [
+    { text: 'One revolution is $2\\pi$ radians, and a minute is $60\\text{ s}$.' },
+    to === 'rad'
+      ? { tex: `\\omega = \\frac{${30 * k} \\times 2\\pi}{60} = ${piTex(k)}` }
+      : { tex: `f = \\frac{${piTex(k)} \\times 60}{2\\pi} = ${30 * k}` },
+  ],
+  choices: ({ k, to }) => (to === 'rad' ? piChoices(k, [2 * k, k / 2, 60 * k], salted(k, 1)) : numChoices(30 * k, [60 * k, 15 * k, 2 * k], salted(k, 2))),
+};
+
+interface RimParams {
+  who: string;
+  /** Radius in centimetres. */
+  cm: number;
+  omega: number;
+  find: 'v' | 'omega';
+}
+
+/** Expression: the speed of a point on a rim, v = r omega; hard, omega from the speed. */
+const rimSpeed: Generator<RimParams> = {
+  id: 'clm-rim-speed',
+  sample: (rng, difficulty) => ({
+    who: rng.pick(SPINNERS),
+    cm: rng.int(1, 30) * 5,
+    omega: rng.int(2, 40),
+    find: difficulty > 1 ? 'omega' : 'v',
+  }),
+  render: ({ who, cm, omega, find }) => {
+    const r = cm / 100;
+    const v = n3(r * omega);
+    return find === 'v'
+      ? typed([say(`${who} of radius ${metres(r)} turns at $${omega}\\text{ rad s}^{-1}$. How fast does a point on its rim move, in $\\text{m s}^{-1}$?`)], 'v =', v)
+      : typed([say(`A point on the rim of ${who.toLowerCase().replace(/^a /, 'a ')} of radius ${metres(r)} moves at ${ms(v)}. Find the angular speed, in $\\text{rad s}^{-1}$.`)], '\\omega =', omega);
+  },
+  solution: ({ cm, omega, find }) => {
+    const r = cm / 100;
+    return [
+      { text: 'Each radian turned carries the rim a distance $r$ along, so $v = r\\omega$.' },
+      find === 'v' ? { tex: `v = ${fmt(r)} \\times ${omega} = ${fmt(r * omega)}` } : { tex: `\\omega = \\frac{${fmt(r * omega)}}{${fmt(r)}} = ${omega}` },
+    ];
+  },
+  choices: ({ cm, omega, find }) => {
+    const r = cm / 100;
+    const v = r * omega;
+    return find === 'v' ? numChoices(v, [cm * omega, v * 2, omega / r], salted(cm, omega)) : numChoices(omega, [v * r, 2 * omega, omega / 2], salted(omega, cm));
+  },
+};
+
+interface SpinRow {
+  /** Revolutions per second, in halves. */
+  halves: number;
+  given: 'rpm' | 'rps';
+}
+
+/** Table: the same spin rate as rev/min, rev/s and rad/s (a multiple of pi). */
+const spinTable: Generator<{ rows: SpinRow[] }> = {
+  id: 'clm-spin-table',
+  sample: (rng, difficulty) =>
+    until(
+      () => ({
+        rows: [0, 1, 2].map(() => ({
+          halves: rng.int(1, 40),
+          given: difficulty > 1 ? rng.pick<SpinRow['given']>(['rpm', 'rps']) : ('rpm' as const),
+        })),
+      }),
+      ({ rows }) => new Set(rows.map((r) => r.halves)).size === 3,
+    ),
+  render: ({ rows }) => {
+    const answer: string[] = [];
+    const cells = rows.map(({ halves, given }, i) => {
+      const rpm = 30 * halves;
+      const rps = halves / 2;
+      const rad = piTex(halves);
+      const out: (string | null)[] = [['A', 'B', 'C'][i]];
+      if (given === 'rpm') {
+        out.push(fmt(rpm), null, null);
+        answer.push(fmt(rps), rad);
+      } else {
+        out.push(null, fmt(rps), null);
+        answer.push(fmt(rpm), rad);
+      }
+      return out;
+    });
+    const extras = rows.flatMap(({ halves }) => [piTex(halves / 2), fmt(halves), piTex(halves * 2), fmt(60 * halves)]);
+    const bank: string[] = [...answer];
+    let spare = 0;
+    for (const token of extras) {
+      if (spare >= 3 || bank.includes(token)) continue;
+      bank.push(token);
+      spare += 1;
+    }
+    const value = (s: string) => Number(s.replace('\\pi', '')) || 1;
+    return {
+      kind: 'table',
+      prompt: [say('Each row is one rate of spin written three ways. Fill in the gaps.')],
+      columns: ['', '\\text{rev min}^{-1}', '\\text{rev s}^{-1}', '\\text{rad s}^{-1}'],
+      rows: cells,
+      bank: bank.sort((x, y) => Number(x.includes('\\pi')) - Number(y.includes('\\pi')) || value(x) - value(y)),
+      answer,
+    };
+  },
+  solution: ({ rows }) =>
+    rows.flatMap(({ halves, given }, i): SolutionStep[] => {
+      const name = ['A', 'B', 'C'][i];
+      return [
+        given === 'rpm'
+          ? { tex: `${name}: ${30 * halves} \\div 60 = ${fmt(halves / 2)}` }
+          : { tex: `${name}: ${fmt(halves / 2)} \\times 60 = ${30 * halves}` },
+        { tex: `${fmt(halves / 2)} \\times 2\\pi = ${piTex(halves)}` },
+      ];
+    }),
+};
+
+interface GearParams {
+  /** Radii in centimetres. */
+  r1: number;
+  r2: number;
+  w1: number;
+  hard: boolean;
+}
+
+/** Tree: two wheels joined by a belt share a rim speed: v = r1 w1, then w2 = v / r2 (hard adds a point halfway out). */
+const gearTree: Generator<GearParams> = {
+  id: 'clm-gear-tree',
+  sample: (rng, difficulty) =>
+    until(
+      () => ({ r1: rng.int(1, 12) * 5, r2: rng.int(1, 12) * 5, w1: rng.int(2, 30), hard: difficulty > 1 }),
+      (p) => p.r1 !== p.r2 && Number.isInteger((p.r1 * p.w1) / p.r2),
+    ),
+  render: (p) => {
+    const v = n3((p.r1 * p.w1) / 100);
+    const w2 = (p.r1 * p.w1) / p.r2;
+    const answer = p.hard ? [v, w2, n3(v / 2)] : [v, w2];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `A belt joins a wheel of radius ${metres(p.r1 / 100)}, turning at $${p.w1}\\text{ rad s}^{-1}$, to a wheel of radius ${metres(p.r2 / 100)}. The belt does not slip. Find the belt's speed and the second wheel's angular speed${p.hard ? ', then the speed of a point on the second wheel halfway out from its centre' : ''}.`,
+        ),
+      ],
+      expression: 'v = r_{1}\\omega_{1} = r_{2}\\omega_{2}',
+      nodes: p.hard
+        ? [
+            { id: 'v', from: [] },
+            { id: 'w2', from: ['v'] },
+            { id: 'half', from: ['w2'] },
+          ]
+        : [
+            { id: 'v', from: [] },
+            { id: 'w2', from: ['v'] },
+          ],
+      bank: tidyBank(answer, [(p.r2 * p.w1) / p.r1, p.w1, v * 2, p.r1 * p.w1]),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: (p) => {
+    const v = (p.r1 * p.w1) / 100;
+    const w2 = (p.r1 * p.w1) / p.r2;
+    return [
+      { text: 'The belt moves at the rim speed of both wheels.' },
+      { tex: `v = ${fmt(p.r1 / 100)} \\times ${p.w1} = ${fmt(v)}` },
+      { tex: `\\omega_{2} = \\frac{${fmt(v)}}{${fmt(p.r2 / 100)}} = ${fmt(w2)}` },
+      ...(p.hard ? [{ tex: `${fmt(p.r2 / 200)} \\times ${fmt(w2)} = ${fmt(v / 2)}` }] : []),
+    ];
+  },
+};
+
+/* ================================================================
+ * Angular acceleration, in revolutions
+ * ================================================================ */
+
+interface SpinUpParams {
+  who: string;
+  w0: number;
+  /** Angular acceleration in quarter-revolutions per second squared. */
+  quarters: number;
+  t: number;
+  find: 'w' | 'alpha';
+}
+
+const spinEnd = ({ w0, quarters, t }: Pick<SpinUpParams, 'w0' | 'quarters' | 't'>): number => w0 + (quarters / 4) * t;
+
+/** Expression: omega = omega0 + alpha t, in rev/s; hard, alpha from the change. */
+const spinUp: Generator<SpinUpParams> = {
+  id: 'clm-spin-up',
+  sample: (rng, difficulty) =>
+    until(
+      () => ({ who: rng.pick(SPINNERS), w0: rng.int(0, 10), quarters: rng.int(1, 12), t: rng.int(2, 12), find: difficulty > 1 ? ('alpha' as const) : ('w' as const) }),
+      (p) => spinEnd(p) <= 40,
+    ),
+  render: (p) => {
+    const w = spinEnd(p);
+    const alpha = p.quarters / 4;
+    return p.find === 'w'
+      ? typed(
+          [say(`${p.who} turning at $${p.w0}\\text{ rev s}^{-1}$ speeds up steadily at $${fmt(alpha)}\\text{ rev s}^{-2}$ for ${secs(p.t)}. How fast is it turning then, in $\\text{rev s}^{-1}$?`)],
+          '\\omega =',
+          w,
+        )
+      : typed(
+          [say(`${p.who} speeds up steadily from $${p.w0}$ to $${fmt(w)}\\text{ rev s}^{-1}$ in ${secs(p.t)}. Find its angular acceleration, in $\\text{rev s}^{-2}$.`)],
+          '\\alpha =',
+          alpha,
+        );
+  },
+  solution: (p) => {
+    const w = spinEnd(p);
+    const alpha = p.quarters / 4;
+    return p.find === 'w'
+      ? [{ text: 'Like $v = u + at$:' }, { tex: `\\omega = ${p.w0} + ${fmt(alpha)} \\times ${p.t} = ${fmt(w)}` }]
+      : [{ text: 'Like $a = \\frac{v - u}{t}$:' }, { tex: `\\alpha = \\frac{${fmt(w)} - ${p.w0}}{${p.t}} = ${fmt(alpha)}` }];
+  },
+  choices: (p) => {
+    const w = spinEnd(p);
+    const alpha = p.quarters / 4;
+    return p.find === 'w' ? numChoices(w, [alpha * p.t, p.w0 + alpha, w + p.w0], salted(p.w0, p.quarters, p.t)) : numChoices(alpha, [w / p.t, (w + p.w0) / p.t, w - p.w0], salted(p.t, p.quarters, p.w0));
+  },
+};
+
+interface TurnsParams {
+  w0: number;
+  w: number;
+  t: number;
+}
+
+/** Tree: speeding up from w0 to w rev/s in t seconds: the acceleration, the average rate, the turns made. */
+const spinTurnsTree: Generator<TurnsParams> = {
+  id: 'clm-spin-turns-tree',
+  sample: (rng, difficulty) =>
+    until(
+      () => ({ w0: rng.int(0, difficulty > 1 ? 20 : 8), w: rng.int(2, difficulty > 1 ? 40 : 16), t: rng.int(2, 12) }),
+      (p) => p.w !== p.w0 && exact((p.w - p.w0) / p.t, 2) && exact(((p.w0 + p.w) * p.t) / 2, 1),
+    ),
+  render: (p) => {
+    const alpha = (p.w - p.w0) / p.t;
+    const avg = (p.w0 + p.w) / 2;
+    const turns = avg * p.t;
+    return {
+      kind: 'tree',
+      prompt: [
+        say(`A fan's blades go steadily from $${p.w0}$ to $${p.w}\\text{ rev s}^{-1}$ in ${secs(p.t)}. Find the angular acceleration, the average rate of turning, and how many turns the blades make.`),
+      ],
+      expression: '\\theta = \\tfrac{1}{2}(\\omega_{0} + \\omega)t',
+      nodes: [
+        { id: 'alpha', from: [] },
+        { id: 'avg', from: [] },
+        { id: 'turns', from: ['avg'] },
+      ],
+      bank: tidyBank([alpha, avg, turns], [p.w * p.t, (p.w - p.w0) * p.t, avg * 2, p.w + p.w0]),
+      answer: [alpha, avg, turns].map(fmt),
+    };
+  },
+  solution: (p) => {
+    const avg = (p.w0 + p.w) / 2;
+    return [
+      { tex: `\\alpha = \\frac{${p.w} - ${p.w0}}{${p.t}} = ${fmt((p.w - p.w0) / p.t)}` },
+      { tex: `\\frac{${p.w0} + ${p.w}}{2} = ${fmt(avg)}` },
+      { tex: `\\theta = ${fmt(avg)} \\times ${p.t} = ${fmt(avg * p.t)}` },
+    ];
+  },
+};
+
+interface StopTurnsParams {
+  w0: number;
+  /** Deceleration in quarter-revolutions per second squared. */
+  quarters: number;
+}
+
+const stopTurns = ({ w0, quarters }: StopTurnsParams): number => (w0 * w0) / (2 * (quarters / 4));
+const TURN_SPAN = 100;
+
+/** Slider: turns made while slowing to rest, omega0^2 / (2 alpha), like a braking distance. */
+const spinStopSlider: Generator<StopTurnsParams> = {
+  id: 'clm-spin-stop-slider',
+  sample: (rng, difficulty) =>
+    until(
+      () => ({ w0: rng.int(2, difficulty > 1 ? 20 : 12), quarters: rng.int(1, 16) }),
+      (p) => Number.isInteger(stopTurns(p) * 2) && stopTurns(p) <= TURN_SPAN && stopTurns(p) >= 2,
+    ),
+  render: (p) => {
+    const figure = track(0, TURN_SPAN, [], 'A scale of turns from 0 to 100');
+    return {
+      kind: 'slider',
+      prompt: [say(`A potter's wheel turning at $${p.w0}\\text{ rev s}^{-1}$ slows steadily at $${fmt(p.quarters / 4)}\\text{ rev s}^{-2}$ until it stops. Slide to how many turns it makes meanwhile.`)],
+      min: 0,
+      max: TURN_SPAN,
+      step: 0.5,
+      answer: stopTurns(p),
+      readout: '\\theta = {v}',
+      figure: { svg: figure.svg, xMin: figure.xMin, xMax: figure.xMax, axis: 'x' },
+    };
+  },
+  solution: (p) => [
+    { text: 'Like $v^{2} = u^{2} + 2as$, ending at rest:' },
+    { tex: `0 = ${p.w0}^{2} - 2 \\times ${fmt(p.quarters / 4)}\\theta` },
+    { tex: `\\theta = \\frac{${p.w0 * p.w0}}{${fmt(p.quarters / 2)}} = ${fmt(stopTurns(p))}` },
+  ],
+};
+
+type SpinFind = 'w' | 'turns' | 'wFromTurns';
+
+interface SpinFlowParams {
+  w0: number;
+  quarters: number;
+  t: number;
+  find: SpinFind;
+}
+
+const EQ_W = '$\\omega = \\omega_{0} + \\alpha t$';
+const EQ_THETA = '$\\theta = \\omega_{0}t + \\tfrac{1}{2}\\alpha t^{2}$';
+const EQ_SQ = '$\\omega^{2} = \\omega_{0}^{2} + 2\\alpha\\theta$';
+
+/** Flow: pick the rotational equation from what is given and asked, then its value. */
+const spinFlow: Generator<SpinFlowParams> = {
+  id: 'clm-spin-flow',
+  sample: (rng, difficulty) =>
+    until(
+      () => ({
+        w0: rng.int(0, 12),
+        quarters: rng.pick([2, 4, 6, 8, 12]),
+        t: rng.int(2, 10),
+        find: rng.pick<SpinFind>(difficulty > 1 ? ['turns', 'wFromTurns'] : ['w', 'turns']),
+      }),
+      (p) => {
+        const a = p.quarters / 4;
+        const w = p.w0 + a * p.t;
+        const th = p.w0 * p.t + (a * p.t * p.t) / 2;
+        return exact(th, 2) && w <= 40 && (p.find !== 'wFromTurns' || Number.isInteger(w));
+      },
+    ),
+  render: (p) => {
+    const a = p.quarters / 4;
+    const w = p.w0 + a * p.t;
+    const th = p.w0 * p.t + (a * p.t * p.t) / 2;
+    const [question, right, value, wrongs] =
+      p.find === 'w'
+        ? [`It starts at $${p.w0}\\text{ rev s}^{-1}$ and speeds up at $${fmt(a)}\\text{ rev s}^{-2}$ for ${secs(p.t)}. How fast is it turning then, in $\\text{rev s}^{-1}$?`, EQ_W, w, [a * p.t, w + p.w0]]
+        : p.find === 'turns'
+          ? [`It starts at $${p.w0}\\text{ rev s}^{-1}$ and speeds up at $${fmt(a)}\\text{ rev s}^{-2}$ for ${secs(p.t)}. How many turns does it make?`, EQ_THETA, th, [w * p.t, p.w0 * p.t, th * 2]]
+          : [`It starts at $${p.w0}\\text{ rev s}^{-1}$ and speeds up at $${fmt(a)}\\text{ rev s}^{-2}$ over $${fmt(th)}$ turns. How fast is it turning then, in $\\text{rev s}^{-1}$?`, EQ_SQ, w, [w * w, p.w0 + a, w + 1]];
+    return {
+      kind: 'flow',
+      prompt: [say(`A turntable spins about its centre. ${question}`)],
+      subject: '\\omega,\\ \\omega_{0},\\ \\alpha,\\ \\theta,\\ t',
+      steps: [
+        {
+          id: 'which',
+          ask: 'Which equation links what is given to what is asked?',
+          branches: [EQ_W, EQ_THETA, EQ_SQ].map((label) => ({ label, to: 'value' })),
+        },
+        {
+          id: 'value',
+          ask: 'So the answer is:',
+          branches: forks(value, wrongs as number[], 0.5).map((label) => ({ label, outcome: 'Each rotational equation is a suvat equation with the letters changed.' })),
+        },
+      ],
+      answer: [right, `$${fmt(value)}$`],
+    };
+  },
+  solution: (p) => {
+    const a = p.quarters / 4;
+    const w = p.w0 + a * p.t;
+    const th = p.w0 * p.t + (a * p.t * p.t) / 2;
+    if (p.find === 'w') return [{ text: 'No angle is given or asked, so use $\\omega = \\omega_{0} + \\alpha t$.' }, { tex: `\\omega = ${p.w0} + ${fmt(a)} \\times ${p.t} = ${fmt(w)}` }];
+    if (p.find === 'turns')
+      return [
+        { text: 'No final rate is given or asked, so use $\\theta = \\omega_{0}t + \\tfrac{1}{2}\\alpha t^{2}$.' },
+        { tex: `\\theta = ${p.w0} \\times ${p.t} + \\tfrac{1}{2} \\times ${fmt(a)} \\times ${p.t}^{2}` },
+        { tex: `\\theta = ${fmt(th)}` },
+      ];
+    return [
+      { text: 'No time is given or asked, so use $\\omega^{2} = \\omega_{0}^{2} + 2\\alpha\\theta$.' },
+      { tex: `\\omega^{2} = ${p.w0}^{2} + 2 \\times ${fmt(a)} \\times ${fmt(th)} = ${fmt(w * w)}` },
+      { tex: `\\omega = ${fmt(w)}` },
+    ];
+  },
+};
+
+/* ================================================================
+ * Centripetal acceleration
+ * ================================================================ */
+
+interface CentripetalParams {
+  v: number;
+  r: number;
+  find: 'a' | 'v';
+}
+
+const CIRCLERS = ['A car on a roundabout', 'A runner on a bend', 'A cyclist on a curved track', 'A train on a curve', 'A child on a roundabout'];
+
+/** Expression: a = v^2 / r; hard, the speed from the acceleration and radius. */
+const centripetal: Generator<CentripetalParams & { who: string }> = {
+  id: 'clm-centripetal',
+  sample: (rng, difficulty) =>
+    until(
+      () => ({ who: rng.pick(CIRCLERS), v: rng.int(2, 30), r: rng.pick([2, 4, 5, 8, 10, 16, 20, 25, 40, 50, 80, 100]), find: difficulty > 1 ? ('v' as const) : ('a' as const) }),
+      (p) => exact((p.v * p.v) / p.r, 2),
+    ),
+  render: ({ who, v, r, find }) => {
+    const a = n3((v * v) / r);
+    return find === 'a'
+      ? typed([say(`${who} moves at a steady ${ms(v)} round a circle of radius ${metres(r)}. Find its acceleration towards the centre, in $\\text{m s}^{-2}$.`)], 'a =', a)
+      : typed([say(`${who} goes round a circle of radius ${metres(r)} with an acceleration of ${ms2(a)} towards the centre. How fast is it going, in $\\text{m s}^{-1}$?`)], 'v =', v);
+  },
+  solution: ({ v, r, find }) => {
+    const a = (v * v) / r;
+    return find === 'a'
+      ? [{ tex: `a = \\frac{v^{2}}{r} = \\frac{${v}^{2}}{${r}} = ${fmt(a)}` }]
+      : [{ tex: `v^{2} = ar = ${fmt(a)} \\times ${r} = ${v * v}` }, { tex: `v = ${v}` }];
+  },
+  choices: ({ v, r, find }) => {
+    const a = (v * v) / r;
+    return find === 'a' ? numChoices(a, [v / r, (v * v) / (2 * r), v * r], salted(v, r)) : numChoices(v, [v * v, a * r, a / r], salted(r, v));
+  },
+};
+
+interface CircleRow {
+  v: number;
+  r: number;
+  blank: 'v' | 'r' | 'a' | 'w';
+}
+
+/** Table: speed, radius, angular speed and acceleration for three circles, one missing from each. */
+const circleTable: Generator<{ rows: CircleRow[] }> = {
+  id: 'clm-circle-table',
+  sample: (rng, difficulty) =>
+    until(
+      () => {
+        const blanks: CircleRow['blank'][] = difficulty > 1 ? turned(['v', 'r', 'w'], rng.int(0, 2)) : turned(['a', 'a', 'w'], rng.int(0, 2));
+        return { rows: blanks.map((blank) => ({ v: rng.int(2, 20), r: rng.pick([1, 2, 4, 5, 8, 10, 20]), blank })) };
+      },
+      ({ rows }) => rows.every((row) => exact((row.v * row.v) / row.r, 2) && exact(row.v / row.r, 2)) && new Set(rows.map((r) => r.v * 100 + r.r)).size === 3,
+    ),
+  render: ({ rows }) => {
+    const answer: number[] = [];
+    const cell = (value: number, blank: boolean) => {
+      if (!blank) return fmt(value);
+      answer.push(value);
+      return null;
+    };
+    return {
+      kind: 'table',
+      prompt: [say('Each row is steady motion round a circle: speed $v$ in $\\text{m s}^{-1}$, radius $r$ in metres, angular speed $\\omega$ in $\\text{rad s}^{-1}$ and acceleration $a$ in $\\text{m s}^{-2}$. Fill in the gaps.')],
+      columns: ['v', 'r', '\\omega', 'a'],
+      rows: rows.map(({ v, r, blank }) => [cell(v, blank === 'v'), cell(r, blank === 'r'), cell(n3(v / r), blank === 'w'), cell(n3((v * v) / r), blank === 'a')]),
+      bank: tidyBank(answer, rows.flatMap(({ v, r }) => [v * r, (v * v) / (2 * r)])),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: ({ rows }) =>
+    rows.map(({ v, r, blank }): SolutionStep => {
+      const w = v / r;
+      const a = (v * v) / r;
+      if (blank === 'a') return { tex: `a = \\frac{${v}^{2}}{${r}} = ${fmt(a)}` };
+      if (blank === 'w') return { tex: `\\omega = \\frac{${v}}{${r}} = ${fmt(w)}` };
+      if (blank === 'v') return { tex: `v = r\\omega = ${r} \\times ${fmt(w)} = ${v}` };
+      return { tex: `r = \\frac{v}{\\omega} = \\frac{${v}}{${fmt(w)}} = ${r}` };
+    }),
+};
+
+interface GForceParams {
+  /** Speed 7j m/s. */
+  j: number;
+  /** How many g, in halves. */
+  halves: number;
+}
+
+/** Flow: a ride's acceleration v^2/r, then how many g that is. v = 7j so r = 5 j^2 / k is exact. */
+const gForceFlow: Generator<GForceParams> = {
+  id: 'clm-g-force-flow',
+  sample: (rng, difficulty) =>
+    until(
+      () => ({ j: rng.int(1, difficulty > 1 ? 8 : 6), halves: rng.int(1, difficulty > 1 ? 10 : 8) }),
+      (p) => exact((10 * p.j * p.j) / p.halves, 2) && (10 * p.j * p.j) / p.halves >= 2,
+    ),
+  render: ({ j, halves }) => {
+    const v = 7 * j;
+    const k = halves / 2;
+    const r = n3((10 * j * j) / halves);
+    const a = n3(9.8 * k);
+    return {
+      kind: 'flow',
+      prompt: [say(`A fairground car swings round a loop of radius ${metres(r)} at ${ms(v)}. ${G_NOTE} How many $g$ does a rider feel from the turning alone?`)],
+      subject: 'a = \\frac{v^{2}}{r}',
+      steps: [
+        {
+          id: 'a',
+          ask: 'The acceleration towards the centre, in $\\text{m s}^{-2}$:',
+          branches: forks(a, [v / r, 2 * a, a / 2], 0.1).map((label) => ({ label, to: 'g' })),
+        },
+        {
+          id: 'g',
+          ask: 'As a number of $g$, divide by $9.8$:',
+          branches: forks(k, [k + 1, 2 * k, a / 10], 0.5).map((label) => ({ label, outcome: 'One g is the pull of gravity at the surface of the Earth.' })),
+        },
+      ],
+      answer: [`$${fmt(a)}$`, `$${fmt(k)}$`],
+    };
+  },
+  solution: ({ j, halves }) => {
+    const v = 7 * j;
+    const r = (10 * j * j) / halves;
+    const a = 4.9 * halves;
+    return [
+      { tex: `a = \\frac{${v}^{2}}{${fmt(r)}} = ${fmt(a)}` },
+      { tex: `\\frac{${fmt(a)}}{9.8} = ${fmt(halves / 2)}` },
+    ];
+  },
+};
+
+interface RadiusParams {
+  v: number;
+  a: number;
+}
+
+const RADIUS_SPAN = 100;
+
+/** Slider: the radius of turn that gives a set acceleration at a given speed, r = v^2 / a. */
+const radiusSlider: Generator<RadiusParams> = {
+  id: 'clm-radius-slider',
+  sample: (rng, difficulty) =>
+    until(
+      () => ({ v: rng.int(3, difficulty > 1 ? 30 : 20), a: rng.pick([2, 2.5, 4, 5, 8, 10]) }),
+      (p) => Number.isInteger((2 * p.v * p.v) / p.a) && (p.v * p.v) / p.a <= RADIUS_SPAN && (p.v * p.v) / p.a >= 3,
+    ),
+  render: ({ v, a }) => {
+    const figure = track(0, RADIUS_SPAN, [{ at: 0, name: 'centre' }], 'A scale of radii in metres out from the centre');
+    return {
+      kind: 'slider',
+      prompt: [say(`A car rounds a bend at ${ms(v)}. The acceleration towards the centre of the bend must be ${ms2(a)}. Slide to the radius of the bend, in metres.`)],
+      min: 0,
+      max: RADIUS_SPAN,
+      step: 0.5,
+      answer: (v * v) / a,
+      readout: 'r = {v}',
+      figure: { svg: figure.svg, xMin: figure.xMin, xMax: figure.xMax, axis: 'x' },
+    };
+  },
+  solution: ({ v, a }) => [{ tex: `r = \\frac{v^{2}}{a} = \\frac{${v * v}}{${fmt(a)}} = ${fmt((v * v) / a)}` }],
+};
+
+export const classicalTwoDGenerators = [
+  fallTime,
+  horizTree,
+  horizSlider,
+  horizFlow,
+  launchTable,
+  flightTree,
+  maxHeight,
+  rangeFlow,
+  rpmConvert,
+  rimSpeed,
+  spinTable,
+  gearTree,
+  spinUp,
+  spinTurnsTree,
+  spinStopSlider,
+  spinFlow,
+  centripetal,
+  circleTable,
+  gForceFlow,
+  radiusSlider,
+] as Generator<never>[];
+
+export const classicalTwoDInternals = { fallHeight, launchSpeed, launchUx, ANGLED, stopTurns };

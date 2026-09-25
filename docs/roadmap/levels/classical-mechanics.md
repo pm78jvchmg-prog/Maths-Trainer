@@ -68,7 +68,7 @@ Forces never meets.
 
 | Lesson | Source | Leans on |
 | --- | --- | --- |
-| Pressure | UP1 14.2 | expr, table |
+| Pressure and Area | UP1 14.1 | expr, table, flow, slider |
 | Pressure in a Fluid | UP1 14.2 (p = p0 + rho g h), 14.3 | tree, slider |
 | Buoyancy | UP1 14.4 Archimedes' principle | tree, flow, forces |
 | Drag and Terminal Speed | UP1 6.4 | expr, slider |

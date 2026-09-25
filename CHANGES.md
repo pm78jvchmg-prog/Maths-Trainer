@@ -47,6 +47,8 @@ its pull request; the PR description holds the evidence.
   the Cloudflare build (proved on #190).
 - **Docs (#190).** HANDOFF and DECISIONS no longer say commits land on `main`
   directly.
+- **Maths content reviewer agent now runs on Opus** instead of Fable, and
+  `/apply-fixes` no longer says "Do not merge" (PRs merge themselves) (#199).
 
 ## 2026-09-24
 

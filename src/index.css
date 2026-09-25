@@ -82,6 +82,16 @@
      dark background reads as a hole rather than a slab. */
   --lift: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 10px 24px -16px rgb(0 0 0 / 0.9);
 
+  /* The foot of the screen. On the owner's installed iPhone app the window
+     stops 59pt short of the screen, and iOS paints the strip below it in the
+     page's own background colour (#249 turned it from #11121a to this navy;
+     nothing else on the page reaches it). So a list screen takes this colour
+     as its base and its last stretch fades into it, and the strip reads as
+     the floor the screen stands on, the same navy as the top bar, rather
+     than a band iOS left behind. */
+  --edge: #1e2154;
+  --edge-fade: 56px;
+
   color-scheme: dark;
 }
 
@@ -124,12 +134,11 @@ body {
   overflow: hidden;
 }
 
-/* On the home screen the page's base colour is the list's blue, so if iOS
-   paints the strip below a short window in the page's colour, it matches the
-   list rather than showing as a dark band. The glow and the bands cover the
-   rest, so nothing else on screen changes. */
-body:has(.band-maths) {
-  background-color: #1e2154;
+/* A list screen's base is `--edge`, the colour iOS copies into the strip
+   below a short window, so the strip matches the fade at the foot of the
+   list. The glow and the bands cover the rest. A lesson keeps `--bg`. */
+body:has(.app-wide) {
+  background-color: var(--edge);
 }
 
 body {
@@ -247,6 +256,29 @@ button {
      itself, and a scrolling list runs under it. Padding for it here as well
      counted it twice, below the Check button and at the foot of every list. */
   padding: var(--top-inset, env(safe-area-inset-top)) env(safe-area-inset-right) 0 env(safe-area-inset-left);
+}
+
+/* The home list and a course's map run under the foot of the window, so
+   their last stretch fades into `--edge`, the colour iOS paints below it.
+   Fixed to the window rather than the column, so on an iPad the margins
+   either side fade with it. A lesson has none: its footer already sits on
+   the page base, and a fade there would dim the Check button. */
+.app-wide::after {
+  content: '';
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  height: calc(var(--edge-fade) + env(safe-area-inset-bottom));
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    color-mix(in srgb, var(--edge) 40%, transparent) 35%,
+    color-mix(in srgb, var(--edge) 80%, transparent) 70%,
+    var(--edge) 100%
+  );
 }
 
 /* Read by a screen reader, not drawn: the verdict's live region, whose words
@@ -1104,8 +1136,10 @@ button {
   animation: pane-in 200ms ease-out;
 }
 
+/* Dims towards the colour below the window rather than towards black, so
+   under a sheet the page and the strip iOS paints meet without a seam. */
 .leave-dialog::backdrop {
-  background: rgb(0 0 0 / 0.6);
+  background: color-mix(in srgb, var(--edge) 70%, transparent);
 }
 
 .leave-sheet {
@@ -1225,7 +1259,8 @@ button {
   overflow-y: auto;
   /* No top padding: the sticky top bar carries that gap, and a padded list
      would let the bar ride down with it before sticking. */
-  padding: 0 20px calc(20px + env(safe-area-inset-bottom));
+  /* The last row rests clear of the fade at the foot rather than under it. */
+  padding: 0 20px calc(var(--edge-fade) + env(safe-area-inset-bottom));
 }
 
 .course-title {
@@ -1620,8 +1655,8 @@ button {
   /* Tucked a pixel under the purple run: both are opaque at that edge, so
      the overlap is invisible where a gap would show the page as a line. */
   margin-top: -1px;
-  padding-bottom: calc(20px + env(safe-area-inset-bottom));
-  margin-bottom: calc(-20px - env(safe-area-inset-bottom));
+  padding-bottom: calc(var(--edge-fade) + env(safe-area-inset-bottom));
+  margin-bottom: calc(0px - var(--edge-fade) - env(safe-area-inset-bottom));
   /* Opens on the colour the purple run ends on and passes through rose to
      orange over a few hundred pixels, so the two runs overlap as a blend
      rather than meeting at a line. The stops are in pixels from the top, so

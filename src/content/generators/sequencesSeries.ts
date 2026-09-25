@@ -3590,7 +3590,8 @@ const limitAsk: Generator<LimitParams> = {
     if (form === 'over') {
       return [
         settle,
-        { tex: chain(`L &= \\frac{L ${signed(c)}}{${b}}`, `${b}L &= L ${signed(c)}`, `${lead(b - 1)}L &= ${c}`, `L &= ${L}`) },
+        // With b = 2 the gathered line already reads L = c, so it is the last.
+        { tex: chain(`L &= \\frac{L ${signed(c)}}{${b}}`, `${b}L &= L ${signed(c)}`, `${lead(b - 1)}L &= ${c}`, ...(b === 2 ? [] : [`L &= ${L}`])) },
       ];
     }
     if (form === 'minus') {

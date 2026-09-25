@@ -932,13 +932,17 @@ const sumEntry: Generator<EntryParams> = {
   solution: (m) => {
     const first = [[m.a, m.b], [m.c, m.d]][m.row - 1][m.col - 1];
     const second = [[m.e, m.f], [m.g, m.h]][m.row - 1][m.col - 1];
+    // Laid out as the question is: the sign between the two, and no 1 in front.
+    // An entry is bracketed after a number, or when it is negative.
+    const scaled = (s: number, entry: number) =>
+      Math.abs(s) === 1 ? (entry < 0 ? `\\left(${entry}\\right)` : `${entry}`) : `${Math.abs(s)}\\left(${entry}\\right)`;
     return [
       {
         text: 'Adding and scaling happen entry by entry, so one entry of the answer needs only the matching entry of each matrix. There is no need to work out the other three.',
       },
       { tex: `\\text{row } ${m.row}, \\text{ column } ${m.col}: \\quad ${first} \\text{ and } ${second}` },
       {
-        tex: `${m.p}\\left(${first}\\right) + \\left(${m.q}\\right)\\left(${second}\\right) = ${m.p * first + m.q * second}`,
+        tex: `${m.p < 0 ? '-' : ''}${scaled(m.p, first)} ${m.q < 0 ? '-' : '+'} ${scaled(m.q, second)} = ${m.p * first + m.q * second}`,
       },
       {
         text: 'Row first, then column. Counting across before down lands on a different entry unless the matrix is symmetric.',

@@ -810,7 +810,7 @@ const otherRoot: Generator<RootsParams> = {
     {
       text: `The two roots multiply to give the constant term, so the other one is $${r * t} \\div ${r}$.`,
     },
-    { tex: `${r} \\times x = ${r * t} \\implies x = ${t}` },
+    { tex: r === 1 ? `x = ${t}` : `${r} \\times x = ${r * t} \\implies x = ${t}` },
     {
       text: `They also add to $${r + t}$, which is the middle coefficient with its sign flipped — a second check that costs nothing and catches a sign slip straight away.`,
     },

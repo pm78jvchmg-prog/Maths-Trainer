@@ -554,7 +554,10 @@ const SIMPLIFY_CHOICE_FORMS: ChoiceForm[] = [
     expr: (c, _k, v) => `${c}\\sin^2 ${v} + ${c}\\cos^2 ${v}`,
     right: (_c, k) => `${k}`,
     wrong: (c, k, v) => [`${2 * k}`, `${c}\\tan^2 ${v}`, '0'],
-    why: (c, k, v) => `Take out the $${k}$: $${c}(\\sin^2 ${v} + \\cos^2 ${v}) = ${c} \\times 1$.`,
+    why: (c, k, v) =>
+      k === 1
+        ? `This is the identity $\\sin^2 ${v} + \\cos^2 ${v} = 1$ itself.`
+        : `Take out the $${k}$: $${c}(\\sin^2 ${v} + \\cos^2 ${v}) = ${c} \\times 1$.`,
   },
   {
     hard: false,

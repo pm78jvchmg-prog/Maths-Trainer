@@ -47,12 +47,13 @@ function reduce(num: number, den: number): { n: number; d: number } {
  * A term with a fractional coefficient, as it would be written by hand.
  *
  * Falls through to `termTex` whenever the fraction turns out to be a whole
- * number, so `\frac{4}{2}x` never reaches the learner.
+ * number, so `\frac{4}{2}x` never reaches the learner. Power 0 is the bare
+ * coefficient, `\frac{3}{2}`, never `\frac{3}{2}x^{0}`.
  */
 function fracTermTex(num: number, den: number, power: number): string {
   const { n, d } = reduce(num, den);
   if (d === 1) return termTex(n, power);
-  const variable = power === 1 ? 'x' : `x^{${power}}`;
+  const variable = power === 0 ? '' : power === 1 ? 'x' : `x^{${power}}`;
   return `${n < 0 ? '-' : ''}\\frac{${Math.abs(n)}}{${d}}${variable}`;
 }
 
@@ -8196,9 +8197,12 @@ function sumLimitSolution(params: SumLimitParams) {
   const { power, c, b } = params;
   const A = sumLimitA(params);
   const kPower = power === 1 ? 'k' : 'k^{2}';
+  const edge = `\\frac{${b === 1 ? '' : b}k}{n}`;
+  // c x at the edge is c(edge), or the edge alone; only a square needs its power.
+  const height = power === 1 ? (c === 1 ? edge : `${c}\\left(${edge}\\right)`) : `${c === 1 ? '' : c}\\left(${edge}\\right)^{${power}}`;
   return [
     {
-      text: `Strips of width $\\frac{${b}}{n}$ have right edges at $x = \\frac{${b === 1 ? '' : b}k}{n}$, so the $k$th height is $${c === 1 ? '' : c}\\left(\\frac{${b === 1 ? '' : b}k}{n}\\right)^{${power}}$. Width times height, added up:`,
+      text: `Strips of width $\\frac{${b}}{n}$ have right edges at $x = ${edge}$, so the $k$th height is $${height}$. Width times height, added up:`,
     },
     { tex: `\\frac{${A}}{n^{${power + 1}}} \\sum_{k=1}^{n} ${kPower}` },
     {

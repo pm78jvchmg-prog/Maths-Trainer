@@ -814,6 +814,11 @@ interface SurdAddParams {
   q: number;
 }
 
+/** The slip of swapping p√m for m√p; with p = 1 that is just m, never m√1. */
+function swappedSurd(m: number, p: number): string {
+  return p === 1 ? `${m}` : `${m}\\sqrt{${p}}`;
+}
+
 /** sqrt(A) + sqrt(B) where both simplify to multiples of the same surd. */
 const surdAddSteps: Generator<SurdAddParams> = {
   id: 'rad-add-steps',
@@ -846,7 +851,7 @@ const surdAddSteps: Generator<SurdAddParams> = {
             surdTex(left),
             coeffTex(p, `\\sqrt{${p * m}}`),
             `${p * m}\\sqrt{${m}}`,
-            `${m}\\sqrt{${p}}`,
+            swappedSurd(m, p),
             `\\sqrt{${p * m}}`,
           ),
         },
@@ -857,7 +862,7 @@ const surdAddSteps: Generator<SurdAddParams> = {
             surdTex(right),
             coeffTex(q, `\\sqrt{${q * m}}`),
             `${q * m}\\sqrt{${m}}`,
-            `${m}\\sqrt{${q}}`,
+            swappedSurd(m, q),
             `\\sqrt{${q * m}}`,
           ),
         },

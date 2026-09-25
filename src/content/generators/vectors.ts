@@ -4238,10 +4238,13 @@ const lineContains: Generator<ContainsParams> = {
     const [tx, ty] = containsTs(params);
     const px = ax + tx * bx;
     const py = ay + ty * by;
+    // A component that already reads `t = 2` has nothing left to solve.
+    const solve = (c: number, b: number, value: number, t: number) =>
+      affTex(c, b, 't') === 't' ? `t = ${t}` : `${affTex(c, b, 't')} = ${value} \\implies t = ${t}`;
     return [
       { text: 'Set the line equal to $P$ and solve each component for $t$ separately.' },
-      { tex: `${affTex(ax, bx, 't')} = ${px} \\implies t = ${tx}` },
-      { tex: `${affTex(ay, by, 't')} = ${py} \\implies t = ${ty}` },
+      { tex: solve(ax, bx, px, tx) },
+      { tex: solve(ay, by, py, ty) },
       delta === 0
         ? { text: `Both components give $t = ${tx}$, so a single value of $t$ reaches $P$ and it is on the line.` }
         : {
@@ -8472,7 +8475,7 @@ function unknownKSolution(params: UnknownKParams, perpendicular: boolean) {
     },
     { tex: `${kProductsTex(params)} = ${target}` },
     { tex: `${affTex(rest, coef, 'k')} = ${target}` },
-    { tex: `${coef === 1 ? '' : coef === -1 ? '-' : coef}k = ${target - rest} \\implies k = ${k}` },
+    { tex: solvedForTex(coef, 'k', target - rest, `k = ${k}`) },
     {
       text: `Check it: with $k = ${k}$ the three products add to $${rest} + ${paren(coef * k)} = ${target}$.`,
     },

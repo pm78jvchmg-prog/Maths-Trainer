@@ -106,8 +106,25 @@ export const integration: Course = {
               [prose('Start with the family itself. Three of these are the same curve moved up or down; one is a different curve altogether.')],
               'int-antiderivative-family',
             ),
-            ask('int-power'),
-            ask('int-term-tiles'),
+            askAfter(
+              [
+                prose(
+                  'To undo a power, run the power rule backwards: add one to the index, then divide by the new index. For $6x^{2}$ the index goes from $2$ to $3$, and $6$ is divided by $3$.',
+                ),
+                maths('\\int 6x^{2} \\, dx = \\frac{6x^{3}}{3} + C = 2x^{3} + C'),
+                prose('Check: differentiating $2x^{3}$ gives $6x^{2}$, the integrand.'),
+              ],
+              'int-power',
+            ),
+            askAfter(
+              [
+                prose('A sum is integrated one term at a time, each term through the same rule.'),
+                maths(
+                  '\\int \\left(6x + 12x^{2}\\right) \\, dx = \\frac{6x^{2}}{2} + \\frac{12x^{3}}{3} + C = 3x^{2} + 4x^{3} + C',
+                ),
+              ],
+              'int-term-tiles',
+            ),
             teach(
               prose(
                 'That unknown is written $C$ and called the **constant of integration**. It is part of the answer, not decoration.',
@@ -124,7 +141,13 @@ export const integration: Course = {
               [prose('The same question again, now that the notation has a name.')],
               'int-antiderivative-family',
             ),
-            ask('int-power'),
+            askAfter(
+              [
+                prose('The division does not always come out whole. When it does not, leave a fraction in front.'),
+                maths('\\int 3x^{4} \\, dx = \\frac{3x^{5}}{5} + C = \\frac{3}{5}x^{5} + C'),
+              ],
+              'int-power',
+            ),
             ask('int-check-answer'),
             teach(
               prose(
@@ -166,12 +189,26 @@ export const integration: Course = {
                 'Check by differentiating: the 5 coming off the index cancels the 5 underneath, leaving $x^{4}$. That cancellation is the entire reason the division is there.',
               ),
             ),
-            ask('int-power'),
-            ask('int-term-tiles'),
+            askAfter(
+              [
+                prose('A number in front stays in front and is divided by the new index too.'),
+                maths('\\int 10x^{4} \\, dx = \\frac{10x^{5}}{5} + C = 2x^{5} + C'),
+              ],
+              'int-power',
+            ),
+            askAfter(
+              [
+                prose('A sum is integrated one term at a time, and one $C$ covers the lot.'),
+                maths(
+                  '\\int \\left(8x + 9x^{2}\\right) \\, dx = \\frac{8x^{2}}{2} + \\frac{9x^{3}}{3} + C = 4x^{2} + 3x^{3} + C',
+                ),
+              ],
+              'int-term-tiles',
+            ),
             ask('int-power-tree'),
             teach(
               prose(
-                'A coefficient comes along for the ride, because a constant factor can be taken outside an integral.',
+                'The coefficient can come along for the ride because a constant factor can be taken outside an integral.',
               ),
               maths('\\int 6x^{2} \\, dx = 6 \\times \\frac{x^{3}}{3} + C = 2x^{3} + C'),
               prose(
@@ -225,7 +262,17 @@ export const integration: Course = {
               ),
             ),
             ask('int-sum-tree'),
-            ask('int-constant-point'),
+            askAfter(
+              [
+                prose(
+                  'A point on the curve fixes $C$. Say $\\frac{dy}{dx} = 6x$ and the curve passes through $(1, 5)$. Integrate first, keeping $C$:',
+                ),
+                maths('y = \\int 6x \\, dx = 3x^{2} + C'),
+                prose('Now put in $x = 1$ and $y = 5$, and solve for $C$:'),
+                maths('5 = 3 \\times 1^{2} + C = 3 + C \\quad \\Rightarrow \\quad C = 2'),
+              ],
+              'int-constant-point',
+            ),
             ask('int-term-tiles', 2),
             teach(
               prose(
@@ -262,7 +309,6 @@ export const integration: Course = {
             ),
             ask('int-power', 2),
             ask('int-rewrite-power'),
-            ask('int-which-rule'),
             teach(
               prose(
                 'There is exactly one index the rule cannot reach. Adding one to $-1$ gives zero, and the rule would divide by zero.',
@@ -273,9 +319,13 @@ export const integration: Course = {
               ),
               maths('\\int \\frac{1}{x} \\, dx = \\ln|x| + C'),
               prose(
+                'A number in front stays in front: $\\frac{5}{x}$ is $5x^{-1}$, so $\\int \\frac{5}{x} \\, dx = 5\\ln|x| + C$.',
+              ),
+              prose(
                 'The modulus signs matter. $\\frac{1}{x}$ is defined for negative $x$ too, and $\\ln|x|$ covers both sides of zero where $\\ln x$ covers only one.',
               ),
             ),
+            ask('int-which-rule'),
             ask('int-power+choice', 2),
             ask('int-check-answer', 2),
             ask('int-rewrite-power'),
@@ -312,14 +362,18 @@ export const integration: Course = {
                 'Convert first, every time; trying to integrate a root while it is still written as a root is where the guessing starts, just as it was for fractions.',
               ),
             ),
-            ask('int-root-power'),
+            askAfter(
+              [
+                prose(
+                  'A root underneath a fraction is a negative fractional power: $\\frac{1}{\\sqrt{x}}$ is $x^{-1/2}$. Adding one gives $\\frac{1}{2}$, and dividing by $\\frac{1}{2}$ doubles the coefficient.',
+                ),
+                maths('\\int \\frac{4}{\\sqrt{x}} \\, dx = \\int 4x^{-1/2} \\, dx = \\frac{4x^{1/2}}{1/2} + C = 8\\sqrt{x} + C'),
+              ],
+              'int-root-power',
+            ),
             ask('int-rewrite-power', 2),
             ask('int-power'),
             teach(
-              prose(
-                'A root underneath a fraction is a negative fractional power and both negatives have to be carried: $\\frac{1}{\\sqrt{x}}$ is $x^{-1/2}$, adding one gives $\\frac{1}{2}$, and dividing by $\\frac{1}{2}$ doubles the coefficient.',
-              ),
-              maths('\\int \\frac{4}{\\sqrt{x}} \\, dx = \\int 4x^{-1/2} \\, dx = \\frac{4x^{1/2}}{1/2} + C = 8\\sqrt{x} + C'),
               prose(
                 '$x$ multiplied by its own root is $x^{3/2}$, and $x$ under a root under a fraction is $x^{-3/2}$; adding one to $-\\frac{3}{2}$ gives $-\\frac{1}{2}$, and dividing by $-\\frac{1}{2}$ flips the sign.',
               ),
@@ -362,13 +416,12 @@ export const integration: Course = {
                 'The exponential is its own derivative, so it is its own antiderivative. Put a coefficient in the index and the chain rule brings that coefficient out in front when differentiating, so integration has to divide by it.',
               ),
               maths('\\int e^{kx} \\, dx = \\frac{e^{kx}}{k} + C'),
+              maths('\\int 6e^{3x} \\, dx = \\frac{6e^{3x}}{3} + C = 2e^{3x} + C'),
               prose(
                 'Forgetting that division is the standard error, and differentiating the answer back exposes it at once — an extra factor of $k$ appears where none should be.',
               ),
             ),
             ask('int-exponential'),
-            ask('int-trig'),
-            ask('int-standard-tiles'),
             teach(
               prose(
                 'The trigonometric pair needs its signs kept straight, because they run opposite to the derivative pair.',
@@ -376,12 +429,23 @@ export const integration: Course = {
               maths('\\int \\sin(kx) \\, dx = -\\frac{\\cos(kx)}{k} + C'),
               maths('\\int \\cos(kx) \\, dx = \\frac{\\sin(kx)}{k} + C'),
               prose(
-                'Under differentiation it is cosine that picks up the minus sign; under integration it is sine. Rather than memorising which way round it goes, differentiate your answer every time.',
+                'Under differentiation it is cosine that picks up the minus sign; under integration it is sine. The division by $k$ applies here too, for the same chain-rule reason:',
               ),
-              prose('The division by $k$ applies here too, for exactly the same chain-rule reason.'),
+              maths('\\int 6\\sin(2x) \\, dx = -\\frac{6\\cos(2x)}{2} + C = -3\\cos(2x) + C'),
+              maths('\\int 12\\cos(3x) \\, dx = \\frac{12\\sin(3x)}{3} + C = 4\\sin(3x) + C'),
             ),
+            ask('int-trig'),
+            ask('int-standard-tiles'),
             ask('int-exponential+choice'),
-            ask('int-which-rule', 2),
+            askAfter(
+              [
+                prose(
+                  'Before picking a result, check the index. A multiple of $\\frac{1}{x}$ goes to a logarithm: $\\int \\frac{5}{x} \\, dx = 5\\ln|x| + C$. A root or a fraction is rewritten as a power first: $3\\sqrt{x} = 3x^{1/2}$, which integrates to $2x^{3/2} + C$.',
+                ),
+              ],
+              'int-which-rule',
+              2,
+            ),
             ask('int-trig', 2),
             teach(
               prose('These combine with everything already met, because integration splits over sums.'),
@@ -453,7 +517,16 @@ export const integration: Course = {
               ),
             ),
             ask('int-definite-power+choice'),
-            ask('int-power', 2),
+            askAfter(
+              [
+                prose(
+                  'A negative index goes through the same rule: add one, divide by the new index, and carry both minus signs.',
+                ),
+                maths('\\int 6x^{-3} \\, dx = \\frac{6x^{-2}}{-2} + C = -3x^{-2} + C'),
+              ],
+              'int-power',
+              2,
+            ),
             ask('int-limits-tiles', 2),
             teach(
               prose('Bracket the lower value before subtracting it, especially when it is negative.'),
@@ -546,7 +619,16 @@ export const integration: Course = {
             ),
             ask('int-area-under'),
             ask('int-definite-tree'),
-            ask('int-area-slider'),
+            askAfter(
+              [
+                prose(
+                  'The limit can be the unknown. For the area under $y = 6x$ from $0$ to $b$ to be $27$, integrate with $b$ left as a letter:',
+                ),
+                maths('\\int_{0}^{b} 6x \\, dx = \\left[3x^{2}\\right]_{0}^{b} = 3b^{2}'),
+                maths('3b^{2} = 27 \\quad \\Rightarrow \\quad b^{2} = 9 \\quad \\Rightarrow \\quad b = 3'),
+              ],
+              'int-area-slider',
+            ),
             teach(
               prose('The method in order: write the integral, integrate, evaluate at both limits, subtract.'),
               maths('\\int_{0}^{3} 3x^{2} \\, dx = \\left[x^{3}\\right]_{0}^{3} = 27 - 0 = 27'),
@@ -808,14 +890,18 @@ export const integration: Course = {
                 '\\int 6x\\left(x^{2} + 1\\right)^{3} \\, dx = 3\\int u^{3} \\, du = \\frac{3u^{4}}{4} + C',
               ),
             ),
-            ask('int-substitution'),
+            askAfter(
+              [
+                prose('The last step is to convert back, putting $x^{2} + 1$ where $u$ was, because the question was about $x$.'),
+                maths('\\frac{3u^{4}}{4} + C = \\frac{3\\left(x^{2} + 1\\right)^{4}}{4} + C'),
+              ],
+              'int-substitution',
+            ),
             ask('int-substitution-tiles'),
             ask('int-bracket-tree'),
             teach(
-              prose('The last step is to convert back, because the original question was about $x$.'),
-              maths('\\frac{3u^{4}}{4} + C = \\frac{3\\left(x^{2} + 1\\right)^{4}}{4} + C'),
               prose(
-                'An answer left in terms of $u$ answers a different question. It is the most commonly dropped step, and it costs the whole mark.',
+                'An answer left in terms of $u$ answers a different question. Converting back is the most commonly dropped step, and it costs the whole mark.',
               ),
               prose(
                 'Check by differentiating: the chain rule gives $\\frac{3 \\times 4\\left(x^{2} + 1\\right)^{3} \\times 2x}{4} = 6x\\left(x^{2} + 1\\right)^{3}$, which is where we started.',
@@ -868,7 +954,7 @@ export const integration: Course = {
             ),
             ask('int-substitution-general'),
             ask('int-substitution-tiles'),
-            ask('int-choose-method'),
+            ask('int-substitution'),
             teach(
               prose(
                 'The bracket need not be a bracket: any function with its derivative alongside will do, and two cases turn up constantly.',
@@ -893,11 +979,14 @@ export const integration: Course = {
                 '$\\int \\left(x^{3} + 1\\right)^{2} \\, dx$ has no $x^{2}$ outside the bracket, so substitution leaves an $x^{2}$ stranded and gains nothing; for that one, multiply the bracket out.',
               ),
               prose(
-                'Which $u$ to try is the only judgement here, and the worked solutions on every question name it; if the substitution you choose leaves any $x$ behind, it was the wrong one.',
+                'A linear bracket needs nothing outside it, because its derivative is a plain number. For $\\int \\left(3x + 1\\right)^{4} \\, dx$ put $u = 3x + 1$, so $\\frac{du}{dx} = 3$ and $dx = \\frac{1}{3} \\, du$:',
+              ),
+              maths(
+                '\\frac{1}{3}\\int u^{4} \\, du = \\frac{u^{5}}{15} + C = \\frac{\\left(3x + 1\\right)^{5}}{15} + C',
               ),
             ),
-            ask('int-choose-method', 2),
-            ask('int-substitution', 2),
+            ask('int-bracket-tree', 2),
+            ask('int-linear-bracket', 2),
           ],
           skillCheck: [
             ask('int-substitution-general', 2),
@@ -976,38 +1065,43 @@ export const integration: Course = {
                 'So the choice of which factor to call $u$ is the whole method: choose $u$ to be the factor that gets simpler when differentiated.',
               ),
             ),
-            ask('int-by-parts'),
-            ask('int-parts-tiles'),
-            ask('int-choose-method'),
+            askAfter(
+              [
+                prose(
+                  'For $\\int xe^{2x} \\, dx$, differentiating $x$ gives 1, which removes the $x$ from the second integral entirely. So $u = x$.',
+                ),
+                maths(
+                  'u = x \\quad \\frac{dv}{dx} = e^{2x} \\quad \\frac{du}{dx} = 1 \\quad v = \\frac{e^{2x}}{2}',
+                ),
+                maths(
+                  '\\int xe^{2x} \\, dx = \\frac{xe^{2x}}{2} - \\int \\frac{e^{2x}}{2} \\, dx = \\frac{xe^{2x}}{2} - \\frac{e^{2x}}{4} + C',
+                ),
+              ],
+              'int-by-parts',
+            ),
             teach(
-              prose(
-                'For $\\int xe^{2x} \\, dx$, differentiating $x$ gives 1, which removes the $x$ from the second integral entirely. So $u = x$.',
-              ),
+              prose('Check the answer by differentiating it with the product rule:'),
               maths(
-                'u = x \\quad \\frac{dv}{dx} = e^{2x} \\quad \\frac{du}{dx} = 1 \\quad v = \\frac{e^{2x}}{2}',
-              ),
-              maths(
-                '\\int xe^{2x} \\, dx = \\frac{xe^{2x}}{2} - \\int \\frac{e^{2x}}{2} \\, dx = \\frac{xe^{2x}}{2} - \\frac{e^{2x}}{4} + C',
+                '\\frac{d}{dx}\\left(\\frac{xe^{2x}}{2} - \\frac{e^{2x}}{4}\\right) = \\frac{e^{2x}}{2} + xe^{2x} - \\frac{e^{2x}}{2} = xe^{2x}',
               ),
               prose(
-                'The remaining integral is a standard result with no $x$ in front of it, which is exactly the simplification being aimed for.',
+                'Choosing the other way round makes matters worse, and it is worth seeing why. With $u = e^{2x}$, the new integral contains $\\frac{x^{2}}{2}$ — a higher power than before. Apply by parts again and the power rises again. The method runs forever.',
               ),
             ),
-            ask('int-by-parts+choice'),
+            ask('int-choose-method'),
             ask('int-substitution', 2),
-            ask('int-parts-tiles', 2),
             teach(
-              prose(
-                'Choosing the other way round makes matters worse, and it is worth seeing why. With $u = e^{2x}$, the new integral contains $\\frac{x^{2}}{2}$ — a higher power than before.',
-              ),
-              prose('Apply by parts again and the power rises again. The method runs forever.'),
               prose(
                 'For a polynomial times an exponential or a trigonometric function, the polynomial is always $u$. It differentiates down to a constant in finitely many steps, and that is what makes the method terminate.',
               ),
               maths(
-                '\\int x\\sin(3x) \\, dx = -\\frac{x\\cos(3x)}{3} + \\frac{\\sin(3x)}{9} + C',
+                'u = x \\quad \\frac{dv}{dx} = \\sin(3x) \\quad \\frac{du}{dx} = 1 \\quad v = -\\frac{\\cos(3x)}{3}',
+              ),
+              maths(
+                '\\int x\\sin(3x) \\, dx = -\\frac{x\\cos(3x)}{3} + \\int \\frac{\\cos(3x)}{3} \\, dx = -\\frac{x\\cos(3x)}{3} + \\frac{\\sin(3x)}{9} + C',
               ),
             ),
+            ask('int-by-parts+choice', 2),
             ask('int-choose-method', 2),
             // The last slide of the level: every technique has now been
             // taught, so the last question is choosing between them rather
@@ -1129,11 +1223,12 @@ export const integration: Course = {
               [prose('First the idea exactly as stated: two areas under two curves, one subtracted from the other.')],
               'int-between-tree',
             ),
-            ask('int-between-given'),
-            ask('int-which-above'),
             teach(
               prose(
                 'Subtracting two integrals works, but it is quicker to subtract the curves first and integrate once.',
+              ),
+              prose(
+                'First decide which curve is on top: try a value of $x$ inside the interval. At $x = 1$, $x^{2} + 4$ gives $5$ and $2x - 1$ gives $1$, so $y = x^{2} + 4$ is on top.',
               ),
               maths('\\left(x^{2} + 4\\right) - \\left(2x - 1\\right)'),
               maths('= x^{2} - 2x + 5'),
@@ -1144,20 +1239,23 @@ export const integration: Course = {
               maths('= \\left[\\frac{x^{3}}{3} - x^{2} + 5x\\right]_{0}^{3} = 15'),
             ),
             ask('int-between-tiles'),
+            ask('int-between-given'),
             ask('int-between-given+choice'),
-            ask('int-between-tree', 2),
             teach(
               prose(
-                'The method needs to know which curve is on top. When the equations do not make it obvious, try a value of $x$ inside the interval and compare the two heights.',
+                'Testing one point is only safe if the curves do not cross inside the interval. To check, subtract them and find where the difference is zero. Take $y = x^{2} + 1$ and $y = 2x + 4$ between $x = 4$ and $x = 5$:',
+              ),
+              maths('\\left(x^{2} + 1\\right) - \\left(2x + 4\\right) = x^{2} - 2x - 3 = (x - 3)(x + 1)'),
+              prose(
+                'The difference is zero only at $x = 3$ and $x = -1$. Neither lies between $4$ and $5$, so the curves do not cross there. At $x = 4.5$ the difference is $1.5 \\times 5.5 = 8.25$, positive, so $y = x^{2} + 1$ is higher all the way across. Had a zero lain between $4$ and $5$, the curves would cross there.',
               ),
               prose(
-                'The axis plays no part. If one or both curves dip below it, top minus bottom is still the height of the region at every $x$, and its integral is still the area.',
-              ),
-              prose(
-                'Taken the wrong way round, the integral comes out negative: the right size with the wrong sign. A negative area is the signal to check which curve is on top.',
+                'Taken the wrong way round, the integral comes out negative: the right size with the wrong sign. A negative area is the signal to check which curve is on top. The axis plays no part: top minus bottom is the height of the region even where a curve dips below it.',
               ),
             ),
+            ask('int-which-above'),
             ask('int-between-tiles', 2),
+            ask('int-between-tree', 2),
             ask('int-which-above'),
           ],
           skillCheck: [
@@ -1205,10 +1303,18 @@ export const integration: Course = {
               'int-meet-points',
             ),
             ask('int-meet-slider'),
-            ask('int-setup-integral'),
+            askAfter(
+              [
+                prose(
+                  'With the limits found, test a value between them to see which curve is on top. For the curves above, at $x = 0$ the line gives $1$ and the parabola $-3$, so the line is on top:',
+                ),
+                maths('\\text{area} = \\int_{-1}^{2} \\left(\\left(2x + 1\\right) - \\left(2x^{2} - 3\\right)\\right) dx'),
+              ],
+              'int-setup-integral',
+            ),
             teach(
               prose(
-                'With the limits found, the rest is the method from the last lesson. Test a value between them: at $x = 0$ the line gives $1$ and the parabola $-3$, so the line is on top.',
+                'Now work that integral out: subtract the curves first, then integrate once.',
               ),
               maths('\\left(2x + 1\\right) - \\left(2x^{2} - 3\\right)'),
               maths('= -2x^{2} + 2x + 4'),
@@ -1340,21 +1446,27 @@ export const integration: Course = {
               [prose('What the integral straight through counts, and what the area counts.')],
               'int-net-between',
             ),
-            ask('int-crossing-pieces'),
-            ask('int-region-flow'),
             teach(
               prose(
                 'The fix is the one from Area Below the Axis: split the interval at the crossing point, integrate the difference over each piece, and add the sizes.',
               ),
-              maths('\\int_{0}^{1} \\left(2x - 2\\right) dx = -1'),
-              maths('\\int_{1}^{2} \\left(2x - 2\\right) dx = 1'),
               prose(
-                'So the area is $1 + 1 = 2$. To find a crossing point, solve $y_1 = y_2$ as before: a solution strictly inside the interval is where to split, and one outside it can be ignored.',
+                'To find the crossing, set the difference to zero: $2x - 2 = 0$ at $x = 1$, which is inside $0$ to $2$, so split there. A zero outside the interval can be ignored.',
               ),
+              maths('\\int_{0}^{1} \\left(2x - 2\\right) dx = \\left[x^{2} - 2x\\right]_{0}^{1} = -1 - 0 = -1'),
+              maths('\\int_{1}^{2} \\left(2x - 2\\right) dx = \\left[x^{2} - 2x\\right]_{1}^{2} = 0 - \\left(-1\\right) = 1'),
+              prose('Each piece counts by its size, so the area is $1 + 1 = 2$.'),
+            ),
+            ask('int-crossing-pieces'),
+            askAfter(
+              [
+                prose(
+                  'When the difference is a quadratic, factorise it to find the zeros. Say it is $x^{2} - 2x - 3 = (x - 3)(x + 1)$, zero at $x = 3$ and $x = -1$. From $x = 0$ to $x = 4$ the zero at $3$ is inside, so split there; from $x = 4$ to $x = 5$ neither is, so one integral does.',
+                ),
+              ],
+              'int-region-flow',
             ),
             ask('int-crossing-area'),
-            ask('int-region-flow', 2),
-            ask('int-crossing-pieces', 2),
             teach(
               prose(
                 'Read the question for which number it wants. The integral from end to end is a **signed** total that counts the swapped stretch as negative; the area counts every piece as positive.',
@@ -1364,6 +1476,8 @@ export const integration: Course = {
               ),
             ),
             ask('int-crossing-area+choice', 2),
+            ask('int-region-flow', 2),
+            ask('int-crossing-pieces', 2),
             ask('int-net-between', 2),
           ],
           skillCheck: [
@@ -1502,14 +1616,20 @@ export const integration: Course = {
               prose('That is the volume of the bullet-shaped solid from the last lesson.'),
             ),
             ask('int-vol-root'),
-            ask('int-vol-find-limit'),
+            askAfter(
+              [
+                prose(
+                  'Working backwards: when the volume is given and a limit is not, leave the limit as a letter, integrate, and solve. Say the region under $y = \\sqrt{2x}$ from $0$ to $h$ gives a volume of $9\\pi$:',
+                ),
+                maths('V = \\pi \\int_{0}^{h} 2x \\, dx = \\pi \\left[x^{2}\\right]_{0}^{h} = \\pi h^{2}'),
+                maths('\\pi h^{2} = 9\\pi \\quad \\Rightarrow \\quad h^{2} = 9 \\quad \\Rightarrow \\quad h = 3'),
+              ],
+              'int-vol-find-limit',
+            ),
             ask('int-vol-square', 2),
             teach(
               prose(
-                'Working backwards: when the volume is given and a limit is not, leave the limit as a letter, integrate, and solve.',
-              ),
-              prose(
-                'The region under $y = 2$ from $0$ to $h$ turns into a cylinder, and $\\pi \\int_{0}^{h} 4 \\, dx = 4\\pi h$. A volume of $20\\pi$ therefore means $h = 5$.',
+                'A constant curve works the same way, with no square to take at the end. The region under $y = 2$ from $0$ to $h$ turns into a cylinder, and $\\pi \\int_{0}^{h} 4 \\, dx = 4\\pi h$. A volume of $20\\pi$ therefore means $h = 5$.',
               ),
               prose('Type $\\pi$ with its key, and a fraction with the fraction key: $\\frac{26\\pi}{3}$ is exactly how to leave it.'),
             ),
@@ -1555,7 +1675,16 @@ export const integration: Course = {
               maths('V = \\pi \\int_{c}^{d} x^{2} \\, dy'),
               prose('The limits are heights now, and $x^{2}$ has to be written in terms of $y$ before integrating.'),
             ),
-            ask('int-vol-rearrange'),
+            askAfter(
+              [
+                prose(
+                  'When the region is described by $x$ values, turn them into heights: put each one into the curve. For $y = x^{2} + 1$ from $x = 1$ to $x = 2$:',
+                ),
+                maths('x = 1: \\; y = 1 + 1 = 2 \\qquad x = 2: \\; y = 4 + 1 = 5'),
+                prose('Then rearrange the curve for $x^{2}$: $y = x^{2} + 1$ gives $x^{2} = y - 1$.'),
+              ],
+              'int-vol-rearrange',
+            ),
             ask('int-vol-y-radius'),
             ask('int-vol-axis-flow'),
             teach(
@@ -1570,9 +1699,6 @@ export const integration: Course = {
             ask('int-vol-rearrange', 2),
             ask('int-vol-y-axis+choice'),
             teach(
-              prose(
-                'When the region is described by $x$ values, turn them into heights first: put each one into the curve.',
-              ),
               prose(
                 'Only $x^{2}$ is needed, never $x$ itself, so there is no square root to take. A line through the origin such as $y = \\frac{x}{2}$ turns into a cone standing on its tip, with $x = 2y$ and so $x^{2} = 4y^{2}$.',
               ),
@@ -1617,7 +1743,18 @@ export const integration: Course = {
             ),
             ask('int-vol-cone'),
             ask('int-vol-cone-parts'),
-            ask('int-vol-shape', 2),
+            askAfter(
+              [
+                prose(
+                  'Name the solid from the curve. A constant makes a cylinder; a line through the origin, a cone; a sloping line that misses the origin, a cone with its tip cut off, a **frustum**.',
+                ),
+                prose(
+                  'A root of a number minus $x^{2}$ is part of a circle. Squaring $y = \\sqrt{4 - x^{2}}$ gives $y^{2} = 4 - x^{2}$, so $x^{2} + y^{2} = 4$: the top half of a circle of radius $2$. From $x = -2$ to $x = 2$ it turns into a sphere of radius $2$; from $x = 0$ to $x = 2$, into half of one, a **hemisphere**.',
+                ),
+              ],
+              'int-vol-shape',
+              2,
+            ),
             teach(
               prose(
                 'Turn the region **between** two curves and the solid has a hole down it. Each slice is a washer: a disc of the outer radius with a disc of the inner radius taken out.',
@@ -1801,8 +1938,6 @@ export const integration: Course = {
               prose('That is $\\ln 3$, since $\\ln 1 = 0$. Taking one log from another divides inside them: $\\ln 6 - \\ln 2 = \\ln 3$.'),
             ),
             ask('int-pf-substitute'),
-            ask('int-pf-find-limit'),
-            ask('int-pf-definite'),
             teach(
               prose('An answer is usually left as a single logarithm. Three laws do the collapsing:'),
               maths('\\ln p + \\ln q = \\ln pq'),
@@ -1811,6 +1946,17 @@ export const integration: Course = {
               prose(
                 'A number in front goes in as a power first, then the logs combine: $2\\ln 3 - \\ln 2 = \\ln 9 - \\ln 2 = \\ln\\frac{9}{2}$.',
               ),
+            ),
+            ask('int-pf-definite'),
+            askAfter(
+              [
+                prose(
+                  'The top limit can be the unknown. Say $\\int_{0}^{h} \\frac{2}{x + 3} \\, dx = 2\\ln 2$. Integrate with $h$ left as a letter:',
+                ),
+                maths('\\left[2\\ln|x + 3|\\right]_{0}^{h} = 2\\ln(h + 3) - 2\\ln 3 = 2\\ln\\frac{h + 3}{3}'),
+                maths('\\frac{h + 3}{3} = 2 \\quad \\Rightarrow \\quad h + 3 = 6 \\quad \\Rightarrow \\quad h = 3'),
+              ],
+              'int-pf-find-limit',
             ),
             ask('int-pf-definite', 2),
             ask('int-pf-substitute', 2),
@@ -1848,15 +1994,19 @@ export const integration: Course = {
             ),
             ask('int-pf-divide'),
             ask('int-pf-top-heavy'),
-            ask('int-pf-form-flow'),
             teach(
-              prose('A repeated bracket needs one fraction for each power of it:'),
-              maths('\\frac{3x + 5}{(x + 1)^{2}}'),
-              maths('= \\frac{3}{x + 1} + \\frac{2}{(x + 1)^{2}}'),
               prose(
-                'The first part integrates to a logarithm. The second is a power, $2(x + 1)^{-2}$, which integrates to $-\\frac{2}{x + 1}$ with no logarithm in it.',
+                'A repeated bracket needs one fraction for each power of it. To find the numbers, write the top in terms of the bracket: $3(x + 1)$ is $3x + 3$, and $2$ more makes $3x + 5$.',
               ),
+              maths('3x + 5 = 3(x + 1) + 2'),
+              prose('Now divide each part by $(x + 1)^{2}$:'),
+              maths('\\frac{3x + 5}{(x + 1)^{2}} = \\frac{3(x + 1)}{(x + 1)^{2}} + \\frac{2}{(x + 1)^{2}} = \\frac{3}{x + 1} + \\frac{2}{(x + 1)^{2}}'),
+              prose(
+                'The first part integrates to $3\\ln|x + 1|$. The second is a power, $2(x + 1)^{-2}$: raise the index to $-1$ and divide by $-1$.',
+              ),
+              maths('\\int 2(x + 1)^{-2} \\, dx = \\frac{2(x + 1)^{-1}}{-1} = -\\frac{2}{x + 1}'),
             ),
+            ask('int-pf-form-flow'),
             ask('int-pf-repeated'),
             ask('int-pf-repeated-integrate'),
             ask('int-pf-top-heavy+choice'),
@@ -2001,27 +2151,30 @@ export const integration: Course = {
               prose('For $\\frac{1}{x^{p}}$ from $1$ to $\\infty$, integrating leaves $t^{1 - p}$, which dies away only when $1 - p$ is negative:'),
               maths('p > 1: \\text{ converges}'),
               maths('p \\le 1: \\text{ diverges}'),
+              prose('With $p = 2$, for instance:'),
+              maths('\\int_{1}^{t} 3x^{-2} \\, dx = \\left[-3x^{-1}\\right]_{1}^{t} = 3 - \\frac{3}{t} \\to 3'),
+            ),
+            ask('int-imp-p-flow'),
+            ask('int-imp-power-tail'),
+            teach(
+              prose(
+                'Fractional powers follow the same rule. $\\frac{1}{x\\sqrt{x}} = x^{-\\frac{3}{2}}$ has $p = \\frac{3}{2}$, so it converges, while $\\frac{1}{\\sqrt{x}}$ has $p = \\frac{1}{2}$ and diverges. Adding one to $-\\frac{3}{2}$ gives $-\\frac{1}{2}$:',
+              ),
+              maths('\\int_{1}^{t} x^{-\\frac{3}{2}} \\, dx = \\left[-2x^{-\\frac{1}{2}}\\right]_{1}^{t} = 2 - \\frac{2}{\\sqrt{t}} \\to 2'),
+              prose('An exponential converges on an infinite interval when it decays, and diverges when it grows:'),
+              maths('\\int_{0}^{t} 6e^{-2x} \\, dx = \\left[-3e^{-2x}\\right]_{0}^{t} = 3 - 3e^{-2t} \\to 3'),
             ),
             ask('int-imp-verdict'),
             ask('int-imp-root-tail'),
-            ask('int-imp-p-flow'),
-            teach(
-              prose(
-                'Fractional powers follow the same rule. $\\frac{1}{x\\sqrt{x}} = x^{-\\frac{3}{2}}$ has $p = \\frac{3}{2}$, so it converges, while $\\frac{1}{\\sqrt{x}}$ has $p = \\frac{1}{2}$ and diverges.',
-              ),
-              maths('\\int_{1}^{\\infty} x^{-\\frac{3}{2}} \\, dx = 2'),
-              prose('An exponential converges on an infinite interval when it decays, and diverges when it grows.'),
-            ),
-            ask('int-imp-root-tail+choice', 2),
             ask('int-imp-tail-slider'),
-            ask('int-imp-verdict'),
+            ask('int-imp-root-tail+choice', 2),
             teach(
               prose(
                 '"Diverges" is a full answer, not a failure to find one. The quick test is what the antiderivative does at the troublesome end: settle to a number, or grow without limit.',
               ),
             ),
+            ask('int-imp-verdict'),
             ask('int-imp-p-flow'),
-            ask('int-imp-power-tail', 2),
           ],
           skillCheck: [
             ask('int-imp-verdict'),
@@ -2091,23 +2244,29 @@ export const integration: Course = {
               maths('+ \\int_{0}^{\\infty} e^{-x} \\, dx'),
               prose('Each half is $1$, so the whole is $2$.'),
             ),
-            ask('int-imp-split-tiles'),
             ask('int-imp-two-sided'),
-            ask('int-imp-halves-tree'),
             teach(
               prose('A point inside the interval where the integrand is unbounded is split the same way, at that point, so the trouble sits at one end of each half:'),
-              maths('\\int_{-1}^{8} \\frac{1}{\\sqrt[3]{x^{2}}} \\, dx'),
-              prose('Split at $0$. The left half is $3$ and the right half is $6$, so the integral is $9$.'),
+              maths('\\int_{-1}^{8} \\frac{1}{\\sqrt[3]{x^{2}}} \\, dx = \\int_{-1}^{0} x^{-\\frac{2}{3}} \\, dx + \\int_{0}^{8} x^{-\\frac{2}{3}} \\, dx'),
+              prose('Adding one to $-\\frac{2}{3}$ gives $\\frac{1}{3}$, so $F(x) = 3\\sqrt[3]{x}$, and $F(0) = 0$ is a finite value to reach:'),
+              maths('F(0) - F(-1) = 0 - (-3) = 3 \\qquad F(8) - F(0) = 6 - 0 = 6'),
+              prose('Both halves converge, so the integral is $3 + 6 = 9$.'),
+            ),
+            ask('int-imp-split-tiles'),
+            ask('int-imp-halves-tree'),
+            teach(
+              prose('The whole converges only if **both** halves do. One divergent half is enough to make it diverge.'),
+              prose(
+                'Take $\\int_{-1}^{1} \\frac{1}{x^{2}} \\, dx$, split at $0$. The right half, up from a small $s$, grows without limit as $s$ shrinks to $0$:',
+              ),
+              maths('\\int_{s}^{1} x^{-2} \\, dx = \\left[-\\frac{1}{x}\\right]_{s}^{1} = \\frac{1}{s} - 1'),
+              prose(
+                'So the whole diverges. Integrating straight across $0$ instead gives $\\left[-\\frac{1}{x}\\right]_{-1}^{1} = -2$, a negative answer for a positive integrand: never integrate across such a point.',
+              ),
             ),
             ask('int-imp-trap'),
             ask('int-imp-split-tiles', 2),
             ask('int-imp-two-sided', 2),
-            teach(
-              prose('The whole converges only if **both** halves do. One divergent half is enough to make it diverge.'),
-              prose(
-                'Never integrate straight across such a point. $\\int_{-1}^{1} \\frac{1}{x^{2}} \\, dx$ looks like $\\left[-\\frac{1}{x}\\right]_{-1}^{1} = -2$, a negative answer for a positive integrand, and in fact it diverges.',
-              ),
-            ),
             ask('int-imp-halves-tree', 2),
             ask('int-imp-trap', 2),
           ],
@@ -2167,15 +2326,18 @@ export const integration: Course = {
               maths('L_{3} = 2(1 + 5 + 17)'),
               maths('= 46'),
             ),
-            ask('int-lim-which-sum'),
+            askAfter(
+              [
+                prose('Read the heights at the **right** edges instead and you get the right sum. For the same three strips:'),
+                maths('R_{3} = 2\\left[f(2) + f(4) + f(6)\\right] = 2(5 + 17 + 37) = 118'),
+              ],
+              'int-lim-which-sum',
+            ),
             ask('int-lim-sum-ends'),
             ask('int-lim-strip-tree'),
             teach(
-              prose('Read the heights at the **right** edges instead and you get the right sum:'),
-              maths('R_{3} = 2\\left[f(2) + f(4) + f(6)\\right]'),
-              maths('= 2(5 + 17 + 37) = 118'),
               prose(
-                'With $n$ strips of width $h = \\frac{b - a}{n}$, the left sum reads $f$ at $a, a + h, \\dots, b - h$ and the right sum at $a + h, \\dots, b$. The true area here is $78$, between the two.',
+                'In general, with $n$ strips of width $h = \\frac{b - a}{n}$, the left sum reads $f$ at $a, a + h, \\dots, b - h$ and the right sum at $a + h, \\dots, b$. The true area here is $78$, between the two.',
               ),
             ),
             ask('int-lim-rect-sum'),
@@ -2217,14 +2379,23 @@ export const integration: Course = {
               maths('R_{n} = \\sum_{k=1}^{n} \\frac{2}{n} \\cdot \\frac{6k}{n}'),
               maths('= \\frac{12}{n^{2}} \\cdot \\frac{n(n+1)}{2}'),
               maths('= 6\\left(1 + \\frac{1}{n}\\right)'),
+              prose(
+                'As $n$ grows, $\\frac{1}{n} \\to 0$, so $R_{n} \\to 6$: the exact area, $\\int_{0}^{2} 3x \\, dx = 6$. The left sums, $6\\left(1 - \\frac{1}{n}\\right)$, close in on the same value from below.',
+              ),
             ),
             ask('int-lim-sum-limit-steps'),
             ask('int-lim-approach-slider'),
             ask('int-lim-sum-in-n', 2),
             teach(
-              prose('As $n$ grows, $\\frac{1}{n} \\to 0$, so $R_{n} \\to 6$. The limit is the exact area:'),
-              maths('\\int_{0}^{2} 3x \\, dx = 6'),
-              prose('The left sums, $6\\left(1 - \\frac{1}{n}\\right)$, close in on the same value from below.'),
+              prose(
+                'A curve needs the $k^{2}$ result. Take $\\int_{0}^{1} 3x^{2} \\, dx$ with $n$ strips of width $\\frac{1}{n}$. Strip $k$ has right edge $\\frac{k}{n}$, where the height is $\\frac{3k^{2}}{n^{2}}$. So',
+              ),
+              maths('R_{n} = \\sum_{k=1}^{n} \\frac{1}{n} \\cdot \\frac{3k^{2}}{n^{2}} = \\frac{3}{n^{3}} \\cdot \\frac{n(n+1)(2n+1)}{6}'),
+              prose('Cancel the $3$ into the $6$ and the $n$ on top against one underneath, then give each bracket one of the two $n$s left:'),
+              maths('= \\frac{1}{2} \\cdot \\frac{n+1}{n} \\cdot \\frac{2n+1}{n} = \\frac{1}{2}\\left(1 + \\frac{1}{n}\\right)\\left(2 + \\frac{1}{n}\\right)'),
+              prose(
+                'As $n$ grows each $\\frac{1}{n} \\to 0$, so $R_{n} \\to \\frac{1}{2} \\times 1 \\times 2 = 1$, which is $\\int_{0}^{1} 3x^{2} \\, dx$.',
+              ),
             ),
             ask('int-lim-sum-limit-steps', 2),
             ask('int-lim-approach-slider', 2),
@@ -2246,25 +2417,26 @@ export const integration: Course = {
               maths('\\sum_{k=1}^{n} h \\, f(a + kh)'),
               prose('The width $h$ becomes the $dx$, and the sum stretches into the integral sign.'),
             ),
-            ask('int-lim-identify-flow'),
+            askAfter(
+              [
+                prose('Read this one piece by piece:'),
+                maths('\\sum_{k=1}^{n} \\frac{3}{n}\\left(2 + \\frac{3k}{n}\\right)^{2}'),
+                prose(
+                  'The width is $\\frac{3}{n}$, so $b - a = 3$. At $k = 0$ the bracket is $2$, so $a = 2$ and $b = 5$. The bracket is $x$, so the integrand is $x^{2}$: the limit is $\\int_{2}^{5} x^{2} \\, dx$.',
+                ),
+              ],
+              'int-lim-identify-flow',
+            ),
             ask('int-lim-read-tiles'),
             ask('int-lim-which-integral'),
             teach(
-              prose('Read this one piece by piece:'),
-              maths('\\sum_{k=1}^{n} \\frac{3}{n}\\left(2 + \\frac{3k}{n}\\right)^{2}'),
-              prose(
-                'The width is $\\frac{3}{n}$, so $b - a = 3$. At $k = 0$ the bracket is $2$, so $a = 2$ and $b = 5$. The bracket is $x$, so the integrand is $x^{2}$:',
-              ),
-              maths('\\int_{2}^{5} x^{2} \\, dx'),
+              prose('Once the limit is an integral, evaluate it with the antiderivative. That is far quicker than simplifying the sum:'),
+              maths('\\int_{2}^{5} x^{2} \\, dx = \\left[\\frac{x^{3}}{3}\\right]_{2}^{5}'),
+              maths('= \\frac{125 - 8}{3} = 39'),
             ),
             ask('int-lim-sum-value'),
             ask('int-lim-read-tiles', 2),
             ask('int-lim-identify-flow', 2),
-            teach(
-              prose('Once the limit is an integral, evaluate it with the antiderivative. That is far quicker than simplifying the sum:'),
-              maths('\\left[\\frac{x^{3}}{3}\\right]_{2}^{5}'),
-              maths('= \\frac{125 - 8}{3} = 39'),
-            ),
             ask('int-lim-which-integral', 2),
             ask('int-lim-sum-value+choice', 2),
           ],

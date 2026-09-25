@@ -5,16 +5,16 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-25
 
-- **Progress syncs between devices.** "Sync devices" on the home screen shows
-  a one-time code on one device to type on the other; from then on lessons,
-  bests and the streak are merged (never overwritten) through a small store on
-  the Worker, a D1 database that wrangler creates with no dashboard setup.
 - **Top bars hide on scroll, and lists remember where you were (#197).** Less space
   above "All courses" (the home screen matches). The top bar on the home
   screen, a course page and a lesson slides away while scrolling down and
   comes back on scrolling up. Leaving a lesson returns to that lesson on the
   course page, and going back to the home screen returns to where it was
   scrolled. Positions are kept in session storage, never the progress store.
+- **Progress syncs between devices.** "Sync devices" on the home screen shows
+  a one-time code on one device to type on the other; from then on lessons,
+  bests and the streak are merged (never overwritten) through a small store on
+  the Worker, a D1 database that wrangler creates with no dashboard setup.
 - **Complex square roots are taught before they are asked.** The Square Roots
   lesson now works an example of squaring, then finds a root step by step with
   no guessing, then practises gently: square a number, pick which candidate is

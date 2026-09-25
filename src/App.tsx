@@ -135,7 +135,7 @@ function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
           bar.onScroll(event);
         }}
       >
-        <div className={`top-bar${bar.hidden ? ' hidden' : ''}`}>
+        <div className={`top-bar${bar.hidden ? ' hidden' : ''}${bar.atTop ? ' at-top' : ''}`}>
           <StreakBar />
         </div>
         <LibraryLine />
@@ -266,7 +266,7 @@ function CourseMap({
           bar.onScroll(event);
         }}
       >
-        <div className={`top-bar${bar.hidden ? ' hidden' : ''}`}>
+        <div className={`top-bar${bar.hidden ? ' hidden' : ''}${bar.atTop ? ' at-top' : ''}`}>
           <button type="button" className="back-link" onClick={onBack}>
             &#8249; All courses
           </button>

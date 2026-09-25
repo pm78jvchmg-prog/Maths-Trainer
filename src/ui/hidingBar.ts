@@ -38,18 +38,22 @@ export function nextHidden({ from, y, max, reveal }: ScrollReading): boolean | n
 /**
  * Hide-on-scroll state for one scrolling element. Wire `onScroll` to it;
  * `show()` brings the bar back without waiting for a scroll, for a new slide.
+ * `atTop` says nothing has scrolled under the bar yet, so it can drop its tint
+ * and let the page's glow show through.
  *
  * The first scroll event only takes a reading. That is the one a restored
  * scroll position fires, and coming back to a page should find its bar there.
  */
 export function useHidingBar(reveal = 48) {
   const [hidden, setHidden] = useState(false);
+  const [atTop, setAtTop] = useState(true);
   const from = useRef<number | null>(null);
 
   const onScroll = useCallback(
     (event: UIEvent<HTMLElement>) => {
       const el = event.currentTarget;
       const y = el.scrollTop;
+      setAtTop(y <= 0);
       if (from.current === null) {
         from.current = y;
         return;
@@ -67,5 +71,5 @@ export function useHidingBar(reveal = 48) {
     setHidden(false);
   }, []);
 
-  return { hidden, onScroll, show };
+  return { hidden, atTop, onScroll, show };
 }

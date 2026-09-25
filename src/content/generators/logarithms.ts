@@ -2558,16 +2558,34 @@ const productFlow: Generator<ProductFlowParams> = {
     // What a cancelled middle would leave, from the numbers in this product.
     // Only a chain reaches this step on the right path; a wrong turn reaches it
     // from the others too, and must not be shown a c this product never used.
-    const [one, other] =
+    const pairs: [number, number][] =
       route === 'reciprocal'
-        ? [logTex(a, `${a}`), logTex(b, `${b}`)]
+        ? [
+            [a, a],
+            [b, b],
+          ]
         : route === 'none'
-          ? [logTex(a, `${d}`), logTex(c, `${b}`)]
-          : [logTex(a, `${c}`), logTex(c, `${a}`)];
+          ? [
+              [a, d],
+              [c, b],
+            ]
+          : [
+              [a, c],
+              [c, a],
+            ];
+    const [one, other] = pairs.map(([base, argument]) => logTex(base, `${argument}`));
     const right = `$${one}$`;
+    // Any leaf can be reached, and read, from any route, so each says only what
+    // that answer claims, and a fact about it, never a verdict on this product.
+    // On the reciprocal route both of these are worth exactly 1: that path is
+    // wrong only for having said the two are not reciprocals.
+    const says = ([base, argument]: [number, number]) =>
+      `That says the product is $${logTex(base, `${argument}`)}$, which is $${
+        base === argument ? '1' : `\\frac{${lnTex(argument)}}{${lnTex(base)}}`
+      }$.`;
     const left = [
-      { label: right, outcome: `That reads the product as $${one}$.` },
-      { label: `$${other}$`, outcome: `That reads the product as $${other}$.` },
+      { label: right, outcome: says(pairs[0]) },
+      { label: `$${other}$`, outcome: says(pairs[1]) },
     ];
     return {
       kind: 'flow',
@@ -2586,7 +2604,7 @@ const productFlow: Generator<ProductFlowParams> = {
             { label: 'Yes', to: 'both' },
             {
               label: 'No',
-              outcome: 'Nothing cancels. The product stays as two logarithms.',
+              outcome: 'That says no number is shared, so nothing cancels and the product stays as two logarithms.',
             },
           ],
         },
@@ -2594,13 +2612,13 @@ const productFlow: Generator<ProductFlowParams> = {
           id: 'both',
           ask: "Is each one's base the other one's argument?",
           branches: [
-            { label: 'Yes', outcome: 'They are reciprocals, so the product is exactly 1.' },
+            { label: 'Yes', outcome: 'That says they are reciprocals, so the product is exactly 1.' },
             { label: 'No', to: 'left' },
           ],
         },
         {
           id: 'left',
-          ask: 'The shared number cancels. Which single logarithm is left?',
+          ask: 'Suppose the shared number cancels. Which single logarithm is left?',
           branches: (a + c) % 2 === 0 ? left : [left[1], left[0]],
         },
       ],

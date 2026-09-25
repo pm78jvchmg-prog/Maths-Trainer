@@ -116,3 +116,17 @@ Generators in `src/content/generators/contestGeometryFundamentals.ts`.
 | Creating Right Triangles | `cm-isosceles-area`, `cm-trapezium-area`, `cm-wide-angle`, `cm-glued-triangles`, `cm-glued-triangles-table` | drop a perpendicular; a rhombus's diagonals cross at right angles; a 150° angle leaves a 30° one outside; a shared height makes a difference of squares |
 
 Level check: 14 questions across all five lessons.
+
+## Level 5: Similarity and Scaling (`cm-l5`)
+
+Generators in `src/content/generators/contestSimilarity.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Similarity | `cm-parallel-cut`, `cm-similar-table`, `cm-hourglass`, `cm-similar-perimeter` | compare with the whole side, not the piece; multiply, never add; the hourglass ratio; perimeters scale like sides |
+| Scaling | `cm-scale-percent`, `cm-statue-weight`, `cm-map-area`, `cm-map-tiles` | a percentage on every length is applied twice for area, three times for volume; weight goes with volume; square the map scale |
+| Exploring Similarity | `cm-altitude-hyp`, `cm-altitude-tiles`, `cm-shared-height`, `cm-trapezium` | the altitude makes three similar triangles; same height, areas like bases; a trapezium's diagonals make an hourglass |
+| Applying Similarity | `cm-shadow-height`, `cm-shadow-table`, `cm-mirror-height`, `cm-crossed-poles` | parallel rays; a lamp's rays measured from the post; angle in equals angle out; 1/h = 1/a + 1/b, whatever the gap |
+| Coordinate Geometry | `cm-coord-distance`, `cm-parallelogram-vertex`, `cm-collinear`, `cm-coord-area` | Pythagoras; A + C = B + D; equal steps across, equal steps up; the shoelace |
+
+Level check: 12 questions across all five lessons.

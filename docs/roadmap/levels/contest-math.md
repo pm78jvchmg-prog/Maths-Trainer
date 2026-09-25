@@ -171,3 +171,44 @@ Generators in `src/content/generators/contestProbability.ts`.
 | Symmetry and Conditional | `cm-pr-line-up`, `cm-pr-beats`, `cm-pr-cond-dice`, `cm-pr-bags-tree`, `cm-pr-bags-bayes` | every place is as likely as every other; swap two people or two dice; turn a die over to mirror a total; given means throw the rest away; a red counter keeps only the red paths |
 
 Level check: 13 questions across all four lessons.
+
+## Level 9: Fast Problem-Solving (`cm-l9`)
+
+Generators in `src/content/generators/contestFast.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Efficiency | `cm-friendly-product`, `cm-friendly-split-tiles`, `cm-regroup-sum`, `cm-divide-quick` | bring 25 and 4 together; split a number to free the partner; pair terms into hundreds, or round up and take off; dividing by 25 is × 4 ÷ 100 |
+| Calculations | `cm-near-hundred`, `cm-five-square`, `cm-mid-square-steps`, `cm-distribute` | take one gap off the other number, then add (or take off) the gaps’ product; tens × next up, then the units’ product; a difference of squares around a number ending in 5; split 99 as 100 − 1, or take a shared factor out |
+| Exponents | `cm-compare-powers`, `cm-units-sum`, `cm-power-digits`, `cm-power-digits-table` | give the powers a common exponent; last digits from their cycles, borrowing for a difference; each 2 with a 5 makes a 10, after rewriting 4, 8 and 25 |
+| Roots | `cm-root-between`, `cm-root-product`, `cm-surd-sum-tiles`, `cm-nested-root` | the squares either side; multiply under one root, and n(n + 1)(n + 2)(n + 3) + 1 is a square; pull square factors out and collect; two numbers adding to the whole part and multiplying to the inner root |
+| What’s the Number? | `cm-undo-number`, `cm-undo-table`, `cm-always-same`, `cm-place-value` | undo the steps, last first; follow n through and watch it cancel; swapping digits changes a number by 9(b − a); a digit written on the end makes 10N + d |
+
+Level check: 14 questions across all five lessons.
+
+## Level 10: Factorization (`cm-l10`)
+
+Generators in `src/content/generators/contestFactorization.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Factorization | `cm-fz-square-multiplier`, `cm-fz-square-multiplier-tiles`, `cm-fz-zeros-product`, `cm-fz-near-square` | top each power up to even, or to a multiple of 3; a zero is a 2 paired with a 5, so the scarcer prime decides; a number just below a square is a difference of squares |
+| Number of Divisors | `cm-fz-divisor-count`, `cm-fz-divisor-table`, `cm-fz-divisor-sum`, `cm-fz-special-divisors` | one more choice than each power, multiplied; factorise a composite power first; multiply the brackets of powers for the sum; odd divisors drop the 2, square divisors take even powers only |
+| GCD and LCM | `cm-fz-hcf-lcm-tiles`, `cm-fz-together`, `cm-fz-pieces`, `cm-fz-hcf-lcm-product` | lower power of shared primes, higher power of every prime; meeting again is an LCM, one more meeting than gaps; the largest equal piece is the HCF; HCF × LCM = a × b, and coprime parts take whole prime powers |
+| Factorials | `cm-fz-factorial-zeros`, `cm-fz-factorial-table`, `cm-fz-factorial-power`, `cm-fz-factorial-smallest` | count the 5s, then the 25s and 125s; the scarcer prime of a composite base decides; run the count backwards along the multiples of p |
+| Cryptograms | `cm-fz-crypt-reverse`, `cm-fz-crypt-place`, `cm-fz-crypt-divisible`, `cm-fz-crypt-block` | AB + BA = 11(A + B), ABC − CBA = 99(A − C); ABC + AB + A = 111A + 11B + C; split the divisor into tests that share no factor; ABCABC = ABC × 7 × 11 × 13 |
+
+Level check: 13 questions across all five lessons.
+
+## Level 11: Reframing Problems (`cm-l11`)
+
+Generators in `src/content/generators/contestReframing.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Reframing Problems | `cm-knockout`, `cm-chocolate`, `cm-grid-paths`, `cm-grid-table`, `cm-share-sweets` | count the players knocked out, not the rounds; each snap makes one more piece; a route is a word of R's and U's; each corner is the one to its left plus the one below; a share is a row of sweets and dividers |
+| Key Strategies | `cm-work-backwards`, `cm-backwards-table`, `cm-queue`, `cm-snail`, `cm-count-squares` | undo the steps last first; add back, then double; draw the queue so nobody is counted twice; draw the last day, when it climbs out without slipping; count small squares first, and a rectangle is two lines each way |
+| Color Cube Assembly | `cm-cube-shell`, `cm-shell-tiles`, `cm-dice-cube`, `cm-red-surface` | only the hidden core can be another colour; a corner die shows three faces meeting at a corner, never two opposite; put the red where the most shows, or hide it |
+| Autobiographical Numbers | `cm-look-say`, `cm-look-say-table`, `cm-self-describing`, `cm-digital-root`, `cm-number-plus-digits` | read runs, not digits; back a term, read in pairs; the digits of a self-describing number add to its length, but every place must be checked; digit sums keep the remainder on division by 9; name the digits and let their size decide |
+
+Level check: 14 questions across all four lessons.

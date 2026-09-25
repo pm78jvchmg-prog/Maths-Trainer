@@ -389,7 +389,7 @@ const conditionsFlow: Generator<ConditionsParams> = {
     const upTo = fails ? ORDER.indexOf(fails) : 3;
     return {
       kind: 'flow',
-      prompt: [say(`${key} Decide whether $X$ can be modelled by a binomial distribution.`)],
+      prompt: [say(`${key} Can $X$ be modelled by a binomial distribution?`)],
       subject: 'X \\sim B(n, p)\\,?',
       steps: [
         fork('fixed', 'Is there a fixed number of trials?', { label: 'Yes', to: 'two' }, 'the number of trials is not fixed.'),
@@ -409,7 +409,7 @@ const conditionsChoice: Generator<ConditionsParams> = {
   render: (params): Slide => {
     const fails = FAILING[params.failing].fails;
     return choiceSlide(
-      [say(`${conditionsText(params)} This is not a binomial setting. Which condition fails?`)],
+      [say(`${conditionsText(params)} Which binomial condition fails?`)],
       options(
         { tex: CONDITION_WORDS[fails] },
         ...ORDER.filter((c) => c !== fails).map((c) => ({ tex: CONDITION_WORDS[c] })),
@@ -1536,7 +1536,7 @@ const ruleSlider: Generator<RuleSliderParams> = {
       kind: 'slider',
       prompt: [
         say(
-          `${measureText(measure, mu, sigma, true)} The shaded middle, within one standard deviation of the mean, holds about 68% of values. Slide the line to the value where ${RULE_TARGETS[target].words}.`,
+          `${measureText(measure, mu, sigma, true)} Slide the line to the value where ${RULE_TARGETS[target].words}.`,
         ),
       ],
       min,
@@ -1600,7 +1600,7 @@ const rulePercentGen: Generator<RulePercentParams> = {
       form === 'between' ? `between $${mu + a * sigma}$ and $${mu + b * sigma}$` : form === 'above' ? `above $${mu + a * sigma}$` : `below $${mu + b * sigma}$`;
     return {
       kind: 'expression',
-      prompt: [say(`${measureText(measure, mu, sigma, true)} Use the 68-95-99.7 rule to find the percentage of values ${event}.`)],
+      prompt: [say(`${measureText(measure, mu, sigma, true)} Find the percentage of values ${event}.`)],
       lead: '\\text{Percentage} =',
       keypad: [],
       answer: fmt(rulePercent(params)),
@@ -2553,7 +2553,7 @@ const findWorking: Generator<FindParams> = {
       const zs = clean(Math.abs(z) * sigma);
       return {
         kind: 'steps',
-        prompt: findPrompt(params, `So $z = ${fmt(z)}$ at $x = ${fmt(x)}$, and $\\mu = x - z\\sigma$. ${tap}`),
+        prompt: findPrompt(params, `Find $\\mu$. ${tap}`),
         start: [fmt(x), z < 0 ? '+' : '-', fmt(Math.abs(z)), '\\times', String(sigma)],
         reductions: [
           { span: [2, 5], operator: 3, value: fmt(zs), bank: stepBank(fmt(zs), fmt(clean(Math.abs(z) * sigma * sigma)), fmt(clean(Math.abs(z) + sigma)), fmt(clean(zs * 10))) },
@@ -2564,7 +2564,7 @@ const findWorking: Generator<FindParams> = {
     const d = clean(x - mu);
     return {
       kind: 'steps',
-      prompt: findPrompt(params, `So $z = ${fmt(z)}$ at $x = ${fmt(x)}$, and $\\sigma = (x - \\mu) \\div z$. ${tap}`),
+      prompt: findPrompt(params, `Find $\\sigma$. ${tap}`),
       start: ['(', fmt(x), '-', String(mu), ')', '\\div', paren(z)],
       reductions: [
         { span: [0, 5], operator: 2, value: fmt(d), bank: stepBank(fmt(d), fmt(-d), fmt(clean(x + mu)), fmt(clean(d + 1))) },
@@ -2986,7 +2986,7 @@ const bothWorking: Generator<BothParams> = {
       kind: 'steps',
       prompt: bothPrompt(
         params,
-        'Taking one equation from the other gives $\\sigma = (b - a) \\div (z_b - z_a)$, with $a$ the lower value. Tap the part to do next, then choose what it comes to.',
+        'Find $\\sigma$. Tap the part to do next, then choose what it comes to.',
       ),
       start: ['(', fmt(hi.x), '-', fmt(lo.x), ')', '\\div', '(', fmt(hi.z), '-', paren(lo.z), ')'],
       reductions: [
@@ -3017,7 +3017,7 @@ const bothNodes: Generator<BothParams> = {
       kind: 'tree',
       prompt: bothPrompt(
         params,
-        `Take $a = ${fmt(lo.x)}$ and $b = ${fmt(hi.x)}$. From the top: $b - a$ and $z_b - z_a$, then $\\sigma$, then $z_a\\sigma$, then $\\mu = a - z_a\\sigma$.`,
+        `Take $a = ${fmt(lo.x)}$ and $b = ${fmt(hi.x)}$. From the top: $b - a$ and $z_b - z_a$, then $\\sigma$, then $z_a\\sigma$, then $\\mu$.`,
       ),
       expression: '\\mu = a - z_a\\sigma',
       nodes: [
@@ -3128,7 +3128,7 @@ const bothHalfGap: Generator<BothParams> = {
     const answer = [fmt(hi.x), fmt(lo.x), fmt(u)];
     return {
       kind: 'tiles',
-      prompt: bothPrompt(params, 'The tails match, so $\\sigma$ is half the gap between the values, divided by $z$. Build it.'),
+      prompt: bothPrompt(params, 'Build $\\sigma$.'),
       template: '\\sigma = ({0} - {1}) \\div (2 \\times {2})',
       bank: tokenBank(answer, [fmt(lowerOf(hi)), fmt(statedOf(lo)), fmt(clean(2 * u)), fmt(-u)], 3),
       answer,
@@ -3525,7 +3525,7 @@ const approxSum: Generator<SumParams> = {
       kind: 'tiles',
       prompt: [
         say(
-          `$${bTex(n, p)}$. Worked out exactly, $P(X ${SIDE_TEX[rel]} ${r})$ is a sum of single probabilities $P(X = k)$, one for each whole number $k$ it takes in. Fill in the first and last $k$, and how many terms that is.`,
+          `$${bTex(n, p)}$. Worked out exactly, $P(X ${SIDE_TEX[rel]} ${r})$ is a sum of terms $P(X = k)$. Fill in the first and last $k$, and how many terms that is.`,
         ),
       ],
       template: 'P(X = {0}) + \\dots + P(X = {1}) \\text{, with } {2} \\text{ terms}',
@@ -4240,7 +4240,7 @@ const ccLine: Generator<CcLineParams> = {
     kind: 'numberLine',
     prompt: [
       say(
-        `${ccPrompt(params)} Shade the values of $Y$ that give ${eventText(params.event, params.words)}, with the continuity correction. $Y$ is continuous, so an end carries no probability of its own: leave every end dot hollow.`,
+        `${ccPrompt(params)} Shade the values of $Y$ that give ${eventText(params.event, params.words)}, with the continuity correction. $Y$ is continuous, so leave every end dot hollow.`,
       ),
     ],
     min: params.min,
@@ -5490,12 +5490,12 @@ const XBAR = '\\bar{X}';
 
 /** A measurement sampled n times. `base` keeps a worded mean well clear of zero. */
 const SAMPLE_SETTINGS: { lead: string; sample: (n: number) => string; base: number }[] = [
-  { lead: 'The mass of a bag of flour, in grams,', sample: (n) => `A random sample of $${n}$ bags is weighed, and $\\bar{X}$ is their mean mass.`, base: 1000 },
-  { lead: 'The height of a sunflower, in cm,', sample: (n) => `A random sample of $${n}$ sunflowers is measured, and $\\bar{X}$ is their mean height.`, base: 180 },
-  { lead: 'The lifetime of a light bulb, in hours,', sample: (n) => `A random sample of $${n}$ bulbs is tested, and $\\bar{X}$ is their mean lifetime.`, base: 1200 },
-  { lead: 'The time a caller waits on a helpline, in seconds,', sample: (n) => `A random sample of $${n}$ calls is timed, and $\\bar{X}$ is their mean wait.`, base: 240 },
-  { lead: 'The length of a bolt cut by a machine, in mm,', sample: (n) => `A random sample of $${n}$ bolts is measured, and $\\bar{X}$ is their mean length.`, base: 120 },
-  { lead: 'The volume of juice in a carton, in ml,', sample: (n) => `A random sample of $${n}$ cartons is measured, and $\\bar{X}$ is their mean volume.`, base: 500 },
+  { lead: 'The mass of a bag of flour, in grams,', sample: (n) => `$\\bar{X}$ is the mean mass of a random sample of $${n}$ bags.`, base: 1000 },
+  { lead: 'The height of a sunflower, in cm,', sample: (n) => `$\\bar{X}$ is the mean height of a random sample of $${n}$ sunflowers.`, base: 180 },
+  { lead: 'The lifetime of a light bulb, in hours,', sample: (n) => `$\\bar{X}$ is the mean lifetime of a random sample of $${n}$ bulbs.`, base: 1200 },
+  { lead: 'The time a caller waits on a helpline, in seconds,', sample: (n) => `$\\bar{X}$ is the mean wait of a random sample of $${n}$ calls.`, base: 240 },
+  { lead: 'The length of a bolt cut by a machine, in mm,', sample: (n) => `$\\bar{X}$ is the mean length of a random sample of $${n}$ bolts.`, base: 120 },
+  { lead: 'The volume of juice in a carton, in ml,', sample: (n) => `$\\bar{X}$ is the mean volume of a random sample of $${n}$ cartons.`, base: 500 },
 ];
 
 interface MeanParams {
@@ -5540,7 +5540,7 @@ function meanOpening(p: MeanParams): string {
   const { lead, sample } = SAMPLE_SETTINGS[p.setting];
   return p.words
     ? `${lead} is normally distributed with mean $${p.mu}$ and standard deviation $${p.sigma}$. ${sample(p.n)}`
-    : `$${nOf('X', p.mu, p.sigma)}$, and $\\bar{X}$ is the mean of a random sample of $${p.n}$ values of $X$.`;
+    : `$${nOf('X', p.mu, p.sigma)}$, and $\\bar{X}$ is the mean of a random sample of $${p.n}$.`;
 }
 
 /** Only the slips that are exact decimals, so a distractor is written the way an answer would be. */
@@ -5598,7 +5598,7 @@ const meanFromTotal: Generator<MeanParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `${meanOpening(p)} $T$ is the total of the sample, so $\\bar{X} = \\frac{T}{${n}}$. From the top: $\\mathrm{E}(T)$ and $\\mathrm{Var}(T)$, then $\\mathrm{E}(\\bar{X})$ and $\\mathrm{Var}(\\bar{X})$.`,
+          `${meanOpening(p)} $T$ is the sample total. From the top: $\\mathrm{E}(T)$ and $\\mathrm{Var}(T)$, then $\\mathrm{E}(\\bar{X})$ and $\\mathrm{Var}(\\bar{X})$.`,
         ),
       ],
       expression: `\\bar{X} = \\frac{T}{${n}}`,
@@ -5631,7 +5631,7 @@ const meanTable: Generator<MeanParams> = {
       kind: 'table',
       prompt: [
         say(
-          `${meanOpening(p)} $T$ is the total of the sample, so $\\bar{X} = \\frac{T}{${n}}$. Fill in ${hard ? 'the mean, the variance and the standard deviation' : 'the mean and the variance'} of each.`,
+          `${meanOpening(p)} $T$ is the sample total, and $\\bar{X} = \\frac{T}{${n}}$. Fill in ${hard ? 'the mean, the variance and the standard deviation' : 'the mean and the variance'} of each.`,
         ),
       ],
       columns: hard ? ['', '\\mathrm{E}', '\\mathrm{Var}', '\\sigma'] : ['', '\\mathrm{E}', '\\mathrm{Var}'],
@@ -6167,7 +6167,7 @@ const xbarRouteTree: Generator<XbarProbParams> = {
     return {
       kind: 'tree',
       prompt: [
-        say(`${meanOpening(p)} For $${xbarEvent(p)}$, from the top: the standard deviation of $\\bar{X}$, then the $z$ of $${p.mu + p.d1}$, then the probability. Use`),
+        say(`${meanOpening(p)} For $${xbarEvent(p)}$, from the top: $\\sigma_{\\bar{X}}$, then the $z$ of $${p.mu + p.d1}$, then the probability. Use`),
         show(quoteTex(xbarQuotes(p))),
       ],
       expression: xbarEvent(p),
@@ -6236,7 +6236,7 @@ const oneVsMean: Generator<OneVsMeanParams> = {
       kind: 'table',
       prompt: [
         say(
-          `${meanOpening(p)} Compare one value of $X$ with $\\bar{X}$: fill in the $z$ of $${k}$ for each, and the probability that each is ${p.op === 'lt' ? 'less' : 'more'} than $${k}$. Use`,
+          `${meanOpening(p)} For one value of $X$ and for $\\bar{X}$, fill in the $z$ of $${k}$ and the probability of being ${p.op === 'lt' ? 'less' : 'more'} than $${k}$. Use`,
         ),
         show(quoteTex([...new Set([Math.abs(z1), Math.abs(zn)])].sort((a, b) => a - b))),
       ],
@@ -6346,7 +6346,7 @@ const xbarCriticalTree: Generator<CriticalMeanParams> = {
     return {
       kind: 'tree',
       prompt: [
-        say(`${meanOpening(p)} For $${event}$, from the top: the standard deviation of $\\bar{X}$, then the $z$ at $k$, then $k$. Use`),
+        say(`${meanOpening(p)} For $${event}$, from the top: $\\sigma_{\\bar{X}}$, then the $z$ at $k$, then $k$. Use`),
         show(CRITICAL_TABLE),
       ],
       expression: event,

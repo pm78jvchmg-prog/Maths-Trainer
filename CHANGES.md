@@ -5,6 +5,11 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-25
 
+- **Swipe right to peek at the previous slide (this PR).** In a lesson's
+  guided slides, dragging right pulls the previous slide in from the left,
+  holds wherever the finger stops, and springs back on release. Read-only; the
+  skill check and level checks offer no peek. Drags that start on a slider,
+  a filled blank or a sideways-scrolling formula keep their own gesture.
 - **Two grading bugs fixed (this PR).** `vec-parallel` could offer two
   parallel options, marking a correct pick wrong (~10% of draws). A negative
   base was shown unbracketed (`-1^{4}`) while the answer meant `(-1)^{4}`, in

@@ -16,11 +16,10 @@ import type { CSSProperties } from 'react';
 import { categories, lessonCount, checkCount } from './content/courses';
 import { registry } from './content/registry';
 import { LessonPlayer } from './ui/LessonPlayer';
-import { SyncDevices } from './ui/SyncDevices';
 import { ChargeIcon, StreakView } from './ui/StreakView';
 import { useProgress } from './store/progress';
 import { MAX_CHARGES, countedOn, localDay, resolveStreak, useStreak } from './store/streak';
-import { MASTERED_AT, courseMastery, libraryProgress, masteryPercent, playables } from './store/mastery';
+import { MASTERED_AT, courseMastery, masteryPercent, playables } from './store/mastery';
 import { levelCheckLesson } from './content/types';
 import { recallScroll, rememberScroll } from './store/scrollMemory';
 import { useHidingBar } from './ui/hidingBar';
@@ -88,26 +87,6 @@ function StreakBar() {
 }
 
 /**
- * How much of the library is behind you.
- *
- * Deliberately not a points total: it counts topics, so it can stall or fall
- * when content is added, and it says what is left rather than what you have
- * accumulated.
- */
-function LibraryLine() {
-  const records = useProgress((state) => state.lessons);
-  const { started, mastered, total } = libraryProgress(categories, records);
-
-  const text = (() => {
-    if (started === 0) return `${total} topics to explore`;
-    if (mastered === 0) return `${started} of ${total} topics started`;
-    return `${started} of ${total} topics started · ${mastered} mastered`;
-  })();
-
-  return <p className="library-line">{text}</p>;
-}
-
-/**
  * The home list's two colour runs. The owner asked for one background running
  * from the first maths band to the last, deepening as the maths gets harder,
  * and a second, orange, run for the applied subjects.
@@ -143,8 +122,6 @@ function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
         <div className={`top-bar${bar.hidden ? ' hidden' : ''}${bar.atTop ? ' at-top' : ''}`}>
           <StreakBar />
         </div>
-        <LibraryLine />
-        <SyncDevices />
 
         {/* Every category in one list, easiest first, each under its own
             heading. The owner asked for this in place of a tab strip, so the

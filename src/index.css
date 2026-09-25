@@ -97,9 +97,11 @@
 html,
 body,
 #root {
-  /* Set from the window by `installAppHeight`; see `ui/fullHeight.ts` for why
-     100% alone fell a status bar short on the Home Screen. */
-  height: var(--app-height, 100%);
+  /* Plain 100%. With the status bar style `black` (index.html) iOS lays the
+     page out below the status bar and the window is exactly the visible
+     screen, so nothing needs stretching; the old stretch to the full screen
+     height ran the page a status bar past the bottom edge. */
+  height: 100%;
 }
 
 /* A screen enters by sliding in from the side, and for those ~240ms it sticks
@@ -133,9 +135,12 @@ body {
      from somewhere rather than being a flat slab. Sized and pinned rather than
      `fixed`, which iOS Safari handles badly inside a scrolling column. */
   background-color: var(--bg);
-  background-image: radial-gradient(120% 52% at 50% -8%, var(--bg-glow) 0%, transparent 62%);
+  background-image:
+    radial-gradient(90% 60% at 12% -6%, rgb(124 92 255 / 0.55) 0%, transparent 70%),
+    radial-gradient(80% 55% at 92% 0%, rgb(236 92 180 / 0.32) 0%, transparent 70%),
+    radial-gradient(120% 52% at 50% -8%, var(--bg-glow) 0%, transparent 62%);
   background-repeat: no-repeat;
-  background-size: 100% 520px;
+  background-size: 100% 760px;
 }
 
 button {
@@ -280,6 +285,9 @@ button {
   top: 0;
   margin: 0 -20px;
   padding: 6px 20px 8px;
+  /* Solid once the list passes under it: through the translucent tint the
+     title of a card beneath showed as a ghost above the streak. */
+  background-color: var(--bg);
 }
 
 .top-bar.hidden {
@@ -1392,9 +1400,15 @@ button {
      screen, and the owner asked for the list to be denser. */
   padding: 10px 14px;
   margin-bottom: 8px;
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
   border-radius: var(--radius);
-  background: var(--surface);
+  /* Tinted with the band's accent so the list carries its colour, rather
+     than every card being the same grey slab on a coloured page. */
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 30%, var(--surface)) 0%,
+    color-mix(in srgb, var(--accent) 8%, var(--surface)) 80%
+  );
   box-shadow: var(--lift);
   transition: border-color 140ms ease, transform 90ms ease;
 }
@@ -1408,7 +1422,7 @@ button {
   width: 70%;
   height: 180%;
   border-radius: 50%;
-  background: radial-gradient(closest-side, var(--card-glow, rgb(138 134 255 / 0.2)), transparent);
+  background: radial-gradient(closest-side, var(--card-glow, rgb(138 134 255 / 0.3)), transparent);
   pointer-events: none;
 }
 
@@ -1548,26 +1562,38 @@ button {
   border-radius: 24px 24px 0 0;
   background: linear-gradient(
     to bottom,
-    rgb(138 134 255 / 0.05) 0%,
-    rgb(112 92 250 / 0.14) 40%,
-    rgb(92 50 225 / 0.3) 75%,
-    rgb(70 24 190 / 0.45) 100%
+    rgb(138 134 255 / 0.24) 0%,
+    rgb(112 92 250 / 0.3) 40%,
+    rgb(92 50 225 / 0.4) 70%,
+    rgb(70 24 190 / 0.55) calc(100% - 320px),
+    /* The last stretch already leans towards rose, measured from the foot
+       so it stays the same length however many subjects the run holds. */
+    rgb(115 38 180 / 0.52) calc(100% - 150px),
+    /* Opaque where the runs meet (rgb(160 52 165 / 0.47) over the page), so
+       the pixel the two share cannot show as a hairline. */
+    rgb(84 34 91) 100%
   );
 }
 
 .band-applied {
   padding-top: 40px;
+  /* Tucked a pixel under the purple run: both are opaque at that edge, so
+     the overlap is invisible where a gap would show the page as a line. */
+  margin-top: -1px;
   padding-bottom: calc(20px + env(safe-area-inset-bottom));
   margin-bottom: calc(-20px - env(safe-area-inset-bottom));
-  /* Opens on the colour the purple run ends on and turns orange by the
-     Statistics heading, so the two runs meet as a blend rather than a line. */
+  /* Opens on the colour the purple run ends on and passes through rose to
+     orange over a few hundred pixels, so the two runs overlap as a blend
+     rather than meeting at a line. The stops are in pixels from the top, so
+     a subject added to either run does not stretch or squash the blend. */
   background: linear-gradient(
     to bottom,
-    rgb(70 24 190 / 0.45) 0,
-    rgb(190 60 150 / 0.34) 45px,
-    rgb(255 170 100 / 0.22) 110px,
-    rgb(240 120 40 / 0.22) 50%,
-    rgb(150 55 10 / 0.4) 100%
+    rgb(84 34 91) 0,
+    rgb(215 80 140 / 0.4) 130px,
+    rgb(250 130 100 / 0.33) 280px,
+    rgb(245 135 60 / 0.3) 420px,
+    rgb(240 120 40 / 0.3) 60%,
+    rgb(160 60 10 / 0.5) 100%
   );
   --accent: #ffa45e;
   --accent-strong: #e8711c;
@@ -2565,10 +2591,16 @@ button {
   min-height: 52px;
   padding: 10px 14px;
   margin-bottom: 16px;
-  border: 1px solid var(--border);
+  border: 1px solid rgb(255 150 90 / 0.4);
   border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--lift);
+  /* Lit by its flame: warm at the left, running into the page's violet. */
+  background: linear-gradient(
+    100deg,
+    rgb(255 130 60 / 0.24) 0%,
+    rgb(200 70 160 / 0.16) 45%,
+    rgb(110 90 255 / 0.18) 100%
+  ), var(--surface);
+  box-shadow: var(--lift), 0 6px 24px -10px rgb(255 120 60 / 0.35);
 }
 
 .streak-flame {
@@ -2576,12 +2608,12 @@ button {
   line-height: 1;
 }
 
-/* Violet, not amber. The verdict colours are reserved, and a rose streak
-   counter on the home screen would read as a wrong answer. */
+/* The flame's own peach, not rose: the verdict colours are reserved, and a
+   rose streak counter on the home screen would read as a wrong answer. */
 .streak-count {
   font-size: 20px;
   font-weight: 700;
-  color: var(--accent);
+  color: #ffb27a;
 }
 
 /* Holds the count and the label as one phrase for a screen reader, and as one
@@ -3330,4 +3362,26 @@ button.streak-bar:active {
   border: none;
   background: none;
   box-shadow: none;
+}
+
+/* The library line and the sync toggle, moved into the streak view from under
+   the streak bar: one quiet block between the stats and Done. */
+.streak-sheet .streak-library {
+  width: 100%;
+  margin: 0 0 4px;
+  text-align: center;
+}
+
+.streak-sheet .sync {
+  width: 100%;
+  margin: 0 0 16px;
+  text-align: center;
+}
+
+.streak-sheet .sync-toggle {
+  text-align: center;
+}
+
+.streak-sheet .sync-panel {
+  text-align: left;
 }

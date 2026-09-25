@@ -252,3 +252,15 @@ Generators in `src/content/generators/contestPolynomials.ts`.
 | Transformations | `cm-po-shift-product`, `cm-po-roots-sum-sub`, `cm-po-new-roots-table`, `cm-po-squared-roots-tiles` | (k − r)(k − s)(k − t) is p(k), and (r + k)(s + k)(t + k) is −p(−k); p(ax + b) has roots (r − b)/a, the shift counted once per root; scaling the roots by k scales the coefficients by k, k², k³; roots r² and s² from Vieta |
 
 Level check: 14 questions across all four lessons.
+
+## Level 15: Sequences and Series (`cm-l15`)
+
+Generators in `src/content/generators/contestSequencesSeries.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Arithmetic Sequences | `cm-ss-index-pairs`, `cm-ss-insert-tiles`, `cm-ss-symmetric-three`, `cm-ss-sum-rule`, `cm-ss-sum-rule-table`, `cm-ss-block-sums` | terms whose places add to the same number add to the same total, and the middle term is the mean; k numbers put in make k + 1 gaps; name three terms a − d, a, a + d; a term is the gap between two sums; block sums are arithmetic, so the third block is 2B₂ − B₁ |
+| Geometric Sequences | `cm-ss-geo-middle`, `cm-ss-geo-table`, `cm-ss-geo-shift-sum`, `cm-ss-geo-shift-tiles`, `cm-ss-geo-infinite`, `cm-ss-bounce` | the middle term is the geometric mean, not the average; a gap of k steps is r to the k; multiply by r and subtract, and only the ends survive; a series that goes on for ever holds a copy of itself; the first fall once, every bounce twice |
+| Telescoping Series | `cm-ss-tele-unit`, `cm-ss-tele-table`, `cm-ss-tele-gap`, `cm-ss-tele-roots`, `cm-ss-tele-factorial` | 1/(k(k + 1)) = 1/k − 1/(k + 1), even when the bottoms are multiplied out; a gap of g puts 1/g in front, and k(k + 2) leaves two at each end; multiply by the conjugate; k × k! = (k + 1)! − k! and k/(k + 1)! = 1/k! − 1/(k + 1)! |
+
+Level check: 12 questions across all three lessons.

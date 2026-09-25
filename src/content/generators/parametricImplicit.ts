@@ -2294,7 +2294,13 @@ const implChainTerm: Generator<ChainTermParams> = {
     const kind = rng.pick(kinds);
     // Harder draws reach further as well as taking a sign.
     const k = difficulty >= 2 ? rng.int(1, 9) * rng.sign() : rng.int(1, 6);
-    return { kind, k, n: rng.int(2, difficulty >= 2 ? 7 : 5) };
+    const n = rng.int(2, difficulty >= 2 ? 7 : 5);
+    // One that would read as a difficulty-1 term takes the other sign, so no
+    // harder draw is an easier question again. Only a power shows n, and
+    // difficulty 1 takes it up to 5.
+    const easyN = kind === 'power' || kind === 'xpower' ? n <= 5 : true;
+    const easy = difficulty >= 2 && kind !== 'ln' && k >= 1 && k <= 6 && easyN;
+    return { kind, k: easy ? -k : k, n };
   },
   render: (params): Slide => {
     const labels = chainTermOptions(params);

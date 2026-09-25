@@ -4040,6 +4040,17 @@ const INEQ_FACT_LIN = range(2, 9).map((a) => ineq('factLin', 1, a));
 const INEQ_SQUARES = [ineq('powSq', 2, 1), ineq('factSq', 1, 1)];
 const INEQ_ALL = [...INEQ_POW, ...INEQ_FACT_POW, ...INEQ_FACT_LIN, ...INEQ_SQUARES];
 
+/**
+ * The same steps with bigger numbers, for the harder draws of
+ * `prf-ind-ineq-flow`, so that they are not the difficulty-1 claims again.
+ * Base cases move to n = 4, 5, 7 or 8, and still no number in one reaches 1000.
+ */
+const INEQ_WIDE = [
+  ...range(11, 20).map((a) => ineq('powLin', 2, a)),
+  ...range(10, 20).map((a) => ineq('powLin', 3, a)),
+  ...range(10, 20).map((a) => ineq('factLin', 1, a)),
+];
+
 /* ---------- a claim as the learner reads it ---------- */
 
 const startOf = (claim: IndClaim) => (claim.kind === 'ineq' ? ineqStart(claim) : 1);
@@ -5049,11 +5060,12 @@ function ineqWalk(claim: IneqClaim): { split: string[]; after: string; reasons: 
 
 const prfIndIneqFlow: Generator<IneqPickParams> = {
   id: 'prf-ind-ineq-flow',
-  // Harder draws leave out 2^n > an, the simplest step, and take the squares.
+  // Harder draws take the squares, n! > 2^n, and the other shapes with numbers
+  // past any difficulty 1 uses, so only n! > 2^n is ever asked at both.
   sample(rng, difficulty) {
     const pool =
       difficulty >= 2
-        ? INEQ_ALL.filter((claim) => !(claim.shape === 'powLin' && claim.b === 2))
+        ? [...INEQ_WIDE, ...INEQ_FACT_POW, ...INEQ_SQUARES]
         : [...INEQ_POW, ...INEQ_FACT_POW, ...INEQ_FACT_LIN];
     return { claim: rng.pick(pool), wording: rng.int(0, 1) };
   },
@@ -5470,6 +5482,7 @@ export const inductionTesting = {
   ODD_C,
   NAT_C,
   INEQ_ALL,
+  INEQ_WIDE,
   sumTerm,
   sumRight,
   sumTermTex,

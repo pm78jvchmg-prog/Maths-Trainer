@@ -127,11 +127,11 @@ level 4.
 ### Level 8: Springs (`clm-l8`)
 | Lesson | Source | Leans on |
 | --- | --- | --- |
-| Springs Together | UP1 7.1, 15.1 | table, expr |
-| Energy Landscapes | UP1 8.4 | slider, choice |
-| Simple Harmonic Motion | UP1 15.1-15.2 | tree, expr |
-| Pendulums | UP1 15.4 | expr, slider |
-| The Large-Angle Pendulum | UP1 8.3, 15.4 | tree, flow |
+| Springs Together | UP1 7.1, 15.1 | expr, table, tree, flow |
+| Energy in a Spring | UP1 8.4, 15.2 | slider, table, expr, flow |
+| Simple Harmonic Motion | UP1 15.1-15.2 | expr, tree, slider, table |
+| Pendulums | UP1 15.4 | expr, table, slider, flow |
+| The Large-Angle Pendulum | UP1 8.3, 15.4 | expr, slider, tree, flow |
 
 ### Level 9: Oscillations (`clm-l9`)
 Outline: Vibrations in Molecules, Coupled Oscillations, Strings, Loaded

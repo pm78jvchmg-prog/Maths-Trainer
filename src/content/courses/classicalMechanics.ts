@@ -18,6 +18,7 @@ import { level4 } from './classical/level4';
 import { level5 } from './classical/level5';
 import { level6 } from './classical/level6';
 import { level7 } from './classical/level7';
+import { level8 } from './classical/level8';
 
 export const classicalMechanics: Course = {
   id: 'classical-mechanics',
@@ -25,6 +26,6 @@ export const classicalMechanics: Course = {
   // After Kinematics (10) and Forces (20), which it builds on.
   position: 30,
   title: 'Classical Mechanics',
-  blurb: 'Physics of motion from open textbooks: speeds, stopping distances and closing speeds, then projectiles, spin and circular motion, pressure, buoyancy, drag and banked bends, then springs, loops, energy and momentum, then moving frames and relativity, then statics: stacks, ropes and the body as a lever.',
-  levels: [level1, level2, level3, level4, level5, level6, level7],
+  blurb: 'Physics of motion from open textbooks: speeds, stopping distances and closing speeds, then projectiles, spin and circular motion, pressure, buoyancy, drag and banked bends, then springs, loops, energy and momentum, then moving frames and relativity, then statics: stacks, ropes and the body as a lever, then springs, oscillations and pendulums.',
+  levels: [level1, level2, level3, level4, level5, level6, level7, level8],
 };

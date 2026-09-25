@@ -29,6 +29,10 @@
 :root {
   --bg: #11121a;
   --bg-glow: #272555;
+  /* The maths run's one colour, and what the home top bar and the status
+     bar are tinted with so neither sits on it as a black slab. */
+  --maths-blue: rgb(66 72 214 / 0.42);
+  --maths-blue-solid: #252a6b;
   --surface: #1a1c27;
   --surface-raised: #262937;
   --border: #333749;
@@ -97,11 +101,9 @@
 html,
 body,
 #root {
-  /* Plain 100%. With the status bar style `black` (index.html) iOS lays the
-     page out below the status bar and the window is exactly the visible
-     screen, so nothing needs stretching; the old stretch to the full screen
-     height ran the page a status bar past the bottom edge. */
-  height: 100%;
+  /* Set from the window by `installAppHeight`; see `ui/fullHeight.ts` for why
+     100% alone stops a status bar short of the bottom on the Home Screen. */
+  height: var(--app-height, 100%);
 }
 
 /* A screen enters by sliding in from the side, and for those ~240ms it sticks
@@ -285,9 +287,10 @@ button {
   top: 0;
   margin: 0 -20px;
   padding: 6px 20px 8px;
-  /* Solid once the list passes under it: through the translucent tint the
-     title of a card beneath showed as a ghost above the streak. */
-  background-color: var(--bg);
+  /* The maths blue rather than the page's near-black, which sat on the
+     lighter theme as a dark slab. Nearly solid and blurred, so the title of
+     a card passing beneath cannot ghost through above the streak. */
+  background-color: color-mix(in srgb, var(--maths-blue-solid) 94%, transparent);
 }
 
 .top-bar.hidden {
@@ -1560,14 +1563,14 @@ button {
 .band-maths {
   padding-top: 8px;
   border-radius: 24px 24px 0 0;
+  /* One flat blue all the way down, as the owner asked: the light-to-dark
+     run read as smoke. Only the last stretch leans towards rose, measured
+     from the foot so it stays the same length however many subjects the
+     run holds. */
   background: linear-gradient(
     to bottom,
-    rgb(138 134 255 / 0.24) 0%,
-    rgb(112 92 250 / 0.3) 40%,
-    rgb(92 50 225 / 0.4) 70%,
-    rgb(70 24 190 / 0.55) calc(100% - 320px),
-    /* The last stretch already leans towards rose, measured from the foot
-       so it stays the same length however many subjects the run holds. */
+    var(--maths-blue) 0,
+    var(--maths-blue) calc(100% - 320px),
     rgb(115 38 180 / 0.52) calc(100% - 150px),
     /* Opaque where the runs meet (rgb(160 52 165 / 0.47) over the page), so
        the pixel the two share cannot show as a hairline. */
@@ -1630,7 +1633,14 @@ button {
 }
 
 .band-applied .course-card {
-  border-color: rgb(255 164 94 / 0.25);
+  border-color: rgb(255 164 94 / 0.45);
+  /* A warm base rather than the slate surface, which greyed the orange tint
+     to brown: the owner found these cards washed out. */
+  background: linear-gradient(
+    135deg,
+    rgb(255 140 60 / 0.34) 0%,
+    rgb(220 100 40 / 0.16) 80%
+  ), #2a1c16;
 }
 
 .course-list {

@@ -120,7 +120,7 @@ export const integration: Course = {
               [
                 prose('A sum is integrated one term at a time, each term through the same rule.'),
                 maths(
-                  '\\begin{aligned} \\int \\left(6x + 12x^{2}\\right) \\, dx &= \\frac{6x^{2}}{2} + \\frac{12x^{3}}{3} + C \\\\ &= 3x^{2} + 4x^{3} + C \\end{aligned}',
+                  '\\begin{aligned} &\\int \\left(6x + 12x^{2}\\right) \\, dx \\\\ &= \\frac{6x^{2}}{2} + \\frac{12x^{3}}{3} + C \\\\ &= 3x^{2} + 4x^{3} + C \\end{aligned}',
                 ),
               ],
               'int-term-tiles',
@@ -192,7 +192,7 @@ export const integration: Course = {
             askAfter(
               [
                 prose('A number in front stays in front and is divided by the new index too.'),
-                maths('\\int 10x^{4} \\, dx = \\frac{10x^{5}}{5} + C = 2x^{5} + C'),
+                maths('\\begin{aligned} \\int 10x^{4} \\, dx &= \\frac{10x^{5}}{5} + C \\\\ &= 2x^{5} + C \\end{aligned}'),
               ],
               'int-power',
             ),
@@ -200,7 +200,7 @@ export const integration: Course = {
               [
                 prose('A sum is integrated one term at a time, and one $C$ covers the lot.'),
                 maths(
-                  '\\begin{aligned} \\int \\left(8x + 9x^{2}\\right) \\, dx &= \\frac{8x^{2}}{2} + \\frac{9x^{3}}{3} + C \\\\ &= 4x^{2} + 3x^{3} + C \\end{aligned}',
+                  '\\begin{aligned} &\\int \\left(8x + 9x^{2}\\right) \\, dx \\\\ &= \\frac{8x^{2}}{2} + \\frac{9x^{3}}{3} + C \\\\ &= 4x^{2} + 3x^{3} + C \\end{aligned}',
                 ),
               ],
               'int-term-tiles',
@@ -367,7 +367,7 @@ export const integration: Course = {
                 prose(
                   'A root underneath a fraction is a negative fractional power: $\\frac{1}{\\sqrt{x}}$ is $x^{-1/2}$. Adding one gives $\\frac{1}{2}$, and dividing by $\\frac{1}{2}$ doubles the coefficient.',
                 ),
-                maths('\\int \\frac{4}{\\sqrt{x}} \\, dx = \\int 4x^{-1/2} \\, dx = \\frac{4x^{1/2}}{1/2} + C = 8\\sqrt{x} + C'),
+                maths('\\begin{aligned} \\int \\frac{4}{\\sqrt{x}} \\, dx &= \\int 4x^{-1/2} \\, dx \\\\ &= \\frac{4x^{1/2}}{1/2} + C \\\\ &= 8\\sqrt{x} + C \\end{aligned}'),
               ],
               'int-root-power',
             ),
@@ -416,7 +416,7 @@ export const integration: Course = {
                 'The exponential is its own derivative, so it is its own antiderivative. Put a coefficient in the index and the chain rule brings that coefficient out in front when differentiating, so integration has to divide by it.',
               ),
               maths('\\int e^{kx} \\, dx = \\frac{e^{kx}}{k} + C'),
-              maths('\\int 6e^{3x} \\, dx = \\frac{6e^{3x}}{3} + C = 2e^{3x} + C'),
+              maths('\\begin{aligned} \\int 6e^{3x} \\, dx &= \\frac{6e^{3x}}{3} + C \\\\ &= 2e^{3x} + C \\end{aligned}'),
               prose(
                 'Forgetting that division is the standard error, and differentiating the answer back exposes it at once — an extra factor of $k$ appears where none should be.',
               ),
@@ -431,8 +431,8 @@ export const integration: Course = {
               prose(
                 'Under differentiation it is cosine that picks up the minus sign; under integration it is sine. The division by $k$ applies here too, for the same chain-rule reason:',
               ),
-              maths('\\begin{aligned} \\int 6\\sin(2x) \\, dx &= -\\frac{6\\cos(2x)}{2} + C \\\\ &= -3\\cos(2x) + C \\end{aligned}'),
-              maths('\\begin{aligned} \\int 12\\cos(3x) \\, dx &= \\frac{12\\sin(3x)}{3} + C \\\\ &= 4\\sin(3x) + C \\end{aligned}'),
+              maths('\\begin{aligned} &\\int 6\\sin(2x) \\, dx \\\\ &= -\\frac{6\\cos(2x)}{2} + C \\\\ &= -3\\cos(2x) + C \\end{aligned}'),
+              maths('\\begin{aligned} &\\int 12\\cos(3x) \\, dx \\\\ &= \\frac{12\\sin(3x)}{3} + C \\\\ &= 4\\sin(3x) + C \\end{aligned}'),
             ),
             ask('int-trig'),
             ask('int-standard-tiles'),
@@ -522,7 +522,7 @@ export const integration: Course = {
                 prose(
                   'A negative index goes through the same rule: add one, divide by the new index, and carry both minus signs.',
                 ),
-                maths('\\int 6x^{-3} \\, dx = \\frac{6x^{-2}}{-2} + C = -3x^{-2} + C'),
+                maths('\\begin{aligned} \\int 6x^{-3} \\, dx &= \\frac{6x^{-2}}{-2} + C \\\\ &= -3x^{-2} + C \\end{aligned}'),
               ],
               'int-power',
               2,
@@ -1071,10 +1071,10 @@ export const integration: Course = {
                   'For $\\int xe^{2x} \\, dx$, differentiating $x$ gives 1, which removes the $x$ from the second integral entirely. So $u = x$.',
                 ),
                 maths(
-                  'u = x \\quad \\frac{dv}{dx} = e^{2x} \\quad \\frac{du}{dx} = 1 \\quad v = \\frac{e^{2x}}{2}',
+                  '\\begin{aligned} u &= x & \\frac{dv}{dx} &= e^{2x} \\\\ \\frac{du}{dx} &= 1 & v &= \\frac{e^{2x}}{2} \\end{aligned}',
                 ),
                 maths(
-                  '\\int xe^{2x} \\, dx = \\frac{xe^{2x}}{2} - \\int \\frac{e^{2x}}{2} \\, dx = \\frac{xe^{2x}}{2} - \\frac{e^{2x}}{4} + C',
+                  '\\begin{aligned} &\\int xe^{2x} \\, dx \\\\ &= \\frac{xe^{2x}}{2} - \\int \\frac{e^{2x}}{2} \\, dx \\\\ &= \\frac{xe^{2x}}{2} - \\frac{e^{2x}}{4} + C \\end{aligned}',
                 ),
               ],
               'int-by-parts',
@@ -1245,7 +1245,7 @@ export const integration: Course = {
               prose(
                 'Testing one point is only safe if the curves do not cross inside the interval. To check, subtract them and find where the difference is zero. Take $y = x^{2} + 1$ and $y = 2x + 4$ between $x = 4$ and $x = 5$:',
               ),
-              maths('\\begin{aligned} \\left(x^{2} + 1\\right) - \\left(2x + 4\\right) &= x^{2} - 2x - 3 \\\\ &= (x - 3)(x + 1) \\end{aligned}'),
+              maths('\\begin{aligned} &(x^{2} + 1) - (2x + 4) \\\\ &= x^{2} - 2x - 3 \\\\ &= (x - 3)(x + 1) \\end{aligned}'),
               prose(
                 'The difference is zero only at $x = 3$ and $x = -1$. Neither lies between $4$ and $5$, so the curves do not cross there. At $x = 4.5$ the difference is $1.5 \\times 5.5 = 8.25$, positive, so $y = x^{2} + 1$ is higher all the way across. Had a zero lain between $4$ and $5$, the curves would cross there.',
               ),
@@ -1308,7 +1308,7 @@ export const integration: Course = {
                 prose(
                   'With the limits found, test a value between them to see which curve is on top. For the curves above, at $x = 0$ the line gives $1$ and the parabola $-3$, so the line is on top:',
                 ),
-                maths('\\text{area} = \\int_{-1}^{2} \\left(\\left(2x + 1\\right) - \\left(2x^{2} - 3\\right)\\right) dx'),
+                maths('\\begin{aligned} \\text{area} &= \\int_{-1}^{2} \\big((2x + 1) \\\\ &\\qquad - (2x^{2} - 3)\\big) \\, dx \\end{aligned}'),
               ],
               'int-setup-integral',
             ),
@@ -1953,7 +1953,7 @@ export const integration: Course = {
                 prose(
                   'The top limit can be the unknown. Say $\\int_{0}^{h} \\frac{2}{x + 3} \\, dx = 2\\ln 2$. Integrate with $h$ left as a letter:',
                 ),
-                maths('\\begin{aligned} \\left[2\\ln|x + 3|\\right]_{0}^{h} &= 2\\ln(h + 3) - 2\\ln 3 \\\\ &= 2\\ln\\frac{h + 3}{3} \\end{aligned}'),
+                maths('\\begin{aligned} &\\left[2\\ln|x + 3|\\right]_{0}^{h} \\\\ &= 2\\ln(h + 3) - 2\\ln 3 \\\\ &= 2\\ln\\frac{h + 3}{3} \\end{aligned}'),
                 maths('\\begin{aligned} \\frac{h + 3}{3} &= 2 \\\\ \\Rightarrow \\quad h + 3 &= 6 \\\\ \\Rightarrow \\quad h &= 3 \\end{aligned}'),
               ],
               'int-pf-find-limit',
@@ -2152,7 +2152,7 @@ export const integration: Course = {
               maths('p > 1: \\text{ converges}'),
               maths('p \\le 1: \\text{ diverges}'),
               prose('With $p = 2$, for instance:'),
-              maths('\\int_{1}^{t} 3x^{-2} \\, dx = \\left[-3x^{-1}\\right]_{1}^{t} = 3 - \\frac{3}{t} \\to 3'),
+              maths('\\begin{aligned} \\int_{1}^{t} 3x^{-2} \\, dx &= \\left[-3x^{-1}\\right]_{1}^{t} \\\\ &= 3 - \\frac{3}{t} \\to 3 \\end{aligned}'),
             ),
             ask('int-imp-p-flow'),
             ask('int-imp-power-tail'),
@@ -2247,7 +2247,7 @@ export const integration: Course = {
             ask('int-imp-two-sided'),
             teach(
               prose('A point inside the interval where the integrand is unbounded is split the same way, at that point, so the trouble sits at one end of each half:'),
-              maths('\\int_{-1}^{8} \\frac{1}{\\sqrt[3]{x^{2}}} \\, dx = \\int_{-1}^{0} x^{-\\frac{2}{3}} \\, dx + \\int_{0}^{8} x^{-\\frac{2}{3}} \\, dx'),
+              maths('\\begin{aligned} &\\int_{-1}^{8} \\frac{1}{\\sqrt[3]{x^{2}}} \\, dx \\\\ &= \\int_{-1}^{0} x^{-\\frac{2}{3}} \\, dx \\\\ &\\quad + \\int_{0}^{8} x^{-\\frac{2}{3}} \\, dx \\end{aligned}'),
               prose('Adding one to $-\\frac{2}{3}$ gives $\\frac{1}{3}$, so $F(x) = 3\\sqrt[3]{x}$, and $F(0) = 0$ is a finite value to reach:'),
               maths('\\begin{aligned} F(0) - F(-1) &= 0 - (-3) = 3 \\\\ F(8) - F(0) &= 6 - 0 = 6 \\end{aligned}'),
               prose('Both halves converge, so the integral is $3 + 6 = 9$.'),

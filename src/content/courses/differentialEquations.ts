@@ -1000,7 +1000,7 @@ export const differentialEquations: Course = {
               working(
                 'y &= e^{x}(A\\cos 3x + B\\sin 3x)',
                 "y' &= e^{x}(A\\cos 3x + B\\sin 3x)",
-                '&\\quad + e^{x}(-3A\\sin 3x + 3B\\cos 3x)',
+                '&\\quad + 3e^{x}(B\\cos 3x - A\\sin 3x)',
               ),
               working(
                 "y'(0) &= A + 3B",
@@ -1169,7 +1169,7 @@ export const differentialEquations: Course = {
             ask('de-nh-trig-trial'),
             teach(
               prose("Put $y$, $y'$ and $y''$ into $y'' + 3y' + 2y$ and collect the cosines and the sines:"),
-              working('\\cos x&: \\; -\\lambda + 3\\mu + 2\\lambda = \\lambda + 3\\mu', '\\sin x&: \\; -\\mu - 3\\lambda + 2\\mu = -3\\lambda + \\mu'),
+              working('\\cos x&: \\; -\\lambda + 3\\mu + 2\\lambda', '&= \\lambda + 3\\mu', '\\sin x&: \\; -\\mu - 3\\lambda + 2\\mu', '&= -3\\lambda + \\mu'),
               prose('Compare with $10\\cos x + 0\\sin x$:'),
               working('\\lambda + 3\\mu &= 10', '-3\\lambda + \\mu &= 0'),
               prose(
@@ -1218,9 +1218,9 @@ export const differentialEquations: Course = {
               ),
               working(
                 "y' &= (\\lambda\\cos 2x + \\mu\\sin 2x)",
-                '&\\quad + x(-2\\lambda\\sin 2x + 2\\mu\\cos 2x)',
+                '&\\; + x(-2\\lambda\\sin 2x + 2\\mu\\cos 2x)',
                 "y'' &= 2(-2\\lambda\\sin 2x + 2\\mu\\cos 2x)",
-                '&\\quad + x(-4\\lambda\\cos 2x - 4\\mu\\sin 2x)',
+                '&\\; + x(-4\\lambda\\cos 2x - 4\\mu\\sin 2x)',
               ),
               prose(
                 "The last bracket times $x$ is $-4y$, so $y'' + 4y = 4\\mu\\cos 2x - 4\\lambda\\sin 2x$. Compare with $8\\cos 2x$: $\\mu = 2$, $\\lambda = 0$, and $y = 2x\\sin 2x$.",
@@ -1476,7 +1476,7 @@ export const differentialEquations: Course = {
               working(
                 'x &= e^{-t}(A\\cos 2t + B\\sin 2t)',
                 '\\dot{x} &= -e^{-t}(A\\cos 2t + B\\sin 2t)',
-                '&\\quad + e^{-t}(-2A\\sin 2t + 2B\\cos 2t)',
+                '&\\quad + 2e^{-t}(B\\cos 2t - A\\sin 2t)',
               ),
               display('\\dot{x}(0) = -A + 2B'),
               prose('$x(0) = A = 3$, then $-3 + 2B = 1$, so $B = 2$ and $x = e^{-t}(3\\cos 2t + 2\\sin 2t)$. With roots $-p \\pm qi$, $\\dot{x}(0) = -pA + qB$.'),

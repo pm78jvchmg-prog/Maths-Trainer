@@ -318,7 +318,7 @@ const disp: Generator<DispParams> = {
       kind: 'expression',
       prompt: [
         say(
-          `A particle moves along a straight line. Its position $s$, in metres, is measured from $O$, positive to the ${pos}. It starts at $s = ${stops[0]}$ and moves to ${path.join(', then to ')}.`,
+          `A particle's position $s$ on a line is in metres from $O$, positive to the ${pos}. It starts at $s = ${stops[0]}$ and moves to ${path.join(', then to ')}.`,
         ),
         say(ask === 'displacement' ? 'Find its displacement from where it started.' : 'Find the total distance it travels.'),
       ],
@@ -393,7 +393,7 @@ const signFlow: Generator<SignParams> = {
     const { first, back, pos } = signWords(params);
     const story = params.vertical
       ? `A ball is thrown straight up from $O$ at the edge of a cliff. It rises ${a} m, then falls. It has now fallen ${b} m and is still falling.`
-      : `A particle leaves $O$ and moves ${a} m ${first}. It turns round and has now moved ${b} m back, still moving ${back}.`;
+      : `A particle leaves $O$ and moves ${a} m ${first}, then turns round. It has now moved ${b} m back, still moving ${back}.`;
     const key = `${a}|${b}|${pos}|${first}`;
     const outcome = (v: string, s: string) => {
       const where = s === 'Zero' ? 'it is back at $O$' : `it is on the ${s === 'Positive' ? 'positive' : 'negative'} side of $O$`;
@@ -407,7 +407,7 @@ const signFlow: Generator<SignParams> = {
     const { v, s } = signState(params);
     return {
       kind: 'flow',
-      prompt: [say(story), say(`Taking ${pos} as positive, decide the signs of its velocity and of its displacement from $O$ right now.`)],
+      prompt: [say(story), say(`Taking ${pos} as positive, decide the signs of its velocity and its displacement from $O$ now.`)],
       subject: 'v \\text{ and } s',
       steps: [
         {
@@ -485,7 +485,7 @@ const lineSlider: Generator<LineParams> = {
         : `It moves with velocity $${moves[0][0]}$ m/s for ${moves[0][1]} s, then with velocity $${moves[1][0]}$ m/s for ${moves[1][1]} s. Slide the line to where it ends up.`;
     return {
       kind: 'slider',
-      prompt: [say(`A particle starts at the dot, $s = ${start}$, on a line measured in metres from $O$, positive to the right.`), say(told)],
+      prompt: [say(`A particle starts at the dot, $s = ${start}$ m from $O$, positive to the right.`), say(told)],
       min: -LINE,
       max: LINE,
       step: 1,
@@ -738,7 +738,7 @@ const avgVelSteps: Generator<AvgVelParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `${PEOPLE[params.subject]} goes ${a} m ${pos} in ${t1} s, then ${b} m ${neg} in ${t2} s. Taking ${pos} as positive, work out the average velocity: displacement over time. Tap the part to work out next, then choose its value.`,
+          `${PEOPLE[params.subject]} goes ${a} m ${pos} in ${t1} s, then ${b} m ${neg} in ${t2} s. Taking ${pos} as positive, find the average velocity. Tap the part to work out next, then choose its value.`,
         ),
       ],
       start: ['(', `${a}`, '-', `${b}`, ')', '\\div', '(', `${t1}`, '+', `${t2}`, ')'],
@@ -1086,7 +1086,7 @@ const stTable: Generator<StTableParams> = {
       kind: 'table',
       prompt: [
         say(
-          `A particle starts at $s = ${s0}$ m. It moves with velocity $${v1}$ m/s for ${d1} s, stays still for ${d2} s, then moves with velocity $${v3}$ m/s for ${d3} s. Fill in its displacement $s$ at each time $t$, in seconds.`,
+          `A particle starts at $s = ${s0}$ m. It moves with velocity $${v1}$ m/s for ${d1} s, stays still for ${d2} s, then moves with velocity $${v3}$ m/s for ${d3} s. Fill in $s$ at each time $t$, in seconds.`,
         ),
       ],
       columns: ['t', 's'],
@@ -1513,7 +1513,7 @@ const trapSteps: Generator<TrapParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `Between $t = ${t1}$ and $t = ${t1 + h}$ seconds, ${VEHICLES[params.subject].toLowerCase()}'s velocity changes steadily from $${u}$ m/s to $${v}$ m/s. The distance it covers is the trapezium under that stage. Tap the part to work out next, then choose its value.`,
+          `Between $t = ${t1}$ and $t = ${t1 + h}$ seconds, ${VEHICLES[params.subject].toLowerCase()}'s velocity changes steadily from $${u}$ m/s to $${v}$ m/s. Find the distance it covers. Tap the part to work out next, then choose its value.`,
         ),
       ],
       start: ['(', `${u}`, '+', `${v}`, ')', '\\times', `${h}`, '\\div', '2'],
@@ -1573,7 +1573,7 @@ const stagesTree: Generator<StagesTreeParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `${VEHICLES[params.subject]} speeds up, travels steadily, then slows to a stop. Its velocity-time graph joins ${cornersText(corners)}, $v$ in m/s and $t$ in seconds. Fill in the area under each stage, then the total distance.`,
+          `${VEHICLES[params.subject]}'s velocity-time graph joins ${cornersText(corners)}, $v$ in m/s and $t$ in seconds. Fill in the area under each stage, then the total distance.`,
         ),
         figure(graphSvg(corners, 'A velocity-time graph in three stages with the area under it shaded', { from: 0, to: T })),
       ],
@@ -1676,7 +1676,7 @@ const netDisp: Generator<NetParams> = {
       kind: 'expression',
       prompt: [
         say(
-          `A particle's velocity-time graph joins ${cornersText(corners)} with straight lines, $v$ in m/s and $t$ in seconds. The area above the axis is shaded. Find ${ask === 'distance' ? 'the total distance it travels' : 'its displacement from where it started'} over these ${endOf(corners)} seconds.`,
+          `A particle's velocity-time graph joins ${cornersText(corners)}, $v$ in m/s and $t$ in seconds. Find ${ask === 'distance' ? 'the total distance it travels' : 'its displacement from where it started'} over these ${endOf(corners)} seconds.`,
         ),
         figure(graphSvg(corners, 'A velocity-time graph that crosses the axis, with the area above it shaded', { from: 0, to: cross })),
       ],
@@ -1872,7 +1872,7 @@ const suatSteps: Generator<SuatParams> = {
     return {
       kind: 'steps',
       prompt: [
-        say(`${suatPrompt(params)} Find how far it goes, using $s = ut + \\tfrac{1}{2}at^{2}$. Tap the part to work out next, then choose its value.`),
+        say(`${suatPrompt(params)} Find how far it goes. Tap the part to work out next, then choose its value.`),
       ],
       start: [`${u}`, '\\times', `${t}`, a < 0 ? '-' : '+', '\\tfrac{1}{2}', '\\times', `${Math.abs(a)}`, '\\times', `${t}^2`],
       reductions: [
@@ -2263,6 +2263,8 @@ const ASKED: Record<SuvatVar, string> = {
   s: 'Find the distance it covers.',
 };
 
+const ANSWER_UNIT: Record<SuvatVar, string> = { u: 'm/s', v: 'm/s', a: 'm/s²', t: 'seconds', s: 'metres' };
+
 const scenarioText = (sc: Scenario): string =>
   `${VEHICLES[sc.subject]} moves in a straight line with constant acceleration. ${scenarioGiven(sc).map((q) => FACT[q](sc[q])).join(' ')} ${ASKED[sc.asked]}`;
 
@@ -2363,7 +2365,7 @@ const solveMixed: Generator<Scenario> = {
   },
   render: (sc): Slide => ({
     kind: 'expression',
-    prompt: [say(scenarioText(sc)), say(`Speeds in m/s, accelerations in m/s², times in seconds, distances in metres.`)],
+    prompt: [say(scenarioText(sc)), say(`Give it in ${ANSWER_UNIT[sc.asked]}.`)],
     lead: `${sc.asked} =`,
     keypad: WORKING_KEYS,
     answer: fmt(sc[sc.asked]),
@@ -2536,8 +2538,8 @@ const gravHeight: Generator<GravParams> = {
       height: `A ${what} is thrown straight up at ${u} m/s. Taking $g = 9.8$ m/s², find its height above the point of projection after ${t} s, in metres.`,
       velocity: `A ${what} is thrown straight up at ${u} m/s. Taking up as positive and $g = 9.8$ m/s², find its velocity after ${t} s, in m/s.`,
       time: `A ${what} is thrown straight up at ${u} m/s from the edge of a cliff ${fmt(cliffOf(k, t))} m above the sea. Taking $g = 9.8$ m/s², how many seconds until it hits the sea?`,
-      impact: `A ${what} is thrown straight up at ${u} m/s from the edge of a cliff, and hits the sea below ${t} s later. Taking $g = 9.8$ m/s², find its speed as it hits the sea, in m/s.`,
-      cliff: `A ${what} is thrown straight up at ${u} m/s from the edge of a cliff, and hits the sea below ${t} s later. Taking $g = 9.8$ m/s², find the height of the cliff, in metres.`,
+      impact: `A ${what} is thrown straight up at ${u} m/s from a clifftop and hits the sea ${t} s later. Taking $g = 9.8$ m/s², find its speed as it hits the sea, in m/s.`,
+      cliff: `A ${what} is thrown straight up at ${u} m/s from a clifftop and hits the sea ${t} s later. Taking $g = 9.8$ m/s², find the height of the cliff, in metres.`,
     };
     const answers = {
       height: heightAt(k, t),
@@ -2621,7 +2623,7 @@ const gravSteps: Generator<GravStepsParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `A ${THROWN[thing]} is thrown straight up at ${fmt(u)} m/s${where}. Find its displacement $s$ above the point of projection after ${t} s, from $s = ut - 4.9t^{2}$: that is $s = ut + \\tfrac{1}{2}at^{2}$ with $a = -9.8$. Tap the part to work out next, then choose its value.`,
+          `A ${THROWN[thing]} is thrown straight up at ${fmt(u)} m/s${where}. Find its displacement $s$ above the point of projection after ${t} s. Tap the part to work out next, then choose its value.`,
         ),
       ],
       start: [fmt(u), '\\times', `${t}`, '-', '4.9', '\\times', `${t}^2`],
@@ -2677,7 +2679,7 @@ const topTree: Generator<TopParams> = {
     const up = k / 2;
     const rise = (u * up) / 2;
     const top = h + rise;
-    const base = `A ${THROWN[thing]} is thrown straight up at ${fmt(u)} m/s from a point ${fmt(h)} m above the ground. Taking $g = 9.8$ m/s², fill in the time to reach the top, the height it rises, then its greatest height above the ground`;
+    const base = `A ${THROWN[thing]} is thrown straight up at ${fmt(u)} m/s from a point ${fmt(h)} m above the ground. Taking $g = 9.8$ m/s², fill in the time to the top, the height it rises, then its greatest height above the ground`;
     const slips = [u / 4.9, u * up, rise * 2, top + h, h + u];
     if (n === undefined) {
       return {
@@ -2873,7 +2875,7 @@ const stageTable: Generator<StageTableParams> = {
       kind: 'table',
       prompt: [
         say(
-          `${VEHICLES[params.subject]} starts from rest and accelerates at ${a1} m/s² for ${t1} s, ${second}. Fill in the table, one row per stage, with speeds in m/s and distances in metres.`,
+          `${VEHICLES[params.subject]} starts from rest and accelerates at ${a1} m/s² for ${t1} s, ${second}. Fill in the table: speeds in m/s, distances in metres.`,
         ),
       ],
       columns: ['\\text{stage}', 'u', 'v', 't', 's'],
@@ -2945,7 +2947,7 @@ const catchTree: Generator<CatchParams> = {
         kind: 'tree',
         prompt: [
           say(
-            `${A} passes a junction at a steady ${w} m/s. At that moment ${B} sets off from rest at the junction, accelerating at ${accels[0]} m/s² the same way. Fill in the time it takes to catch up, how far from the junction that is, and its speed then.`,
+            `${A} passes a junction at a steady ${w} m/s just as ${B} sets off from rest there, accelerating at ${accels[0]} m/s² the same way. Fill in the time to catch up, how far from the junction that is, and its speed then.`,
           ),
         ],
         expression: '\\tfrac{1}{2}at^{2} = wt',
@@ -2962,7 +2964,7 @@ const catchTree: Generator<CatchParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `${A} passes a junction at ${w} m/s, accelerating at ${accels[0]} m/s². At that moment ${B} sets off from rest at the junction, accelerating at ${accels[1]} m/s² the same way. Fill in the difference in accelerations, the time it takes to catch up, then how far from the junction that is.`,
+          `${A} passes a junction at ${w} m/s, accelerating at ${accels[0]} m/s², just as ${B} sets off from rest there, accelerating at ${accels[1]} m/s² the same way. Fill in the difference in accelerations, the time to catch up, then how far from the junction that is.`,
         ),
       ],
       expression: '\\tfrac{1}{2}a_{B}t^{2} = wt + \\tfrac{1}{2}a_{A}t^{2}',
@@ -3037,7 +3039,7 @@ const twoStageSteps: Generator<TwoStageParams> = {
         kind: 'steps',
         prompt: [
           say(
-            `${who} speeds up steadily from rest to ${V} m/s in ${t1} s, then keeps that speed for ${t2} s. The distance is the triangle then the rectangle under its velocity-time graph. Tap the part to work out next, then choose its value.`,
+            `${who} speeds up steadily from rest to ${V} m/s in ${t1} s, then keeps that speed for ${t2} s. Find the distance it covers. Tap the part to work out next, then choose its value.`,
           ),
         ],
         start: ['\\tfrac{1}{2}', '\\times', `${V}`, '\\times', `${t1}`, '+', `${V}`, '\\times', `${t2}`],
@@ -3055,7 +3057,7 @@ const twoStageSteps: Generator<TwoStageParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `${who} speeds up steadily from rest to ${V} m/s in ${t1} s, keeps that speed for ${t2} s, then slows steadily to rest in ${t3} s. The two triangles under its velocity-time graph have the same height, so they are taken together. Tap the part to work out next, then choose its value.`,
+          `${who} speeds up steadily from rest to ${V} m/s in ${t1} s, keeps that speed for ${t2} s, then slows steadily to rest in ${t3} s. Find the distance it covers. Tap the part to work out next, then choose its value.`,
         ),
       ],
       start: ['\\tfrac{1}{2}', '\\times', `${V}`, '\\times', '(', `${t1}`, '+', `${t3}`, ')', '+', `${V}`, '\\times', `${t2}`],
@@ -3587,7 +3589,7 @@ const vSlider: Generator<VSliderParams> = {
     prompt: [
       say(moving(mover, 's')),
       show(`s = ${polyTex(p, rising)}`),
-      say(`The graph shows $s$ against $t$. Slide the line to the time its velocity is $${target}$ m/s.`),
+      say(`Slide the line to the time its velocity is $${target}$ m/s.`),
     ],
     min: 0,
     max: V_SLIDER_END,
@@ -4021,8 +4023,8 @@ const expTree: Generator<ExpTreeParams> = {
         show(`s = ${expSTex(A, k, B)}`),
         say(
           B === 0
-            ? `At one moment $s = ${S}$. Fill in $k$, then its velocity, then its acceleration at that moment.`
-            : `At one moment $s = ${S}$. Fill in $s ${signed(-B)}$, then its velocity, then its acceleration at that moment.`,
+            ? `When $s = ${S}$, fill in $k$, then its velocity, then its acceleration.`
+            : `When $s = ${S}$, fill in $s ${signed(-B)}$, then its velocity, then its acceleration.`,
         ),
       ],
       expression: B === 0 ? 'v = ks, \\quad a = kv' : aligned(`v &= k(s ${signed(-B)})`, 'a &= kv'),
@@ -4659,7 +4661,7 @@ const areaSlider: Generator<AreaSliderParams> = {
       say(moving(params.mover, 'v')),
       show(`v = ${polyTex(params.v)}`),
       say(
-        `It moves the positive way throughout. The graph shows $v$ against $t$. Slide the line to the time it has travelled $${fmt(goneBy(params, params.answer))}$ m since $t = ${params.start}$.`,
+        `It moves the positive way throughout. Slide the line to the time it has travelled $${fmt(goneBy(params, params.answer))}$ m since $t = ${params.start}$.`,
       ),
     ],
     min: params.start,
@@ -5269,7 +5271,7 @@ const speedTable: Generator<SpeedParams> = {
       kind: 'table',
       prompt: [
         say(`A particle moves in a straight line. ${fromS ? sLine(growFrom(v, s0)) : vLine(v)}`),
-        say(`Its greatest speed for $0 \\le t \\le ${t2}$ is at an end or where $a = 0$. Fill in $v$ and the speed $|v|$ at each end, and the time $a = 0$ with $v$ and $|v|$ there.`),
+        say(`To find its greatest speed for $0 \\le t \\le ${t2}$, fill in $v$ and $|v|$ at each end, and the time $a = 0$ with $v$ and $|v|$ there.`),
       ],
       columns: ['t', 'v', '|v|'],
       rows: [
@@ -5438,7 +5440,7 @@ const piecesTree: Generator<DistParams> = {
       kind: 'tree',
       prompt: [
         say(distLine(params)),
-        say(`Fill in the time $r$ it turns round, the displacement from $t = 0$ to $r$ and from $r$ to $t = ${params.T}$, each with its sign, then the total distance.`),
+        say(`Fill in the time $r$ it turns round, the signed displacements from $t = 0$ to $r$ and from $r$ to $t = ${params.T}$, then the total distance.`),
       ],
       expression: `\\Big|\\int_{0}^{r} v\\,dt\\Big| + \\Big|\\int_{r}^{${params.T}} v\\,dt\\Big|`,
       nodes: [

@@ -6634,7 +6634,7 @@ const mechPositionSteps: Generator<PositionParams> = {
       kind: 'steps',
       prompt: positionPrompt(
         params,
-        `Work out where it is after $${t}$ seconds: the displacement $\\mathbf{v}t$ first, then add it to the start.`,
+        `Find where it is after $${t}$ seconds.`,
       ),
       start: [ijBr(r0), '+', `${t}`, ijBr(v)],
       reductions: [
@@ -6708,14 +6708,14 @@ const mechWhen: Generator<WhenParams> = {
       ask === 'point'
         ? `At what time does it pass through the point with position vector $${ijOf(p)}$?`
         : ask === 'north'
-          ? 'With $\\mathbf{i}$ pointing east and $\\mathbf{j}$ north, at what time is it due north or due south of the origin?'
-          : 'With $\\mathbf{i}$ pointing east and $\\mathbf{j}$ north, at what time is it due east or due west of the origin?';
+          ? 'At what time is it due north or due south of the origin?'
+          : 'At what time is it due east or due west of the origin?';
     return {
       kind: 'expression',
       prompt: [
         {
           kind: 'prose',
-          text: `${PARTICLES[who]} moves with constant velocity. Its position vector after $t$ seconds is below, in metres. ${question}`,
+          text: `${PARTICLES[who]} moves with constant velocity. Its position vector after $t$ seconds is below. ${question}`,
         },
         { kind: 'display', tex: motionTex(whenStart(params), v) },
       ],
@@ -6800,7 +6800,7 @@ const mechTimeSlider: Generator<TimeSliderParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `A particle starts at $A$ and moves with constant velocity; its path is drawn with a dot at each whole second. Slide $t$ to the time when it is at the point with position vector $${ijOf(p)}$.`,
+          text: `A particle moves from $A$ with constant velocity, a dot marking each whole second. Slide $t$ to when it is at the point with position vector $${ijOf(p)}$.`,
         },
         { kind: 'display', tex: motionTex(r0, v) },
       ],
@@ -6864,11 +6864,11 @@ const mechVelocityFrom: Generator<VelocityFromParams> = {
     const moved = minus(b, a);
     const text =
       t1 === 0
-        ? `${PARTICLES[who]} moves with constant velocity. It passes the point with position vector $${ijOf(a)}$, and $${k}$ seconds later the point with position vector $${ijOf(b)}$. Find its velocity.`
+        ? `${PARTICLES[who]} moves with constant velocity. It passes the point with position vector $${ijOf(a)}$, and $${k}$ seconds later $${ijOf(b)}$. Find its velocity.`
         : `${PARTICLES[who]} moves with constant velocity. When $t = ${t1}$ it is at the point with position vector $${ijOf(a)}$, and when $t = ${t1 + k}$ at $${ijOf(b)}$. Find its velocity.`;
     return {
       kind: 'tiles',
-      prompt: [{ kind: 'prose', text: `${text} Positions are in metres and times in seconds.` }],
+      prompt: [{ kind: 'prose', text }],
       template: VECTOR_TEMPLATE,
       // The displacement not divided, and the subtraction the wrong way round.
       bank: bankOf(tilesOf(v), [...tilesOf(moved), ...tilesOf(scaled(-1, v))]),
@@ -7070,7 +7070,7 @@ const mechHeading: Generator<HeadingParams> = {
       {
         kind: 'prose',
         text: from
-          ? `${PARTICLES[who]} moves in a straight line from the point with position vector $${ijOf(from)}$ to the point with position vector $${ijOf(plus(from, v))}$. $\\theta$ is the angle between its direction of motion and $\\mathbf{i}$. Find $\\tan\\theta$.`
+          ? `${PARTICLES[who]} moves in a straight line from the point with position vector $${ijOf(from)}$ to $${ijOf(plus(from, v))}$. $\\theta$ is the angle between its direction of motion and $\\mathbf{i}$. Find $\\tan\\theta$.`
           : `${PARTICLES[who]} moves with velocity $${unitTex(v, MPS)}$. $\\theta$ is the angle between its direction of motion and $\\mathbf{i}$. Find $\\tan\\theta$.`,
       },
     ],

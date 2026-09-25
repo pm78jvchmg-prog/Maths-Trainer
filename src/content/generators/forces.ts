@@ -1183,7 +1183,7 @@ const resolveTable: Generator<ResolveTableParams> = {
       kind: 'table',
       prompt: [
         say(`${described.join('; ')}. Here ${facts}.`),
-        say('Fill in the horizontal ($\\rightarrow$) and vertical ($\\uparrow$) components of each force, then of the total, in newtons. Right and up are positive.'),
+        say('Fill in the components ($\\rightarrow$, $\\uparrow$) of each force and of the total, in newtons, right and up positive.'),
       ],
       columns: ['\\text{force}', '\\rightarrow', '\\uparrow'],
       rows: [
@@ -1241,7 +1241,7 @@ const netSteps: Generator<NetParams> = {
         kind: 'steps',
         prompt: [
           say(
-            `A box on horizontal ground is pulled by a rope with tension $${T}\\text{ N}$ at an angle $\\alpha$ above the horizontal, where $\\cos\\alpha = ${fmt(c)}$. Friction of $${Q}\\text{ N}$ acts against it. Work out the net horizontal force, in newtons: tap the part to do next, then choose what it comes to.`,
+            `A rope with tension $${T}\\text{ N}$ pulls a box along horizontal ground at $\\alpha$ above the horizontal, where $\\cos\\alpha = ${fmt(c)}$, against friction of $${Q}\\text{ N}$. Find the net horizontal force, in newtons: tap the part to do next, then choose what it comes to.`,
           ),
         ],
         start: [fmt(T), '\\times', fmt(c), '-', fmt(Q)],
@@ -1258,7 +1258,7 @@ const netSteps: Generator<NetParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `Two ropes pull a crate across horizontal ground. One, with tension $${T}\\text{ N}$, pulls to the right at $\\alpha$ above the horizontal; the other, with tension $${U}\\text{ N}$, pulls to the left at $\\beta$ above it. Here $\\cos\\alpha = ${fmt(c)}$ and $\\cos\\beta = ${fmt(d)}$. Work out the net force to the right, in newtons: tap the part to do next, then choose what it comes to.`,
+          `Two ropes pull a crate on horizontal ground: $${T}\\text{ N}$ to the right at $\\alpha$ above the horizontal, and $${U}\\text{ N}$ to the left at $\\beta$ above it, where $\\cos\\alpha = ${fmt(c)}$ and $\\cos\\beta = ${fmt(d)}$. Find the net force to the right, in newtons: tap the part to do next, then choose what it comes to.`,
         ),
       ],
       start: [fmt(T), '\\times', fmt(c), '-', fmt(U), '\\times', fmt(d)],
@@ -1349,9 +1349,9 @@ const normalTree: Generator<NormalParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `A box of mass $${m}\\text{ kg}$ rests on horizontal ground. A force of $${P}\\text{ N}$ ${push ? 'pushes on it' : 'pulls on it'} at an angle $\\alpha$ ${push ? 'below' : 'above'} the horizontal, where ${angleFacts(t, hard)}. ${G_NOTE}`,
+          `A box of mass $${m}\\text{ kg}$ rests on horizontal ground. A force of $${P}\\text{ N}$ ${push ? 'pushes' : 'pulls'} on it at $\\alpha$ ${push ? 'below' : 'above'} the horizontal, where ${angleFacts(t, hard)}. ${G_NOTE}`,
         ),
-        say(`Top row: the weight, and the vertical part of the ${push ? 'push' : 'pull'}. Underneath: the normal reaction $R$. All in newtons.`),
+        say(`Top row: the weight and the ${push ? 'push' : 'pull'}'s vertical part. Underneath: $R$. All in newtons.`),
       ],
       expression: '\\text{resolve vertically}',
       nodes: [
@@ -1534,7 +1534,7 @@ const hanging: Generator<HangingParams> = {
     return typed(
       [
         say(
-          `A particle of mass $${m}\\text{ kg}$ hangs on a light string. A horizontal force $P$ holds it still, with the string at an angle $\\alpha$ to the vertical, where ${angleFacts(t, hard)}. ${G_NOTE} Find ${find === 'T' ? 'the tension $T$ in the string' : 'the size of $P$'}, in newtons.`,
+          `A particle of mass $${m}\\text{ kg}$ hangs on a light string, held still by a horizontal force $P$ with the string at $\\alpha$ to the vertical, where ${angleFacts(t, hard)}. ${G_NOTE} Find ${find === 'T' ? 'the tension $T$ in the string' : 'the size of $P$'}, in newtons.`,
         ),
         picture(hangingSvg(t)),
       ],
@@ -1591,7 +1591,7 @@ const slopeTiles: Generator<SlopeParams> = {
       kind: 'tiles',
       prompt: [
         say(
-          `A particle of mass $${fmt(m)}\\text{ kg}$ rests on a slope inclined at $\\alpha$ to the horizontal, where ${angleFacts(t, hard)}. ${G_NOTE} Split its weight into the part down the slope ($\\parallel$) and the part pressing into it ($\\perp$), in newtons.`,
+          `A particle of mass $${fmt(m)}\\text{ kg}$ rests on a slope at $\\alpha$ to the horizontal, where ${angleFacts(t, hard)}. ${G_NOTE} Split its weight into parts down the slope ($\\parallel$) and into it ($\\perp$), in newtons.`,
         ),
         picture(slopeSvg(t)),
       ],
@@ -1650,7 +1650,7 @@ const slopeHold: Generator<HoldParams> = {
     return typed(
       [
         say(
-          `A particle of mass $${m}\\text{ kg}$ is held still on a smooth slope inclined at $\\alpha$ to the horizontal, where ${angleFacts(t, hard)}, by a force $P$ acting ${pull === 'along' ? 'up the slope, parallel to it' : 'horizontally'}. ${G_NOTE} Find ${find === 'P' ? '$P$' : 'the normal reaction $R$'}, in newtons.`,
+          `A particle of mass $${m}\\text{ kg}$ is held still on a smooth slope at $\\alpha$ to the horizontal, where ${angleFacts(t, hard)}, by a ${pull === 'along' ? 'force $P$ up the slope' : 'horizontal force $P$'}. ${G_NOTE} Find ${find === 'P' ? '$P$' : 'the normal reaction $R$'}, in newtons.`,
         ),
         picture(slopeSvg(t, { pull })),
       ],
@@ -1800,9 +1800,9 @@ const frictionTree: Generator<FrictionParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `A box of mass $${m}\\text{ kg}$ rests on rough horizontal ground, with $\\mu = ${fmt(mu)}$. A force of $${fmt(P)}\\text{ N}$ pulls it ${t ? `at an angle $\\alpha$ above the horizontal, where ${angleFacts(t, false)}` : 'horizontally'}. ${G_NOTE}`,
+          `A box of mass $${m}\\text{ kg}$ rests on rough horizontal ground ($\\mu = ${fmt(mu)}$). A force of $${fmt(P)}\\text{ N}$ pulls it ${t ? `at $\\alpha$ above the horizontal, where ${angleFacts(t, false)}` : 'horizontally'}. ${G_NOTE}`,
         ),
-        say('Top row: the normal reaction $R$. Then the greatest friction $\\mu R$. Then the friction that actually acts. All in newtons.'),
+        say('In order: $R$, then $\\mu R$, then the friction that acts, in newtons.'),
       ],
       expression: 'F \\le \\mu R',
       nodes: [
@@ -1863,12 +1863,12 @@ const limitingSlope: Generator<LimitingParams> = {
   render: (params) => {
     const { m, mu, t, mode, hard } = params;
     const P = limitingForce(params);
-    const scene = `A particle of mass $${m}\\text{ kg}$ rests on a rough slope inclined at $\\alpha$ to the horizontal, where ${angleFacts(t, hard)}.`;
+    const scene = `A particle of mass $${m}\\text{ kg}$ rests on a rough slope at $\\alpha$ to the horizontal, where ${angleFacts(t, hard)}.`;
     if (mode === 'mu') {
       return typed(
         [
           say(
-            `${scene} A force of $${fmt(P)}\\text{ N}$ acting up the slope, parallel to it, leaves the particle on the point of sliding down. ${G_NOTE} Find the coefficient of friction $\\mu$.`,
+            `${scene} A force of $${fmt(P)}\\text{ N}$ up the slope, parallel to it, leaves it on the point of sliding down. ${G_NOTE} Find $\\mu$.`,
           ),
           picture(slopeSvg(t, { friction: true, pull: 'along' })),
         ],
@@ -1879,7 +1879,7 @@ const limitingSlope: Generator<LimitingParams> = {
     return typed(
       [
         say(
-          `${scene} The coefficient of friction is $${fmt(mu)}$. ${G_NOTE} Find the force $P$, acting up the slope and parallel to it, that leaves the particle on the point of ${mode === 'up' ? 'moving up the slope' : 'sliding down the slope'}.`,
+          `${scene} The coefficient of friction is $${fmt(mu)}$. ${G_NOTE} Find the force $P$ up the slope, parallel to it, that leaves it on the point of ${mode === 'up' ? 'moving up' : 'sliding down'}, in newtons.`,
         ),
         picture(slopeSvg(t, { friction: true, pull: 'along' })),
       ],
@@ -2060,10 +2060,10 @@ const resistanceTree: Generator<ResistanceParams> = {
       prompt: [
         say(
           car
-            ? `A car of mass $${m}\\text{ kg}$ moves along a straight, level road with a driving force of $${fmt(P)}\\text{ N}$. Road resistance is $${r1}\\text{ N}$ and air resistance $${r2}\\text{ N}$.`
-            : `A sledge of mass $${m}\\text{ kg}$ is pulled across level snow by a horizontal rope with tension $${fmt(P)}\\text{ N}$. Friction is $${r1}\\text{ N}$ and air resistance $${r2}\\text{ N}$.`,
+            ? `A car of mass $${m}\\text{ kg}$ on a level road has driving force $${fmt(P)}\\text{ N}$, road resistance $${r1}\\text{ N}$ and air resistance $${r2}\\text{ N}$.`
+            : `A horizontal rope with tension $${fmt(P)}\\text{ N}$ pulls a sledge of mass $${m}\\text{ kg}$ across level snow, against friction of $${r1}\\text{ N}$ and air resistance of $${r2}\\text{ N}$.`,
         ),
-        say(`Top row: the total resistance. Then the resultant force forwards. Then the acceleration, in $\\text{m s}^{-2}$${car ? ', negative if it is slowing down' : ''}.`),
+        say(`In order: the total resistance, the resultant force forwards, then the acceleration, in $\\text{m s}^{-2}$${car ? ', negative if slowing' : ''}.`),
       ],
       expression: '\\text{forwards: } ma',
       nodes: [
@@ -2327,10 +2327,10 @@ const towingTree: Generator<TowingParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `A car of mass $${M}\\text{ kg}$ tows a trailer of mass $${m}\\text{ kg}$ along a straight, level road. The driving force is $${fmt(D)}\\text{ N}$; resistances are $${rc}\\text{ N}$ on the car and $${rt}\\text{ N}$ on the trailer.`,
+          `A car of mass $${M}\\text{ kg}$ tows a trailer of mass $${m}\\text{ kg}$ along a level road. The driving force is $${fmt(D)}\\text{ N}$; resistances are $${rc}\\text{ N}$ on the car and $${rt}\\text{ N}$ on the trailer.`,
         ),
         say(
-          `Top row: the resultant force on car and trailer together, in newtons. Then their acceleration, in $\\text{m s}^{-2}$${a < 0 ? ' (negative: they are slowing down)' : ''}. Then the tension in the tow bar.`,
+          `In order: the resultant force on both, in newtons, their acceleration, in $\\text{m s}^{-2}$${a < 0 ? ' (negative: slowing)' : ''}, then the tow-bar tension.`,
         ),
       ],
       expression: '\\text{together, then the trailer}',
@@ -2405,8 +2405,8 @@ export function pulleySvg(setup: 'hang' | 'table'): string {
 
 function pulleyScene({ m1, m2, setup, mu }: PulleyParams): string {
   return setup === 'hang'
-    ? `Particles $A$ and $B$, of masses $${fmt(m1)}\\text{ kg}$ and $${fmt(m2)}\\text{ kg}$, hang on the ends of a light inextensible string passing over a smooth pulley, and are released from rest.`
-    : `Particle $A$, of mass $${fmt(m1)}\\text{ kg}$, rests on a ${mu > 0 ? `rough horizontal table, with $\\mu = ${fmt(mu)}$` : 'smooth horizontal table'}. A light inextensible string from $A$ passes over a smooth pulley at the edge to particle $B$, of mass $${fmt(m2)}\\text{ kg}$, which hangs freely. They are released from rest.`;
+    ? `Particles $A$ and $B$, of masses $${fmt(m1)}\\text{ kg}$ and $${fmt(m2)}\\text{ kg}$, hang from a light inextensible string over a smooth pulley and are released from rest.`
+    : `Particle $A$, of mass $${fmt(m1)}\\text{ kg}$, on a ${mu > 0 ? `rough horizontal table ($\\mu = ${fmt(mu)}$)` : 'smooth horizontal table'}, is joined by a light inextensible string over a smooth pulley at the edge to particle $B$, of mass $${fmt(m2)}\\text{ kg}$, hanging freely. They are released from rest.`;
 }
 
 /** Expression: the acceleration or the tension of two particles joined over a pulley. */
@@ -2512,7 +2512,7 @@ const pulleyTiles: Generator<PulleyTilesParams> = {
       kind: 'tiles',
       prompt: [
         say(
-          `${pulleyScene({ ...params, find: 'a' })} ${G_NOTE} Complete the equation of motion for $A$, then for $B$, with forces in newtons and $a$ the acceleration of each.`,
+          `${pulleyScene({ ...params, find: 'a' })} ${G_NOTE} Complete the equations of motion for $A$ then $B$, in newtons.`,
         ),
         picture(pulleySvg(setup)),
       ],
@@ -2556,7 +2556,7 @@ const towBarSteps: Generator<TowBarParams> = {
         kind: 'steps',
         prompt: [
           say(
-            `A trailer of mass $${m}\\text{ kg}$ is towed with acceleration $${fmt(a)}${ACC}$, against a resistance of $${r}\\text{ N}$. The tension $T$ in the tow bar satisfies $T - ${r} = ${m} \\times ${fmt(a)}$. Work out $T$, in newtons: tap the part to do next, then choose what it comes to.`,
+            `A trailer of mass $${m}\\text{ kg}$ is towed with acceleration $${fmt(a)}${ACC}$, against a resistance of $${r}\\text{ N}$. Find the tension $T$ in the tow bar, in newtons: tap the part to do next, then choose what it comes to.`,
           ),
         ],
         start: [fmt(m), '\\times', fmt(a), '+', fmt(r)],
@@ -2572,7 +2572,7 @@ const towBarSteps: Generator<TowBarParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `A car of mass $${M}\\text{ kg}$ tows a trailer of mass $${m}\\text{ kg}$ with acceleration $${fmt(a)}${ACC}$, against resistances of $${r}\\text{ N}$ in total. The driving force $D$ satisfies $D - ${r} = (${M} + ${m}) \\times ${fmt(a)}$. Work out $D$, in newtons: tap the part to do next, then choose what it comes to.`,
+          `A car of mass $${M}\\text{ kg}$ tows a trailer of mass $${m}\\text{ kg}$ with acceleration $${fmt(a)}${ACC}$, against resistances of $${r}\\text{ N}$ in total. Find the driving force $D$, in newtons: tap the part to do next, then choose what it comes to.`,
         ),
       ],
       start: [`(${M}`, '+', `${m})`, '\\times', fmt(a), '+', fmt(r)],
@@ -2635,10 +2635,10 @@ function sampleSlopeMotion(rng: Rng, hard: boolean, pulledShare = 0.5): SlopeMot
 }
 
 function slopeMotionScene({ m, t, mu, P, hard }: SlopeMotionParams): string {
-  const surface = mu > 0 ? `a rough slope, with $\\mu = ${fmt(mu)}$,` : 'a smooth slope';
+  const surface = mu > 0 ? `a rough slope ($\\mu = ${fmt(mu)}$)` : 'a smooth slope';
   return P === 0
-    ? `A particle of mass $${m}\\text{ kg}$ is released from rest on ${surface} inclined at $\\alpha$ to the horizontal, where ${angleFacts(t, hard)}.`
-    : `A particle of mass $${m}\\text{ kg}$ is pulled up ${surface} inclined at $\\alpha$ to the horizontal, where ${angleFacts(t, hard)}, by a force of $${fmt(P)}\\text{ N}$ parallel to the slope.`;
+    ? `A particle of mass $${m}\\text{ kg}$ is released from rest on ${surface} at $\\alpha$ to the horizontal, where ${angleFacts(t, hard)}.`
+    : `A particle of mass $${m}\\text{ kg}$ is pulled up ${surface} at $\\alpha$ to the horizontal, where ${angleFacts(t, hard)}, by a force of $${fmt(P)}\\text{ N}$ parallel to it.`;
 }
 
 /** Expression: the acceleration of a particle on a slope. */
@@ -2705,7 +2705,7 @@ const slopeTree: Generator<SlopeMotionParams> = {
       prompt: [
         say(`${slopeMotionScene({ ...params, hard: false })} ${G_NOTE}`),
         say(
-          `Top row: the normal reaction $R$. Then the friction, at its greatest since the particle is moving. Then the resultant force ${P === 0 ? 'down' : 'up'} the slope. Then the acceleration. Forces in newtons, the acceleration in $\\text{m s}^{-2}$.`,
+          `In order: $R$, the friction, the resultant force ${P === 0 ? 'down' : 'up'} the slope, in newtons, then the acceleration, in $\\text{m s}^{-2}$.`,
         ),
       ],
       expression: 'F = \\mu R',
@@ -2881,7 +2881,7 @@ const slopeSlider: Generator<SlopeSliderParams> = {
   render: (params) => {
     const { t, dir, hard } = params;
     const smooth = params.parts === 0;
-    const surface = smooth ? 'a smooth slope' : `a rough slope with $\\mu = ${sliderMuTex(params)}$`;
+    const surface = smooth ? 'a smooth slope' : `a rough slope ($\\mu = ${sliderMuTex(params)}$)`;
     const s = sinOf(t);
     const c = cosOf(t);
     return {
@@ -2889,10 +2889,10 @@ const slopeSlider: Generator<SlopeSliderParams> = {
       prompt: [
         say(
           dir === 'down'
-            ? `A particle slides down ${surface}, inclined at $\\alpha$ to the horizontal, where ${angleFacts(t, hard)}. ${G_NOTE} Slide the line to its acceleration, in $\\text{m s}^{-2}$.`
-            : `A particle is sent up ${surface}, inclined at $\\alpha$ to the horizontal, where ${angleFacts(t, hard)}. ${G_NOTE} While it moves up, it slows down: slide the line to the size of its deceleration, in $\\text{m s}^{-2}$.`,
+            ? `A particle slides down ${surface} at $\\alpha$ to the horizontal, where ${angleFacts(t, hard)}. ${G_NOTE} Slide to its acceleration, in $\\text{m s}^{-2}$.`
+            : `A particle is sent up ${surface} at $\\alpha$ to the horizontal, where ${angleFacts(t, hard)}. ${G_NOTE} Slide to its deceleration as it moves up, in $\\text{m s}^{-2}$.`,
         ),
-        say(`The graph shows how that ${dir === 'down' ? 'acceleration' : 'deceleration'} would change with $\\mu$ on this slope.`),
+        say(`The graph shows how it would change with $\\mu$.`),
       ],
       min: 0,
       max: 14,
@@ -3172,7 +3172,7 @@ function samplePush(rng: Rng, hard: boolean): PushParams {
 function pushScene(params: PushParams): string {
   const { m1, m2, r1 } = params;
   const { P } = pushForces(params);
-  return `Two boxes, $A$ of mass $${m1}\\text{ kg}$ and $B$ of mass $${m2}\\text{ kg}$, sit side by side on a ${r1 > 0 ? 'rough' : 'smooth'} horizontal floor${r1 > 0 ? `, with resistances of $${params.r1}\\text{ N}$ on $A$ and $${params.r2}\\text{ N}$ on $B$` : ''}. A horizontal force of $${fmt(P)}\\text{ N}$ pushes $A$, and $A$ pushes $B$ along in front of it.`;
+  return `Boxes $A$, of mass $${m1}\\text{ kg}$, and $B$, of mass $${m2}\\text{ kg}$, sit side by side on a ${r1 > 0 ? 'rough' : 'smooth'} horizontal floor${r1 > 0 ? `, with resistances of $${params.r1}\\text{ N}$ on $A$ and $${params.r2}\\text{ N}$ on $B$` : ''}. A horizontal force of $${fmt(P)}\\text{ N}$ pushes $A$, which pushes $B$.`;
 }
 
 /** Tree: the acceleration, then the force of A on B and of B on A. */
@@ -3186,7 +3186,7 @@ const pushTree: Generator<PushParams> = {
       kind: 'tree',
       prompt: [
         say(pushScene(params)),
-        say('Top row: their acceleration, in $\\text{m s}^{-2}$. Then the force $A$ exerts on $B$. Then the force $B$ exerts on $A$. Forces in newtons.'),
+        say('In order: their acceleration, the force of $A$ on $B$, then of $B$ on $A$, in newtons.'),
       ],
       expression: '\\text{A on B, then B on A}',
       nodes: [
@@ -3277,7 +3277,7 @@ const lift: Generator<LiftParams> = {
     const R = m * (G + a);
     return find === 'R'
       ? typed(
-          [say(`A passenger of mass $${m}\\text{ kg}$ stands in a lift ${liftWords({ a, motion })}. ${G_NOTE} Find the reaction $R$ of the floor on the passenger, in newtons.`)],
+          [say(`A passenger of mass $${m}\\text{ kg}$ stands in a lift ${liftWords({ a, motion })}. ${G_NOTE} Find the floor's reaction $R$ on the passenger, in newtons.`)],
           'R =',
           R,
         )
@@ -3436,9 +3436,9 @@ const liftTable: Generator<LiftTableParams> = {
       kind: 'table',
       prompt: [
         say(
-          `A passenger of mass $${m}\\text{ kg}$ stands in a lift that ${down ? 'goes down' : 'goes up'}: it speeds up at $${fmt(a1)}${ACC}$, moves at a steady speed, then slows down at $${fmt(a3)}${ACC}$ until it stops. ${G_NOTE}`,
+          `A passenger of mass $${m}\\text{ kg}$ rides a lift ${down ? 'down' : 'up'}: it speeds up at $${fmt(a1)}${ACC}$, moves steadily, then slows at $${fmt(a3)}${ACC}$ to a stop. ${G_NOTE}`,
         ),
-        say(`Taking upwards as positive, fill in ${hard ? 'the acceleration $a$ and ' : ''}the reaction $R$ of the floor at each stage: ${hard ? '$a$ in $\\text{m s}^{-2}$, ' : ''}$R$ in newtons.`),
+        say(`Upwards positive, fill in ${hard ? '$a$, in $\\text{m s}^{-2}$, and ' : ''}the floor's reaction $R$, in newtons, at each stage.`),
       ],
       columns: ['\\text{stage}', 'a', 'R'],
       rows: names.map((name, i) => [name, hard ? null : fmt(stages[i]), null]),
@@ -3476,9 +3476,9 @@ const liftSlider: Generator<LiftParams> = {
     kind: 'slider',
     prompt: [
       say(
-        `A passenger of mass $${m}\\text{ kg}$ stands on bathroom scales in a lift ${liftWords({ a, motion })}. ${G_NOTE} Slide the line to the reading on the scales, in newtons.`,
+        `A passenger of mass $${m}\\text{ kg}$ stands on bathroom scales in a lift ${liftWords({ a, motion })}. ${G_NOTE} Slide to the reading on the scales, in newtons.`,
       ),
-      say('The graph shows the reading against the lift\'s acceleration, upwards positive; the dashed line is the passenger\'s weight.'),
+      say('The graph plots the reading against the acceleration, upwards positive; the dashed line is the passenger\'s weight.'),
     ],
     // The window runs from a = -4.8 to a = 4.2, where g + a is 5 and 14, so
     // the line fills it corner to corner whatever the mass.
@@ -3535,7 +3535,7 @@ const cableTree: Generator<CableParams> = {
       kind: 'tree',
       prompt: [
         say(`A lift of mass $${M}\\text{ kg}$ carries a passenger of mass $${m}\\text{ kg}$. The lift is ${liftWords({ a, motion })}. ${G_NOTE}`),
-        say('Top row: $g + a$, with upwards positive. Then the tension in the lift cable, and the reaction of the floor on the passenger, both in newtons.'),
+        say('Top row: $g + a$, upwards positive. Then the cable tension and the floor\'s reaction on the passenger, in newtons.'),
       ],
       expression: 'T - (M + m)g = (M + m)a',
       nodes: [
@@ -3709,18 +3709,17 @@ function rigScene(rig: Rig, hard: boolean): string {
   if (hangs(t2)) {
     // A table with B hanging off its edge is drawn flat, so it is not a slope at angle 0.
     if (level(t1)) {
-      const table = mu1 > 0 ? `a rough horizontal table, with $\\mu = ${fmt(mu1)}$` : 'a smooth horizontal table';
-      return `${A} lies on ${table}. A light inextensible string from $A$ runs along the table, over a smooth pulley at its edge, to ${B}, which hangs freely.`;
+      const table = mu1 > 0 ? `a rough horizontal table ($\\mu = ${fmt(mu1)}$)` : 'a smooth horizontal table';
+      return `${A} is on ${table}, joined by a light inextensible string over a smooth pulley at the edge to ${B}, hanging freely.`;
     }
-    const surface = mu1 > 0 ? `a rough slope, with $\\mu = ${fmt(mu1)}$,` : 'a smooth slope';
-    return `${A} lies on ${surface} inclined at $\\alpha$ to the horizontal, where ${angleFacts(t1, hard)}. A light inextensible string from $A$ runs up the slope, over a smooth pulley at the top, to ${B}, which hangs freely.`;
+    const surface = mu1 > 0 ? `a rough slope ($\\mu = ${fmt(mu1)}$)` : 'a smooth slope';
+    return `${A} is on ${surface} at $\\alpha$ to the horizontal, where ${angleFacts(t1, hard)}, joined by a light inextensible string over a smooth pulley at the top to ${B}, hanging freely.`;
   }
-  const bFace = `${B}, on a rough slope inclined at $\\beta$ to the horizontal, where ${angleFacts(t2, hard, '\\beta')}`;
-  const mus = `The coefficient of friction is $${fmt(mu1)}$ for $A$ and $${fmt(mu2)}$ for $B$.`;
+  const mus = `Coefficients of friction: $${fmt(mu1)}$ for $A$, $${fmt(mu2)}$ for $B$.`;
   if (level(t1)) {
-    return `${A} lies on a rough horizontal table. A light inextensible string from $A$ passes over a smooth peg at the edge of the table to ${bFace}, falling away from the edge. ${mus}`;
+    return `${A} is on a rough horizontal table, joined by a light inextensible string over a smooth peg at the edge to ${B}, on a rough slope falling away from the edge at $\\beta$ to the horizontal, where ${angleFacts(t2, hard, '\\beta')}. ${mus}`;
   }
-  return `Two rough slopes meet at a ridge, with a smooth peg along the top. ${A} lies on one, inclined at $\\alpha$ to the horizontal, where ${angleFacts(t1, hard)}. A light inextensible string from $A$ passes over the peg to ${bFace}. ${mus}`;
+  return `Two rough slopes meet at a smooth peg. ${A} is on one, at $\\alpha$ to the horizontal, where ${angleFacts(t1, hard)}; ${B}, is on the other, at $\\beta$, where ${angleFacts(t2, hard, '\\beta')}. A light inextensible string over the peg joins them. ${mus}`;
 }
 
 /** Where the rig's picture puts a particle, and the faces it is drawn from. */
@@ -3922,7 +3921,7 @@ const inclineWay: Generator<InclineWayParams> = {
     ];
     return {
       kind: 'flow',
-      prompt: [say(`${rigScene(rig, hard)} ${G_NOTE} The particles are released from rest. What happens?`), rigPicture(rig)],
+      prompt: [say(`${rigScene(rig, hard)} ${G_NOTE} They start from rest. What happens?`), rigPicture(rig)],
       subject: 'm_{B}g \\text{ against } m_{A}g\\sin\\alpha',
       steps,
       answer: [`$${fmt(m.along1)}$`, cmp, ...(rough && !equal ? [`$${fmt(rig.mu1 * m.R1)}$`, moves ? 'Yes, it is bigger' : 'No, it is not'] : [])],
@@ -3997,7 +3996,7 @@ const inclineTiles: Generator<RigTilesParams> = {
       kind: 'tiles',
       prompt: [
         say(`${rigScene(rig, false)} ${G_NOTE} Released from rest, ${motionWords(rig)}`),
-        say('Complete the equation of motion for $A$, then for $B$, with forces in newtons and $a$ the acceleration of each.'),
+        say('Complete the equations of motion for $A$ then $B$, in newtons.'),
         rigPicture(rig),
       ],
       template,
@@ -4051,7 +4050,7 @@ const incline: Generator<RigFindParams> = {
     return typed(
       [
         say(
-          `${rigScene(rig, hard)} ${G_NOTE} The particles are released from rest. Find ${find === 'a' ? 'their acceleration, in $\\text{m s}^{-2}$' : 'the tension in the string, in newtons'}.`,
+          `${rigScene(rig, hard)} ${G_NOTE} They start from rest. Find ${find === 'a' ? 'their acceleration, in $\\text{m s}^{-2}$' : 'the tension in the string, in newtons'}.`,
         ),
         rigPicture(rig),
       ],
@@ -4159,7 +4158,7 @@ const inclineBalance: Generator<BalanceParams> = {
     const { m1, t, mu, ask, hard } = params;
     const pull = G * m1 * sinOf(t);
     const max = mu * G * m1 * cosOf(t);
-    const surface = mu > 0 ? `a rough slope, with $\\mu = ${fmt(mu)}$,` : 'a smooth slope';
+    const surface = mu > 0 ? `a rough slope ($\\mu = ${fmt(mu)}$)` : 'a smooth slope';
     const want =
       ask === 'balance'
         ? 'Slide to the mass of $B$, in kilograms, that holds both particles at rest.'
@@ -4168,10 +4167,10 @@ const inclineBalance: Generator<BalanceParams> = {
       kind: 'slider',
       prompt: [
         say(
-          `Particle $A$, of mass $${m1}\\text{ kg}$, lies on ${surface} inclined at $\\alpha$ to the horizontal, where ${angleFacts(t, hard)}. A light inextensible string from $A$ runs up the slope, over a smooth pulley at the top, to particle $B$, which hangs freely. ${G_NOTE}`,
+          `Particle $A$, of mass $${m1}\\text{ kg}$, is on ${surface} at $\\alpha$ to the horizontal, where ${angleFacts(t, hard)}, joined by a light inextensible string over a smooth pulley at the top to particle $B$, hanging freely. ${G_NOTE}`,
         ),
         say(
-          `${want} The graph shows $B$'s weight against its mass, and the pull of $A$'s weight down the slope${mu > 0 ? ', with dashed lines that pull plus and minus the most friction can give' : ''}.`,
+          `${want} The graph plots $B$'s weight against its mass; the level line is $A$'s pull down the slope${mu > 0 ? ', with dashed lines $\\mu R$ either side' : ''}.`,
         ),
       ],
       min: 0,
@@ -4287,9 +4286,7 @@ const inclineRestSteps: Generator<RestStepsParams> = {
       kind: 'steps',
       prompt: [
         say(`${rigScene(rig, hard)} ${G_NOTE} Released from rest, the particles do not move.`),
-        say(
-          `${bHeavy ? "$B$ would pull $A$ up the slope, so friction on $A$ acts down it" : '$A$ would slide down the slope, so friction on $A$ acts up it'}, and is just what holds it: the difference between the two pulls. Work out the friction, in newtons: tap the part to do next, then choose what it comes to.`,
-        ),
+        say('Find the friction on $A$, in newtons: tap the part to do next, then choose what it comes to.'),
       ],
       start,
       reductions: collapses(moves),
@@ -4351,7 +4348,7 @@ const pegTable: Generator<PegTableParams> = {
       prompt: [
         say(`${rigScene(rig, hard)} ${G_NOTE}`),
         say(
-          `For each particle fill in the component of its weight down its own ${level(rig.t1) ? 'surface' : 'slope'}, the normal reaction on it, and the most friction can give, $\\mu R$, all in newtons.`,
+          `Fill in each particle's row, in newtons, with $\\theta$ its own ${level(rig.t1) ? 'surface' : 'slope'}'s angle.`,
         ),
         rigPicture(rig),
       ],
@@ -4394,7 +4391,7 @@ const pegTiles: Generator<RigTilesParams> = {
       kind: 'tiles',
       prompt: [
         say(`${rigScene(rig, false)} ${G_NOTE} Released from rest, ${motionWords(rig)}`),
-        say('Complete the equation of motion for $A$, then for $B$, with forces in newtons and $a$ the acceleration of each.'),
+        say('Complete the equations of motion for $A$ then $B$, in newtons.'),
         rigPicture(rig),
       ],
       template,
@@ -4428,7 +4425,7 @@ const peg: Generator<RigFindParams> = {
     return typed(
       [
         say(
-          `${rigScene(rig, hard)} ${G_NOTE} The particles are released from rest. Find ${find === 'a' ? 'their acceleration, in $\\text{m s}^{-2}$' : 'the tension in the string, in newtons'}.`,
+          `${rigScene(rig, hard)} ${G_NOTE} They start from rest. Find ${find === 'a' ? 'their acceleration, in $\\text{m s}^{-2}$' : 'the tension in the string, in newtons'}.`,
         ),
         rigPicture(rig),
       ],
@@ -4457,7 +4454,7 @@ const pegFlow: Generator<InclineWayParams> = {
     const way = m.along2 > m.along1 ? '$B$ down its slope' : level(rig.t1) ? '$A$ off the table' : '$A$ down its slope';
     return {
       kind: 'flow',
-      prompt: [say(`${rigScene(rig, hard)} ${G_NOTE} The particles are released from rest. What happens?`), rigPicture(rig)],
+      prompt: [say(`${rigScene(rig, hard)} ${G_NOTE} They start from rest. What happens?`), rigPicture(rig)],
       subject: '\\mu R_{A} + \\mu R_{B}',
       steps: [
         {
@@ -4569,7 +4566,7 @@ function slackBuild(rough: boolean): Omit<SlackParams, 'hard'>[] {
 }
 
 function slackScene({ rig, h, L, hard }: SlackParams): string {
-  return `${rigScene(rig, hard)} $B$ is $${fmt(h)}\\text{ m}$ above the ground${level(rig.t1) ? `, and $A$ is $${fmt(L)}\\text{ m}$ from the pulley` : ''}. The system is released from rest, and $B$ does not bounce when it lands.`;
+  return `${rigScene(rig, hard)} $B$ is $${fmt(h)}\\text{ m}$ above the ground${level(rig.t1) ? ` and $A$ is $${fmt(L)}\\text{ m}$ from the pulley` : ''}. Released from rest, $B$ does not bounce when it lands.`;
 }
 
 /** Expression: A's speed when B lands, or how much further A goes after the string goes slack. */
@@ -4592,8 +4589,8 @@ const slackSpeed: Generator<SlackFindParams> = {
         say(
           `${slackScene(params)} ${G_NOTE} ${
             params.find === 'v'
-              ? 'Find the speed of $A$ at the moment $B$ hits the ground, in $\\text{m s}^{-1}$.'
-              : `Find how much further $A$ moves ${table ? 'along the table' : 'up the slope'} after $B$ hits the ground, in metres.`
+              ? 'Find the speed of $A$ as $B$ lands, in $\\text{m s}^{-1}$.'
+              : `How much further does $A$ move ${table ? 'along the table' : 'up the slope'} after $B$ lands, in metres?`
           }`,
         ),
         rigPicture(params.rig, true),
@@ -4652,7 +4649,7 @@ const slackStagesTree: Generator<SlackParams> = {
       prompt: [
         say(`${slackScene(params)} ${G_NOTE}`),
         say(
-          `Top row: the acceleration while the string is taut, and then the speed of $A$ when $B$ lands. Beside them, $A$'s deceleration once the string is slack. Last, how much further $A$ moves ${table ? 'along the table' : 'up the slope'}. Speeds in $\\text{m s}^{-1}$, distances in metres.`,
+          `Top row: the acceleration while taut, then $A$'s speed as $B$ lands. Beside them, $A$'s deceleration once slack. Last, how much further $A$ moves ${table ? 'along the table' : 'up the slope'}, in metres.`,
         ),
       ],
       expression: 'v^{2} = u^{2} + 2as \\text{ twice}',
@@ -4695,9 +4692,7 @@ const slackDistanceSteps: Generator<SlackParams> = {
       { op: 3, value: 2 * k.d, wrong: [k.d * k.d, 2 + k.d, k.d / 2] },
       { op: 1, value: k.s, wrong: [k.v2 * 2 * k.d, k.s * 2, k.s + 1, k.s * 4] },
     ];
-    const stage = table
-      ? 'Once $B$ lands the string goes slack, and friction slows $A$'
-      : 'Once $B$ lands the string goes slack, and gravity and friction slow $A$ as it carries on up the slope';
+    const stage = table ? 'The string goes slack and $A$ slows' : 'The string goes slack and $A$ slows up the slope';
     return {
       kind: 'steps',
       prompt: [
@@ -4707,7 +4702,7 @@ const slackDistanceSteps: Generator<SlackParams> = {
             : `$B$ lands and $A$ is moving at $${fmt(k.v)}\\text{ m s}^{-1}$. ${stage}, with deceleration $${fmt(k.d)}${ACC}$.`,
         ),
         say(
-          `From $v^{2} = u^{2} + 2as$ with $v = 0$, the extra distance is $s = ${hard ? '2ah' : 'u^{2}'} \\div 2d$. Work it out, in metres: tap the part to do next, then choose what it comes to.`,
+          'Find how much further $A$ goes, in metres: tap the part to do next, then choose what it comes to.',
         ),
       ],
       start,
@@ -4855,13 +4850,13 @@ function pickArrows({ kind, rises }: InclinePickParams): PickArrow[] {
 
 const PICK_STORIES: Record<PickKind, (p: InclinePickParams) => string> = {
   hangB: ({ m1, m2, angle }) =>
-    `Particle $A$, of mass $${m1}\\text{ kg}$, is on a smooth slope at $${angle}^{\\circ}$ to the horizontal, joined by a light string over a smooth pulley at the top to particle $B$, of mass $${m2}\\text{ kg}$, which hangs freely. $B$ falls. The diagram shows $B$.`,
+    `Particle $A$, of mass $${m1}\\text{ kg}$, is on a smooth slope at $${angle}^{\\circ}$ to the horizontal, joined by a light string over a smooth pulley to hanging particle $B$, of mass $${m2}\\text{ kg}$. $B$ falls. The diagram shows $B$.`,
   smooth: ({ m1, m2, angle }) =>
-    `Particle $A$, of mass $${m1}\\text{ kg}$, is on a smooth slope at $${angle}^{\\circ}$ to the horizontal, joined by a light string over a smooth pulley at the top to particle $B$, of mass $${m2}\\text{ kg}$, which hangs freely. $B$ falls. The diagram shows $A$.`,
+    `Particle $A$, of mass $${m1}\\text{ kg}$, is on a smooth slope at $${angle}^{\\circ}$ to the horizontal, joined by a light string over a smooth pulley to hanging particle $B$, of mass $${m2}\\text{ kg}$. $B$ falls. The diagram shows $A$.`,
   rough: ({ m1, m2, angle }) =>
-    `Particle $A$, of mass $${m1}\\text{ kg}$, is on a rough slope at $${angle}^{\\circ}$ to the horizontal, joined by a light string over a smooth pulley at the top to particle $B$, of mass $${m2}\\text{ kg}$, which hangs freely. $B$ falls. The diagram shows $A$.`,
+    `Particle $A$, of mass $${m1}\\text{ kg}$, is on a rough slope at $${angle}^{\\circ}$ to the horizontal, joined by a light string over a smooth pulley to hanging particle $B$, of mass $${m2}\\text{ kg}$. $B$ falls. The diagram shows $A$.`,
   roughRest: ({ m1, m2, angle }) =>
-    `Particle $A$, of mass $${m1}\\text{ kg}$, is on a rough slope at $${angle}^{\\circ}$ to the horizontal, joined by a light string over a smooth pulley at the top to particle $B$, of mass $${m2}\\text{ kg}$, which hangs freely. Without friction $B$ would fall, but the system stays at rest. The diagram shows $A$.`,
+    `Particle $A$, of mass $${m1}\\text{ kg}$, is on a rough slope at $${angle}^{\\circ}$ to the horizontal, joined by a light string over a smooth pulley to hanging particle $B$, of mass $${m2}\\text{ kg}$. Without friction $B$ would fall, but the system stays at rest. The diagram shows $A$.`,
   peg: ({ m1, m2, angle }) =>
     `Particle $A$, of mass $${m1}\\text{ kg}$, is on a rough slope at $${angle}^{\\circ}$ to the horizontal. A light string from $A$ runs over a smooth peg at the top to particle $B$, of mass $${m2}\\text{ kg}$, on a steeper rough slope on the far side. $B$ slides down its slope. The diagram shows $A$.`,
 };
@@ -4879,14 +4874,12 @@ const inclinePick: Generator<InclinePickParams> = {
   render: (params) => {
     const arrows = pickArrows(params);
     const scene: ForceScene = params.kind === 'hangB' ? { surface: 'hanging' } : { surface: 'slope', angle: params.angle, rises: params.rises };
-    const letters = [...new Set(arrows.map((a) => a.label))];
-    const meaning: Record<string, string> = { W: 'the weight', R: 'a normal reaction', T: 'the tension', F: 'friction' };
     return {
       kind: 'forces',
       mode: 'pick',
       prompt: [
         say(PICK_STORIES[params.kind](params)),
-        say(`On the diagram ${letters.map((l) => `$${l}$ is ${meaning[l]}`).join(', ').replace(/, ([^,]*)$/, ' and $1')}. Tap every force that acts on ${params.kind === 'hangB' ? '$B$' : '$A$'}.`),
+        say(`Tap every force that acts on ${params.kind === 'hangB' ? '$B$' : '$A$'}.`),
       ],
       scene,
       arrows: arrows.map(({ id, label }) => ({ id, label })),
@@ -4953,10 +4946,10 @@ const inclineFill: Generator<InclineFillParams> = {
       mode: 'fill',
       prompt: [
         say(
-          `Particle $A$, of mass $${fmt(rig.m1)}\\text{ kg}$, is pulled up a ${rough ? `rough slope, with $\\mu = ${fmt(rig.mu1)}$,` : 'smooth slope'} inclined at $\\alpha$ to the horizontal, where $\\sin\\alpha = 0.6$ and $\\cos\\alpha = 0.8$, by a string over a smooth pulley at the top to particle $B$, of mass $${fmt(rig.m2)}\\text{ kg}$, which hangs and falls with acceleration $${fmt(m.a)}${ACC}$.`,
+          `Particle $A$, of mass $${fmt(rig.m1)}\\text{ kg}$, is pulled up a ${rough ? `rough slope ($\\mu = ${fmt(rig.mu1)}$)` : 'smooth slope'} at $\\alpha$ to the horizontal, where $\\sin\\alpha = 0.6$ and $\\cos\\alpha = 0.8$, by a string over a smooth pulley to hanging particle $B$, of mass $${fmt(rig.m2)}\\text{ kg}$, which falls with acceleration $${fmt(m.a)}${ACC}$.`,
         ),
         say(
-          `The diagram shows the forces on $A$: $W$ its weight, $R$ the normal reaction, $T$ the tension${rough ? ' and $F$ friction' : ''}. ${G_NOTE} Fill in the missing forces, in newtons.`,
+          `${G_NOTE} Fill in the missing forces on $A$, in newtons.`,
         ),
       ],
       scene: { surface: 'slope', angle: A34_DEGREES, rises },
@@ -5506,7 +5499,7 @@ function collisionOf(rng: Rng, hard: boolean, ok: (c: Collision) => boolean = ()
 
 /** The prose setting a collision up, before; `forces.test.ts` reads masses and velocities from it in order. */
 const collisionScene = (c: Collision): string =>
-  `Particle $A$, of mass ${kg(c.mA)}, is ${moving(c.uA)}. It collides with particle $B$, of mass ${kg(c.mB)}, which is ${moving(c.uB)} on the same line. ${RIGHT}`;
+  `Particle $A$, of mass ${kg(c.mA)}, ${moving(c.uA)}, hits particle $B$, of mass ${kg(c.mB)}, ${moving(c.uB)} on the same line. ${RIGHT}`;
 
 function collisionPicture(c: Collision, after: { A: number | string; B: number | string }): Block {
   return picture(
@@ -5561,8 +5554,8 @@ const collide: Generator<CollideParams> = {
     const other = find === 'B' ? 'A' : 'B';
     return typed(
       [
-        say(`${collisionScene(c)} After the collision $${other}$ is ${moving(find === 'B' ? c.vA : c.vB)}.`),
-        say(`Find the velocity of $${find}$ after the collision, in $\\text{m s}^{-1}$.`),
+        say(`${collisionScene(c)} Afterwards $${other}$ is ${moving(find === 'B' ? c.vA : c.vB)}.`),
+        say(`Find $${find}$'s velocity after, in $\\text{m s}^{-1}$.`),
         collisionPicture(c, find === 'B' ? { A: c.vA, B: 'v' } : { A: 'v', B: c.vB }),
       ],
       `v_{${find}} =`,
@@ -5625,8 +5618,8 @@ const collideTiles: Generator<CollideParams> = {
     return {
       kind: 'tiles',
       prompt: [
-        say(`${collisionScene(c)} After the collision $${other}$ is ${moving(find === 'B' ? c.vA : c.vB)}.`),
-        say(`Complete the equation for $v_{${find}}$, $${find}$'s velocity after, with each momentum worked out in $\\text{kg m s}^{-1}$: total before on the left, total after on the right.`),
+        say(`${collisionScene(c)} Afterwards $${other}$ is ${moving(find === 'B' ? c.vA : c.vB)}.`),
+        say(`Complete the momentum equation for $v_{${find}}$, $${find}$'s velocity after, in $\\text{kg m s}^{-1}$: before on the left, after on the right.`),
         collisionPicture(c, find === 'B' ? { A: c.vA, B: 'v' } : { A: 'v', B: c.vB }),
       ],
       template,
@@ -5647,9 +5640,9 @@ const collideSumTree: Generator<{ c: Collision }> = {
     return {
       kind: 'tree',
       prompt: [
-        say(`${collisionScene(c)} After the collision $A$ is ${moving(c.vA)}.`),
+        say(`${collisionScene(c)} Afterwards $A$ is ${moving(c.vA)}.`),
         say(
-          "Find $B$'s velocity after, in $\\text{m s}^{-1}$. Top row: $A$'s momentum before, $B$'s before and $A$'s after. Then the total before, $B$'s momentum after, and its velocity.",
+          "Top row: $A$'s momentum before, $B$'s before and $A$'s after. Then the total before, $B$'s momentum after, and $B$'s velocity after, in $\\text{m s}^{-1}$.",
         ),
         collisionPicture(c, { A: c.vA, B: 'v' }),
       ],
@@ -5711,7 +5704,7 @@ const collideFlow: Generator<{ c: Collision }> = {
     return {
       kind: 'flow',
       prompt: [
-        say(`${collisionScene(c)} After the collision $B$ is ${moving(c.vB)}. What does $A$ do?`),
+        say(`${collisionScene(c)} Afterwards $B$ is ${moving(c.vB)}. What does $A$ do?`),
         collisionPicture(c, { A: 'v', B: c.vB }),
       ],
       subject: 'm_{A}u_{A} + m_{B}u_{B} = m_{A}v_{A} + m_{B}v_{B}',
@@ -5773,7 +5766,7 @@ function coalescingOf(rng: Rng, hard: boolean, ok: (c: Collision) => boolean = (
 }
 
 const coalesceScene = (c: Collision, knowB: boolean): string =>
-  `Particle $A$, of mass ${kg(c.mA)}, is ${moving(c.uA)}. It collides with particle $B$, of mass ${kg(c.mB)}${knowB ? `, which is ${moving(c.uB)} on the same line` : ''}. They coalesce, moving on together as one particle. ${RIGHT}`;
+  `Particle $A$, of mass ${kg(c.mA)}, ${moving(c.uA)}, hits particle $B$, of mass ${kg(c.mB)}${knowB ? `, ${moving(c.uB)} on the same line,` : ','} and they coalesce. ${RIGHT}`;
 
 function coalescePicture(c: Collision, before: number | string, after: number | string): Block {
   return picture(
@@ -5811,7 +5804,7 @@ const coalesce: Generator<CoalesceParams> = {
       return typed(
         [
           say(
-            `Particle $A$, of mass ${kg(c.mA)}, is ${moving(c.uA)}. It collides with particle $B$, which is ${moving(c.uB)} on the same line, and they coalesce. ${RIGHT} Afterwards they are ${moving(c.vA)}.`,
+            `Particle $A$, of mass ${kg(c.mA)}, ${moving(c.uA)}, hits particle $B$, ${moving(c.uB)} on the same line, and they coalesce. ${RIGHT} Afterwards they are ${moving(c.vA)}.`,
           ),
           say(`Find the mass of $B$, in kilograms.`),
         ],
@@ -5822,7 +5815,7 @@ const coalesce: Generator<CoalesceParams> = {
     return typed(
       [
         say(`${coalesceScene(c, true)}`),
-        say(`Find their velocity after the collision, in $\\text{m s}^{-1}$.`),
+        say(`Find their velocity after, in $\\text{m s}^{-1}$.`),
         coalescePicture(c, c.uB, 'v'),
       ],
       'v =',
@@ -5876,7 +5869,7 @@ const jointSteps: Generator<{ c: Collision }> = {
       prompt: [
         say(`${coalesceScene(c, true)}`),
         say(
-          'Their velocity after is the total momentum over their total mass. Work it out: tap the part to do next, then choose what it comes to.',
+          'Find their velocity after, in $\\text{m s}^{-1}$: tap the part to do next, then choose what it comes to.',
         ),
         coalescePicture(c, c.uB, 'v'),
       ],
@@ -5942,9 +5935,9 @@ const separateTable: Generator<SeparateTableParams> = {
       kind: 'table',
       prompt: [
         say(
-          `Particles $A$ and $B$ rest against each other on a smooth surface, with a compressed spring between them. The spring is released and they move apart along a line, $A$ to the left and $B$ to the right. ${RIGHT}`,
+          `Particles $A$ and $B$ rest together on a smooth surface with a compressed spring between them. Released, $A$ moves left and $B$ right. ${RIGHT}`,
         ),
-        say('Masses are in kilograms, velocities in $\\text{m s}^{-1}$ and momenta in $\\text{kg m s}^{-1}$. Fill in the gaps.'),
+        say('Fill in the gaps: masses in kilograms, velocities in $\\text{m s}^{-1}$, momenta in $\\text{kg m s}^{-1}$.'),
         picture(
           collisionSvg(
             [
@@ -6107,7 +6100,7 @@ const impulse: Generator<ImpulseParams> = {
       return typed(
         [
           say(
-            `A ball of mass ${kg(m)}, ${moving(u)}, hits a wall at right angles and bounces straight back, ${moving(v)}. Find the size of the impulse the wall gives the ball, in $\\text{N s}$.`,
+            `A ball of mass ${kg(m)}, ${moving(u)}, hits a wall at right angles and bounces straight back, ${moving(v)}. Find the size of the wall's impulse on it, in $\\text{N s}$.`,
           ),
         ],
         '|I| =',
@@ -6214,7 +6207,7 @@ const bounceTree: Generator<BounceParams> = {
       kind: 'tree',
       prompt: [
         say(`A ball of mass ${kg(m)}, ${moving(u)}, ${BOUNCE_THINGS[thing]}. Afterwards it is ${moving(v)}. ${RIGHT}`),
-        say('Find the impulse on the ball, in $\\text{N s}$. Top row: its momentum before and after, in $\\text{kg m s}^{-1}$. Underneath: the impulse.'),
+        say('Top row: its momentum before and after, in $\\text{kg m s}^{-1}$. Underneath: the impulse on it, in $\\text{N s}$.'),
       ],
       expression: 'I = mv - mu',
       nodes: [
@@ -6248,9 +6241,9 @@ const impulsePairTiles: Generator<ImpulsePairParams> = {
     return {
       kind: 'tiles',
       prompt: [
-        say(`${collisionScene(c)} After the collision $A$ is ${moving(c.vA)}.`),
+        say(`${collisionScene(c)} Afterwards $A$ is ${moving(c.vA)}.`),
         say(
-          "Find the impulse on $A$ and the impulse on $B$, in $\\text{N s}$, then $B$'s velocity after, in $\\text{m s}^{-1}$.",
+          "Find the impulses on $A$ and on $B$, in $\\text{N s}$, then $B$'s velocity after, in $\\text{m s}^{-1}$.",
         ),
         collisionPicture(c, { A: c.vA, B: 'v' }),
       ],
@@ -6293,7 +6286,7 @@ const impulseSlider: Generator<ImpulseSliderParams> = {
       kind: 'slider',
       prompt: [
         say(
-          `A particle of mass ${kg(m)} is ${moving(u)} when it receives an impulse of $${fmt(Math.abs(I))}${NS}$ to the ${I < 0 ? 'left' : 'right'}. ${RIGHT} The line is $p = ${fmt(m)}v$, with the dot where it starts. Slide to its velocity afterwards, in $\\text{m s}^{-1}$.`,
+          `A particle of mass ${kg(m)} is ${moving(u)} when it receives an impulse of $${fmt(Math.abs(I))}${NS}$ to the ${I < 0 ? 'left' : 'right'}. ${RIGHT} The line is $p = ${fmt(m)}v$, the dot where it starts. Slide to its velocity after, in $\\text{m s}^{-1}$.`,
         ),
       ],
       min: -V_SPAN,
@@ -6370,7 +6363,7 @@ const ft: Generator<FtParams> = {
     const start = `A particle of mass ${kg(m)} is ${moving(u)}.`;
     if (find === 'F') {
       return typed(
-        [say(`${start} A constant force acts on it for $${fmt(t)}\\text{ s}$, after which it is ${moving(v)}. ${RIGHT} Find the force, in newtons.`)],
+        [say(`${start} After a constant force for $${fmt(t)}\\text{ s}$ it is ${moving(v)}. ${RIGHT} Find the force, in newtons.`)],
         'F =',
         F,
       );
@@ -6463,7 +6456,7 @@ const ftFlow: Generator<FtFlowParams> = {
       kind: 'flow',
       prompt: [
         say(
-          `A particle of mass ${kg(m)} is ${moving(u)}. ${upper(forceWords(F))} acts on it for $${fmt(t)}\\text{ s}$, against its motion. ${RIGHT} Where does that leave it?`,
+          `A particle of mass ${kg(m)} is ${moving(u)}. ${upper(forceWords(F))} acts on it for $${fmt(t)}\\text{ s}$. ${RIGHT} Where does that leave it?`,
         ),
       ],
       subject: 'Ft = mv - mu',
@@ -6628,9 +6621,9 @@ const ftTable: Generator<FtTableParams> = {
       kind: 'table',
       prompt: [
         say(
-          `A particle of mass ${kg(m)} starts ${moving(vs[0])}. Constant forces act on it one after another, each for the time shown. ${RIGHT}`,
+          `A particle of mass ${kg(m)} starts ${moving(vs[0])}. Constant forces act on it in turn, each for the time shown (newtons, seconds). ${RIGHT}`,
         ),
-        say('For each stage fill in the impulse, $Ft$ in $\\text{N s}$, and the velocity at the end of the stage, in $\\text{m s}^{-1}$. Forces are in newtons and times in seconds.'),
+        say('For each stage fill in $Ft$, in $\\text{N s}$, and the velocity at its end, in $\\text{m s}^{-1}$.'),
       ],
       columns: ['', 'F', 't', 'Ft', 'v'],
       rows,
@@ -6861,7 +6854,7 @@ const moment: Generator<MomentParams> = {
     return typed(
       [
         say(
-          `A light rod $AB$, of length ${metres(L)}, is free to turn about a pivot at $A$. A force of ${newtons(F)} acts on it ${d === L ? 'at $B$' : `${metres(d)} from $A$`}, ${how}. Find the moment of the force about $A$, in $\\text{N m}$.`,
+          `A light rod $AB$, ${metres(L)} long, pivots at $A$. A force of ${newtons(F)} acts on it ${d === L ? 'at $B$' : `${metres(d)} from $A$`}, ${how}. Find its moment about $A$, in $\\text{N m}$.`,
         ),
         picture(
           beamSvg(L, {
@@ -6941,7 +6934,7 @@ function sampleTurning(rng: Rng, hard: boolean): TurningParams {
 function turningScene({ L, p, forces }: TurningParams): string {
   const each = forces.map((force, i) => `$F_{${i + 1}} = ${fmt(force.F)}\\text{ N}$ ${force.up ? 'upwards' : 'downwards'} ${placed(force.x, L)}`);
   const list = `${each.slice(0, -1).join(', ')} and ${each[each.length - 1]}`;
-  return `A light rod $AB$, of length ${metres(L)}, is free to turn about a pivot $P$, ${metres(p)} from $A$, and is held horizontal. Forces act on it at right angles: ${list}.`;
+  return `A light rod $AB$, ${metres(L)} long, is held horizontal on a pivot $P$ ${metres(p)} from $A$. Forces at right angles to it: ${list}.`;
 }
 
 function turningPicture({ L, p, forces }: TurningParams): Block {
@@ -7024,7 +7017,7 @@ const momentTable: Generator<TurningParams> = {
       prompt: [
         say(turningScene(params)),
         say(
-          `For each force fill in ${hard ? 'its perpendicular distance $d$ from $P$, in metres, and ' : ''}the size of its moment about $P$, in $\\text{N m}$.${hard ? '' : ' The distances $d$ from $P$ are given.'}`,
+          `For each force fill in ${hard ? 'its distance $d$ from $P$, in metres, and ' : ''}the size of its moment about $P$, in $\\text{N m}$.`,
         ),
         turningPicture(params),
       ],
@@ -7066,7 +7059,7 @@ const momentSumSteps: Generator<TurningParams> = {
       prompt: [
         say(turningScene(params)),
         say(
-          `Taking ${sense} as positive, the resultant moment about $P$, in $\\text{N m}$, is the line below: each force times its distance from $P$. Work it out: tap the part to do next, then choose what it comes to.`,
+          `Find the resultant moment about $P$, ${sense} positive, in $\\text{N m}$: tap the part to do next, then choose what it comes to.`,
         ),
         turningPicture(params),
       ],
@@ -7128,10 +7121,10 @@ const BOXES = ['a box', 'a crate', 'a paint tin', 'a bag of tools', 'a bucket of
 function beamScene(b: Beam, thing: 'rod' | 'plank'): string {
   const supports =
     b.c === 0 && b.d === b.L
-      ? 'rests horizontally on two supports, $C$ at $A$ and $D$ at $B$'
-      : `rests horizontally on two supports, $C$ ${placed(b.c, b.L)} and $D$ ${placed(b.d, b.L)}`;
+      ? 'rests horizontally on supports $C$ at $A$ and $D$ at $B$'
+      : `rests horizontally on supports $C$, ${placed(b.c, b.L)}, and $D$, ${placed(b.d, b.L)}`;
   const loads = b.loads.map((l) => ` ${l.who[0].toUpperCase()}${l.who.slice(1)} of weight ${newtons(l.w)} ${l.name === 'P' ? 'stands' : 'rests'} ${placed(l.x, b.L)}.`);
-  return `A uniform ${thing} $AB$, of length ${metres(b.L)} and weight ${newtons(b.W)}, ${supports}.${loads.join('')}`;
+  return `A uniform ${thing} $AB$, ${metres(b.L)} long and of weight ${newtons(b.W)}, ${supports}.${loads.join('')}`;
 }
 
 /** The beam drawn with its supports, its weight and its loads, and optionally the reactions. */
@@ -7236,7 +7229,7 @@ const rodTiles: Generator<{ beam: Beam; about: 'C' | 'D' }> = {
       kind: 'tiles',
       prompt: [
         say(beamScene(beam, 'rod')),
-        say(`Take moments about $${about}$ to complete the equation for $R_{${about === 'C' ? 'D' : 'C'}}$: each moment written as force $\\times$ distance, forces in newtons and distances in metres.`),
+        say(`Take moments about $${about}$ to complete the equation for $R_{${about === 'C' ? 'D' : 'C'}}$, in newtons and metres.`),
         beamPicture(beam, { reactions: true }),
       ],
       template: `R_{${about === 'C' ? 'D' : 'C'}} \\times {0} = {1} \\times {2}`,
@@ -7269,7 +7262,7 @@ const rodReactionsTree: Generator<{ beam: Beam }> = {
       kind: 'tree',
       prompt: [
         say(beamScene(beam, 'rod')),
-        say('Top row: the moment of the rod\'s weight about $C$, in $\\text{N m}$. Then the reaction at $D$, then the reaction at $C$, in newtons.'),
+        say('In order: the weight\'s moment about $C$, in $\\text{N m}$, then $R_{D}$ and $R_{C}$, in newtons.'),
         beamPicture(beam, { reactions: true }),
       ],
       expression: `R_{D} \\times ${fmt(d - c)} = W \\times ${fmt(L / 2 - c)}`,
@@ -7312,9 +7305,9 @@ const rodSlider: Generator<RodSliderParams> = {
       kind: 'slider',
       prompt: [
         say(
-          `A uniform rod $AB$, of length ${metres(L)} and weight ${newtons(W)}, rests horizontally on a support $C$ ${placed(c, L)} and a second support $D$, somewhere between the middle and $B$. The reaction at $D$ is ${newtons(RD)}.`,
+          `A uniform rod $AB$, ${metres(L)} long and of weight ${newtons(W)}, rests horizontally on a support $C$ ${placed(c, L)} and a support $D$ between the middle and $B$. The reaction at $D$ is ${newtons(RD)}.`,
         ),
-        say('Slide to where $D$ is, measured from $A$ in metres.'),
+        say('Slide to where $D$ is, in metres from $A$.'),
       ],
       min: 0,
       max: L,
@@ -7406,7 +7399,7 @@ const plankTable: Generator<{ beam: Beam; hard: boolean }> = {
       prompt: [
         say(beamScene(beam, 'plank')),
         say(
-          `Taking moments about $C$, fill in ${hard ? 'each distance from $C$ in metres, ' : ''}each moment in $\\text{N m}$, and the reaction $R_{D}$ in newtons. The weights turn the plank one way and $R_{D}$ the other, so $R_{D}$'s moment balances the rest.`,
+          `Taking moments about $C$, fill in ${hard ? 'each distance from $C$ in metres, ' : ''}each moment in $\\text{N m}$, and $R_{D}$ in newtons.`,
         ),
         beamPicture(beam, { reactions: true }),
       ],
@@ -7443,7 +7436,7 @@ const plankTiles: Generator<{ beam: Beam }> = {
       kind: 'tiles',
       prompt: [
         say(beamScene(beam, 'plank')),
-        say('Take moments about $C$ to complete the equation for $R_{D}$: each moment as force $\\times$ distance from $C$, the weights in order along the plank from $A$.'),
+        say('Take moments about $C$ to complete the equation for $R_{D}$, the weights in order from $A$.'),
         beamPicture(beam, { reactions: true }),
       ],
       template: `R_{D} \\times {0} = ${terms.join(' + ')}`,
@@ -7489,11 +7482,11 @@ const plankUnknown: Generator<PlankUnknownParams> = {
     const load = beam.loads[0];
     const R = reactionsOf(beam)[known];
     const person = `${load.who[0].toUpperCase()}${load.who.slice(1)}`;
-    const setup = `A uniform plank $AB$, of length ${metres(L)} and weight ${newtons(W)}, rests horizontally on two supports, $C$ ${placed(c, L)} and $D$ ${placed(d, L)}.`;
+    const setup = `A uniform plank $AB$, ${metres(L)} long and of weight ${newtons(W)}, rests horizontally on supports $C$, ${placed(c, L)}, and $D$, ${placed(d, L)}.`;
     const given = `The reaction at ${known === 'RC' ? '$C$' : '$D$'} is ${newtons(R)}.`;
     const prose =
       find === 'x'
-        ? `${setup} ${person} of weight ${newtons(load.w)} stands on it between $C$ and $B$. ${given} Find how far from $A$ they stand, in metres.`
+        ? `${setup} ${person} of weight ${newtons(load.w)} stands between $C$ and $B$. ${given} How far from $A$ do they stand, in metres?`
         : find === 'w'
           ? `${setup} ${person} stands on it ${metres(load.x)} from $A$. ${given} Find the weight of the ${load.who.slice(2)}, in newtons.`
           : `${setup} ${person} stands on it ${metres(load.x)} from $A$. ${given} ${G_NOTE} Find the mass of the ${load.who.slice(2)}, in kilograms.`;
@@ -7613,13 +7606,13 @@ function tiltScene(p: TiltParams): string {
   const { L, W, c, d, side, box, find } = p;
   const plankWords =
     find === 'm'
-      ? `A uniform plank $AB$, of length ${metres(L)} and mass $${fmt(W)}\\text{ kg}$,`
-      : `A uniform plank $AB$, of length ${metres(L)} and weight ${newtons(W)},`;
-  const base = `${plankWords} rests horizontally on two supports, $C$ ${placed(c, L)} and $D$ ${placed(d, L)}.`;
+      ? `A uniform plank $AB$, ${metres(L)} long and of mass $${fmt(W)}\\text{ kg}$,`
+      : `A uniform plank $AB$, ${metres(L)} long and of weight ${newtons(W)},`;
+  const base = `${plankWords} rests horizontally on supports $C$, ${placed(c, L)}, and $D$, ${placed(d, L)}.`;
   const boxWords = box ? ` A box of weight ${newtons(box.w)} rests on it ${metres(box.x)} from $A$.` : '';
   if (find === 'm') return `${base} A load is hung from ${side === 'B' ? '$B$' : '$A$'}.`;
   const who = `${p.who[0].toUpperCase()}${p.who.slice(1)}`;
-  return `${base}${boxWords} ${who} of weight ${newtons(p.P)} walks slowly along the plank from the middle towards ${side === 'B' ? '$B$' : '$A$'}.`;
+  return `${base}${boxWords} ${who} of weight ${newtons(p.P)} walks slowly from the middle towards ${side === 'B' ? '$B$' : '$A$'}.`;
 }
 
 function tiltPicture(p: TiltParams): Block {
@@ -7683,8 +7676,8 @@ const tilt: Generator<TiltParams> = {
       p.find === 'm'
         ? `Find the greatest mass the load can have, in kilograms, without the plank tilting.`
         : p.find === 'e'
-          ? `How far past $${name}$ can they walk before the plank tilts? Give the distance in metres.`
-          : `How far from $A$ are they when the plank is on the point of tilting? Give the distance in metres.`;
+          ? `How far past $${name}$ can they walk before the plank tilts, in metres?`
+          : `How far from $A$ are they when the plank is about to tilt, in metres?`;
     return typed(
       [say(`${tiltScene(p)} ${ask}`), tiltPicture(p)],
       p.find === 'm' ? 'M =' : p.find === 'e' ? 'e =' : 'x =',
@@ -7755,7 +7748,7 @@ const tiltSlider: Generator<TiltParams> = {
   sample: (rng, difficulty) => sampleTilt(rng, difficulty > 1, 'x', rng.chance(0.5) ? 'A' : 'B'),
   render: (p) => ({
     kind: 'slider',
-    prompt: [say(tiltScene(p)), say('Slide to where they are standing, measured from $A$ in metres, when the plank is on the point of tilting.')],
+    prompt: [say(tiltScene(p)), say('Slide to where they stand, in metres from $A$, when the plank is about to tilt.')],
     min: 0,
     max: p.L,
     step: 0.5,
@@ -7783,7 +7776,7 @@ const tippingTree: Generator<TiltParams> = {
       prompt: [
         say(tiltScene(p)),
         say(
-          `On the point of tilting, $R_{${other}} = 0$. Top row: the moment about $${name}$ of ${p.box ? 'the plank\'s weight and the box together' : 'the plank\'s weight'}, in $\\text{N m}$, and the reaction at $${name}$ then, in newtons. Underneath: how far past $${name}$ they stand, in metres.`,
+          `At the point of tilting: top row, the moment about $${name}$ of ${p.box ? 'the plank and box' : 'the plank\'s weight'}, in $\\text{N m}$, and $R_{${name}}$, in newtons. Underneath, how far past $${name}$ they stand, in metres.`,
         ),
         tiltPicture(p),
       ],
@@ -7855,8 +7848,8 @@ function sampleLadder(rng: Rng, person: boolean, find: LadderParams['find'], har
 /** The ladder in prose: its size, the angle, and anyone on it. */
 function ladderScene(p: LadderParams): string {
   const angle = angleFacts(p.t, p.hard);
-  const on = p.P > 0 ? ` A person of weight ${newtons(p.P)} stands on the ladder ${metres(p.s)} from $A$.` : '';
-  return `A uniform ladder $AB$, of length ${metres(p.L)} and weight ${newtons(p.W)}, rests with its foot $A$ on rough horizontal ground and its top $B$ against a smooth vertical wall. It makes an angle $\\alpha$ with the ground, where ${angle}.${on}`;
+  const on = p.P > 0 ? ` A person of weight ${newtons(p.P)} stands ${metres(p.s)} up from $A$.` : '';
+  return `A uniform ladder $AB$, of length ${metres(p.L)} and weight ${newtons(p.W)}, has its foot $A$ on rough horizontal ground and its top $B$ against a smooth vertical wall, at $\\alpha$ to the ground, where ${angle}.${on}`;
 }
 
 const ladderPicture = (p: LadderParams): Block => picture(ladderSvg(p.t, p.P > 0 ? { person: p.s / p.L } : {}));
@@ -7902,7 +7895,7 @@ const ladder: Generator<LadderParams> = {
     };
     const prose =
       p.find === 's'
-        ? `${ladderScene({ ...p, P: 0 })} A person of weight ${newtons(p.P)} climbs the ladder. The coefficient of friction between the ladder and the ground is $${fmt(mu)}$. How far up the ladder from $A$ can they climb before it slips? Give the distance in metres.`
+        ? `${ladderScene({ ...p, P: 0 })} A person of weight ${newtons(p.P)} climbs it, and the coefficient of friction between the ladder and the ground is $${fmt(mu)}$. How far up from $A$ can they climb before it slips, in metres?`
         : `${ladderScene(p)} ${asks[p.find]}`;
     const value = { S: wallPush(p), F: wallPush(p), R: p.W + p.P, mu, s: p.s }[p.find];
     return typed([say(prose), ladderPicture(p)], `${{ S: 'S', F: 'F', R: 'R', mu: '\\mu', s: 's' }[p.find]} =`, value);
@@ -7956,7 +7949,7 @@ const ladderTable: Generator<LadderParams> = {
       prompt: [
         say(ladderScene(p)),
         say(
-          `Taking moments about the foot $A$, fill in ${hard ? 'each perpendicular distance from $A$ in metres, ' : ''}each moment in $\\text{N m}$, and the wall's push $S$ in newtons.`,
+          `Moments about $A$: fill in ${hard ? 'each distance in metres, ' : ''}each moment in $\\text{N m}$, and $S$ in newtons.`,
         ),
         ladderPicture(p),
       ],
@@ -7985,7 +7978,7 @@ const ladderLimitTree: Generator<LadderParams> = {
       kind: 'tree',
       prompt: [
         say(ladderScene(p)),
-        say('Top row: the moment about $A$ of both weights, in $\\text{N m}$, and the ground\'s reaction $R$, in newtons. Then the wall\'s push $S$, in newtons. Last, the least coefficient of friction that stops the ladder slipping.'),
+        say('Top row: both weights\' moment about $A$, in $\\text{N m}$, and $R$, in newtons. Then the wall\'s push $S$, in newtons. Last, the least $\\mu$.'),
         ladderPicture(p),
       ],
       expression: '\\mu \\ge \\frac{F}{R}, \\quad F = S',
@@ -8014,7 +8007,7 @@ const ladderFlow: Generator<LadderParams> = {
       [fmt(right), ...[...new Set(wrong.filter((v) => v > 0 && exact(v, 3)).map(fmt))].filter((v) => v !== fmt(right)).slice(0, 2)].sort((x, y) => Number(x) - Number(y));
     return {
       kind: 'flow',
-      prompt: [say(`${ladderScene(p)} What is the least coefficient of friction $\\mu$ that stops the ladder slipping?`), ladderPicture(p)],
+      prompt: [say(`${ladderScene(p)} What is the least $\\mu$ that stops it slipping?`), ladderPicture(p)],
       subject: 'F \\le \\mu R',
       steps: [
         {
@@ -8260,7 +8253,7 @@ const work: Generator<WorkParams> = {
     return typed(
       [
         say(
-          `A ${thing} is pulled ${metres(d)} across a level floor by a rope at an angle $\\alpha$ above the horizontal, where ${angleFacts(t, hard)}. The tension in the rope is ${newtons(T)}. Find the work done by the tension, in joules.`,
+          `A rope with tension ${newtons(T)}, at $\\alpha$ above the horizontal, where ${angleFacts(t, hard)}, pulls a ${thing} ${metres(d)} across a level floor. Find the work done by the tension, in joules.`,
         ),
         picture(pullSvg(t)),
       ],
@@ -8445,7 +8438,7 @@ const liftWorkSteps: Generator<LiftParams6> = {
         kind: 'steps',
         prompt: [
           say(
-            `A crane lifts a ${thing} of mass ${kg(m)} straight up through ${metres(h)} at a steady speed. ${G_NOTE} Find the work done against gravity, in joules: tap the part to do next, then choose what it comes to.`,
+            `A crane lifts a ${thing} of mass ${kg(m)} ${metres(h)} straight up at a steady speed. ${G_NOTE} Find the work done against gravity, in joules: tap the part to do next, then choose what it comes to.`,
           ),
         ],
         start: [fmt(m), '\\times', '9.8', '\\times', fmt(h)],
@@ -8457,7 +8450,7 @@ const liftWorkSteps: Generator<LiftParams6> = {
       kind: 'steps',
       prompt: [
         say(
-          `A ${thing} of mass ${kg(m)} is pulled ${metres(d)} up a smooth slope at a steady speed. The slope is at an angle $\\alpha$ to the horizontal, where $\\sin\\alpha = ${fmt(s)}$. ${G_NOTE}`,
+          `A ${thing} of mass ${kg(m)} is pulled ${metres(d)} up a smooth slope at a steady speed. The slope is at $\\alpha$ to the horizontal, where $\\sin\\alpha = ${fmt(s)}$. ${G_NOTE}`,
         ),
         say('Find the work done against gravity, in joules: tap the part to do next, then choose what it comes to.'),
         picture(slopeSvg(t, { pull: 'along' })),
@@ -8566,8 +8559,8 @@ const peSlider: Generator<PeSliderParams> = {
       prompt: [
         say(
           from === null
-            ? `A ${thing} of mass ${kg(m)} is lifted from the floor and gains ${joules(E)} of potential energy. ${G_NOTE} The line is its potential energy at each height. Slide to how high it is lifted, in metres.`
-            : `A ${thing} of mass ${kg(m)} falls from ${metres(from)} above the ground and loses ${joules(E)} of potential energy. ${G_NOTE} The line is its potential energy at each height above the ground. Slide to its height now, in metres.`,
+            ? `A ${thing} of mass ${kg(m)} is lifted from the floor, gaining ${joules(E)} of potential energy. ${G_NOTE} The line is its potential energy against height. Slide to how high it is lifted, in metres.`
+            : `A ${thing} of mass ${kg(m)} falls from ${metres(from)} above the ground, losing ${joules(E)} of potential energy. ${G_NOTE} The line is its potential energy against height. Slide to its height now, in metres.`,
         ),
       ],
       min: 0,
@@ -8633,8 +8626,8 @@ const keChangeTree: Generator<KeChangeParams> = {
         say(`A ${thing} of mass ${kg(m)} ${slows ? 'slows down' : 'speeds up'} from ${speedOf(u)} to ${speedOf(v)}. Find the change in its kinetic energy, in joules.`),
         say(
           slows
-            ? 'Take the short cut: top row $u^{2}$ and $v^{2}$, then $v^{2} - u^{2}$, then the change, which is negative as it slows.'
-            : 'Top row: its kinetic energy before, and after. Then the change, after minus before.',
+            ? 'Top row: $u^{2}$ and $v^{2}$. Then $v^{2} - u^{2}$, then the change, negative as it slows.'
+            : 'Top row: its kinetic energy before and after. Then the change.',
         ),
       ],
       expression: slows ? '\\Delta E = \\tfrac{1}{2}m(v^{2} - u^{2})' : '\\Delta E = \\tfrac{1}{2}mv^{2} - \\tfrac{1}{2}mu^{2}',
@@ -8783,20 +8776,20 @@ const workEnergy: Generator<WorkEnergyParams> = {
     const scene = smoothScene(params);
     if (find === 'P') {
       return typed(
-        [say(`${scene} A constant horizontal force pushes it ${metres(d)} in the direction it is moving, and its speed rises to ${speedOf(v)}. Find the force, in newtons.`)],
+        [say(`${scene} A constant horizontal force pushes it ${metres(d)} forwards and its speed rises to ${speedOf(v)}. Find the force, in newtons.`)],
         'F =',
         P,
       );
     }
     if (find === 'd') {
       return typed(
-        [say(`${scene} A horizontal force of ${newtons(P)} pushes it in the direction it is moving until its speed is ${speedOf(v)}. How far does it push it, in metres?`)],
+        [say(`${scene} A horizontal force of ${newtons(P)} pushes it forwards until its speed is ${speedOf(v)}. How far, in metres?`)],
         'd =',
         d,
       );
     }
     return typed(
-      [say(`${scene} A horizontal force of ${newtons(P)} pushes it ${metres(d)} in the direction it is moving. Find its speed at the end, in $\\text{m s}^{-1}$.`)],
+      [say(`${scene} A horizontal force of ${newtons(P)} pushes it ${metres(d)} forwards. Find its final speed, in $\\text{m s}^{-1}$.`)],
       'v =',
       v,
     );
@@ -8883,11 +8876,11 @@ const workEnergyTiles: Generator<WorkTilesParams> = {
       prompt: [
         say(
           P > 0
-            ? `${smoothScene({ thing, m, u })} A horizontal force of ${newtons(P)} pushes it ${metres(d)} further in the direction it is moving, and its speed becomes $v$.`
+            ? `${smoothScene({ thing, m, u })} A horizontal force of ${newtons(P)} pushes it ${metres(d)} forwards, and its speed becomes $v$.`
             : `A ${thing} of mass ${kg(m)} is thrown straight down at ${speedOf(u)} from ${metres(h)} above the ground, and hits the ground at speed $v$. Ignore air resistance. ${G_NOTE}`,
         ),
         say(
-          `Complete the work-energy equation: kinetic energy after on the left, kinetic energy before plus the work done by ${P > 0 ? 'the force' : 'the weight'}, worked out in joules, on the right.`,
+          `Complete the work-energy equation, in joules: kinetic energy after on the left, before plus the work done by ${P > 0 ? 'the force' : 'the weight'} on the right.`,
         ),
         ...(P > 0 ? [] : [picture(dropSvg())]),
       ],
@@ -8941,7 +8934,9 @@ const slopeSpeedTree: Generator<SlopeSpeedParams> = {
     const start = u === 0 ? 'is released from rest' : `is moving down it at ${speedOf(u)}`;
     const where = t
       ? `A smooth slope is at an angle $\\alpha$ to the horizontal, where $\\sin\\alpha = ${fmt(sinOf(t))}$. A ${thing} of mass ${kg(m)} ${start}, ${metres(d)} from the bottom measured along the slope.`
-      : `A ${thing} of mass ${kg(m)} ${start} at a point on a smooth slope ${metres(h)} above the bottom.`;
+      : u === 0
+        ? `A ${thing} of mass ${kg(m)} is released from rest on a smooth slope, ${metres(h)} above the bottom.`
+        : `A ${thing} of mass ${kg(m)} is moving at ${speedOf(u)} down a smooth slope, ${metres(h)} above the bottom.`;
     const answer = [...(t ? [h] : []), pe, ke0, ke0 + pe, v];
     return {
       kind: 'tree',
@@ -8950,7 +8945,7 @@ const slopeSpeedTree: Generator<SlopeSpeedParams> = {
         say(
           t
             ? 'Top row: the height it drops, then its kinetic energy at the start. Then the potential energy it loses, its kinetic energy at the bottom, and its speed.'
-            : 'Top row: the potential energy it loses, and its kinetic energy at the start. Then its kinetic energy at the bottom, and its speed.',
+            : 'Top row: the potential energy lost and the starting kinetic energy. Then the kinetic energy at the bottom, and the speed.',
         ),
         ...(t ? [picture(slopeSvg(t))] : []),
       ],
@@ -9019,10 +9014,10 @@ const netWorkSteps: Generator<NetWorkParams> = {
       prompt: [
         say(
           t
-            ? `A ${thing} is pulled ${metres(d)} along a level floor by a rope at an angle $\\alpha$ above the horizontal, where ${angleFacts(t, false)}. The tension is ${newtons(P)}, and a resistance of ${newtons(R)} acts against the motion.`
+            ? `A ${thing} is pulled ${metres(d)} along a level floor by a rope at $\\alpha$ above the horizontal, where ${angleFacts(t, false)}, with tension ${newtons(P)}, against a resistance of ${newtons(R)}.`
             : `A ${thing} is pulled ${metres(d)} along a level floor by a horizontal force of ${newtons(P)}, against a resistance of ${newtons(R)}.`,
         ),
-        say('Find the kinetic energy it gains, in joules, as the work done by the pull less the work done against the resistance: tap the part to do next, then choose what it comes to.'),
+        say('Find the kinetic energy it gains, in joules: tap the part to do next, then choose what it comes to.'),
         ...(t ? [picture(pullSvg(t))] : []),
       ],
       start: t
@@ -9081,8 +9076,8 @@ const frictionWork: Generator<FrictionWorkParams> = {
       [
         say(
           t
-            ? `A ${thing} of mass ${kg(m)} slides ${metres(d)} down a rough slope at an angle $\\alpha$ to the horizontal, where ${angleFacts(t, true)}. The coefficient of friction is $\\mu = ${fmt(mu)}$. ${G_NOTE} Find the work done against friction, in joules.`
-            : `A ${thing} of mass ${kg(m)} slides ${metres(d)} across a rough level floor. The coefficient of friction is $\\mu = ${fmt(mu)}$. ${G_NOTE} Find the work done against friction, in joules.`,
+            ? `A ${thing} of mass ${kg(m)} slides ${metres(d)} down a rough slope ($\\mu = ${fmt(mu)}$) at $\\alpha$ to the horizontal, where ${angleFacts(t, true)}. ${G_NOTE} Find the work done against friction, in joules.`
+            : `A ${thing} of mass ${kg(m)} slides ${metres(d)} across a rough level floor ($\\mu = ${fmt(mu)}$). ${G_NOTE} Find the work done against friction, in joules.`,
         ),
         ...(t ? [picture(slopeSvg(t, { friction: true }))] : []),
       ],
@@ -9213,8 +9208,8 @@ const roughSpeedTree: Generator<RoughSpeedParams> = {
         ),
         say(
           P > 0
-            ? 'Top row: its kinetic energy at the start, the work done by the pull, and the work done against friction. Then its kinetic energy at the end, and its speed.'
-            : 'Top row: its kinetic energy at the start, and the work done against friction. Then its kinetic energy at the end, and its speed.',
+            ? 'Top row: the starting kinetic energy, the work done by the pull, and the work against friction. Then the final kinetic energy, and the speed.'
+            : 'Top row: the starting kinetic energy and the work against friction. Then the final kinetic energy, and the speed.',
         ),
       ],
       expression: P > 0 ? '\\tfrac{1}{2}mv^{2} = \\tfrac{1}{2}mu^{2} + Pd - \\mu mgd' : '\\tfrac{1}{2}mv^{2} = \\tfrac{1}{2}mu^{2} - \\mu mgd',
@@ -9289,7 +9284,7 @@ const stoppingSlider: Generator<StopSliderParams> = {
         say(
           hard
             ? `A ${thing} of mass ${kg(m)} slides at ${speedOf(u)} onto a rough level floor, with $\\mu = ${fmt(mu)}$. ${G_NOTE} The line is the work done against friction as it slides. Slide to how far it goes before it stops, in metres.`
-            : `A ${thing} of mass ${kg(m)} moving at ${speedOf(u)} across a level floor is brought to rest by a constant resistance of ${newtons(F)}. The line is the work done against the resistance, and the dashed level its kinetic energy at the start. Slide to how far it goes before it stops, in metres.`,
+            : `A ${thing} of mass ${kg(m)} moving at ${speedOf(u)} on a level floor is stopped by a constant resistance of ${newtons(F)}. The line is the work done against it, the dashed level its starting kinetic energy. Slide to how far it goes, in metres.`,
         ),
       ],
       min: 0,
@@ -9532,13 +9527,13 @@ const powerAccelTree: Generator<PowerAccelParams> = {
       prompt: [
         say(
           k
-            ? `A ${thing} of mass ${kg(m)} drives up a hill at an angle $\\alpha$ to the horizontal, where $\\sin\\alpha = \\tfrac{1}{${k}}$, against a resistance of ${newtons(R)}. ${G_NOTE} Its engine works at ${powerOf(P)}. Find its acceleration at the moment its speed is ${speedOf(v)}, in $\\text{m s}^{-2}$.`
-            : `A ${thing} of mass ${kg(m)} drives along a level road against a resistance of ${newtons(R)}. Its engine works at ${powerOf(P)}. Find its acceleration at the moment its speed is ${speedOf(v)}, in $\\text{m s}^{-2}$.`,
+            ? `A ${thing} of mass ${kg(m)} drives up a hill at an angle $\\alpha$ to the horizontal, where $\\sin\\alpha = \\tfrac{1}{${k}}$, against a resistance of ${newtons(R)}. ${G_NOTE} Its engine works at ${powerOf(P)}. Find its acceleration when its speed is ${speedOf(v)}, in $\\text{m s}^{-2}$.`
+            : `A ${thing} of mass ${kg(m)} drives along a level road against a resistance of ${newtons(R)}. Its engine works at ${powerOf(P)}. Find its acceleration when its speed is ${speedOf(v)}, in $\\text{m s}^{-2}$.`,
         ),
         say(
           k
             ? 'Top row: the driving force, and the part of the weight down the hill. Then the resultant force, and the acceleration.'
-            : 'First the driving force, then the resultant force, then the acceleration.',
+            : 'The driving force, then the resultant force, then the acceleration.',
         ),
       ],
       expression: k ? '\\frac{P}{v} - R - mg\\sin\\alpha = ma' : '\\frac{P}{v} - R = ma',

@@ -938,7 +938,7 @@ const spaceTree: Generator<PairParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `${pairSentence(params)} Find the probability of ${eventText(params.event)}. Top row, left to right: the outcomes of the first, the outcomes of the second, and how many outcomes of the pair give ${eventText(params.event)}. Then the size of the sample space, then the probability.`,
+          `${pairSentence(params)} Find the probability of ${eventText(params.event)}. Top row: the outcomes of the first, of the second, and how many pairs give this. Then the size of the sample space, then the probability.`,
         ),
       ],
       expression: `P = \\frac{\\text{favourable}}{\\text{total}}`,
@@ -1188,9 +1188,9 @@ const THREE_WAYS = [
 const RATIO_PAIRS = [
   { what: 'A biased coin', yes: 'heads', no: 'tails' },
   { what: 'A biased spinner', yes: 'red', no: 'blue' },
-  { what: 'A chess player', yes: 'wins', no: 'loses' },
+  { what: 'Each game a chess player plays', yes: 'a win', no: 'a loss' },
   { what: 'A weighted drawing pin', yes: 'point up', no: 'point down' },
-  { what: 'A traffic light, when you reach it,', yes: 'is red', no: 'is green' },
+  { what: 'A traffic light', yes: 'red', no: 'green' },
 ] as const;
 
 type ComplementValueParams =
@@ -1244,8 +1244,8 @@ const complementValue: Generator<ComplementValueParams> = {
     const asked = params.askYes ? ctx.yes : ctx.no;
     return probSlide(
       [
-        say(`${ctx.what} always gives ${ctx.yes} or ${ctx.no}, and it is ${params.k} times as likely to give ${ctx.yes} as ${ctx.no}.`),
-        say(`Find the probability that it gives ${asked}.`),
+        say(`${ctx.what} gives only ${ctx.yes} or ${ctx.no}, and ${ctx.yes} is ${params.k} times as likely as ${ctx.no}.`),
+        say(`Find the probability of ${asked}.`),
       ],
       `P(\\text{${asked}}) =`,
       answer.answer,
@@ -1319,12 +1319,12 @@ function powerOf(p: Prob, n: number): Prob {
 function atLeastPrompt(params: AtLeastParams): string {
   if (params.kind === 'frac') {
     const ctx = REPEATS[params.context];
-    return `${ctx.trial[0].toUpperCase()}${ctx.trial.slice(1)} ${params.n} times. Find the probability of ${ctx.hit}, working from the probability of ${ctx.miss}.`;
+    return `${ctx.trial[0].toUpperCase()}${ctx.trial.slice(1)} ${params.n} times. Find the probability of ${ctx.hit}.`;
   }
   const ctx = DECIMAL_REPEATS[params.context];
   const p = ctx.states === 'hit' ? hundredths(1 - params.q) : params.q;
   const lead = `${ctx.who} $${fmt(p)}$ each time, independently.`;
-  return `${lead} Over ${params.n} ${ctx.unit}, find the probability that ${ctx.hit}, working from the probability that ${ctx.miss}.`;
+  return `${lead} Over ${params.n} ${ctx.unit}, find the probability that ${ctx.hit}.`;
 }
 
 /** 1 - q^n: the power first, then take it from 1. */
@@ -1954,9 +1954,9 @@ const expectedTree: Generator<ExpectedTreeParams> = {
     return {
       kind: 'tree',
       prompt: [
-        say(`A biased spinner can land on ${listing(names.slice(0, given.length + 1).map(String))}, and nothing else.`),
+        say(`A biased spinner can land only on ${listing(names.slice(0, given.length + 1).map(String))}.`),
         show(shown),
-        say(`It is spun ${n} times. How many times would you expect ${last}? First add the probabilities you know, then find $P(\\text{${last}})$, then the expected number.`),
+        say(`It is spun ${n} times. How many times would you expect ${last}? Fill in the known probabilities added, then $P(\\text{${last}})$, then the answer.`),
       ],
       expression: `${n} \\times P(\\text{${last}})`,
       nodes: [
@@ -2683,8 +2683,8 @@ const vennTree: Generator<VennTreeParams> = {
         say(`Of ${total} ${ctx.who}, ${nA} ${ctx.aText}, ${nB} ${ctx.bText}, and ${both} do both. One is chosen at random.`),
         say(
           hard
-            ? `Find the probability that they do neither. Top row: how many only ${ctx.aText}, how many only ${ctx.bText}. Then how many do at least one, then how many do neither, then the probability.`
-            : `Find the probability that they do at least one. Top row: how many only ${ctx.aText}, how many only ${ctx.bText}. Then how many do at least one, then the probability.`,
+            ? `Find the probability that they do neither. Top row: how many only ${ctx.aText}, then only ${ctx.bText}. Then how many do at least one, then neither, then the probability.`
+            : `Find the probability that they do at least one. Top row: how many only ${ctx.aText}, then only ${ctx.bText}. Then how many do at least one, then the probability.`,
         ),
       ],
       expression: hard ? `P((${ctx.A} \\cup ${ctx.B})')` : `P(${ctx.A} \\cup ${ctx.B})`,
@@ -2926,7 +2926,7 @@ const indepAnd: Generator<IndepAndParams> = {
     const ctx = INDEP_PAIRS[params.context];
     return probSlide(
       [
-        say(`The probability that ${ctx.a} is $${fmt(params.p)}$, and the probability that ${ctx.b} is $${fmt(params.q)}$. The two are independent.`),
+        say(`Independently, ${ctx.a} with probability $${fmt(params.p)}$, and ${ctx.b} with probability $${fmt(params.q)}$.`),
         say(`Find the probability that ${ctx[params.ask]}.`),
       ],
       'P =',
@@ -2997,7 +2997,7 @@ const indepTiles: Generator<IndepTilesParams> = {
     const B = FRAC_EVENTS[b];
     const ab = fmul(A.f, B.f);
     const slipsFor = (x: Frac, y: Frac): Tok[] => [fr([x[0] + y[0], x[1] + y[1]]), fr(fmul(x, [y[1], y[0]])), fr([x[0] * y[0], x[1] + y[1]]), fr([1, x[1] * y[1] + 1])];
-    const events = `$A$ is the event that ${A.what}, and $B$ that ${B.what}, on separate goes. They are independent.`;
+    const events = `$A$: ${A.what}. $B$: ${B.what}. They are independent.`;
     if (!hard) {
       const answer = [fr(A.f), fr(B.f), fr(ab)];
       return {
@@ -3035,9 +3035,9 @@ const indepTiles: Generator<IndepTilesParams> = {
 };
 
 const REPEAT_CONTEXTS = [
-  { each: (name: string) => `${name} passes`, all: 'all three pass', none: 'none of them passes', noun: 'a test' },
-  { each: (name: string) => `${name}'s train is on time`, all: 'all three trains are on time', none: 'none is on time', noun: 'a train' },
-  { each: (name: string) => `${name} scores a penalty`, all: 'all three score', none: 'none of them scores', noun: 'a penalty' },
+  { each: (names: string[]) => `${listing(names)} pass a test`, all: 'all three pass', none: 'none of them passes', noun: 'a test' },
+  { each: (names: string[]) => `${listing(names.map((name) => `${name}'s`))} trains are on time`, all: 'all three trains are on time', none: 'none is on time', noun: 'a train' },
+  { each: (names: string[]) => `${listing(names)} score a penalty`, all: 'all three score', none: 'none of them scores', noun: 'a penalty' },
 ] as const;
 
 interface RepeatParams {
@@ -3060,9 +3060,8 @@ const repeatSteps: Generator<RepeatParams> = {
   },
   render: ({ context, names, p, none }): Slide => {
     const ctx = REPEAT_CONTEXTS[context];
-    const said = names.map((name, i) => `the probability that ${ctx.each(name)} is $${fmt(p[i])}$`);
     const prompt = [
-      say(`${cap(listing(said))}, independently.`),
+      say(`Independently, the probabilities that ${ctx.each(names)} are ${listing(p.map((v) => `$${fmt(v)}$`))}.`),
       say(`Find the probability that ${none ? ctx.none : ctx.all}. Tap the part you would work out next, then choose what it comes to.`),
     ];
     const f = none ? p.map((v) => Number(fmt(1 - v))) : p;
@@ -3140,7 +3139,7 @@ function treePicture(params: TreeParams): Block {
 
 function treeSentence(params: TreeParams): string {
   const ctx = TREE_PAIRS[params.context];
-  return `$A$ is the event that ${ctx.a}, and $B$ that ${ctx.b}. They are independent.`;
+  return `$A$: ${ctx.a}. $B$: ${ctx.b}. They are independent.`;
 }
 
 function sampleTree(rng: Rng, difficulty: number, blankAtHard: boolean): TreeParams {
@@ -3215,7 +3214,7 @@ const treeAtLeast: Generator<TreeParams> = {
       prompt: [
         say(treeSentence(params)),
         treePicture(params),
-        say(`Find the probability that at least one of $A$ and $B$ happens. Top row: $P(A')$, then $P(B')$. Then the probability of neither, then of at least one.`),
+        say(`Find the probability of at least one of $A$ and $B$. Top row: $P(A')$, then $P(B')$. Then $P(\\text{neither})$, then the answer.`),
       ],
       expression: "1 - P(A' \\cap B')",
       nodes: [
@@ -3474,7 +3473,7 @@ const noReplTree: Generator<NoReplParams> = {
         kind: 'tree',
         prompt: [
           say(noReplSentence(params)),
-          say(`Find the probability that both are ${c0}. Top row: $P(\\text{first is ${c0}})$, then $P(\\text{second is ${c0}})$ once one ${c0} has gone. Then multiply.`),
+          say(`Find the probability that both are ${c0}. Top row: $P(\\text{first is ${c0}})$, then $P(\\text{second is ${c0}})$. Then multiply.`),
         ],
         expression: `P(\\text{both ${c0}})`,
         nodes: [
@@ -4060,7 +4059,7 @@ const branchMissing: Generator<MissingBranchParams> = {
     return {
       kind: 'tiles',
       prompt: [
-        say(`${ctx.intro}. The tree shows the probabilities, where $${ctx.yes}$ means ${ctx.who} ${ctx.event}.`),
+        say(`${ctx.intro}. $${ctx.yes}$ means ${ctx.who} ${ctx.event}.`),
         picture(stagedTreeSvg({ stages: [[...ctx.names], [ctx.yes, `${ctx.yes}'`]], labels })),
         say(`Find the probability that ${ctx.who} ${ctx.ways[k]} and ${ctx.event}.`),
       ],
@@ -4142,7 +4141,7 @@ function sampleThree(rng: Rng, difficulty: number): ThreeParams {
 
 function threeSentence({ context }: ThreeParams): string {
   const ctx = TRIALS[context];
-  return `${ctx.setup}. $${ctx.yes}$ means ${ctx.yesMeans} and $${ctx.no}$ means ${ctx.noMeans}. The ${ctx.ones} are independent, with the probabilities on the tree.`;
+  return `${ctx.setup}, independently. $${ctx.yes}$ means ${ctx.yesMeans} and $${ctx.no}$ means ${ctx.noMeans}.`;
 }
 
 function threePicture(params: ThreeParams): Block {
@@ -4225,7 +4224,7 @@ const threeAtLeast: Generator<ThreeParams> = {
       prompt: [
         say(threeSentence(params)),
         threePicture(params),
-        say(`Find the probability of at least one $${want}$ in three steps. Top row: $P(${other})$ for each of the three ${ctx.ones} in turn. Then the probability of $${other}$ every time, then of at least one $${want}$.`),
+        say(`Find the probability of at least one $${want}$ in three steps. Top row: $P(${other})$ at each stage. Then $P(${other}, ${other}, ${other})$, then the answer.`),
       ],
       expression: `1 - P(${other}, ${other}, ${other})`,
       nodes: [
@@ -4273,7 +4272,7 @@ const threeSameSteps: Generator<ThreeParams> = {
       prompt: [
         say(threeSentence(params)),
         threePicture(params),
-        say(`Find the probability that all three ${ctx.ones} go the same way: $${ctx.yes}$ every time or $${ctx.no}$ every time. Tap the part you would work out next, then choose what it comes to.`),
+        say(`Find the probability of $${ctx.yes}$ every time or $${ctx.no}$ every time. Tap the part you would work out next, then choose what it comes to.`),
       ],
       start: [t(p0), '\\times', t(p1), '\\times', t(p2), '+', t(q0), '\\times', t(q1), '\\times', t(q2)],
       reductions: [
@@ -4526,7 +4525,7 @@ const vennCount: Generator<TotalsParams> = {
     const ctx = VENN[params.context];
     const how = TOTALS_ASK[params.ask];
     return countSlide(
-      [say(totalsSentence(params)), say(`Find $${how.tex(ctx.A, ctx.B)}$, the number ${how.words(ctx.A, ctx.B)}, where $${ctx.A}$ is the set who ${ctx.aText} and $${ctx.B}$ the set who ${ctx.bText}.`)],
+      [say(totalsSentence(params)), say(`Find $${how.tex(ctx.A, ctx.B)}$, the number ${how.words(ctx.A, ctx.B)}. $${ctx.A}$ is the set who ${ctx.aText} and $${ctx.B}$ the set who ${ctx.bText}.`)],
       `${how.tex(ctx.A, ctx.B)} =`,
       totalsAnswer(params),
     );
@@ -4579,7 +4578,7 @@ const vennMatch: Generator<TotalsParams> = {
       params.given === 'neither' && guessed > 0 ? list([nA - guessed, guessed, nB - guessed, d]) : '',
     ].filter((w) => w !== '' && w !== right);
     return pickSlide(
-      [say(totalsSentence(params)), say(`Which list gives the four regions of the Venn diagram, in the order $${ctx.A}$ only, both, $${ctx.B}$ only, neither?`)],
+      [say(totalsSentence(params)), say(`Which list gives the four Venn regions in the order $${ctx.A}$ only, both, $${ctx.B}$ only, neither?`)],
       right,
       params.given === 'neither' ? [wrong[wrong.length - 1], ...wrong.slice(0, -1)] : wrong,
       saltOf(params),
@@ -4759,7 +4758,7 @@ const venn3Outward: Generator<Venn3Params> = {
         say(`Of ${total} ${ctx.who}, ${nS} ${setText(ctx, s)}. ${nST} ${bothText(ctx, s, t)} and ${nSU} ${bothText(ctx, s, u)}, counting the ${r[6]} who do all three.`),
         picture(venn3Svg(names3(ctx), shown)),
         say(
-          `Top row: how many are in $${S}$ and $${T}$ only, then in $${S}$ and $${U}$ only. Then how many are in $${S}$ only${params.hard ? `, then the probability that one ${ctx.one} chosen at random is in $${S}$ only` : ''}.`,
+          `Top row: how many in $${S}$ and $${T}$ only, then $${S}$ and $${U}$ only. Then $${S}$ only${params.hard ? `, then the probability that one ${ctx.one} chosen at random is in $${S}$ only` : ''}.`,
         ),
       ],
       expression: params.hard ? `P(${S} \\text{ only})` : `n(${S} \\text{ only})`,
@@ -5231,7 +5230,7 @@ const vennSumTiles: Generator<SumTilesParams> = {
     if (params.three) {
       const ctx = VENN3[params.context];
       const [A, B, C] = ctx.names;
-      lead = [say(`The Venn diagram shows the probabilities for one ${ctx.one} chosen at random. ${venn3Key(ctx)}`), picture(venn3Svg(names3(ctx), r.map(h)))];
+      lead = [say(`The probabilities are for one ${ctx.one} chosen at random. ${venn3Key(ctx)}`), picture(venn3Svg(names3(ctx), r.map(h)))];
       working = params.first
         ? stackedSum('P(\\text{exactly one})', [`P(${A} \\text{ only})`, `P(${B} \\text{ only})`, `P(${C} \\text{ only})`])
         : stackedSum('P(\\text{at least two})', [`P(${A} \\cap ${B} \\text{ only})`, `P(${A} \\cap ${C} \\text{ only})`, `P(${B} \\cap ${C} \\text{ only})`, 'P(\\text{all three})']);
@@ -5239,7 +5238,7 @@ const vennSumTiles: Generator<SumTilesParams> = {
       const ctx = VENN[params.context];
       const [A, B] = [ctx.A, ctx.B];
       lead = [
-        say(`The Venn diagram shows the probabilities for one ${ctx.one} chosen at random. $${A}$ is the set who ${ctx.aText} and $${B}$ the set who ${ctx.bText}.`),
+        say(`The probabilities are for one ${ctx.one} chosen at random. $${A}$ is the set who ${ctx.aText}, $${B}$ who ${ctx.bText}.`),
         picture(vennSvg([A, B], r.map(h) as [string, string, string, string])),
       ];
       working = params.first
@@ -5249,7 +5248,7 @@ const vennSumTiles: Generator<SumTilesParams> = {
     const rest = r.map((_, i) => i).filter((i) => !picked.includes(i));
     return {
       kind: 'tiles',
-      prompt: [...lead, say('Fill in the working, in the order it is written:'), show(working)],
+      prompt: [...lead, say('Fill in the working in order:'), show(working)],
       template,
       answer: answer.map((t) => t.tex),
       bank: bank(answer, [...rest.map((i) => dec(r[i] / 100)), dec(1 - sumOf(picked.map((i) => r[i])) / 100)]),
@@ -5389,7 +5388,7 @@ const condTableTiles: Generator<CondParams> = {
       prompt: [
         show(twoWayTex(params, !params.hard)),
         say(
-          `One ${ctx.one} is chosen at random. $A$ is the event that the ${ctx.one} ${askText}, and $B$ that the ${ctx.one} ${givenText}. Use the formula, with each probability out of all the ${ctx.who}.`,
+          `One ${ctx.one} is chosen at random. $A$ is the event that the ${ctx.one} ${askText}, and $B$ that the ${ctx.one} ${givenText}. Give each probability out of all the ${ctx.who}.`,
         ),
       ],
       template: 'P(A \\mid B) = {0} \\div {1} = {2}',
@@ -5868,7 +5867,7 @@ const condVennFlow: Generator<VennCondParams> = {
     const answer = [keep, `${den}`, `$${ftex([fav, den])}$`];
     return {
       kind: 'flow',
-      prompt: [...vennCondPrompt(params), say(`One ${ctx.one} is chosen at random. Find $${tex}$ one step at a time.`)],
+      prompt: [...vennCondPrompt(params), say(`One ${ctx.one} is chosen at random. Find $${tex}$.`)],
       subject: tex,
       steps: [
         {
@@ -6477,14 +6476,14 @@ const reverseTiles: Generator<ReverseParams> = {
   id: 'prob-cr-tiles',
   sample: (rng, difficulty) => sampleReverse(rng, difficulty, true),
   render: (params): Slide => {
-    const { s, num, other, B, tex } = reverseParts(params);
+    const { s, num, other, tex } = reverseParts(params);
     const answer = [tth(num), tth(num + other), fr([num, num + other])];
     return {
       kind: 'tiles',
       prompt: [
         say(storySentence(s)),
         picture(condTreeSvg(params)),
-        say(`${reverseQuestion(params)} $P(${B})$ is the sum of both paths ending in $${B}$. Give the answer as a fraction.`),
+        say(`${reverseQuestion(params)} Give the answer as a fraction.`),
       ],
       template: `${tex} = {0} \\div {1} = {2}`,
       answer: answer.map((t) => t.tex),
@@ -6634,13 +6633,13 @@ const reverseCounters: Generator<CounterParams> = {
     }
   },
   render: (params): Slide => {
-    const [one, many] = THINGS[params.thing];
+    const [, many] = THINGS[params.thing];
     const [r, b] = params.counts;
     const { top, bottom } = counterParts(params);
     return probSlide(
       [
         say(`A ${params.holder} holds ${r} ${params.colours[0]} and ${b} ${params.colours[1]} ${many}. Two are taken at random, one after the other, without replacement.`),
-        say(`${counterQuestion(params)} Each ${one} is equally likely to be taken.`),
+        say(counterQuestion(params)),
       ],
       'P =',
       fans([top, bottom]),
@@ -6838,7 +6837,7 @@ const arrangeTogether: Generator<PairLineParams> = {
         kind: 'tiles',
         prompt: [
           say(lineSentence(params)),
-          say(`How many orders have ${a} and ${b} next to each other? Treat the two as one block: arrange the blocks, then the two inside their block.`),
+          say(`How many orders have ${a} and ${b} next to each other? Arrange the blocks, then the pair inside theirs.`),
         ],
         template: '{0}! \\times {1}! = {2}',
         bank: bank(answer, [whole(n), whole(1), whole(factorial(n - 1)), whole(factorial(n))]),
@@ -6850,7 +6849,7 @@ const arrangeTogether: Generator<PairLineParams> = {
       kind: 'tiles',
       prompt: [
         say(lineSentence(params)),
-        say(`How many orders have ${a} and ${b} not next to each other? Count every order, take away the ones with the two together, then work it out.`),
+        say(`How many orders have ${a} and ${b} not next to each other? Take the together orders from every order.`),
       ],
       template: '{0}! - {1} = {2}',
       bank: bank(answer, [whole(n - 1), whole(factorial(n - 1)), whole(factorial(n) - factorial(n - 1)), whole(factorial(n) - 2)]),
@@ -6918,7 +6917,7 @@ const arrangeEnd: Generator<EndParams> = {
       kind: 'tree',
       prompt: [
         say(`${lineSentence(params)} ${rule[params.kind]}`),
-        say(`How many orders are there? Top row: the ways to place ${placed}, then the ways to arrange everyone else. Then multiply.`),
+        say(`How many orders are there? Top row: the ways to place ${placed}, then to arrange everyone else. Then multiply.`),
       ],
       expression: '\\text{orders}',
       nodes: [
@@ -7031,7 +7030,7 @@ const selectOrderedTiles: Generator<SelectParams & { hard: boolean }> = {
     const answer = [...factors, count].map(whole);
     return {
       kind: 'tiles',
-      prompt: [say(orderedSentence(params)), say('Fill in the choices for each place, largest first, then multiply them.')],
+      prompt: [say(orderedSentence(params)), say('Fill in the choices for each place, largest first, then multiply.')],
       template: `${factors.map((_, i) => `{${i}}`).join(' \\times ')} = {${r}}`,
       bank: bank(answer, [whole(r), whole(n - r), whole(n ** r), whole(nCr(n, r))]),
       answer: answer.map((t) => t.tex),
@@ -7205,7 +7204,7 @@ const divideTree: Generator<SelectParams> = {
       kind: 'tree',
       prompt: [
         say(unorderedSentence(params)),
-        say(`Top row: the selections if order mattered, then the number of orders each group of ${r} can be put in. Then divide.`),
+        say(`Top row: the ordered selections, then the orders each group of ${r} can be in. Then divide.`),
       ],
       expression: `{}^{${n}}C_{${r}}`,
       nodes: [
@@ -7345,7 +7344,7 @@ const repeatsTree: Generator<WordParams> = {
       kind: 'tree',
       prompt: [
         say(WORD_ASKS[ask](word)),
-        say('Top row: the orders if every letter were different, then the ways the repeated letters can swap among themselves. Then divide.'),
+        say('Top row: the orders if every letter were different, then the swaps of the repeated letters. Then divide.'),
       ],
       expression: `\\text{arrangements of ${word}}`,
       nodes: [
@@ -7445,7 +7444,7 @@ const groupsTiles: Generator<GroupsParams> = {
         say(
           `A group of ${groupWord(group, 0, pick[0])} and ${groupWord(group, 1, pick[1])} is chosen from ${groupWord(group, 0, of[0])} and ${groupWord(group, 1, of[1])}. How many different groups are possible?`,
         ),
-        say(`Fill in the ways to choose the ${plural(0)}, then the ${plural(1)}, then multiply.`),
+        say(`Fill in the choices of ${plural(0)}, then of ${plural(1)}, then multiply.`),
       ],
       template: '{0} \\times {1} = {2}',
       bank: bank(answer, [whole(nCr(of[0] + of[1], pick[0] + pick[1])), whole(a + b), whole(nPr(of[0], pick[0])), whole(nPr(of[1], pick[1]))]),
@@ -7571,7 +7570,7 @@ const committeeTiles: Generator<CommitteeParams> = {
       kind: 'tiles',
       prompt: [
         say(`A committee of ${params.r} is chosen at random from ${listing([...params.names])}.`),
-        say(`Find the probability that it ${event[params.kind]}. Fill in the committees that do, then all the committees, then the probability.`),
+        say(`Find the probability that it ${event[params.kind]}. Fill in the committees that do, then all of them, then the probability.`),
       ],
       template: 'P = {0} \\div {1} = {2}',
       bank: bank(answer, [whole(nPr(n, params.r)), whole(nCr(n - 1, params.r)), fr([1, n]), fr([fav, nPr(n, params.r)]), fr([all - fav, all])]),
@@ -7630,7 +7629,7 @@ const threeBagTree: Generator<ThreeBagParams> = {
       kind: 'tree',
       prompt: [
         say(`A ${params.holder} holds ${x} ${c} and ${y} ${d} ${many}. Three are taken at random, all at once.`),
-        say(`Find the probability that ${event}. Top row: the sets of three that give this, then all the sets of three. Then divide.`),
+        say(`Find the probability that ${event}. Top row: the sets of three that give this, then all sets of three. Then divide.`),
       ],
       expression: params.two ? `P(\\text{two ${c}, one ${d}})` : `P(\\text{three ${c}})`,
       nodes: [

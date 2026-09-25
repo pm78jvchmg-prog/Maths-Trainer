@@ -1593,6 +1593,16 @@ button {
   border-color: rgb(116 88 245 / 0.35);
 }
 
+.category-contest-math {
+  --accent: #6a45f0;
+  --accent-strong: #4520c4;
+  --card-glow: rgb(80 36 210 / 0.4);
+}
+
+.category-contest-math .course-card {
+  border-color: rgb(106 69 240 / 0.45);
+}
+
 .band-applied .course-card {
   border-color: rgb(255 164 94 / 0.25);
 }

@@ -40,7 +40,7 @@
  * Each level closes with a level check: twelve or fourteen questions, no
  * teaching slides, one attempt each.
  */
-import type { Course, SlideRef } from '../types';
+import type { Block, Course, SlideRef } from '../types';
 
 const teach = (
   ...blocks: { kind: 'prose' | 'display'; text?: string; tex?: string }[]
@@ -64,6 +64,18 @@ const ask = (generatorId: string, difficulty = 1): SlideRef => ({
 
 const prose = (text: string) => ({ kind: 'prose' as const, text });
 const maths = (tex: string) => ({ kind: 'display' as const, tex });
+
+/**
+ * A generated question with a worked example above it, on the same slide.
+ * Used where one question needs a step the teaching slide before it did not
+ * show, so the example sits right where it is needed.
+ */
+const askAfter = (lead: Block[], generatorId: string, difficulty = 1): SlideRef => ({
+  type: 'generated',
+  generatorId,
+  difficulty,
+  leadIn: lead,
+});
 
 export const vectors: Course = {
   id: 'vectors',
@@ -160,8 +172,25 @@ export const vectors: Course = {
                 'A negative scalar reverses the direction as well as scaling: $-2\\mathbf{v}$ is twice as long as $\\mathbf{v}$ and points the opposite way.',
               ),
             ),
-            ask('vec-scalar-k'),
-            ask('vec-parallel'),
+            askAfter(
+              [
+                prose(
+                  'Two vectors are **parallel** when one is a scalar multiple of the other. To find the multiple, divide matching components: both have to give the same $k$.',
+                ),
+                maths(
+                  '\\begin{aligned} \\begin{pmatrix} 6 \\\\ -4 \\end{pmatrix} &= k\\begin{pmatrix} 3 \\\\ -2 \\end{pmatrix} \\\\ k &= \\frac{6}{3} = 2, \\quad \\frac{-4}{-2} = 2 \\end{aligned}',
+                ),
+              ],
+              'vec-scalar-k',
+            ),
+            askAfter(
+              [
+                prose(
+                  'To test whether two vectors are parallel, do the same division. Against $3\\mathbf{i} - \\mathbf{j}$: $9\\mathbf{i} - 3\\mathbf{j}$ gives $\\frac{9}{3} = 3$ and $\\frac{-3}{-1} = 3$, the same, so it is parallel. $9\\mathbf{i} - \\mathbf{j}$ gives $3$ and $1$, so it is not.',
+                ),
+              ],
+              'vec-parallel',
+            ),
             ask('vec-scalar-k+choice'),
             teach(
               prose(
@@ -362,11 +391,10 @@ export const vectors: Course = {
                 'Halving $\\overrightarrow{AB}$ on its own says how far the midpoint is **from $A$**, not where it is. Adding $\\mathbf{a}$ is the step that places it.',
               ),
               prose(
-                'Run it backwards to find an end: the second half of the line is the same journey as the first, so $\\mathbf{b} = \\mathbf{m} + \\overrightarrow{AM}$.',
+                'Run it backwards to find an end: the second half of the line is the same journey as the first, so $\\mathbf{b} = \\mathbf{m} + \\overrightarrow{AM}$. With $A\\left(2, 7\\right)$ and $M\\left(5, 3\\right)$, $\\overrightarrow{AM} = \\begin{pmatrix} 3 \\\\ -4 \\end{pmatrix}$, so $B = \\left(8, -1\\right)$.',
               ),
             ),
             ask('vec-midpoint'),
-            ask('vec-section-fraction'),
             ask('vec-midpoint+choice'),
             teach(
               prose(
@@ -376,14 +404,13 @@ export const vectors: Course = {
                 '\\overrightarrow{AP} = \\frac{2}{5}\\overrightarrow{AB} \\qquad \\overrightarrow{PB} = \\frac{3}{5}\\overrightarrow{AB}',
               ),
               prose(
-                'The fraction is a part over the **whole**, 5. $\\frac{2}{3}$ compares $AP$ with $PB$, which is a different question with a different answer.',
+                'The fraction is a part over the **whole**, 5. $\\frac{2}{3}$ compares $AP$ with $PB$: that is the answer when the question asks for $\\overrightarrow{AP} = \\lambda\\,\\overrightarrow{PB}$, part against part.',
               ),
               prose(
                 'Direction counts too: $\\overrightarrow{PA}$ points back towards $A$, so $\\overrightarrow{PA} = -\\frac{2}{5}\\overrightarrow{AB}$.',
               ),
             ),
-            ask('vec-section'),
-            ask('vec-ratio-slider'),
+            ask('vec-section-fraction'),
             ask('vec-section-fraction+choice'),
             teach(
               prose(
@@ -396,7 +423,9 @@ export const vectors: Course = {
                 'The first number of the ratio belongs to the part next to $A$. Read it backwards and you land on the point the same distance from the other end.',
               ),
             ),
+            ask('vec-section'),
             ask('vec-section-tree'),
+            ask('vec-ratio-slider'),
             ask('vec-ratio-slider'),
           ],
           skillCheck: [
@@ -434,7 +463,6 @@ export const vectors: Course = {
               ),
             ),
             ask('vec-on-line'),
-            ask('vec-collinear-k'),
             ask('vec-line-test'),
             teach(
               prose(
@@ -447,6 +475,7 @@ export const vectors: Course = {
                 'The multiple comes from the component you know, and then has to hold for the one you do not.',
               ),
             ),
+            ask('vec-collinear-k'),
             ask('vec-on-line'),
             ask('vec-collinear-k+choice'),
           ],
@@ -501,6 +530,12 @@ export const vectors: Course = {
               prose(
                 'With the corners above, both midpoints are $\\left(3.5, 3\\right)$. Finding where the diagonals cross is a midpoint question, and it doubles as a check on a corner you have just found.',
               ),
+              prose(
+                'Knowing one end and the midpoint finds the other end: go on from $M$ by the same journey again. With $A\\left(1, 5\\right)$ and $M\\left(3, 2\\right)$:',
+              ),
+              maths(
+                '\\begin{aligned} \\overrightarrow{AM} &= \\begin{pmatrix} 2 \\\\ -3 \\end{pmatrix} \\\\ \\implies B &= \\left(3 + 2, \\; 2 - 3\\right) \\\\ &= \\left(5, -1\\right) \\end{aligned}',
+              ),
             ),
             ask('vec-midpoint'),
             ask('vec-quad-flow'),
@@ -530,7 +565,7 @@ export const vectors: Course = {
             ),
             ask('vec-direction'),
             ask('vec-path'),
-            ask('vec-path-coefficients'),
+            ask('vec-section-fraction'),
             teach(
               prose(
                 'A point on $AB$ is reached the same way: out to $A$, then the right fraction of the way along $\\overrightarrow{AB}$. With $AP : PB = 1 : 2$:',
@@ -545,9 +580,19 @@ export const vectors: Course = {
                 'For any point on the line $AB$ the two coefficients add up to 1, as $\\tfrac{2}{3} + \\tfrac{1}{3}$ does here.',
               ),
             ),
-            ask('vec-path-tree'),
-            ask('vec-section-fraction'),
             ask('vec-path-coefficients'),
+            ask('vec-path-tree'),
+            askAfter(
+              [
+                prose(
+                  'A point beyond the segment works the same way. If $B$ is the midpoint of $AF$, then $\\overrightarrow{BF} = \\overrightarrow{AB}$, so',
+                ),
+                maths(
+                  '\\overrightarrow{OF} = \\mathbf{b} + \\left(\\mathbf{b} - \\mathbf{a}\\right) = -\\mathbf{a} + 2\\mathbf{b}',
+                ),
+              ],
+              'vec-path-coefficients',
+            ),
             teach(
               prose(
                 'Proofs in vector geometry usually end on the level 1 test. Two vectors written in $\\mathbf{a}$ and $\\mathbf{b}$ are parallel when one is a multiple of the other, with the same multiple on both coefficients.',
@@ -608,8 +653,8 @@ export const vectors: Course = {
               ),
             ),
             ask('line-point-at'),
-            ask('line-direction'),
             ask('line-t-slider'),
+            ask('line-point-at-steps'),
             teach(
               prose(
                 '$t$ counts direction vectors from the starting point. $t = 0$ is the starting point itself, $t = 1$ is one step along, and a negative $t$ goes back the other way.',
@@ -618,10 +663,12 @@ export const vectors: Course = {
                 'Work a point out in two moves: multiply the direction by $t$, then add the start. Multiplying the start by $t$ as well is the usual slip.',
               ),
               maths('\\mathbf{a} + 3\\mathbf{b} \\ne 3\\left(\\mathbf{a} + \\mathbf{b}\\right)'),
+              prose(
+                'Any non-zero multiple of the direction points along the same line, so it is a direction vector too. For the line above, $\\begin{pmatrix} 6 \\\\ -2 \\end{pmatrix} = 2\\begin{pmatrix} 3 \\\\ -1 \\end{pmatrix}$ and $\\begin{pmatrix} -3 \\\\ 1 \\end{pmatrix} = -1\\begin{pmatrix} 3 \\\\ -1 \\end{pmatrix}$ both work. The start $\\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix}$ is a position, not a direction.',
+              ),
             ),
-            ask('line-point-at-steps'),
+            ask('line-direction'),
             ask('line-t-slider'),
-            ask('line-same'),
             teach(
               prose(
                 'One line has many equations. Any point on it will do as the start, and any non-zero multiple of the direction still points along it.',
@@ -633,8 +680,8 @@ export const vectors: Course = {
                 'That is the line above again: $\\left(7, 0\\right)$ is its point at $t = 2$, and the new direction is $-2$ times the old one. A new letter, $s$, is a reminder that the two parameters count differently.',
               ),
             ),
-            ask('line-direction'),
             ask('line-same'),
+            ask('line-direction'),
           ],
           skillCheck: [
             ask('line-point-at', 2),
@@ -659,17 +706,23 @@ export const vectors: Course = {
             ),
             ask('vec-between'),
             ask('line-through-two'),
-            ask('line-same'),
+            ask('vec-between+choice'),
             teach(
               prose(
                 'With this equation $t = 0$ gives $A$ and $t = 1$ gives $B$. Other values reach the rest of the line: $t = 2$ is as far beyond $B$ again, and $t = -1$ is one step back behind $A$.',
               ),
               prose(
-                'Starting at $B$, or heading along $\\overrightarrow{BA}$, gives another equation of the same line. Each is as correct as the first.',
+                'Starting at $B$, or heading along $\\overrightarrow{BA}$, gives another equation of the same line. To check one, test its start and its direction against the first:',
+              ),
+              maths(
+                '\\mathbf{r} = \\begin{pmatrix} 3 \\\\ 1 \\end{pmatrix} + s\\begin{pmatrix} -2 \\\\ 3 \\end{pmatrix}',
+              ),
+              prose(
+                '$\\left(3, 1\\right)$ is $B$, the point at $t = 1$, and $\\begin{pmatrix} -2 \\\\ 3 \\end{pmatrix} = -1\\begin{pmatrix} 2 \\\\ -3 \\end{pmatrix}$. Both pass, so it is the same line.',
               ),
             ),
+            ask('line-same'),
             ask('line-two-points-at-tree'),
-            ask('vec-between+choice'),
             ask('line-same'),
             teach(
               prose(
@@ -710,8 +763,8 @@ export const vectors: Course = {
               ),
             ),
             ask('line-find-t'),
-            ask('line-contains'),
             ask('line-t-slider'),
+            ask('line-find-t+choice'),
             teach(
               prose(
                 'A point off the line still gives a value of $t$ from each component. What gives it away is that the two values differ.',
@@ -723,8 +776,8 @@ export const vectors: Course = {
               ),
             ),
             ask('line-contains'),
-            ask('line-find-t+choice'),
-            ask('line-missing-coord'),
+            ask('line-t-slider'),
+            ask('line-contains'),
             teach(
               prose(
                 'The same idea finds a missing coordinate. If $\\left(k, -3\\right)$ is on the line, the component you know fixes $t$.',
@@ -733,7 +786,7 @@ export const vectors: Course = {
               maths('k = 1 + 3 \\times 5 = 16'),
               prose('Find $t$ from the coordinate you have, then use it in the other component.'),
             ),
-            ask('line-t-slider'),
+            ask('line-missing-coord'),
             ask('line-missing-coord+choice'),
           ],
           skillCheck: [
@@ -756,8 +809,8 @@ export const vectors: Course = {
               ),
             ),
             ask('lines-parallel-k'),
-            ask('lines-relation'),
             ask('line-contains'),
+            ask('lines-relation'),
             teach(
               prose(
                 'In a plane, two lines that are not parallel always cross. In three dimensions they need not: one can pass above the other. Lines that are not parallel and never meet are **skew**.',
@@ -766,8 +819,6 @@ export const vectors: Course = {
                 'A line in three dimensions works exactly as in two, with a third component. Two lines get two parameters, $\\lambda$ and $\\mu$, because where they meet each line can be at a different value of its own.',
               ),
             ),
-            ask('lines-third-tree'),
-            ask('lines-relation+choice', 2),
             ask('lines-parallel-k+choice'),
             teach(
               prose(
@@ -784,7 +835,9 @@ export const vectors: Course = {
               ),
             ),
             ask('lines-third-tree'),
+            ask('lines-relation+choice', 2),
             ask('lines-solve'),
+            ask('lines-third-tree'),
           ],
           skillCheck: [
             ask('lines-relation', 2),
@@ -808,8 +861,8 @@ export const vectors: Course = {
               ),
             ),
             ask('lines-solve'),
+            ask('lines-solve+choice'),
             ask('lines-meet-slider'),
-            ask('lines-meet'),
             teach(
               prose(
                 'The parameter is not the point. Put $\\lambda = 2$ back into the first line to find where they cross:',
@@ -821,19 +874,33 @@ export const vectors: Course = {
                 'Putting $\\mu = 3$ into the second line lands on $\\left(5, 3\\right)$ too, which is a free check. Each parameter belongs to its own line: $\\lambda$ in the second equation is the slip to avoid.',
               ),
             ),
+            ask('lines-meet'),
             ask('lines-meet-tree'),
-            ask('lines-solve+choice'),
             ask('lines-meet-slider'),
             teach(
               prose(
                 'In three dimensions the method is the same with one more step: solve two components, then check the third before trusting the point.',
               ),
+              maths(
+                '\\begin{gathered} \\begin{pmatrix} 1 \\\\ 0 \\\\ 2 \\end{pmatrix} + \\lambda\\begin{pmatrix} 1 \\\\ 1 \\\\ 1 \\end{pmatrix} \\\\ = \\begin{pmatrix} 0 \\\\ 3 \\\\ -3 \\end{pmatrix} + \\mu\\begin{pmatrix} 1 \\\\ 0 \\\\ 2 \\end{pmatrix} \\end{gathered}',
+              ),
               prose(
-                'If the third component disagrees there is no point to find. The lines are skew, and no pair of parameters puts them in the same place.',
+                'In $y$, $\\lambda = 3$. In $x$, $1 + 3 = \\mu$, so $\\mu = 4$. Check $z$: the first line reaches $2 + 3 = 5$ and the second $-3 + 2 \\times 4 = 5$. They agree, so the lines meet, at $\\left(4, 3, 5\\right)$. Had they disagreed, the lines would be skew.',
               ),
             ),
             ask('lines-third-tree'),
-            ask('lines-relation+choice', 2),
+            askAfter(
+              [
+                prose(
+                  'Compare the directions before solving anything. If one is a multiple of the other, the lines are parallel: they never meet, unless they are the same line. Directions $\\begin{pmatrix} 2 \\\\ 1 \\end{pmatrix}$ and $\\begin{pmatrix} -4 \\\\ -2 \\end{pmatrix}$ are parallel, since $-4 = -2 \\times 2$ and $-2 = -2 \\times 1$.',
+                ),
+                prose(
+                  'Then test a point. With starts $\\left(1, 3\\right)$ and $\\left(5, 4\\right)$, the journey between them is $\\begin{pmatrix} 4 \\\\ 1 \\end{pmatrix}$: $\\frac{4}{2} = 2$ but $\\frac{1}{1} = 1$, not a multiple of the direction. So they are parallel and separate. Had it been a multiple, they would be the same line.',
+                ),
+              ],
+              'lines-relation+choice',
+              2,
+            ),
           ],
           skillCheck: [
             ask('lines-meet', 2),
@@ -894,7 +961,16 @@ export const vectors: Course = {
                 'Rearranging that formula gives the angle itself, which is the usual reason for computing a scalar product at all.',
               ),
             ),
-            ask('vec-angle'),
+            askAfter(
+              [
+                prose(
+                  'Rearranged, $\\cos\\theta = \\frac{\\mathbf{a} \\cdot \\mathbf{b}}{|\\mathbf{a}| \\, |\\mathbf{b}|}$. For $\\begin{pmatrix} 2 \\\\ 1 \\end{pmatrix}$ and $\\begin{pmatrix} 1 \\\\ 3 \\end{pmatrix}$, work out the three pieces, then divide:',
+                ),
+                maths('\\begin{aligned} \\mathbf{a} \\cdot \\mathbf{b} &= 2 + 3 = 5 \\\\ |\\mathbf{a}| &= \\sqrt{5} \\\\ |\\mathbf{b}| &= \\sqrt{10} \\end{aligned}'),
+                maths('\\begin{aligned} \\cos\\theta &= \\frac{5}{\\sqrt{5}\\sqrt{10}} = \\frac{5}{\\sqrt{50}} \\\\ &= \\frac{5}{5\\sqrt{2}} = \\frac{1}{\\sqrt{2}} \\end{aligned}'),
+              ],
+              'vec-angle',
+            ),
             ask('vec-method'),
             ask('vec-angle+choice'),
             teach(
@@ -1065,9 +1141,23 @@ export const vectors: Course = {
               prose(
                 'That is Pythagoras: $\\mathbf{a}$ and $\\mathbf{b}$ are the two shorter sides of a right-angled triangle, and $\\mathbf{a} + \\mathbf{b}$ is its hypotenuse.',
               ),
+              prose(
+                'The scalar product shares out over a sum, and $\\mathbf{a} \\cdot \\mathbf{a} = |\\mathbf{a}|^2$. With $|\\mathbf{a}| = 3$ and $\\mathbf{a}$ perpendicular to $\\mathbf{b}$:',
+              ),
+              maths('\\begin{aligned} \\mathbf{a} \\cdot (\\mathbf{a} + 4\\mathbf{b}) &= \\mathbf{a} \\cdot \\mathbf{a} + 4\\,\\mathbf{a} \\cdot \\mathbf{b} \\\\ &= 9 + 4(0) = 9 \\end{aligned}'),
             ),
             ask('angle-dot-algebra', 2),
-            ask('angle-dot-algebra+choice', 2),
+            askAfter(
+              [
+                prose(
+                  'When $\\mathbf{a} \\cdot \\mathbf{b}$ is not zero, the middle terms stay. Multiply out like brackets; $\\mathbf{a} \\cdot \\mathbf{b} = \\mathbf{b} \\cdot \\mathbf{a}$, so they combine. With $|\\mathbf{a}| = 3$, $|\\mathbf{b}| = 4$ and $\\mathbf{a} \\cdot \\mathbf{b} = 5$:',
+                ),
+                maths('|\\mathbf{a} - \\mathbf{b}|^2 = |\\mathbf{a}|^2 - 2\\,\\mathbf{a} \\cdot \\mathbf{b} + |\\mathbf{b}|^2'),
+                maths('= 9 - 10 + 16 = 15'),
+              ],
+              'angle-dot-algebra+choice',
+              2,
+            ),
           ],
           skillCheck: [
             ask('angle-perp-k', 2),
@@ -1093,7 +1183,6 @@ export const vectors: Course = {
             ),
             ask('angle-line-direction'),
             ask('angle-setting-flow'),
-            ask('angle-lines-cos'),
             teach(
               prose(
                 'Take directions $\\mathbf{d}_1 = \\left(1, 2, 2\\right)$ and $\\mathbf{d}_2 = \\left(-2, 3, -6\\right)$, of lengths $3$ and $7$:',
@@ -1104,8 +1193,8 @@ export const vectors: Course = {
                 'Without the modulus the cosine is negative, and the angle found is the obtuse one: the other angle where the lines cross.',
               ),
             ),
+            ask('angle-lines-cos'),
             ask('angle-lines'),
-            ask('angle-lines+choice'),
             ask('angle-lines-cos-tree'),
             teach(
               prose(
@@ -1115,6 +1204,7 @@ export const vectors: Course = {
                 'For $A\\left(1, 2, 0\\right)$ and $B\\left(3, 1, 4\\right)$ that is $\\left(2, -1, 4\\right)$. Going from $B$ to $A$ instead reverses it, which changes no angle.',
               ),
             ),
+            ask('angle-lines+choice'),
             ask('angle-line-direction', 2),
             ask('angle-setting-flow'),
           ],
@@ -1159,6 +1249,10 @@ export const vectors: Course = {
               ),
               prose(
                 'The letters follow the cycle $x \\to y \\to z \\to x$: the $x$ component starts from $y$, the $y$ component from $z$, and the $z$ component from $x$.',
+              ),
+              prose('For $\\mathbf{a} = \\left(1, 2, 3\\right)$ and $\\mathbf{b} = \\left(4, 0, -1\\right)$, one component at a time:'),
+              maths(
+                '\\begin{aligned} x&: \\ 2(-1) - 3(0) = -2 \\\\ y&: \\ 3(4) - 1(-1) = 13 \\\\ z&: \\ 1(0) - 2(4) = -8 \\end{aligned}',
               ),
               maths(
                 '\\begin{pmatrix} 1 \\\\ 2 \\\\ 3 \\end{pmatrix} \\times \\begin{pmatrix} 4 \\\\ 0 \\\\ -1 \\end{pmatrix} = \\begin{pmatrix} -2 \\\\ 13 \\\\ -8 \\end{pmatrix}',
@@ -1240,6 +1334,9 @@ export const vectors: Course = {
               prose(
                 'When the corners are given as points, the sides are journeys out of one corner: for triangle $ABC$, cross $\\overrightarrow{AB}$ with $\\overrightarrow{AC}$.',
               ),
+              prose(
+                'For $A\\left(1, 0, 0\\right)$, $B\\left(3, 0, 1\\right)$ and $C\\left(1, 2, 2\\right)$, $\\overrightarrow{AB} = \\left(2, 0, 1\\right)$ and $\\overrightarrow{AC} = \\left(0, 2, 2\\right)$: the two sides above. Their cross product $\\left(-2, -4, 4\\right)$ has length $6$, so the triangle has area $\\tfrac{1}{2} \\times 6 = 3$.',
+              ),
             ),
             ask('cross-area'),
             ask('cross-perpendicular', 2),
@@ -1309,7 +1406,6 @@ export const vectors: Course = {
                 'Use the journeys, destination minus start, not the position vectors. $\\mathbf{a} \\times \\mathbf{b}$ is perpendicular to the lines from the origin, and those are not in the plane.',
               ),
             ),
-            ask('plane-three-normal'),
             ask('plane-d'),
             ask('plane-on'),
             teach(
@@ -1317,12 +1413,15 @@ export const vectors: Course = {
               maths(
                 '\\overrightarrow{AB} = \\begin{pmatrix} 1 \\\\ 1 \\\\ 0 \\end{pmatrix}, \\quad \\overrightarrow{AC} = \\begin{pmatrix} 0 \\\\ 2 \\\\ 1 \\end{pmatrix}',
               ),
-              maths('\\mathbf{n} = \\overrightarrow{AB} \\times \\overrightarrow{AC} = \\begin{pmatrix} 1 \\\\ -1 \\\\ 2 \\end{pmatrix}'),
+              maths(
+                '\\mathbf{n} = \\begin{pmatrix} 1(1) - 0(2) \\\\ 0(0) - 1(1) \\\\ 1(2) - 1(0) \\end{pmatrix} = \\begin{pmatrix} 1 \\\\ -1 \\\\ 2 \\end{pmatrix}',
+              ),
               maths('d = 1(1) - 1(0) + 2(2) = 5'),
               maths('x - y + 2z = 5'),
             ),
-            ask('plane-three-tree'),
+            ask('plane-three-normal'),
             ask('plane-three-normal+choice'),
+            ask('plane-three-tree'),
             ask('plane-three-equation'),
             teach(
               prose(
@@ -1402,15 +1501,21 @@ export const vectors: Course = {
               prose('Since $\\cos\\phi = \\sin\\theta$, that is one step:'),
               maths('\\sin\\theta = \\frac{|\\mathbf{b} \\cdot \\mathbf{n}|}{|\\mathbf{b}| \\, |\\mathbf{n}|}'),
               prose(
-                'Direction $\\left(1, 1, 0\\right)$ against the plane ${y + z = 3}$, normal $\\left(0, 1, 1\\right)$, gives $\\sin\\theta = \\tfrac{1}{2}$, so $\\theta = 30^\\circ$.',
+                'Direction $\\mathbf{b} = \\left(1, -1, 0\\right)$ against the plane ${y + z = 3}$, whose normal is $\\mathbf{n} = \\left(0, 1, 1\\right)$:',
               ),
-              prose(
-                'Two special cases: $\\mathbf{b}$ a multiple of $\\mathbf{n}$ means the line is perpendicular to the plane, and $\\mathbf{b} \\cdot \\mathbf{n} = 0$ means it is parallel.',
-              ),
+              maths('\\begin{aligned} \\mathbf{b} \\cdot \\mathbf{n} &= 0 - 1 + 0 = -1 \\\\ |\\mathbf{b}| &= \\sqrt{2} \\\\ |\\mathbf{n}| &= \\sqrt{2} \\end{aligned}'),
+              maths('\\sin\\theta = \\frac{|-1|}{\\sqrt{2}\\sqrt{2}} = \\frac{1}{2}'), prose('So $\\theta = 30^\\circ$.'),
             ),
             ask('angle-line-plane'),
             ask('angle-line-plane-tree'),
-            ask('angle-line-plane-kind'),
+            askAfter(
+              [
+                prose(
+                  'Two special cases: $\\mathbf{b}$ a multiple of $\\mathbf{n}$ means the line is perpendicular to the plane, and $\\mathbf{b} \\cdot \\mathbf{n} = 0$ means it is parallel. Direction $\\left(0, 2, 2\\right) = 2\\left(0, 1, 1\\right)$ is perpendicular to $y + z = 3$; direction $\\left(1, 1, -1\\right)$ gives $0 + 1 - 1 = 0$, so it is parallel.',
+                ),
+              ],
+              'angle-line-plane-kind',
+            ),
             teach(
               prose(
                 'The angle between two planes is the angle between their normals, and like lines it is the acute one. For ${x + y = 4}$ and ${y + z = 1}$:',
@@ -1480,7 +1585,6 @@ export const vectors: Course = {
             ),
             ask('mech-position'),
             ask('mech-position-steps'),
-            ask('mech-time-slider'),
             teach(
               prose(
                 'To find **when** a particle is somewhere, set one component of $\\mathbf{r}$ equal to where it needs to be and solve for $t$. For $\\mathbf{r} = (-6\\mathbf{i} + 2\\mathbf{j}) + (2\\mathbf{i} + \\mathbf{j})t$ to reach $4\\mathbf{i} + 7\\mathbf{j}$:',
@@ -1491,6 +1595,7 @@ export const vectors: Course = {
                 '**Due north** of the origin means no distance east or west, so the $\\mathbf{i}$ component is $0$; due east means the $\\mathbf{j}$ component is $0$.',
               ),
             ),
+            ask('mech-time-slider'),
             ask('mech-when'),
             ask('mech-time-slider', 2),
             ask('mech-when+choice'),
@@ -1527,7 +1632,14 @@ export const vectors: Course = {
             ),
             ask('mech-speed'),
             ask('mech-distance-tree'),
-            ask('mech-speed+choice'),
+            askAfter(
+              [
+                prose(
+                  'When the position is given as $\\mathbf{r} = \\mathbf{r}_0 + \\mathbf{v}t$, the velocity is the vector multiplying $t$. For $\\mathbf{r} = (\\mathbf{i} + 2\\mathbf{j}) + (6\\mathbf{i} - 8\\mathbf{j})t$, $\\mathbf{v} = 6\\mathbf{i} - 8\\mathbf{j}$, so the speed is $\\sqrt{36 + 64} = 10 \\; \\mathrm{m\\,s^{-1}}$.',
+                ),
+              ],
+              'mech-speed+choice',
+            ),
             teach(
               prose(
                 'The other way round: a speed and a direction make a velocity. Divide the direction by its own length to get a **unit vector**, then multiply by the speed.',
@@ -1611,7 +1723,9 @@ export const vectors: Course = {
               prose(
                 'For $\\mathbf{F}_1 = 5\\mathbf{i} + 2\\mathbf{j}$ and $\\mathbf{F}_2 = \\mathbf{i} + 6\\mathbf{j}$, $\\mathbf{R} = 6\\mathbf{i} + 8\\mathbf{j}$, of magnitude $\\sqrt{36 + 64} = 10$ newtons.',
               ),
-              prose('A resultant **parallel to** $\\mathbf{i}$ has no $\\mathbf{j}$ component, so the $\\mathbf{j}$ components add to zero.'),
+              prose(
+                'A resultant **parallel to** $\\mathbf{i}$ has no $\\mathbf{j}$ component, so the $\\mathbf{j}$ components add to zero. With $\\mathbf{F}_1 = 2\\mathbf{i} + 3\\mathbf{j}$ and $\\mathbf{F}_2 = 4\\mathbf{i} + k\\mathbf{j}$: $3 + k = 0$, so $k = -3$. Parallel to $\\mathbf{j}$, it is the $\\mathbf{i}$ components that add to zero.',
+              ),
             ),
             ask('mech-resultant'),
             ask('mech-resultant-tree'),
@@ -1636,7 +1750,17 @@ export const vectors: Course = {
               ),
             ),
             ask('mech-fma'),
-            ask('mech-fma', 2),
+            askAfter(
+              [
+                prose(
+                  'Given the acceleration, work back: $m\\mathbf{a}$ is the resultant, and a missing force is what is left once the known one is taken away. For $2$ kg, $\\mathbf{a} = 4\\mathbf{i} - \\mathbf{j}$ and $\\mathbf{F}_1 = 3\\mathbf{i} + 2\\mathbf{j}$:',
+                ),
+                maths('m\\mathbf{a} = 2(4\\mathbf{i} - \\mathbf{j}) = 8\\mathbf{i} - 2\\mathbf{j}'),
+                maths('\\begin{aligned} \\mathbf{F}_2 &= (8\\mathbf{i} - 2\\mathbf{j}) - (3\\mathbf{i} + 2\\mathbf{j}) \\\\ &= 5\\mathbf{i} - 4\\mathbf{j} \\end{aligned}'),
+              ],
+              'mech-fma',
+              2,
+            ),
           ],
           skillCheck: [
             ask('mech-resultant-tree', 2),
@@ -1665,20 +1789,22 @@ export const vectors: Course = {
                 'Two particles **collide** only if they are in the same place at the **same time**: both components equal for one value of $t$.',
               ),
               prose(
-                'That is stricter than two lines crossing. Their paths can cross with one particle arriving after the other has gone.',
+                'So solve one component for $t$, then check the other at that time. For $\\mathbf{r}_A = (\\mathbf{i} + 2\\mathbf{j}) + (3\\mathbf{i} + \\mathbf{j})t$ and $\\mathbf{r}_B = (9\\mathbf{i} + 4\\mathbf{j}) + (-\\mathbf{i} + 2\\mathbf{j})t$:',
               ),
+              maths('1 + 3t = 9 - t \\implies t = 2'),
               prose(
-                'So solve one component for $t$, then check the other at that time. If a component can never be equal, they never collide.',
+                'At $t = 2$ both $\\mathbf{j}$ components are $4$, so they collide, at $7\\mathbf{i} + 4\\mathbf{j}$.',
               ),
             ),
             ask('mech-meet-flow'),
             ask('mech-meet-time'),
             ask('mech-meet-point'),
             teach(
-              prose('For $\\mathbf{r}_A = (\\mathbf{i} + 2\\mathbf{j}) + (3\\mathbf{i} + \\mathbf{j})t$ and $\\mathbf{r}_B = (9\\mathbf{i} + 4\\mathbf{j}) + (-\\mathbf{i} + 2\\mathbf{j})t$:'),
-              maths('1 + 3t = 9 - t \\implies t = 2'),
               prose(
-                'At $t = 2$ both $\\mathbf{j}$ components are $4$, so they collide, at $7\\mathbf{i} + 4\\mathbf{j}$.',
+                'That is stricter than two lines crossing. Their paths can cross with one particle arriving after the other has gone.',
+              ),
+              prose(
+                'Keep $A$ as it was, and start $B$ at $9\\mathbf{i} + 5\\mathbf{j}$ instead. The $\\mathbf{i}$ components still match at $t = 2$, but then the $\\mathbf{j}$ components are $2 + 2 = 4$ for $A$ and $5 + 4 = 9$ for $B$. They differ, so there is no collision. If a component can never be equal, they never collide either.',
               ),
             ),
             ask('mech-meet-time+choice', 2),

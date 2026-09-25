@@ -9,6 +9,17 @@ its pull request; the PR description holds the evidence.
   a one-time code on one device to type on the other; from then on lessons,
   bests and the streak are merged (never overwritten) through a small store on
   the Worker, a KV namespace that wrangler creates with no dashboard setup.
+- **Home-screen colours: the seams were an old copy (this PR).** The current
+  build already runs one unbroken purple from Algebra Fundamentals to Advanced
+  Maths and orange from the Statistics heading down (#180); the iPad was still
+  showing an older version. The app now checks for a new version every time it
+  is brought back to the front, so one close and reopen picks it up. The purple now melts through rose into
+  the orange above Statistics instead of meeting it in a hard line.
+- **Checker: `+ C` and `2e-1`.** An integral answer's `C` was probed as 0, so
+  `x^2/2 + C*x` passed as the integral of x; `C` now takes a fixed non-zero
+  value, so only an added constant is forgiven (`2C` and `ln(C)` still pass).
+  A typed `2e-1` was read as 0.2; a digit before `e` is now read as a product,
+  so it is 2e − 1.
 - **Two grading bugs fixed (this PR).** `vec-parallel` could offer two
   parallel options, marking a correct pick wrong (~10% of draws). A negative
   base was shown unbracketed (`-1^{4}`) while the answer meant `(-1)^{4}`, in

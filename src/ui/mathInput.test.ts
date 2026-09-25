@@ -389,3 +389,12 @@ describe('a letter key never merges with what follows it', () => {
     expect(toAnswer(press('2', 'x', '+', '1').nodes)).toBe('2x+1');
   });
 });
+
+describe('typing a digit then e on the keypad', () => {
+  it('grades 2 e - 1 as 2e - 1, never as 0.2', () => {
+    const doc = type(EMPTY_DOC, '2e-1');
+    expect(toAnswer(doc.nodes)).toBe('2e-1');
+    expect(checkAnswer(toAnswer(doc.nodes), '2*e - 1').status).toBe('correct');
+    expect(checkAnswer(toAnswer(doc.nodes), '0.2').status).toBe('incorrect');
+  });
+});

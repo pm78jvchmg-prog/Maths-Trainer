@@ -120,7 +120,7 @@ export const integration: Course = {
               [
                 prose('A sum is integrated one term at a time, each term through the same rule.'),
                 maths(
-                  '\\int \\left(6x + 12x^{2}\\right) \\, dx = \\frac{6x^{2}}{2} + \\frac{12x^{3}}{3} + C = 3x^{2} + 4x^{3} + C',
+                  '\\begin{aligned} \\int \\left(6x + 12x^{2}\\right) \\, dx &= \\frac{6x^{2}}{2} + \\frac{12x^{3}}{3} + C \\\\ &= 3x^{2} + 4x^{3} + C \\end{aligned}',
                 ),
               ],
               'int-term-tiles',
@@ -200,7 +200,7 @@ export const integration: Course = {
               [
                 prose('A sum is integrated one term at a time, and one $C$ covers the lot.'),
                 maths(
-                  '\\int \\left(8x + 9x^{2}\\right) \\, dx = \\frac{8x^{2}}{2} + \\frac{9x^{3}}{3} + C = 4x^{2} + 3x^{3} + C',
+                  '\\begin{aligned} \\int \\left(8x + 9x^{2}\\right) \\, dx &= \\frac{8x^{2}}{2} + \\frac{9x^{3}}{3} + C \\\\ &= 4x^{2} + 3x^{3} + C \\end{aligned}',
                 ),
               ],
               'int-term-tiles',
@@ -269,7 +269,7 @@ export const integration: Course = {
                 ),
                 maths('y = \\int 6x \\, dx = 3x^{2} + C'),
                 prose('Now put in $x = 1$ and $y = 5$, and solve for $C$:'),
-                maths('5 = 3 \\times 1^{2} + C = 3 + C \\quad \\Rightarrow \\quad C = 2'),
+                maths('\\begin{aligned} 5 &= 3 \\times 1^{2} + C = 3 + C \\\\ \\Rightarrow \\quad C &= 2 \\end{aligned}'),
               ],
               'int-constant-point',
             ),
@@ -431,8 +431,8 @@ export const integration: Course = {
               prose(
                 'Under differentiation it is cosine that picks up the minus sign; under integration it is sine. The division by $k$ applies here too, for the same chain-rule reason:',
               ),
-              maths('\\int 6\\sin(2x) \\, dx = -\\frac{6\\cos(2x)}{2} + C = -3\\cos(2x) + C'),
-              maths('\\int 12\\cos(3x) \\, dx = \\frac{12\\sin(3x)}{3} + C = 4\\sin(3x) + C'),
+              maths('\\begin{aligned} \\int 6\\sin(2x) \\, dx &= -\\frac{6\\cos(2x)}{2} + C \\\\ &= -3\\cos(2x) + C \\end{aligned}'),
+              maths('\\begin{aligned} \\int 12\\cos(3x) \\, dx &= \\frac{12\\sin(3x)}{3} + C \\\\ &= 4\\sin(3x) + C \\end{aligned}'),
             ),
             ask('int-trig'),
             ask('int-standard-tiles'),
@@ -625,7 +625,7 @@ export const integration: Course = {
                   'The limit can be the unknown. For the area under $y = 6x$ from $0$ to $b$ to be $27$, integrate with $b$ left as a letter:',
                 ),
                 maths('\\int_{0}^{b} 6x \\, dx = \\left[3x^{2}\\right]_{0}^{b} = 3b^{2}'),
-                maths('3b^{2} = 27 \\quad \\Rightarrow \\quad b^{2} = 9 \\quad \\Rightarrow \\quad b = 3'),
+                maths('\\begin{aligned} 3b^{2} &= 27 \\\\ \\Rightarrow \\quad b^{2} &= 9 \\\\ \\Rightarrow \\quad b &= 3 \\end{aligned}'),
               ],
               'int-area-slider',
             ),
@@ -982,7 +982,7 @@ export const integration: Course = {
                 'A linear bracket needs nothing outside it, because its derivative is a plain number. For $\\int \\left(3x + 1\\right)^{4} \\, dx$ put $u = 3x + 1$, so $\\frac{du}{dx} = 3$ and $dx = \\frac{1}{3} \\, du$:',
               ),
               maths(
-                '\\frac{1}{3}\\int u^{4} \\, du = \\frac{u^{5}}{15} + C = \\frac{\\left(3x + 1\\right)^{5}}{15} + C',
+                '\\begin{aligned} \\frac{1}{3}\\int u^{4} \\, du &= \\frac{u^{5}}{15} + C \\\\ &= \\frac{\\left(3x + 1\\right)^{5}}{15} + C \\end{aligned}',
               ),
             ),
             ask('int-bracket-tree', 2),
@@ -1082,7 +1082,7 @@ export const integration: Course = {
             teach(
               prose('Check the answer by differentiating it with the product rule:'),
               maths(
-                '\\frac{d}{dx}\\left(\\frac{xe^{2x}}{2} - \\frac{e^{2x}}{4}\\right) = \\frac{e^{2x}}{2} + xe^{2x} - \\frac{e^{2x}}{2} = xe^{2x}',
+                '\\begin{aligned} & \\frac{d}{dx}\\left(\\frac{xe^{2x}}{2} - \\frac{e^{2x}}{4}\\right) \\\\ &= \\frac{e^{2x}}{2} + xe^{2x} - \\frac{e^{2x}}{2} \\\\ &= xe^{2x} \\end{aligned}',
               ),
               prose(
                 'Choosing the other way round makes matters worse, and it is worth seeing why. With $u = e^{2x}$, the new integral contains $\\frac{x^{2}}{2}$ — a higher power than before. Apply by parts again and the power rises again. The method runs forever.',
@@ -1095,10 +1095,10 @@ export const integration: Course = {
                 'For a polynomial times an exponential or a trigonometric function, the polynomial is always $u$. It differentiates down to a constant in finitely many steps, and that is what makes the method terminate.',
               ),
               maths(
-                'u = x \\quad \\frac{dv}{dx} = \\sin(3x) \\quad \\frac{du}{dx} = 1 \\quad v = -\\frac{\\cos(3x)}{3}',
+                '\\begin{aligned} u &= x & \\frac{dv}{dx} &= \\sin(3x) \\\\ \\frac{du}{dx} &= 1 & v &= -\\frac{\\cos(3x)}{3} \\end{aligned}',
               ),
               maths(
-                '\\int x\\sin(3x) \\, dx = -\\frac{x\\cos(3x)}{3} + \\int \\frac{\\cos(3x)}{3} \\, dx = -\\frac{x\\cos(3x)}{3} + \\frac{\\sin(3x)}{9} + C',
+                '\\begin{aligned} & \\int x\\sin(3x) \\, dx \\\\ &= -\\frac{x\\cos(3x)}{3} + \\int \\frac{\\cos(3x)}{3} \\, dx \\\\ &= -\\frac{x\\cos(3x)}{3} + \\frac{\\sin(3x)}{9} + C \\end{aligned}',
               ),
             ),
             ask('int-by-parts+choice', 2),
@@ -1245,7 +1245,7 @@ export const integration: Course = {
               prose(
                 'Testing one point is only safe if the curves do not cross inside the interval. To check, subtract them and find where the difference is zero. Take $y = x^{2} + 1$ and $y = 2x + 4$ between $x = 4$ and $x = 5$:',
               ),
-              maths('\\left(x^{2} + 1\\right) - \\left(2x + 4\\right) = x^{2} - 2x - 3 = (x - 3)(x + 1)'),
+              maths('\\begin{aligned} \\left(x^{2} + 1\\right) - \\left(2x + 4\\right) &= x^{2} - 2x - 3 \\\\ &= (x - 3)(x + 1) \\end{aligned}'),
               prose(
                 'The difference is zero only at $x = 3$ and $x = -1$. Neither lies between $4$ and $5$, so the curves do not cross there. At $x = 4.5$ the difference is $1.5 \\times 5.5 = 8.25$, positive, so $y = x^{2} + 1$ is higher all the way across. Had a zero lain between $4$ and $5$, the curves would cross there.',
               ),
@@ -1453,8 +1453,8 @@ export const integration: Course = {
               prose(
                 'To find the crossing, set the difference to zero: $2x - 2 = 0$ at $x = 1$, which is inside $0$ to $2$, so split there. A zero outside the interval can be ignored.',
               ),
-              maths('\\int_{0}^{1} \\left(2x - 2\\right) dx = \\left[x^{2} - 2x\\right]_{0}^{1} = -1 - 0 = -1'),
-              maths('\\int_{1}^{2} \\left(2x - 2\\right) dx = \\left[x^{2} - 2x\\right]_{1}^{2} = 0 - \\left(-1\\right) = 1'),
+              maths('\\begin{aligned} \\int_{0}^{1} \\left(2x - 2\\right) dx &= \\left[x^{2} - 2x\\right]_{0}^{1} \\\\ &= -1 - 0 = -1 \\end{aligned}'),
+              maths('\\begin{aligned} \\int_{1}^{2} \\left(2x - 2\\right) dx &= \\left[x^{2} - 2x\\right]_{1}^{2} \\\\ &= 0 - \\left(-1\\right) = 1 \\end{aligned}'),
               prose('Each piece counts by its size, so the area is $1 + 1 = 2$.'),
             ),
             ask('int-crossing-pieces'),
@@ -1622,7 +1622,7 @@ export const integration: Course = {
                   'Working backwards: when the volume is given and a limit is not, leave the limit as a letter, integrate, and solve. Say the region under $y = \\sqrt{2x}$ from $0$ to $h$ gives a volume of $9\\pi$:',
                 ),
                 maths('V = \\pi \\int_{0}^{h} 2x \\, dx = \\pi \\left[x^{2}\\right]_{0}^{h} = \\pi h^{2}'),
-                maths('\\pi h^{2} = 9\\pi \\quad \\Rightarrow \\quad h^{2} = 9 \\quad \\Rightarrow \\quad h = 3'),
+                maths('\\begin{aligned} \\pi h^{2} &= 9\\pi \\\\ \\Rightarrow \\quad h^{2} &= 9 \\\\ \\Rightarrow \\quad h &= 3 \\end{aligned}'),
               ],
               'int-vol-find-limit',
             ),
@@ -1680,7 +1680,7 @@ export const integration: Course = {
                 prose(
                   'When the region is described by $x$ values, turn them into heights: put each one into the curve. For $y = x^{2} + 1$ from $x = 1$ to $x = 2$:',
                 ),
-                maths('x = 1: \\; y = 1 + 1 = 2 \\qquad x = 2: \\; y = 4 + 1 = 5'),
+                prose('At $x = 1$, $y = 1 + 1 = 2$. At $x = 2$, $y = 4 + 1 = 5$.'),
                 prose('Then rearrange the curve for $x^{2}$: $y = x^{2} + 1$ gives $x^{2} = y - 1$.'),
               ],
               'int-vol-rearrange',
@@ -1953,8 +1953,8 @@ export const integration: Course = {
                 prose(
                   'The top limit can be the unknown. Say $\\int_{0}^{h} \\frac{2}{x + 3} \\, dx = 2\\ln 2$. Integrate with $h$ left as a letter:',
                 ),
-                maths('\\left[2\\ln|x + 3|\\right]_{0}^{h} = 2\\ln(h + 3) - 2\\ln 3 = 2\\ln\\frac{h + 3}{3}'),
-                maths('\\frac{h + 3}{3} = 2 \\quad \\Rightarrow \\quad h + 3 = 6 \\quad \\Rightarrow \\quad h = 3'),
+                maths('\\begin{aligned} \\left[2\\ln|x + 3|\\right]_{0}^{h} &= 2\\ln(h + 3) - 2\\ln 3 \\\\ &= 2\\ln\\frac{h + 3}{3} \\end{aligned}'),
+                maths('\\begin{aligned} \\frac{h + 3}{3} &= 2 \\\\ \\Rightarrow \\quad h + 3 &= 6 \\\\ \\Rightarrow \\quad h &= 3 \\end{aligned}'),
               ],
               'int-pf-find-limit',
             ),
@@ -2000,11 +2000,11 @@ export const integration: Course = {
               ),
               maths('3x + 5 = 3(x + 1) + 2'),
               prose('Now divide each part by $(x + 1)^{2}$:'),
-              maths('\\frac{3x + 5}{(x + 1)^{2}} = \\frac{3(x + 1)}{(x + 1)^{2}} + \\frac{2}{(x + 1)^{2}} = \\frac{3}{x + 1} + \\frac{2}{(x + 1)^{2}}'),
+              maths('\\begin{aligned} \\frac{3x + 5}{(x + 1)^{2}} &= \\frac{3(x + 1)}{(x + 1)^{2}} + \\frac{2}{(x + 1)^{2}} \\\\ &= \\frac{3}{x + 1} + \\frac{2}{(x + 1)^{2}} \\end{aligned}'),
               prose(
                 'The first part integrates to $3\\ln|x + 1|$. The second is a power, $2(x + 1)^{-2}$: raise the index to $-1$ and divide by $-1$.',
               ),
-              maths('\\int 2(x + 1)^{-2} \\, dx = \\frac{2(x + 1)^{-1}}{-1} = -\\frac{2}{x + 1}'),
+              maths('\\begin{aligned} \\int 2(x + 1)^{-2} \\, dx &= \\frac{2(x + 1)^{-1}}{-1} \\\\ &= -\\frac{2}{x + 1} \\end{aligned}'),
             ),
             ask('int-pf-form-flow'),
             ask('int-pf-repeated'),
@@ -2160,9 +2160,9 @@ export const integration: Course = {
               prose(
                 'Fractional powers follow the same rule. $\\frac{1}{x\\sqrt{x}} = x^{-\\frac{3}{2}}$ has $p = \\frac{3}{2}$, so it converges, while $\\frac{1}{\\sqrt{x}}$ has $p = \\frac{1}{2}$ and diverges. Adding one to $-\\frac{3}{2}$ gives $-\\frac{1}{2}$:',
               ),
-              maths('\\int_{1}^{t} x^{-\\frac{3}{2}} \\, dx = \\left[-2x^{-\\frac{1}{2}}\\right]_{1}^{t} = 2 - \\frac{2}{\\sqrt{t}} \\to 2'),
+              maths('\\begin{aligned} \\int_{1}^{t} x^{-\\frac{3}{2}} \\, dx &= \\left[-2x^{-\\frac{1}{2}}\\right]_{1}^{t} \\\\ &= 2 - \\frac{2}{\\sqrt{t}} \\to 2 \\end{aligned}'),
               prose('An exponential converges on an infinite interval when it decays, and diverges when it grows:'),
-              maths('\\int_{0}^{t} 6e^{-2x} \\, dx = \\left[-3e^{-2x}\\right]_{0}^{t} = 3 - 3e^{-2t} \\to 3'),
+              maths('\\begin{aligned} \\int_{0}^{t} 6e^{-2x} \\, dx &= \\left[-3e^{-2x}\\right]_{0}^{t} \\\\ &= 3 - 3e^{-2t} \\to 3 \\end{aligned}'),
             ),
             ask('int-imp-verdict'),
             ask('int-imp-root-tail'),
@@ -2249,7 +2249,7 @@ export const integration: Course = {
               prose('A point inside the interval where the integrand is unbounded is split the same way, at that point, so the trouble sits at one end of each half:'),
               maths('\\int_{-1}^{8} \\frac{1}{\\sqrt[3]{x^{2}}} \\, dx = \\int_{-1}^{0} x^{-\\frac{2}{3}} \\, dx + \\int_{0}^{8} x^{-\\frac{2}{3}} \\, dx'),
               prose('Adding one to $-\\frac{2}{3}$ gives $\\frac{1}{3}$, so $F(x) = 3\\sqrt[3]{x}$, and $F(0) = 0$ is a finite value to reach:'),
-              maths('F(0) - F(-1) = 0 - (-3) = 3 \\qquad F(8) - F(0) = 6 - 0 = 6'),
+              maths('\\begin{aligned} F(0) - F(-1) &= 0 - (-3) = 3 \\\\ F(8) - F(0) &= 6 - 0 = 6 \\end{aligned}'),
               prose('Both halves converge, so the integral is $3 + 6 = 9$.'),
             ),
             ask('int-imp-split-tiles'),
@@ -2329,7 +2329,7 @@ export const integration: Course = {
             askAfter(
               [
                 prose('Read the heights at the **right** edges instead and you get the right sum. For the same three strips:'),
-                maths('R_{3} = 2\\left[f(2) + f(4) + f(6)\\right] = 2(5 + 17 + 37) = 118'),
+                maths('\\begin{aligned} R_{3} &= 2\\left[f(2) + f(4) + f(6)\\right] \\\\ &= 2(5 + 17 + 37) = 118 \\end{aligned}'),
               ],
               'int-lim-which-sum',
             ),
@@ -2390,9 +2390,9 @@ export const integration: Course = {
               prose(
                 'A curve needs the $k^{2}$ result. Take $\\int_{0}^{1} 3x^{2} \\, dx$ with $n$ strips of width $\\frac{1}{n}$. Strip $k$ has right edge $\\frac{k}{n}$, where the height is $\\frac{3k^{2}}{n^{2}}$. So',
               ),
-              maths('R_{n} = \\sum_{k=1}^{n} \\frac{1}{n} \\cdot \\frac{3k^{2}}{n^{2}} = \\frac{3}{n^{3}} \\cdot \\frac{n(n+1)(2n+1)}{6}'),
+              maths('\\begin{aligned} R_{n} &= \\sum_{k=1}^{n} \\frac{1}{n} \\cdot \\frac{3k^{2}}{n^{2}} \\\\ &= \\frac{3}{n^{3}} \\cdot \\frac{n(n+1)(2n+1)}{6} \\end{aligned}'),
               prose('Cancel the $3$ into the $6$ and the $n$ on top against one underneath, then give each bracket one of the two $n$s left:'),
-              maths('= \\frac{1}{2} \\cdot \\frac{n+1}{n} \\cdot \\frac{2n+1}{n} = \\frac{1}{2}\\left(1 + \\frac{1}{n}\\right)\\left(2 + \\frac{1}{n}\\right)'),
+              maths('\\begin{aligned} &= \\frac{1}{2} \\cdot \\frac{n+1}{n} \\cdot \\frac{2n+1}{n} \\\\ &= \\frac{1}{2}\\left(1 + \\frac{1}{n}\\right)\\left(2 + \\frac{1}{n}\\right) \\end{aligned}'),
               prose(
                 'As $n$ grows each $\\frac{1}{n} \\to 0$, so $R_{n} \\to \\frac{1}{2} \\times 1 \\times 2 = 1$, which is $\\int_{0}^{1} 3x^{2} \\, dx$.',
               ),

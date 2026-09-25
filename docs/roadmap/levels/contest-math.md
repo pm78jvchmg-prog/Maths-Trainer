@@ -89,3 +89,44 @@ Generators in `src/content/generators/contestEquationsRatios.ts`.
 | Non-numeric Geometric Ratios | `cm-scale-factor`, `cm-scale-tiles`, `cm-half-rectangle`, `cm-midpoint-triangles`, `cm-nested-squares` | areas by k², volumes by k³; same base and height is half; midpoints make a quarter; a square in a circle in a square is half |
 
 Level check: 12 questions across all five lessons.
+
+## Level 3: Basic Statistics (`cm-l3`)
+
+Generators in `src/content/generators/contestStatistics.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Data Measures | `cm-stat-measures`, `cm-freq-median`, `cm-missing-score`, `cm-consecutive-mean` | sort before the median; a frequency table's median counts places, not columns; the total is the mean times the count; evenly spread numbers have the middle as their mean |
+| Changing Data Sets | `cm-new-mean`, `cm-count-from-shift`, `cm-combined-mean`, `cm-combined-mean-tiles`, `cm-change-table` | compare totals before and after; run it backwards for the count; add totals, not means; gaps from the combined mean cancel; a shift, a stretch or one end moved each move the measures their own way |
+| Determine the Set | `cm-set-from-measures`, `cm-set-tiles`, `cm-three-numbers`, `cm-four-set` | the mode fills both places on its side of the median, the range fixes the far end, the total the last gap; two numbers from their sum and difference; an even count's median is a pair |
+| Multiple Possibilities | `cm-mean-median-cases`, `cm-mean-median-x`, `cm-count-sets`, `cm-extreme-value` | where x lands decides the median, so solve each case; count the lists by the one free number; make the rest as small as the facts allow |
+
+Level check: 14 questions across all four lessons.
+
+## Level 4: Geometry Fundamentals (`cm-l4`)
+
+Generators in `src/content/generators/contestGeometryFundamentals.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Measures | `cm-floor-tiles`, `cm-four-rectangles`, `cm-strip-square`, `cm-strip-square-tiles` | count along each side in one unit; diagonal products of a divided rectangle match; half a strip's perimeter is a length and a width |
+| Angle Hunting | `cm-parallel-bend`, `cm-isosceles-chain`, `cm-isosceles-chain-tiles`, `cm-isosceles-cases` | a parallel line through each bend; isosceles triangles pass the apex angle along; the given angle could be either kind |
+| Polygon Angle Hunting | `cm-star-tips`, `cm-missing-angle`, `cm-missing-angle-tiles`, `cm-polygon-seen-angle`, `cm-polygons-meet` | add up the turning; the full sum is the next multiple of 180; each side is seen at 180/n from any corner; angles round a point make 360 |
+| Special Right Triangles | `cm-square-diagonal`, `cm-thirty-sixty`, `cm-thirty-sixty-tiles`, `cm-equilateral-height`, `cm-triple-scale` | 1 : 1 : √2 and 1 : √3 : 2; a square's area is half its diagonal squared; a triple in disguise |
+| Creating Right Triangles | `cm-isosceles-area`, `cm-trapezium-area`, `cm-wide-angle`, `cm-glued-triangles`, `cm-glued-triangles-table` | drop a perpendicular; a rhombus's diagonals cross at right angles; a 150° angle leaves a 30° one outside; a shared height makes a difference of squares |
+
+Level check: 14 questions across all five lessons.
+
+## Level 5: Similarity and Scaling (`cm-l5`)
+
+Generators in `src/content/generators/contestSimilarity.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Similarity | `cm-parallel-cut`, `cm-similar-table`, `cm-hourglass`, `cm-similar-perimeter` | compare with the whole side, not the piece; multiply, never add; the hourglass ratio; perimeters scale like sides |
+| Scaling | `cm-scale-percent`, `cm-statue-weight`, `cm-map-area`, `cm-map-tiles` | a percentage on every length is applied twice for area, three times for volume; weight goes with volume; square the map scale |
+| Exploring Similarity | `cm-altitude-hyp`, `cm-altitude-tiles`, `cm-shared-height`, `cm-trapezium` | the altitude makes three similar triangles; same height, areas like bases; a trapezium's diagonals make an hourglass |
+| Applying Similarity | `cm-shadow-height`, `cm-shadow-table`, `cm-mirror-height`, `cm-crossed-poles` | parallel rays; a lamp's rays measured from the post; angle in equals angle out; 1/h = 1/a + 1/b, whatever the gap |
+| Coordinate Geometry | `cm-coord-distance`, `cm-parallelogram-vertex`, `cm-collinear`, `cm-coord-area` | Pythagoras; A + C = B + D; equal steps across, equal steps up; the shoelace |
+
+Level check: 12 questions across all five lessons.

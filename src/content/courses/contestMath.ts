@@ -15,6 +15,9 @@
 import type { Course } from '../types';
 import { problemSolving } from './contest/level1';
 import { equationsRatios } from './contest/level2';
+import { basicStatistics } from './contest/level3';
+import { geometryFundamentals } from './contest/level4';
+import { similarityScaling } from './contest/level5';
 
 export const contestMath: Course = {
   id: 'contest-math',
@@ -22,5 +25,5 @@ export const contestMath: Course = {
   position: 10,
   title: 'Contest Math',
   blurb: 'Competition problems: short to state, hard to crack, and each one opened by a single good idea.',
-  levels: [problemSolving, equationsRatios],
+  levels: [problemSolving, equationsRatios, basicStatistics, geometryFundamentals, similarityScaling],
 };

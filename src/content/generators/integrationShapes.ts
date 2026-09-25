@@ -31,7 +31,7 @@
  */
 import type { Block, Generator, Slide } from '../types';
 import { options } from '../choiceVariant';
-import { plotSvg } from '../figures';
+import { plotSvg, plotFigure } from '../figures';
 import { termTex } from './calculus';
 import { coeffTex } from './format';
 
@@ -1029,19 +1029,14 @@ const areaSlider: Generator<AreaSliderParams> = {
       step: 1,
       answer,
       readout: 'b = {v}',
-      figure: {
-        svg: plotSvg({
+      figure: plotFigure(plotSvg({
           xMin: 0,
           xMax: 8,
           yMin: 0,
           yMax: gradient * 8,
           curves: [{ f: (x) => gradient * x }],
           label: `The line y = ${gradient}x from x = 0 to x = 8`,
-        }),
-        xMin: 0,
-        xMax: 8,
-        axis: 'x',
-      },
+        })),
     };
   },
   solution: ({ half, answer }) => {

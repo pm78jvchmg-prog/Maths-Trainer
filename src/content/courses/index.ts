@@ -61,6 +61,7 @@ export const categories: Category[] = [
     'Derivatives, complex numbers, and the machinery behind them.',
     discovered,
   ),
+  tab('contest-math', 'Contest Math', 'Competition problems: harder than they look, and each opened by one good idea.', discovered),
   tab('statistics', 'Statistics', 'Summarising data, and the chance and spread behind it.', discovered),
   tab('mechanics', 'Mechanics', 'How things move: motion graphs, the equations of constant acceleration, and gravity.', discovered),
 ];

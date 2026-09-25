@@ -47,7 +47,7 @@
 import type { Block, Generator, KeypadKey, Slide, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
 import { options } from '../choiceVariant';
-import { markerWindow, plotSvg } from '../figures';
+import { markerWindow, plotSvg, plotFigure } from '../figures';
 import { EXP_KEYS, termAnswer, termTex } from './calculus';
 import { coeffTex, fracTex, gcdOrOne } from './format';
 import {
@@ -1495,8 +1495,7 @@ const deParticularSlider: Generator<ExpModelParams> = {
       step: 1,
       answer: A,
       readout: 'A = {v}',
-      figure: {
-        svg: plotSvg({
+      figure: plotFigure(plotSvg({
           xMin: 0,
           xMax: t1 + k.h,
           yMin: window.xMin,
@@ -1504,10 +1503,7 @@ const deParticularSlider: Generator<ExpModelParams> = {
           curves: others.map((other) => ({ f: (t: number) => Math.min(other * Math.exp(rateK * t), span * 2), dashed: true })),
           marks: [{ x: t1, y: y1 }],
           label: `Dashed solution curves and a marked point at t = ${t1}, height ${y1}`,
-        }),
-        ...window,
-        axis: 'y',
-      },
+        }), 'y'),
     };
   },
   solution: (params) => {
@@ -2388,8 +2384,7 @@ const deLimitSlider: Generator<LimitSliderParams> = {
       step: 5,
       answer: limitSliderAnswer(params),
       readout: `P(${tStar}) = {v}`,
-      figure: {
-        svg: plotSvg({
+      figure: plotFigure(plotSvg({
           xMin: 0,
           xMax: (m + 1) * h,
           yMin: window.xMin,
@@ -2399,10 +2394,7 @@ const deLimitSlider: Generator<LimitSliderParams> = {
           verticals: [{ x: tStar, dashed: true }],
           marks: [{ x: 0, y: start }],
           label: `A curve starting at ${start} and levelling off towards ${L}, with a dashed line at t = ${tStar}`,
-        }),
-        ...window,
-        axis: 'y',
-      },
+        }), 'y'),
     };
   },
   solution: (params) => {
@@ -2753,8 +2745,7 @@ const deLongSlider: Generator<LongSliderParams> = {
       step: 1,
       answer: L,
       readout: 'y = {v}',
-      figure: {
-        svg: plotSvg({
+      figure: plotFigure(plotSvg({
           xMin: 0,
           xMax: shown,
           yMin: window.xMin,
@@ -2762,10 +2753,7 @@ const deLongSlider: Generator<LongSliderParams> = {
           curves: [{ f: (t: number) => L + (y0 - L) * Math.exp(-k * t) }],
           marks: [{ x: 0, y: y0 }],
           label: `The first part of a solution curve starting at ${y0}`,
-        }),
-        ...window,
-        axis: 'y',
-      },
+        }), 'y'),
     };
   },
   solution: (params) => {

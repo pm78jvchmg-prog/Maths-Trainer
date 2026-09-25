@@ -17,6 +17,7 @@ import { categories, lessonCount, checkCount } from './content/courses';
 import { registry } from './content/registry';
 import { LessonPlayer } from './ui/LessonPlayer';
 import { SyncDevices } from './ui/SyncDevices';
+import { ChargeIcon, StreakView } from './ui/StreakView';
 import { useProgress } from './store/progress';
 import { MAX_CHARGES, countedOn, localDay, resolveStreak, useStreak } from './store/streak';
 import { MASTERED_AT, courseMastery, libraryProgress, masteryPercent, playables } from './store/mastery';
@@ -32,10 +33,11 @@ import type { Course, Lesson } from './content/types';
  * that has already lapsed shows as lapsed before the learner plays, and a
  * charge a missed day has cost is shown as spent rather than still banked.
  * Reading spends nothing; the deduction is only written when the next play is
- * recorded.
+ * recorded. Tapping it opens the streak view.
  */
 function StreakBar() {
   const streakState = useStreak((state) => state);
+  const [open, setOpen] = useState(false);
   const now = new Date();
   const today = localDay(now);
   const { streak, charges } = resolveStreak(streakState, today, now.getTime());
@@ -52,7 +54,8 @@ function StreakBar() {
   })();
 
   return (
-    <div className="streak-bar">
+    <>
+    <button type="button" className="streak-bar" aria-haspopup="dialog" onClick={() => setOpen(true)}>
       <span className="streak-flame" aria-hidden="true">
         &#128293;
       </span>
@@ -75,10 +78,12 @@ function StreakBar() {
         aria-label={`${charges} of ${MAX_CHARGES} charges banked, each covering one missed day`}
       >
         {Array.from({ length: MAX_CHARGES }, (_, index) => (
-          <span key={index} className={`charge${index < charges ? ' banked' : ''}`} />
+          <ChargeIcon key={index} full={index < charges} size={20} />
         ))}
       </span>
-    </div>
+    </button>
+    {open && <StreakView onClose={() => setOpen(false)} />}
+    </>
   );
 }
 
@@ -107,7 +112,7 @@ function LibraryLine() {
  * from the first maths band to the last, deepening as the maths gets harder,
  * and a second, orange, run for the applied subjects.
  */
-const MATHS_BANDS = ['algebra-fundamentals', 'advanced-algebra', 'advanced-maths'];
+const MATHS_BANDS = ['algebra-fundamentals', 'advanced-algebra', 'advanced-maths', 'contest-math'];
 const BANDS = [
   { id: 'maths', holds: (id: string) => MATHS_BANDS.includes(id) },
   // Everything else, so a category added later cannot fall out of the list.

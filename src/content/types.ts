@@ -665,7 +665,13 @@ export interface Level {
 }
 
 /** The tabs on the home screen; `courses/index.ts` gives each its title. */
-export type CategoryId = 'algebra-fundamentals' | 'advanced-algebra' | 'advanced-maths' | 'statistics' | 'mechanics';
+export type CategoryId =
+  | 'algebra-fundamentals'
+  | 'advanced-algebra'
+  | 'advanced-maths'
+  | 'contest-math'
+  | 'statistics'
+  | 'mechanics';
 
 export interface Course {
   id: string;

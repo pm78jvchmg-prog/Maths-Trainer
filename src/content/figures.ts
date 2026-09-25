@@ -122,6 +122,28 @@ export function markerWindow(
 }
 
 /**
+ * A slider figure whose marker window is read off the drawing itself.
+ *
+ * `markerWindow` has to be handed the window `plotSvg` drew, and a figure that
+ * handed the widened window to `plotSvg` as well padded twice: its marker ran
+ * off the curve towards the ends, a "levels off here" line sitting visibly
+ * above the level the curve reached. `plotSvg` records the window it drew in
+ * `data-plot`, so this cannot disagree with it, whatever window the caller
+ * chose or `plotSvg` fitted for itself.
+ */
+export function plotFigure(
+  svg: string,
+  axis: 'x' | 'y' = 'x',
+): { svg: string; xMin: number; xMax: number; axis: 'x' | 'y' } {
+  const plot = svg.match(/data-plot="([^"]+)"/);
+  const box = svg.match(/viewBox="0 0 [\d.]+ ([\d.]+)"/);
+  if (!plot || !box) throw new Error('plotFigure needs a figure drawn by plotSvg');
+  const [x0, x1, y0, y1] = plot[1].split(' ').map(Number);
+  const window = axis === 'y' ? markerWindow(y0, y1, 'y', Number(box[1])) : markerWindow(x0, x1, 'x');
+  return { svg, ...window, axis };
+}
+
+/**
  * A y window that keeps the interesting part visible.
  *
  * Takes the extremes of every sampled curve, but never lets the window grow so
@@ -170,7 +192,9 @@ export function plotSvg(options: PlotOptions): string {
     }).join(' L ');
 
   const parts = [
-    `<svg viewBox="0 0 ${WIDTH} ${height}" width="100%" role="img" aria-label="${label}">`,
+    // The window drawn inside the inset, so a test can check a slider's marker
+    // window against it (see `markerWindow`).
+    `<svg viewBox="0 0 ${WIDTH} ${height}" width="100%" role="img" aria-label="${label}" data-plot="${xMin} ${xMax} ${lo} ${hi}">`,
   ];
 
   // The shaded region goes down first so the curve and axis draw over its edge.

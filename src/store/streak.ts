@@ -4,7 +4,7 @@
  * The rest of the app deliberately carries no engagement mechanics — no XP,
  * no leagues, no persistent points total. The streak is the one exception the
  * owner asked for, and it is kept deliberately forgiving: a charge is banked
- * when a streak starts and is spent automatically to cover a missed day, so
+ * on every day played, and is spent automatically to cover a missed day, so
  * one busy day does not undo a month.
  *
  * Days are the *device's local calendar* days, not 24-hour windows. Playing at
@@ -69,7 +69,24 @@ export interface StreakState {
   lastPlayedAt?: number | null;
   /** See `ReplacedDay`; absent unless the clock jumped far back. */
   replaced?: ReplacedDay | null;
+  /**
+   * The longest streak ever reached. Absent in streaks saved before it was
+   * kept, so a reader takes the larger of it and the current streak.
+   */
+  best?: number;
+  /**
+   * The last few days, each marked played or covered by a charge, for the
+   * streak view's row of days. Only `RECENT_DAYS` are kept; it is a display
+   * record, and nothing about the streak itself is worked out from it.
+   */
+  days?: Record<string, DayMark>;
 }
+
+/** How a day in the recent-days log was kept. */
+export type DayMark = 'played' | 'charge';
+
+/** How many recent days the log holds. The view shows five. */
+export const RECENT_DAYS = 14;
 
 // The optional fields are written out so that `reset`, which zustand merges
 // into the stored state, clears them too.
@@ -79,6 +96,8 @@ export const emptyStreak: StreakState = {
   charges: 0,
   lastPlayedAt: null,
   replaced: null,
+  best: 0,
+  days: {},
 };
 
 /** The device's local calendar day for `date`. */
@@ -96,6 +115,26 @@ export function localDay(date: Date): string {
  */
 function daysApart(from: string, to: string): number {
   return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS);
+}
+
+/** The calendar day `offset` days from `day`, either way. */
+export function shiftDay(day: string, offset: number): string {
+  return new Date(Date.parse(`${day}T00:00:00Z`) + offset * DAY_MS).toISOString().slice(0, 10);
+}
+
+/**
+ * The log with only its latest `RECENT_DAYS` kept, and a played day never
+ * overwritten by a charge: a charge only ever covers a day nobody played.
+ */
+export function mergeDays(...logs: (Record<string, DayMark> | undefined)[]): Record<string, DayMark> {
+  const merged: Record<string, DayMark> = {};
+  for (const log of logs) {
+    for (const [day, mark] of Object.entries(log ?? {})) {
+      if (merged[day] !== 'played') merged[day] = mark;
+    }
+  }
+  const kept = Object.keys(merged).sort().slice(-RECENT_DAYS);
+  return Object.fromEntries(kept.map((day) => [day, merged[day]]));
 }
 
 /**
@@ -211,18 +250,92 @@ export function playOnAt(state: StreakState, today: string, now?: number): Strea
     return base === state ? state : { ...base, lastPlayedAt: now ?? base.lastPlayedAt };
   }
 
-  const starting = base.streak === 0;
   const replaced =
     base.replaced && daysApart(base.replaced.since, today) <= REPLACED_WINDOW_DAYS ? base.replaced : null;
+  const streak = base.streak + 1;
+
+  // The charges `resolveStreak` spent covered the days just before this one;
+  // a streak that lapsed spent none.
+  const spent = state.charges - base.charges;
+  const log: Record<string, DayMark> = { [today]: 'played' };
+  for (let back = 1; back <= spent; back += 1) log[shiftDay(today, -back)] = 'charge';
 
   return {
-    streak: base.streak + 1,
+    streak,
     lastPlayedDay: today,
-    // Starting a streak earns a charge — including a restart after a break.
-    charges: starting ? Math.min(MAX_CHARGES, base.charges + 1) : base.charges,
+    // Every day played earns a charge, the first day of a streak included.
+    // Earning one only when a streak started, as this once did, left a
+    // streak that never missed a day holding one charge for good.
+    charges: Math.min(MAX_CHARGES, base.charges + 1),
     lastPlayedAt: now ?? null,
     replaced,
+    best: Math.max(state.best ?? 0, state.streak, streak),
+    days: mergeDays(state.days, log),
   };
+}
+
+/** How a day shows in the streak view's row. */
+export type DayKind = 'played' | 'charge' | 'missed' | 'today';
+
+export interface RecentDay {
+  day: string;
+  kind: DayKind;
+}
+
+/**
+ * The last `count` days ending today, for the streak view.
+ *
+ * A day is played if the log says so or `alsoPlayed` holds it (the days
+ * lessons were finished on, which covers the time before the log was kept).
+ * A missed day a charge is about to cover, because the play that spends it
+ * has not happened yet, shows as covered: that is what the home screen's
+ * charge count already says. Today, not yet played, is open rather than
+ * missed.
+ */
+export function recentDays(
+  state: StreakState,
+  today: string,
+  now?: number,
+  alsoPlayed: Iterable<string> = [],
+  count = 5,
+): RecentDay[] {
+  const played = new Set(alsoPlayed);
+  const log = { ...state.days };
+  const base = resolveStreak(state, today, now);
+  if (base.streak > 0) {
+    for (let back = 1; back <= state.charges - base.charges; back += 1) {
+      const day = shiftDay(today, -back);
+      if (!log[day]) log[day] = 'charge';
+    }
+  }
+
+  return Array.from({ length: count }, (_, index) => {
+    const day = shiftDay(today, index - count + 1);
+    if (day === today) return { day, kind: countedOn(state, today, now) || played.has(day) ? 'played' : 'today' };
+    if (log[day] === 'played' || played.has(day)) return { day, kind: 'played' };
+    return { day, kind: log[day] === 'charge' ? 'charge' : 'missed' };
+  });
+}
+
+/** The longest streak ever reached, the current one included. */
+export function bestStreak(state: StreakState, today: string, now?: number): number {
+  return Math.max(state.best ?? 0, state.streak, resolveStreak(state, today, now).streak);
+}
+
+/**
+ * A streak saved when a charge came only on its first day, given the ones its
+ * later days would have earned. Any it may have spent meanwhile are not taken
+ * back out, which errs the forgiving way.
+ */
+export function backfillCharges(state: StreakState): StreakState {
+  const charges = Math.min(MAX_CHARGES, state.charges + Math.max(0, state.streak - 1));
+  return charges === state.charges ? state : { ...state, charges };
+}
+
+/** Persisted versions: 0 earned a charge only when a streak started. */
+function migrateStreak(saved: unknown): StreakState {
+  const state = { ...emptyStreak, ...(saved as Partial<StreakState>) };
+  return backfillCharges(state);
 }
 
 interface StreakStore extends StreakState {
@@ -238,6 +351,6 @@ export const useStreak = create<StreakStore>()(
       recordPlay: (now = new Date()) => set((state) => playAt(state, now)),
       reset: () => set({ ...emptyStreak }),
     }),
-    { name: 'maths-trainer:streak:v1' },
+    { name: 'maths-trainer:streak:v1', version: 1, migrate: (saved) => migrateStreak(saved) },
   ),
 );

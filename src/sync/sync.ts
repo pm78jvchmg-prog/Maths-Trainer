@@ -42,8 +42,12 @@ export function localSnapshot(): Snapshot {
   const { lessons, abandoned } = useProgress.getState();
   // The streak's `replaced` is about this device's clock alone, so it stays
   // out of what is shared; `setState` merging leaves the local copy in place.
-  const { streak, lastPlayedDay, charges, lastPlayedAt } = useStreak.getState();
-  return { lessons, abandoned, streak: { streak, lastPlayedDay, charges, lastPlayedAt: lastPlayedAt ?? null } };
+  const { streak, lastPlayedDay, charges, lastPlayedAt, best, days } = useStreak.getState();
+  return {
+    lessons,
+    abandoned,
+    streak: { streak, lastPlayedDay, charges, lastPlayedAt: lastPlayedAt ?? null, best: best ?? 0, days: days ?? {} },
+  };
 }
 
 /** Set while a merged snapshot is written back, so writing it is not itself a change to sync. */

@@ -138,8 +138,11 @@ total is not.
 The **daily streak** is the one exception, asked for by the owner. It lives in
 `src/store/streak.ts` and is shown on the home screen only, never on a lesson
 screen. It rises by one per consecutive local calendar day a lesson is
-finished, and starting a streak banks a *charge*; a charge is spent
-automatically to cover one missed day, and at most two are ever banked. Days
+finished, and every day played banks a *charge* (the owner's choice; earning
+one only when a streak started left it stuck at one), spent after any charge
+that day's play needed; a charge is spent automatically to cover one missed
+day, and at most two are ever banked. A streak saved under the old rule is
+topped up once, by the persist `migrate` (`backfillCharges`). Days
 are the device's local calendar days held as `'YYYY-MM-DD'`, not 24-hour
 windows, so two plays in one afternoon count once and 23:50 then 00:10 counts
 twice. `resolveStreak` is pure and is the only place a gap is interpreted, so
@@ -154,6 +157,19 @@ elapsed (`lastPlayedAt`), and a clock set far wrong is re-dated while
 missed. Two earlier fixes each broke the opposite direction; the tests in
 `streak.test.ts` cover both. That the streak is forgiving is the point — it should
 not become a reason to feel bad about missing a morning.
+
+Tapping the streak bar opens the **streak view** (`src/ui/StreakView.tsx`), a
+modal `<dialog>` like the leave-check prompt: the current streak, the charges,
+the last five days (played, covered by a charge, missed, or today still open),
+the longest streak and the lessons completed. The longest run is `best` on the
+streak state; the days come from `days`, a log of the last `RECENT_DAYS`
+marked `played` or `charge` by `playOnAt`, plus the days lessons were last
+finished on, which covers the time before the log was kept. `recentDays` reads
+a charge the next play will spend as already covering its day, as the bar's
+charge count does. Lessons completed is the sum of each record's `timesPlayed`,
+so it syncs with the lessons; `best` (the larger) and `days` (the union, a
+played day beating a charge) sync with the streak. The log is display only;
+nothing about the streak is worked out from it.
 
 **Topic mastery** replaces the XP the reference app runs on, and is the reason
 a points total is still refused. Solo there is no leaderboard to give a running
@@ -261,6 +277,11 @@ Both answer as `string[]` and are graded by `gradeSequence` in the reducer.
 
 Four more came later. `slider` is a drag-to-a-value widget with an optional
 figure the marker tracks; `flow` walks a decision tree one branch at a time.
+A slider figure drawn by `plotSvg` takes its marker window from
+`plotFigure(svg, axis)`, which reads the window the drawing used back out of
+the SVG. Passing `markerWindow` to `plotSvg` as well pads twice and the line
+drifts off the curve; 37 sliders did that, and `sliderValue.test.ts` now fails
+any whose marker window disagrees with its drawing.
 The other two share `src/content/expr.ts`, an arithmetic expression held as a
 tree, and both live in `src/ui/reduceSlide.tsx`:
 

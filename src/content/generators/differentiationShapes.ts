@@ -28,7 +28,7 @@
  *   the learner reads the word "quad" in the middle of a formula.
  */
 import type { Generator, Slide, SolutionStep } from '../types';
-import { parabolaSvg } from '../figures';
+import { parabolaSvg, plotFigure } from '../figures';
 import { termTex, sumTex } from './calculus';
 
 /** A non-zero integer, for sampling where 0 would make a degenerate question. */
@@ -346,15 +346,11 @@ const stationarySlider: Generator<StationaryParams> = {
       step: 1,
       answer: v,
       readout: 'x = {v}',
-      figure: {
-        svg: parabolaSvg(a, b, c, {
+      figure: plotFigure(parabolaSvg(a, b, c, {
           xMin: -5,
           xMax: 5,
           label: 'A curve with one horizontal tangent',
-        }),
-        xMin: -5,
-        xMax: 5,
-      },
+        })),
     };
   },
   solution: ({ a, v, c }): SolutionStep[] => {

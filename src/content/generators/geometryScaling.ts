@@ -9,7 +9,7 @@
  */
 import type { ChoiceOption, Generator, Slide } from '../types';
 import { num, numberBank, numberOptions, say, typed } from './contestMath';
-import { type Pt, SVG_CLOSE, centroid, choiceSlide, cornerAngle, outline, sideLabel, svgOpen, triangleFromAngles } from './geometryKit';
+import { type Pt, SVG_CLOSE, centroid, choiceSlide, cornerAngle, labelHalf, outline, sideLabelAt, svgOpen, text, triangleFromAngles } from './geometryKit';
 import { rectSvg } from './geometryLengths';
 
 const diagram = (svg: string) => ({ kind: 'diagram' as const, svg });
@@ -35,16 +35,37 @@ export interface TriLabels {
   unknownAngle?: number;
 }
 
-function labelTriangle(pts: Pt[], l: TriLabels): string[] {
+/** Where each side label of a triangle goes, and the label. */
+function sideLabels(pts: Pt[], l: TriLabels): [Pt, string][] {
   const [p, q, r] = pts;
   const inside = centroid(pts);
-  const out = [outline(pts)];
+  const out: [Pt, string][] = [];
   if (l.sides) {
     const [left, right, base] = l.sides;
-    if (left) out.push(sideLabel(p, r, left, inside, 22));
-    if (right) out.push(sideLabel(q, r, right, inside, 22));
-    if (base) out.push(sideLabel(p, q, base, inside, 13));
+    if (left) out.push([sideLabelAt(p, r, left, inside, 22), left]);
+    if (right) out.push([sideLabelAt(q, r, right, inside, 22), right]);
+    if (base) out.push([sideLabelAt(p, q, base, inside, 13), base]);
   }
+  return out;
+}
+
+/** The left and right edges of a triangle with its side labels. */
+function xExtent(pts: Pt[], l: TriLabels): [number, number] {
+  const xs = pts.map((p) => p[0]);
+  let lo = Math.min(...xs);
+  let hi = Math.max(...xs);
+  for (const [at, value] of sideLabels(pts, l)) {
+    const hw = labelHalf(value)[0];
+    lo = Math.min(lo, at[0] - hw);
+    hi = Math.max(hi, at[0] + hw);
+  }
+  return [lo, hi];
+}
+
+function labelTriangle(pts: Pt[], l: TriLabels): string[] {
+  const [p, q, r] = pts;
+  const out = [outline(pts)];
+  for (const [at, value] of sideLabels(pts, l)) out.push(text(at, value));
   if (l.angles) {
     const corners: [Pt, Pt, Pt][] = [
       [r, p, q],
@@ -66,13 +87,33 @@ export function similarSvg(unit: Pt[], k: number, first: TriLabels, second: TriL
   const h = -Math.min(...unit.map((p) => p[1]));
   const minX = Math.min(...unit.map((p) => p[0]));
   const w = Math.max(...unit.map((p) => p[0])) - minX;
-  const s = Math.min(250 / (w * (1 + k)), 130 / (h * Math.max(1, k)), 150);
-  const gap = 30;
-  const left = (300 - s * w * (1 + k) - gap) / 2;
-  const base = 175;
-  const one = unit.map(([x, y]): Pt => [left + (x - minX) * s, base + y * s]);
-  const two = unit.map(([x, y]): Pt => [left + s * w + gap + (x - minX) * s * k, base + y * s * k]);
-  return [svgOpen(200, 'Two similar triangles'), ...labelTriangle(one, first), ...labelTriangle(two, second), SVG_CLOSE].join('');
+  // The side labels are laid out with the shapes, not after them: a label
+  // outside the first triangle's left side ran off the edge of the figure,
+  // and one in the gap between the triangles ran into the second.
+  const top = 20;
+  let s = Math.min(250 / (w * (1 + k)), 170 / (h * Math.max(1, k)), 150);
+  for (;;) {
+    const base = top + h * s * Math.max(1, k);
+    const one = unit.map(([x, y]): Pt => [(x - minX) * s, base + y * s]);
+    const [lo1, hi1] = xExtent(one, first);
+    const probe = unit.map(([x, y]): Pt => [(x - minX) * s * k, base + y * s * k]);
+    const [lo2, hi2] = xExtent(probe, second);
+    // Clear space between the first figure's right edge and the second's left, labels included.
+    const shift = Math.max(s * w + 30, hi1 + 16 - lo2);
+    const width = shift + hi2 - lo1;
+    if (width > 292 && s > 10) {
+      s *= 0.94;
+      continue;
+    }
+    const dx = (300 - width) / 2 - lo1;
+    const place = (pts: Pt[], x: number) => pts.map(([px, py]): Pt => [px + x, py]);
+    return [
+      svgOpen(base + 28, 'Two similar triangles'),
+      ...labelTriangle(place(one, dx), first),
+      ...labelTriangle(place(probe, dx + shift), second),
+      SVG_CLOSE,
+    ].join('');
+  }
 }
 
 /** A shape for side questions: whole sides that make a well-shaped triangle. */
@@ -189,7 +230,7 @@ const geoSimilarWhich: Generator<WhichParams> = {
     return [
       { text: 'A similar rectangle multiplies both sides by the same scale factor:' },
       { tex: `${w} \\times ${num(k)} = ${num(w * k)} \\qquad ${h} \\times ${num(k)} = ${num(h * k)}` },
-      { text: `Adding $${add}$ cm to both sides does not keep the shape: the long side grows by a smaller share than the short one.` },
+      { text: `Adding $${add}\\text{ cm}$ to both sides does not keep the shape: the long side grows by a smaller share than the short one.` },
     ];
   },
 };
@@ -243,10 +284,13 @@ const geoSimilarAngle: Generator<AngleParams> = {
   },
   render({ A, B, k, ask }) {
     const unit = triangleFromAngles(A, B);
-    const first: [string, string, string] = [`${A}°`, `${B}°`, ''];
-    const second: [string, string, string] = ['', '', ''];
-    second[ask] = 'x';
-    const svg = similarSvg(unit, k, { angles: first }, { angles: second, unknownAngle: ask });
+    // The two known angles go on the larger triangle and x on the smaller.
+    // The other way round, a tall triangle drawn at 1/k of the width left its
+    // two labelled corners too close together for "65°" and "75°" to fit.
+    const known: [string, string, string] = [`${A}°`, `${B}°`, ''];
+    const asked: [string, string, string] = ['', '', ''];
+    asked[ask] = 'x';
+    const svg = similarSvg(unit, k, { angles: asked, unknownAngle: ask }, { angles: known });
     return typed([diagram(svg), say('The triangles are similar. Find $x$.')], [A, B, 180 - A - B][ask], 'x =');
   },
   choices({ A, B, k, ask }) {
@@ -256,9 +300,9 @@ const geoSimilarAngle: Generator<AngleParams> = {
   solution({ A, B, ask }) {
     if (ask === 2) {
       return [
-        { text: 'Similar triangles have the same angles. The third angle of the first triangle is' },
+        { text: 'Similar triangles have the same angles. The third angle of the larger triangle is' },
         { tex: `180 - ${A} - ${B} = ${180 - A - B}` },
-        { text: 'and the matching corner of the second has the same angle.' },
+        { text: 'and the matching corner of the smaller one has the same angle.' },
       ];
     }
     return [{ text: `Scaling changes lengths, never angles, so $x$ equals the matching angle: $${[A, B][ask]}^\\circ$.` }];
@@ -353,9 +397,9 @@ const geoScalePerim: Generator<PerimScaleParams> = {
   },
   render({ P, k, back }) {
     if (back) {
-      return typed([say(`A shape is enlarged by a scale factor of $${num(k)}$. The new shape has a perimeter of $${num(P * k)}$ cm. What was the perimeter of the original, in cm?`)], P, 'P =');
+      return typed([say(`A shape is enlarged by a scale factor of $${num(k)}$. The new shape has a perimeter of $${num(P * k)}\\text{ cm}$. What was the perimeter of the original, in cm?`)], P, 'P =');
     }
-    return typed([say(`A shape with a perimeter of $${P}$ cm is enlarged by a scale factor of $${num(k)}$. Find the new perimeter, in cm.`)], P * k, 'P =');
+    return typed([say(`A shape with a perimeter of $${P}\\text{ cm}$ is enlarged by a scale factor of $${num(k)}$. Find the new perimeter, in cm.`)], P * k, 'P =');
   },
   choices({ P, k, back }) {
     return back ? numberOptions(P, [P * k * k, P * k - k, P * k / 2], 1, 1) : numberOptions(P * k, [P + k, P * k * k, P * 2], 1, 1);
@@ -382,16 +426,16 @@ const geoMapScale: Generator<MapParams> = {
   },
   render({ per, cm: d, back }) {
     if (back) {
-      return typed([say(`On a map, $1$ cm stands for $${per}$ km. Two towns are $${per * d}$ km apart. How far apart are they on the map, in cm?`)], d, '\\text{map} =');
+      return typed([say(`On a map, $1\\text{ cm}$ stands for $${per}\\text{ km}$. Two towns are $${per * d}\\text{ km}$ apart. How far apart are they on the map, in cm?`)], d, '\\text{map} =');
     }
-    return typed([say(`On a map, $1$ cm stands for $${per}$ km. Two towns are $${d}$ cm apart on the map. How far apart are they really, in km?`)], per * d, '\\text{distance} =');
+    return typed([say(`On a map, $1\\text{ cm}$ stands for $${per}\\text{ km}$. Two towns are $${d}\\text{ cm}$ apart on the map. How far apart are they really, in km?`)], per * d, '\\text{distance} =');
   },
   choices({ per, cm: d, back }) {
     return back ? numberOptions(d, [per * d * per, per + d, d * 10], 1, 1) : numberOptions(per * d, [per + d, per * d * 10, per * (d + 1)], per, 1);
   },
   solution({ per, cm: d, back }) {
-    if (back) return [{ text: `Each $${per}$ km is $1$ cm on the map, so divide:` }, { tex: `${per * d} \\div ${per} = ${d}` }];
-    return [{ text: `Each centimetre is $${per}$ km, so multiply:` }, { tex: `${d} \\times ${per} = ${per * d}` }];
+    if (back) return [{ text: `Each $${per}\\text{ km}$ is $1\\text{ cm}$ on the map, so divide:` }, { tex: `${per * d} \\div ${per} = ${d}` }];
+    return [{ text: `Each centimetre is $${per}\\text{ km}$, so multiply:` }, { tex: `${d} \\times ${per} = ${per * d}` }];
   },
 };
 

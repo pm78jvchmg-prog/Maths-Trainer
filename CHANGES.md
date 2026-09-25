@@ -5,6 +5,22 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-25
 
+- **Classical Mechanics Level 9 (#257).** Oscillations, five lessons and a level
+  check; Level 8 formulas tidied for phones.
+- **Geometry diagrams tidied (#256).** Geometry diagrams and formulas tidied for
+  phone screens (labels clear of lines, units kept with numbers).
+- **Lists fade into the iPhone's bottom strip (#255).** The home screen and
+  course lists fade into the same dark colour iOS 27 paints below the app, so
+  the strip blends in instead of looking like a gap.
+- **Geometry Levels 2 to 4 (#254).** Geometry gains Polygons, Lengths and
+  Scaling (angle sums, regular polygons, perimeters, circles and arcs, similar
+  shapes and map scales).
+- **Classical Mechanics Level 8 (#252).** Springs, five lessons and a level
+  check.
+- **ui-designer agent (#251).** New ui-designer agent for design and styling
+  work.
+- **Contest Math Levels 9 to 11 (#250).** Fast Problem-Solving, Factorization
+  and Reframing Problems, 14 lessons and three level checks.
 - **Lessons back in place on the installed app (#249).** Lessons sit where they
   should again on the installed app.
 - **The installed app fills the screen to the bottom edge (#248).** The

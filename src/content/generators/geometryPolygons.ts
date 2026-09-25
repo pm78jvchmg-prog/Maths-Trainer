@@ -151,7 +151,7 @@ export function tileSvg(ns: number[], start: number, mode: 'angles' | 'sides'): 
     for (let k = 0; k < n - 1; k += 1) pts.push(toward(pts[k], at + k * extOf(n), s));
     parts.push(outline(pts));
     // Neighbouring wedges alternate in size, so they read as separate angles.
-    if (mode === 'angles') marks.push(angle(V, at, intOf(n), deg(intOf(n)), { r: i % 2 ? 20 : 13, R: 34 }));
+    if (mode === 'angles') marks.push(angle(V, at, intOf(n), deg(intOf(n)), { r: i % 2 ? 20 : 13 }));
     else marks.push(text(centroid(pts), String(n), 14));
     at += intOf(n);
   }
@@ -278,10 +278,13 @@ function missingSolution(p: MissingParams) {
   const s = total(known);
   const x = p.angles[p.ask[0]];
   const name = n === 4 ? 'a quadrilateral' : n === 5 ? 'a pentagon' : 'a hexagon';
-  const steps = [
-    { text: `The angles in ${name} add up to $${sumOf(n)}^\\circ$. Add the ones you know:` },
-    { tex: `${known.join(' + ')} = ${s}` },
-  ];
+  // Five three-digit angles and their total are wider than a phone, and the
+  // line broke with the total alone underneath, so a hexagon adds in two lines.
+  const adding =
+    known.length > 4
+      ? [{ tex: `${known.slice(0, 3).join(' + ')} = ${total(known.slice(0, 3))}` }, { tex: `${total(known.slice(0, 3))} + ${known.slice(3).join(' + ')} = ${s}` }]
+      : [{ tex: `${known.join(' + ')} = ${s}` }];
+  const steps = [{ text: `The angles in ${name} add up to $${sumOf(n)}^\\circ$. Add the ones you know:` }, ...adding];
   if (p.ask.length === 2) {
     return [...steps, { text: 'The two angles marked $x$ share what is left:' }, { tex: `2x = ${sumOf(n)} - ${s} = ${sumOf(n) - s}` }, { tex: `x = ${sumOf(n) - s} \\div 2 = ${x}` }];
   }
@@ -659,8 +662,10 @@ const geoRegRatio: Generator<RatioParams> = {
     const slips = [180 - e, 2 * e, n / 2, n + 2, p.form === 'times' ? 180 / p.k : 180 - p.k].filter((v) => Number.isInteger(v));
     return {
       kind: 'tiles',
-      prompt: [say(`${stem} Find the exterior angle, then the number of sides.`)],
-      template: '\\text{exterior} = {0}^{\\circ} \\qquad \\text{sides} = {1}',
+      prompt: [say(`${stem} Find the exterior angle $x$, then the number of sides $n$.`)],
+      // Letters, not words: "exterior = [ ]° sides = [ ]" is wider than a
+      // phone and broke between "sides =" and its blank.
+      template: 'x = {0}^{\\circ} \\qquad n = {1}',
       bank: numberBank([e, n], slips, 3, 1, 1),
       answer: [num(e), num(n)],
     };
@@ -682,7 +687,7 @@ const geoRegRatio: Generator<RatioParams> = {
             { tex: `2x = ${180 - p.k}` },
             { tex: `x = ${180 - p.k} \\div 2 = ${e}` },
           ];
-    return [...setUp, { text: 'Then the sides:' }, { tex: `360 \\div ${e} = ${n}` }];
+    return [...setUp, { text: 'Then the sides:' }, { tex: `n = 360 \\div ${e} = ${n}` }];
   },
 };
 

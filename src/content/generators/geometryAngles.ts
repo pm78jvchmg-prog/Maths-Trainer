@@ -285,7 +285,7 @@ const geoAngleAlgebra: Generator<AlgebraParams> = {
     return {
       kind: 'tiles',
       prompt: [diagram(pointSvg({ sizes, ask: -1, start: p.start }, labels)), say('The angles are round a point, so'), { kind: 'display', tex: sum }, say('Find $x$.')],
-      template: '{0}x = {1} \\qquad x = {2}',
+      template: '{0}x = {1} \\quad x = {2}',
       bank: numberBank([k, 360 - p.c, p.x], [360 + p.c, 180 - p.c, k + 1, p.coeffs[0] * p.coeffs[1], (180 - p.c) / k], 3, 1, 1),
       answer: [num(k), num(360 - p.c), num(p.x)],
     };
@@ -888,14 +888,15 @@ const geoTriangleAlgebra: Generator<TriAlgebraParams> = {
     const sizes = [coeffs[0] * x, coeffs[1] * x, c || coeffs[2] * x];
     const labels = [xTerm(coeffs[0]), xTerm(coeffs[1]), c ? deg(c) : xTerm(coeffs[2])];
     const svg = triangleSvg(sizes[0], sizes[1], labels);
-    const sum = `${labels.join(' + ')} = 180`;
+    // The figure's "30°" is plain text; in TeX the equation is in plain numbers, like every other line of working.
+    const sum = `${[xTerm(coeffs[0]), xTerm(coeffs[1]), c ? String(c) : xTerm(coeffs[2])].join(' + ')} = 180`;
     const prompt = [diagram(svg), say('The angles of a triangle add up to $180^\\circ$:'), { kind: 'display' as const, tex: sum }, say('Find $x$.')];
     if (c) {
       const k = coeffs[0] + coeffs[1];
       return {
         kind: 'tiles',
         prompt,
-        template: '{0}x = {1} \\qquad x = {2}',
+        template: '{0}x = {1} \\quad x = {2}',
         bank: numberBank([k, 180 - c, x], [180 + c, 360 - c, k + 1, (360 - c) / k], 3, 1, 1),
         answer: [num(k), num(180 - c), num(x)],
       };

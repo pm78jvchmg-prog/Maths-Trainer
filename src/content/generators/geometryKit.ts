@@ -66,6 +66,22 @@ export function text(p: Pt, value: string, size = 13, anchor = 'middle'): string
   return `<text x="${f1(p[0])}" y="${f1(p[1])}" font-size="${size}" fill="currentColor" text-anchor="${anchor}" dominant-baseline="middle"${italic}>${value}</text>`;
 }
 
+/**
+ * Half the width and half the height a label takes up, estimated from its
+ * length (the figure font sets a digit at about 0.55 em). Used to keep a label
+ * clear of the lines beside it however long it is: "8 cm" and "31.5π cm" need
+ * different distances from the same side.
+ */
+export function labelHalf(value: string, size = 13): Pt {
+  return [0.29 * size * [...value].length, 0.5 * size];
+}
+
+/** How far a label centred on a point reaches from it in the unit direction `n`. */
+export function reach(value: string, n: Pt, size = 13): number {
+  const [hw, hh] = labelHalf(value, size);
+  return hw * Math.abs(n[0]) + hh * Math.abs(n[1]);
+}
+
 export const dot = (p: Pt, r = 3) => `<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="${r}" fill="currentColor" />`;
 
 export interface AngleOptions {
@@ -80,13 +96,29 @@ export interface AngleOptions {
 }
 
 /**
+ * How far along the bisector an angle's label sits: far enough that the text
+ * clears the wedge's arc, and (for an angle under 180°) both arms. A fixed
+ * distance put a wide label such as "121°" on the arc when the bisector ran
+ * across the page, and on an arm when the angle was thin. Pushing out for a
+ * thin angle is capped, so its label never drifts far from the corner.
+ */
+function labelDistance(label: string, from: number, sweep: number, r: number): number {
+  const base = sweep < 30 ? r + 26 : sweep < 55 ? r + 18 : r + 14;
+  if (!label) return base;
+  const arc = r + 5 + reach(label, dir(from + sweep / 2));
+  if (sweep >= 180) return Math.max(base, arc);
+  const arms = (Math.max(reach(label, dir(from + 90)), reach(label, dir(from + sweep + 90))) + 3) / Math.sin(rad(sweep / 2));
+  return Math.max(base, arc, Math.min(arms, base + 22));
+}
+
+/**
  * The angle at `v` swept anticlockwise from direction `from` through `sweep`
  * degrees, shaded, with `label` written along its bisector.
  */
 export function angle(v: Pt, from: number, sweep: number, label: string, o: AngleOptions = {}): string {
   const r = o.r ?? (sweep < 40 ? 26 : 20);
-  const R = o.R ?? (sweep < 30 ? r + 26 : sweep < 55 ? r + 18 : r + 14);
   const mid = from + sweep / 2;
+  const R = o.R ?? labelDistance(label, from, sweep, r);
   const at = toward(v, mid, R);
   const cls = o.unknown ? ' class="plot-accent"' : '';
   if (o.square && Math.abs(sweep - 90) < 1e-9) {
@@ -147,14 +179,23 @@ export function parallelArrows(a: Pt, b: Pt, count: number, at = 0.5): string {
   return out.join('');
 }
 
-/** A label beside the middle of side ab, on the side away from `inside`. */
-export function sideLabel(a: Pt, b: Pt, value: string, inside: Pt, gap = 14): string {
+/**
+ * Where a label beside the middle of side ab goes, on the side away from
+ * `inside`: `gap` out from the side, or further when the text is wide enough
+ * to reach back over the line (a long label beside an upright side).
+ */
+export function sideLabelAt(a: Pt, b: Pt, value: string, inside: Pt, gap = 14, clear = 5): Pt {
   const mid = times(plus(a, b), 0.5);
   const along = unit(a, b);
   let across: Pt = [-along[1], along[0]];
   const toInside = minus(inside, mid);
   if (across[0] * toInside[0] + across[1] * toInside[1] > 0) across = times(across, -1);
-  return text(plus(mid, times(across, gap)), value);
+  return plus(mid, times(across, Math.max(gap, clear + reach(value, across))));
+}
+
+/** A label beside the middle of side ab, on the side away from `inside`. */
+export function sideLabel(a: Pt, b: Pt, value: string, inside: Pt, gap = 14, clear = 5): string {
+  return text(sideLabelAt(a, b, value, inside, gap, clear), value);
 }
 
 /** Points scaled and centred into a box `w` by `h` with its corner at (x0, y0). Keeps SVG orientation. */

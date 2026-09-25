@@ -43,7 +43,7 @@ export default defineConfig({
         short_name: 'Excellent',
         description: 'Guided maths practice, offline.',
         theme_color: '#252a6b',
-        background_color: '#11121a',
+        background_color: '#1e2154',
         // Standalone hides Safari's chrome once added to the Home Screen.
         display: 'standalone',
         orientation: 'portrait',

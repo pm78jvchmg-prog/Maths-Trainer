@@ -104,28 +104,12 @@ body {
   overflow: hidden;
 }
 
-/* Whatever iOS shows past the foot of the page is the canvas, which takes the
-   root element's background. On the home screen that is the maths blue as it
-   reads over the page (the owner's screenshot sampled the base colour there),
-   so a window that comes up short shows more of the list's colour rather than
-   a dark band. Body keeps the page's own base, so nothing on screen changes. */
-html:has(.band-maths) {
-  /* The blue after the 20% shade the runs carry. */
-  background-color: #1e2154;
-}
-
-/* Pinned to the top of the screen and sized by `installAppHeight`; see
-   `ui/fullHeight.ts` for why 100% alone stops a status bar short of the bottom
-   on the Home Screen. Fixed rather than sizing the document: a document taller
-   than the window it reports scrolls as a whole, dragging the background with
-   it and taking the swipe from the course list. A fixed box adds nothing to
-   what the page can scroll. */
+/* Pinned to the window, so the document itself never scrolls: a page that
+   scrolled as a whole dragged the background with it and took the swipe
+   from the course list. */
 #root {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: var(--app-height, 100%);
+  inset: 0;
 }
 
 /* A screen enters by sliding in from the side, and for those ~240ms it sticks
@@ -3441,10 +3425,3 @@ button.streak-bar:active {
   text-align: left;
 }
 
-.streak-reading {
-  margin: 0 0 12px;
-  color: var(--text-dim);
-  font-size: 10px;
-  opacity: 0.6;
-  text-align: center;
-}

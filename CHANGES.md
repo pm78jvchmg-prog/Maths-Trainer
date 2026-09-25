@@ -5,6 +5,12 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-25
 
+- **Top bars hide on scroll, and lists remember where you were.** Less space
+  above "All courses" (the home screen matches). The top bar on the home
+  screen, a course page and a lesson slides away while scrolling down and
+  comes back on scrolling up. Leaving a lesson returns to that lesson on the
+  course page, and going back to the home screen returns to where it was
+  scrolled. Positions are kept in session storage, never the progress store.
 - **Two grading bugs fixed (this PR).** `vec-parallel` could offer two
   parallel options, marking a correct pick wrong (~10% of draws). A negative
   base was shown unbracketed (`-1^{4}`) while the answer meant `(-1)^{4}`, in

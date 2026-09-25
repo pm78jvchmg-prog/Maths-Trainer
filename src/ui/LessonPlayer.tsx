@@ -25,6 +25,7 @@ import { SlideView } from './SlideView';
 import { hasAnswer } from './slides';
 import { FeedbackBar, VerdictAnnouncer } from './FeedbackBar';
 import { tapOnQuestion } from './questionTap';
+import { useHidingBar } from './hidingBar';
 
 interface Props {
   lesson: Lesson;
@@ -126,9 +127,17 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
   // Whether the exit control is waiting on "Leave the check?". Never set during
   // the guided slides, which the control still leaves in one tap.
   const [confirmingExit, setConfirmingExit] = useState(false);
+  // The header slides away while a long slide is scrolled down and comes back
+  // on scrolling up. Every new slide starts with it showing.
+  const bar = useHidingBar(24);
 
   const slide = currentSlide(session);
   const deck = currentDeck(session);
+  const slideId = slide?.id;
+  const { show } = bar;
+  useEffect(() => {
+    show();
+  }, [slideId, show]);
 
   if (session.phase === 'summary' || !slide) {
     const score = skillCheckScore(session);
@@ -207,8 +216,8 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
   };
 
   return (
-    <div className="app">
-      <header className="lesson-header">
+    <div className="app app-lesson">
+      <header className={`lesson-header${bar.hidden ? ' hidden' : ''}`}>
         <button
           type="button"
           className="icon-button"
@@ -283,6 +292,7 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
         className={`slide enter-${direction}${grows ? ' grow' : ''}${retryOnTap ? ' retryable' : ''}`}
         key={slide.id}
         onClick={retryOnTap ? tapQuestion : undefined}
+        onScroll={bar.onScroll}
       >
         {/* Only when stepping *back* onto a solved slide. While the verdict for
             this answer is still on screen, saying it was already solved reads

@@ -39,6 +39,14 @@ const ask = (generatorId: string, difficulty = 1): SlideRef => ({
   difficulty,
 });
 
+/** A question with a worked example or a setup line shown above it, on the same slide. */
+const asking = (generatorId: string, difficulty: number, ...leadIn: Block[]): SlideRef => ({
+  type: 'generated',
+  generatorId,
+  difficulty,
+  leadIn,
+});
+
 const prose = (text: string): Block => ({ kind: 'prose', text });
 const display = (tex: string): Block => ({ kind: 'display', tex });
 
@@ -71,27 +79,40 @@ export const seriesExpansions: Course = {
                 'Put $x = 0$ in and every term but the first vanishes, so $a_{0} = f(0)$. Differentiate once and put $x = 0$ in again: $a_{1} = f\'(0)$. Twice gives $2a_{2} = f\'\'(0)$, three times $3!\\,a_{3} = f\'\'\'(0)$.',
               ),
               display('a_{n} = \\frac{f^{(n)}(0)}{n!}'),
+              prose(
+                "For $f(x) = e^{2x}$, each derivative brings out another $2$: $f'(x) = 2e^{2x}$, $f''(x) = 4e^{2x}$, $f'''(x) = 8e^{2x}$. At $0$ they are $2, 4, 8$. Divide each by its factorial, keeping exact fractions:",
+              ),
+              working('a_{2} &= \\frac{4}{2!} = 2', 'a_{3} &= \\frac{8}{3!} = \\frac{4}{3}'),
+              working('e^{2x} &= 1 + 2x + 2x^{2}', '&\\quad + \\frac{4}{3}x^{3} + \\cdots'),
             ),
-            ask('ser-coef-tree'),
             ask('ser-first-terms-tiles'),
             ask('ser-coef-typed'),
             teach(
-              prose('So the whole series comes from the derivatives at $0$:'),
-              working("f(x) &= f(0) + f'(0)x", "&\\quad + \\frac{f''(0)}{2!}x^{2}", "&\\quad + \\frac{f'''(0)}{3!}x^{3} + \\cdots"),
-              prose(
-                'For $f(x) = e^{2x}$ every derivative at $0$ is a power of $2$, so the coefficients are $\\frac{2^{n}}{n!}$. Keep them as exact fractions:',
+              prose("A power of a bracket works the same way, by the chain rule. For $f(x) = (1 - 2x)^{-1}$:"),
+              working(
+                "f'(x) &= 2(1 - 2x)^{-2}",
+                "f''(x) &= 8(1 - 2x)^{-3}",
+                "f'''(x) &= 48(1 - 2x)^{-4}",
               ),
-              working('e^{2x} &= 1 + 2x + 2x^{2}', '&\\quad + \\frac{4}{3}x^{3} + \\cdots'),
+              prose('At $0$ the bracket is $1$, so the derivatives are $2, 8, 48$ and the coefficients $\\frac{2}{1!} = 2$, $\\frac{8}{2!} = 4$, $\\frac{48}{3!} = 8$:'),
+              display('(1 - 2x)^{-1} = 1 + 2x + 4x^{2} + 8x^{3} + \\cdots'),
+              prose("For $(1 + 2x)^{3}$ each derivative brings the power down and a $2$ out: $f'(0) = 6$, $f''(0) = 24$, $f'''(0) = 48$."),
             ),
-            ask('ser-which-flow'),
-            ask('ser-coef-tree', 2),
+            ask('ser-coef-tree'),
             ask('ser-first-terms-tiles', 2),
+            ask('ser-coef-tree', 2),
             teach(
               prose(
                 'This needs $f(0)$ and **every** derivative at $0$ to exist. $\\ln x$ and $\\frac{1}{x}$ are not defined at $0$, and $\\sqrt{x}$ is, but its gradient there is infinite: none of them has a Maclaurin series.',
               ),
-              prose('A derivative that comes to $0$ just means that power of $x$ is missing. "The first three terms" means the first three that are not zero.'),
+              prose(
+                '$|x|$ has a corner at $0$, so no gradient there either. So $3\\sqrt{x} + 1$ has no series. $e^{2x} + 1$ has one, and its constant term is $f(0) = e^{0} + 1 = 2$.',
+              ),
+              prose(
+                'A derivative that comes to $0$ just means that power of $x$ is missing. "The first three terms" means the first three that are not zero.',
+              ),
             ),
+            ask('ser-which-flow'),
             ask('ser-coef-typed+choice', 2),
             ask('ser-which-flow', 2),
           ],
@@ -108,10 +129,9 @@ export const seriesExpansions: Course = {
               working('e^{x} &= 1 + x + \\frac{x^{2}}{2!}', '&\\quad + \\frac{x^{3}}{3!} + \\frac{x^{4}}{4!} + \\cdots'),
               prose('It holds for every value of $x$.'),
             ),
-            ask('ser-exp-tiles'),
-            ask('ser-exp-steps'),
-            ask('ser-exp-term'),
-            teach(
+            asking(
+              'ser-exp-tiles',
+              1,
               prose('For $e^{kx}$, put $u = kx$ into the series for $e^{u}$. The whole of $kx$ is raised to the power, not just the $x$:'),
               working(
                 'e^{3x} &= 1 + 3x + \\frac{(3x)^{2}}{2!}',
@@ -119,11 +139,21 @@ export const seriesExpansions: Course = {
                 '&= 1 + 3x + \\frac{9}{2}x^{2}',
                 '&\\quad + \\frac{9}{2}x^{3} + \\cdots',
               ),
-              prose('A number in front multiplies every term.'),
+              prose('A number in front multiplies every term: $2e^{3x} = 2 + 6x + 9x^{2} + \\cdots$'),
             ),
-            ask('ser-exp-slider'),
+            ask('ser-exp-steps'),
+            ask('ser-exp-term'),
+            teach(
+              prose('A fraction or a minus in $k$ is raised to the power too. For $e^{-\\frac{x}{2}}$, $u = -\\frac{x}{2}$:'),
+              working(
+                '\\frac{u^{2}}{2!} &= \\frac{1}{2} \\times \\frac{x^{2}}{4} = \\frac{1}{8}x^{2}',
+                '\\frac{u^{3}}{3!} &= \\frac{1}{6} \\times \\left(-\\frac{x^{3}}{8}\\right) = -\\frac{1}{48}x^{3}',
+              ),
+              prose('An odd power keeps the minus; an even power loses it.'),
+            ),
             ask('ser-exp-tiles', 2),
             ask('ser-exp-steps', 2),
+            ask('ser-exp-term+choice', 2),
             teach(
               prose(
                 'Stop the series after a few terms and you have a polynomial that hugs the curve near $0$ and drifts away from it further out. More terms, and it hugs for longer.',
@@ -141,7 +171,7 @@ export const seriesExpansions: Course = {
                 label: 'The dashed curve y = e to the x, with the line 1 + x and the parabola 1 + x + x squared over 2 both touching it at 0',
               }),
             ),
-            ask('ser-exp-term+choice', 2),
+            ask('ser-exp-slider'),
             ask('ser-exp-slider', 2),
           ],
           skillCheck: [ask('ser-exp-tiles', 2), ask('ser-exp-term', 2), ask('ser-exp-steps', 2)],
@@ -156,18 +186,30 @@ export const seriesExpansions: Course = {
               ),
               prose('So only the odd powers survive, and their signs alternate. As always with calculus, $x$ is in radians.'),
               display('\\sin x = x - \\frac{x^{3}}{3!} + \\frac{x^{5}}{5!} - \\cdots'),
+              prose('Cosine starts one step on in the same cycle, at $1$, so it keeps the even powers. Both hold for every $x$.'),
+              display('\\cos x = 1 - \\frac{x^{2}}{2!} + \\frac{x^{4}}{4!} - \\cdots'),
             ),
-            ask('ser-trig-cycle-tree'),
+            asking(
+              'ser-trig-cycle-tree',
+              1,
+              prose(
+                "Differentiating twice turns $\\sin 2x$ into $-4\\sin 2x$, and $\\cos 2x$ into $-4\\cos 2x$. For $f(x) = \\sin 2x + 3\\cos 2x$: $f(0) = 0 + 3 = 3$, and $f'(x) = 2\\cos 2x - 6\\sin 2x$ gives $f'(0) = 2$. Then each is $-4$ times the one two before:",
+              ),
+              working("f''(0) &= -4 \\times 3 = -12", "f'''(0) &= -4 \\times 2 = -8", 'f^{(4)}(0) &= -4 \\times (-12) = 48'),
+            ),
+            teach(
+              prose('For $\\sin 3x$ put $u = 3x$ into the series for $\\sin u$. The $3$ is raised to each power along with the $x$:'),
+              working(
+                '\\sin 3x &= 3x - \\frac{(3x)^{3}}{3!}',
+                '&\\quad + \\frac{(3x)^{5}}{5!} - \\cdots',
+                '&= 3x - \\frac{9}{2}x^{3}',
+                '&\\quad + \\frac{81}{40}x^{5} - \\cdots',
+              ),
+              prose('A fraction works the same way: in $\\cos\\frac{x}{3}$, $\\frac{u^{2}}{2!}$ becomes $\\frac{x^{2}}{9} \\div 2 = \\frac{1}{18}x^{2}$. A number in front multiplies every term.'),
+            ),
             ask('ser-trig-tiles'),
             ask('ser-trig-pick'),
-            teach(
-              prose('Cosine starts one step on in the same cycle, at $1$, so it keeps the even powers:'),
-              display('\\cos x = 1 - \\frac{x^{2}}{2!} + \\frac{x^{4}}{4!} - \\cdots'),
-              prose('Both hold for every $x$. For $\\sin 3x$ put $u = 3x$ in, so $\\frac{u^{3}}{3!}$ becomes $\\frac{27x^{3}}{6} = \\frac{9}{2}x^{3}$.'),
-            ),
-            ask('ser-trig-sign-flow'),
             ask('ser-trig-cycle-tree', 2),
-            ask('ser-trig-tiles', 2),
             teach(
               prose(
                 'The sign of a term needs no working out: count which non-zero term it is. The first is $+$, the second $-$, the third $+$, and so on.',
@@ -175,7 +217,12 @@ export const seriesExpansions: Course = {
               prose(
                 'Then allow for the function itself. $\\sin(-x) = -\\sin x$ flips every sign, and a minus in front does too; $\\cos(-x) = \\cos x$ changes nothing, since every power in it is even.',
               ),
+              prose(
+                'For the $x^{5}$ term of $\\sin(-2x)$: $x^{5}$ is the third term of $\\sin$, so $+$; $\\sin(-2x) = -\\sin 2x$ flips it, so it is negative. There is no $x^{4}$ term at all: $\\sin$ has only odd powers.',
+              ),
             ),
+            ask('ser-trig-sign-flow'),
+            ask('ser-trig-tiles', 2),
             ask('ser-trig-pick', 2),
             ask('ser-trig-sign-flow', 2),
           ],
@@ -194,7 +241,25 @@ export const seriesExpansions: Course = {
             ),
             ask('ser-log-tiles'),
             ask('ser-log-coef'),
+            teach(
+              prose('The series needs $\\ln(1 + \\ldots)$. When the bracket starts with another number, take it out first, since the log of a product is a sum of logs:'),
+              working(
+                '\\ln(4 + 2x) &= \\ln\\big(4(1 + \\tfrac{x}{2})\\big)',
+                '&= \\ln 4 + \\ln(1 + \\tfrac{x}{2})',
+                '&= \\ln 4 + \\frac{x}{2} - \\frac{x^{2}}{8} + \\cdots',
+              ),
+              prose('The last line is $u - \\frac{u^{2}}{2}$ with $u = \\frac{x}{2}$: $\\frac{1}{2} \\times \\frac{x^{2}}{4} = \\frac{x^{2}}{8}$.'),
+            ),
             ask('ser-log-tiles', 2),
+            asking(
+              'ser-log-coef+choice',
+              2,
+              prose('A product splits into a sum of logs, a quotient into a difference. Then each log has its own series. For the $x^{2}$ coefficient of $\\ln\\frac{1 + 2x}{1 - x}$:'),
+              display('\\ln\\frac{1 + 2x}{1 - x} = \\ln(1 + 2x) - \\ln(1 - x)'),
+              prose(
+                'Their $x^{2}$ coefficients are $-\\frac{2^{2}}{2} = -2$ and $-\\frac{(-1)^{2}}{2} = -\\frac{1}{2}$, so the answer is $-2 - \\left(-\\frac{1}{2}\\right) = -\\frac{3}{2}$.',
+              ),
+            ),
             teach(
               prose(
                 'The other one to know is the sum to infinity of a geometric series (Sequences and Series, "The Sum to Infinity"), read backwards:',
@@ -203,17 +268,18 @@ export const seriesExpansions: Course = {
               prose(
                 'These two are **not** valid for every $x$. The geometric series only converges for $-1 < x < 1$; the one for $\\ln(1 + x)$ for $-1 < x \\le 1$.',
               ),
-            ),
-            ask('ser-log-range'),
-            ask('ser-log-valid-flow'),
-            ask('ser-log-coef+choice', 2),
-            teach(
               prose(
-                'With $u$ in place of $x$, the range is on $u$. $\\ln(1 - 3x)$ is $\\ln(1 + u)$ with $u = -3x$, so it needs $-1 < -3x \\le 1$:',
+                'With $u$ in place of $x$, the range is on $u$. $\\frac{1}{1 - 3x}$ is $\\frac{1}{1 - u}$ with $u = 3x$. At $x = \\frac{1}{2}$, $u = \\frac{3}{2}$: outside $-1 < u < 1$, so the series cannot be used there.',
               ),
-              display('-\\frac{1}{3} \\le x < \\frac{1}{3}'),
-              prose('Dividing by $-3$ turned both inequalities round, so the included end moved to the other side.'),
             ),
+            asking(
+              'ser-log-range',
+              1,
+              prose('$\\ln(1 - 3x)$ is $\\ln(1 + u)$ with $u = -3x$, so it needs $-1 < -3x \\le 1$. Divide by $-3$, which turns both inequalities round:'),
+              display('-\\frac{1}{3} \\le x < \\frac{1}{3}'),
+              prose('The included end moved to the other side.'),
+            ),
+            ask('ser-log-valid-flow'),
             ask('ser-log-range', 2),
             ask('ser-log-valid-flow', 2),
           ],
@@ -232,22 +298,29 @@ export const seriesExpansions: Course = {
             ),
             ask('ser-sub-tiles'),
             ask('ser-sub-tree'),
+            teach(
+              prose('The binomial series is one more to quote, for any $n$ when $-1 < x < 1$:'),
+              working('(1 + x)^{n} &= 1 + nx', '& {} + \\frac{n(n - 1)}{2!}x^{2} + \\cdots'),
+              prose(
+                'For a whole $n$ it stops, and it is the expansion from the Binomial Expansion course. With $n = 5$ the coefficients are $5$ and $\\frac{5 \\times 4}{2} = 10$. With $n = -1$ they are $-1$ and $\\frac{(-1)(-2)}{2} = 1$:',
+              ),
+              working('(1 + u)^{5} &= 1 + 5u + 10u^{2} + \\cdots', '\\frac{1}{1 + x} &= 1 - x + x^{2} - \\cdots'),
+            ),
             ask('ser-sub-tiles', 2),
+            ask('ser-sub-tree', 2),
             teach(
               prose('**Multiply** two series like two long brackets, keeping only the pairs of terms whose powers add up to the one you want. For the $x^{2}$ term of $e^{x}\\cos x$:'),
               working('e^{x} &= 1 + x + \\frac{1}{2}x^{2} + \\cdots', '\\cos x &= 1 - \\frac{1}{2}x^{2} + \\cdots'),
               prose('The pairs are $1$ with $-\\frac{1}{2}x^{2}$, $x$ with the $x$ term of $\\cos x$ (there is none, so $0$), and $\\frac{1}{2}x^{2}$ with $1$:'),
               display('1 \\cdot (-\\tfrac{1}{2}) + 1 \\cdot 0 + \\tfrac{1}{2} \\cdot 1 = 0'),
+              prose('A quotient is a product in disguise: $\\frac{\\sin x}{1 - x}$ is $\\sin x$ times $1 + x + x^{2} + \\cdots$'),
             ),
             ask('ser-multiply-steps'),
-            ask('ser-product-coef'),
-            ask('ser-sub-tree', 2),
-            teach(
-              prose(
-                'A quotient is a product in disguise: $\\frac{\\sin x}{1 - x}$ is $\\sin x$ times $1 + x + x^{2} + \\cdots$ And the binomial series is one more to quote, for any $n$ when $-1 < x < 1$:',
-              ),
-              working('(1 + x)^{n} &= 1 + nx', '& {} + \\frac{n(n - 1)}{2!}x^{2} + \\cdots'),
-              prose('For a whole $n$ it stops, and it is the expansion from the Binomial Expansion course.'),
+            asking(
+              'ser-product-coef',
+              1,
+              prose('A bracket to a whole power is the binomial with $u$ in place of $x$. For $(1 + 2x)^{3}$, $u = 2x$:'),
+              working('(1 + 2x)^{3} &= 1 + 3(2x) + 3(2x)^{2} + (2x)^{3}', '&= 1 + 6x + 12x^{2} + 8x^{3}'),
             ),
             ask('ser-multiply-steps', 2),
             ask('ser-product-coef+choice', 2),
@@ -288,14 +361,22 @@ export const seriesExpansions: Course = {
               working("f(x) &= f(a) + f'(a)(x - a)", "& {} + \\frac{f''(a)}{2!}(x - a)^{2} + \\cdots"),
               prose('A Maclaurin series is the Taylor series with $a = 0$.'),
             ),
-            ask('ser-taylor-tree'),
+            asking(
+              'ser-taylor-tree',
+              1,
+              prose(
+                "$\\ln x$ has no series about $0$, but about $x = 1$ it does. $f'(x) = \\frac{1}{x}$, $f''(x) = -\\frac{1}{x^{2}}$, $f'''(x) = \\frac{2}{x^{3}}$, so at $1$ they are $1, -1, 2$. Over $1!, 2!, 3!$:",
+              ),
+              working('\\ln x &= (x - 1) - \\frac{1}{2}(x - 1)^{2}', '&\\quad + \\frac{1}{3}(x - 1)^{3} - \\cdots'),
+            ),
             ask('ser-taylor-coef'),
             ask('ser-taylor-tiles'),
             teach(
-              prose('$\\ln x$ has no series about $0$, but about $x = 1$ it does. Its derivatives there are $1, -1, 2$, so'),
-              working('\\ln x &= (x - 1) - \\frac{1}{2}(x - 1)^{2}', '&\\quad + \\frac{1}{3}(x - 1)^{3} - \\cdots'),
               prose(
                 'Pick $a$ where the function is easy to work out exactly and close to where you want it: $\\sqrt{x}$ about $4$ or $9$, $\\sin x$ about $\\pi$.',
+              ),
+              prose(
+                "For $\\sqrt{4.2}$, expand $\\sqrt{x}$ about $4$: $f(4) = 2$ and $f'(x) = \\frac{1}{2\\sqrt{x}}$ gives $f'(4) = \\frac{1}{4}$. So $\\sqrt{4.2} \\approx 2 + \\frac{1}{4} \\times 0.2 = 2.05$.",
               ),
             ),
             ask('ser-taylor-centre'),
@@ -328,8 +409,10 @@ export const seriesExpansions: Course = {
             teach(
               prose('The smaller $x$, the faster the terms shrink, and the fewer you need. Keep adding terms until the next one is smaller than the accuracy you want.'),
               prose(
-                'Turned round, a bound on the first term left out says how far from $0$ the estimate stays good: $\\frac{x^{3}}{3!} \\le 0.001$ holds up to about $x = 0.18$.',
+                'Turned round, a bound on the first term left out says how far from $0$ the estimate stays good. For $\\frac{x^{3}}{3!} \\le 0.001$, set the term equal to the bound, multiply by $3! = 6$, then take the cube root:',
               ),
+              working('\\frac{x^{3}}{6} &= 0.001', 'x^{3} &= 0.006', 'x &= \\sqrt[3]{0.006} \\approx 0.18'),
+              prose('The term grows with $x$, so it stays under the bound for every $x$ up to there.'),
             ),
             ask('ser-estimate-pick'),
             ask('ser-estimate-slider'),
@@ -356,24 +439,35 @@ export const seriesExpansions: Course = {
               working('\\frac{\\sin x}{x} &= \\frac{x - \\frac{1}{6}x^{3} + \\cdots}{x}', '&= 1 - \\frac{1}{6}x^{2} + \\cdots'),
               prose('As $x \\to 0$ everything after the $1$ vanishes, so the limit is $1$.'),
             ),
-            ask('ser-leading-term'),
-            ask('ser-limit-flow'),
-            ask('ser-limit'),
+            asking(
+              'ser-limit',
+              1,
+              prose('Terms taken off the top cancel the start of its series. For $\\frac{e^{2x} - 1}{x}$, put $u = 2x$ into $e^{u}$:'),
+              working('e^{2x} - 1 &= 2x + 2x^{2} + \\cdots', '\\frac{e^{2x} - 1}{x} &= 2 + 2x + \\cdots \\to 2'),
+            ),
             teach(
+              prose('What matters is the first power the top starts with. Expand $\\cos 2x$ with $u = 2x$:'),
+              display('1 - \\cos 2x = 2x^{2} - \\tfrac{2}{3}x^{4} + \\cdots'),
               prose(
-                'What matters is the first power the top starts with. For $1 - \\cos x = \\frac{1}{2}x^{2} - \\cdots$, divide by $x^{2}$ and the limit is $\\frac{1}{2}$; divide by $x$ and it is $0$.',
+                'Near $0$ it is roughly $2x^{2}$. Over $3x^{2}$ the powers match, so the limit is the ratio of the coefficients, $\\frac{2}{3}$. Over $x$ an $x$ is left on top, and the limit is $0$. Over $x^{3}$ an $x$ is left underneath, which grows without bound: there is no limit.',
               ),
-              prose('A top starting with a lower power than the bottom has no limit: it grows without bound.'),
+            ),
+            ask('ser-leading-term'),
+            asking(
+              'ser-limit-flow',
+              1,
+              prose('First check it is $\\frac{0}{0}$ at all. $\\frac{\\sin x}{x + 2}$ is $\\frac{0}{2}$ at $x = 0$: no series is needed, and the limit is $0$.'),
+            ),
+            teach(
+              prose('When the top is several functions, expand each one. The low powers cancel, and the first power left decides the limit:'),
+              working('e^{x} &= 1 + x + \\tfrac{1}{2}x^{2} + \\cdots', '\\cos x &= 1 - \\tfrac{1}{2}x^{2} + \\cdots', 'e^{x} - \\cos x - x &= x^{2} + \\cdots'),
+              prose(
+                'The $1$s cancel, the $x$ is taken off, and the $x^{2}$ coefficient is $\\frac{1}{2} - \\left(-\\frac{1}{2}\\right) = 1$. So $\\frac{e^{x} - \\cos x - x}{x^{2}} \\to 1$.',
+              ),
             ),
             ask('ser-limit-sum-steps'),
             ask('ser-leading-term', 2),
             ask('ser-limit-flow', 2),
-            teach(
-              prose('When the top is several functions, expand each one. The low powers cancel, and the first power left decides the limit:'),
-              display('e^{x} - 1 - x = \\tfrac{1}{2}x^{2} + \\tfrac{1}{6}x^{3} + \\cdots'),
-              display('\\frac{e^{x} - 1 - x}{x^{2}} = \\tfrac{1}{2} + \\tfrac{1}{6}x + \\cdots'),
-              prose('So as $x \\to 0$ the limit is $\\frac{1}{2}$.'),
-            ),
             ask('ser-limit+choice', 2),
             ask('ser-limit-sum-steps', 2),
           ],
@@ -420,9 +514,15 @@ export const seriesExpansions: Course = {
               ),
               display('\\frac{1}{1 - u}: \\; -1 < u < 1'),
               display('\\ln(1 + u): \\; -1 < u \\le 1'),
+              prose('$\\frac{1}{1 + 2x}$ is $\\frac{1}{1 - u}$ with $u = -2x$. So $-1 < -2x < 1$, and dividing by $-2$ turns both round: $-\\frac{1}{2} < x < \\frac{1}{2}$.'),
             ),
-            ask('ser-valid-tiles'),
-            ask('ser-range-flow'),
+            asking(
+              'ser-valid-tiles',
+              1,
+              prose('A Taylor series about $x = a$ is in $h = x - a$. For $\\frac{1}{x - 1}$ about $x = 2$, put $x = 2 + h$:'),
+              display('\\frac{1}{x - 1} = \\frac{1}{1 + h}, \\quad -1 < h < 1'),
+              prose('Add the $2$ back on: $1 < x < 3$. For a logarithm the far end is included, just as $u = 1$ is.'),
+            ),
             ask('ser-valid-line'),
             teach(
               prose('For $\\ln(4 - 3x)$, take the $4$ out first so the standard series fits:'),
@@ -430,6 +530,7 @@ export const seriesExpansions: Course = {
               prose('So it needs $-1 < u \\le 1$, that is $-1 < -\\frac{3}{4}x \\le 1$, which is'),
               display('-\\tfrac{4}{3} \\le x < \\tfrac{4}{3}'),
             ),
+            ask('ser-range-flow'),
             ask('ser-valid-pick'),
             ask('ser-valid-tiles', 2),
             ask('ser-range-flow', 2),
@@ -479,7 +580,6 @@ export const seriesExpansions: Course = {
               display('R_{n}(x) = \\frac{f^{(n+1)}(c)}{(n+1)!}x^{n+1}'),
             ),
             ask('ser-rem-tiles'),
-            ask('ser-rem-exact'),
             ask('ser-rem-flow'),
             teach(
               prose('For $e^{x}$ every derivative is $e^{x}$, so after $P_{3}$:'),
@@ -496,6 +596,7 @@ export const seriesExpansions: Course = {
               working('(1 + x)^{4} &= 1 + 4x + 6x^{2}', '&\\quad + 4x^{3} + x^{4}', 'R_{2}(x) &= 4x^{3} + x^{4}'),
               prose('At $x = \\frac{1}{2}$ that is $\\frac{1}{2} + \\frac{1}{16} = \\frac{9}{16}$.'),
             ),
+            ask('ser-rem-exact'),
             ask('ser-rem-exact+choice', 2),
             ask('ser-rem-pick', 2),
           ],
@@ -522,14 +623,17 @@ export const seriesExpansions: Course = {
               display('|R_{2}| \\le e^{0.5} \\times \\frac{0.5^{3}}{3!} = 0.0343'),
             ),
             ask('ser-bound-dec'),
-            ask('ser-bound-m-flow', 2),
-            ask('ser-bound-tree', 2),
             teach(
               prose(
-                'A multiplier and a $k$ carry through every derivative. For $2\\sin 3x$, $f^{(n+1)}$ is $2 \\times 3^{n+1}$ times a sine or cosine, so $M = 2 \\times 3^{n+1}$.',
+                "A multiplier and a $k$ carry through every derivative. For $2\\sin 3x$ after $P_{2}$, $f'(x) = 6\\cos 3x$, $f''(x) = -18\\sin 3x$, $f'''(x) = -54\\cos 3x$: so $M = 2 \\times 3^{3} = 54$.",
+              ),
+              prose(
+                "For $3e^{\\frac{x}{2}}$ each derivative brings out $\\frac{1}{2}$, so $f'''(x) = \\frac{3}{8}e^{\\frac{x}{2}}$. For a negative $x$, $e^{\\frac{c}{2}} \\le 1$, so $M = \\frac{3}{8}$.",
               ),
               prose('Where $M$ is exact, give the bound as a fraction; where it holds an $e$, as a decimal.'),
             ),
+            ask('ser-bound-m-flow', 2),
+            ask('ser-bound-tree', 2),
             ask('ser-bound-tiles', 2),
             ask('ser-bound-dec+choice', 2),
           ],
@@ -617,17 +721,17 @@ export const seriesExpansions: Course = {
               display('R_{2}(x) = \\frac{2}{c^{3}} \\times \\frac{(x - 1)^{3}}{3!}'),
             ),
             ask('ser-centre-tiles'),
-            ask('ser-centre-flow'),
-            ask('ser-centre-tree'),
+            ask('ser-centre-tiles', 2),
             teach(
               prose(
-                'The derivatives of $\\ln x$, $\\sqrt{x}$ and $\\frac{1}{x}$ are negative powers of $x$, so they shrink as $c$ grows: take $M$ at the end nearer $0$.',
+                'The derivatives of $\\ln x$, $\\sqrt{x}$ and $\\frac{1}{x}$ are negative powers of $x$, so they shrink as $c$ grows: take $M$ at the end nearer $0$. $e^{x}$ is the other way round: $e^{c}$ grows, so take $M$ at the right-hand end.',
               ),
-              prose('For $\\ln 1.2$ by $P_{2}$ about $1$, $M = |f\'\'\'(1)| = 2$:'),
+              prose('For $\\ln 1.2$ by $P_{2}$ about $1$, $c$ is between $1$ and $1.2$, and $f\'\'\'(c) = \\frac{2}{c^{3}}$ is largest at $c = 1$, so $M = 2$:'),
               display('|R_{2}| \\le 2 \\times \\frac{0.2^{3}}{3!} = \\frac{1}{375}'),
             ),
+            ask('ser-centre-flow'),
+            ask('ser-centre-tree'),
             ask('ser-centre-dec'),
-            ask('ser-centre-tiles', 2),
             ask('ser-centre-flow', 2),
             teach(
               prose("Choose a centre where the function is easy: $4$ or $9$ for $\\sqrt{x}$. For $\\sqrt{4.5}$ by $P_{1}$ about $4$, $f''(x) = -\\frac{1}{4}x^{-\\frac{3}{2}}$, largest in size at $c = 4$:"),
@@ -679,7 +783,15 @@ export const seriesExpansions: Course = {
                 'If $L|x| < 1$ the terms shrink like a geometric series and the series converges; if $L|x| > 1$ they grow and it diverges. So it converges for $|x| < \\frac{1}{L}$, and $R = \\frac{1}{L}$ is its **radius of convergence**.',
               ),
             ),
-            ask('ser-ratio-tiles'),
+            asking(
+              'ser-ratio-tiles',
+              1,
+              prose(
+                'For $\\sum \\frac{1}{2^{n} \\cdot n}x^{n}$, going from $n$ to $n + 1$ turns the $2^{n}$ underneath into $2^{n + 1}$, a factor of $\\frac{1}{2}$, and $\\frac{1}{n}$ into $\\frac{1}{n + 1}$, a factor of $\\frac{n}{n + 1}$:',
+              ),
+              display('\\left|\\frac{a_{n + 1}x^{n + 1}}{a_{n}x^{n}}\\right| = \\frac{1}{2} \\times \\frac{n}{n + 1} \\times |x|'),
+              prose('$\\frac{n}{n + 1} \\to 1$, so $L = \\frac{1}{2}$ and $R = 2$.'),
+            ),
             ask('ser-ratio-flow'),
             ask('ser-ratio-limit'),
             teach(
@@ -715,13 +827,16 @@ export const seriesExpansions: Course = {
               prose(
                 'So $k^{n}$ gives $R = \\frac{1}{|k|}$, an extra $n$ or $\\frac{1}{n}$ leaves $R$ alone, and a factorial underneath makes $R$ infinite.',
               ),
+              prose(
+                'A power underneath is a power too. In $\\sum \\frac{1}{4^{n} \\cdot n}x^{n}$, $4^{n}$ becomes $4^{n + 1}$, so the ratio is $\\frac{1}{4} \\times \\frac{n}{n + 1} \\to \\frac{1}{4}$: $L = \\frac{1}{4}$ and $R = 4$.',
+              ),
             ),
             ask('ser-radius-typed'),
             ask('ser-ratio-steps'),
             ask('ser-radius-flow'),
             teach(
               prose(
-                'A power underneath counts too. In $\\sum \\frac{2^{n}}{3^{n}}x^{n}$ the powers together are $\\left(\\frac{2}{3}\\right)^{n}$, so $L = \\frac{2}{3}$ and $R = \\frac{3}{2}$.',
+                'Powers on top and underneath combine. In $\\sum \\frac{2^{n}}{3^{n}}x^{n}$ the powers together are $\\left(\\frac{2}{3}\\right)^{n}$, so $L = \\frac{2}{3}$ and $R = \\frac{3}{2}$.',
               ),
               prose('A sign that alternates, $(-1)^{n}$, has size $1$ and changes nothing: the ratio test only looks at sizes.'),
             ),
@@ -751,25 +866,26 @@ export const seriesExpansions: Course = {
                 'If those terms do not shrink to $0$, it diverges. $\\sum x^{n}$ at $x = 1$ is $1 + 1 + 1 + \\cdots$, and at $x = -1$ it is $1 - 1 + 1 - \\cdots$: neither settles.',
               ),
             ),
-            ask('ser-end-flow'),
-            ask('ser-interval-line'),
-            ask('ser-interval-tiles'),
             teach(
               prose(
                 'Terms shrinking to $0$ is not enough by itself. The **harmonic series** $1 + \\frac{1}{2} + \\frac{1}{3} + \\cdots$ grows without bound, however slowly. The **alternating harmonic series** $1 - \\frac{1}{2} + \\frac{1}{3} - \\cdots$ converges, to $\\ln 2$: shrinking terms with alternating signs always settle.',
               ),
               prose('So $\\sum \\frac{x^{n}}{n}$ diverges at $x = 1$ and converges at $x = -1$:'),
               display('-1 \\le x < 1'),
+              prose('The **interval of convergence** has a filled dot at an end that is included and a hollow one at an end that is not.'),
+            ),
+            ask('ser-end-flow'),
+            ask('ser-interval-line'),
+            ask('ser-interval-tiles'),
+            teach(
+              prose(
+                'Which end is included depends on the signs. $\\sum \\frac{(-2)^{n}}{n}x^{n}$ has $R = \\frac{1}{2}$. At $x = \\frac{1}{2}$ the terms are $\\frac{(-1)^{n}}{n}$, which converges; at $x = -\\frac{1}{2}$ they are $\\frac{1}{n}$, which does not: $-\\frac{1}{2} < x \\le \\frac{1}{2}$.',
+              ),
+              prose('Squares underneath, as in $\\sum \\frac{x^{n}}{n^{2}}$, shrink fast enough for both ends to be included, and a series with a factorial underneath has no ends at all.'),
             ),
             ask('ser-interval-pick'),
             ask('ser-end-flow', 2),
             ask('ser-interval-line', 2),
-            teach(
-              prose(
-                'The **interval of convergence** has a filled dot at an end that is included and a hollow one at an end that is not. Which end is filled depends on the signs: with $(-2)^{n}$ on top, the alternating end moves to $x = \\frac{1}{2}$.',
-              ),
-              prose('Squares underneath, as in $\\sum \\frac{x^{n}}{n^{2}}$, shrink fast enough for both ends to be included, and a series with a factorial underneath has no ends at all.'),
-            ),
             ask('ser-interval-tiles', 2),
             ask('ser-interval-pick', 2),
           ],
@@ -797,14 +913,14 @@ export const seriesExpansions: Course = {
               prose('So $\\sum \\frac{(x - 3)^{n}}{2^{n}}$, with $R = 2$, converges for $1 < x < 5$.'),
             ),
             ask('ser-shift-tree'),
-            ask('ser-shift-line'),
-            ask('ser-sub-radius+choice', 2),
             teach(
               prose(
                 'The ends of a shifted series are checked as before, putting each one in. For $\\sum \\frac{(x - 3)^{n}}{2^{n} \\cdot n}$ at $x = 1$ the terms are $\\frac{(-2)^{n}}{2^{n} \\cdot n} = \\frac{(-1)^{n}}{n}$, which converges; at $x = 5$ they are $\\frac{1}{n}$, which does not:',
               ),
               display('1 \\le x < 5'),
             ),
+            ask('ser-shift-line'),
+            ask('ser-sub-radius+choice', 2),
             ask('ser-sub-pick', 2),
             ask('ser-shift-tree', 2),
             ask('ser-shift-line', 2),

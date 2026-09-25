@@ -129,8 +129,9 @@ const cmAaCyclic: Generator<CyclicParams> = {
     const [a, b, c] = cyclicTotals(p);
     const t = p.x + p.y + p.z;
     const steps: SolutionStep[] = [
-      { text: 'Add all three equations. Each letter appears $2 + 1 + 1 = 4$ times on the left:' },
-      { tex: `4(x + y + z) = ${a} + ${b} + ${c} = ${a + b + c}` },
+      { text: 'Add all three equations. On the left each letter appears 4 times, twice in its own equation and once in each of the other two:' },
+      { tex: `4(x + y + z) = ${a} + ${b} + ${c}` },
+      { tex: `= ${a + b + c}` },
       { tex: `x + y + z = ${t}` },
     ];
     if (p.askX) {
@@ -230,7 +231,9 @@ const cmAaSwapTiles: Generator<SwapParams> = {
     return {
       kind: 'tiles',
       prompt: [say(swapFacts(s)), say(`Call the prices $${c.l}$ and $${c.m}$ in pence, and fill in the working.`)],
-      template: `${c.l} + ${c.m} = {0}, \\quad ${c.l} - ${c.m} = {1}, \\quad ${c.l} = {2}`,
+      // No commas: on a phone the row wraps before a label, and a comma would
+      // open the second line on its own.
+      template: `${c.l} + ${c.m} = {0} \\quad ${c.l} - ${c.m} = {1} \\quad ${c.l} = {2}`,
       bank: numberBank([s.p + s.q, s.p - s.q, s.p], [s.q, (m + n) / 2, m - n, s.p + 1], 3, 1, 1),
       answer: [num(s.p + s.q), num(s.p - s.q), num(s.p)],
     };
@@ -312,7 +315,7 @@ const cmAaAvgSpeed: Generator<AvgParams> = {
         { tex: `${d} \\div ${u} = ${d / u} \\text{ h}` },
         { text: `so the return has ${hours((2 * d) / target - d / u)} for ${d} km:` },
         { tex: `${d} \\div ${(2 * d) / target - d / u} = ${v}` },
-        { text: `Averaging the speeds, $2 \\times ${target} - ${u} = ${2 * target - u}$, is the trap: the slow part of the trip takes more of the time.` },
+        { text: `Averaging the speeds is the trap. It gives ${2 * target - u}, from $2 \\times ${target} - ${u}$, but the slow part of the trip takes more of the time.` },
       ];
     }
     const d = lcm(u, v);
@@ -362,7 +365,7 @@ const cmAaAvgSpeedTiles: Generator<AvgTilesParams> = {
         say(`A ${t.who} ${t.verb} ${d} km to a ${t.place} at ${u} km/h and back at ${v} km/h.`),
         say('Fill in the hours out, the hours back, and the average speed in km/h.'),
       ],
-      template: '\\text{out} = {0}, \\quad \\text{back} = {1}, \\quad \\text{average} = {2}',
+      template: '\\text{out} = {0} \\quad \\text{back} = {1} \\quad \\text{average} = {2}',
       bank: numberBank([t1, t2, h], [(u + v) / 2, t1 + t2, u, v, h + 1].filter(Number.isInteger), 3, 1, 1),
       answer: [num(t1), num(t2), num(h)],
     };
@@ -524,7 +527,7 @@ const cmAaFillDrain: Generator<FillParams> = {
       { tex: `\\frac{1}{${p.a}} - \\frac{1}{${p.leak}} = ${fracTex(p.leak - p.a, p.a * p.leak)}` },
       { text: 'So the tank fills in' },
       { tex: `${t} \\text{ minutes}` },
-      { text: `Taking the times away, ${p.leak} − ${p.a}, is the trap: rates add and subtract, times do not.` },
+      { text: `Taking the times away, $${p.leak} - ${p.a}$, is the trap: rates add and subtract, times do not.` },
     ];
   },
 };
@@ -550,7 +553,7 @@ function squareSolution(s: SquareParams): SolutionStep[] {
   const steps: SolutionStep[] = [];
   if (a === 1) {
     steps.push(
-      { text: `Half of the $x$ coefficient is ${-h}, so use $${bracket(h)}^2$, which starts the same way:` },
+      { text: `Half of the $x$ coefficient is $${-h}$, so use $${bracket(h)}^2$, which starts the same way:` },
       { tex: `${bracket(h)}^2 = ${quadTex(1, -2 * h, h * h)}` },
       { tex: `${quadTex(1, -2 * h, c)} = ${bracket(h)}^2${signed(k)}` },
     );
@@ -562,7 +565,7 @@ function squareSolution(s: SquareParams): SolutionStep[] {
       { tex: `= ${a}${bracket(h)}^2${signed(k)}` },
     );
   }
-  steps.push({ text: `A square is never negative, so the least value is ${k}, when $x = ${h}$.` });
+  steps.push({ text: `A square is never negative, so the least value is $${k}$, when $x = ${h}$.` });
   return steps;
 }
 
@@ -602,8 +605,10 @@ const cmAaSquareTiles: Generator<SquareParams> = {
     const c = squareConst(s);
     return {
       kind: 'tiles',
-      prompt: [say('Complete the square.')],
-      template: `${quadTex(s.a, -2 * s.a * s.h, c)} = ${s.a === 1 ? '' : s.a}(x - {0})^2 + {1}`,
+      // The quadratic stands above the blanks rather than in the template, so the
+      // bracket around the first blank never breaks across two lines on a phone.
+      prompt: [say('Complete the square.'), show(quadTex(s.a, -2 * s.a * s.h, c))],
+      template: `= ${s.a === 1 ? '' : s.a}(x - {0})^2 + {1}`,
       bank: numberBank([s.h, s.k], [2 * s.h, c, s.h * s.h, s.a * s.h, c - s.h * s.h], 3, 1, 1),
       answer: [num(s.h), num(s.k)],
     };
@@ -655,8 +660,8 @@ const cmAaSharedRoot: Generator<SharedParams> = {
     ];
     if (askOther) {
       steps.push(
-        { text: `The two roots of the second equation multiply to its constant term, ${r * s2}:` },
-        { tex: `${r} \\times s = ${r * s2}` },
+        { text: `The two roots of the second equation multiply to its constant term, $${r * s2}$:` },
+        { tex: `${r < 0 ? `(${r})` : r} \\times s = ${r * s2}` },
         { tex: `s = ${s2}` },
       );
     }
@@ -771,7 +776,10 @@ const cmAaPowerEquationTiles: Generator<PowerEqParams> = {
     return {
       kind: 'tiles',
       prompt: [say(`Write both sides as powers of ${s.b}, then set the exponents equal.`), show(powerEqTex(s))],
-      template: `{0}(${shift(s.p)}) = {1}(${shift(s.q)}), \\quad x = {2}`,
+      // `{2} = x` rather than `x = {2}`: a blank can only wrap as a whole, so this
+      // way a phone breaks the row after the second bracket, not between the
+      // second blank and the bracket it multiplies.
+      template: `{0}(${shift(s.p)}) = {1}(${shift(s.q)}) \\quad {2} = x`,
       bank: numberBank([s.m, s.n, x], [s.b ** Math.abs(s.m), s.b ** s.n, -x, s.q - s.p], 3, 1, -Infinity),
       answer: [num(s.m), num(s.n), num(x)],
     };
@@ -947,15 +955,14 @@ const floorSumTex = (top: number) =>
 
 function floorSolution(top: number): SolutionStep[] {
   const groups = floorGroups(top);
-  const terms = groups.map(([k, , c]) => `${k} \\times ${c}`);
-  const lines: string[] = [];
-  for (let i = 0; i < terms.length; i += 3) lines.push(terms.slice(i, i + 3).join(' + '));
-  const steps: SolutionStep[] = [
+  // Each product braced, so the line breaks after a `+` and never inside `5 \times 11`.
+  const terms = groups.map(([k, , c]) => `{${k} \\times ${c}}`);
+  // One line: a display piece breaks after a `+` where the phone needs it, so
+  // no line has to end on a dangling operator.
+  return [
     { text: 'Group the terms by value. $\\lfloor \\sqrt{n} \\rfloor = k$ from $n = k^2$ up to $(k + 1)^2 - 1$, which is $2k + 1$ values of $n$; the last group stops early, at the top of the sum.' },
+    { tex: `${terms.join(' + ')} = ${floorSum(top)}` },
   ];
-  lines.forEach((line, i) => steps.push({ tex: `${line}${i === lines.length - 1 ? '' : ' +'}` }));
-  steps.push({ tex: `= ${floorSum(top)}` });
-  return steps;
 }
 
 const cmAaFloorSum: Generator<FloorParams> = {
@@ -1054,19 +1061,19 @@ const cmAaAbsSum: Generator<AbsParams> = {
   solution(s) {
     const b = s.a + s.gap;
     const steps: SolutionStep[] = [
-      { text: `$|x${signed(-s.a)}|$ is the distance from $x$ to ${s.a} on the number line, and $|x${signed(-b)}|$ the distance to ${b}. Anywhere between them the two distances add to the gap:` },
+      { text: `$|x${signed(-s.a)}|$ is the distance from $x$ to $${s.a}$ on the number line, and $|x${signed(-b)}|$ the distance to $${b}$. Anywhere between them the two distances add to the gap:` },
       { tex: `${b} - ${s.a < 0 ? `(${s.a})` : s.a} = ${s.gap}` },
     ];
     if (s.count) {
       steps.push(
-        { text: `So every $x$ from ${s.a} to ${b} works, and nothing outside does, since there the total is more than ${s.gap}. Count the whole numbers, ends included:` },
+        { text: `So every $x$ from $${s.a}$ to $${b}$ works, and nothing outside does, since there the total is more than ${s.gap}. Count the whole numbers, ends included:` },
         { tex: `${s.gap} + 1 = ${s.gap + 1}` },
       );
       return steps;
     }
     const big = (s.a + b + s.c) / 2;
     steps.push(
-      { text: `${s.c} is more than that, so the solutions are outside. To the right of ${b} both bars open as they stand:` },
+      { text: `${s.c} is more than that, so the solutions are outside. To the right of $${b}$ both bars open as they stand:` },
       { tex: `(x${signed(-s.a)}) + (x${signed(-b)}) = ${s.c}` },
       { tex: `2x${signed(-(s.a + b))} = ${s.c}` },
       { tex: `x = ${big}` },
@@ -1161,11 +1168,11 @@ const cmAaPairSum: Generator<PairParams> = {
   solution({ a, n }) {
     const r = Math.sqrt(a);
     return [
-      { text: `Pair $f(x)$ with $f(1 - x)$, a term from each end. Since $${a}^{1 - x} = ${a} \\div ${a}^x$,` },
+      { text: `Pair $f(x)$ with $f(1 - x)$, a term from each end. Write $${a}^{1 - x}$ as $${a} \\div ${a}^x$:` },
       { tex: `f(1 - x) = \\frac{${a}}{${a} + ${r} \\times ${a}^x} = \\frac{${r}}{${r} + ${a}^x}` },
       { tex: `f(x) + f(1 - x) = \\frac{${a}^x + ${r}}{${a}^x + ${r}} = 1` },
       { text: `So the ${n - 1} terms are halves of pairs worth 1${n % 2 === 0 ? ', the middle one being $f(\\tfrac{1}{2}) = \\tfrac{1}{2}$' : ''}:` },
-      { tex: `${n - 1} \\times \\tfrac{1}{2} = ${num((n - 1) / 2)}` },
+      { tex: `${n - 1} \\times \\frac{1}{2} = ${num((n - 1) / 2)}` },
     ];
   },
 };
@@ -1214,14 +1221,14 @@ const cmAaLogChain: Generator<ChainParams> = {
     const L = (x: number) => `\\log ${x}`;
     if (flip) {
       return [
-        { text: 'Write each log as a fraction of logs in one base: $\\log_b c = \\log c \\div \\log b$. Each top cancels the bottom after it:' },
+        { text: 'Write each log as a fraction of logs in one base: $\\log_{b} c = \\frac{\\log c}{\\log b}$. Each top cancels the bottom after it:' },
         { tex: `\\frac{${L(a)}}{${L(a + 1)}} \\times \\frac{${L(a + 1)}}{${L(a + 2)}} \\times \\cdots \\times \\frac{${L(m - 1)}}{${L(m)}}` },
         { tex: `= \\frac{${L(a)}}{${L(m)}} = \\log_{${m}} ${a}` },
         { text: `Since $${m} = ${a}^{${j}}$, that is $\\tfrac{1}{${j}}$.` },
       ];
     }
     return [
-      { text: 'Write each log as a fraction of logs in one base: $\\log_b c = \\log c \\div \\log b$. Each top cancels the bottom after it:' },
+      { text: 'Write each log as a fraction of logs in one base: $\\log_{b} c = \\frac{\\log c}{\\log b}$. Each top cancels the bottom after it:' },
       { tex: `\\frac{${L(a + 1)}}{${L(a)}} \\times \\frac{${L(a + 2)}}{${L(a + 1)}} \\times \\cdots \\times \\frac{${L(m)}}{${L(m - 1)}}` },
       { tex: `= \\frac{${L(m)}}{${L(a)}} = \\log_{${a}} ${m}` },
       { text: `Since $${m} = ${a}^{${j}}$, that is ${j}. Counting the ${m - a} factors is the trap.` },
@@ -1270,8 +1277,9 @@ const cmAaLogTiles: Generator<CombineLogParams> = {
     const inside = minus ? x / y : x * y;
     return {
       kind: 'tiles',
-      prompt: [say('Combine the two logs into one, then work it out.')],
-      template: `\\log_${b} ${x} ${minus ? '-' : '+'} \\log_${b} ${y} = \\log_${b} {0} = {1}`,
+      // The sum stands above the blanks, so the blanks' line fits a phone in one row.
+      prompt: [say('Combine the two logs into one, then work it out.'), show(`\\log_{${b}} ${x} ${minus ? '-' : '+'} \\log_{${b}} ${y}`)],
+      template: `= \\log_${b} {0} = {1}`,
       bank: numberBank([inside, n], [minus ? x - y : x + y, n + 1, n - 1, b * n], 3, 1, 1),
       answer: [num(inside), num(n)],
     };
@@ -1334,7 +1342,7 @@ const cmAaLogEquation: Generator<LogEqParams> = {
     const d = s.es.reduce((acc, e) => lcm(acc, e), 1);
     const total = s.es.reduce((acc, e) => acc + d / e, 0);
     const steps: SolutionStep[] = [{ text: `Change every log to base ${s.c}: a log to base $${s.c}^{e}$ is $\\tfrac{1}{e}$ of a log to base ${s.c}.` }];
-    for (const e of s.es) if (e > 1) steps.push({ tex: `\\log_{${s.c ** e}} x = \\tfrac{1}{${e}}\\log_{${s.c}} x` });
+    for (const e of s.es) if (e > 1) steps.push({ tex: `\\log_{${s.c ** e}} x = \\frac{1}{${e}}\\log_{${s.c}} x` });
     steps.push(
       { tex: `${fracTex(total, d)}\\log_{${s.c}} x = ${k}` },
       { tex: `\\log_{${s.c}} x = ${L}` },

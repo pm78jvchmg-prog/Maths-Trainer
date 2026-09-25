@@ -18,7 +18,9 @@ export const advancedAlgebra: Level = {
       slides: [
         teach(
           prose('A system often asks for a combination of the unknowns, and that combination can come straight out of the equations without finding $x$ and $y$.'),
-          prose('Say $x + y = 12$ and $x^2 - y^2 = 48$. Factorise the difference of squares:'),
+          prose('Say'),
+          maths('x + y = 12, \\qquad x^2 - y^2 = 48'),
+          prose('Factorise the difference of squares:'),
           maths('x^2 - y^2 = (x + y)(x - y)'),
           maths('48 = 12(x - y)'),
           maths('x - y = 4'),
@@ -35,7 +37,7 @@ export const advancedAlgebra: Level = {
         askAfter(
           'cm-aa-swap-tiles',
           1,
-          prose('When the coefficients swap places, add and subtract the whole equations. $4$ apples and $1$ pear cost $90$p, and $1$ apple and $4$ pears cost $60$p. With prices $A$ and $P$:'),
+          prose('When the coefficients swap places, add and subtract the whole equations. 4 apples and 1 pear cost 90p, and 1 apple and 4 pears cost 60p. With prices $A$ and $P$:'),
           maths('4A + P = 90'),
           maths('A + 4P = 60'),
           prose('Adding gives each letter $5$ times, and subtracting leaves $3$ of each:'),
@@ -43,7 +45,7 @@ export const advancedAlgebra: Level = {
           maths('A + P = 30, \\qquad A - P = 10'),
           prose('Add those two and $P$ cancels:'),
           maths('2A = 40'),
-          prose('So an apple costs $20$p.'),
+          prose('So an apple costs 20p.'),
         ),
         teach(
           prose('When every equation holds the same letters, **add them all**. Take'),
@@ -51,7 +53,8 @@ export const advancedAlgebra: Level = {
           maths('x + 2y + z = 19'),
           maths('x + y + 2z = 24'),
           prose('Each letter appears $4$ times across the left sides:'),
-          maths('4(x + y + z) = 17 + 19 + 24 = 60'),
+          maths('4(x + y + z) = 17 + 19 + 24'),
+          maths('= 60'),
           maths('x + y + z = 15'),
           prose('The first equation is $x + y + z$ with one more $x$, so'),
           maths('x = 17 - 15 = 2'),
@@ -118,7 +121,7 @@ export const advancedAlgebra: Level = {
       title: 'Quadratics',
       slides: [
         teach(
-          prose('To find the least value of a quadratic, **complete the square**. Half the $x$ coefficient of $x^2 - 8x + 21$ is $-4$, and $(x - 4)^2 = x^2 - 8x + 16$, so'),
+          prose('To find the least value of a quadratic, **complete the square**. Half the $x$ coefficient of $x^2 - 8x + 21$ is $-4$, and $(x - 4)^2$ multiplies out to $x^2 - 8x + 16$, so'),
           maths('x^2 - 8x + 21 = (x - 4)^2 + 5'),
           prose('A square is never negative, so the least value is $5$, when $x = 4$. The constant, $21$, is the trap.'),
         ),
@@ -146,7 +149,9 @@ export const advancedAlgebra: Level = {
         askAfter(
           'cm-aa-nested-root',
           1,
-          prose('A pattern that goes on forever contains a copy of itself. With $x = \\sqrt{12 + \\sqrt{12 + \\cdots}}$, everything after the $12$ is $x$ again:'),
+          prose('A pattern that goes on forever contains a copy of itself. Take'),
+          maths('x = \\sqrt{12 + \\sqrt{12 + \\cdots}}'),
+          prose('Everything under the first root after the $12$ is $x$ again:'),
           maths('x^2 = 12 + x'),
           maths('(x - 4)(x + 3) = 0'),
           prose('A square root is not negative, so $x = 4$.'),
@@ -154,12 +159,15 @@ export const advancedAlgebra: Level = {
         askAfter(
           'cm-aa-shared-root+choice',
           2,
-          prose('For the other root, use the product: the two roots of $x^2 + bx + c = 0$ multiply to $c$.'),
+          prose('For the other root, use the product: the two roots of this multiply to $c$.'),
+          maths('x^2 + bx + c = 0'),
         ),
         askAfter(
           'cm-aa-nested-root+choice',
           2,
-          prose('With minus signs, $x = \\sqrt{20 - \\sqrt{20 - \\cdots}}$ gives'),
+          prose('With minus signs,'),
+          maths('x = \\sqrt{20 - \\sqrt{20 - \\cdots}}'),
+          prose('gives'),
           maths('x^2 = 20 - x'),
           maths('(x - 4)(x + 5) = 0'),
           prose('so $x = 4$.'),
@@ -172,7 +180,9 @@ export const advancedAlgebra: Level = {
       title: 'Exponents',
       slides: [
         teach(
-          prose('Powers of different numbers compare once they share a base. For $4^{x + 1} = 8^{x - 1}$, write $4 = 2^2$ and $8 = 2^3$:'),
+          prose('Powers of different numbers compare once they share a base. Take'),
+          maths('4^{x + 1} = 8^{x - 1}'),
+          prose('Write $4 = 2^2$ and $8 = 2^3$:'),
           maths('2^{2(x + 1)} = 2^{3(x - 1)}'),
           prose('Equal powers of $2$ have equal exponents:'),
           maths('2x + 2 = 3x - 3'),
@@ -183,7 +193,9 @@ export const advancedAlgebra: Level = {
         askAfter(
           'cm-aa-power-equation+choice',
           2,
-          prose('A fraction is a negative power: $\\tfrac{1}{4} = 2^{-2}$. So $\\left(\\tfrac{1}{4}\\right)^{x + 1} = 8^{x - 4}$ becomes'),
+          prose('A fraction is a negative power: $\\tfrac{1}{4} = 2^{-2}$. So'),
+          maths('\\left(\\tfrac{1}{4}\\right)^{x + 1} = 8^{x - 4}'),
+          prose('becomes'),
           maths('-2(x + 1) = 3(x - 4)'),
           maths('-2x - 2 = 3x - 12'),
           maths('x = 2'),
@@ -231,7 +243,9 @@ export const advancedAlgebra: Level = {
         askAfter(
           'cm-aa-abs-sum',
           1,
-          prose('$|x - 1|$ is the distance from $x$ to $1$ on the number line. For $|x - 1| + |x - 5| = 10$: between $1$ and $5$ the two distances add to only $4$, so the solutions are outside. To the right of $5$ both bars open as they stand:'),
+          prose('$|x - 1|$ is the distance from $x$ to $1$ on the number line. Take'),
+          maths('|x - 1| + |x - 5| = 10'),
+          prose('Between $1$ and $5$ the two distances add to only $4$, so the solutions are outside. To the right of $5$ both bars open as they stand:'),
           maths('(x - 1) + (x - 5) = 10'),
           maths('2x - 6 = 10'),
           prose('So the larger solution is $x = 8$.'),
@@ -239,7 +253,9 @@ export const advancedAlgebra: Level = {
         askAfter(
           'cm-aa-abs-sum+choice',
           2,
-          prose('When the total equals the gap, every point between works. $|x - 2| + |x - 7| = 5$ holds for all $x$ from $2$ to $7$: that is $6$ whole numbers, ends included, not $5$.'),
+          prose('When the total equals the gap, every point between works. This holds for all $x$ from $2$ to $7$:'),
+          maths('|x - 2| + |x - 7| = 5'),
+          prose('That is $6$ whole numbers, ends included, not $5$.'),
         ),
         teach(
           prose('A **functional equation** with $f(x)$ and $f(c - x)$: substitute twice to get two equations. For'),
@@ -255,9 +271,13 @@ export const advancedAlgebra: Level = {
         askAfter(
           'cm-aa-pair-sum',
           1,
-          prose('**Pair the ends.** For $f(x) = \\frac{4^x}{4^x + 2}$, $f(1 - x)$ works out to $\\frac{2}{2 + 4^x}$, so'),
+          prose('**Pair the ends.** Take'),
+          maths('f(x) = \\frac{4^x}{4^x + 2}'),
+          prose('Then $f(1 - x)$ works out to $\\frac{2}{2 + 4^x}$, so'),
           maths('f(x) + f(1 - x) = 1'),
-          prose('Then $f(\\tfrac{1}{5}) + f(\\tfrac{2}{5}) + f(\\tfrac{3}{5}) + f(\\tfrac{4}{5})$ is two pairs, $2$. With an odd number of terms the middle one is $f(\\tfrac{1}{2}) = \\tfrac{1}{2}$, half a pair.'),
+          prose('Four terms from the two ends make two pairs:'),
+          maths('f(\\tfrac{1}{5}) + f(\\tfrac{2}{5}) + f(\\tfrac{3}{5}) + f(\\tfrac{4}{5}) = 2'),
+          prose('With an odd number of terms the middle one is $f(\\tfrac{1}{2}) = \\tfrac{1}{2}$, half a pair.'),
         ),
         askAfter(
           'cm-aa-functional+choice',
@@ -267,7 +287,8 @@ export const advancedAlgebra: Level = {
         askAfter(
           'cm-aa-pair-sum+choice',
           2,
-          prose('With $9$ in place of $4$ the partner is $3$, its square root: $f(x) = \\frac{9^x}{9^x + 3}$ pairs to $1$ the same way.'),
+          prose('With $9$ in place of $4$ the partner is $3$, its square root. This pairs to $1$ the same way:'),
+          maths('f(x) = \\frac{9^x}{9^x + 3}'),
         ),
         ask('cm-aa-floor-sum+choice', 2),
       ],
@@ -280,9 +301,11 @@ export const advancedAlgebra: Level = {
         teach(
           prose('Logs to the same base add by multiplying inside:'),
           maths('\\log_{6} 4 + \\log_{6} 9 = \\log_{6} 36 = 2'),
-          prose('And any log can be changed to one base: $\\log_b c = \\log c \\div \\log b$. In a chain, each top then cancels the bottom after it:'),
-          maths('\\log_{2} 3 \\times \\log_{3} 4 \\times \\cdots \\times \\log_{7} 8 = \\frac{\\log 8}{\\log 2}'),
-          maths('= \\log_{2} 8 = 3'),
+          prose('And any log can be changed to one base:'),
+          maths('\\log_{b} c = \\frac{\\log c}{\\log b}'),
+          prose('In a chain, each top then cancels the bottom after it:'),
+          maths('\\log_{2} 3 \\times \\log_{3} 4 \\times \\cdots \\times \\log_{7} 8'),
+          maths('= \\frac{\\log 8}{\\log 2} = \\log_{2} 8 = 3'),
           prose('Counting the $6$ factors is the trap.'),
         ),
         ask('cm-aa-log-tiles'),
@@ -303,7 +326,7 @@ export const advancedAlgebra: Level = {
         teach(
           prose('A log to a power base is a fraction of a log to the base itself: $\\log_{4} x$ is half of $\\log_{2} x$. So'),
           maths('\\log_{2} x + \\log_{4} x = 6'),
-          maths('\\tfrac{3}{2}\\log_{2} x = 6'),
+          maths('\\frac{3}{2}\\log_{2} x = 6'),
           maths('\\log_{2} x = 4'),
           prose('and $x = 16$.'),
           prose('By what a log means, $3^{\\log_{3} 5} = 5$. Write $9$ as $3^2$ and swap the two powers:'),
@@ -316,7 +339,7 @@ export const advancedAlgebra: Level = {
           2,
           prose('A log to base $8 = 2^3$ is a third of a log to base $2$:'),
           maths('\\log_{2} x + \\log_{8} x = 8'),
-          maths('\\tfrac{4}{3}\\log_{2} x = 8'),
+          maths('\\frac{4}{3}\\log_{2} x = 8'),
           prose('So $\\log_{2} x = 6$ and $x = 64$.'),
         ),
         askAfter(

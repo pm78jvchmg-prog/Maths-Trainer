@@ -17,7 +17,7 @@ import type { Rng } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import { canonicalSet } from '../numberLine';
 import { windowFor } from './numberLine';
-import { FRACTION_KEYS, fracAnswer, fracTex, num, numberBank, numberOptions, say, show, typed } from './contestMath';
+import { FRACTION_KEYS, fracAnswer, fracTex, gcd, num, numberBank, numberOptions, say, show, typed } from './contestMath';
 
 /* ---------- shared pieces ---------- */
 
@@ -160,7 +160,7 @@ const cmInFlip: Generator<FlipParams> = {
         { text: 'Read from the smaller end:' },
         { tex: `${p.k1} ${high} x ${low} ${p.k2}` },
         {
-          text: `So the dot at ${p.k1} is ${p.highOp === '<=' ? 'filled' : 'hollow'}, the dot at ${p.k2} is ${p.lowOp === '<=' ? 'filled' : 'hollow'}, and the stretch between them is shaded.`,
+          text: `So the dot at $${p.k1}$ is ${p.highOp === '<=' ? 'filled' : 'hollow'}, the dot at $${p.k2}$ is ${p.lowOp === '<=' ? 'filled' : 'hollow'}, and the stretch between them is shaded.`,
         },
       ];
     }
@@ -168,12 +168,12 @@ const cmInFlip: Generator<FlipParams> = {
     const s = p.m + p.n;
     const solved = FLIP[p.op];
     return [
-      { text: `Take ${coefTex(p.n, 'x')} and ${p.p} from both sides:` },
+      { text: `Take $${coefTex(p.n, 'x')}$ and $${p.p}$ from both sides:` },
       { tex: `-${coefTex(s, 'x')} ${OP_TEX[p.op]} ${p.q - p.p}` },
       { text: `Divide by $-${s}$. Dividing by a negative turns the sign round:` },
       { tex: `x ${OP_TEX[solved]} ${k}` },
       {
-        text: `The dot at ${k} is ${solved === '<' || solved === '>' ? 'hollow' : 'filled'}, and the shading runs ${solved === '>' || solved === '>=' ? 'right' : 'left'}.`,
+        text: `The dot at $${k}$ is ${solved === '<' || solved === '>' ? 'hollow' : 'filled'}, and the shading runs ${solved === '>' || solved === '>=' ? 'right' : 'left'}.`,
       },
     ];
   },
@@ -264,7 +264,7 @@ const cmInCountIntegers: Generator<CountParams> = {
       { tex: `${p.lo - p.c} < ${p.m}x < ${p.hi - p.c}` },
       { text: `Divide by ${p.m}:` },
       { tex: `${fracTex(p.lo - p.c, p.m)} < x < ${fracTex(p.hi - p.c, p.m)}` },
-      { text: `So the integers run from ${first} to ${last}:` },
+      { text: `So the integers run from $${first}$ to $${last}$:` },
       { tex: `${last} - ${first < 0 ? `(${first})` : first} + 1 = ${count}` },
     ];
   },
@@ -323,7 +323,7 @@ const cmInSquareMin: Generator<SquareParams> = {
       { tex: p.twoVars ? `${Math.abs(p.a)}^2 + ${Math.abs(p.b)}^2 = ${p.a * p.a + p.b * p.b}` : `${Math.abs(p.a)}^2 = ${p.a * p.a}` },
       { text: 'so take it off again:' },
       { tex: `${squareExpr(p)} = ${squares} ${v < 0 ? '-' : '+'} ${Math.abs(v)}` },
-      { text: `A square is never negative, and it is 0 at ${p.twoVars ? `$x = ${p.a}$, $y = ${p.b}$` : `$x = ${p.a}$`}. So the least value is` },
+      { text: `A square is never negative, and it is $0$ at ${p.twoVars ? `$x = ${p.a}$, $y = ${p.b}$` : `$x = ${p.a}$`}. So the least value is` },
       { tex: `${p.c} - ${p.twoVars ? `(${constant})` : constant} = ${v}` },
     ];
   },
@@ -398,7 +398,7 @@ const cmInBounds: Generator<BoundsParams> = {
       { text: 'With negatives about, the ends do not simply multiply end to end. Try all four corners:' },
       { tex: `${br(p.a)} \\times ${br(p.c)} = ${p.a * p.c}, \\qquad ${br(p.a)} \\times ${br(p.d)} = ${p.a * p.d}` },
       { tex: `${br(p.b)} \\times ${br(p.c)} = ${p.b * p.c}, \\qquad ${br(p.b)} \\times ${br(p.d)} = ${p.b * p.d}` },
-      { text: `The least is ${lo} and the greatest ${hi}.` },
+      { text: `The least is $${lo}$ and the greatest $${hi}$.` },
     ];
   },
 };
@@ -547,7 +547,7 @@ const cmInPenTiles: Generator<PenParams> = {
           say(`A rectangular pen of area ${area} m² is built against a long wall, so only three sides need fence. The two sides that meet the wall are $x$ m long.`),
           say('Fill in the $x$ that uses the least fence, and that least length in metres.'),
         ],
-        template: 'x = {0}, \\qquad \\text{fence} = {1}',
+        template: 'x = {0} \\quad \\text{fence} = {1}',
         bank: numberBank([p.t, 4 * p.t], [2 * p.t, 3 * p.t, p.t * p.t, 4 * p.t + 2], 3),
         answer: [num(p.t), num(4 * p.t)],
       };
@@ -556,9 +556,11 @@ const cmInPenTiles: Generator<PenParams> = {
       kind: 'tiles',
       prompt: [
         say(`A rectangle has area ${area} cm², and its perimeter is as small as it can be.`),
-        say('Fill in the length of each side and the perimeter, in cm.'),
+        say('Fill in the length $s$ of each side and the perimeter $P$, in cm.'),
       ],
-      template: '\\text{side} = {0}, \\qquad \\text{perimeter} = {1}',
+      // Short labels: with the word "perimeter" the second blank wrapped alone onto
+      // a line of its own at phone width.
+      template: 's = {0} \\quad P = {1}',
       bank: numberBank([p.t, 4 * p.t], [2 * p.t, area, 2 * (area + 1), 2 * p.t + 2], 3),
       answer: [num(p.t), num(4 * p.t)],
     };
@@ -635,7 +637,7 @@ const cmInFixedSum: Generator<SumParams> = {
         { text: `With the two sides at the wall $x$ and the side facing it $y$:` },
         { tex: `2x + y = ${total}` },
         { text: 'AM-GM on $2x$ and $y$, whose sum is fixed:' },
-        { tex: `2x \\times y \\le \\left(\\tfrac{${total}}{2}\\right)^2 = ${(total / 2) ** 2}` },
+        { tex: `2x \\times y \\le \\left(\\frac{${total}}{2}\\right)^2 = ${(total / 2) ** 2}` },
         { tex: `xy \\le ${sumBest(p)}` },
         { text: `Equality at $2x = y = ${total / 2}$, so $x = ${p.k}$ and the pen is twice as long as it is deep. Treating the ${total} m as a full perimeter gives a square of area ${p.k * p.k}, the trap.` },
       ];
@@ -646,7 +648,7 @@ const cmInFixedSum: Generator<SumParams> = {
     if (p.kind === 1) steps.push({ text: `A length and a width make half the perimeter, ${half}.` });
     steps.push(
       { text: `For ${pair} adding to ${half}, AM-GM gives` },
-      { tex: `xy \\le \\left(\\tfrac{${half}}{2}\\right)^2 = ${sumBest(p)}` },
+      { tex: `xy \\le \\left(\\frac{${half}}{2}\\right)^2 = ${sumBest(p)}` },
       { text: `with equality when both are ${p.k}.` },
     );
     return steps;
@@ -669,6 +671,19 @@ const VARS = ['x', 'y', 'z'];
 const linearTex = (coefs: number[]) => coefs.map((c, i) => coefTex(c, VARS[i])).join(' + ');
 const squaresTex = (n: number) => VARS.slice(0, n).map((v) => `${v}^2`).join(' + ');
 const coefSquares = (coefs: number[]) => coefs.map((c) => `${c}^2`).join(' + ');
+
+/**
+ * `(3x + 4y)^2 \le (3^2 + 4^2)(x^2 + y^2)`, the right side braced so that on a
+ * phone the line breaks after the `\le` and never inside a bracket.
+ */
+const csLine = (linear: string, coefs: number[]) =>
+  `(${linear})^2 \\le {(${coefSquares(coefs)})(${squaresTex(coefs.length)})}`;
+
+/** A ratio in lowest terms, `3 : 4` for 12 and 16: the equality case reads as a ratio, not a scale. */
+const ratioTex = (parts: number[]) => {
+  const g = parts.reduce((acc, v) => gcd(acc, v), 0);
+  return parts.map((v) => v / g).join(' : ');
+};
 
 /** A random order of the coefficients, the root last. */
 function pickCoefs(rng: Rng, three: boolean): { coefs: number[]; root: number } {
@@ -707,10 +722,10 @@ const cmInCsMax: Generator<CsMaxParams> = {
     const sq = coefs.reduce((s, c) => s + c * c, 0);
     return [
       { text: 'Cauchy-Schwarz:' },
-      { tex: `(${linearTex(coefs)})^2 \\le (${coefSquares(coefs)})(${squaresTex(coefs.length)})` },
+      { tex: csLine(linearTex(coefs), coefs) },
       { tex: `(${linearTex(coefs)})^2 \\le ${sq} \\times ${r * r}` },
       { tex: `${linearTex(coefs)} \\le ${root} \\times ${r} = ${root * r}` },
-      { text: `Equality when ${coefs.length === 3 ? '$x : y : z$' : '$x : y$'} is $${coefs.join(' : ')}$, which a point on the ${coefs.length === 3 ? 'sphere' : 'circle'} can do. Adding the coefficients, ${coefs.reduce((s, c) => s + c, 0) * r}, needs every variable to be ${r} at once, which is off it.` },
+      { text: `Equality when ${coefs.length === 3 ? '$x : y : z$' : '$x : y$'} is $${ratioTex(coefs)}$, which a point on the ${coefs.length === 3 ? 'sphere' : 'circle'} can do. Adding the coefficients, ${coefs.reduce((s, c) => s + c, 0) * r}, needs every variable to be ${r} at once, which is off it.` },
     ];
   },
 };
@@ -815,10 +830,10 @@ const cmInCsMin: Generator<CsMinParams> = {
     const equal = VARS.slice(0, n).join(' = ');
     return [
       { text: 'Cauchy-Schwarz, with the line’s coefficients:' },
-      { tex: `(${linearTex(p.coefs)})^2 \\le (${coefSquares(p.coefs)})(${squaresTex(n)})` },
+      { tex: csLine(linearTex(p.coefs), p.coefs) },
       { tex: `${p.k}^2 \\le ${sq}(${squaresTex(n)})` },
       { tex: `${squaresTex(n)} \\ge ${fracTex(p.k * p.k, sq)}` },
-      { text: `Equality when ${n === 3 ? '$x : y : z$' : '$x : y$'} is $${p.coefs.join(' : ')}$, which the line allows. Setting $${equal}$ is the trap: it gives $${fracTex(n * p.k * p.k, sum * sum)}$, which is more.` },
+      { text: `Equality when ${n === 3 ? '$x : y : z$' : '$x : y$'} is $${ratioTex(p.coefs)}$, which the line allows. Setting $${equal}$ is the trap: it gives $${fracTex(n * p.k * p.k, sum * sum)}$, which is more.` },
     ];
   },
 };
@@ -878,7 +893,7 @@ const cmInTitu: Generator<TituParams> = {
       { text: 'Write each top as a square. The fractions form of Cauchy-Schwarz gives' },
       { tex: `${expr} \\ge \\frac{(${p.nums.join(' + ')})^2}{${VARS.slice(0, n).join(' + ')}}` },
       { tex: `\\frac{${sum}^2}{${p.s}} = ${tituLeast(p)}` },
-      { text: `Equality when ${n === 3 ? '$x : y : z$' : '$x : y$'} is $${p.nums.join(' : ')}$. Splitting ${p.s} evenly gives $${fracTex(n * squares, p.s)}$, which is more.` },
+      { text: `Equality when ${n === 3 ? '$x : y : z$' : '$x : y$'} is $${ratioTex(p.nums)}$. Splitting ${p.s} evenly gives $${fracTex(n * squares, p.s)}$, which is more.` },
     ];
   },
 };

@@ -171,7 +171,7 @@ const cmPoFindK: Generator<FindKParams> = {
     const lead =
       p.rem === 0
         ? say(`For what value of $k$ is $${factorTex(p.a)}$ a factor of the polynomial below?`)
-        : say(`The polynomial below leaves a remainder of ${p.rem} when divided by $${factorTex(p.a)}$. Find $k$.`);
+        : say(`The polynomial below leaves a remainder of $${p.rem}$ when divided by $${factorTex(p.a)}$. Find $k$.`);
     return typed([lead, show(findKPoly(p))], p.k, 'k =');
   },
   choices(p) {
@@ -193,7 +193,7 @@ const cmPoFindK: Generator<FindKParams> = {
         text:
           p.rem === 0
             ? `A factor means a remainder of $0$, so $p(${p.a}) = 0$:`
-            : `By the remainder theorem, $p(${p.a})$ is the remainder, ${p.rem}:`,
+            : `By the remainder theorem, $p(${p.a})$ is the remainder, $${p.rem}$:`,
       },
       { tex: `${termsTex(terms)} = ${p.rem}` },
     ];
@@ -258,7 +258,7 @@ const cmPoSumCoeffs: Generator<SumCoeffsParams> = {
     const g1 = evalPoly(p.g, 1);
     const at1 = productAt(p, 1);
     const steps: SolutionStep[] = [
-      { text: `Call the product $p(x)$. At $x = 1$ every power of $x$ is $1$, so $p(1)$ adds up the coefficients. The brackets become ${f1} and ${g1}:` },
+      { text: `Call the product $p(x)$. At $x = 1$ every power of $x$ is $1$, so $p(1)$ adds up the coefficients. The brackets become $${f1}$ and $${g1}$:` },
       { tex: `p(1) = ${bracket(f1)}^{${p.m}} \\times ${bracket(g1)}^{${p.n}} = ${at1}` },
     ];
     if (!p.even) return steps;
@@ -266,10 +266,10 @@ const cmPoSumCoeffs: Generator<SumCoeffsParams> = {
     const gm = evalPoly(p.g, -1);
     const atMinus = productAt(p, -1);
     steps.push(
-      { text: `At $x = -1$ the even powers are still $1$ but the odd powers are $-1$. The brackets become ${fm} and ${gm}:` },
+      { text: `At $x = -1$ the even powers are still $1$ but the odd powers are $-1$. The brackets become $${fm}$ and $${gm}$:` },
       { tex: `p(-1) = ${bracket(fm)}^{${p.m}} \\times ${bracket(gm)}^{${p.n}} = ${atMinus}` },
       { text: 'Adding the two cancels the odd powers and counts the even ones twice, so halve it:' },
-      { tex: `\\tfrac{1}{2}(${at1} + ${bracket(atMinus)}) = ${sumCoeffsAnswer(p)}` },
+      { tex: `\\frac{${at1} + ${bracket(atMinus)}}{2} = ${sumCoeffsAnswer(p)}` },
     );
     return steps;
   },
@@ -387,7 +387,7 @@ const cmPoQuartic: Generator<QuarticParams> = {
       { tex: `(y - ${m})(y + ${n}) = 0` },
       { text: `A real square is never negative, so $y = -${n}$ gives no real $x$. Only $y = ${m}$ does, with $x = \\pm\\sqrt{${m}}$, and each of those squares to ${m}:` },
       { tex: `${m} + ${m} = ${2 * m}` },
-      { text: `Adding both values of $y$, which gives ${m - n}, is the trap: it counts solutions that are not real.` },
+      { text: `Adding both values of $y$, which gives $${m - n}$, is the trap: it counts solutions that are not real.` },
     ];
   },
 };
@@ -586,13 +586,13 @@ const cmPoFixedValues: Generator<FixedParams> = {
         text: `$${q}$ is zero at $x = ${p.pts[0]}$, $${p.pts[1]}$ and $${p.pts[2]}$. It is a cubic with leading coefficient $1$, so it is exactly`,
       },
       { tex: `${q} = ${factors}` },
-      { text: `Put $x = ${p.at}$, then add back ${p.linear ? `the $x$, which is ${p.at}` : `the ${p.value}`}:` },
+      { text: `Put $x = ${p.at}$, then ${p.linear ? `add back the $x$, which is $${p.at}$` : p.value < 0 ? `take away the ${-p.value}` : `add back the ${p.value}`}:` },
       { tex: `p(${p.at}) = ${values} ${extra < 0 ? `- ${-extra}` : `+ ${extra}`}` },
       { tex: `p(${p.at}) = ${fixedAnswer(p)}` },
       {
         text: p.linear
-          ? `Answering ${p.at}, as if $p(x)$ were just $x$, is the trap.`
-          : `Answering ${p.value} is the trap: a cubic can take one value three times and still move on.`,
+          ? `Answering $${p.at}$, as if $p(x)$ were just $x$, is the trap.`
+          : `Answering $${p.value}$ is the trap: a cubic can take one value three times and still move on.`,
       },
     ];
   },
@@ -721,7 +721,8 @@ const cmPoVietaCubic: Generator<VietaCubicParams> = {
         { text: 'The sum of the roots is minus the $x^2$ coefficient, and the pairs add to the $x$ coefficient:' },
         { tex: `r + s + t = ${-p.a}, \\qquad rs + rt + st = ${p.b}` },
         { text: 'Squaring the sum gives every square once and every pair twice:' },
-        { tex: 'r^{2} + s^{2} + t^{2} = (r + s + t)^{2} - 2(rs + rt + st)' },
+        // Braced so a phone breaks the line after the `=`, never inside the right side.
+        { tex: 'r^{2} + s^{2} + t^{2} = {(r + s + t)^{2} - 2(rs + rt + st)}' },
         { tex: `${bracket(-p.a)}^{2} - 2 \\times ${bracket(p.b)} = ${p.a * p.a - 2 * p.b}` },
       ];
     }
@@ -775,7 +776,8 @@ const cmPoVietaTable: Generator<VietaTableParams> = {
     }
     steps.push(
       { text: 'Multiplied out, a cubic with leading coefficient $1$ and roots $r$, $s$, $t$ is' },
-      { tex: 'x^{3} - (r + s + t)x^{2} + (rs + rt + st)x - rst' },
+      // Two braced halves, so a phone breaks the line at the middle `+` and not before `rst`.
+      { tex: '{x^{3} - (r + s + t)x^{2}} + {(rs + rt + st)x - rst}' },
       { text: 'so the signs alternate. Match the coefficients:' },
       { tex: `r + s + t = ${e[0]}, \\qquad rs + rt + st = ${e[1]}` },
       { tex: `rst = ${e[2]}` },
@@ -832,18 +834,18 @@ const cmPoRootRatio: Generator<RootRatioParams> = {
     const first: SolutionStep[] =
       p.kind === 'times'
         ? [
-            { text: `Call the solutions $r$ and $${p.j}r$. By Vieta they add to ${S}:` },
+            { text: `Call the solutions $r$ and $${p.j}r$. By Vieta they add to $${S}$:` },
             { tex: `${p.j + 1}r = ${S}` },
           ]
         : [
-            { text: `Call the solutions $r$ and $r + ${p.j}$. By Vieta they add to ${S}:` },
+            { text: `Call the solutions $r$ and $r + ${p.j}$. By Vieta they add to $${S}$:` },
             { tex: `2r + ${p.j} = ${S}` },
             { tex: `2r = ${S - p.j}` },
           ];
     return [
       ...first,
       { tex: `r = ${p.r}` },
-      { text: `So the solutions are ${p.r} and ${other}, and $c$ is their product:` },
+      { text: `So the solutions are $${p.r}$ and $${other}$, and $c$ is their product:` },
       { tex: `c = ${bracket(p.r)} \\times ${bracket(other)} = ${ratioC(p)}` },
     ];
   },
@@ -960,7 +962,7 @@ const cmPoNewRootsTable: Generator<NewRootsParams> = {
     const [x2, x1, x0] = scaledCoeffs(p);
     const k = bracket(p.k);
     return [
-      { text: `Multiplying every root by ${p.k} multiplies their sum by ${p.k}, each product of a pair by $${k}^2$, and the product of all three by $${k}^3$. The coefficients are those sums with alternating signs, so each scales the same way:` },
+      { text: `Multiplying every root by $${p.k}$ multiplies their sum by $${p.k}$, each product of a pair by $${k}^2$, and the product of all three by $${k}^3$. The coefficients are those sums with alternating signs, so each scales the same way:` },
       { tex: `x^{2}: \\ ${k} \\times ${bracket(p.a)} = ${x2}` },
       { tex: `x: \\ ${k}^{2} \\times ${bracket(p.b)} = ${x1}` },
       { tex: `\\text{constant}: \\ ${k}^{3} \\times ${bracket(p.c)} = ${x0}` },
@@ -1022,7 +1024,7 @@ const cmPoRootsSumSub: Generator<SubSumParams> = {
     const each = p.a === 1 ? `x = r ${shift}` : `x = \\frac{r ${shift}}{${p.a}}`;
     const total = `${S} ${p.b > 0 ? '-' : '+'} ${n} \\times ${Math.abs(p.b)}`;
     return [
-      { text: `By Vieta the ${n} roots of $p$ add to minus the $x^{${n - 1}}$ coefficient, ${S}.` },
+      { text: `By Vieta the ${n} roots of $p$ add to minus the $x^{${n - 1}}$ coefficient, $${S}$.` },
       { text: `The new equation holds exactly when $${inner}$ is a root $r$ of $p$, so each new root is` },
       { tex: each },
       { text: `There are ${n} roots, so the shift of ${Math.abs(p.b)} is counted ${n} times:` },

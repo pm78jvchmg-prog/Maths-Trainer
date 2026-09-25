@@ -144,7 +144,8 @@ export const kinematics: Course = {
             askAfter(
               [
                 prose('A stop still counts in the time. A bus goes 30 m at 6 m/s, stops for 5 s, then goes 40 m at 4 m/s:'),
-                working('\\text{time} &= \\tfrac{30}{6} + 5 + \\tfrac{40}{4} = 5 + 5 + 10 = 20', '\\text{average speed} &= \\tfrac{30 + 40}{20} = 3.5'),
+                working('\\text{time} &= \\tfrac{30}{6} + 5 + \\tfrac{40}{4}', '&= 5 + 5 + 10 = 20'),
+                display('\\text{average speed} = \\tfrac{30 + 40}{20} = 3.5'),
               ],
               'kin-mean-speed+choice',
               2,
@@ -332,7 +333,10 @@ export const kinematics: Course = {
               prose(
                 'This is the straight velocity-time graph from level 1. Rearranged (Linear Equations, "Changing the Subject"), it gives $a = \\frac{v - u}{t}$ and $t = \\frac{v - u}{a}$.',
               ),
-              working('u = 5,\\ a = 3,\\ t = 4: \\quad v &= 5 + 3 \\times 4 = 17', 'u = 2,\\ v = 14,\\ t = 3: \\quad a &= \\tfrac{14 - 2}{3} = 4'),
+              prose('With $u = 5$, $a = 3$, $t = 4$:'),
+              display('v = 5 + 3 \\times 4 = 17'),
+              prose('With $u = 2$, $v = 14$, $t = 3$:'),
+              display('a = \\tfrac{14 - 2}{3} = 4'),
             ),
             ask('kin-vuat-tiles'),
             ask('kin-vuat'),
@@ -487,7 +491,8 @@ export const kinematics: Course = {
               working(
                 '\\text{to the top: } t &= 2, \\text{ rising } 19.6',
                 '\\text{top: } 24.5 + 19.6 &= 44.1',
-                '\\text{fall: } 4.9t^{2} = 44.1, \\ t^{2} &= 9, \\ t = 3',
+                '\\text{fall: } 4.9t^{2} &= 44.1',
+                't^{2} &= 9, \\ t = 3',
                 '\\text{in the air: } 2 + 3 &= 5',
               ),
               prose('Solving $-24.5 = 19.6t - 4.9t^{2}$ in one go (Quadratics, "The Quadratic Formula") gives the same 5 s; keep the positive root.'),
@@ -509,7 +514,8 @@ export const kinematics: Course = {
               working(
                 '\\text{stage 1: } v &= 0 + 3 \\times 4 = 12',
                 's &= \\tfrac{1}{2} \\times 3 \\times 4^{2} = 24',
-                '\\text{stage 2 } (u = 12)\\text{: } s &= 12 \\times 5 = 60',
+                '\\text{stage 2: } u &= 12',
+                's &= 12 \\times 5 = 60',
                 '\\text{total: } s &= 24 + 60 = 84',
               ),
             ),

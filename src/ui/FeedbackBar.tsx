@@ -30,9 +30,10 @@ interface Props {
    */
   assessment: boolean;
   /**
-   * A guided slide already solved, stepped back onto for review: Continue is
-   * offered beside Check, so reviewing it does not mean answering it again.
-   * Read from `canPassSolved`, the same gate the reducer applies.
+   * A guided slide already finished (solved, or its answer shown), stepped back
+   * onto for review: Continue is offered beside Check, so reviewing it does not
+   * mean answering it again.
+   * Read from `canPassFinished`, the same gate the reducer applies.
    */
   canPass: boolean;
   onSubmit: () => void;

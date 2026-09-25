@@ -12,6 +12,11 @@ its pull request; the PR description holds the evidence.
   166 to 25, worked-solution lines 758 to 4, question prompts 12 to 0 (the rest
   are tables and aligned working with nowhere to break). The grey dot on the standard-form power
   slider, and the sentence pointing at it, are gone (owner, Updates 3).
+- **Streak no longer counts a day twice after travelling west (#196).** A play dated
+  a day or two before the last one is a day already counted and changes
+  nothing, and the home screen reads it as done. A day the calendar skipped
+  going east costs no charge, and a clock set far wrong and put right keeps
+  the streak (the day it replaced is remembered). `src/store/streak.ts`.
 - **Home-screen colours: the seams were an old copy (this PR).** The current
   build already runs one unbroken purple from Algebra Fundamentals to Advanced
   Maths and orange from the Statistics heading down (#180); the iPad was still
@@ -23,6 +28,10 @@ its pull request; the PR description holds the evidence.
   value, so only an added constant is forgiven (`2C` and `ln(C)` still pass).
   A typed `2e-1` was read as 0.2; a digit before `e` is now read as a product,
   so it is 2e − 1.
+- **Going back onto a slide finished with Show me no longer asks for it again
+  (#194).** It comes back showing the answer it showed, and Continue moves
+  on. A slide solved (first try or after a wrong answer) still comes back idle
+  with Continue beside Check. `canPassSolved` is now `canPassFinished`.
 - **Two grading bugs fixed (this PR).** `vec-parallel` could offer two
   parallel options, marking a correct pick wrong (~10% of draws). A negative
   base was shown unbracketed (`-1^{4}`) while the answer meant `(-1)^{4}`, in

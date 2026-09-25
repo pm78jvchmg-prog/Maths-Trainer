@@ -1415,9 +1415,13 @@ button {
   padding-top: 40px;
   padding-bottom: calc(20px + env(safe-area-inset-bottom));
   margin-bottom: calc(-20px - env(safe-area-inset-bottom));
+  /* Opens on the colour the purple run ends on and turns orange by the
+     Statistics heading, so the two runs meet as a blend rather than a line. */
   background: linear-gradient(
     to bottom,
-    rgb(255 170 100 / 0.22) 0%,
+    rgb(70 24 190 / 0.45) 0,
+    rgb(190 60 150 / 0.34) 45px,
+    rgb(255 170 100 / 0.22) 110px,
     rgb(240 120 40 / 0.22) 50%,
     rgb(150 55 10 / 0.4) 100%
   );

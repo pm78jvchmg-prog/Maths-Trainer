@@ -52,10 +52,33 @@ export interface CheckOptions {
    * opted into per slide rather than being the default anywhere.
    */
   domain?: 'real' | 'complex' | 'positive';
-  /** Symbols standing for an arbitrary constant. Bound to 0 when probing. */
+  /** Symbols standing for an arbitrary constant. Bound to `CONSTANT_PROBE` when probing. */
   arbitraryConstants?: readonly string[];
   /** Fix the seed so a check is reproducible. Tests rely on this. */
   seed?: number | string;
+}
+
+/**
+ * The value an arbitrary constant takes while probing. Any fixed non-zero value
+ * makes `C*x` a term that varies with x, so only a genuine added constant is
+ * forgiven; one off the integers and away from 1 also keeps `C^2 = C` and
+ * `ln(C) = 0` from quietly making a stray C disappear.
+ */
+export const CONSTANT_PROBE = 1.37;
+
+/**
+ * mathjs reads `2e-1` as the number 0.2, but on the keypad `e` is Euler's
+ * number and `2e-1` is 2e − 1. (`2e-x` did not parse at all.) A number
+ * followed by `e` or `E` and then a sign or a digit is therefore split into a
+ * product before parsing, so what the learner typed is read as written, never
+ * silently as a power of ten.
+ * Only the learner's side goes through this: `expected` is our own content.
+ */
+export function readExponentsAsWritten(input: string): string {
+  return input.replace(
+    /(?<![A-Za-z0-9_.])(\d+\.?\d*|\.\d+)([eE])(?=([+-]|\d))/g,
+    (_, number: string, e: string, next: string) => `${number}*${e}${next === '+' || next === '-' ? '' : '*'}`,
+  );
 }
 
 export interface ProbePolicy {
@@ -131,7 +154,7 @@ export function checkAnswer(
 
   const constants = mode === 'upToConstant' ? arbitraryConstants : [];
 
-  const user = parseExpression(userInput, constants);
+  const user = parseExpression(readExponentsAsWritten(userInput), constants);
   if (!user.ok) return { status: 'invalid', message: user.error };
 
   const target = parseExpression(expected, constants);
@@ -143,9 +166,12 @@ export function checkAnswer(
   const userFn = compileExpression(user.node);
   const targetFn = compileExpression(target.node);
 
-  // Arbitrary constants are bound to 0 so "x^2/2" and "x^2/2 + C" probe alike.
+  // Arbitrary constants are bound to one fixed non-zero value, the same on both
+  // sides and at every point, so `x^2/2 + C` sits a constant gap from `x^2/2`.
+  // Binding them to 0 made C vanish wherever it stood: `x^2/2 + C*x` probed as
+  // `x^2/2` and was accepted as the integral of x.
   const zeroed: Record<string, unknown> = {};
-  for (const name of constants) zeroed[name] = 0;
+  for (const name of constants) zeroed[name] = CONSTANT_PROBE;
 
   const variables = [...new Set([...user.variables, ...target.variables])].sort();
 

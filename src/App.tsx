@@ -20,6 +20,8 @@ import { useProgress } from './store/progress';
 import { MAX_CHARGES, countedOn, localDay, resolveStreak, useStreak } from './store/streak';
 import { MASTERED_AT, courseMastery, libraryProgress, masteryPercent, playables } from './store/mastery';
 import { levelCheckLesson } from './content/types';
+import { recallScroll, rememberScroll } from './store/scrollMemory';
+import { useHidingBar } from './ui/hidingBar';
 import type { Course, Lesson } from './content/types';
 
 /**
@@ -100,13 +102,6 @@ function LibraryLine() {
 }
 
 /**
- * Where the home list was scrolled to when a course was opened, so coming back
- * lands on the same card rather than at the top of every course there is.
- * Module state rather than storage: it only has to outlive the course screen.
- */
-let homeScroll = 0;
-
-/**
  * The home list's two colour runs. The owner asked for one background running
  * from the first maths band to the last, deepening as the maths gets harder,
  * and a second, orange, run for the applied subjects.
@@ -121,9 +116,12 @@ const BANDS = [
 function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
   const records = useProgress((state) => state.lessons);
   const list = useRef<HTMLDivElement>(null);
+  const bar = useHidingBar();
 
+  // Where the list was left, so coming back from a course (or a lesson in it)
+  // lands on the same card rather than at the top of every course there is.
   useLayoutEffect(() => {
-    if (list.current) list.current.scrollTop = homeScroll;
+    if (list.current) list.current.scrollTop = recallScroll('home');
   }, []);
 
   return (
@@ -132,10 +130,13 @@ function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
         className="map"
         ref={list}
         onScroll={(event) => {
-          homeScroll = event.currentTarget.scrollTop;
+          rememberScroll('home', event.currentTarget.scrollTop);
+          bar.onScroll(event);
         }}
       >
-        <StreakBar />
+        <div className={`top-bar${bar.hidden ? ' hidden' : ''}`}>
+          <StreakBar />
+        </div>
         <LibraryLine />
 
         {/* Every category in one list, easiest first, each under its own
@@ -223,21 +224,51 @@ function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
 
 function CourseMap({
   course,
+  cameFrom,
   onOpen,
   onBack,
 }: {
   course: Course;
+  /** The lesson just finished or left, which should be on screen on return. */
+  cameFrom: string | null;
   onOpen: (lesson: Lesson) => void;
   onBack: () => void;
 }) {
   const records = useProgress((state) => state.lessons);
+  const list = useRef<HTMLDivElement>(null);
+  const bar = useHidingBar();
+  const memoryKey = `course:${course.id}`;
+
+  // Back where the list was left, and then, if the lesson just played is not
+  // wholly on screen (a level check can push it off), centred on it.
+  useLayoutEffect(() => {
+    const el = list.current;
+    if (!el) return;
+    el.scrollTop = recallScroll(memoryKey);
+    const row = cameFrom ? el.querySelector<HTMLElement>(`[data-lesson="${CSS.escape(cameFrom)}"]`) : null;
+    if (!row) return;
+    const view = el.getBoundingClientRect();
+    const box = row.getBoundingClientRect();
+    if (box.top < view.top + 64 || box.bottom > view.bottom) {
+      el.scrollTop += box.top - view.top - (el.clientHeight - box.height) / 2;
+    }
+  }, [memoryKey, cameFrom]);
 
   return (
     <div className="app app-wide">
-      <div className="map">
-        <button type="button" className="back-link" onClick={onBack}>
-          &#8249; All courses
-        </button>
+      <div
+        className="map"
+        ref={list}
+        onScroll={(event) => {
+          rememberScroll(memoryKey, event.currentTarget.scrollTop);
+          bar.onScroll(event);
+        }}
+      >
+        <div className={`top-bar${bar.hidden ? ' hidden' : ''}`}>
+          <button type="button" className="back-link" onClick={onBack}>
+            &#8249; All courses
+          </button>
+        </div>
         <h1 className="course-title">{course.title}</h1>
         <p className="course-blurb">{course.blurb}</p>
 
@@ -258,6 +289,7 @@ function CourseMap({
                     key={lesson.id}
                     type="button"
                     className="lesson-row"
+                    data-lesson={lesson.id}
                     onClick={() => onOpen(lesson)}
                   >
                     <span className={`node${record ? ' done' : ''}`}>{record ? '✓' : ''}</span>
@@ -278,6 +310,7 @@ function CourseMap({
                 <button
                   type="button"
                   className="lesson-row check-row"
+                  data-lesson={check.id}
                   onClick={() => onOpen(check)}
                 >
                   <span className={`node check${records[check.id] ? ' done' : ''}`}>
@@ -306,17 +339,22 @@ export default function App() {
   const [course, setCourse] = useState<Course | null>(null);
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [direction, setDirection] = useState<'forward' | 'back'>('forward');
+  // The last lesson opened in the current course, so its row is on screen
+  // when the course map comes back.
+  const [cameFrom, setCameFrom] = useState<string | null>(null);
   const recordCompletion = useProgress((state) => state.recordCompletion);
   const recordAbandon = useProgress((state) => state.recordAbandon);
   const recordPlay = useStreak((state) => state.recordPlay);
 
   const openCourse = (next: Course) => {
     setDirection('forward');
+    setCameFrom(null);
     setCourse(next);
   };
 
   const openLesson = (next: Lesson) => {
     setDirection('forward');
+    setCameFrom(next.id);
     setLesson(next);
   };
 
@@ -348,6 +386,7 @@ export default function App() {
   ) : course ? (
     <CourseMap
       course={course}
+      cameFrom={cameFrom}
       onOpen={openLesson}
       onBack={() => {
         setDirection('back');

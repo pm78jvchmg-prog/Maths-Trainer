@@ -7608,7 +7608,7 @@ const optNatureFlow: Generator<CubicModel> = {
         { kind: 'prose', text: `${text.replace(/, where$/, '.')} Its formula is below.` },
         {
           kind: 'prose',
-          text: `Its stationary points are at $x = ${params.a}$ and $x = ${params.b}$. Classify the one at $x = ${p}$.`,
+          text: `Its stationary points are at $x = ${params.a}$ and $x = ${params.b}$. Sort out the one at $x = ${p}$.`,
         },
       ],
       subject: `${q} = ${polyInTex(profitCoefficients(params), 'x')}`,

@@ -608,6 +608,13 @@ interface NaturalParams {
   target: number;
 }
 
+/** ln(t) over k as the learner reads it: a minus in front, and no 1 underneath. */
+function lnOver(target: number, k: number): string {
+  const ln = `\\ln\\left(${target}\\right)`;
+  const sign = k < 0 ? '-' : '';
+  return Math.abs(k) === 1 ? `${sign}${ln}` : `${sign}\\frac{${ln}}{${Math.abs(k)}}`;
+}
+
 /** Solving e^(kx) = c with natural logarithms. */
 const naturalLog: Generator<NaturalParams> = {
   id: 'log-natural',
@@ -615,11 +622,14 @@ const naturalLog: Generator<NaturalParams> = {
   // — at t = 4, k = 2 both are ln 2 — so each distractor is checked against the
   // answer's value before it is offered. Dividing by k + 1 never collides,
   // which keeps at least one distractor on every draw.
+  // A negative k has no ln(t/k) at all, and k = 1 or -1 loses k ln(t) too, so
+  // two more slips wait behind: the minus sign dropped, and k taken away
+  // rather than divided. The first three distinct slips are offered.
   choices: ({ k, target }) => {
     const right = Math.log(target) / k;
     const apart = (value: number) => Math.abs(value - right) > 1e-9;
     return options(
-      { tex: `\\frac{\\ln\\left(${target}\\right)}{${k}}`, answer: `log(${target}) / (${k})` },
+      { tex: lnOver(target, k), answer: `log(${target}) / (${k})` },
       ...(apart(Math.log(target / k))
         ? [{ tex: `\\ln\\left(\\frac{${target}}{${k}}\\right)`, answer: `log(${target} / (${k}))` }]
         : []),
@@ -629,10 +639,15 @@ const naturalLog: Generator<NaturalParams> = {
       // Stepped away from zero, not toward it: at k = -1 a step of +1 would
       // divide by zero, which comes back indeterminate rather than wrong.
       ...[k > 0 ? k + 1 : k - 1].map((alt) => ({
-        tex: `\\frac{\\ln\\left(${target}\\right)}{${alt}}`,
+        tex: lnOver(target, alt),
         answer: `log(${target}) / (${alt})`,
       })),
-    );
+      { tex: lnOver(target, -k), answer: `log(${target}) / (${-k})` },
+      {
+        tex: `\\ln\\left(${target}\\right) ${k > 0 ? '-' : '+'} ${Math.abs(k)}`,
+        answer: `log(${target}) - (${k})`,
+      },
+    ).slice(0, 4);
   },
   sample: (rng, difficulty) => ({
     k: nonZero(rng.int(difficulty > 1 ? -6 : 2, difficulty > 1 ? 6 : 7), 3),
@@ -655,7 +670,7 @@ const naturalLog: Generator<NaturalParams> = {
     },
     { tex: `\\ln\\left(e^{y}\\right) = y` },
     { tex: `e^{${k === 1 ? '' : k}x} = ${target} \\implies ${k === 1 ? '' : k}x = \\ln\\left(${target}\\right)` },
-    { tex: `x = \\frac{\\ln\\left(${target}\\right)}{${k}}` },
+    { tex: `x = ${lnOver(target, k)}` },
     {
       text: 'Taking logarithms to any other base would work too, but it would leave a logarithm of $e$ behind to simplify. Matching the base to the exponential is what keeps the working clean.',
     },
@@ -2551,11 +2566,19 @@ const productFlow: Generator<ProductFlowParams> = {
           : route === 'reciprocal'
             ? `${logTex(a, `${b}`)} \\times ${logTex(b, `${a}`)}`
             : `${logTex(a, `${b}`)} \\times ${logTex(c, `${d}`)}`;
-    const right = `$${logTex(a, `${c}`)}$`;
-    const wrong = `$${logTex(c, `${a}`)}$`;
+    // What a cancelled middle would leave, from the numbers in this product.
+    // Only a chain reaches this step on the right path; a wrong turn reaches it
+    // from the others too, and must not be shown a c this product never used.
+    const [one, other] =
+      route === 'reciprocal'
+        ? [logTex(a, `${a}`), logTex(b, `${b}`)]
+        : route === 'none'
+          ? [logTex(a, `${d}`), logTex(c, `${b}`)]
+          : [logTex(a, `${c}`), logTex(c, `${a}`)];
+    const right = `$${one}$`;
     const left = [
-      { label: right, outcome: `That reads the product as $${logTex(a, `${c}`)}$.` },
-      { label: wrong, outcome: `That reads the product as $${logTex(c, `${a}`)}$.` },
+      { label: right, outcome: `That reads the product as $${one}$.` },
+      { label: `$${other}$`, outcome: `That reads the product as $${other}$.` },
     ];
     return {
       kind: 'flow',

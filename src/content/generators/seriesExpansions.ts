@@ -4068,10 +4068,15 @@ const degreeN: Generator<DegreeParams> = {
   solution: (params) => {
     const { f, x, tol } = params;
     const n = degreeNeeded(params);
-    const m = waveM(f, n + 1, x, decQ);
-    const row = (k: number) => `n = ${k}: \\; ${m.tex} \\times \\frac{${fmt(Math.abs(val(x)))}^{${k + 1}}}{${k + 1}!} \\approx ${fmt(Number(boundAt(f, k, x).toPrecision(3)))}`;
+    // M bounds f^(n+1), so with a multiplier inside it changes from row to row.
+    const mAt = (k: number) => waveM(f, k + 1, x, decQ).tex;
+    const row = (k: number) => `n = ${k}: \\; ${mAt(k)} \\times \\frac{${fmt(Math.abs(val(x)))}^{${k + 1}}}{${k + 1}!} \\approx ${fmt(Number(boundAt(f, k, x).toPrecision(3)))}`;
+    const mSay =
+      mAt(n - 1) === mAt(n)
+        ? `Here $M = ${mAt(n)}$.`
+        : `Here $M$ bounds $f^{(n+1)}$, so it changes with $n$: $${mAt(n - 1)}$ for $n = ${n - 1}$, $${mAt(n)}$ for $n = ${n}$.`;
     return [
-      { text: `Here $M = ${m.tex}$. Work the bound out for each $n$ until it drops under $${fmt(tol)}$:` },
+      { text: `${mSay} Work the bound out for each $n$ until it drops under $${fmt(tol)}$:` },
       { tex: row(n - 1) },
       { tex: row(n) },
       { text: `So $n = ${n}$ is the first that is small enough.` },

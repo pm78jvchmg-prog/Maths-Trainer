@@ -272,6 +272,7 @@ export const vectors: Course = {
       levelCheck: [
         ask('vec-add', 2),
         ask('vec-notation', 2),
+        ask('vec-component', 2),
         ask('vec-journey', 2),
         ask('vec-scalar-combine', 2),
         ask('vec-scalar-k', 2),

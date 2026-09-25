@@ -746,6 +746,14 @@ export const forces: Course = {
             ask('force-incline-check'),
             ask('force-incline-pick', 2),
             ask('force-peg+choice', 2),
+            teach(
+              prose(
+                'The same steps work whatever the faces are: a slope with $B$ hanging, two slopes over a peg, or a table. Only step 1 changes, since each particle has its own weight component, reaction and friction.',
+              ),
+              prose(
+                'If the string goes slack, $T = 0$ from then on: write $F = ma$ for the particle still moving, on its own.',
+              ),
+            ),
             ask('force-incline-check', 2),
             ask('force-slack-speed', 2),
           ],

@@ -20,6 +20,7 @@ import {
   signedOffer,
   VECTOR_TEMPLATE,
 } from './vectorFormat';
+import { surdParts } from './format';
 import { WORKING_KEYS } from './workingKeys';
 
 /** Magnitudes are surds. */
@@ -900,8 +901,9 @@ const unitScalar: Generator<UnitParams> = {
   choices: ({ x, y }) => {
     const sq = x * x + y * y;
     return options(
-      { tex: `\\frac{1}{\\sqrt{${sq}}}`, answer: `1/sqrt(${sq})` },
-      { tex: `\\sqrt{${sq}}`, answer: `sqrt(${sq})` },
+      // The magnitude simplified, so a whole one reads 5 rather than the root of 25.
+      { tex: `\\frac{1}{${surdTex(sq)}}`, answer: `1/sqrt(${sq})` },
+      { tex: surdTex(sq), answer: `sqrt(${sq})` },
       { tex: `\\frac{1}{${sq}}`, answer: `1/${sq}` },
       { tex: `\\frac{1}{${Math.abs(x) + Math.abs(y)}}`, answer: `1/${Math.abs(x) + Math.abs(y)}` },
     );
@@ -940,16 +942,19 @@ const unitScalar: Generator<UnitParams> = {
     const sq = x * x + y * y;
     const size = Math.sqrt(sq);
     const whole = Number.isInteger(size);
+    // The magnitude with any square factor taken out: 5, or 3\sqrt{5} for \sqrt{45}.
+    const mag = surdTex(sq);
+    const simpler = mag !== `\\sqrt{${sq}}`;
     return [
       {
         text: 'Scaling multiplies the length by the scalar, so the scalar that lands on length 1 is one over the length the vector already has.',
       },
-      { tex: `\\left| ${columnTex(x, y)} \\right| = \\sqrt{${x * x} + ${y * y}} = \\sqrt{${sq}}${whole ? ` = ${size}` : ''}` },
-      { tex: `k = \\frac{1}{\\sqrt{${sq}}}${whole ? ` = \\frac{1}{${size}}` : ''}` },
+      { tex: `\\left| ${columnTex(x, y)} \\right| = \\sqrt{${x * x} + ${y * y}} = \\sqrt{${sq}}${simpler ? ` = ${mag}` : ''}` },
+      { tex: `k = \\frac{1}{\\sqrt{${sq}}}${simpler ? ` = \\frac{1}{${mag}}` : ''}` },
       {
         text: whole
           ? `So $k = \\frac{1}{${size}}$, and $k${columnTex(x, y)} = ${columnTex(x / size, y / size)}$, which has length 1.`
-          : `$${sq}$ is not a perfect square, so $\\frac{1}{\\sqrt{${sq}}}$ is the exact answer. A decimal would be a rounded one.`,
+          : `$${sq}$ is not a perfect square, so $\\frac{1}{${mag}}$ is the exact answer. A decimal would be a rounded one.`,
       },
       {
         text: 'The result is called a **unit vector**: same direction, length one. It is how a direction gets written down without a length attached to it.',
@@ -1041,6 +1046,26 @@ interface AngleParams {
   by: number;
 }
 
+/** \sqrt{n}, followed by its simplest form when a square factor comes out: \sqrt{45} = 3\sqrt{5}. */
+function magnitudeTex(n: number): string {
+  const simplest = surdTex(n);
+  return simplest === `\\sqrt{${n}}` ? simplest : `\\sqrt{${n}} = ${simplest}`;
+}
+
+/**
+ * dot over the root of `product` in lowest terms: the square factor taken out
+ * of the root and cancelled against the top. 15 over \sqrt{45 \times 5} is 1.
+ */
+function cosineTex(dot: number, product: number): string {
+  const { k, m } = surdParts(product);
+  const g = gcd(dot, k);
+  const top = Math.abs(dot) / g;
+  const under = k / g;
+  const sign = dot < 0 ? '-' : '';
+  if (m === 1) return under === 1 ? `${sign}${top}` : `${sign}\\frac{${top}}{${under}}`;
+  return `${sign}\\frac{${top}}{${under === 1 ? '' : under}\\sqrt{${m}}}`;
+}
+
 /**
  * The cosine of the angle between two vectors.
  *
@@ -1103,8 +1128,8 @@ const angleBetween: Generator<AngleParams> = {
         text: 'The scalar product carries the angle: $\\mathbf{a} \\cdot \\mathbf{b} = |\\mathbf{a}||\\mathbf{b}|\\cos\\theta$. Rearranged, the cosine is the scalar product over the two magnitudes.',
       },
       { tex: `\\mathbf{a} \\cdot \\mathbf{b} = \\left(${ax}\\right)\\left(${bx}\\right) + \\left(${ay}\\right)\\left(${by}\\right) = ${dot}` },
-      { tex: `|\\mathbf{a}| = \\sqrt{${sa}} \\qquad |\\mathbf{b}| = \\sqrt{${sb}}` },
-      { tex: `\\cos\\theta = \\frac{${dot}}{\\sqrt{${sa}}\\sqrt{${sb}}}` },
+      { tex: `|\\mathbf{a}| = ${magnitudeTex(sa)} \\qquad |\\mathbf{b}| = ${magnitudeTex(sb)}` },
+      { tex: `\\cos\\theta = \\frac{${dot}}{\\sqrt{${sa}}\\sqrt{${sb}}}${surdParts(sa * sb).k === 1 ? '' : ` = ${cosineTex(dot, sa * sb)}`}` },
       {
         text:
           dot < 0

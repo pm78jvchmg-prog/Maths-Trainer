@@ -2216,13 +2216,16 @@ const fracRepeatedForm: Generator<RepeatedParams> = {
 function repeatedValues(params: RepeatedParams) {
   const { a, b } = params;
   const top = repeatedTop(params);
-  if (b === null) return { top, atA: valueAt(top, -a), atB: 0, dA: 0, dB: 0 };
-  return { top, atA: valueAt(top, -a), dA: b - a, atB: valueAt(top, -b), dB: (a - b) * (a - b) };
+  // The top's x^2 coefficient, which is A + C. Not `top[0]`: `addPoly` trims a
+  // leading zero, so when A + C = 0 the top is linear and `top[0]` is its x term.
+  const x2 = top.length === 3 ? top[0] : 0;
+  if (b === null) return { top, x2, atA: valueAt(top, -a), atB: 0, dA: 0, dB: 0 };
+  return { top, x2, atA: valueAt(top, -a), dA: b - a, atB: valueAt(top, -b), dB: (a - b) * (a - b) };
 }
 
 function repeatedSolution(params: RepeatedParams): SolutionStep[] {
   const { A, B, C, a, b } = params;
-  const { top, atA, dA, atB, dB } = repeatedValues(params);
+  const { top, x2, atA, dA, atB, dB } = repeatedValues(params);
   if (b === null || C === null) {
     return [
       { text: `Multiply both sides by $${pbr(a)}^{2}$: $${polyTex(top)} = A${pbr(a)} + B$.` },
@@ -2236,7 +2239,7 @@ function repeatedSolution(params: RepeatedParams): SolutionStep[] {
     { text: `Multiply both sides by the bottom: $${polyTex(top)} = A${pbr(a)}${pbr(b)} + B${pbr(b)} + C${pbr(a)}^{2}$.` },
     { text: `Put $x = ${-a}$: only $B$ survives, $${atA} = ${paren(dA)}B$, so $B = ${B}$.` },
     { text: `Put $x = ${-b}$: only $C$ survives, $${atB} = ${dB}C$, so $C = ${C}$.` },
-    { text: `No value of $x$ isolates $A$, so compare the $x^{2}$ terms: $A + C = ${top[0]}$, so $A = ${A}$.` },
+    { text: `No value of $x$ isolates $A$, so compare the $x^{2}$ terms: $A + C = ${x2}$, so $A = ${A}$.` },
     { tex: repeatedSplitTex(params) },
   ];
 }
@@ -2271,7 +2274,7 @@ const fracRepeatedTree: Generator<RepeatedParams> = {
   sample: sampleRepeated,
   render: (params): Slide => {
     const { A, B, C, a, b } = params;
-    const { top, atA, dA, atB, dB } = repeatedValues(params);
+    const { top, x2, atA, dA, atB, dB } = repeatedValues(params);
     if (b === null || C === null) {
       const answer = [A, a * A, B];
       return {
@@ -2296,7 +2299,7 @@ const fracRepeatedTree: Generator<RepeatedParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `Split into $${repeatedLettersTex(params)}$. Top row: the top at $x = ${-a}$ and $${br(b)}$ there; the top at $x = ${-b}$ and $${pbr(a)}^{2}$ there. Below: $B$ and $C$. Last: $A$, from the $x^{2}$ terms, $A + C = ${top[0]}$.`,
+          `Split into $${repeatedLettersTex(params)}$. Top row: the top at $x = ${-a}$ and $${br(b)}$ there; the top at $x = ${-b}$ and $${pbr(a)}^{2}$ there. Below: $B$ and $C$. Last: $A$, from the $x^{2}$ terms, $A + C = ${x2}$.`,
         ),
       ],
       expression: repeatedFractionTex(params),
@@ -2309,7 +2312,7 @@ const fracRepeatedTree: Generator<RepeatedParams> = {
         { id: 'C', from: ['top-b', 'rest-b'] },
         { id: 'A', from: ['C'] },
       ],
-      bank: numberBank(answer, [-B, -C, top[0] + C, a - b]),
+      bank: numberBank(answer, [-B, -C, x2 + C, a - b]),
       answer: answer.map(String),
     };
   },
@@ -6575,8 +6578,8 @@ const fracSketchFlow: Generator<Rational> = {
 /* ================================================================
  * Level 6: the method of differences
  *
- * Sequences & Series (`sq-l4-telescoping`, `sq-l4-infinity`) cancels a
- * telescoping sum and takes its limit with the split given. This level
+ * The only level that teaches the method: `sq-l4-telescoping` and
+ * `sq-l4-infinity`, which gave the split, are no longer shown. This level
  * supplies the split: by cover-up, with a number taken out in front, over
  * three factors regrouped into two, and over squares; then uses it for sums
  * from any r, for n from a given sum, and for sums to infinity.

@@ -13,8 +13,10 @@
  * position-to-term rules, and how fast the gap to a limit closes.
  *
  * Level 4 adds up powers: the standard results for Σr, Σr² and Σr³, sums
- * built from them, sums that do not start at 1, and the method of
- * differences, finite and to infinity, with the split always given.
+ * built from them, and sums that do not start at 1. Its two lessons on the
+ * method of differences with the split given are no longer shown (see
+ * `sq4DifferencesLessons` at the end): Series & Induction teaches the method
+ * once, in `af-l6`.
  *
  * Level 5 proves sum formulae by induction: the step S_{k+1} = S_k + u_{k+1},
  * the standard results tidied by their common factor (k + 1), arithmetic and
@@ -35,7 +37,7 @@
  * Each level closes with a level check: fifteen questions, no teaching
  * slides, one attempt each.
  */
-import type { Block, Course, SlideRef } from '../types';
+import type { Block, Course, Lesson, SlideRef } from '../types';
 import { plotSvg } from '../figures';
 
 const teach = (...blocks: Block[]): SlideRef => ({
@@ -701,7 +703,7 @@ export const sequencesSeries: Course = {
     },
     {
       id: 'sq-l4',
-      title: 'Sums of Powers and the Method of Differences',
+      title: 'Sums of Powers',
       lessons: [
         {
           id: 'sq-l4-standard',
@@ -792,81 +794,20 @@ export const sequencesSeries: Course = {
           ],
           skillCheck: [ask('seq-from-m', 2), ask('seq-from-m-slip', 2), ask('seq-drop-tree', 2)],
         },
-        {
-          id: 'sq-l4-telescoping',
-          title: 'The Method of Differences',
-          slides: [
-            teach(
-              prose('Some terms split into a difference. You will be given the split here:'),
-              maths('\\frac{1}{r(r + 1)} = \\frac{1}{r} - \\frac{1}{r + 1}'),
-              prose('Write the sum out and each fraction taken away is added straight back by the next term:'),
-              maths('\\begin{aligned} &\\left(1 - \\tfrac{1}{2}\\right) + \\left(\\tfrac{1}{2} - \\tfrac{1}{3}\\right) \\\\ &\\quad + \\dots + \\left(\\tfrac{1}{n} - \\tfrac{1}{n + 1}\\right) \\\\ &= 1 - \\frac{1}{n + 1} \\end{aligned}'),
-            ),
-            ask('seq-telescope-steps'),
-            ask('seq-telescope-tiles'),
-            ask('seq-telescope-table'),
-            teach(
-              prose('This is the **method of differences**: only the ends survive. So $\\sum_{r=1}^{n} \\frac{1}{r(r + 1)} = \\frac{n}{n + 1}$, and up to $9$ it is $\\frac{9}{10}$.'),
-              prose('A sum starting at $r = 3$ keeps its first fraction, $\\frac{1}{3}$, instead of $1$.'),
-            ),
-            ask('seq-telescope-sum+choice'),
-            ask('seq-telescope-steps', 2),
-            ask('seq-telescope-table', 2),
-            teach(
-              prose('When the split jumps two places, a fraction comes back two terms later:'),
-              maths('\\frac{2}{r(r + 2)} = \\frac{1}{r} - \\frac{1}{r + 2}'),
-              prose('So **two** fractions survive at each end:'),
-              maths('\\begin{aligned} &\\sum_{r=1}^{n} \\frac{2}{r(r + 2)} \\\\ &= 1 + \\frac{1}{2} - \\frac{1}{n + 1} - \\frac{1}{n + 2} \\end{aligned}'),
-            ),
-            ask('seq-telescope-tiles', 2),
-            ask('seq-telescope-sum+choice', 2),
-          ],
-          skillCheck: [ask('seq-telescope-steps', 2), ask('seq-telescope-tiles', 2), ask('seq-telescope-sum+choice', 2)],
-        },
-        {
-          id: 'sq-l4-infinity',
-          title: 'Sums to Infinity by Differences',
-          slides: [
-            teach(
-              prose('In $\\sum_{r=1}^{n} \\frac{1}{r(r + 1)} = 1 - \\frac{1}{n + 1}$, the leftover $\\frac{1}{n + 1}$ tends to $0$ as $n$ grows. So the sum to infinity is $1$.'),
-              prose('Not every leftover dies. $\\sum_{r=1}^{n} \\left(\\sqrt{r + 1} - \\sqrt{r}\\right) = \\sqrt{n + 1} - 1$, and $\\sqrt{n + 1}$ grows without limit: that series has no sum to infinity.'),
-            ),
-            ask('seq-leftover-flow'),
-            ask('seq-telescope-slider'),
-            ask('seq-infinity-sum'),
-            teach(
-              prose('For a sum to infinity, find what survives at the front; the fractions at the far end all tend to $0$. With $\\frac{1}{(r + 1)(r + 3)} = \\frac{1}{2}\\left(\\frac{1}{r + 1} - \\frac{1}{r + 3}\\right)$, the front two, $\\frac{1}{2}$ and $\\frac{1}{3}$, never cancel:'),
-              maths('\\begin{aligned} &\\sum_{r=1}^{\\infty} \\frac{1}{(r + 1)(r + 3)} \\\\ &= \\frac{1}{2}\\left(\\frac{1}{2} + \\frac{1}{3}\\right) = \\frac{5}{12} \\end{aligned}'),
-            ),
-            ask('seq-survivor-tree'),
-            ask('seq-infinity-sum', 2),
-            ask('seq-leftover-flow', 2),
-            teach(
-              prose('The partial sums can creep up very slowly. For $\\sum \\frac{7}{(r + 6)(r + 7)}$ the eighth is only just past half the limit, so read the limit from the algebra, not from the picture.'),
-              prose('Proving a sum formula for every $n$ is Proof by Induction for Series, later in Series & Induction.'),
-            ),
-            ask('seq-survivor-tree', 2),
-            ask('seq-telescope-slider', 2),
-          ],
-          skillCheck: [ask('seq-infinity-sum', 2), ask('seq-survivor-tree', 2), ask('seq-leftover-flow', 2)],
-        },
       ],
       levelCheck: [
         ask('seq-power-sum-tiles', 2),
         ask('seq-power-sum', 2),
         ask('seq-power-sum-table', 2),
+        ask('seq-formula-reduce', 2),
+        ask('seq-split-tiles', 2),
         ask('seq-split-tree', 2),
         ask('seq-built-sum', 2),
         ask('seq-factor-tiles', 2),
         ask('seq-subtract-flow', 2),
+        ask('seq-drop-tree', 2),
         ask('seq-from-m', 2),
         ask('seq-from-m-slip', 2),
-        ask('seq-telescope-steps', 2),
-        ask('seq-telescope-tiles', 2),
-        ask('seq-telescope-table', 2),
-        ask('seq-leftover-flow', 2),
-        ask('seq-infinity-sum', 2),
-        ask('seq-survivor-tree', 2),
       ],
     },
     {
@@ -1201,3 +1142,71 @@ export const sequencesSeries: Course = {
     },
   ],
 };
+
+/**
+ * The method of differences with the split given: once the last two lessons
+ * of `sq-l4`. Series & Induction shows `sq-l4` and then `af-l6`, which teaches
+ * the same method with the learner finding the split, so the course taught it
+ * twice and these two are no longer shown. They are kept here with their ids
+ * unchanged, so either can be put back into a level as it is.
+ */
+export const sq4DifferencesLessons: Lesson[] = [
+  {
+    id: 'sq-l4-telescoping',
+    title: 'The Method of Differences',
+    slides: [
+      teach(
+        prose('Some terms split into a difference. You will be given the split here:'),
+        maths('\\frac{1}{r(r + 1)} = \\frac{1}{r} - \\frac{1}{r + 1}'),
+        prose('Write the sum out and each fraction taken away is added straight back by the next term:'),
+        maths('\\begin{aligned} &\\left(1 - \\tfrac{1}{2}\\right) + \\left(\\tfrac{1}{2} - \\tfrac{1}{3}\\right) \\\\ &\\quad + \\dots + \\left(\\tfrac{1}{n} - \\tfrac{1}{n + 1}\\right) \\\\ &= 1 - \\frac{1}{n + 1} \\end{aligned}'),
+      ),
+      ask('seq-telescope-steps'),
+      ask('seq-telescope-tiles'),
+      ask('seq-telescope-table'),
+      teach(
+        prose('This is the **method of differences**: only the ends survive. So $\\sum_{r=1}^{n} \\frac{1}{r(r + 1)} = \\frac{n}{n + 1}$, and up to $9$ it is $\\frac{9}{10}$.'),
+        prose('A sum starting at $r = 3$ keeps its first fraction, $\\frac{1}{3}$, instead of $1$.'),
+      ),
+      ask('seq-telescope-sum+choice'),
+      ask('seq-telescope-steps', 2),
+      ask('seq-telescope-table', 2),
+      teach(
+        prose('When the split jumps two places, a fraction comes back two terms later:'),
+        maths('\\frac{2}{r(r + 2)} = \\frac{1}{r} - \\frac{1}{r + 2}'),
+        prose('So **two** fractions survive at each end:'),
+        maths('\\begin{aligned} &\\sum_{r=1}^{n} \\frac{2}{r(r + 2)} \\\\ &= 1 + \\frac{1}{2} - \\frac{1}{n + 1} - \\frac{1}{n + 2} \\end{aligned}'),
+      ),
+      ask('seq-telescope-tiles', 2),
+      ask('seq-telescope-sum+choice', 2),
+    ],
+    skillCheck: [ask('seq-telescope-steps', 2), ask('seq-telescope-tiles', 2), ask('seq-telescope-sum+choice', 2)],
+  },
+  {
+    id: 'sq-l4-infinity',
+    title: 'Sums to Infinity by Differences',
+    slides: [
+      teach(
+        prose('In $\\sum_{r=1}^{n} \\frac{1}{r(r + 1)} = 1 - \\frac{1}{n + 1}$, the leftover $\\frac{1}{n + 1}$ tends to $0$ as $n$ grows. So the sum to infinity is $1$.'),
+        prose('Not every leftover dies. $\\sum_{r=1}^{n} \\left(\\sqrt{r + 1} - \\sqrt{r}\\right) = \\sqrt{n + 1} - 1$, and $\\sqrt{n + 1}$ grows without limit: that series has no sum to infinity.'),
+      ),
+      ask('seq-leftover-flow'),
+      ask('seq-telescope-slider'),
+      ask('seq-infinity-sum'),
+      teach(
+        prose('For a sum to infinity, find what survives at the front; the fractions at the far end all tend to $0$. With $\\frac{1}{(r + 1)(r + 3)} = \\frac{1}{2}\\left(\\frac{1}{r + 1} - \\frac{1}{r + 3}\\right)$, the front two, $\\frac{1}{2}$ and $\\frac{1}{3}$, never cancel:'),
+        maths('\\begin{aligned} &\\sum_{r=1}^{\\infty} \\frac{1}{(r + 1)(r + 3)} \\\\ &= \\frac{1}{2}\\left(\\frac{1}{2} + \\frac{1}{3}\\right) = \\frac{5}{12} \\end{aligned}'),
+      ),
+      ask('seq-survivor-tree'),
+      ask('seq-infinity-sum', 2),
+      ask('seq-leftover-flow', 2),
+      teach(
+        prose('The partial sums can creep up very slowly. For $\\sum \\frac{7}{(r + 6)(r + 7)}$ the eighth is only just past half the limit, so read the limit from the algebra, not from the picture.'),
+        prose('Proving a sum formula for every $n$ is Proof by Induction for Series, later in Series & Induction.'),
+      ),
+      ask('seq-survivor-tree', 2),
+      ask('seq-telescope-slider', 2),
+    ],
+    skillCheck: [ask('seq-infinity-sum', 2), ask('seq-survivor-tree', 2), ask('seq-leftover-flow', 2)],
+  },
+];

@@ -7337,7 +7337,9 @@ const deShmPeriod: Generator<PeriodParams> = {
   id: 'de-shm-period',
   sample: (rng, difficulty) => {
     const hard = difficulty >= 2;
-    const shown = rng.pick<PeriodParams['shown']>(hard ? ['equation', 'solution', 'reverse'] : ['equation', 'solution']);
+    // Reading omega off a shown solution is the difficulty-1 question at any
+    // size, so harder draws rearrange an equation or work backwards instead.
+    const shown = rng.pick<PeriodParams['shown']>(hard ? ['equation', 'reverse'] : ['equation', 'solution']);
     const written = shown === 'equation' ? rng.pick<SecondDe['written']>(hard ? ['moved', 'scaled'] : ['standard', 'moved']) : 'standard';
     const w = rng.int(2, hard ? 12 : 8);
     return {

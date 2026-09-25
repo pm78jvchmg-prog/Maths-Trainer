@@ -1442,7 +1442,8 @@ const coordPerpThroughTree: Generator<PerpThroughParams> = {
       ],
       bank: bank(
         answer,
-        [qTex(neg(m1)), qTex(inv(m1)), String(p.cy + value(mul(m2, q(p.cx)))), String(-c), String(p.cy - value(mul(m1, q(p.cx))))],
+        // AB's own gradient through C can leave a fraction, so it is written as one.
+        [qTex(neg(m1)), qTex(inv(m1)), String(p.cy + value(mul(m2, q(p.cx)))), String(-c), qTex(sub(q(p.cy), mul(m1, q(p.cx))))],
         [c],
       ),
       answer,

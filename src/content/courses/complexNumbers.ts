@@ -464,7 +464,7 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'Add the first and third equations, then subtract them.' },
               { kind: 'display', tex: '2a^2 = 13 + (-5) = 8, \\quad a^2 = 4' },
               { kind: 'display', tex: '2b^2 = 13 - (-5) = 18, \\quad b^2 = 9' },
-              { kind: 'prose', text: 'So $a = \\pm 2$ and $b = \\pm 3$. $2ab = 12$ is positive, so $a$ and $b$ have the same sign: the roots are $2 + 3i$ and $-2 - 3i$. The one with positive real part, $2 + 3i$, is called the square root.' },
+              { kind: 'prose', text: 'So $a = \\pm 2$ and $b = \\pm 3$. $2ab = 12$ is positive, so $a$ and $b$ have the same sign: the roots are $2 + 3i$ and $-2 - 3i$. Had $2ab$ been negative, they would have opposite signs. The root with positive real part, $2 + 3i$, is called the square root.' },
             ),
             asking('sqrt-method', 1, 'The same lines as the worked example: $|z|$ first, then add and subtract for $a^2$ and $b^2$, then the signs from $2ab$.'),
             ask('sqrt-method', 2),

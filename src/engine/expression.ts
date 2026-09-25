@@ -67,7 +67,7 @@ export type ParseResult = ParseOk | ParseFail;
  *
  * `arbitraryConstants` names symbols that stand for an unknown constant rather
  * than a variable — `C` in an indefinite integral. They are excluded from the
- * free-variable list and bound to 0 at evaluation time, so `x^2/2` and
+ * free-variable list and bound to a fixed value at evaluation time, so `x^2/2` and
  * `x^2/2 + C` probe identically.
  */
 export function parseExpression(

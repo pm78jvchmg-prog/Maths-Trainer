@@ -38,6 +38,11 @@ function signed(value: number): string {
   return value < 0 ? `- ${-value}` : `+ ${value}`;
 }
 
+/** A rule's constant put in after a term, with its space: ` + 3`, ` - 3`, and nothing for 0, as the rule itself is written. */
+function plusB(b: number): string {
+  return b === 0 ? '' : ` ${signed(b)}`;
+}
+
 /** `$22$nd`: a position written as an ordinal in prose. */
 function ordinal(k: number): string {
   const tens = k % 100;
@@ -315,8 +320,8 @@ const ruleTable: Generator<RuleTableParams> = {
           tex: chain(
             ...blanks.map((i) =>
               mode === 'linear'
-                ? `u_{${i + 1}} &= ${a} \\times ${i + 1} ${signed(b)} = ${terms[i]}`
-                : `u_{${i + 1}} &= ${times(a)}${i + 1}^{2} ${signed(b)} = ${terms[i]}`,
+                ? `u_{${i + 1}} &= ${a} \\times ${i + 1}${plusB(b)} = ${terms[i]}`
+                : `u_{${i + 1}} &= ${times(a)}${i + 1}^{2}${plusB(b)} = ${terms[i]}`,
             ),
           ),
         },
@@ -496,7 +501,7 @@ const methodFlow: Generator<MethodParams> = {
       const value = sq ? sq * k * k + b : a * k + b;
       return [
         { text: `Only $n$ appears on the right of $${methodRule(params)}$, so it is position-to-term.` },
-        { tex: sq ? `u_{${k}} = ${times(sq)}${k}^{2} ${signed(b)} = ${value}` : `u_{${k}} = ${a} \\times ${k} ${signed(b)} = ${value}` },
+        { tex: sq ? `u_{${k}} = ${times(sq)}${k}^{2}${plusB(b)} = ${value}` : `u_{${k}} = ${a} \\times ${k}${plusB(b)} = ${value}` },
       ];
     }
     return [

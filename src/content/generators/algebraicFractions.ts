@@ -879,6 +879,11 @@ function addTex({ m, n, p, q, minus }: AddParams): string {
   return `${frac(String(m), br(p))} ${minus ? '-' : '+'} ${frac(String(n), br(q))}`;
 }
 
+/** k(x + a) multiplied out, as a clause. A top of 1 has nothing to multiply, so the bracket stays as it is. */
+function strandTex(k: number, a: number): string {
+  return k === 1 ? `$${pbr(a)}$ stays as it is` : `$${k}${pbr(a)} = ${polyTex([k, k * a])}$`;
+}
+
 function sampleAdd(rng: Rng, minus: boolean, max = 6): AddParams {
   for (;;) {
     const [p, q] = distinct(rng, 2, 6);
@@ -931,7 +936,11 @@ const fracAddTree: Generator<AddParams> = {
       { text: `The common bottom is $${pbr(p)}${pbr(q)}$. Each fraction is multiplied top and bottom by the bracket it is missing:` },
       { tex: frac(`${coeffTex(m, pbr(q))} ${op} ${coeffTex(n, pbr(p))}`, `${pbr(p)}${pbr(q)}`) },
       {
-        text: `$${coeffTex(m, pbr(q))} = ${polyTex([m, m * q])}$ and $${coeffTex(n, pbr(p))} = ${polyTex([n, n * p])}$.${minus ? ' The minus sign takes away the whole of the second, both of its terms.' : ''}`,
+        text: `${
+          m === 1 && n === 1
+            ? `$${pbr(q)}$ and $${pbr(p)}$ stay as they are.`
+            : `${strandTex(m, q)} and ${strandTex(n, p)}.`
+        }${minus ? ' The minus sign takes away the whole of the second, both of its terms.' : ''}`,
       },
       { tex: frac(polyTex(addTop(params)), `${pbr(p)}${pbr(q)}`) },
     ];
@@ -1004,7 +1013,7 @@ const fracSumTiles: Generator<SumTilesParams> = {
     return [
       { text: `Multiply each fraction top and bottom by the bracket it is missing:` },
       { tex: frac(`${coeffTex(m, pbr(q))} ${op} ${coeffTex(n, pbr(p))}`, `${pbr(p)}${pbr(q)}`) },
-      { text: `The minus takes away all of $${coeffTex(n, pbr(p))} = ${polyTex([n, n * p])}$, both terms, so the top is $${polyTex(top)}$.` },
+      { text: `The minus takes away all of $${n === 1 ? pbr(p) : `${n}${pbr(p)} = ${polyTex([n, n * p])}`}$, both terms, so the top is $${polyTex(top)}$.` },
     ];
   },
 };

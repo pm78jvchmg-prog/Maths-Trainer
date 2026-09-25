@@ -492,11 +492,13 @@ interface ParallelParams {
 /** Which vector is parallel to a given one. */
 const parallel: Generator<ParallelParams> = {
   id: 'vec-parallel',
-  sample: (rng, difficulty) => ({
-    x: nonZero(rng.int(difficulty > 1 ? -8 : 1, 8), 3),
-    y: nonZero(rng.int(difficulty > 1 ? -8 : -6, 8), -2),
-    k: nonZero(rng.int(difficulty > 1 ? -4 : 2, 4), 2),
-  }),
+  sample: (rng, difficulty) => {
+    const x = nonZero(rng.int(difficulty > 1 ? -8 : 1, 8), 3);
+    const y = nonZero(rng.int(difficulty > 1 ? -8 : -6, 8), -2);
+    const k = nonZero(rng.int(difficulty > 1 ? -4 : 2, 4), 2);
+    // k = 1 would offer the given vector itself as the parallel one.
+    return { x, y, k: k === 1 ? -2 : k };
+  },
   render: ({ x, y, k }): Slide => {
     const options = distinctOptions([
       { id: 'scaled', label: ijTex(k * x, k * y), tex: true },

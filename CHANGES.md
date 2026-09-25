@@ -8,7 +8,7 @@ its pull request; the PR description holds the evidence.
 - **Progress syncs between devices.** "Sync devices" on the home screen shows
   a one-time code on one device to type on the other; from then on lessons,
   bests and the streak are merged (never overwritten) through a small store on
-  the Worker, a Durable Object that deploys with no dashboard setup.
+  the Worker, a KV namespace that wrangler creates with no dashboard setup.
 - **Two grading bugs fixed (this PR).** `vec-parallel` could offer two
   parallel options, marking a correct pick wrong (~10% of draws). A negative
   base was shown unbracketed (`-1^{4}`) while the answer meant `(-1)^{4}`, in

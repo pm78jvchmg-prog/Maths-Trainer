@@ -22,11 +22,9 @@
     "not_found_handling": "single-page-application"
   },
 
-  // The sync store. A SQLite-backed Durable Object is declared here and
-  // nowhere else: the first deploy creates it, with nothing to set up in the
-  // Cloudflare dashboard, and it is available on the free plan.
-  "durable_objects": {
-    "bindings": [{ "name": "SYNC", "class_name": "SyncStore" }]
-  },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SyncStore"] }]
+  // The sync store. A KV namespace with no id: wrangler creates it on the
+  // first build (pull request preview or deploy) and reuses it after, so there
+  // is nothing to set up in the Cloudflare dashboard. Not a Durable Object:
+  // the preview build every pull request runs cannot upload a migration.
+  "kv_namespaces": [{ "binding": "SYNC" }]
 }

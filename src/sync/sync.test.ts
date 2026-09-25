@@ -1,36 +1,23 @@
 // @vitest-environment happy-dom
 /**
  * The app's sync client against the real Worker (worker/index.ts), run
- * in-process over an in-memory stand-in for Durable Object storage. The other
+ * in-process over an in-memory stand-in for its KV storage. The other
  * device is played by direct requests to the same Worker.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import worker, { SyncStore } from '../../worker/index';
+import worker from '../../worker/index';
 import { useProgress } from '../store/progress';
 import { useStreak } from '../store/streak';
 import { joinWithCode, makePairingCode, syncNow, unpair, useSync } from './sync';
 import { sanitizeSnapshot } from './merge';
 
-function memoryStorage() {
-  const data = new Map<string, unknown>();
-  return {
-    get: async <T,>(key: string) => structuredClone(data.get(key)) as T | undefined,
-    put: async (key: string, value: unknown) => void data.set(key, structuredClone(value)),
-    delete: async (key: string) => data.delete(key),
-    list: async <T,>({ prefix }: { prefix: string }) =>
-      new Map([...data].filter(([key]) => key.startsWith(prefix)) as [string, T][]),
-  };
-}
-
-let objects: Map<string, SyncStore>;
+/** An in-memory stand-in for the Worker's KV namespace. */
+let kv: Map<string, string>;
 const env = {
   SYNC: {
-    idFromName: (name: string) => name,
-    get: (id: unknown) => {
-      const name = id as string;
-      if (!objects.has(name)) objects.set(name, new SyncStore({ storage: memoryStorage() }));
-      return objects.get(name)!;
-    },
+    get: async (key: string) => (kv.has(key) ? JSON.parse(kv.get(key)!) : null),
+    put: async (key: string, value: string) => void kv.set(key, value),
+    delete: async (key: string) => void kv.delete(key),
   },
 };
 
@@ -43,7 +30,7 @@ async function api(path: string, init?: RequestInit) {
 const record = (completedAt: number, bestCorrect: number) => ({ completedAt, bestCorrect, total: 3, timesPlayed: 1 });
 
 beforeEach(() => {
-  objects = new Map();
+  kv = new Map();
   vi.stubGlobal('fetch', (path: string, init?: RequestInit) =>
     worker.fetch(new Request(`https://app.test${path}`, init), env),
   );

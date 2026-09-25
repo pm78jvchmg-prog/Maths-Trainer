@@ -8,7 +8,7 @@ its pull request; the PR description holds the evidence.
 - **Progress syncs between devices.** "Sync devices" on the home screen shows
   a one-time code on one device to type on the other; from then on lessons,
   bests and the streak are merged (never overwritten) through a small store on
-  the Worker, a KV namespace that wrangler creates with no dashboard setup.
+  the Worker, a D1 database that wrangler creates with no dashboard setup.
 - **Streak no longer counts a day twice after travelling west (#196).** A play dated
   a day or two before the last one is a day already counted and changes
   nothing, and the home screen reads it as done. A day the calendar skipped

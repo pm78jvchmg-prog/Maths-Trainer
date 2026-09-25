@@ -22,9 +22,10 @@
     "not_found_handling": "single-page-application"
   },
 
-  // The sync store. A KV namespace with no id: wrangler creates it on the
-  // first build (pull request preview or deploy) and reuses it after, so there
-  // is nothing to set up in the Cloudflare dashboard. Not a Durable Object:
-  // the preview build every pull request runs cannot upload a migration.
-  "kv_namespaces": [{ "binding": "SYNC" }]
+  // The sync store. A D1 database named here with no id: wrangler creates it
+  // on the first build and finds it by name on every build after, so there is
+  // nothing to set up in the Cloudflare dashboard. Not a Durable Object (its
+  // migration cannot go through a pull request's preview upload) and not KV
+  // (with no id, every build tries to create it again and fails on the name).
+  "d1_databases": [{ "binding": "DB", "database_name": "maths-trainer-sync" }]
 }

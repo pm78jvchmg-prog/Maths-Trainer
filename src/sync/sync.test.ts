@@ -1,25 +1,47 @@
 // @vitest-environment happy-dom
 /**
  * The app's sync client against the real Worker (worker/index.ts), run
- * in-process over an in-memory stand-in for its KV storage. The other
+ * in-process over an in-memory SQLite database standing in for D1. The other
  * device is played by direct requests to the same Worker.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import worker from '../../worker/index';
+import type { D1Database } from '../../worker/index';
 import { useProgress } from '../store/progress';
 import { useStreak } from '../store/streak';
 import { joinWithCode, makePairingCode, syncNow, unpair, useSync } from './sync';
 import { sanitizeSnapshot } from './merge';
 
-/** An in-memory stand-in for the Worker's KV namespace. */
-let kv: Map<string, string>;
-const env = {
-  SYNC: {
-    get: async (key: string) => (kv.has(key) ? JSON.parse(kv.get(key)!) : null),
-    put: async (key: string, value: string) => void kv.set(key, value),
-    delete: async (key: string) => void kv.delete(key),
-  },
+/**
+ * A stand-in for the Worker's D1 binding over Node's own SQLite, so the SQL
+ * the Worker runs is really run. Imported by a computed name because the app
+ * typecheck carries no Node types.
+ */
+interface SqliteStatement {
+  get(...values: unknown[]): unknown;
+  run(...values: unknown[]): { changes: number | bigint };
+}
+interface SqliteDatabase {
+  prepare(sql: string): SqliteStatement;
+}
+const sqlite = 'node:sqlite';
+const { DatabaseSync } = (await import(/* @vite-ignore */ sqlite)) as {
+  DatabaseSync: new (path: string) => SqliteDatabase;
 };
+
+function d1(database: SqliteDatabase): D1Database {
+  const statement = (sql: string, values: unknown[] = []) => ({
+    bind: (...next: unknown[]) => statement(sql, next),
+    first: async <T,>() => (database.prepare(sql).get(...values) ?? null) as T | null,
+    run: async () => ({ meta: { changes: Number(database.prepare(sql).run(...values).changes) } }),
+  });
+  return {
+    prepare: (sql) => statement(sql),
+    batch: async (statements) => Promise.all(statements.map((one) => one.run())),
+  };
+}
+
+let env: { DB: D1Database };
 
 /** A request as the other device would make it. */
 async function api(path: string, init?: RequestInit) {
@@ -30,7 +52,7 @@ async function api(path: string, init?: RequestInit) {
 const record = (completedAt: number, bestCorrect: number) => ({ completedAt, bestCorrect, total: 3, timesPlayed: 1 });
 
 beforeEach(() => {
-  kv = new Map();
+  env = { DB: d1(new DatabaseSync(':memory:')) };
   vi.stubGlobal('fetch', (path: string, init?: RequestInit) =>
     worker.fetch(new Request(`https://app.test${path}`, init), env),
   );

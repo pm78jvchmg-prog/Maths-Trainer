@@ -549,20 +549,24 @@ way, run the full `npm test` before a change to a generator lands.
 **Progress sync** is the one server-side piece. `wrangler.jsonc` now names a
 Worker script, `worker/index.ts`, and routes only `/api/*` to it
 (`run_worker_first`); every other request is still a static file. Its storage
-is a KV namespace declared in the same file with no id, which wrangler creates
-on the first build, so there is nothing to set up in the dashboard. Not a
-Durable Object: every pull request's preview build runs `wrangler versions
-upload`, which cannot carry a Durable Object migration, and the check failed.
-The store holds one opaque JSON document per sync group with a version, and
-refuses a write made against an old version (not atomic in KV, but a lost write
-is re-sent on the next sync, since every merge is a union); all merge rules
-live in the app, in `src/sync/merge.ts` (per lesson the better best and later
-finish, the streak played forward with `playOn`), and are order-independent and
-idempotent. Local storage stays the source the app reads, so a lesson never
-waits on the network. The worker has its own `tsconfig.worker.json`, referenced
-from `tsconfig.json` so `tsc -b` checks it in the build. Try it locally with
-`npm run build` then `npx wrangler dev --port 5199`; `npm run dev` has no
-`/api` and sync just reports offline.
+is a D1 database named in the same file with no id: wrangler creates it on the
+first build and finds it by name on every build after, so there is nothing to
+set up in the dashboard, and the Worker makes its two tables on first use. Two
+other stores each failed the pull request's Cloudflare check: a Durable
+Object's migration cannot go through the preview build's `wrangler versions
+upload`, and a KV namespace with no id is created afresh by every build until
+production has the binding, so the second build fails on the name already
+taken. The store holds one opaque JSON document per sync group with a version,
+and a write against an old version is refused in the same SQL statement that
+would make it; all merge rules live in the app, in `src/sync/merge.ts` (per
+lesson the better best and later finish, the streak played forward with
+`playOn`, `lastPlayedAt` travelling with its day, `replaced` never shared), and
+are order-independent and idempotent. Local storage stays the source the app
+reads, so a lesson never waits on the network. The worker has its own
+`tsconfig.worker.json`, referenced from `tsconfig.json` so `tsc -b` checks it
+in the build, and `src/sync/sync.test.ts` runs it against Node's SQLite. Try it
+locally with `npm run build` then `npx wrangler dev --port 5199`; `npm run dev`
+has no `/api` and sync just reports offline.
 
 The app is installed to an iPhone Home Screen and must work offline — the
 service worker precaches everything including KaTeX fonts and mathjs. Do not add

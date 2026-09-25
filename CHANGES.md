@@ -5,13 +5,12 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-25
 
-- **Formula boxes no longer scroll sideways (this PR).** Formulae set apart
-  with `\qquad` sit side by side while they fit and stack when they do not,
-  and a long formula breaks after an `=` or `+`, on teaching slides, question
-  slides and worked solutions alike. Displays that scrolled at 393 px: teaching
-  166 to 25, worked-solution lines 758 to 4, question prompts 12 to 0 (the rest
-  are tables and aligned working with nowhere to break). The grey dot on the standard-form power
-  slider, and the sentence pointing at it, are gone (owner, Updates 3).
+- **Top bars hide on scroll, and lists remember where you were (#197).** Less space
+  above "All courses" (the home screen matches). The top bar on the home
+  screen, a course page and a lesson slides away while scrolling down and
+  comes back on scrolling up. Leaving a lesson returns to that lesson on the
+  course page, and going back to the home screen returns to where it was
+  scrolled. Positions are kept in session storage, never the progress store.
 - **Complex square roots are taught before they are asked.** The Square Roots
   lesson now works an example of squaring, then finds a root step by step with
   no guessing, then practises gently: square a number, pick which candidate is
@@ -54,6 +53,8 @@ its pull request; the PR description holds the evidence.
   the Cloudflare build (proved on #190).
 - **Docs (#190).** HANDOFF and DECISIONS no longer say commits land on `main`
   directly.
+- **Maths content reviewer agent now runs on Opus** instead of Fable, and
+  `/apply-fixes` no longer says "Do not merge" (PRs merge themselves) (#199).
 
 ## 2026-09-24
 

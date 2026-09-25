@@ -303,3 +303,16 @@ Generators in `src/content/generators/contestSyntheticGeometry.ts`.
 | Circles | `cm-sg-pitot`, `cm-sg-tangent-table`, `cm-sg-parallel-chords`, `cm-sg-tangent-angle` | two tangents from a point are equal, so opposite sides add to the same; half-chord, distance and radius make a right triangle; the angle at the centre is 180 less the angle between the tangents |
 
 Level check: 14 questions across all seven lessons.
+
+## Level 19: Analytical Geometry (`cm-l19`)
+
+Generators in `src/content/generators/contestAnalyticGeometry.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Coordinate Geometry | `cm-ag-river`, `cm-ag-lattice`, `cm-ag-pick`, `cm-ag-line-distance` | reflect the far end in each wall and walk straight; the gcd of the steps counts the lattice points; Pick's theorem, with each side counted by its gcd; the height is twice the area over the long side, and parallel lines differ in c over the root |
+| Conics | `cm-ag-ellipse`, `cm-ag-circle-centre`, `cm-ag-circle-chord`, `cm-ag-parabola` | the distances to the foci add to 2a, and c² = a² − b²; complete both squares, dividing through first; the roots' difference from their sum and product; the focal distance is the distance to the directrix |
+| Mass Points | `cm-ag-mass-cevians`, `cm-ag-mass-table`, `cm-ag-mass-reverse`, `cm-ag-mass-ceva` | masses go against the lengths and a balance point carries both; work back from AP : PD to A's mass; the third cevian balances too |
+| Complex Number Geometry | `cm-ag-rotate`, `cm-ag-turn-area`, `cm-ag-modulus`, `cm-ag-reach` | times i turns 90° about 0, so move the centre there first; z, iz, −z, −iz make a square of area 2\|z\|²; moduli multiply, and an even power never needs the root; the nearest and farthest points lie on the line through the centre |
+
+Level check: 13 questions across all four lessons.

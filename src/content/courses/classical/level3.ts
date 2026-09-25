@@ -1,0 +1,208 @@
+/**
+ * Classical Mechanics, level 3: Forces in Fluids and on Curves.
+ *
+ * The outline's Weight and Scales, Pressure, Buoyancy, Drag Forces and Banked
+ * Curve Problem. Its first two lessons, the laws and apparent weight, are
+ * Forces and Newton's Laws levels 1 and 2, so this level takes the forces that
+ * course never meets: pressure (OpenStax University Physics 14.1), pressure
+ * in a fluid and Pascal's principle (14.2 to 14.3), buoyancy (14.4), drag and
+ * terminal speed (6.4), and flat and banked bends (6.3).
+ */
+import type { Level } from '../../types';
+import { ask, display, prose, stacked, teach } from './blocks';
+
+export const level3: Level = {
+  id: 'clm-l3',
+  title: 'Forces in Fluids and on Curves',
+  lessons: [
+    {
+      id: 'clm-l3-pressure',
+      title: 'Pressure and Area',
+      slides: [
+        teach(
+          prose('**Pressure** is force per unit area. A force spread over a big area presses gently; the same force on a small area presses hard.'),
+          display('p = \\frac{F}{A}'),
+          prose('It is measured in pascals: $1\\text{ Pa}$ is $1\\text{ N}$ on each square metre. A crate pushing down with $600\\text{ N}$ on $0.25\\text{ m}^{2}$:'),
+          stacked('p = \\frac{600}{0.25} = 2400\\text{ Pa}'),
+          prose('Rearranged, $F = pA$ and $A = \\frac{F}{p}$.'),
+        ),
+        ask('clm-pressure'),
+        ask('clm-pressure-table'),
+        teach(
+          prose('Small areas come in square centimetres. A square metre is $100 \\times 100 = 10\\,000\\text{ cm}^{2}$, so divide by $10\\,000$ first.'),
+          prose('A $50\\text{ kg}$ person on one heel of $1\\text{ cm}^{2}$, with $g = 9.8\\text{ m s}^{-2}$:'),
+          stacked('F = 50 \\times 9.8 = 490', 'A = 1 \\div 10\\,000 = 0.0001', 'p = \\frac{490}{0.0001} = 4\\,900\\,000\\text{ Pa}', 'p = 4900\\text{ kPa}'),
+          prose('An animal standing on four feet puts a quarter of its weight on each. A $4000\\text{ kg}$ elephant on feet of $0.2\\text{ m}^{2}$:'),
+          stacked('p = \\frac{4000 \\times 9.8}{4 \\times 0.2} = 49\\,000\\text{ Pa}', 'p = 49\\text{ kPa}'),
+          prose('So the heel presses a hundred times harder than the elephant.'),
+        ),
+        ask('clm-pressure+choice', 2),
+        ask('clm-heel-flow'),
+        ask('clm-pressure-table', 2),
+        teach(
+          prose('Soft ground gives way above some pressure. To stay on top, spread the force over at least'),
+          display('A = \\frac{F}{p}'),
+          prose('Ground that takes $5\\text{ kPa}$, which is $5000\\text{ Pa}$, under a shed of $2000\\text{ N}$:'),
+          stacked('A = \\frac{2000}{5000} = 0.4\\text{ m}^{2}'),
+          prose('For a walker, find the weight first: $70\\text{ kg}$ is $70 \\times 9.8 = 686\\text{ N}$.'),
+        ),
+        ask('clm-area-slider'),
+        ask('clm-heel-flow', 2),
+        ask('clm-area-slider', 2),
+      ],
+      skillCheck: [ask('clm-pressure', 2), ask('clm-pressure-table', 2), ask('clm-heel-flow', 2)],
+    },
+    {
+      id: 'clm-l3-fluid',
+      title: 'Pressure in a Fluid',
+      slides: [
+        teach(
+          prose('Under a liquid of density $\\rho$, the pressure grows with depth $h$, from the weight of liquid above. Add the air pressure $p_{0}$ on the surface:'),
+          display('p = p_{0} + \\rho g h'),
+          prose('$\\rho g h$ alone is how much more it is than at the surface. Fresh water has $\\rho = 1000\\text{ kg m}^{-3}$, so each metre adds $1000 \\times 9.8 = 9800\\text{ Pa}$, which is $9.8\\text{ kPa}$. At $3\\text{ m}$, with $p_{0} = 101\\text{ kPa}$:'),
+          stacked('\\rho g h = 9.8 \\times 3 = 29.4\\text{ kPa}', 'p = 101 + 29.4 = 130.4\\text{ kPa}'),
+          prose('In sea water, $\\rho = 1025$, at $10\\text{ m}$:'),
+          stacked('\\rho g h = 1025 \\times 9.8 \\times 10 = 100\\,450\\text{ Pa}', 'p = 101 + 100.45 = 201.45\\text{ kPa}'),
+        ),
+        ask('clm-depth-pressure'),
+        ask('clm-depth-slider'),
+        ask('clm-depth-pressure+choice', 2),
+        teach(
+          prose('Backwards, for the depth: a reading of $49\\text{ kPa}$ above the surface’s in fresh water is $49 \\div 9.8 = 5\\text{ m}$ down. A total of $150\\text{ kPa}$ is first $150 - 101 = 49\\text{ kPa}$ of water, so again $5\\text{ m}$.'),
+          prose('A window with air on the inside feels the air on both faces, which cancels. Only the water’s part pushes it in. At $2\\text{ m}$, on $0.5\\text{ m}^{2}$:'),
+          stacked('\\rho g h = 9.8 \\times 2 = 19.6\\text{ kPa}', 'F = 19.6 \\times 0.5 = 9.8\\text{ kN}'),
+        ),
+        ask('clm-depth-tree'),
+        ask('clm-depth-slider', 2),
+        ask('clm-depth-tree', 2),
+        teach(
+          prose('**Pascal’s principle**: pressure put on a trapped liquid reaches every part of it. In a hydraulic press, a small piston $A_{1}$ pushes oil against a big one $A_{2}$ at the same pressure:'),
+          display('\\frac{F_{1}}{A_{1}} = \\frac{F_{2}}{A_{2}}'),
+          prose('Pushing with $20\\text{ N}$ on $5\\text{ cm}^{2}$, the $100\\text{ cm}^{2}$ piston gets'),
+          stacked('F_{2} = 20 \\times \\frac{100}{5} = 400\\text{ N}'),
+          prose('To lift $400\\text{ N}$ the other way round, $F_{1} = 400 \\times \\frac{5}{100} = 20\\text{ N}$.'),
+        ),
+        ask('clm-hydraulic-table'),
+        ask('clm-hydraulic-table', 2),
+      ],
+      skillCheck: [ask('clm-depth-pressure', 2), ask('clm-depth-tree', 2), ask('clm-hydraulic-table', 2)],
+    },
+    {
+      id: 'clm-l3-buoyancy',
+      title: 'Buoyancy',
+      slides: [
+        teach(
+          prose('**Archimedes’ principle**: a body in a liquid is pushed up by the weight of the liquid it pushes aside. Under completely, that is its whole volume $V$:'),
+          display('B = \\rho_{\\text{liquid}} V g'),
+          prose('A litre of fresh water has a mass of $1\\text{ kg}$, so each litre under water gets $9.8\\text{ N}$. A $3$ litre stone:'),
+          stacked('B = 3 \\times 9.8 = 29.4\\text{ N}'),
+          prose('In other units: $500\\text{ cm}^{3}$ is $0.0005\\text{ m}^{3}$, and in oil of density $800$:'),
+          stacked('m = 800 \\times 0.0005 = 0.4', 'B = 0.4 \\times 9.8 = 3.92\\text{ N}'),
+        ),
+        ask('clm-buoyant-force'),
+        ask('clm-buoyant-force+choice', 2),
+        teach(
+          prose('A sunk body hung from a spring balance reads less than in air, by exactly the buoyant force. A $6\\text{ kg}$ rock of $2$ litres:'),
+          stacked('W = 6 \\times 9.8 = 58.8', 'B = 2 \\times 9.8 = 19.6', 'T = 58.8 - 19.6 = 39.2\\text{ N}'),
+          prose('Backwards, as Archimedes tested a crown: reading $58.8\\text{ N}$ in air and $39.2\\text{ N}$ under water,'),
+          stacked('B = 58.8 - 39.2 = 19.6', 'V = \\frac{19.6}{1000 \\times 9.8} = 0.002\\text{ m}^{3}', '\\rho = \\frac{6}{0.002} = 3000\\text{ kg m}^{-3}'),
+        ),
+        ask('clm-weigh-tree'),
+        ask('clm-weigh-tree', 2),
+        teach(
+          prose('Whether it floats depends on its density $\\rho = \\frac{m}{V}$ against the liquid’s. Less dense, it floats, sinking until the liquid pushed aside weighs as much as it does, so the fraction under is'),
+          display('\\frac{\\rho}{\\rho_{\\text{liquid}}}'),
+          prose('A box of $3\\text{ kg}$ and $5$ litres, which is $0.005\\text{ m}^{3}$:'),
+          stacked('\\rho = \\frac{3}{0.005} = 600', '\\frac{600}{1000} = 0.6'),
+          prose('So $0.6$ of it is under water, and a $20\\text{ cm}$ tall block of it floats $0.6 \\times 20 = 12\\text{ cm}$ deep. In oil of density $800$ it would be $\\frac{600}{800} = 0.75$ under.'),
+        ),
+        ask('clm-sink-flow'),
+        ask('clm-float-depth'),
+        ask('clm-sink-flow', 2),
+        ask('clm-float-depth+choice', 2),
+      ],
+      skillCheck: [ask('clm-buoyant-force', 2), ask('clm-weigh-tree', 2), ask('clm-sink-flow', 2)],
+    },
+    {
+      id: 'clm-l3-drag',
+      title: 'Drag and Terminal Speed',
+      slides: [
+        teach(
+          prose('Moving through air, a body is held back by **drag**. At everyday speeds it grows with the square of the speed:'),
+          display('F = \\tfrac{1}{2}C\\rho A v^{2}'),
+          prose('$C$ is the drag coefficient, set by the shape, $\\rho$ the air’s density, about $1.2\\text{ kg m}^{-3}$, and $A$ the area facing the flow. A cyclist with $C = 0.8$ and $A = 0.5\\text{ m}^{2}$ at $10\\text{ m s}^{-1}$:'),
+          stacked('F = \\tfrac{1}{2} \\times 0.8 \\times 1.2 \\times 0.5 \\times 10^{2}', 'F = 24\\text{ N}'),
+          prose('All the constants together are often written $k$, so $F = kv^{2}$. With $k = 0.25$ at $20\\text{ m s}^{-1}$, $F = 0.25 \\times 400 = 100\\text{ N}$.'),
+        ),
+        ask('clm-drag-force'),
+        ask('clm-drag-table'),
+        ask('clm-drag-force+choice', 2),
+        teach(
+          prose('Because of the square, twice the speed gives four times the drag, and three times gives nine. With $2\\text{ N}$ at $4\\text{ m s}^{-1}$, at $8$ it is $2 \\times 2^{2} = 8\\text{ N}$. Backwards, $18\\text{ N}$ is $9$ times as much, so the speed is $3$ times: $12\\text{ m s}^{-1}$.'),
+          prose('A falling body has its weight down and drag up. An $80\\text{ kg}$ skydiver with $k = 0.25$ at $20\\text{ m s}^{-1}$:'),
+          stacked('F = 0.25 \\times 20^{2} = 100', 'W - F = 784 - 100 = 684', 'a = \\frac{684}{80} = 8.55\\text{ m s}^{-2}'),
+        ),
+        ask('clm-drag-table', 2),
+        ask('clm-fall-accel-flow'),
+        teach(
+          prose('As it speeds up the drag grows, until it equals the weight. Then nothing is left over and it falls at a steady **terminal speed**:'),
+          display('kv^{2} = W'),
+          prose('Weight $800\\text{ N}$ with $k = 0.5$:'),
+          stacked('v^{2} = 800 \\div 0.5 = 1600', 'v = 40\\text{ m s}^{-1}'),
+          prose('From a mass, find the weight first: $45\\text{ kg}$ with $k = 0.25$ gives $W = 441$, $v^{2} = 1764$ and $v = 42\\text{ m s}^{-1}$.'),
+        ),
+        ask('clm-terminal'),
+        ask('clm-terminal-slider'),
+        ask('clm-fall-accel-flow', 2),
+      ],
+      skillCheck: [ask('clm-drag-force', 2), ask('clm-terminal', 2), ask('clm-fall-accel-flow', 2)],
+    },
+    {
+      id: 'clm-l3-bend',
+      title: 'Round a Bend',
+      slides: [
+        teach(
+          prose('To go round a circle of radius $r$ at speed $v$, a body needs a force towards the centre of $\\frac{mv^{2}}{r}$ (Motion in Two Dimensions, Centripetal Acceleration). On a flat road only friction can give it. There is no outward force: the outward lean you feel is your body carrying on straight.'),
+          prose('Friction gives at most $\\mu mg$, so the fastest speed is when'),
+          stacked('\\mu m g = \\frac{mv^{2}}{r}', 'v^{2} = \\mu g r'),
+          prose('With $\\mu = 0.5$ and $r = 40\\text{ m}$, $v^{2} = 0.5 \\times 9.8 \\times 40 = 196$, so $v = 14\\text{ m s}^{-1}$. For the least radius at a speed, $r = \\frac{v^{2}}{\\mu g}$: at $14$ that is $196 \\div 4.9 = 40\\text{ m}$.'),
+        ),
+        ask('clm-bend-pick'),
+        ask('clm-flat-bend'),
+        ask('clm-bend-slider'),
+        teach(
+          prose('A **banked** bend tilts the road by $\\theta$. The reaction, at right angles to the road, then leans towards the centre and can do the turning alone. That happens at the design speed, where'),
+          display('v^{2} = rg\\tan\\theta'),
+          prose('Radius $40\\text{ m}$ with $\\tan\\theta = 0.5$:'),
+          stacked('rg = 40 \\times 9.8 = 392', 'v^{2} = 392 \\times 0.5 = 196', 'v = 14\\text{ m s}^{-1}'),
+          prose('Backwards, for $21\\text{ m s}^{-1}$ on $90\\text{ m}$: $v^{2} = 441$, $rg = 882$ and $\\tan\\theta = 441 \\div 882 = 0.5$.'),
+        ),
+        ask('clm-bank-tree'),
+        ask('clm-bank-tree', 2),
+        ask('clm-flat-bend+choice', 2),
+        teach(
+          prose('Away from the design speed, friction makes up the difference. Slower, the car would slip down the banking, so friction acts **up** the slope. Faster, it would slide up and out, so friction acts **down** the slope.'),
+          prose('Design speed $14\\text{ m s}^{-1}$, driven at $10$: friction acts up the slope. At $18$: down the slope. At exactly $14$: none is needed.'),
+        ),
+        ask('clm-bend-pick', 2),
+        ask('clm-bank-flow'),
+      ],
+      skillCheck: [ask('clm-flat-bend', 2), ask('clm-bank-tree', 2), ask('clm-bank-flow', 2)],
+    },
+  ],
+  levelCheck: [
+    ask('clm-pressure', 2),
+    ask('clm-heel-flow', 2),
+    ask('clm-pressure-table', 2),
+    ask('clm-depth-pressure', 2),
+    ask('clm-depth-tree', 2),
+    ask('clm-hydraulic-table', 2),
+    ask('clm-buoyant-force', 2),
+    ask('clm-weigh-tree', 2),
+    ask('clm-sink-flow', 2),
+    ask('clm-terminal', 2),
+    ask('clm-fall-accel-flow', 2),
+    ask('clm-flat-bend', 2),
+    ask('clm-bank-tree', 2),
+  ],
+};

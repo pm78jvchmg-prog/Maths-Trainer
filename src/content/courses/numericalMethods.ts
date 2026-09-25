@@ -276,6 +276,30 @@ const meetGraphs: Block = {
   ),
 };
 
+/** The chords of v = 12t - t^2 over strips of width 2. */
+function levellingChords(t: number): number {
+  const v = (x: number) => 12 * x - x * x;
+  const a = Math.min(3, Math.floor(t / 2)) * 2;
+  return v(a) + ((v(a + 2) - v(a)) * (t - a)) / 2;
+}
+
+/** A speed that levels off, v = 12t - t^2, with four trapezia whose tops sit below it. */
+const levellingOff: Block = {
+  kind: 'diagram',
+  svg: plotSvg({
+    xMin: 0,
+    xMax: 8,
+    yMin: 0,
+    yMax: 40,
+    curves: [
+      { f: (t) => 12 * t - t * t },
+      { f: levellingChords, accent: true },
+    ],
+    verticals: [0, 2, 4, 6, 8].map((x) => ({ x })),
+    label: 'A speed-time graph that bends down as it levels off, with the tops of four trapezia drawn below it',
+  }),
+};
+
 /** y = x^2 with its tangent at x = 2 dashed and the forward chord from x = 2 to x = 3. */
 const forwardChord: Block = {
   kind: 'diagram',
@@ -2035,6 +2059,203 @@ export const numericalMethods: Course = {
         ask('numer-confirm-bounds-tiles', 2),
         ask('numer-confirm-verdict-flow', 2),
         ask('numer-bounds-steps', 2),
+      ],
+    },
+    {
+      id: 'nm-l9',
+      title: 'The Trapezium Rule in Context',
+      lessons: [
+        {
+          id: 'nm-l9-readings',
+          title: 'Areas from Readings',
+          slides: [
+            teach(
+              prose('The trapezium rule works on readings as well as on a formula:'),
+              maths('\\begin{gathered} A \\approx \\frac{h}{2}\\big[y_0 + y_n \\\\ + 2(y_1 + \\cdots + y_{n-1})\\big] \\end{gathered}'),
+              prose("A river's depth $d$ m is measured every $2$ m from bank to bank:"),
+              maths('\\begin{array}{c|ccccc} x & 0 & 2 & 4 & 6 & 8 \\\\ \\hline d & 0 & 3 & 5 & 4 & 0 \\end{array}'),
+              prose('Five readings make four strips of width $h = 2$. The ends count once, the middle readings twice:'),
+              working('y_0 + y_4 &= 0 + 0 = 0', 'y_1 + y_2 + y_3 &= 3 + 5 + 4 = 12', 'A &\\approx \\tfrac{2}{2}(0 + 2 \\times 12) = 24'),
+              prose('The cross-section is about $24$ square metres.'),
+            ),
+            ask('numer-ctx-trap-value'),
+            ask('numer-ctx-sums-tree'),
+            ask('numer-ctx-strips-choice'),
+            teach(
+              prose(
+                'The readings mark the edges of the strips, so $n$ readings make $n - 1$ strips. A river $12$ m wide measured at $5$ evenly spaced points has $4$ strips, each $h = \\frac{12}{4} = 3$ m wide. Readings over time work the same way.',
+              ),
+              prose('On one line, one piece at a time: the ends, the doubled middles, the bracket, then $\\frac{h}{2}$ times it.'),
+              working('&1 \\times [0 + 0 + 2(3 + 5 + 4)]', '&= 1 \\times [0 + 24]', '&= 24'),
+            ),
+            ask('numer-ctx-rule-steps'),
+            ask('numer-ctx-trap-value+choice', 2),
+            ask('numer-ctx-strips-choice', 2),
+            teach(
+              prose(
+                'A quick check: the answer should lie between the smallest and the largest reading times the whole width. $24$ is between $0 \\times 8$ and $5 \\times 8 = 40$.',
+              ),
+            ),
+            ask('numer-ctx-sums-tree', 2),
+            ask('numer-ctx-rule-steps', 2),
+          ],
+          skillCheck: [ask('numer-ctx-trap-value', 2), ask('numer-ctx-sums-tree', 2), ask('numer-ctx-rule-steps', 2)],
+        },
+        {
+          id: 'nm-l9-speed',
+          title: 'Distance from Speed',
+          slides: [
+            teach(
+              prose(
+                'The area under a speed-time graph is the distance travelled, since speed times time is distance, strip by strip. So the trapezium rule on speed readings estimates distance.',
+              ),
+              prose("A car's speed $v$ m/s is read every $2$ s:"),
+              maths('\\begin{array}{c|ccccc} t & 0 & 2 & 4 & 6 & 8 \\\\ \\hline v & 4 & 10 & 14 & 16 & 17 \\end{array}'),
+              working('y_0 + y_4 &= 4 + 17 = 21', 'y_1 + y_2 + y_3 &= 10 + 14 + 16 = 40', '\\text{distance} &\\approx \\tfrac{2}{2}(21 + 2 \\times 40) = 101'),
+              prose('About $101$ m. Over the $8$ s that is an average speed of $101 \\div 8 = 12.625$ m/s.'),
+            ),
+            ask('numer-speed-distance'),
+            ask('numer-ctx-meaning-choice'),
+            ask('numer-speed-average'),
+            teach(
+              prose(
+                'Any rate works the same way: litres per minute over minutes gives litres, kilowatts over hours gives kilowatt-hours. Widths over a length give an area in square metres.',
+              ),
+              prose(
+                'The average speed is the height of the rectangle with the same area as the trapezia: the same distance over the same time.',
+              ),
+            ),
+            ask('numer-speed-mean-slider'),
+            ask('numer-speed-distance+choice', 2),
+            ask('numer-ctx-meaning-choice', 2),
+            teach(
+              prose(
+                'The average speed is the whole distance over the whole time, not the mean of the readings: in the rule the middle readings count twice.',
+              ),
+            ),
+            ask('numer-speed-average', 2),
+            ask('numer-speed-mean-slider', 2),
+          ],
+          skillCheck: [ask('numer-speed-distance', 2), ask('numer-ctx-meaning-choice', 2), ask('numer-speed-average', 2)],
+        },
+        {
+          id: 'nm-l9-bend',
+          title: 'Over or Under in Context',
+          slides: [
+            teach(
+              prose(
+                'The tops of the trapezia are straight chords. When the graph bends up, each chord lies above the curve and the rule gives too much: an **overestimate**. When it bends down, each chord lies below: an **underestimate**.',
+              ),
+              levellingOff,
+              prose('A car pulling away and levelling off has a speed graph that bends down, so the rule underestimates the distance.'),
+            ),
+            ask('numer-ctx-bend-choice'),
+            ask('numer-concavity-choice'),
+            ask('numer-ctx-bend-tiles'),
+            teach(
+              prose(
+                'Without a picture, read the formula. For $v = p + qt + rt^{2}$, a positive $t^{2}$ term bends the graph up and a negative one bends it down. With no $t^{2}$ term the graph is a straight line, and the rule is exactly right.',
+              ),
+              prose('So $v = 3 + 2t - 0.5t^{2}$ bends down: an underestimate.'),
+            ),
+            ask('numer-ctx-bend-flow'),
+            ask('numer-ctx-bend-choice', 2),
+            ask('numer-ctx-bend-tiles', 2),
+            teach(
+              prose(
+                "For any curve $f''(x)$ decides: positive bends up, negative bends down. For $f(x) = x^{3}$ on $[1, 3]$, $f''(x) = 6x > 0$, so the rule overestimates.",
+              ),
+            ),
+            ask('numer-ctx-bend-flow', 2),
+            ask('numer-concavity-choice', 2),
+          ],
+          skillCheck: [ask('numer-ctx-bend-choice', 2), ask('numer-ctx-bend-flow', 2), ask('numer-concavity-choice', 2)],
+        },
+        {
+          id: 'nm-l9-more',
+          title: 'More Strips',
+          slides: [
+            teach(
+              prose(
+                'More strips give shorter chords that hug the curve, so a better estimate. For $\\int_0^6 (x^{2} + 1)\\,dx$, whose exact value is $78$:',
+              ),
+              maths('\\begin{array}{c|cccc} n & 1 & 2 & 3 & 6 \\\\ \\hline \\text{estimate} & 114 & 87 & 82 & 79 \\end{array}'),
+              prose('The curve bends up, so every estimate is too big, and they fall towards $78$ as the strips increase.'),
+            ),
+            ask('numer-trapezium-estimate'),
+            ask('numer-more-strips-table'),
+            ask('numer-ordinates-tree'),
+            teach(
+              prose('Each row is the rule again. With $3$ strips, $h = 2$ and the heights at $x = 0, 2, 4, 6$ are $1, 5, 17, 37$:'),
+              maths('\\tfrac{2}{2}\\big[1 + 37 + 2(5 + 17)\\big] = 82'),
+              prose('The estimates close in from one side, so the exact value lies beyond the best of them: below $79$ here.'),
+            ),
+            ask('numer-more-closer-choice'),
+            ask('numer-trapezium-estimate+choice', 2),
+            ask('numer-more-strips-table', 2),
+            teach(
+              prose(
+                'The error falls fast. Going from $2$ strips to $6$, three times as many, it falls from $87 - 78 = 9$ to $79 - 78 = 1$, a ninth.',
+              ),
+            ),
+            ask('numer-ordinates-tree', 2),
+            ask('numer-more-closer-choice', 2),
+          ],
+          skillCheck: [ask('numer-more-strips-table', 2), ask('numer-trapezium-estimate', 2), ask('numer-more-closer-choice', 2)],
+        },
+        {
+          id: 'nm-l9-profile',
+          title: 'Profiles and Cross-Sections',
+          slides: [
+            teach(
+              prose(
+                "Sometimes a formula gives the heights. A tunnel's entrance is the region under $y = 9 - x^{2}$ from $x = -3$ to $x = 3$, in metres. With $6$ strips, $h = 1$ and the heights at $x = -3, -2, \\ldots, 3$ are",
+              ),
+              maths('0,\\ 5,\\ 8,\\ 9,\\ 8,\\ 5,\\ 0'),
+              working('A &\\approx \\tfrac{1}{2}\\big[0 + 0 + 2(5 + 8 + 9 + 8 + 5)\\big]', '&= 35'),
+              prose('About $35$ square metres; the exact area is $36$.'),
+            ),
+            ask('numer-profile-area'),
+            teach(
+              prose('When both ends are $0$, the rule shortens:'),
+              maths('A \\approx \\tfrac{h}{2} \\times 2(y_1 + \\cdots) = h(y_1 + \\cdots)'),
+              prose('With $4$ strips on the same tunnel, $h = 1.5$ and the heights at $x = -1.5, 0, 1.5$ are $6.75, 9, 6.75$:'),
+              maths('A \\approx 1.5 \\times 22.5 = 33.75'),
+            ),
+            ask('numer-profile-heights-tree'),
+            ask('numer-profile-area+choice', 2),
+            teach(
+              prose(
+                'A canal or a tunnel with the same cross-section all along is a prism, so its volume is the cross-section times the length. A canal $50$ m long with a cross-section of about $24$ square metres holds about $24 \\times 50 = 1200$ cubic metres.',
+              ),
+              prose(
+                'Keep track of what the number means: widths over a width give square metres, times a length gives cubic metres, and a rate over time gives an amount.',
+              ),
+            ),
+            ask('numer-profile-volume'),
+            ask('numer-profile-heights-tree', 2),
+            ask('numer-profile-volume+choice', 2),
+            ask('numer-ctx-meaning-choice', 2),
+          ],
+          skillCheck: [ask('numer-profile-area', 2), ask('numer-profile-heights-tree', 2), ask('numer-profile-volume', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('numer-ctx-trap-value', 2),
+        ask('numer-ctx-sums-tree', 2),
+        ask('numer-ctx-strips-choice', 2),
+        ask('numer-ctx-rule-steps', 2),
+        ask('numer-speed-distance', 2),
+        ask('numer-speed-mean-slider', 2),
+        ask('numer-speed-average', 2),
+        ask('numer-ctx-meaning-choice', 2),
+        ask('numer-ctx-bend-choice', 2),
+        ask('numer-ctx-bend-flow', 2),
+        ask('numer-ctx-bend-tiles', 2),
+        ask('numer-more-closer-choice', 2),
+        ask('numer-more-strips-table', 2),
+        ask('numer-profile-area', 2),
+        ask('numer-profile-volume', 2),
       ],
     },
   ],

@@ -7,6 +7,12 @@ its pull request; the PR description holds the evidence.
 
 - **Maths content reviewer agent now runs on Opus** instead of Fable, and
   `/apply-fixes` no longer says "Do not merge" (PRs merge themselves) (#199).
+- **Home-screen colours: the seams were an old copy (this PR).** The current
+  build already runs one unbroken purple from Algebra Fundamentals to Advanced
+  Maths and orange from the Statistics heading down (#180); the iPad was still
+  showing an older version. The app now checks for a new version every time it
+  is brought back to the front, so one close and reopen picks it up. The purple now melts through rose into
+  the orange above Statistics instead of meeting it in a hard line.
 - **Checker: `+ C` and `2e-1`.** An integral answer's `C` was probed as 0, so
   `x^2/2 + C*x` passed as the integral of x; `C` now takes a fixed non-zero
   value, so only an added constant is forgiven (`2C` and `ln(C)` still pass).

@@ -1,5 +1,6 @@
 /**
- * "Sync devices" on the home screen: pairing this device with another one.
+ * "Sync devices" in the streak view (tap the streak on the home screen):
+ * pairing this device with another one.
  *
  * No accounts. One device shows a code, the other types it, and from then on
  * both keep the same progress (src/sync/sync.ts). Folded away to one quiet
@@ -93,7 +94,7 @@ export function SyncDevices() {
         <div className="sync-panel">
           {code ? (
             <>
-              <p className="sync-text">On your other device, open Sync devices, tap Enter a code, and type:</p>
+              <p className="sync-text">On your other device, tap the streak, then Sync devices, then Enter a code, and type:</p>
               <p className="sync-code">{spaced(code)}</p>
               <p className="sync-hint">Works once, for 15 minutes.</p>
             </>

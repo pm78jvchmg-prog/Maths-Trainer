@@ -12,7 +12,13 @@
     />
     <meta name="theme-color" content="#11121a" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- `black`, not `black-translucent`. On iOS 26 and later a translucent
+         status bar gives the page a window a status bar short of the screen,
+         placed sometimes at the top and sometimes below the status bar, while
+         still reporting the top safe-area inset: the home screen opened on a
+         59pt dark strip and then 59pt of empty padding under it. With `black`
+         the page always starts below the status bar and the inset is 0. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <meta name="apple-mobile-web-app-title" content="Excellent" />
     <title>Excellent</title>
     <!-- The splash is what shows while the bundle downloads and parses, which

@@ -179,8 +179,10 @@ are added to a course that was finished, rather than freezing a number that was
 true about a smaller library. An old `bestCorrect` is capped against what the
 check offers now, or a check that has since shrunk scores 4 out of 3. A course
 counts as mastered at `MASTERED_AT` (90%); 100% would demand a perfect run of
-every skill check and so would never be reached. The home screen carries one
-quiet line ("6 of 30 topics started · 2 mastered") and each course card its
+every skill check and so would never be reached. The streak view carries one
+quiet line ("6 of 30 topics started · 2 mastered"), moved there with Sync
+devices at the owner's ask so the home screen runs straight from the streak
+bar into the coloured list, and each course card carries its
 percentage beside the lessons-finished count — the pair being the point, since
 you can finish every lesson in a course and still be some way off knowing it.
 

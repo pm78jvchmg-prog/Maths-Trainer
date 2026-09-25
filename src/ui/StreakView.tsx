@@ -12,7 +12,10 @@
  * it is inert and Escape closes it.
  */
 import { useEffect, useId, useRef } from 'react';
+import { categories } from '../content/courses';
+import { libraryProgress } from '../store/mastery';
 import { useProgress } from '../store/progress';
+import { SyncDevices } from './SyncDevices';
 import { MAX_CHARGES, bestStreak, localDay, recentDays, resolveStreak, useStreak } from '../store/streak';
 import type { DayKind } from '../store/streak';
 
@@ -40,6 +43,17 @@ export function ChargeIcon({ full, size = 22 }: { full: boolean; size?: number }
       {full && <path d="M13 7.5 9.5 13.5h3l-1.5 5 4-6.5h-3z" className="charge-bolt" />}
     </svg>
   );
+}
+
+/**
+ * How much of the library is behind you. Deliberately not a points total: it
+ * counts topics, so it can stall or fall when content is added, and it says
+ * what is left rather than what has been accumulated.
+ */
+function libraryText({ started, mastered, total }: { started: number; mastered: number; total: number }) {
+  if (started === 0) return `${total} topics to explore`;
+  if (mastered === 0) return `${started} of ${total} topics started`;
+  return `${started} of ${total} topics started · ${mastered} mastered`;
 }
 
 export function StreakView({ onClose }: { onClose: () => void }) {
@@ -125,6 +139,11 @@ export function StreakView({ onClose }: { onClose: () => void }) {
             <span className="streak-stat-label">Lessons complete</span>
           </div>
         </div>
+
+        {/* Moved here from under the streak bar at the owner's ask, so the home
+            screen runs straight from the streak into the coloured list. */}
+        <p className="library-line streak-library">{libraryText(libraryProgress(categories, lessons))}</p>
+        <SyncDevices />
 
         <button type="button" className="primary-button" onClick={close}>
           Done

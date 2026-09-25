@@ -42,6 +42,18 @@ const ask = (generatorId: string, difficulty = 1): SlideRef => ({
   difficulty,
 });
 
+/**
+ * A question with the worked example it needs on the same slide, above it.
+ * Used where a lesson's teach slide would otherwise grow too long for a phone,
+ * or where the example belongs with the one question that needs it.
+ */
+const leading = (generatorId: string, difficulty: number, ...blocks: Block[]): SlideRef => ({
+  type: 'generated',
+  generatorId,
+  difficulty,
+  leadIn: blocks,
+});
+
 const prose = (text: string): Block => ({ kind: 'prose', text });
 const maths = (tex: string): Block => ({ kind: 'display', tex });
 const figure = (options: Parameters<typeof plotSvg>[0]): Block => ({ kind: 'diagram', svg: plotSvg(options) });
@@ -77,9 +89,7 @@ export const exponentialModels: Course = {
                 'At $t = 0$ the power is $0$ and $e^{0} = 1$, so $y = A$: the number in front is the start. $N = 250e^{0.04t}$ starts at 250.',
               ),
             ),
-            ask('expm-read-flow'),
             ask('expm-start'),
-            ask('expm-build-tiles'),
             teach(
               prose(
                 'The sign of $k$ says which way it goes. A positive $k$ grows; a negative $k$ decays towards 0, but never reaches or passes it.',
@@ -89,7 +99,16 @@ export const exponentialModels: Course = {
               ),
               working('250e^{0.04t} &\\to 250, \\ +4\\%', '80e^{-0.15t} &\\to 80, \\ -15\\%'),
             ),
+            ask('expm-read-flow'),
             ask('expm-describe'),
+            leading(
+              'expm-build-tiles',
+              1,
+              prose(
+                'Building a model runs the other way. Starting at 400 and falling at 10%: the start goes in front, and $10\\% = 0.1$, with a minus sign because it falls.',
+              ),
+              working('A = 400, \\quad k &= -0.1', 'y &= 400e^{-0.1t}'),
+            ),
             ask('expm-build-tiles', 2),
             ask('expm-read-flow', 2),
             teach(
@@ -112,17 +131,23 @@ export const exponentialModels: Course = {
                 '$e$ and $\\ln$ undo each other, so $e^{\\ln b} = b$. A whole number in front of the $\\ln$ is a power:',
               ),
               working('e^{3\\ln 2} &= \\left(e^{\\ln 2}\\right)^{3}', '&= 2^{3} = 8'),
-              prose('That is what makes a model with $\\ln$ in its power come out whole at a whole time.'),
+              prose('A fraction in front is a root, then a power. The bottom of the fraction is the root:'),
+              working('e^{\\frac{2}{3}\\ln 8} &= 8^{\\frac{2}{3}}', '&= \\left(\\sqrt[3]{8}\\right)^{2} = 2^{2} = 4'),
             ),
             ask('expm-power-value'),
-            ask('expm-power-value+choice', 2),
+            leading(
+              'expm-power-value+choice',
+              2,
+              prose('A minus sign in the power turns it over, and a $+ \\ln c$ multiplies by $c$:'),
+              working('e^{-2\\ln 3} &= \\frac{1}{3^{2}} = \\frac{1}{9}', 'e^{2\\ln 3 + \\ln 5} &= 3^{2} \\times 5 = 45'),
+            ),
             teach(
               prose(
                 'So $e^{t\\ln 2} = 2^{t}$, and a model $y = 5e^{t\\ln 2}$ is $5 \\times 2^{t}$: it doubles every unit of time.',
               ),
               working('t = 3: \\quad 5 \\times 2^{3} &= 5 \\times 8 = 40'),
               prose(
-                'The power comes first, then the multiplication. A minus sign in the power divides instead: $e^{-t\\ln 2} = \\frac{1}{2^{t}}$.',
+                'The power comes first, then the multiplication. How much it has grown by takes the start off: $40 - 5 = 35$. A minus sign in the power divides instead: $e^{-t\\ln 2} = \\frac{1}{2^{t}}$.',
               ),
             ),
             ask('expm-evaluate'),
@@ -158,7 +183,11 @@ export const exponentialModels: Course = {
               prose(
                 'Going back, $e^{k}$ is what one unit of time multiplies by. If $k$ is not a single log yet, make it one first:',
               ),
-              working('2\\ln 3 &= \\ln 3^{2} = \\ln 9', '\\tfrac{1}{2}\\ln 25 &= \\ln 25^{1/2} = \\ln 5'),
+              working(
+                '2\\ln 3 &= \\ln 3^{2} = \\ln 9',
+                '\\tfrac{1}{2}\\ln 25 &= \\ln 25^{1/2} = \\ln 5',
+                '\\ln 28 - \\ln 4 &= \\ln \\tfrac{28}{4} = \\ln 7',
+              ),
               prose('So $e^{2t\\ln 3} = 9^{t}$. A minus sign turns it over: $e^{-t\\ln 4} = \\left(\\frac{1}{4}\\right)^{t}$, a decay.'),
             ),
             ask('expm-back'),
@@ -242,18 +271,25 @@ export const exponentialModels: Course = {
                 'Two points pin a model $y = Ae^{kt}$ down. Divide one value by the other and $A$ cancels. With $y = 18$ at $t = 1$ and $y = 144$ at $t = 4$:',
               ),
               working('\\frac{144}{18} &= 8 = e^{3k}', 'e^{k} &= \\sqrt[3]{8} = 2'),
-              prose('Three units of time multiplied by 8, so each one multiplies by 2, and $k = \\ln 2$.'),
+              prose(
+                'Three units of time multiplied by 8, so each one multiplies by 2, and $k = \\ln 2$. Then step back to the start: one step of $\\times 2$ reached 18 at $t = 1$, so $A = 18 \\div 2 = 9$ and $y = 9e^{t\\ln 2}$.',
+              ),
             ),
             ask('expm-fit-tree'),
             ask('expm-fit-k'),
-            ask('expm-fit-tiles'),
+            leading(
+              'expm-fit-tiles',
+              1,
+              prose('Over a gap of 2 the root is a square root. With $y = 18$ at $t = 2$ and $y = 162$ at $t = 4$:'),
+              working('\\frac{162}{18} &= 9 = e^{2k}', 'e^{k} &= \\sqrt{9} = 3', 'A &= 18 \\div 3^{2} = 2'),
+              prose('So $y = 2e^{t\\ln 3}$.'),
+            ),
             teach(
               prose(
-                'Then step back to the start. At $t = 1$ the value is $18$, and one step multiplied by 2 to get there, so $A = 18 \\div 2 = 9$ and $y = 9e^{t\\ln 2}$.',
+                'If the second value is smaller, the model decays: divide the first by the second. With $y = 36$ at $t = 1$ and $y = 4$ at $t = 3$:',
               ),
-              prose(
-                'If the second value is smaller, the model decays: divide the first by the second, and $k$ is negative. Stepping back to the start then multiplies.',
-              ),
+              working('\\frac{36}{4} &= 9 = e^{-2k}', 'e^{-k} &= \\sqrt{9} = 3', 'A &= 36 \\times 3 = 108'),
+              prose('Each unit of time divides by 3, so $k = -\\ln 3$. Stepping back to the start then multiplies: $y = 108e^{-t\\ln 3}$.'),
             ),
             ask('expm-start-back'),
             ask('expm-fit-tree', 2),
@@ -280,10 +316,15 @@ export const exponentialModels: Course = {
             ),
             ask('expm-limit-flow'),
             ask('expm-bounded-start'),
-            ask('expm-cool-tiles'),
+            leading(
+              'expm-cool-tiles',
+              1,
+              prose('To build one from a story, the level goes on its own and the gap from the start to the level goes by the $e$. Tea at 90°C in a room at 20°C:'),
+              working('L &= 20', 'B &= 90 - 20 = 70', 'T &= 20 + 70e^{-kt}'),
+            ),
             teach(
               prose(
-                'Something that rises towards a ceiling takes the term away instead. A drink from the fridge at 4°C in a room at 20°C is',
+                'Something that rises towards a ceiling takes the term away instead. A drink from the fridge at 4°C in a room at 20°C has a gap of $20 - 4 = 16$ to close:',
               ),
               maths('T = 20 - 16e^{-kt}'),
               prose('Either way, the number on its own is where it ends up, and the number by the $e$ is the gap it has to close.'),
@@ -315,7 +356,12 @@ export const exponentialModels: Course = {
                 't &= 9',
               ),
             ),
-            ask('expm-reach-steps'),
+            leading(
+              'expm-reach-steps',
+              1,
+              prose('A decay works the same way. When does $M = 24e^{-t\\ln 2}$ reach 3?'),
+              working('e^{-t\\ln 2} &= \\tfrac{3}{24} = \\tfrac{1}{8}', '-t\\ln 2 &= \\ln \\tfrac{1}{8} = -3\\ln 2', 't &= 3'),
+            ),
             ask('expm-when'),
             ask('expm-reach-slider'),
             teach(
@@ -330,7 +376,13 @@ export const exponentialModels: Course = {
             ask('expm-when+choice'),
             teach(
               prose(
-                'A check: 8 is three doublings, and with a doubling time of 3 that is 9. For a model with a level, take the level off first: $20 + 80e^{-kt} = 30$ needs $80e^{-kt} = 10$.',
+                'A check: 8 is three doublings, and with a doubling time of 3 that is 9. For a model with a level, take the level off first. When does $20 + 80e^{-\\frac{\\ln 2}{5}t}$ reach 30?',
+              ),
+              working(
+                '80e^{-\\frac{\\ln 2}{5}t} &= 30 - 20 = 10',
+                'e^{-\\frac{\\ln 2}{5}t} &= \\tfrac{10}{80} = \\tfrac{1}{8}',
+                '\\tfrac{\\ln 2}{5}t &= \\ln 8 = 3\\ln 2',
+                't &= 15',
               ),
             ),
             ask('expm-reach-tiles', 2),
@@ -351,7 +403,14 @@ export const exponentialModels: Course = {
             ),
             ask('expm-rate'),
             ask('expm-rate-tiles'),
-            ask('expm-rate-match'),
+            leading(
+              'expm-rate-match',
+              1,
+              prose(
+                'A sentence says the same thing. "Falls at 4% of its current size" is $0.04$ times the amount, and falling makes the rate negative:',
+              ),
+              maths('\\frac{dM}{dt} = -0.04M'),
+            ),
             teach(
               prose(
                 'So the rate at a moment uses the amount right then, not the start. For $N = 200e^{0.05t}$, when $N = 600$:',
@@ -397,10 +456,22 @@ export const exponentialModels: Course = {
             ),
             ask('expm-model-choice', 2),
             ask('expm-model-flow', 2),
-            ask('expm-when', 2),
+            leading(
+              'expm-bounded-start',
+              1,
+              prose(
+                'As a formula, bounded is $L + Be^{-kt}$ falling to $L$, or $L - Be^{-kt}$ rising to it. $e^{-kt}$ shrinks to 0, so the number on its own is where it settles, and at $t = 0$ it is $L \\pm B$:',
+              ),
+              prose('$15 + 40e^{-0.08t}$ starts at $55$ and settles at $15$.'),
+              prose('$20 - 8e^{-0.04t}$ starts at $12$ and settles at $20$.'),
+              prose('Either way it moves by $B$ altogether: 40 and 8 here.'),
+            ),
             teach(
               prose(
                 'To carry a bounded table on, measure from the level, not from 0. Gaps of 40, 20, 10 above 20 make the next gap 5, so the next value is 25.',
+              ),
+              prose(
+                'From below the level, take the gap away. Values 4, 12, 16 under a level of 20 have gaps 16, 8, 4, so the next gap is 2 and the next value is $20 - 2 = 18$.',
               ),
             ),
             ask('expm-next-tree', 2),
@@ -444,23 +515,24 @@ export const exponentialModels: Course = {
             ),
             ask('expm-percent-k'),
             ask('expm-percent-flow'),
-            ask('expm-percent-tiles'),
             teach(
-              prose('A sentence gives the model straight away. "Grows at 3% of its size per hour" is'),
-              working('\\frac{dN}{dt} &= 0.03N', 'N &= Ae^{0.03t}'),
+              prose('A sentence gives the model straight away. Starting at 500 and growing at 3% of its size per hour is'),
+              working('\\frac{dN}{dt} &= 0.03N', 'N &= 500e^{0.03t}'),
               prose(
                 'It is 3% of its size **now**, not of the start. That is what makes it exponential rather than a straight line.',
               ),
             ),
+            ask('expm-percent-tiles'),
             ask('expm-rate-words'),
             ask('expm-percent-tiles', 2),
-            ask('expm-percent-flow', 2),
             teach(
               prose(
-                'Read the other way, a model says its rate. $D = 300e^{-0.035t}$ falls at 3.5% of its current size per hour, so when $D = 200$ it is falling at',
+                'Read the other way, a model says its rate. $D = 300e^{-0.035t}$ falls at 3.5% of its current size per hour, so when $D = 200$',
               ),
-              maths('0.035 \\times 200 = 7 \\text{ mg per hour}'),
+              maths('\\frac{dD}{dt} = -0.035 \\times 200 = -7'),
+              prose('It is falling at 7 mg per hour; the minus sign says it falls.'),
             ),
+            ask('expm-percent-flow', 2),
             ask('expm-percent-k+choice', 2),
             ask('expm-rate-words', 2),
           ],
@@ -646,14 +718,17 @@ export const exponentialModels: Course = {
               prose('The model with the bigger $k$ always ends up ahead in the long run, however far behind it starts.'),
             ),
             ask('expm-lead-flow'),
-            ask('expm-lead-which', 2),
-            ask('expm-lead-tree', 2),
             teach(
               prose(
-                'A decaying model is a negative power of $u$. $R = 320e^{-\\frac{\\ln 2}{5}t} = \\frac{320}{u}$, so at $t = 10$ it is $320 \\div 4 = 80$, level with $Q$.',
+                'A decaying model is a negative power of $u$, so it divides. $R = 320e^{-\\frac{\\ln 2}{5}t} = \\frac{320}{u}$, so at $t = 10$ it is $320 \\div 4 = 80$, level with $Q$.',
+              ),
+              prose(
+                'Other bases work the same. With $u = 3^{t/2}$, $S = 162e^{-t\\ln 3} = \\frac{162}{u^{2}}$. At $t = 4$, $u = 3^{2} = 9$, so $S = 162 \\div 81 = 2$.',
               ),
               prose('Counting $k$ with its sign, a falling model has the smaller $k$, so a rising one always ends up ahead of it.'),
             ),
+            ask('expm-lead-which', 2),
+            ask('expm-lead-tree', 2),
             ask('expm-lead-flow', 2),
             ask('expm-lead-gap+choice', 2),
           ],
@@ -678,15 +753,15 @@ export const exponentialModels: Course = {
               prose('Check a crossing by putting it back: at $t = 15$, $u = 8$, so $P = 320$ and $Q = 5 \\times 64 = 320$.'),
             ),
             ask('expm-overtake-slider'),
-            ask('expm-overtake-steps', 2),
-            ask('expm-overtake-tiles', 2),
             teach(
               prose(
-                'When the powers of $u$ differ by 2, a square root is left at the end. For $A = 3e^{\\frac{3\\ln 2}{2}t} = 3u^{3}$ and $B = 48e^{\\frac{\\ln 2}{2}t} = 48u$, with $u = 2^{t/2}$:',
+                'When the powers of $u$ differ by 2, a square root is left at the end. For $A = 3e^{\\frac{3\\ln 2}{2}t} = 3u^{3}$ and $B = 48e^{\\frac{\\ln 2}{2}t} = 48u$, with $u = 2^{t/2}$, divide by $3u$:',
               ),
-              working('3u^{3} &= 48u', 'u^{2} &= 16', 'u &= 4 = 2^{2}', 't &= 4'),
+              working('3u^{3} &= 48u', 'u^{2} &= 16', 'u &= 4 = 2^{2}', '\\tfrac{t}{2} &= 2, \\quad t = 4'),
               prose('$u$ is a power of 2, so it is never negative: $u = -4$ is no use.'),
             ),
+            ask('expm-overtake-steps', 2),
+            ask('expm-overtake-tiles', 2),
             ask('expm-overtake-time', 2),
             ask('expm-overtake-slider', 2),
           ],
@@ -716,14 +791,14 @@ export const exponentialModels: Course = {
             ),
             ask('expm-meet-which'),
             ask('expm-meet-tree', 2),
-            ask('expm-meet-slider', 2),
             teach(
               prose(
                 'With different rates the powers still add. With $u = 3^{t}$, $S = 2e^{2t\\ln 3} = 2u^{2}$ and $R = 54e^{-t\\ln 3} = \\frac{54}{u}$:',
               ),
-              working('2u^{3} &= 54', 'u^{3} &= 27', 'u &= 3', 't &= 1'),
-              prose('Both are 18 then.'),
+              working('2u^{2} &= \\frac{54}{u}', '2u^{3} &= 54', 'u^{3} &= 27', 'u &= 3 = 3^{1}', 't &= 1'),
+              prose('Multiplying by $u$ adds 1 to the power, so $u^{2}$ becomes $u^{3}$ and a cube root is left. Both are 18 then.'),
             ),
+            ask('expm-meet-slider', 2),
             ask('expm-meet-time+choice', 2),
             ask('expm-meet-which', 2),
           ],
@@ -743,19 +818,21 @@ export const exponentialModels: Course = {
             ),
             ask('expm-sum-tiles'),
             ask('expm-sum-flow'),
-            ask('expm-sum-at'),
             teach(
               prose('To evaluate it, write both terms in $u = 2^{t/4}$: $N = 60u + \\frac{96}{u}$. At $t = 8$, $u = 4$:'),
               working('N(8) &= 60 \\times 4 + 96 \\div 4', '&= 240 + 24 = 264'),
             ),
+            ask('expm-sum-at'),
             ask('expm-sum-tree'),
-            ask('expm-sum-tiles', 2),
-            ask('expm-sum-at+choice', 2),
             teach(
               prose(
                 'When both terms grow, the bigger $k$ wins. When both decay, both head to 0, but the one with $k$ nearer 0 lasts longer: $5e^{-0.1t} + 20e^{-0.3t}$ ends up close to $5e^{-0.1t}$, though that term starts smaller.',
               ),
+              prose('Two decaying terms both divide. With $u = 2^{t}$, $48e^{-t\\ln 2} + 64e^{-2t\\ln 2} = \\frac{48}{u} + \\frac{64}{u^{2}}$. At $t = 2$, $u = 4$:'),
+              working('48 \\div 4 + 64 \\div 4^{2} &= 12 + 4 = 16'),
             ),
+            ask('expm-sum-tiles', 2),
+            ask('expm-sum-at+choice', 2),
             ask('expm-sum-flow', 2),
             ask('expm-sum-tree', 2),
           ],
@@ -767,28 +844,33 @@ export const exponentialModels: Course = {
           slides: [
             teach(
               prose(
-                'The gap between a model and a level is a difference: $P = 5e^{t\\ln 2}$ is 35 above $L = 5$ when $5 \\times 2^{t} = 40$, at $t = 3$.',
+                'The gap between two models is a difference. With $u = 2^{t}$, $P = 3e^{2t\\ln 2} = 3u^{2}$ and $Q = 12e^{t\\ln 2} = 12u$, so $P - Q = 3u^{2} - 12u$: a quadratic in $u$.',
               ),
-              prose(
-                'Two models take more. With $u = 2^{t}$, $P = 3e^{2t\\ln 2} = 3u^{2}$ and $Q = 12e^{t\\ln 2} = 12u$, so $P - Q = 3u^{2} - 12u$: a quadratic in $u$.',
-              ),
+              prose('At $t = 0$, $u = 1$ and $P - Q = 3 - 12 = -9$, so $Q$ leads. They are level when $3u^{2} = 12u$; divide by $3u$:'),
+              working('u &= 12 \\div 3 = 4 = 2^{2}', 't &= 2'),
+              prose('After that the $u^{2}$ term runs away from the $u$ term, and the gap grows without limit.'),
             ),
-            ask('expm-diff-tree'),
+            leading(
+              'expm-diff-tree',
+              1,
+              prose('To find the gap at a time, work out $u$ first. At $t = 1$, $u = 2^{1} = 2$:'),
+              working('P(1) &= 3 \\times 2^{2} = 12', 'Q(1) &= 12 \\times 2 = 24', 'P - Q &= 12 - 24 = -12'),
+            ),
             ask('expm-gap-flow'),
-            ask('expm-gap-slider'),
             teach(
-              prose('So $P - Q = 96$ is a quadratic in disguise, as in Quadratics level 7:'),
-              working('3u^{2} - 12u - 96 &= 0', '3(u - 8)(u + 4) &= 0'),
-              prose('$u = 2^{t}$ is never negative, so $u = -4$ is no use: $u = 8$ and $t = 3$.'),
+              prose('So $P - Q = 96$ is a quadratic in disguise, as in Quadratics, Quadratics in Disguise. Divide by 3, then factorise: $-8$ and $4$ multiply to $-32$ and add to $-4$.'),
+              working('3u^{2} - 12u - 96 &= 0', 'u^{2} - 4u - 32 &= 0', '(u - 8)(u + 4) &= 0'),
+              prose('$u = 2^{t}$ is never negative, so $u = -4$ is no use: $u = 8 = 2^{3}$ and $t = 3$.'),
             ),
+            ask('expm-gap-slider'),
             ask('expm-gap-steps'),
             ask('expm-diff-tree', 2),
-            ask('expm-gap-slider', 2),
             teach(
               prose(
-                'The gap can start negative. At $t = 0$, $u = 1$ and $P - Q = 3 - 12 = -9$, so $Q$ leads. They are level when $3u^{2} = 12u$, at $u = 4$, which is $t = 2$; after that the $u^{2}$ term runs away.',
+                'Check by putting it back. At $t = 3$, $u = 8$, so $P = 3 \\times 64 = 192$ and $Q = 12 \\times 8 = 96$: $P$ is 96 ahead, as it should be.',
               ),
             ),
+            ask('expm-gap-slider', 2),
             ask('expm-gap-steps', 2),
             ask('expm-gap-flow', 2),
           ],
@@ -828,9 +910,7 @@ export const exponentialModels: Course = {
               maths('P = \\frac{L}{1 + Ae^{-kt}}'),
               prose('At $t = 0$ the bottom is $1 + A$, so it starts at $\\frac{L}{1 + A}$. For $P = \\frac{600}{1 + 5e^{-0.3t}}$ that is $\\frac{600}{6} = 100$.'),
             ),
-            ask('expm-logistic-build-tiles'),
             ask('expm-logistic-start'),
-            ask('expm-logistic-read'),
             teach(
               prose(
                 'As $t$ grows, $e^{-kt}$ shrinks to 0 and the bottom shrinks to 1, so $P$ climbs towards $L$ without ever passing it. $L$ is the ceiling, and $k$ sets the pace: the bigger $k$, the sooner it gets close.',
@@ -839,14 +919,19 @@ export const exponentialModels: Course = {
                 'To build a model from a story, $L$ is the ceiling and $A$ comes from the start: $1 + A = \\frac{L}{\\text{start}}$. Starting at 100 under a ceiling of 600 gives $1 + A = 6$, so $A = 5$.',
               ),
             ),
+            ask('expm-logistic-read'),
+            ask('expm-logistic-build-tiles'),
+            teach(
+              prose(
+                'Fitting and Using Models met $L - Ae^{-kt}$, which also levels off at $L$. The difference is the shape. $L - Ae^{-kt}$ climbs fastest at the start and eases off from there.',
+              ),
+              prose(
+                'A logistic curve starts slowly, speeds up, and grows fastest at half the ceiling, then slows as it nears the ceiling: an S shape. $P = \\frac{600}{1 + 5e^{-0.3t}}$ grows fastest at $P = 300$.',
+              ),
+            ),
             ask('expm-logistic-flow'),
             ask('expm-logistic-build-tiles', 2),
             ask('expm-logistic-start+choice', 2),
-            teach(
-              prose(
-                'Level 2 met $L - Ae^{-kt}$, which also levels off at $L$. The difference is the shape. $L - Ae^{-kt}$ climbs fastest at the start and eases off from there. A logistic curve starts slowly, speeds up, and slows only as it nears the ceiling: an S shape.',
-              ),
-            ),
             ask('expm-logistic-read', 2),
             ask('expm-logistic-flow', 2),
           ],
@@ -934,8 +1019,6 @@ export const exponentialModels: Course = {
               ),
             ),
             ask('expm-logistic-rate-tiles'),
-            ask('expm-logistic-rate-at'),
-            ask('expm-logistic-rate-tree'),
             teach(
               prose('For $N = \\frac{400}{1 + 3e^{-0.2t}}$, when $N = 100$:'),
               working('1 - \\frac{100}{400} &= \\frac{3}{4}', '\\frac{dN}{dt} &= 0.2 \\times 100 \\times \\frac{3}{4} = 15'),
@@ -943,14 +1026,16 @@ export const exponentialModels: Course = {
                 'Below half the ceiling the rate is rising, so growth is speeding up. Above it the rate is falling, so growth is slowing, though $N$ still increases.',
               ),
             ),
+            ask('expm-logistic-rate-at'),
+            ask('expm-logistic-rate-tree'),
             ask('expm-logistic-rate-flow'),
-            ask('expm-logistic-rate-tiles', 2),
-            ask('expm-logistic-rate-at+choice', 2),
             teach(
               prose(
-                'The rate is greatest at half the ceiling, $P = \\frac{L}{2}$, where it is $k \\times \\frac{L}{2} \\times \\frac{1}{2} = \\frac{kL}{4}$. Here that is $0.2 \\times 100 = 20$, at $N = 200$.',
+                'The rate is greatest at half the ceiling, $P = \\frac{L}{2}$, where it is $k \\times \\frac{L}{2} \\times \\frac{1}{2} = \\frac{kL}{4}$. Here that is $0.2 \\times 400 \\div 4 = 20$, at $N = 200$.',
               ),
             ),
+            ask('expm-logistic-rate-tiles', 2),
+            ask('expm-logistic-rate-at+choice', 2),
             ask('expm-logistic-rate-tree', 2),
             ask('expm-logistic-rate-flow', 2),
           ],
@@ -1025,14 +1110,15 @@ export const exponentialModels: Course = {
             ),
             ask('expm-step-tree'),
             ask('expm-step-amount'),
-            ask('expm-step-calc'),
             teach(
               prose(
-                'Paid once a year, 10% of £800 is £880. Twice a year gives £2 more: the second payment of 5% is also paid on the first £40 of interest.',
+                'Paid once a year, 10% of £800 is £880. Twice a year gives £2 more: the second payment of 5% is also paid on the first £40 of interest. The interest is what was added: $882 - 800 = 82$.',
               ),
               prose('In general, a rate $r$ paid in $n$ steps a year multiplies by $1 + \\frac{r}{n}$ each step, and $t$ years is $nt$ steps:'),
               maths('B = A\\left(1 + \\frac{r}{n}\\right)^{nt}'),
+              prose('So 10% twice a year for 3 years on £800 is $2 \\times 3 = 6$ steps, $800\\left(1 + \\frac{0.1}{2}\\right)^{6}$. Quarterly is $n = 4$, monthly $n = 12$ and daily $n = 365$.'),
             ),
+            ask('expm-step-calc'),
             ask('expm-step-work-steps'),
             ask('expm-step-tree', 2),
             ask('expm-step-amount', 2),
@@ -1040,7 +1126,9 @@ export const exponentialModels: Course = {
               prose(
                 'Working backwards undoes the multiplying. If 10% twice a year left £882 after a year, the amount paid in was $882 \\div 1.1025 = 800$.',
               ),
-              prose('Exponents level 7 grew money one whole step at a time. This is the same idea, with the step a fraction of a year.'),
+              prose(
+                'Exponents & Radicals, Growth by Repeated Multiplication, grew money one whole step at a time. This is the same idea, with the step a fraction of a year.',
+              ),
             ),
             ask('expm-step-calc', 2),
             ask('expm-step-work-steps', 2),
@@ -1063,26 +1151,30 @@ export const exponentialModels: Course = {
               prose('Each step up pays more, and each pays less extra than the one before.'),
             ),
             ask('expm-often-flow'),
-            ask('expm-often-tiles'),
-            ask('expm-often-gain-tree'),
-            teach(
-              prose(
-                'Paid twice a year, £800 at 10% for 3 years is 6 half years, so the power is $2 \\times 3 = 6$:',
-              ),
-              maths('B = 800\\left(1 + \\frac{0.1}{2}\\right)^{6}'),
-              prose('For $t$ years the power is $2t$.'),
-            ),
             ask('expm-often-order'),
+            teach(
+              prose('Where does £1102.50 come from? Twice a year, 10% is 5% a step, so each step multiplies by $1.05$ and the year by $1.05^{2}$:'),
+              working('1.05^{2} &= 1.1025', '1000 \\times 1.1025 &= 1102.50', '1000 \\times 1.1 &= 1100'),
+              prose('So twice a year pays $1102.50 - 1100 = 2.50$ more than yearly: 5% interest on the £50 paid after six months.'),
+            ),
+            ask('expm-often-gain-tree'),
+            leading(
+              'expm-often-tiles',
+              1,
+              prose('For several years, count the steps. Paid twice a year, £800 at 10% for 3 years is $2 \\times 3 = 6$ half years, so the power is 6:'),
+              maths('B = 800\\left(1 + \\frac{0.1}{2}\\right)^{6}'),
+              prose('Months count the same way: 30 months is 5 half years.'),
+            ),
             ask('expm-often-tiles', 2),
-            ask('expm-often-flow', 2),
             teach(
               prose(
                 'Compounding more often never makes up for a lower rate here. Even daily, 10% pays only about 10.52% over a year, less than 11% paid once.',
               ),
               prose('So compare the rates first; how often they are paid only decides between equal rates.'),
             ),
-            ask('expm-often-gain-tree', 2),
+            ask('expm-often-flow', 2),
             ask('expm-often-order', 2),
+            ask('expm-often-gain-tree', 2),
           ],
           skillCheck: [ask('expm-often-tiles', 2), ask('expm-often-order', 2), ask('expm-often-gain-tree', 2)],
         },
@@ -1101,22 +1193,34 @@ export const exponentialModels: Course = {
             ),
             ask('expm-e-value'),
             ask('expm-bernoulli-tree'),
-            ask('expm-e-limit'),
             teach(
               prose(
                 'The values keep climbing, but by less each time. Monthly gives about 2.613 and daily about 2.7146. They never pass one number:',
               ),
               maths('\\left(1 + \\frac{1}{n}\\right)^{n} \\to e = 2.71828\\ldots'),
-              prose('That limit is the $e$ in every model $Ae^{kt}$ of this course.'),
+              prose('That limit is the $e$ in every model $Ae^{kt}$ of this course. £1 grows closer and closer to £$e$, so £500 grows closer and closer to £$500e$.'),
             ),
-            ask('expm-bernoulli-back-steps'),
-            ask('expm-e-value', 2),
-            ask('expm-bernoulli-tree', 2),
+            ask('expm-e-limit'),
+            leading(
+              'expm-bernoulli-back-steps',
+              1,
+              prose('Working backwards divides by what the year multiplies by. In 2 steps a year multiplies by $\\left(\\frac{3}{2}\\right)^{2} = \\frac{9}{4}$, so if it ends at £45:'),
+              working('P \\times \\tfrac{9}{4} &= 45', 'P &= 45 \\times \\tfrac{4}{9} = 20'),
+              prose('Dividing by a fraction is multiplying by it upside down.'),
+            ),
             teach(
-              prose('At 200% the steps multiply by $1 + \\frac{2}{n}$, and the year gets closer and closer to $e^{2}$. In general'),
+              prose('At 200% the steps multiply by $1 + \\frac{2}{n}$. In 4 steps that is $\\left(\\frac{3}{2}\\right)^{4} = \\frac{81}{16}$, and as $n$ grows the year gets closer and closer to $e^{2}$. In general'),
               maths('\\left(1 + \\frac{x}{n}\\right)^{n} \\to e^{x}'),
-              prose('That holds for a loss too: $\\left(1 - \\frac{1}{n}\\right)^{n} \\to e^{-1}$. And $t$ years multiply by $e^{x}$ $t$ times, which is $e^{xt}$.'),
+              prose('And $t$ years multiply by $e^{x}$ $t$ times: 300% for 2 years gets closer to $\\left(e^{3}\\right)^{2} = e^{6}$.'),
             ),
+            leading(
+              'expm-e-value',
+              2,
+              prose('A loss takes the fraction away instead. £1 losing 200% a year in 4 steps:'),
+              working('1 - \\tfrac{2}{4} &= \\tfrac{1}{2}', '\\left(\\tfrac{1}{2}\\right)^{4} &= \\tfrac{1}{16}'),
+              prose('As $n$ grows, $\\left(1 - \\frac{2}{n}\\right)^{n}$ gets closer and closer to $e^{-2}$.'),
+            ),
+            ask('expm-bernoulli-tree', 2),
             ask('expm-e-limit', 2),
             ask('expm-bernoulli-back-steps', 2),
           ],
@@ -1141,15 +1245,16 @@ export const exponentialModels: Course = {
               prose(
                 '$500e^{0.15}$ is the exact answer, and it is about £580.92. Compounded monthly it would be about £580.74, and yearly £578.81.',
               ),
-              prose('This is the model $Ae^{kt}$ from level 1, with $k$ the rate as a decimal, as in level 3.'),
+              prose('This is the model $Ae^{kt}$ from The Continuous Model, with $k$ the rate as a decimal, as in Rates in Models.'),
             ),
             ask('expm-cont-exact'),
+            teach(
+              prose('Time is measured in years, so months become a fraction of a year first: divide by 12. 18 months is $18 \\div 12 = 1.5$ years, and £400 at 6%:'),
+              working('0.06 \\times 1.5 &= 0.09', 'B &= 400e^{0.09}'),
+              prose('The interest is what was added: $400e^{0.09} - 400$.'),
+            ),
             ask('expm-cont-tiles', 2),
             ask('expm-cont-flow', 2),
-            teach(
-              prose('Time is measured in years, so months become a fraction of a year first. 18 months is 1.5 years, and at 6%:'),
-              working('0.06 \\times 1.5 &= 0.09', 'B &= 400e^{0.09}'),
-            ),
             ask('expm-cont-steps', 2),
             ask('expm-cont-exact', 2),
           ],
@@ -1260,22 +1365,24 @@ export const exponentialModels: Course = {
           slides: [
             teach(
               prose(
-                "The residual furthest from zero is the model's worst point. Compare sizes and ignore the signs: of $2$, $-5$ and $3$, the furthest is $-5$.",
+                'Each residual is the measurement minus the model. Against $N = 20e^{t\\ln 2} = 20 \\times 2^{t}$, measurements of 21, 38 and 83 at $t = 0$, 1 and 2 give',
               ),
-              prose('Where the worst point sits matters as much as how big it is.'),
+              working('21 - 20 &= 1', '38 - 40 &= -2', '83 - 80 &= 3'),
+              prose(
+                "The residual furthest from zero is the model's worst point. Compare sizes and ignore the signs: of $1$, $-2$ and $3$, the furthest is $3$, at $t = 2$.",
+              ),
             ),
             ask('expm-resid-largest'),
-            ask('expm-pattern-flow'),
             ask('expm-furthest-tree'),
             teach(
               prose('A fair fit scatters its residuals: some above, some below, no pattern.'),
               prose(
-                'Residuals of one sign that grow each time say the model is the wrong shape. $2$, $5$, $9$, $14$ means the data is pulling away above it: the model is too low, by more each time.',
+                'Residuals of one sign that grow each time say the model is the wrong shape. $2$, $5$, $9$, $14$ means the data is pulling away above it: the model is too low, by more each time. $-1$, $-3$, $-6$, $-10$ means the model is too high.',
               ),
             ),
+            ask('expm-pattern-flow'),
             ask('expm-pattern-choice'),
             ask('expm-resid-largest', 2),
-            ask('expm-pattern-flow', 2),
             teach(
               prose(
                 'A good fit does not mean zero residuals. Measurements always carry some noise, so small residuals of mixed sign are what a right model looks like.',
@@ -1283,6 +1390,7 @@ export const exponentialModels: Course = {
               prose('Only a pattern is evidence against the model.'),
             ),
             ask('expm-furthest-tree', 2),
+            ask('expm-pattern-flow', 2),
             ask('expm-pattern-choice', 2),
           ],
           skillCheck: [ask('expm-resid-largest', 2), ask('expm-pattern-choice', 2), ask('expm-furthest-tree', 2)],
@@ -1310,23 +1418,25 @@ export const exponentialModels: Course = {
             ),
             ask('expm-leaves-slider'),
             ask('expm-overshoot'),
-            ask('expm-level-flow'),
             teach(
               prose('Data that rises and then levels off wants a ceiling: a logistic model, $y = \\frac{L}{1 + Ae^{-kt}}$.'),
               prose(
                 'Data that falls and then levels off above zero wants a bounded model, $y = L + Be^{-kt}$, which settles at $L$ rather than at zero.',
               ),
-              prose('Both come from earlier levels. The job here is to spot which one the data is asking for.'),
+              prose(
+                'Both come from earlier levels, Logistic Growth and Fitting and Using Models. The job here is to spot which one the data is asking for.',
+              ),
             ),
+            ask('expm-level-flow'),
             ask('expm-fix-choice'),
             ask('expm-leaves-slider', 2),
-            ask('expm-overshoot+choice', 2),
             teach(
               prose(
                 'Past the point where it leaves, the plain model overshoots: rising data ends up below it, and falling data above it.',
               ),
               prose('A bigger $k$ only makes a growing model pull away faster. The fix is a different shape, not a different rate.'),
             ),
+            ask('expm-overshoot+choice', 2),
             ask('expm-level-flow', 2),
             ask('expm-fix-choice', 2),
           ],
@@ -1386,24 +1496,29 @@ export const exponentialModels: Course = {
               prose(
                 'Past the last measurement it is **extrapolating**, and nothing checks it. The dashed line marks the end of the data.',
               ),
+              prose(
+                'The curve is $N = 10e^{\\frac{\\ln 2}{2}t} = 10 \\times 2^{t/2}$. At $t = 4$ it gives $10 \\times 2^{2} = 40$, close to the 42 measured. Any time from $t = 0$ to $t = 6$ is interpolation.',
+              ),
             ),
             ask('expm-interp-value'),
             ask('expm-valid-line'),
-            ask('expm-trust-choice'),
             teach(
               prose(
                 'Interpolation can be trusted. A short way past the data calls for caution. Far past it, or anywhere the model breaks a real limit, it cannot be trusted.',
               ),
-              prose('Before the first measurement counts as extrapolation too.'),
+              prose(
+                'Before the first measurement counts as extrapolation too. And inside the data, a time past where the residuals have grown large cannot be trusted either: the data already shows the model is wrong there.',
+              ),
             ),
-            ask('expm-far-flow'),
-            ask('expm-interp-value+choice', 2),
-            ask('expm-valid-line', 2),
+            ask('expm-trust-choice'),
             teach(
               prose('Why the caution? $N = 10e^{t\\ln 2}$ fits a dish of bacteria for a few hours. At $t = 20$ it says:'),
               working('N &= 10e^{20\\ln 2} = 10 \\times 2^{20}', '&= 10\\,485\\,760'),
               prose('Over ten million, far more than a dish can hold. The model has run past what the world allows.'),
             ),
+            ask('expm-far-flow'),
+            ask('expm-interp-value+choice', 2),
+            ask('expm-valid-line', 2),
             ask('expm-trust-choice', 2),
             ask('expm-far-flow', 2),
           ],

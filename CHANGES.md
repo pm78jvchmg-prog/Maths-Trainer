@@ -12,6 +12,12 @@ its pull request; the PR description holds the evidence.
   166 to 25, worked-solution lines 758 to 4, question prompts 12 to 0 (the rest
   are tables and aligned working with nowhere to break). The grey dot on the standard-form power
   slider, and the sentence pointing at it, are gone (owner, Updates 3).
+- **Complex square roots are taught before they are asked.** The Square Roots
+  lesson now works an example of squaring, then finds a root step by step with
+  no guessing, then practises gently: square a number, pick which candidate is
+  a root, fill in the method as a table (new `sqrt-check`, `sqrt-method`),
+  before typing a root alone. `complex-sqrt`'s worked solution is split into
+  short lines so it no longer scrolls sideways (#201).
 - **Streak no longer counts a day twice after travelling west (#196).** A play dated
   a day or two before the last one is a day already counted and changes
   nothing, and the home screen reads it as done. A day the calendar skipped

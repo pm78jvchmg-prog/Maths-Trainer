@@ -710,23 +710,27 @@ export const complexSqrt: Generator<SqrtParams> = {
     // Exactly |z|, since x^2 + y^2 = (p^2 + q^2)^2 — which is why every
     // number in the working below is whole.
     const mod = p * p + q * q;
+    // One short equation per line: at phone width a line holding two
+    // equations ran past the edge of the panel and had to be scrolled.
     return [
       {
-        text: 'Let $\\sqrt{z} = a + bi$ with $a$ and $b$ real, square it, and match real parts and imaginary parts.',
-        tex: `(a + bi)^2 = a^2 - b^2 + 2ab\\,i \\quad\\Rightarrow\\quad a^2 - b^2 = ${x}, \\quad 2ab = ${y}`,
+        text: 'Let $\\sqrt{z} = a + bi$ with $a$ and $b$ real. Since $(a + bi)^2 = (a^2 - b^2) + 2ab\\,i$, match real parts and imaginary parts.',
+        tex: `a^2 - b^2 = ${x}, \\quad 2ab = ${y}`,
       },
       {
         text: 'Squaring a number squares its modulus, so $a^2 + b^2 = |z|$ — a third equation for free.',
-        tex: `a^2 + b^2 = \\sqrt{${paren(`${x}`)}^2 + ${paren(`${y}`)}^2} = \\sqrt{${x * x + y * y}} = ${mod}`,
+        tex: `a^2 + b^2 = \\sqrt{${paren(`${x}`)}^2 + ${paren(`${y}`)}^2} = ${mod}`,
       },
       {
-        text: 'Add and subtract the first and third equations.',
-        tex: `a^2 = \\tfrac{${mod} + ${paren(`${x}`)}}{2} = ${p * p}, \\qquad b^2 = \\tfrac{${mod} - ${paren(`${x}`)}}{2} = ${q * q}`,
+        text: 'Add the first and third equations, then subtract them.',
+        tex: `2a^2 = ${mod} + ${paren(`${x}`)} = ${2 * p * p}, \\quad a^2 = ${p * p}`,
       },
+      { tex: `2b^2 = ${mod} - ${paren(`${x}`)} = ${2 * q * q}, \\quad b^2 = ${q * q}` },
       {
-        text: `$2ab = ${y}$ is ${y > 0 ? 'positive, so $a$ and $b$ have the same sign' : 'negative, so $a$ and $b$ have opposite signs'}. Taking $a > 0$:`,
-        tex: `\\sqrt{z} = ${complexTex(p, q)}, \\quad\\text{and the other root is}\\quad ${complexTex(-p, -q)}`,
+        text: `So $a = \\pm ${p}$ and $b = \\pm ${Math.abs(q)}$. $2ab = ${y}$ is ${y > 0 ? 'positive, so $a$ and $b$ have the same sign' : 'negative, so $a$ and $b$ have opposite signs'}. Taking $a > 0$:`,
+        tex: `\\sqrt{z} = ${complexTex(p, q)}`,
       },
+      { text: `The other root is its negative, $${complexTex(-p, -q)}$.` },
     ];
   },
 };
@@ -1430,6 +1434,126 @@ export const sqrtPair: Generator<SqrtPairParams> = {
       },
     ];
   },
+};
+
+/* ---------- Is this a square root? ---------- */
+
+interface SqrtCheckParams { p: number; q: number }
+
+/**
+ * Which of four candidates squares to $z$: the check, before the method.
+ *
+ * The lesson squares a number first, then asks for a root, and this sits
+ * between the two. Every candidate is tested by one squaring, so it practises
+ * the move that confirms any root later, without asking for one to be found.
+ *
+ * The distractors are the conjugate, the conjugate's negative and the parts
+ * swapped. Their squares are $x - yi$, $x - yi$ and $-x + yi$, none of which is
+ * $z = x + yi$ while $x$ and $y$ are both non-zero, which is why $|p| = |q|$
+ * (where $x = 0$) is never drawn.
+ */
+export const sqrtCheck: Generator<SqrtCheckParams> = {
+  id: 'sqrt-check',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const p = nonZero(rng, difficulty >= 2 ? 5 : 4);
+      const q = nonZero(rng, difficulty >= 2 ? 5 : 3);
+      if (Math.abs(p) !== Math.abs(q)) return { p, q };
+    }
+  },
+  render: ({ p, q }): Slide => {
+    const x = p * p - q * q;
+    const y = 2 * p * q;
+    const correct = complexTex(p, q);
+    const labels = [correct, complexTex(p, -q), complexTex(-p, q), complexTex(q, p)];
+    // Sorted rather than shuffled, so one question always renders one way.
+    const ordered = [...labels].sort((a, b) => a.localeCompare(b));
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: 'Exactly one of these is a square root of $z$. Square them to find it.' },
+        { kind: 'display', tex: `z = ${complexTex(x, y)}` },
+      ],
+      options: ordered.map((label, idx) => ({ id: `opt${idx}`, label, tex: true })),
+      correctId: `opt${ordered.indexOf(correct)}`,
+    };
+  },
+  solution: ({ p, q }) => {
+    const x = p * p - q * q;
+    const y = 2 * p * q;
+    const square = (a: number, b: number) => ({
+      tex: `${bracketedTex(a, b)}^2 = ${complexTex(a * a - b * b, 2 * a * b)}`,
+    });
+    return [
+      { text: 'Square each candidate with $(a + bi)^2 = (a^2 - b^2) + 2ab\\,i$ and compare with $z$.' },
+      square(p, q),
+      square(p, -q),
+      square(-p, q),
+      square(q, p),
+      {
+        text: `Only $${complexTex(p, q)}$ lands on $${complexTex(x, y)}$. The other square root is its negative, $${complexTex(-p, -q)}$, which is not offered.`,
+      },
+    ];
+  },
+};
+
+/* ---------- The method, one line at a time ---------- */
+
+interface SqrtMethodParams { p: number; q: number }
+
+/**
+ * The square root with a positive real part, worked as a table of the
+ * method's lines rather than typed in one go.
+ *
+ * `complex-sqrt` asks for the answer alone, and the owner met it straight
+ * after a teaching slide and could not get started. Here the two matched
+ * equations are given, and the learner fills in $|z|$, then $a^2$ and $b^2$,
+ * then the root: each blank is one step of the worked example the lesson has
+ * just shown, so the method is practised before it is asked for whole.
+ *
+ * $|p| = |q|$ is allowed: $z$ is then purely imaginary and $a^2 = b^2$, so one
+ * value fills two blanks, and the bank carries it twice.
+ */
+export const sqrtMethod: Generator<SqrtMethodParams> = {
+  id: 'sqrt-method',
+  sample: (rng, difficulty) => ({
+    p: rng.int(1, difficulty >= 2 ? 6 : 4),
+    q: nonZero(rng, difficulty >= 2 ? 6 : 4),
+  }),
+  render: ({ p, q }): Slide => {
+    const x = p * p - q * q;
+    const y = 2 * p * q;
+    const mod = p * p + q * q;
+    const answer = [String(mod), String(p * p), String(q * q), complexTex(p, q)];
+    // Adding the parts instead of taking the modulus, forgetting to halve,
+    // the conjugate, and the root with the negative real part.
+    const extras = distinct([
+      complexTex(p, -q),
+      String(2 * p * p),
+      String(Math.abs(x) + Math.abs(y)),
+      complexTex(-p, -q),
+    ]).filter((token) => !answer.includes(token));
+    const bank = [...answer, ...extras.slice(0, 3)].sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+    return {
+      kind: 'table',
+      prompt: [
+        { kind: 'prose', text: 'Find the square root $a + bi$ of $z$ with $a > 0$, one line at a time.' },
+        { kind: 'display', tex: `z = ${complexTex(x, y)}` },
+      ],
+      columns: ['\\text{Line}', '\\text{Value}'],
+      rows: [
+        ['a^2 - b^2', String(x)],
+        ['2ab', String(y)],
+        ['a^2 + b^2 = |z|', null],
+        ['a^2', null],
+        ['b^2', null],
+        ['\\sqrt{z}', null],
+      ],
+      bank,
+      answer,
+    };
+  },
+  solution: ({ p, q }) => complexSqrt.solution({ p, q }),
 };
 
 /* ---------- The argument, found by dragging ---------- */
@@ -7954,6 +8078,8 @@ export const planeGenerators = [
   quadrant,
   modulusProduct,
   sqrtPair,
+  sqrtCheck,
+  sqrtMethod,
   argumentTurns,
   polarMultiply,
   powerArgument,

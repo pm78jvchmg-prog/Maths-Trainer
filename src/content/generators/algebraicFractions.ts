@@ -36,12 +36,12 @@ import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
 import { canonicalPieces, formatSet, type Piece } from '../numberLine';
 import { termTex } from './calculus';
+import { gcd, say } from './format';
 import { type Poly, addPoly, divideBy, fromRoots, mulPoly, polyTex, scalePoly, valueAt } from './polynomials';
 import { windowFor } from './numberLine';
 
 /* ---------- display ---------- */
 
-const say = (text: string): Block => ({ kind: 'prose', text });
 const show = (tex: string): Block => ({ kind: 'display', tex });
 
 /** The inside of the bracket (x + c): x + 3, x - 2, or x. */
@@ -222,12 +222,6 @@ function distinct(rng: Rng, count: number, max: number, avoid: number[] = []): n
     const out = Array.from({ length: count }, () => nonZero(rng, max));
     if (new Set(out).size === count && out.every((v) => !avoid.includes(v))) return out;
   }
-}
-
-function gcd(a: number, b: number): number {
-  let [x, y] = [Math.abs(a), Math.abs(b)];
-  while (y) [x, y] = [y, x % y];
-  return x;
 }
 
 /** The largest whole number dividing every coefficient. */
@@ -1058,7 +1052,7 @@ const fracSumCoefficient: Generator<SumCoefficientParams> = {
     return [
       { text: `Over $${pbr(p)}${pbr(q)}$ the top is $${m}${pbr(q)} ${op} ${n}${pbr(p)}$.` },
       ask === 'a'
-        ? { text: `The $x$ terms: $${m}x ${op} ${n}x = ${termTex(a, 1)}$, so $a = ${a}$.` }
+        ? { text: `The $x$ terms: $${termTex(m, 1)} ${op} ${termTex(n, 1)} = ${termTex(a, 1)}$, so $a = ${a}$.` }
         : { text: `The numbers: $${m} \\times ${paren(q)} ${op} ${n} \\times ${paren(p)} = ${b}$, so $b = ${b}$.` },
       { tex: frac(polyTex(addTop(params)), `${pbr(p)}${pbr(q)}`) },
     ];
@@ -2216,13 +2210,16 @@ const fracRepeatedForm: Generator<RepeatedParams> = {
 function repeatedValues(params: RepeatedParams) {
   const { a, b } = params;
   const top = repeatedTop(params);
-  if (b === null) return { top, atA: valueAt(top, -a), atB: 0, dA: 0, dB: 0 };
-  return { top, atA: valueAt(top, -a), dA: b - a, atB: valueAt(top, -b), dB: (a - b) * (a - b) };
+  // The top's x^2 coefficient, which is A + C. Not `top[0]`: `addPoly` trims a
+  // leading zero, so when A + C = 0 the top is linear and `top[0]` is its x term.
+  const x2 = top.length === 3 ? top[0] : 0;
+  if (b === null) return { top, x2, atA: valueAt(top, -a), atB: 0, dA: 0, dB: 0 };
+  return { top, x2, atA: valueAt(top, -a), dA: b - a, atB: valueAt(top, -b), dB: (a - b) * (a - b) };
 }
 
 function repeatedSolution(params: RepeatedParams): SolutionStep[] {
   const { A, B, C, a, b } = params;
-  const { top, atA, dA, atB, dB } = repeatedValues(params);
+  const { top, x2, atA, dA, atB, dB } = repeatedValues(params);
   if (b === null || C === null) {
     return [
       { text: `Multiply both sides by $${pbr(a)}^{2}$: $${polyTex(top)} = A${pbr(a)} + B$.` },
@@ -2236,7 +2233,7 @@ function repeatedSolution(params: RepeatedParams): SolutionStep[] {
     { text: `Multiply both sides by the bottom: $${polyTex(top)} = A${pbr(a)}${pbr(b)} + B${pbr(b)} + C${pbr(a)}^{2}$.` },
     { text: `Put $x = ${-a}$: only $B$ survives, $${atA} = ${paren(dA)}B$, so $B = ${B}$.` },
     { text: `Put $x = ${-b}$: only $C$ survives, $${atB} = ${dB}C$, so $C = ${C}$.` },
-    { text: `No value of $x$ isolates $A$, so compare the $x^{2}$ terms: $A + C = ${top[0]}$, so $A = ${A}$.` },
+    { text: `No value of $x$ isolates $A$, so compare the $x^{2}$ terms: $A + C = ${x2}$, so $A = ${A}$.` },
     { tex: repeatedSplitTex(params) },
   ];
 }
@@ -2271,7 +2268,7 @@ const fracRepeatedTree: Generator<RepeatedParams> = {
   sample: sampleRepeated,
   render: (params): Slide => {
     const { A, B, C, a, b } = params;
-    const { top, atA, dA, atB, dB } = repeatedValues(params);
+    const { top, x2, atA, dA, atB, dB } = repeatedValues(params);
     if (b === null || C === null) {
       const answer = [A, a * A, B];
       return {
@@ -2296,7 +2293,7 @@ const fracRepeatedTree: Generator<RepeatedParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `Split into $${repeatedLettersTex(params)}$. Top row: the top at $x = ${-a}$ and $${br(b)}$ there; the top at $x = ${-b}$ and $${pbr(a)}^{2}$ there. Below: $B$ and $C$. Last: $A$, from the $x^{2}$ terms, $A + C = ${top[0]}$.`,
+          `Split into $${repeatedLettersTex(params)}$. Top row: the top at $x = ${-a}$ and $${br(b)}$ there; the top at $x = ${-b}$ and $${pbr(a)}^{2}$ there. Below: $B$ and $C$. Last: $A$, from the $x^{2}$ terms, $A + C = ${x2}$.`,
         ),
       ],
       expression: repeatedFractionTex(params),
@@ -2309,7 +2306,7 @@ const fracRepeatedTree: Generator<RepeatedParams> = {
         { id: 'C', from: ['top-b', 'rest-b'] },
         { id: 'A', from: ['C'] },
       ],
-      bank: numberBank(answer, [-B, -C, top[0] + C, a - b]),
+      bank: numberBank(answer, [-B, -C, x2 + C, a - b]),
       answer: answer.map(String),
     };
   },
@@ -3973,7 +3970,7 @@ const fracQuadRestTree: Generator<QuadImproperParams> = {
         text: `Put $x = ${-a}$: the whole number times the bottom is zero there too, so only $C$ survives. $${valueAt(top, -a)} = ${lettersCombo([[square, 'C']])}$, so $C = ${C}$.`,
       },
       {
-        text: `The $x^{2}$ terms: the whole number times the bottom puts in ${Q * a === 0 ? 'no $x^{2}$ term' : `$${Q * a}x^{2}$`}, so $${Q * a === 0 ? '' : `${Q * a} + `}A + C = ${top[1]}$ and $A = ${A}$.`,
+        text: `The $x^{2}$ terms: the whole number times the bottom puts in ${Q * a === 0 ? 'no $x^{2}$ term' : `$${termTex(Q * a, 2)}$`}, so $${Q * a === 0 ? '' : `${Q * a} + `}A + C = ${top[1]}$ and $A = ${A}$.`,
       },
       { tex: quadImproperAnswerTex(params) },
     ];
@@ -6575,8 +6572,8 @@ const fracSketchFlow: Generator<Rational> = {
 /* ================================================================
  * Level 6: the method of differences
  *
- * Sequences & Series (`sq-l4-telescoping`, `sq-l4-infinity`) cancels a
- * telescoping sum and takes its limit with the split given. This level
+ * The only level that teaches the method: `sq-l4-telescoping` and
+ * `sq-l4-infinity`, which gave the split, are no longer shown. This level
  * supplies the split: by cover-up, with a number taken out in front, over
  * three factors regrouped into two, and over squares; then uses it for sums
  * from any r, for n from a given sum, and for sums to infinity.

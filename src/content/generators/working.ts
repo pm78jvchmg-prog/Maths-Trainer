@@ -27,9 +27,10 @@
  * repetition rule in `shapeVariety.ts`. A generator asking something no
  * existing generator asks gets a name of its own instead.
  */
-import type { Block, Generator, Slide } from '../types';
+import type { Generator, Slide } from '../types';
 import { hashSeed } from '../../engine/rng';
-import { nonZero, surdTex } from './format';
+import { nonZero, say, surdTex } from './format';
+import { signedTile } from './quadratics';
 
 /* ---------- Shared helpers ---------- */
 
@@ -70,11 +71,6 @@ function stepBank(value: string, ...candidates: string[]): string[] {
     if (!bank.includes(candidate)) bank.push(candidate);
   }
   return scatter(bank);
-}
-
-/** Prose prompt, the only kind these widgets need above their own figure. */
-function say(text: string): Block {
-  return { kind: 'prose', text };
 }
 
 /** `+ 3` or `- 3`, for appending to a term the learner reads. */
@@ -233,7 +229,8 @@ interface QuadraticTreeParams {
 const quadraticTree: Generator<QuadraticTreeParams> = {
   id: 'quad-evaluate-tree',
   sample: (rng, difficulty) => ({
-    a: rng.int(1, difficulty > 1 ? 5 : 3),
+    // From 2: at a = 1 the scaling node repeats the square and (ak)^2 is no slip.
+    a: rng.int(2, difficulty > 1 ? 5 : 3),
     b: nonZero(rng, difficulty > 1 ? 9 : 6),
     c: nonZero(rng, difficulty > 1 ? 12 : 9),
     k: nonZero(rng, difficulty > 1 ? 6 : 4),
@@ -251,7 +248,7 @@ const quadraticTree: Generator<QuadraticTreeParams> = {
           `Substitute $x = ${k}$, from the bottom up: $x^{2}$ and the $x$ term, then $${a}x^{2}$, then the whole thing with the constant.`,
         ),
       ],
-      expression: `${xTerm(a, 2)} ${signed(b)}x ${signed(c)}`,
+      expression: `${xTerm(a, 2)} ${signedTile(b, 'x')} ${signed(c)}`,
       nodes: [
         { id: 'square', from: [] },
         { id: 'linear', from: [] },
@@ -644,7 +641,7 @@ const integralTree: Generator<IntegralTreeParams> = {
     const raised = coefficient / (power + 1);
     const first = xTerm(raised, power + 1);
     const second = xTerm(constant);
-    const total = `${first} ${signed(constant)}x + C`;
+    const total = `${first} ${signedTile(constant, 'x')} + C`;
     const answer = [first, second, total];
     return {
       kind: 'tree',
@@ -663,8 +660,8 @@ const integralTree: Generator<IntegralTreeParams> = {
         xTerm(coefficient, power + 1),
         xTerm(raised, power),
         `${constant}`,
-        `${first} ${signed(constant)}x`,
-        `${xTerm(coefficient, power + 1)} ${signed(constant)}x + C`,
+        `${first} ${signedTile(constant, 'x')}`,
+        `${xTerm(coefficient, power + 1)} ${signedTile(constant, 'x')} + C`,
       ]),
       answer,
     };
@@ -677,7 +674,7 @@ const integralTree: Generator<IntegralTreeParams> = {
     { text: 'A constant integrates to itself times $x$.' },
     { tex: `\\int ${signed(constant)} \\, dx = ${xTerm(constant)}` },
     {
-      text: `The $+ C$ goes on once, at the end. Dividing is the step people drop: $${xTerm(coefficient, power + 1)}$ would differentiate back to $${coefficient * (power + 1)}x^{${power}}$, not to the question.`,
+      text: `The $+ C$ goes on once, at the end. Dividing is the step people drop: $${xTerm(coefficient, power + 1)}$ would differentiate back to $${xTerm(coefficient * (power + 1), power)}$, not to the question.`,
     },
   ],
 };

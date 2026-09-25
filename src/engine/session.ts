@@ -105,16 +105,32 @@ export type Action =
 
 const NO_SOLUTION: SolutionStep[] = [];
 
+/**
+ * A resolved slide, and what de-duplication compares it by.
+ *
+ * The signature is the question as the generator rendered it, taken before any
+ * lead-in is prepended: the same question drawn once with a lead-in and once
+ * without is still the same question, and signing the prompt after the lead-in
+ * let exactly that repeat through.
+ */
+interface Drawn {
+  resolved: ResolvedSlide;
+  signature: string;
+}
+
 function resolveRef(
   ref: SlideRef,
   id: string,
   seed: number,
   registry: GeneratorRegistry,
   salt: number,
-): ResolvedSlide {
+): Drawn {
   if (ref.type === 'literal') {
     const steps = ref.solution ?? NO_SOLUTION;
-    return { id, slide: ref.slide, solution: () => steps };
+    return {
+      resolved: { id, slide: ref.slide, solution: () => steps },
+      signature: JSON.stringify(ref.slide),
+    };
   }
 
   const generator = registry[ref.generatorId];
@@ -128,16 +144,19 @@ function resolveRef(
   const slide = generator.render(params);
 
   return {
-    id,
-    // A lead-in is prepended to the prompt rather than given a slide of its
-    // own, which is what fuses the teaching with the question it sets up. Teach
-    // slides have no prompt to prepend to, and a generator never produces one,
-    // so the guard is for the type rather than for a real case.
-    slide:
-      ref.leadIn && ref.leadIn.length > 0 && slide.kind !== 'teach'
-        ? { ...slide, prompt: [...ref.leadIn, ...slide.prompt] }
-        : slide,
-    solution: () => generator.solution(params),
+    resolved: {
+      id,
+      // A lead-in is prepended to the prompt rather than given a slide of its
+      // own, which is what fuses the teaching with the question it sets up.
+      // Teach slides have no prompt to prepend to, and a generator never
+      // produces one, so the guard is for the type rather than for a real case.
+      slide:
+        ref.leadIn && ref.leadIn.length > 0 && slide.kind !== 'teach'
+          ? { ...slide, prompt: [...ref.leadIn, ...slide.prompt] }
+          : slide,
+      solution: () => generator.solution(params),
+    },
+    signature: JSON.stringify(slide),
   };
 }
 
@@ -175,17 +194,17 @@ function resolveDeck(
   refs.forEach((ref, idx) => {
     // The id is the key for per-slide state, so it never changes with the salt.
     const id = `${lessonId}:${tag}${idx}`;
-    let resolved = resolveRef(ref, id, seed, registry, 0);
+    let drawn = resolveRef(ref, id, seed, registry, 0);
 
     if (ref.type === 'generated') {
       for (let salt = 1; salt <= REDRAW_LIMIT; salt += 1) {
-        if (!seen.has(JSON.stringify(resolved.slide))) break;
-        resolved = resolveRef(ref, id, seed, registry, salt);
+        if (!seen.has(drawn.signature)) break;
+        drawn = resolveRef(ref, id, seed, registry, salt);
       }
     }
 
-    seen.add(JSON.stringify(resolved.slide));
-    out.push(resolved);
+    seen.add(drawn.signature);
+    out.push(drawn.resolved);
   });
 
   return out;
@@ -239,6 +258,24 @@ export function canGoBack(session: Session): boolean {
   return session.phase === 'guided' && session.index > 0;
 }
 
+/**
+ * Whether the current slide may be passed without answering it again: a guided
+ * slide already solved, stepped back onto for review and still idle.
+ *
+ * Without this, reviewing slide 3 from slide 8 meant solving 3 to 7 again. It
+ * is for review only, so it holds in the guided phase alone: the skill check
+ * and a level check are unaffected.
+ */
+export function canPassSolved(session: Session): boolean {
+  const slide = currentSlide(session);
+  return (
+    session.phase === 'guided' &&
+    slide !== undefined &&
+    session.states[slide.id]?.solved === true &&
+    session.feedback.kind === 'idle'
+  );
+}
+
 /** Whether the reveal affordance should be offered right now. */
 export function canReveal(session: Session): boolean {
   // An assessment never shows working, so there is nothing to reveal.
@@ -275,20 +312,17 @@ export function skillCheckScore(session: Session): { correct: number; total: num
 }
 
 /**
- * Exact, ordered comparison of one chosen token per position.
- *
- * Shared by the slide kinds whose answer is a sequence of picks from a bank.
- * A short answer is wrong rather than incomplete: the widget refuses to submit
- * until every position is filled, so a gap reaching here is not a valid answer.
- */
-/**
  * One reduction, as the widget stores it: `<node path>=<value>`.
  *
  * A single string because `Answer` already carries `string[]`, so recording
- * both halves of a move this way needs no new shape in the session — and the
- * value and the ordering are then graded together rather than separately.
+ * both halves of a move this way needs no new shape in the session. Only the
+ * value is graded; the path says which piece it was (see the `reduce` case in
+ * `grade`).
+ *
+ * Exported so the widget reads its own draft back through the same parser the
+ * grade uses, rather than a copy that could drift from it.
  */
-function parseMove(token: string): Move | undefined {
+export function parseMove(token: string): Move | undefined {
   const at = token.lastIndexOf('=');
   if (at < 1) return undefined;
   const value = Number(token.slice(at + 1));
@@ -296,6 +330,13 @@ function parseMove(token: string): Move | undefined {
   return { path: token.slice(0, at), value };
 }
 
+/**
+ * Exact, ordered comparison of one chosen token per position.
+ *
+ * Shared by the slide kinds whose answer is a sequence of picks from a bank.
+ * A short answer is wrong rather than incomplete: the widget refuses to submit
+ * until every position is filled, so a gap reaching here is not a valid answer.
+ */
 function gradeSequence(answer: Answer, expected: string[]): Feedback {
   if (!Array.isArray(answer)) return { kind: 'incorrect' };
   if (answer.length !== expected.length) return { kind: 'incorrect' };
@@ -457,8 +498,9 @@ function grade(slide: Slide, answer: Answer, seed: number): Feedback {
      * Re-walk the learner's reductions over the original expression.
      *
      * The whole grade is the replay: nothing is compared against an expected
-     * sequence, so any order precedence allows passes, and a reduction taken
-     * before its operands were settled fails whatever value came with it.
+     * sequence, and the value is the only test. A reduction taken before its
+     * operands were settled is not refused for that; it is marked on the
+     * number given for it, which is where an order mistake shows.
      */
     case 'reduce': {
       if (!Array.isArray(answer)) return { kind: 'incorrect' };
@@ -483,6 +525,11 @@ export function reduce(session: Session, action: Action): Session {
     case 'submit': {
       if (!slide || session.feedback.kind === 'correct') return session;
       const state = session.states[slide.id];
+      // One attempt per question in an assessment, refused here as well as in
+      // `tryAgain` and `edit`, or a second submit would turn a wrong answer into
+      // a solved one. Unreadable input never counted as an attempt, so a typo
+      // can still be corrected and submitted.
+      if (session.assessment && state.attempts > 0) return session;
 
       const feedback = grade(
         slide.slide,
@@ -514,10 +561,11 @@ export function reduce(session: Session, action: Action): Session {
 
     case 'edit': {
       // Touching the answer after a wrong verdict clears it, so a second
-      // attempt costs no extra tap. Deliberately narrow: it cannot clear
-      // `correct` (already passed) or `revealed` (the worked steps stay on
-      // screen while you redo it), and it can never disclose anything, since
-      // the only thing it does is return to `idle`.
+      // attempt costs no extra tap. Deliberately narrow: besides `invalid`
+      // (below) it clears only `incorrect` — never `correct` (already passed)
+      // or `revealed` (the widgets are locked while the worked steps show; the
+      // bar's Try again leaves that state) — and it can never disclose
+      // anything, since the only thing it does is return to `idle`.
       if (!slide) return session;
       const { kind } = session.feedback;
       // Unreadable input is always editable: nothing was graded, so refusing
@@ -552,12 +600,14 @@ export function reduce(session: Session, action: Action): Session {
       const isTeach = slide.slide.kind === 'teach';
       // A wrong answer does not let you move on: try again, or ask to see it.
       // In an assessment there is no second attempt, so a wrong answer is a
-      // finished question and the deck advances past it.
+      // finished question and the deck advances past it. A guided slide
+      // already solved and stepped back onto may be passed as it stands.
       const mayAdvance =
         isTeach ||
         kind === 'correct' ||
         kind === 'revealed' ||
-        (session.assessment && kind === 'incorrect');
+        (session.assessment && kind === 'incorrect') ||
+        canPassSolved(session);
       if (!mayAdvance) return session;
 
       const deck = currentDeck(session);

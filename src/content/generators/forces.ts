@@ -62,6 +62,7 @@ import { canonicalForces, type Direction, type ForceArrow, type ForceScene } fro
 import { markerWindow, plotSvg, vectorSvg } from '../figures';
 import { fmt } from './numericalMethods';
 import { mix, stepBank, steered, turned } from './parametricImplicit';
+import { aOrAn, gcd, say } from './format';
 import { WORKING_KEYS } from './workingKeys';
 
 /* ================================================================
@@ -71,7 +72,6 @@ import { WORKING_KEYS } from './workingKeys';
 /** g, in m s^-2. Stated in the prose of every question that uses it. */
 export const G = 9.8;
 
-const say = (text: string): Block => ({ kind: 'prose', text });
 const show = (tex: string): Block => ({ kind: 'display', tex });
 const picture = (svg: string): Block => ({ kind: 'diagram', svg });
 
@@ -541,7 +541,8 @@ interface DirectionParams {
 
 /** Degrees, to one decimal place. */
 const deg1 = (radians: number): number => Math.round(((radians * 180) / Math.PI) * 10) / 10;
-const degTex = (v: number): string => `${fmt(v)}^{\\circ}`;
+/** Always to one decimal place, as the question asks: 166.0, never 166. */
+const degTex = (v: number): string => `${v.toFixed(1)}^{\\circ}`;
 
 /** Choice: the angle between a i + b j and the unit vector i. */
 const direction: Generator<DirectionParams> = {
@@ -2853,12 +2854,8 @@ function sliderMuTex(params: Pick<SlopeSliderParams, 't' | 'parts'>): string {
   const mu = sliderMu(params);
   if (params.t === A34) return fmt(mu);
   if (Number.isInteger(mu)) return fmt(mu);
-  const g = gcdOf(params.parts, 6);
+  const g = gcd(params.parts, 6);
   return `\\tfrac{${params.parts / g}}{${6 / g}}`;
-}
-
-function gcdOf(a: number, b: number): number {
-  return b === 0 ? Math.abs(a) : gcdOf(b, a % b);
 }
 
 /** The size of the acceleration: down the slope when released, the deceleration when sent up it. */
@@ -2992,7 +2989,7 @@ const MOTION_SCENES: ((P: number, m: number) => PairScene)[] = [
     slips: [`The pin pulls the magnet towards it with less than ${N(P)}`, `The magnet pushes the pin away with ${N(P)}`, `The Earth pulls the pin down with ${N(P)}`],
   }),
   (P, m) => ({
-    given: `In a lift accelerating upwards, the floor pushes up on a ${m} kg passenger with a force of ${N(P)}.`,
+    given: `In a lift accelerating upwards, the floor pushes up on ${aOrAn(m)} ${m} kg passenger with a force of ${N(P)}.`,
     partner: `The passenger pushes down on the floor with ${N(P)}`,
     slips: [`The Earth pulls the passenger down with ${N(P)}`, `The passenger pushes down on the floor with ${N(G * m)}`, `The passenger pulls the Earth up with ${N(P)}`],
   }),
@@ -3003,25 +3000,25 @@ export function pairScene({ kind, thing, holder, m, scene, P }: PairParams): Pai
   switch (kind) {
     case 'restWeight':
       return {
-        given: `A ${m} kg ${thing} rests on a ${holder}. The Earth pulls the ${thing} down with its weight, ${W}.`,
+        given: `${aOrAn(m, true)} ${m} kg ${thing} rests on a ${holder}. The Earth pulls the ${thing} down with its weight, ${W}.`,
         partner: `The ${thing} pulls the Earth up with ${W}`,
         slips: [`The ${holder} pushes the ${thing} up with ${W}`, `The ${thing} pushes the ${holder} down with ${W}`, `The ${thing} pulls the Earth down with ${W}`],
       };
     case 'restContact':
       return {
-        given: `A ${m} kg ${thing} rests on a ${holder}. The ${holder} pushes up on the ${thing} with ${W}.`,
+        given: `${aOrAn(m, true)} ${m} kg ${thing} rests on a ${holder}. The ${holder} pushes up on the ${thing} with ${W}.`,
         partner: `The ${thing} pushes down on the ${holder} with ${W}`,
         slips: [`The Earth pulls the ${thing} down with ${W}`, `The ${thing} pulls the Earth up with ${W}`, `The ${holder} pushes down on the ${thing} with ${W}`],
       };
     case 'hangTension':
       return {
-        given: `A ${m} kg ${thing} hangs at rest from a ${holder}. The ${holder} pulls up on the ${thing} with ${W}.`,
+        given: `${aOrAn(m, true)} ${m} kg ${thing} hangs at rest from a ${holder}. The ${holder} pulls up on the ${thing} with ${W}.`,
         partner: `The ${thing} pulls down on the ${holder} with ${W}`,
         slips: [`The Earth pulls the ${thing} down with ${W}`, `The ${thing} pulls the Earth up with ${W}`, `The ${holder} pulls down on the ${thing} with ${W}`],
       };
     case 'hangWeight':
       return {
-        given: `A ${m} kg ${thing} hangs at rest from a ${holder}. The Earth pulls the ${thing} down with its weight, ${W}.`,
+        given: `${aOrAn(m, true)} ${m} kg ${thing} hangs at rest from a ${holder}. The Earth pulls the ${thing} down with its weight, ${W}.`,
         partner: `The ${thing} pulls the Earth up with ${W}`,
         slips: [`The ${holder} pulls up on the ${thing} with ${W}`, `The ${thing} pulls down on the ${holder} with ${W}`, `The ${thing} pulls the Earth down with ${W}`],
       };
@@ -3094,10 +3091,12 @@ const pairFlow: Generator<PairFlowParams> = {
   render: (params) => {
     const [a, b] = pairFlowForces(params);
     const { thing, holder, m } = params;
+    // "An" before a number read with a vowel sound: an 8 kg, an 11 kg, an 18 kg.
+    const article = /^(8|11(?!\d)|18(?!\d))/.test(`${m}`) ? 'An' : 'A';
     const scene =
       params.kind === 'motion'
-        ? `A ${m} kg swimmer is moving through the water.`
-        : `A ${m} kg ${thing} ${params.kind === 'hangTension' || params.kind === 'hangWeight' ? 'hangs at rest from a' : 'rests on a'} ${holder}.`;
+        ? `${article} ${m} kg swimmer is moving through the water.`
+        : `${article} ${m} kg ${thing} ${params.kind === 'hangTension' || params.kind === 'hangWeight' ? 'hangs at rest from a' : 'rests on a'} ${holder}.`;
     return {
       kind: 'flow',
       prompt: [say(`${scene} Force A: ${a}. Force B: ${b}. Are A and B a Newton's third law pair?`)],
@@ -3384,7 +3383,14 @@ const liftFlow: Generator<LiftFlowParams> = {
             : `A lift ${words} has its acceleration pointing ${sign > 0 ? 'up' : 'down'}: the direction it is speeding up in, or against the direction it is slowing down in.`,
       },
     ];
-    if (hard) steps.push({ tex: `R = ${m}(9.8 ${sign > 0 ? `+ ${fmt(size)}` : sign < 0 ? `- ${fmt(size)}` : ''}) = ${fmt(m * (G + sign * size))}` });
+    if (hard) {
+      steps.push({
+        tex:
+          sign === 0
+            ? `R = ${m} \\times 9.8 = ${fmt(m * G)}`
+            : `R = ${m}(9.8 ${sign > 0 ? '+' : '-'} ${fmt(size)}) = ${fmt(m * (G + sign * size))}`,
+      });
+    }
     return steps;
   },
 };
@@ -3691,6 +3697,11 @@ function rigScene(rig: Rig, hard: boolean): string {
   const A = `Particle $A$, of mass $${fmt(m1)}\\text{ kg}$,`;
   const B = `particle $B$, of mass $${fmt(m2)}\\text{ kg}$`;
   if (hangs(t2)) {
+    // A table with B hanging off its edge is drawn flat, so it is not a slope at angle 0.
+    if (level(t1)) {
+      const table = mu1 > 0 ? `a rough horizontal table, with $\\mu = ${fmt(mu1)}$` : 'a smooth horizontal table';
+      return `${A} lies on ${table}. A light inextensible string from $A$ runs along the table, over a smooth pulley at its edge, to ${B}, which hangs freely.`;
+    }
     const surface = mu1 > 0 ? `a rough slope, with $\\mu = ${fmt(mu1)}$,` : 'a smooth slope';
     return `${A} lies on ${surface} inclined at $\\alpha$ to the horizontal, where ${angleFacts(t1, hard)}. A light inextensible string from $A$ runs up the slope, over a smooth pulley at the top, to ${B}, which hangs freely.`;
   }
@@ -3723,7 +3734,9 @@ export function rigSvg(t1: Angle, t2: Angle, opts: { gap?: boolean } = {}): stri
   const parts = [
     `<svg viewBox="0 0 ${W} 172" width="100%" role="img" aria-label="${
       hangs(t2)
-        ? 'Particle A on a slope, joined by a string over a pulley at the top to particle B hanging down the far side'
+        ? level(t1)
+          ? 'Particle A on a horizontal table, joined by a string over a pulley at its edge to particle B hanging down the side'
+          : 'Particle A on a slope, joined by a string over a pulley at the top to particle B hanging down the far side'
         : level(t1)
           ? 'Particle A on a table, joined by a string over a peg at its edge to particle B on a slope falling away from the edge'
           : 'Two slopes back to back with a peg at the top, particle A on the left slope and particle B on the right, joined by a string over the peg'
@@ -3821,7 +3834,9 @@ function rigWorking(rig: Rig, hard: boolean, withT = true): SolutionStep[] {
   if (mu1 > 0) steps.push({ tex: `F_{A} = ${fmt(mu1)} \\times ${fmt(m.R1)} = ${fmt(m.F1)}` });
   if (mu2 > 0) steps.push({ tex: `F_{B} = ${fmt(mu2)} \\times ${fmt(m.R2)} = ${fmt(m.F2)}` });
   steps.push(
-    { text: `Friction acts against the motion. One equation for each particle in its own direction of motion, $A$'s first:` },
+    {
+      text: `${mu1 > 0 || mu2 > 0 ? 'Friction acts against the motion. ' : ''}One equation for each particle in its own direction of motion, $A$'s first:`,
+    },
     { tex: pairTex([eqA, eqB]) },
     { text: 'Add them, and $T$ drops out:' },
     { tex: `${fmt(push - m.F1 - m.F2)} = ${fmt(m1 + m2)}a, \\quad a = ${fmt(m.a)}` },

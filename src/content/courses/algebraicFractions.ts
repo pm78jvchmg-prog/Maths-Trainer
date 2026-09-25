@@ -19,8 +19,9 @@
  * Level 6 is the method of differences: the split that makes a sum
  * telescope, a number taken out in front when the brackets are further apart,
  * three factors regrouped into two, sums from a later r and a top in r, and
- * the sum to infinity. Sequences & Series cancels such sums with the split
- * given; here the learner finds it.
+ * the sum to infinity. It is the only place the method is taught: Series &
+ * Induction shows it straight after the sums of powers (`sq-l4`), whose own
+ * lessons on it, with the split given, are no longer shown.
  *
  * Each level closes with a level check: fifteen questions, no teaching
  * slides, one attempt each.
@@ -1138,7 +1139,7 @@ export const algebraicFractions: Course = {
                 '&+ \\dots + \\left(\\tfrac{1}{n} - \\tfrac{1}{n + 1}\\right)',
                 '=\\;&1 - \\frac{1}{n + 1}',
               ),
-              prose('Sequences & Series practises this cancelling with the split given. Here the work is finding the split.'),
+              prose('Only the ends survive, so the work is in finding the split.'),
             ),
             ask('frac-diff-partial-table'),
             ask('frac-diff-split-tiles', 2),
@@ -1263,7 +1264,7 @@ export const algebraicFractions: Course = {
           slides: [
             teach(
               prose(
-                'As $n$ grows, every piece with $n$ in it tends to $0$, so the sum to infinity is what survives at the front. Sequences & Series takes these limits with the split given:',
+                'As $n$ grows, every piece with $n$ in it tends to $0$, so the sum to infinity is what survives at the front:',
               ),
               working('&\\sum_{r=1}^{\\infty} \\frac{1}{r(r + 2)}', '=\\;&\\frac{1}{2}\\left(1 + \\frac{1}{2}\\right) = \\frac{3}{4}'),
             ),

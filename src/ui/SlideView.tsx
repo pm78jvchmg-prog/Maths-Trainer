@@ -1,17 +1,19 @@
 /**
- * The four slide types from the reference screenshots.
+ * The widgets for teach, choice, expression, tiles, plot, slider and table
+ * slides, and `SlideView`, which picks the widget for each of the nineteen
+ * slide kinds; the rest live in their own files (`workingSlides.tsx`,
+ * `reduceSlide.tsx`, `transformSlide.tsx`, …).
  *
  * Each is a controlled component: it owns no verdict of its own, only the
  * in-progress answer. Grading lives entirely in the session reducer, so a slide
  * cannot accidentally leak the answer by styling itself correct.
  */
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Tex, Blocks } from './Math';
+import { MathSlot } from './MathSlot';
 import {
-  MathSlot,
   applyKey,
   deleteBack,
-  docFromAnswer,
   docFromKeys,
   fnTex,
   isFilled,
@@ -20,8 +22,8 @@ import {
   toAnswer,
   type Doc,
 } from './mathInput';
-import { walkFlow } from './flow';
-import { EvaluateSlide, ReduceSlide, reduceComplete } from './reduceSlide';
+import { blankName, keyName, texToSpeech } from './texSpeech';
+import { EvaluateSlide, ReduceSlide } from './reduceSlide';
 import type { Slide, KeypadKey } from '../content/types';
 import {
   planeGridSvg,
@@ -29,7 +31,6 @@ import {
   pointPosition,
   PLANE_VIEWBOX,
 } from '../content/generators/plane';
-import type { Answer, Feedback } from '../engine/session';
 import { isPlotAnswer } from '../engine/session';
 import { complexTex } from '../content/generators/format';
 import { StepsSlide, TreeSlide, FlowSlide } from './workingSlides';
@@ -40,46 +41,9 @@ import { OrderSlide } from './orderSlide';
 import { defaultSliderValue } from './sliderValue';
 import { TransformSlide } from './transformSlide';
 import { NumberLineSlide } from './numberLineSlide';
-import { draftHasShading } from '../content/numberLine';
 import { ForcesSlide } from './forcesSlide';
 import { swapSlots, useSlotDrag } from './slotDrag';
-import { canonicalForces } from '../content/forces';
-
-export interface SlideProps {
-  slide: Slide;
-  /** The resolved slide's id, used to key the answer editor's draft. */
-  id: string;
-  feedback: Feedback;
-  /** Current draft answer, lifted so the player can enable/disable Check. */
-  answer: Answer;
-  onAnswer: (answer: Answer) => void;
-  /**
-   * False during an assessment, where a submitted answer is final.
-   *
-   * Comes from the reducer rather than being inferred here, so "one attempt"
-   * does not depend on every widget remembering to check.
-   */
-  canEdit: boolean;
-}
-
-/**
- * Whether the widget is finished with.
- *
- * Deliberately excludes `incorrect`: after a wrong answer the controls stay
- * live, so changing the answer *is* the retry and costs no extra tap. The
- * reducer clears the wrong verdict on `edit`. It still locks once the slide is
- * passed or the solution has been shown, since there is nothing left to try.
- */
-export const isLocked = (feedback: Feedback, canEdit: boolean) =>
-  feedback.kind === 'correct' ||
-  feedback.kind === 'revealed' ||
-  (!canEdit && feedback.kind === 'incorrect');
-
-export function frameClass(feedback: Feedback): string {
-  if (feedback.kind === 'correct') return 'answer-frame correct';
-  if (feedback.kind === 'incorrect' || feedback.kind === 'revealed') return 'answer-frame wrong';
-  return 'answer-frame';
-}
+import { frameClass, initialAnswer, isLocked, tableBlanks, type SlideProps } from './slides';
 
 /* ---------- Teach ---------- */
 
@@ -112,6 +76,9 @@ export function ChoiceSlide({ slide, feedback, answer, onAnswer, canEdit }: Slid
               type="button"
               className={`option${mark}`}
               aria-pressed={selected}
+              // KaTeX hides what it draws from assistive tech, so an option
+              // that is maths alone has no name unless it is given one.
+              aria-label={option.tex ? texToSpeech(option.label) : undefined}
               disabled={locked}
               onClick={() => onAnswer(option.id)}
             >
@@ -137,42 +104,29 @@ const BASE_KEYS: KeypadKey[] = [
 ];
 
 /**
- * The editor's tree, kept out of the session.
+ * The editor's tree lives in this component's state, kept out of the session.
  *
  * The session stores what gets graded — the mathjs string — and nothing else,
  * so the reducer, the invariants and every test are untouched by this. Which
  * slot the caret sits in is no more the session's business than which key was
  * pressed last.
  *
- * Keyed by slide id because the player remounts the whole slide subtree on
- * every move, so stepping back and forward through the guided deck would
- * otherwise show an empty slot beside an answer the session still holds.
+ * Nothing is restored on a return visit: the player remounts the slide on
+ * every move and clears the draft as it does, so the box always opens as the
+ * question sets it — empty, or holding its prefill.
  */
-const drafts = new Map<string, Doc>();
-
 export function ExpressionSlide({
   slide,
-  id,
   feedback,
-  answer,
   onAnswer,
   canEdit,
   }: SlideProps) {
   const locked = isLocked(feedback, canEdit);
-  const current = typeof answer === 'string' ? answer : '';
 
   // What the box holds before the learner has pressed anything: empty, or the
   // part of the answer the question has already written in for them.
   const start = docFromKeys(slide.kind === 'expression' ? slide.prefill : undefined);
-
-  // The draft is trusted only while it still serialises to the answer the
-  // session holds. Anything else — a fresh slide, or an answer cleared from
-  // outside the editor — rebuilds from the string, one atom per character.
-  const [doc, setDoc] = useState<Doc>(() => {
-    const cached = drafts.get(id);
-    if (cached && toAnswer(cached.nodes) === current) return cached;
-    return current === '' ? start : docFromAnswer(current);
-  });
+  const [doc, setDoc] = useState<Doc>(start);
 
   if (slide.kind !== 'expression') return null;
 
@@ -181,7 +135,6 @@ export function ExpressionSlide({
 
   const apply = (next: Doc) => {
     if (locked) return;
-    drafts.set(id, next);
     setDoc(next);
     // Only what was already written in is no answer yet, so Check stays off
     // rather than grading the question's own half of the expression.
@@ -190,11 +143,12 @@ export function ExpressionSlide({
   };
 
   // Moving the caret changes nothing that gets graded, so it does not go
-  // through onAnswer — which would clear an `incorrect` verdict merely because
-  // the learner looked at the middle of their own answer.
+  // through onAnswer and the answer the session holds is unchanged. It does
+  // still clear a wrong verdict: the tap bubbles up to the question area, and
+  // `tapOnQuestion` treats it as a retry like any other tap there — a learner
+  // moving the caret after a wrong answer is starting to change it.
   const move = (next: Doc) => {
     if (locked) return;
-    drafts.set(id, next);
     setDoc(next);
   };
 
@@ -205,6 +159,7 @@ export function ExpressionSlide({
     // tex="\\tfrac" hands KaTeX a literal backslash-backslash followed by the
     // letters "tfrac", which it renders as a line break and five italic letters.
     // Inside braces it is a real string and the escape collapses as intended.
+    // Every branch drawn in TeX alone has a matching name in `keyName`.
     if (key.insert === '/') return <Tex tex={'\\tfrac{\\square}{\\square}'} />;
     if (key.insert === 'sqrt(') return <Tex tex={'\\sqrt{\\square}'} />;
     if (key.insert === '^') return <Tex tex={'x^{\\square}'} />;
@@ -231,6 +186,7 @@ export function ExpressionSlide({
               key={idx}
               type="button"
               className={key.fn ? 'key fn' : 'key'}
+              aria-label={keyName(key)}
               disabled={locked}
               onClick={() => apply(applyKey(doc, key))}
             >
@@ -340,6 +296,10 @@ export function TilesSlide({
               key={idx}
               type="button"
               className={`answer-slot${token ? ' filled' : ''}`}
+              // KaTeX hides what it draws from assistive tech, so a blank or a
+              // tile holding maths alone is named in words. A blank names only
+              // what the learner put in it.
+              aria-label={blankName(`Blank ${slotIndex + 1} of ${blanks}`, token)}
               disabled={locked || !token}
               onClick={() => clearSlot(slotIndex)}
             >
@@ -362,6 +322,7 @@ export function TilesSlide({
               key={idx}
               type="button"
               className={`tile${used ? ' used' : ''}`}
+              aria-label={texToSpeech(token)}
               disabled={locked || used}
               onClick={() => place(token)}
             >
@@ -385,11 +346,65 @@ export function TilesSlide({
 
 /* ---------- Plot: tap a point on the complex plane ---------- */
 
-export function PlotSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideProps) {
-  if (slide.kind !== 'plot') return null;
+type PlotSlideData = Extract<Slide, { kind: 'plot' }>;
+type LatticePoint = { re: number; im: number };
+
+export function PlotSlide(props: SlideProps) {
+  // Narrowed here so the body's hooks never sit behind a conditional return.
+  if (props.slide.kind !== 'plot') return null;
+  return <PlotBody {...props} slide={props.slide} />;
+}
+
+function PlotBody({
+  slide,
+  feedback,
+  answer,
+  onAnswer,
+  canEdit,
+}: SlideProps & { slide: PlotSlideData }) {
   const locked = isLocked(feedback, canEdit);
   const { range } = slide;
   const chosen = isPlotAnswer(answer) ? answer : null;
+
+  // One tab stop for the whole plane rather than one per point, which was 81
+  // Tab presses to get past it: the point last moved to or chosen, else the
+  // chosen answer, else the origin. The arrow keys move it across the lattice.
+  const [cursor, setCursor] = useState<LatticePoint | null>(null);
+  const stop = cursor ?? chosen ?? { re: 0, im: 0 };
+  const targets = useRef(new Map<string, SVGCircleElement>());
+  const keyOf = (point: LatticePoint) => `${point.re},${point.im}`;
+
+  const choose = (point: LatticePoint) => {
+    if (locked) return;
+    setCursor(point);
+    onAnswer({ re: point.re, im: point.im });
+  };
+
+  const onKey = (event: React.KeyboardEvent, point: LatticePoint) => {
+    if (locked) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      // Space would otherwise scroll the question.
+      event.preventDefault();
+      choose(point);
+      return;
+    }
+    // Clamped at the edge rather than wrapping, as a grid is on paper.
+    const clamp = (value: number) => Math.max(-range, Math.min(range, value));
+    const moves: Record<string, LatticePoint> = {
+      ArrowRight: { re: clamp(point.re + 1), im: point.im },
+      ArrowLeft: { re: clamp(point.re - 1), im: point.im },
+      ArrowUp: { re: point.re, im: clamp(point.im + 1) },
+      ArrowDown: { re: point.re, im: clamp(point.im - 1) },
+      Home: { re: -range, im: point.im },
+      End: { re: range, im: point.im },
+    };
+    const next = moves[event.key];
+    if (!next) return;
+    // Arrows would otherwise scroll the question too.
+    event.preventDefault();
+    setCursor(next);
+    targets.current.get(keyOf(next))?.focus();
+  };
 
   return (
     <>
@@ -404,21 +419,42 @@ export function PlotSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideP
           <div dangerouslySetInnerHTML={{ __html: planeGridSvg(range) }} />
 
           {/* Tap targets and the plotted dot share the plane's own viewBox, so
-              alignment cannot drift if the frame changes. */}
+              alignment cannot drift if the frame changes.
+
+              Each target is also a keyboard and screen-reader button, the same
+              way the force diagram's arrow heads are: named by the number it
+              stands for (the readout below shows that same number once it is
+              chosen), pressed when chosen, and chosen with Enter or Space.
+              Only one is in the tab order at a time (`stop`, above), and once
+              the answer is locked none is, so the way to Continue is not
+              through the plane. */}
           <svg
             className={`plot-hits${locked ? ' locked' : ''}`}
             viewBox={PLANE_VIEWBOX}
+            role="group"
+            aria-label="Points on the complex plane. Arrow keys move between points."
           >
             {latticePoints(range).map((point) => {
               const { x, y } = pointPosition(point, range);
+              const key = keyOf(point);
               return (
                 <circle
-                  key={`${point.re},${point.im}`}
+                  key={key}
+                  ref={(el) => {
+                    if (el) targets.current.set(key, el);
+                    else targets.current.delete(key);
+                  }}
                   cx={x}
                   cy={y}
                   r={11}
                   fill="transparent"
-                  onClick={() => !locked && onAnswer({ re: point.re, im: point.im })}
+                  role="button"
+                  tabIndex={!locked && key === keyOf(stop) ? 0 : -1}
+                  aria-label={`Point ${complexTex(point.re, point.im).replace(/-/g, '−')}`}
+                  aria-pressed={chosen?.re === point.re && chosen?.im === point.im}
+                  aria-disabled={locked || undefined}
+                  onClick={() => choose(point)}
+                  onKeyDown={(event) => onKey(event, point)}
                 />
               );
             })}
@@ -531,11 +567,6 @@ export function SliderSlide({ slide, feedback, answer, onAnswer, canEdit }: Slid
 
 type TableSlideData = Extract<Slide, { kind: 'table' }>;
 
-/** How many blanks a table holds, which is also the length of its answer. */
-function tableBlanks(slide: TableSlideData): number {
-  return slide.rows.reduce((count, row) => count + row.filter((cell) => cell === null).length, 0);
-}
-
 export function TableSlide(props: SlideProps) {
   // Narrowed here so the body's hooks never sit behind a conditional return.
   if (props.slide.kind !== 'table') return null;
@@ -637,7 +668,7 @@ function TableBody({
                       <button
                         type="button"
                         className={`answer-slot${token ? ' filled' : ''}${focus ? ' focus' : ''}`}
-                        aria-label={token ? `Clear ${token}` : 'Choose this blank'}
+                        aria-label={token ? `Clear ${texToSpeech(token)}` : 'Choose this blank'}
                         disabled={locked}
                         onClick={() => tapBlank(slot)}
                       >
@@ -662,6 +693,7 @@ function TableBody({
               key={idx}
               type="button"
               className={`tile${used ? ' used' : ''}`}
+              aria-label={texToSpeech(value)}
               disabled={locked || used || target === -1}
               onClick={() => place(value)}
             >
@@ -738,108 +770,4 @@ export function SlideView(props: SlideProps) {
     case 'forces':
       return <ForcesSlide {...props} />;
   }
-}
-
-/** The draft a slide starts from, before the learner has done anything. */
-export function initialAnswer(slide: Slide): Answer {
-  if (slide.kind === 'tiles') return Array.from({ length: slide.answer.length }, () => '');
-  if (slide.kind === 'tree') return Array.from({ length: slide.nodes.length }, () => '');
-  if (slide.kind === 'table') return Array.from({ length: tableBlanks(slide) }, () => '');
-  if (slide.kind === 'iterate') return Array.from({ length: slide.answer.length }, () => '');
-  if (slide.kind === 'venn') return Array.from({ length: slide.answer.length }, () => '');
-  // A tree to fill has a blank per missing branch; a path starts untaken and
-  // grows a branch at a time, as `flow` does.
-  if (slide.kind === 'probTree') {
-    return slide.mode === 'fill' ? Array.from({ length: slide.answer.length }, () => '') : [];
-  }
-  if (slide.kind === 'forces' && slide.mode === 'fill') {
-    return Array.from({ length: slide.answer.length }, () => '');
-  }
-  // Both start at nothing chosen and grow as the learner works.
-  if (
-    slide.kind === 'steps' ||
-    slide.kind === 'flow' ||
-    slide.kind === 'reduce' ||
-    slide.kind === 'order'
-  ) {
-    return [];
-  }
-  // A slider too, although its handle is drawn somewhere: where it rests is
-  // not something the learner chose, and it can be the answer. A transform
-  // likewise: its live curve is drawn at the identity, which is a curve but
-  // not an answer.
-  return '';
-}
-
-/** Whether the current draft is complete enough to submit. */
-export function hasAnswer(slide: Slide, answer: Answer): boolean {
-  if (slide.kind === 'teach') return true;
-  if (slide.kind === 'plot') return isPlotAnswer(answer);
-  if (
-    slide.kind === 'tiles' || slide.kind === 'tree' || slide.kind === 'iterate' || slide.kind === 'table'
-  ) {
-    const expected =
-      slide.kind === 'tree' ? slide.nodes.length
-        : slide.kind === 'table' ? tableBlanks(slide)
-          : slide.answer.length;
-    return Array.isArray(answer) && answer.length === expected && answer.every((t) => t !== '');
-  }
-  // Every blank filled, or a branch taken at each stage: the same test, since a
-  // path's answer is as long as the tree has stages.
-  if (slide.kind === 'probTree' || slide.kind === 'venn') {
-    return (
-      Array.isArray(answer) &&
-      answer.length === slide.answer.length &&
-      answer.every((t) => t !== '')
-    );
-  }
-  // A proof is answerable once every slot holds a step.
-  if (slide.kind === 'order') {
-    return (
-      Array.isArray(answer) &&
-      answer.length === slide.answer.length &&
-      answer.every((t) => t !== '')
-    );
-  }
-  // A line with dots on it but nothing shaded is not a set yet, and the
-  // untouched line is not an answer at all.
-  if (slide.kind === 'numberLine') return typeof answer === 'string' && draftHasShading(answer);
-  // A diagram with one arrow on is a set of forces; a fill needs every blank.
-  // The untouched diagram is not an answer at all.
-  if (slide.kind === 'forces') {
-    if (slide.mode === 'pick') return typeof answer === 'string' && canonicalForces(answer) !== '';
-    return (
-      Array.isArray(answer) &&
-      answer.length === slide.answer.length &&
-      answer.every((t) => t !== '')
-    );
-  }
-  // One tile chosen is the whole answer.
-  if (slide.kind === 'evaluate') return typeof answer === 'string' && answer !== '';
-  // Answerable once any control has been tapped, even back to the identity:
-  // that is a choice, where the untouched curve is not.
-  if (slide.kind === 'transform') return typeof answer === 'string' && answer !== '';
-  // Answerable once the expression is a single number, however it got there:
-  // an illegal reduction still settles its line, and Check has to be reachable
-  // or the learner could never find out that it was illegal.
-  if (slide.kind === 'reduce') return reduceComplete(slide.expr, answer);
-  // A decision tree is answerable once the walk has reached a leaf. Mid-walk
-  // the learner has chosen something, but not an answer.
-  if (slide.kind === 'flow') return walkFlow(slide, Array.isArray(answer) ? answer : []).outcome !== undefined;
-  // Steps is only answerable once every reduction has been worked through, so
-  // Check stays disabled while there is still an operation left on the line.
-  if (slide.kind === 'steps') {
-    return (
-      Array.isArray(answer) &&
-      answer.length === slide.reductions.length &&
-      answer.every((t) => t !== '')
-    );
-  }
-  return typeof answer === 'string' && answer.trim() !== '';
-}
-
-/** Local draft-answer state, reset by SlideView when the slide changes. */
-export function useDraftAnswer(): [Answer, (a: Answer) => void] {
-  const [answer, setAnswer] = useState<Answer>('');
-  return [answer, setAnswer];
 }

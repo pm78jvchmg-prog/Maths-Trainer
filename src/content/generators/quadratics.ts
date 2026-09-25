@@ -23,7 +23,8 @@
 import type { Generator, KeypadKey, Slide } from '../types';
 import { markerWindow, parabolaSvg } from '../figures';
 import { options } from '../choiceVariant';
-import { ALGEBRA_KEYS } from './calculus';
+import { ALGEBRA_KEYS, termTex } from './calculus';
+import { fracTex } from './format';
 import { bin, num, pow } from '../expr';
 
 /** Roots can be surds, so the formula questions need a root key. */
@@ -122,23 +123,33 @@ const expandBrackets: Generator<PairParams> = {
       { kind: 'prose', text: 'Expand and simplify.' },
       { kind: 'display', tex: `\\left(x ${signedTile(p)}\\right)\\left(x ${signedTile(q)}\\right)` },
     ],
-    template: `x^2 {0} {1}`,
-    // The distractors are the two standard slips — adding where you should
-    // multiply and the reverse — plus both sign flips.
-    bank: bankOf([signedTile(p + q, 'x'), signedTile(p * q)], [
-      signedTile(p * q, 'x'),
-      signedTile(p + q),
-      signedTile(-(p + q), 'x'),
-      signedTile(-p * q),
-    ]),
-    answer: [signedTile(p + q, 'x'), signedTile(p * q)],
+    // At q = -p the x terms cancel, and "+ 0x" is not a term anyone writes, so
+    // the difference of two squares has no middle blank to fill.
+    ...(p + q === 0
+      ? {
+          template: `x^2 {0}`,
+          bank: bankOf([signedTile(p * q)], [signedTile(p * q, 'x'), signedTile(-p * q), signedTile(-p * q, 'x')]),
+          answer: [signedTile(p * q)],
+        }
+      : {
+          template: `x^2 {0} {1}`,
+          // The distractors are the two standard slips — adding where you should
+          // multiply and the reverse — plus both sign flips.
+          bank: bankOf([signedTile(p + q, 'x'), signedTile(p * q)], [
+            signedTile(p * q, 'x'),
+            signedTile(p + q),
+            signedTile(-(p + q), 'x'),
+            signedTile(-p * q),
+          ]),
+          answer: [signedTile(p + q, 'x'), signedTile(p * q)],
+        }),
   }),
   solution: ({ p, q }) => [
     {
       text: 'Multiply every term in the first bracket by every term in the second — four products in all.',
     },
     {
-      tex: `x \\times x = x^{2} \\qquad x \\times \\left(${q}\\right) = ${q}x \\qquad \\left(${p}\\right) \\times x = ${p}x \\qquad \\left(${p}\\right)\\left(${q}\\right) = ${p * q}`,
+      tex: `x \\times x = x^{2} \\qquad x \\times \\left(${q}\\right) = ${termTex(q, 1)} \\qquad \\left(${p}\\right) \\times x = ${termTex(p, 1)} \\qquad \\left(${p}\\right)\\left(${q}\\right) = ${p * q}`,
     },
     {
       tex: `\\left(x ${signedTile(p)}\\right)\\left(x ${signedTile(q)}\\right) = ${quadraticTex(1, p + q, p * q)}`,
@@ -319,7 +330,7 @@ const factoriseWithCoefficient: Generator<CoefficientParams> = {
     const c = q * s;
     return [
       {
-        text: `With a coefficient on $x^{2}$ the two brackets are no longer symmetric, so the middle term is no longer a simple sum. One bracket must start with $${p}x$ and the other with $x$, because $${p}$ is prime to the factorisation.`,
+        text: `With a coefficient on $x^{2}$ the two brackets are no longer symmetric, so the middle term is no longer a simple sum. Here one bracket starts with $${p}x$ and the other with $x$, so that the two first terms multiply to $${p}x^{2}$.`,
       },
       {
         text: `The constants still multiply to $${c}$, but each gets multiplied by the other bracket's $x$ coefficient on the way to the middle term.`,
@@ -862,7 +873,7 @@ const lineOfSymmetry: Generator<SymmetryParams> = {
       text: 'A parabola is symmetric about the vertical line through its turning point, and completing the square puts that value in plain sight.',
     },
     { tex: 'x = -\\frac{b}{2a}' },
-    { tex: `x = -\\frac{${b}}{2 \\times ${a}} = ${-b}/${2 * a}` },
+    { tex: `x = -\\frac{${b}}{2 \\times ${a}} = ${fracTex(-b, 2 * a)}` },
     {
       text: 'The two roots, when they exist, sit at equal distances either side of this line. That is often the quickest way to find a second root once the first is known.',
     },

@@ -24,8 +24,9 @@
  * 3. **The bank order comes from the step text**, never from the rng and never
  *    from the answer — see `orderBank`.
  */
-import type { Block, Generator, Slide, SolutionStep } from '../types';
+import type { Generator, Slide, SolutionStep } from '../types';
 import { hashSeed } from '../../engine/rng';
+import { say } from './format';
 
 /* ---------- Shared shape ---------- */
 
@@ -73,10 +74,6 @@ export function orderBank(
 function plus(n: number): string {
   if (n === 0) return '';
   return n > 0 ? ` + ${n}` : ` - ${-n}`;
-}
-
-function say(text: string): Block {
-  return { kind: 'prose', text };
 }
 
 /** How many distractors ride along at each difficulty. */

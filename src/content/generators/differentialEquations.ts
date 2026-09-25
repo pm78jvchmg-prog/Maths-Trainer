@@ -49,10 +49,9 @@ import type { Rng } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
 import { EXP_KEYS, termAnswer, termTex } from './calculus';
+import { coeffTex, fracTex, gcdOrOne } from './format';
 import {
   OPERATOR_KEYS,
-  fracTex,
-  gcd,
   mix,
   numberChoices,
   spaced,
@@ -1169,7 +1168,7 @@ const deGeneralTree: Generator<PowerSideParams> = {
     const a = alpha * (n + 1);
     return [
       { text: `Add one to each power and divide by the new power. On the $y$ side, $y^{${m}}$ becomes $\\frac{y^{${m + 1}}}{${m + 1}}$, so $${b} \\div ${m + 1} = ${beta}$.` },
-      { text: `On the $x$ side, $${n === 0 ? `${a}` : `x^{${n}}`}$ becomes ${n === 0 ? `$${a === 1 ? '' : a}x$` : `$\\frac{x^{${n + 1}}}{${n + 1}}$, so $${a} \\div ${n + 1} = ${alpha}$`}.` },
+      { text: `On the $x$ side, $${n === 0 ? `${a}` : `x^{${n}}`}$ becomes ${n === 0 ? `$${coef(a)}x$` : `$\\frac{x^{${n + 1}}}{${n + 1}}$, so $${a} \\div ${n + 1} = ${alpha}$`}.` },
       { text: 'One constant covers both sides.', tex: `${termTex(beta, m + 1).replace('x', 'y')} = ${termTex(alpha, n + 1)} + C` },
     ];
   },
@@ -1515,7 +1514,7 @@ const deParticularSlider: Generator<ExpModelParams> = {
     const { sym, k, A, at } = params;
     const y1 = expValue(params, at);
     return [
-      { text: `$A$ is the value at $t = 0$. The marked point is $${at === 1 ? 'one' : 'two'}$ ${k.h === 1 ? 'step' : `step${at === 1 ? '' : 's'} of $${k.h}$`} along, and each step ${k.sign > 0 ? 'multiplies' : 'divides'} by $${k.b}$.` },
+      { text: `$A$ is the value at $t = 0$. The marked point is ${at === 1 ? 'one step' : 'two steps'}${k.h === 1 ? '' : ` of $${k.h}$`} along, and each step ${k.sign > 0 ? 'multiplies' : 'divides'} by $${k.b}$.` },
       { tex: `A = ${y1} ${k.sign > 0 ? '\\div' : '\\times'} ${k.b ** at} = ${A}` },
       { text: `So the solution through the point is $${sym} = ${A}${lnExpTex(k)}$.` },
     ];
@@ -2425,7 +2424,7 @@ const outFlow = ({ r, fresh }: TankParams): number => r + fresh;
 
 /** The rate salt leaves at, (out flow / V) times S, as the learner reads it. */
 export function outTex(params: TankParams): string {
-  const g = gcd(outFlow(params), params.V);
+  const g = gcdOrOne(outFlow(params), params.V);
   const top = outFlow(params) / g;
   const bottom = params.V / g;
   if (bottom === 1) return `${coef(top)}S`;
@@ -2572,7 +2571,7 @@ const deMixWhen: Generator<TankWhenParams> = {
   sample: (rng, difficulty) => {
     for (;;) {
       const base = { ...sampleTank(rng, difficulty), fresh: 0 };
-      const unit = base.V / gcd(base.r, base.V);
+      const unit = base.V / gcdOrOne(base.r, base.V);
       const S = unit * rng.int(0, Math.floor((base.c * base.V * 1.5) / unit));
       const params = { ...base, S };
       const net = tankNet(params);
@@ -3924,7 +3923,13 @@ const deIfExponentSteps: Generator<FactorParams> = {
         span: [0, 1],
         operator: 0,
         value: inside,
-        bank: stepBank(inside, `I = e^{\\ln ${Math.abs(n)}${bracket}}`, `I = e^{\\ln ${bracket}^{${-n}}}`, `I = ${n}e^{\\ln ${bracket}}`),
+        // At n = -1 the first two slips are both the bracket alone, and the bank keeps it once.
+        bank: stepBank(
+          inside,
+          `I = e^{\\ln ${coef(Math.abs(n))}${bracket}}`,
+          `I = e^{\\ln ${n === -1 ? bracket : `${bracket}^{${-n}}`}}`,
+          `I = ${coef(n)}e^{\\ln ${bracket}}`,
+        ),
       });
     }
     reductions.push({
@@ -5352,12 +5357,17 @@ const deCxPart: Generator<PartParams> = {
     return [
       ...toStandard(de),
       { text: 'The auxiliary equation:', tex: auxTex(de) },
+      // With no m term it is already a square plus a number: nothing to complete.
+      ...(de.p === 0
+        ? []
+        : [
+            {
+              text: 'Complete the square.',
+              tex: `(m ${signed(-de.p)})^2 + ${de.q * de.q} = 0`,
+            },
+          ]),
       {
-        text: 'Complete the square.',
-        tex: `${de.p === 0 ? 'm^2' : `(m ${signed(-de.p)})^2`} + ${de.q * de.q} = 0`,
-      },
-      {
-        text: `So $m = ${de.p} \\pm ${de.q}i$: $\\alpha = -\\frac{b}{2} = ${de.p}$ and $\\beta = \\frac{\\sqrt{4c - b^2}}{2} = \\frac{\\sqrt{${4 * c - b * b}}}{2} = ${de.q}$.`,
+        text: `So $m = ${de.p === 0 ? '' : `${de.p} `}\\pm ${coeffTex(de.q)}$: $\\alpha = -\\frac{b}{2} = ${de.p}$ and $\\beta = \\frac{\\sqrt{4c - b^2}}{2} = \\frac{\\sqrt{${4 * c - b * b}}}{2} = ${de.q}$.`,
       },
     ];
   },
@@ -5937,7 +5947,7 @@ function samplePi(rng: Rng, de: SecondDe, type: PiType, hard: boolean): Particul
       const form = rng.pick(['cos', 'sin', 'both'] as const);
       if (form === 'both') return { type: 'trig', w, lambda: nonzero(rng, 3), mu: nonzero(rng, 3), n: 0 };
       // Built so that f(x) has the one term: λ and μ in the ratio that cancels the other.
-      const g = gcd(K, M);
+      const g = gcdOrOne(K, M);
       const s = rng.sign();
       const [lambda, mu] = form === 'cos' ? [(s * K) / g, (s * M) / g] : [(-s * M) / g, (s * K) / g];
       return { type: 'trig', w, lambda, mu, n: 0 };
@@ -7098,7 +7108,7 @@ const shmForms = (difficulty: number): SecondDe['written'][] => (difficulty >= 2
 
 /** A multiple of π as the learner reads it, in lowest terms: `\frac{\pi}{2}`, `2\pi`, `\frac{2\pi}{3}`. */
 function piMultipleTex(top: number, bottom: number): string {
-  const g = gcd(top, bottom);
+  const g = gcdOrOne(top, bottom);
   const p = top / g;
   const q = bottom / g;
   const head = p === 1 ? '\\pi' : `${p}\\pi`;
@@ -7337,7 +7347,9 @@ const deShmPeriod: Generator<PeriodParams> = {
   id: 'de-shm-period',
   sample: (rng, difficulty) => {
     const hard = difficulty >= 2;
-    const shown = rng.pick<PeriodParams['shown']>(hard ? ['equation', 'solution', 'reverse'] : ['equation', 'solution']);
+    // Reading omega off a shown solution is the difficulty-1 question at any
+    // size, so harder draws rearrange an equation or work backwards instead.
+    const shown = rng.pick<PeriodParams['shown']>(hard ? ['equation', 'reverse'] : ['equation', 'solution']);
     const written = shown === 'equation' ? rng.pick<SecondDe['written']>(hard ? ['moved', 'scaled'] : ['standard', 'moved']) : 'standard';
     const w = rng.int(2, hard ? 12 : 8);
     return {
@@ -7385,7 +7397,8 @@ const deShmPeriod: Generator<PeriodParams> = {
         : [{ text: `The number multiplying $t$ is $\\omega$.`, tex: `\\omega = ${w}` }];
     return [
       ...read,
-      { text: 'One full swing takes $\\omega t$ through $2\\pi$:', tex: `T = \\frac{2\\pi}{\\omega} = \\frac{2\\pi}{${w}} = ${piMultipleTex(2, w)}` },
+      // 2pi/w is already in lowest terms when w is odd, and is not written twice.
+      { text: 'One full swing takes $\\omega t$ through $2\\pi$:', tex: `T = \\frac{2\\pi}{\\omega} = ${[...new Set([`\\frac{2\\pi}{${w}}`, piMultipleTex(2, w)])].join(' = ')}` },
     ];
   },
 };
@@ -7830,7 +7843,7 @@ export interface LeastKParams {
   critical: boolean;
 }
 
-export const leastKTex = ({ w, m }: LeastKParams): string => `${coef(m)}${D2T} + k${D1T} + ${m * w * w}x = 0`;
+export const leastKTex = ({ w, m }: LeastKParams): string => `${coef(m)}${D2T} + k${D1T} + ${coef(m * w * w)}x = 0`;
 
 /** The least k that stops the oscillation, 2mω, typed. */
 const deDampLeast: Generator<LeastKParams> = {
@@ -7856,7 +7869,7 @@ const deDampLeast: Generator<LeastKParams> = {
     mode: 'exact',
   }),
   solution: ({ w, m }) => [
-    ...(m === 1 ? [] : [{ text: `Divide every term by $${m}$.`, tex: `${D2T} + \\frac{k}{${m}}${D1T} + ${w * w}x = 0` }]),
+    ...(m === 1 ? [] : [{ text: `Divide every term by $${m}$.`, tex: `${D2T} + \\frac{k}{${m}}${D1T} + ${coef(w * w)}x = 0` }]),
     {
       text: `It oscillates while the auxiliary equation has complex roots, and stops once its discriminant reaches $0$${m === 1 ? '' : `, with $\\frac{k}{${m}}$ in place of $k$`}.`,
       tex: `${m === 1 ? 'k^2' : `\\left(\\frac{k}{${m}}\\right)^2`} = 4 \\times ${w * w} = ${4 * w * w}`,

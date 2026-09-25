@@ -11,12 +11,12 @@
  * then a value. Iterating is a chain, so a learner who spots a slip in `x_2`
  * after writing `x_4` needs to go back to exactly that row.
  */
-import { useState } from 'react';
 import { Tex, Blocks } from './Math';
 import type { Slide } from '../content/types';
 import { frameClass, isLocked, type SlideProps } from './slides';
-import { swapSlots, useSlotDrag } from './slotDrag';
+import { useBankFill } from './bankFill';
 import { Calculator } from './Calculator';
+import { blankName, texToSpeech } from './texSpeech';
 
 type IterateSlideData = Extract<Slide, { kind: 'iterate' }>;
 
@@ -39,44 +39,14 @@ function IterateBody({
 }: SlideProps & { slide: IterateSlideData }) {
   const locked = isLocked(feedback, canEdit);
   const size = slide.answer.length;
-  const filled = Array.from({ length: size }, (_, i) =>
-    Array.isArray(answer) ? (answer[i] ?? '') : '',
+  // Which blank the next tile goes into, and the drag between blanks: the same
+  // state the probability tree, the Venn diagram and a force fill use.
+  const { filled, target, used, tapBlank, place, clear, slotProps } = useBankFill(
+    answer,
+    size,
+    onAnswer,
+    locked,
   );
-  const [chosen, setChosen] = useState(0);
-
-  // The blank the next tile lands in: the one the learner picked while it is
-  // still empty, otherwise the first empty one.
-  const firstEmpty = filled.findIndex((slot) => slot === '');
-  const target = filled[chosen] === '' ? chosen : firstEmpty;
-
-  const spent = new Map<string, number>();
-  for (const token of filled) {
-    if (token) spent.set(token, (spent.get(token) ?? 0) + 1);
-  }
-
-  const tapBlank = (idx: number) => {
-    if (filled[idx] !== '') {
-      const next = [...filled];
-      next[idx] = '';
-      onAnswer(next);
-    }
-    setChosen(idx);
-  };
-
-  const place = (value: string) => {
-    if (target === -1) return;
-    const next = [...filled];
-    next[target] = value;
-    onAnswer(next);
-    // On to the next blank below, wrapping round to any left above.
-    const after = [...next.slice(target + 1), ...next.slice(0, target + 1)].findIndex(
-      (slot) => slot === '',
-    );
-    setChosen(after === -1 ? target : (target + 1 + after) % size);
-  };
-
-  // A filled blank dragged onto another swaps the two; onto an empty one, moves.
-  const { slotProps } = useSlotDrag(!locked, (from, to) => onAnswer(swapSlots(filled, from, to)));
 
   const cell = (idx: number) => (
     <button
@@ -86,11 +56,10 @@ function IterateBody({
         !locked && idx === target ? ' focus' : ''
       }`}
       disabled={locked}
-      aria-label={
-        idx < size - 1
-          ? `x ${idx + 1}${filled[idx] ? `, ${filled[idx]}` : ', empty'}`
-          : `${CONCLUSION_LABEL[slide.conclusion]}${filled[idx] ? `, ${filled[idx]}` : ', empty'}`
-      }
+      aria-label={blankName(
+        idx < size - 1 ? `x ${idx + 1}` : CONCLUSION_LABEL[slide.conclusion],
+        filled[idx],
+      )}
       onClick={() => tapBlank(idx)}
     >
       {filled[idx] ? <Tex tex={filled[idx]} /> : ' '}
@@ -141,15 +110,14 @@ function IterateBody({
 
       <div className={`tile-bank${locked ? '' : ' pinned'}`}>
         {slide.bank.map((value, idx) => {
-          const placed = spent.get(value) ?? 0;
-          const earlier = slide.bank.slice(0, idx).filter((other) => other === value).length;
-          const used = earlier < placed;
+          const spent = used(slide.bank, idx);
           return (
             <button
               key={idx}
               type="button"
-              className={`tile${used ? ' used' : ''}`}
-              disabled={locked || used || target === -1}
+              className={`tile${spent ? ' used' : ''}`}
+              aria-label={texToSpeech(value)}
+              disabled={locked || spent || target === -1}
               onClick={() => place(value)}
             >
               <Tex tex={value} />
@@ -162,10 +130,7 @@ function IterateBody({
         type="button"
         className="text-button"
         disabled={locked || filled.every((slot) => !slot)}
-        onClick={() => {
-          onAnswer(Array.from({ length: size }, () => ''));
-          setChosen(0);
-        }}
+        onClick={clear}
       >
         &#8635; Start over
       </button>

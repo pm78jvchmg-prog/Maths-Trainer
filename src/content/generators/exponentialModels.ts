@@ -24,6 +24,7 @@ import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
 import { canonicalSet } from '../numberLine';
 import { EXP_KEYS } from './calculus';
+import { aOrAn, gcd } from './format';
 // Where a slider's handle rests before it is touched, so no answer sits there.
 import { defaultSliderValue } from '../../ui/sliderValue';
 import type { Rng } from '../../engine/rng';
@@ -2749,8 +2750,8 @@ const MODEL_STORIES: Record<ModelKind, ((x: number, y: number) => string)[]> = {
     (x) => `A rumour known to ${x} people spreads at a rate proportional to how many know it.`,
   ],
   decay: [
-    (x) => `A ${x * 10} mg dose of a drug leaves the blood at a rate proportional to the amount left.`,
-    (x, y) => `A ${x * 5} g radioactive sample halves every ${y % 9 + 2} days.`,
+    (x) => `${aOrAn(x * 10, true)} ${x * 10} mg dose of a drug leaves the blood at a rate proportional to the amount left.`,
+    (x, y) => `${aOrAn(x * 5, true)} ${x * 5} g radioactive sample halves every ${y % 9 + 2} days.`,
     (x, y) => `A car worth £${x * 1000} loses value continuously at ${y % 10 + 5}% a year.`,
   ],
   fall: [
@@ -3422,12 +3423,16 @@ const expmAvgSlider: Generator<StretchParams> = {
     const f = (t: number) => a * Math.exp(k * t);
     const top = down ? a * 1.1 : lotsValue(params, j + 2) * 1.1;
     const stretch = h === 1 ? `one-${story.unit}` : `${h}-${story.unit}`;
+    const rate = stretchRate(params);
+    // One of anything is singular: 1 lumen, 1 gram, 1 person.
+    const counted =
+      rate !== 1 ? story.of : story.of === 'people' ? 'person' : story.of === 'bacteria' ? 'bacterium' : story.of.replace(/s$/, '');
     return {
       kind: 'slider',
       prompt: [
         {
           kind: 'prose',
-          text: `${opening(story, modelTex(a, params))} Each dot is $${story.sym}$ ${h === 1 ? `every ${story.unit}` : `every ${h} ${story.unit}s`}. Slide to the start of the ${stretch} stretch over which it ${down ? 'falls' : 'grows'} at an average of ${texNum(stretchRate(params))} ${story.of} per ${story.unit}.`,
+          text: `${opening(story, modelTex(a, params))} Each dot is $${story.sym}$ ${h === 1 ? `every ${story.unit}` : `every ${h} ${story.unit}s`}. Slide to the start of the ${stretch} stretch over which it ${down ? 'falls' : 'grows'} at an average of ${texNum(rate)} ${counted} per ${story.unit}.`,
         },
       ],
       min: 0,
@@ -3451,14 +3456,14 @@ const expmAvgSlider: Generator<StretchParams> = {
   },
   solution: (params) => {
     const { b, h, j, down, ctx } = params;
-    const { sym } = storyOf(down, ctx);
+    const { sym, unit } = storyOf(down, ctx);
     const row = (i: number) => {
       const y0 = lotsValue(params, i);
       const y1 = lotsValue(params, i + 1);
       return `t = ${i * h}: \\quad \\frac{${texNum(y1)} - ${texNum(y0)}}{${h}} &= ${texNum((y1 - y0) / h)}`;
     };
     return [
-      { text: `$e^{${ktTex(params)}} = ${everyTex(params)}$, so every ${h === 1 ? '' : `${h} `}step ${down ? 'divides' : 'multiplies'} $${sym}$ by $${b}$. Work out the average rate over each stretch in turn.` },
+      { text: `$e^{${ktTex(params)}} = ${everyTex(params)}$, so every ${h === 1 ? '' : `${h}-${unit} `}step ${down ? 'divides' : 'multiplies'} $${sym}$ by $${b}$. Work out the average rate over each stretch in turn.` },
       { tex: chain(row(j - 1), row(j)) },
       { text: `So the stretch starts at $t = ${j * h}$. ${down ? 'A decaying model changes fastest early on.' : 'A growing model changes faster the later the stretch.'}` },
     ];
@@ -7146,19 +7151,15 @@ function pounds(x: number): string {
   return `£${String(pence / 100).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 }
 
-function gcdOf(a: number, b: number): number {
-  return b === 0 ? Math.abs(a) : gcdOf(b, a % b);
-}
-
 /** p/q in lowest terms as TeX, a whole number bare. */
 function fracOf(p: number, q: number): string {
-  const g = gcdOf(p, q);
+  const g = gcd(p, q);
   return q / g === 1 ? String(p / g) : `\\frac{${p / g}}{${q / g}}`;
 }
 
 /** p/q in lowest terms for mathjs. */
 function fracAnswer(p: number, q: number): string {
-  const g = gcdOf(p, q);
+  const g = gcd(p, q);
   return q / g === 1 ? String(p / g) : `${p / g}/${q / g}`;
 }
 
@@ -8007,7 +8008,7 @@ const expmEValue: Generator<EValueParams> = {
     {
       tex: chain(
         `1 ${x < 0 ? '-' : '+'} \\frac{${Math.abs(x)}}{${n}} &= \\frac{${n + x}}{${n}}`,
-        `\\left(\\frac{${n + x}}{${n}}\\right)^{${n}} &= \\frac{${(n + x) ** n}}{${n ** n}}${gcdOf((n + x) ** n, n ** n) > 1 ? ` = ${fracOf((n + x) ** n, n ** n)}` : ''}`,
+        `\\left(\\frac{${n + x}}{${n}}\\right)^{${n}} &= \\frac{${(n + x) ** n}}{${n ** n}}${gcd((n + x) ** n, n ** n) > 1 ? ` = ${fracOf((n + x) ** n, n ** n)}` : ''}`,
       ),
     },
     { text: `As $n$ grows, $\\left(1 ${x < 0 ? '-' : '+'} \\frac{${Math.abs(x)}}{n}\\right)^{n}$ gets closer and closer to $${ePow(String(x))}$.` },

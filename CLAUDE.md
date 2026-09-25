@@ -414,10 +414,29 @@ complementary rather than redundant:
 
 ## Testing strategy
 
-`src/content/generators/generators.test.ts` holds the **generic** generator
-property tests and course-integrity checks for *every* course. New generators
-and courses are picked up automatically via `src/content/registry.ts` and
-`src/content/courses/index.ts` — there is nothing to register in the test file.
+The **generic** generator property tests cover *every* generator, and the
+course-integrity checks in `src/content/generators/generators.test.ts` cover
+*every* course. New generators and courses are picked up automatically via
+`src/content/registry.ts` and `src/content/courses/index.ts` — there is nothing
+to register in any test file.
+
+The generator sweep is written once, in
+`src/content/generators/sweep/generatorSweep.ts`, and run from the 24
+`generators.sweep-NN.test.ts` shards beside `generators.test.ts`, which vitest
+spreads across its workers. As one file it ran in one worker, close to an hour
+at 4.7 GB. The per-generator checks that other sections and older code
+comments credit to `generators.test.ts` are in the sweep. Each shard is one
+line that reads its number from its own file name, and a generator's shard is
+a hash of its id.
+`generators.test.ts` keeps a guard that every shard file exists and that between
+them they sweep each registered generator exactly once, so changing the count
+means changing `SWEEP_SHARDS` and the files together. A generator's draws are
+made by its first test and dropped after its last, not held for the whole run.
+To sweep one generator, `npx vitest run generators.sweep -t '^<id> >'` (escape
+the `+` of a `+choice` id).
+`vitest list` parses files statically by default and reports "No test suite
+found" for the shards, whose tests a function call registers; use
+`npx vitest list --staticParse=false`.
 
 Per generator, across 200 seeds × 2 difficulties:
 
@@ -432,11 +451,13 @@ derivative. Expression slides may declare `source`, the function the question is
 about; the test differentiates it with `mathjs.derivative` and compares against
 the generator's answer. Populate `source` on any new calculus generator.
 
-The oracle test carries an explicit 60s timeout. It is the slowest test by far
-— symbolic differentiation plus 24 probes per draw — and overruns vitest's 5s
-default once the other files compete for CPU, which shows up as an intermittent
-failure that passes when the file is run alone. If you add a slow sweep here,
-give it a budget rather than trimming its sample count.
+Every test gets 30s (`testTimeout` in `vite.config.ts`). Vitest's 5s default
+failed tests that take 2.6 to 4.1s alone once the workers shared the CPU,
+which shows up as an intermittent failure that passes when the file is run
+alone. The oracle test carries an explicit 60s of its own. It is the slowest
+test in the sweep by far — symbolic differentiation plus 24 probes per draw. If
+you add a slow sweep here, give it a budget rather than trimming its sample
+count.
 
 When adding a guard test, **verify it can fail** — reintroduce the bug, watch it
 go red, then restore. Several guards here were confirmed that way, and one
@@ -478,17 +499,31 @@ command `npm run build`, deploy command `npx wrangler deploy`, **root directory
 `/`** (that is where the build runs; the output path lives in `wrangler.jsonc`,
 never in the dashboard).
 
-Every push to `main` deploys straight to production, and that is deliberate:
-the owner wants a change on their phone a couple of minutes after it is made,
-so commits land on `main` directly rather than going through a pull request.
-There is no branch-protection backstop either (the repo is private on a plan
-where GitHub's branch-protection API returns 403).
+Every change that reaches `main` deploys straight to production, and that is
+deliberate: the owner wants a change on their phone a couple of minutes after it
+is made. It cannot be pushed there directly, though. The "auto merge" ruleset
+refuses a push to `main` with `GH013: Repository rule violations` and requires
+the `Workers Builds: maths-trainer` check, so a change lands by pull request,
+and `.github/workflows/auto-merge.yml` switches on auto-merge for each one, which
+merges it as soon as that check passes.
 
-The cost of that choice is that nothing catches a bad change before the learner
-meets it, so the checks have to happen before the push, not after: typecheck,
-full suite, lint, and — for anything with a visible surface — the change
-actually exercised in a browser. A test suite cannot tell you that a dot is
-clipped in half by the edge of its viewBox.
+That required check is a build (`tsc -b && vite build`), not a verification,
+and nobody looks at the pull request between it passing and the learner meeting
+the change. So the checks have to happen before the pull request, not after:
+typecheck, full suite, lint, and — for anything with a visible surface — the
+change actually exercised in a browser. A test suite cannot tell you that a dot
+is clipped in half by the edge of its viewBox.
+
+`.github/workflows/checks.yml` runs one job, **Fast checks**, on every pull
+request: `npm ci`, the app, node and eval typechecks, `npm run lint`,
+`npm run test:fast`, which is every test file except the `generators.sweep-NN`
+shards and the four slowest per-family generator files (listed in the
+workflow), and then the shards at five seeds per difficulty rather than 200
+(`SWEEP_SEEDS=5`), so a change to the checker still meets every generator's
+answers — all to spare the private repo's Actions minutes. It blocks a merge
+only once the owner adds "Fast checks" to the auto-merge ruleset as a required
+check; until then auto-merge still waits on the Cloudflare build alone. Either
+way, run the full `npm test` before a change to a generator lands.
 
 The app is installed to an iPhone Home Screen and must work offline — the
 service worker precaches everything including KaTeX fonts and mathjs. Do not add

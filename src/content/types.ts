@@ -286,13 +286,6 @@ export type Slide =
       }[];
     })
   /**
-   * Fill the intermediate values of an evaluation tree.
-   *
-   * Nodes are listed in evaluation order and each names the nodes feeding it,
-   * which is enough to lay out rows and draw the connectors without the content
-   * author positioning anything by hand.
-   */
-  /**
    * Evaluate a whole expression in the head, from four options.
    *
    * The same subject as `reduce` with every support taken away: no pieces to
@@ -325,9 +318,11 @@ export type Slide =
    * `4 x 3` possible — a mistake that cannot be made cannot be taught. Powers
    * and roots are offered only once reducible.
    *
-   * There is no expected sequence. A walk is right when every reduction was
-   * legal at the moment it was made, every value was correct, and nothing is
-   * left, so every order precedence allows is accepted equally.
+   * There is no expected sequence. A walk is right when every value given is
+   * what its piece comes to and nothing is left; the value is the only test.
+   * A piece taken before its operands were settled is not refused for that:
+   * `8 + 4 x 3` taken left to right comes to 36, not 20, so the order mistake
+   * is already in the answer.
    */
   | ({ kind: 'reduce' } & Prompted & {
       expr: Expr;
@@ -415,6 +410,13 @@ export type Slide =
       /** Ids of the proof's steps, in slot order. */
       answer: string[];
     })
+  /**
+   * Fill the intermediate values of an evaluation tree.
+   *
+   * Nodes are listed in evaluation order and each names the nodes feeding it,
+   * which is enough to lay out rows and draw the connectors without the content
+   * author positioning anything by hand.
+   */
   | ({ kind: 'tree' } & Prompted & {
       /** The expression the tree evaluates. TeX. */
       expression: string;

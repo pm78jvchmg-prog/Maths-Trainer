@@ -18,6 +18,7 @@ import type { Rng } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import { markerWindow, plotSvg, wave } from '../figures';
 import { bin, num, trig, valueOf, type Expr } from '../expr';
+import { gcd } from './format';
 
 /**
  * Plain number entry. The base keypad already supplies digits, signs and the
@@ -815,7 +816,7 @@ const waveSlider: Generator<WaveSliderParams> = {
         {
           text: 'The amplitude is measured from the midline up to a peak, not from the bottom of the wave to the top.',
         },
-        { tex: `${midline + amplitude} - ${midline} = ${amplitude}` },
+        { tex: `${midline + amplitude} - ${paren(midline)} = ${amplitude}` },
         {
           text: `The full swing from trough to peak is $${2 * amplitude}$, which is twice the amplitude and the most common wrong answer here.`,
         },
@@ -825,7 +826,7 @@ const waveSlider: Generator<WaveSliderParams> = {
       {
         text: 'The midline sits halfway between the highest and lowest the wave reaches, so the curve spends as long above it as below.',
       },
-      { tex: `\\frac{${midline + amplitude} + ${midline - amplitude}}{2} = ${midline}` },
+      { tex: `\\frac{${midline + amplitude} + ${paren(midline - amplitude)}}{2} = ${midline}` },
       {
         text: 'It is not where the curve starts, and it is not zero unless the wave happens to be centred there.',
       },
@@ -984,7 +985,7 @@ const evaluateExactTrig: Generator<ExactTrigParams> = {
           text: 'A sine or cosine is a number, so take it first. At a quarter turn and its multiples the value is always 0, 1 or -1.',
         },
         { tex: `\\${fn}\\left(${degrees}^{\\circ}\\right) = ${v1}` },
-        { tex: `${a} \\times ${v1} + ${b} = ${a * v1} + ${b} = ${total}` },
+        { tex: `${a} \\times ${paren(v1)} + ${b} = ${a * v1} + ${b} = ${total}` },
         {
           text: `The multiplication has to happen before the addition, so this is $${total}$ and not $${a * (v1 + b)}$. The $${b}$ sits outside the $\\${fn}$, which is what makes it a shift rather than part of the angle.`,
         },
@@ -998,7 +999,7 @@ const evaluateExactTrig: Generator<ExactTrigParams> = {
       {
         tex: `\\${fn}\\left(${degrees}^{\\circ}\\right) = ${v1} \\qquad \\${fn2}\\left(${degrees2}^{\\circ}\\right) = ${v2}`,
       },
-      { tex: `${a} \\times ${v1} - ${b} \\times ${v2} = ${a * v1} - ${b * v2} = ${total}` },
+      { tex: `${a} \\times ${paren(v1)} - ${b} \\times ${paren(v2)} = ${a * v1} - ${paren(b * v2)} = ${total}` },
       {
         text: `Taking the subtraction first would leave $${a * v1 - b}$ multiplied by something, which is a different number. Each product is settled before the minus can touch it.`,
       },
@@ -1829,7 +1830,7 @@ const describeWave: Generator<DescribeWaveParams> = {
   solution: ({ midline, amplitude }) => [
     { text: 'The midline is halfway between the two extremes, so average them.' },
     {
-      tex: `\\frac{${midline + amplitude} + ${midline - amplitude}}{2} = ${midline}`,
+      tex: `\\frac{${midline + amplitude} + ${paren(midline - amplitude)}}{2} = ${midline}`,
     },
     { text: 'The amplitude is how far one extreme sits from that middle, which is half the gap between them.' },
     {
@@ -2036,7 +2037,7 @@ const evaluateTree: Generator<EvaluateTreeParams> = {
       },
       { text: 'Each term is settled on its own before the two are added.' },
       {
-        tex: `${a} \\times ${v1} = ${a * v1} \\qquad ${b} \\times ${v2} = ${b * v2} \\qquad ${a * v1} + ${b * v2} = ${a * v1 + b * v2}`,
+        tex: `${a} \\times ${paren(v1)} = ${a * v1} \\qquad ${b} \\times ${paren(v2)} = ${b * v2} \\qquad ${a * v1} + ${paren(b * v2)} = ${a * v1 + b * v2}`,
       },
       {
         text: `Adding the two coefficients first would give $${a + b}$ multiplied by something, which is a different number whenever the two trig values differ.`,
@@ -2262,13 +2263,6 @@ const matchGraph: Generator<MatchGraphParams> = {
 
 /** Number entry with a pi key. `/` is what puts the fraction key on the pad; the point is already there. */
 const PI_KEYS: KeypadKey[] = [{ insert: 'pi', label: 'π' }, { insert: '/' }];
-
-function gcd(a: number, b: number): number {
-  let x = Math.abs(a);
-  let y = Math.abs(b);
-  while (y !== 0) [x, y] = [y, x % y];
-  return x;
-}
 
 /** The numerators from `from` to `to` that share no factor with `d`, so n/d is already in lowest terms. */
 function coprimeTo(d: number, from: number, to: number): number[] {
@@ -3842,7 +3836,7 @@ const tanAsymptoteSlider: Generator<TanSliderParams> = {
       curves: [{ f: (x) => p.a * Math.tan(p.b * x * unit), breaks: true }],
       yMin: -reach,
       yMax: reach,
-      label: `The graph of y = ${p.a} tan ${p.b}x with x in ${p.radians ? 'radians' : 'degrees'}`,
+      label: `The graph of y = ${p.a === 1 ? '' : p.a === -1 ? '-' : `${p.a} `}tan ${p.b === 1 ? '' : p.b === -1 ? '-' : p.b}x with x in ${p.radians ? 'radians' : 'degrees'}`,
     });
     const value = tanFeatureDegrees(p) * (p.radians ? DEGREE : 1);
     return {

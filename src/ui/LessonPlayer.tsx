@@ -6,7 +6,7 @@
  * is not decoration — it is the visible signal that review is no longer
  * available.
  */
-import { useReducer, useRef, useState } from 'react';
+import { useEffect, useId, useReducer, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import {
   startSession,
@@ -14,14 +14,16 @@ import {
   currentSlide,
   currentDeck,
   canGoBack,
+  canPassSolved,
   canRetry,
   skillCheckScore,
   scorePercent,
 } from '../engine/session';
 import type { Answer } from '../engine/session';
 import type { Lesson, GeneratorRegistry } from '../content/types';
-import { SlideView, hasAnswer } from './slides';
-import { FeedbackBar } from './FeedbackBar';
+import { SlideView } from './SlideView';
+import { hasAnswer } from './slides';
+import { FeedbackBar, VerdictAnnouncer } from './FeedbackBar';
 import { tapOnQuestion } from './questionTap';
 
 interface Props {
@@ -29,8 +31,82 @@ interface Props {
   registry: GeneratorRegistry;
   /** Fixed seed for reproducible runs; omit for a fresh draw each sitting. */
   seed?: number;
-  onExit: () => void;
+  /**
+   * Leaves without finishing. `abandoned` is true when a skill check or level
+   * check was under way, so the attempt can be counted as walked away from.
+   */
+  onExit: (abandoned: boolean) => void;
   onComplete: (score: { correct: number; total: number }) => void;
+}
+
+/**
+ * Asks before a sealed check is abandoned.
+ *
+ * Only ever shown once the guided slides are behind the learner. Leaving a
+ * guided slide costs nothing worth asking about, but the exit control sits in
+ * the corner a thumb brushes on the way to the question, and one stray tap
+ * partway through a fifteen-question level check used to throw the whole run
+ * away without a word.
+ *
+ * A native modal `<dialog>` rather than `window.confirm`, so it is styled like
+ * the rest of the app, and rather than a hand-rolled overlay, because
+ * `showModal` makes the lesson behind it inert and closes on Escape for free.
+ * It dispatches nothing: staying leaves the session exactly as it was.
+ */
+function ConfirmLeave({
+  assessment,
+  onStay,
+  onLeave,
+}: {
+  assessment: boolean;
+  onStay: () => void;
+  onLeave: () => void;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const bodyId = useId();
+
+  useEffect(() => {
+    const dialog = ref.current;
+    if (dialog && !dialog.open) dialog.showModal();
+  }, []);
+
+  // `close` hands focus back to the exit control before the dialog unmounts.
+  const stay = () => {
+    ref.current?.close();
+    onStay();
+  };
+
+  return (
+    <dialog
+      ref={ref}
+      className="leave-dialog"
+      role="alertdialog"
+      aria-labelledby={titleId}
+      aria-describedby={bodyId}
+      onCancel={onStay}
+      // The sheet fills the dialog, so a click landing on the dialog element
+      // itself is a tap on the dimmed backdrop around it.
+      onClick={(event) => {
+        if (event.target === event.currentTarget) stay();
+      }}
+    >
+      <div className="leave-sheet">
+        <h2 className="leave-title" id={titleId}>
+          {assessment ? 'Leave the level check?' : 'Leave the skill check?'}
+        </h2>
+        <p className="leave-body" id={bodyId}>
+          Your answers so far won&rsquo;t count.
+        </p>
+        <button type="button" className="primary-button" onClick={stay}>
+          Keep going
+        </button>
+        <button type="button" className="ghost-button" onClick={onLeave}>
+          Leave
+        </button>
+      </div>
+    </dialog>
+  );
 }
 
 export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Props) {
@@ -47,6 +123,9 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
   // The question's handler was bound before that answer was committed, so this
   // is the only way it can tell a tap that chose something from a bare one.
   const answeredByTap = useRef<Answer | undefined>(undefined);
+  // Whether the exit control is waiting on "Leave the check?". Never set during
+  // the guided slides, which the control still leaves in one tap.
+  const [confirmingExit, setConfirmingExit] = useState(false);
 
   const slide = currentSlide(session);
   const deck = currentDeck(session);
@@ -108,7 +187,7 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
   };
 
   // Every answer change is also an edit, which is what lets a second attempt
-  // start by simply changing the answer instead of pressing Try again.
+  // start by simply changing the answer instead of tapping to retry first.
   const changeAnswer = (next: Answer) => {
     dispatch({ type: 'edit' });
     setAnswer(next);
@@ -130,7 +209,12 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
   return (
     <div className="app">
       <header className="lesson-header">
-        <button type="button" className="icon-button" aria-label="Exit lesson" onClick={onExit}>
+        <button
+          type="button"
+          className="icon-button"
+          aria-label="Exit lesson"
+          onClick={() => (session.phase === 'guided' ? onExit(false) : setConfirmingExit(true))}
+        >
           &#215;
         </button>
 
@@ -140,14 +224,22 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
             aria-label={`Question ${session.index + 1} of ${deck.length}`}
             style={{ '--count': deck.length } as CSSProperties}
           >
-            {deck.map((_, idx) => (
-              <span
-                key={idx}
-                className={`dot${idx < session.index ? ' done' : ''}${
-                  idx === session.index ? ' active' : ''
-                }`}
-              />
-            ))}
+            {/* A past question is mint only if it scored, the same test as the
+                summary's count (`firstTry`); one that did not is a hollow ring,
+                so the difference is not carried by colour alone. Nothing here
+                says more than the verdict bar already did. */}
+            {deck.map((item, idx) => {
+              const past = idx < session.index;
+              const scored = past && session.states[item.id]?.firstTry === true;
+              return (
+                <span
+                  key={idx}
+                  className={`dot${past ? (scored ? ' done' : ' missed') : ''}${
+                    idx === session.index ? ' active' : ''
+                  }`}
+                />
+              );
+            })}
           </div>
         ) : (
           <div
@@ -195,12 +287,11 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
         {/* Only when stepping *back* onto a solved slide. While the verdict for
             this answer is still on screen, saying it was already solved reads
             as a comment on the answer just given rather than on the history. */}
-        {session.states[slide.id]?.solved && session.feedback.kind === 'idle' && (
+        {canPassSolved(session) && (
           <p className="lesson-meta">Already solved — answer again or continue.</p>
         )}
         <SlideView
           slide={slide.slide}
-          id={slide.id}
           feedback={session.feedback}
           answer={answer}
           onAnswer={changeAnswer}
@@ -208,17 +299,27 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
         />
       </main>
 
+      <VerdictAnnouncer feedback={session.feedback} />
       <FeedbackBar
         feedback={session.feedback}
         isTeach={isTeach}
         canSubmit={hasAnswer(slide.slide, answer)}
         isLastQuestion={isLastQuestion}
         assessment={session.assessment}
+        canPass={canPassSolved(session)}
         onSubmit={() => act({ type: 'submit', answer })}
         onTryAgain={() => act({ type: 'tryAgain' })}
         onReveal={() => act({ type: 'reveal' })}
         onContinue={() => act({ type: 'continue' })}
       />
+
+      {confirmingExit && (
+        <ConfirmLeave
+          assessment={session.assessment}
+          onStay={() => setConfirmingExit(false)}
+          onLeave={() => onExit(true)}
+        />
+      )}
     </div>
   );
 }

@@ -27,43 +27,19 @@ import {
   bankFor,
   coveredBy,
   isPairPath,
-  landingOf,
   pairOwner,
-  reduceAt,
   renderExpr,
   targetAt,
   targets,
   toTex,
   type Expr,
   type Fragment,
-  type Move,
   type Path,
 } from '../content/expr';
-
-function parseMove(token: string): Move | undefined {
-  const at = token.lastIndexOf('=');
-  if (at < 1) return undefined;
-  const value = Number(token.slice(at + 1));
-  if (!Number.isFinite(value)) return undefined;
-  return { path: token.slice(0, at), value };
-}
+import { movesOf, workingLines } from './reduceWorking';
+import { texToSpeech } from './texSpeech';
 
 const moveToken = (path: Path, value: number) => `${path}=${value}`;
-
-/** Every line of working the moves produce, with the node each one collapsed. */
-function lines(expr: Expr, moves: Move[]): { expr: Expr; filled?: Path }[] {
-  const out: { expr: Expr; filled?: Path }[] = [{ expr }];
-  let current = expr;
-  for (const move of moves) {
-    const node = targetAt(current, move.path);
-    // A move that no longer applies — the content changed under a stored answer
-    // — stops the replay rather than throwing.
-    if (!node || node.kind === 'num') break;
-    current = reduceAt(current, move.path, move.value);
-    out.push({ expr: current, filled: landingOf(move.path) });
-  }
-  return out;
-}
 
 /**
  * One rendered line.
@@ -124,6 +100,8 @@ function Line({
           type="button"
           ref={(el) => refFor?.(tap.path, el)}
           className={`reduce-handle${isLit ? ' lit' : ''}`}
+          // Maths alone, which KaTeX hides from assistive tech: named in words.
+          aria-label={texToSpeech(fragment.tex)}
           onClick={() => onTap(tap.path)}
         >
           <Tex tex={fragment.tex} />
@@ -162,12 +140,12 @@ function ReduceBody({
 }: SlideProps & { slide: ReduceSlideType }) {
   const locked = isLocked(feedback, canEdit);
   const tokens = Array.isArray(answer) ? answer : [];
-  const moves = tokens.map(parseMove).filter((move): move is Move => move !== undefined);
+  const moves = movesOf(tokens);
 
   /** Which piece is chosen and waiting for a value. */
   const [armed, setArmed] = useState<Path | null>(null);
 
-  const worked = lines(slide.expr, moves);
+  const worked = workingLines(slide.expr, moves);
   const live = worked[worked.length - 1].expr;
   const done = live.kind === 'num';
   const offered = done || locked ? [] : targets(live);
@@ -253,6 +231,7 @@ function ReduceBody({
               key={idx}
               type="button"
               className="tile"
+              aria-label={texToSpeech(value)}
               disabled={locked}
               onClick={() => commit(value)}
             >
@@ -275,21 +254,6 @@ function ReduceBody({
       </button>
     </>
   );
-}
-
-/** True once the expression is a single number, so *Check* may go live. */
-export function reduceComplete(expr: Expr, answer: unknown): boolean {
-  if (!Array.isArray(answer)) return false;
-  const moves = answer.map(parseMove).filter((move): move is Move => move !== undefined);
-  let current = expr;
-  for (const move of moves) {
-    const node = targetAt(current, move.path);
-    // A move that no longer applies stops the walk; a wrong value does not, so
-    // Check stays reachable and the learner finds out by checking.
-    if (!node || node.kind === 'num') break;
-    current = reduceAt(current, move.path, move.value);
-  }
-  return current.kind === 'num';
 }
 
 /**
@@ -340,6 +304,7 @@ export function EvaluateSlide({ slide, feedback, answer, onAnswer, canEdit }: Sl
             key={option}
             type="button"
             className={`tile${chosen === option ? ' used' : ''}`}
+            aria-label={texToSpeech(option)}
             disabled={locked}
             onClick={() => onAnswer(chosen === option ? '' : option)}
           >

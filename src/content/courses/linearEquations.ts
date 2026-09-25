@@ -150,7 +150,7 @@ const TRIANGLE = [
 export const linearEquations: Course = {
   id: 'linear-equations',
   category: 'algebra-fundamentals',
-  position: 30,
+  position: 20,
   title: 'Linear Equations & Inequalities',
   blurb: 'Undoing what was done to the unknown, for one equation, for two at once, and for any letter in a formula.',
   levels: [

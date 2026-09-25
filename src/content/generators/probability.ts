@@ -45,14 +45,14 @@ import type { Rng } from '../../engine/rng';
 import { hashSeed } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import { fmt } from './numericalMethods';
-import { fracTex, gcd, stepBank, steered, tokenBank } from './parametricImplicit';
+import { stepBank, steered, tokenBank } from './parametricImplicit';
+import { fracTex, gcdOrOne, say } from './format';
 import { nCr } from './binomialExpansion';
 
 /* ================================================================
  * Shared helpers
  * ================================================================ */
 
-const say = (text: string): Block => ({ kind: 'prose', text });
 const show = (tex: string): Block => ({ kind: 'display', tex });
 const picture = (svg: string): Block => ({ kind: 'diagram', svg });
 
@@ -66,7 +66,7 @@ const saltOf = (...parts: unknown[]): number => hashSeed(JSON.stringify(parts));
 export type Frac = [number, number];
 
 export function simplest([n, d]: Frac): Frac {
-  const g = gcd(n, d);
+  const g = gcdOrOne(n, d);
   return [n / g, d / g];
 }
 
@@ -427,7 +427,7 @@ function sampleBag(rng: Rng, difficulty: number, needsCancel: boolean): BagParam
     const fav = bagFavourable(params);
     const total = bagTotal(params);
     if (fav === 0 || fav === total || total > 36) continue;
-    if (needsCancel && gcd(fav, total) === 1) continue;
+    if (needsCancel && gcdOrOne(fav, total) === 1) continue;
     return params;
   }
 }
@@ -439,7 +439,7 @@ function bagSolution(params: BagParams): SolutionStep[] {
   const steps: SolutionStep[] = [
     { text: `There are $${params.counts.join(' + ')} = ${total}$ ${THINGS[params.thing][1]}, each as likely as any other to be taken.` },
     { text: `$${fav}$ of them are ${bagEvent(params)}, so $${fav}$ outcomes are favourable.` },
-    { tex: `P(\\text{${bagEvent(params)}}) = ${rawTex([fav, total])}${gcd(fav, total) > 1 ? ` = ${ftex([fav, total])}` : ''}` },
+    { tex: `P(\\text{${bagEvent(params)}}) = ${rawTex([fav, total])}${gcdOrOne(fav, total) > 1 ? ` = ${ftex([fav, total])}` : ''}` },
   ];
   if (params.ask === 'not') steps.splice(1, 0, { text: `Every ${one} that is not ${params.colours[params.picks[0]]} counts.` });
   return steps;
@@ -474,7 +474,7 @@ const cancelTiles: Generator<BagParams> = {
   render: (params): Slide => {
     const fav = bagFavourable(params);
     const total = bagTotal(params);
-    const g = gcd(fav, total);
+    const g = gcdOrOne(fav, total);
     return {
       kind: 'tiles',
       prompt: [
@@ -493,7 +493,7 @@ const cancelTiles: Generator<BagParams> = {
   solution: (params) => {
     const fav = bagFavourable(params);
     const total = bagTotal(params);
-    const g = gcd(fav, total);
+    const g = gcdOrOne(fav, total);
     return [
       ...bagSolution(params).slice(0, -1),
       { tex: `P = ${rawTex([fav, total])}` },
@@ -622,7 +622,7 @@ function sampleShown(rng: Rng, lo = 0, hi = 1): Shown {
           : { form, top: rng.int(0, 20) * 5, bottom: 100 };
     const v = shownValue(s);
     if (v < lo || v > hi) continue;
-    if (s.form === 'frac' && gcd(s.top, s.bottom) !== 1 && s.top !== 0) continue;
+    if (s.form === 'frac' && gcdOrOne(s.top, s.bottom) !== 1 && s.top !== 0) continue;
     return s;
   }
 }
@@ -900,7 +900,7 @@ function pairSolution(params: PairParams): SolutionStep[] {
   return [
     { text: `The sample space has $${m} \\times ${n} = ${total}$ equally likely outcomes.` },
     { text: `The outcomes giving ${eventText(params.event)} are ${hits.length > 8 ? `these ${hits.length}` : listing(hits.map((h) => `$${h}$`))}.` },
-    { tex: `P = ${rawTex([fav, total])}${gcd(fav, total) > 1 ? ` = ${ftex([fav, total])}` : ''}` },
+    { tex: `P = ${rawTex([fav, total])}${gcdOrOne(fav, total) > 1 ? ` = ${ftex([fav, total])}` : ''}` },
   ];
 }
 
@@ -1126,7 +1126,7 @@ function sampleProb(rng: Rng, hard: boolean): Prob {
     }
     const b = rng.int(3, 12);
     const a = rng.int(1, b - 1);
-    if (gcd(a, b) !== 1 || 2 * a === b) continue;
+    if (gcdOrOne(a, b) !== 1 || 2 * a === b) continue;
     return { kind: 'frac', f: [a, b] };
   }
 }
@@ -1624,7 +1624,7 @@ const twoWayCell: Generator<TwoWayParams> = {
     const steps: SolutionStep[] = [{ text: `Every one of the ${t.total} ${ctx.who} is equally likely to be chosen.` }];
     if (params.hard) steps.push({ text: `Add down the column: $${params.cells[params.col]} + ${params.cells[2 + params.col]} = ${fav}$ ${text}.` });
     else steps.push({ text: `The cell for "${text}" holds $${fav}$.` });
-    steps.push({ tex: `P = ${rawTex([fav, t.total])}${gcd(fav, t.total) > 1 ? ` = ${ftex([fav, t.total])}` : ''}` });
+    steps.push({ tex: `P = ${rawTex([fav, t.total])}${gcdOrOne(fav, t.total) > 1 ? ` = ${ftex([fav, t.total])}` : ''}` });
     return steps;
   },
   choices: (params) => {
@@ -1689,7 +1689,7 @@ const twoWayTree: Generator<TwoWayParams> = {
         ? { tex: `\\text{${ctx.cols[0]}}: ${a} + ${c} = ${t.cols[0]}, \\quad \\text{${ctx.cols[1]}}: ${b} + ${d} = ${t.cols[1]}` }
         : { tex: `\\text{${ctx.rows[0]}}: ${a} + ${b} = ${t.rows[0]}, \\quad \\text{${ctx.rows[1]}}: ${c} + ${d} = ${t.rows[1]}` },
       { tex: `${parts[0]} + ${parts[1]} = ${t.total}` },
-      { tex: `P = ${rawTex([parts[which], t.total])}${gcd(parts[which], t.total) > 1 ? ` = ${ftex([parts[which], t.total])}` : ''}` },
+      { tex: `P = ${rawTex([parts[which], t.total])}${gcdOrOne(parts[which], t.total) > 1 ? ` = ${ftex([parts[which], t.total])}` : ''}` },
     ];
   },
 };
@@ -2106,11 +2106,11 @@ const methodFlow: Generator<MethodParams> = {
       params.kind === 'fair'
         ? [
             { text: 'A fair object has equally likely outcomes, so count them: favourable over total.' },
-            { tex: `P = ${rawTex(p)}${gcd(p[0], p[1]) > 1 ? ` = ${ftex(p)}` : ''}` },
+            { tex: `P = ${rawTex(p)}${gcdOrOne(p[0], p[1]) > 1 ? ` = ${ftex(p)}` : ''}` },
           ]
         : [
             { text: 'There is no list of equally likely outcomes here, so the experiment gives an estimate: the relative frequency.' },
-            { tex: `P \\approx ${rawTex(p)}${gcd(p[0], p[1]) > 1 ? ` = ${ftex(p)}` : ''}` },
+            { tex: `P \\approx ${rawTex(p)}${gcdOrOne(p[0], p[1]) > 1 ? ` = ${ftex(p)}` : ''}` },
           ];
     if (params.n2) steps.push({ tex: `${params.n2} \\times ${ftex(p)} = ${(params.n2 * p[0]) / p[1]}` });
     return steps;
@@ -2572,7 +2572,7 @@ const vennUnion: Generator<VennParams> = {
     return [
       { text: `Add up the regions: $${a} + ${b} + ${c} + ${d} = ${total}$ in all.` },
       { text: `The favourable ones are ${which[params.ask]}.` },
-      { tex: `${vennAskTex(params)} = ${rawTex([fav, total])}${gcd(fav, total) > 1 ? ` = ${ftex([fav, total])}` : ''}` },
+      { tex: `${vennAskTex(params)} = ${rawTex([fav, total])}${gcdOrOne(fav, total) > 1 ? ` = ${ftex([fav, total])}` : ''}` },
     ];
   },
   choices: (params) => {
@@ -3377,7 +3377,7 @@ const condTable: Generator<CondParams> = {
     return [
       { text: `"Given that the ${ctx.one} ${givenText}" means only those ${given} are in the running.` },
       { text: `Of them, $${cell}$ ${askText.replace(/^is /, 'are ').replace(/^was /, 'were ')}.` },
-      { tex: `P = ${rawTex([cell, given])}${gcd(cell, given) > 1 ? ` = ${ftex([cell, given])}` : ''}` },
+      { tex: `P = ${rawTex([cell, given])}${gcdOrOne(cell, given) > 1 ? ` = ${ftex([cell, given])}` : ''}` },
     ];
   },
   choices: (params) => {
@@ -4783,7 +4783,7 @@ const venn3Outward: Generator<Venn3Params> = {
       { text: `Then $${S}$ only is what is left of the $${nS}$ in $${S}$:` },
       { tex: `${nS} - ${st} - ${su} - ${r[6]} = ${r[s]}` },
     ];
-    if (params.hard) steps.push({ tex: `P(${S} \\text{ only}) = ${rawTex([r[s], sumOf(r)])}${gcd(r[s], sumOf(r)) > 1 ? ` = ${ftex([r[s], sumOf(r)])}` : ''}` });
+    if (params.hard) steps.push({ tex: `P(${S} \\text{ only}) = ${rawTex([r[s], sumOf(r)])}${gcdOrOne(r[s], sumOf(r)) > 1 ? ` = ${ftex([r[s], sumOf(r)])}` : ''}` });
     return steps;
   },
 };
@@ -4978,7 +4978,7 @@ const venn3Chance: Generator<ChanceParams> = {
     return [
       { text: `The eight regions add up to $${total}$.` },
       { text: `The event covers ${listing(regions.map((i) => said[i]))}: $${regions.map((i) => params.regions[i]).join(' + ')} = ${fav}$.` },
-      { tex: `${e.tex(n, params.set, params.other)} = ${rawTex([fav, total])}${gcd(fav, total) > 1 ? ` = ${ftex([fav, total])}` : ''}` },
+      { tex: `${e.tex(n, params.set, params.other)} = ${rawTex([fav, total])}${gcdOrOne(fav, total) > 1 ? ` = ${ftex([fav, total])}` : ''}` },
     ];
   },
   choices: (params) => {
@@ -5067,7 +5067,7 @@ const vennEventsTable: Generator<EventsTableParams> = {
         const fav = sumOf(set.map((i) => r[i]));
         // "At least one" is everything but the outside, which is quicker as a subtraction.
         const count = set.length === r.length - 1 ? `$${total} - ${outside} = ${fav}$` : set.length > 1 ? `$${set.map((i) => r[i]).join(' + ')} = ${fav}$` : `$${fav}$`;
-        return [{ text: `For $${tex}$ the count is ${count}.` }, { tex: `${tex} = ${rawTex([fav, total])}${gcd(fav, total) > 1 ? ` = ${ftex([fav, total])}` : ''}` }];
+        return [{ text: `For $${tex}$ the count is ${count}.` }, { tex: `${tex} = ${rawTex([fav, total])}${gcdOrOne(fav, total) > 1 ? ` = ${ftex([fav, total])}` : ''}` }];
       }),
     ];
   },
@@ -5186,7 +5186,7 @@ const vennReadFlow: Generator<ReadFlowParams> = {
     return [
       { text: `$${e.tex(n)}$ covers ${listing(e.regions.map((i) => regionWords(params.three, n)[i]))}.` },
       { text: `Those regions hold $${e.regions.map((i) => r[i]).join(' + ')} = ${fav}$, out of $${total}$ altogether.` },
-      { tex: `${e.tex(n)} = ${rawTex([fav, total])}${gcd(fav, total) > 1 ? ` = ${ftex([fav, total])}` : ''}` },
+      { tex: `${e.tex(n)} = ${rawTex([fav, total])}${gcdOrOne(fav, total) > 1 ? ` = ${ftex([fav, total])}` : ''}` },
     ];
   },
 };
@@ -5403,7 +5403,7 @@ const condTableTiles: Generator<CondParams> = {
     if (params.hard) steps.push({ text: `Add up every cell for the total: $${total}$.` });
     steps.push(
       { text: `$P(A \\cap B)$ is one cell, $${cell}$ out of $${total}$. $P(B)$ is the whole of that group, $${given}$ out of $${total}$.` },
-      { tex: `P(A \\mid B) = ${rawTex([cell, total])} \\div ${rawTex([given, total])} = ${rawTex([cell, given])}${gcd(cell, given) > 1 ? ` = ${ftex([cell, given])}` : ''}` },
+      { tex: `P(A \\mid B) = ${rawTex([cell, total])} \\div ${rawTex([given, total])} = ${rawTex([cell, given])}${gcdOrOne(cell, given) > 1 ? ` = ${ftex([cell, given])}` : ''}` },
       { text: `The $${total}$s cancel, leaving the cell over the group total, just as in Given That, and Without Replacement.` },
     );
     return steps;
@@ -5731,7 +5731,7 @@ const condVennCount: Generator<VennCondParams> = {
     return [
       { text: `Given $${on}$, keep only ${keepWords}: $${x} + ${y} = ${den}$ ${ctx.who}.` },
       { text: `Of those, $${fav}$ are in the event asked about.` },
-      { tex: `${tex} = ${rawTex([fav, den])}${gcd(fav, den) > 1 ? ` = ${ftex([fav, den])}` : ''}` },
+      { tex: `${tex} = ${rawTex([fav, den])}${gcdOrOne(fav, den) > 1 ? ` = ${ftex([fav, den])}` : ''}` },
     ];
   },
   choices: (params) => {
@@ -5911,7 +5911,7 @@ const condVennFlow: Generator<VennCondParams> = {
     return [
       { text: `Given $${on}$ means keep ${keepWords}.` },
       { text: `That holds $${x} + ${y} = ${den}$ ${ctx.who}, and $${fav}$ of them are in the event asked about.` },
-      { tex: `${tex} = ${rawTex([fav, den])}${gcd(fav, den) > 1 ? ` = ${ftex([fav, den])}` : ''}` },
+      { tex: `${tex} = ${rawTex([fav, den])}${gcdOrOne(fav, den) > 1 ? ` = ${ftex([fav, den])}` : ''}` },
     ];
   },
 };
@@ -6245,8 +6245,8 @@ const indepTableFlow: Generator<IndepTableParams> = {
     const steps: SolutionStep[] = [];
     if (params.hard) steps.push({ text: `Add every cell for the total, $${total}$, and the rows and columns for the group sizes.` });
     steps.push(
-      { tex: `P(A) = ${rawTex([target, total])}${gcd(target, total) > 1 ? ` = ${ftex([target, total])}` : ''}` },
-      { tex: `P(A \\mid B) = ${rawTex([cell, given])}${gcd(cell, given) > 1 ? ` = ${ftex([cell, given])}` : ''}` },
+      { tex: `P(A) = ${rawTex([target, total])}${gcdOrOne(target, total) > 1 ? ` = ${ftex([target, total])}` : ''}` },
+      { tex: `P(A \\mid B) = ${rawTex([cell, given])}${gcdOrOne(cell, given) > 1 ? ` = ${ftex([cell, given])}` : ''}` },
       {
         text: independent
           ? 'They are equal, so knowing $B$ makes no difference: $A$ and $B$ are independent.'
@@ -6660,7 +6660,7 @@ const reverseCounters: Generator<CounterParams> = {
     } else {
       steps.push({ text: `At least one is ${c0} unless both are ${c1}.` }, { tex: `P(\\text{at least one ${c0}}) = 1 - ${rawTex([b * (b - 1), n * (n - 1)])} = ${rawTex([bottom, n * (n - 1)])}` });
     }
-    steps.push({ text: `Divide: the $${n * (n - 1)}$s cancel.` }, { tex: `P = ${rawTex([top, bottom])}${gcd(top, bottom) > 1 ? ` = ${ftex([top, bottom])}` : ''}` });
+    steps.push({ text: `Divide: the $${n * (n - 1)}$s cancel.` }, { tex: `P = ${rawTex([top, bottom])}${gcdOrOne(top, bottom) > 1 ? ` = ${ftex([top, bottom])}` : ''}` });
     return steps;
   },
   choices: (params) => {
@@ -7591,7 +7591,7 @@ const committeeTiles: Generator<CommitteeParams> = {
     return [
       { text: `Every committee is equally likely, and there are $^{${n}}C_{${r}} = ${all}$ of them.` },
       { text: how[params.kind] },
-      { tex: `P = ${rawTex([fav, all])}${gcd(fav, all) > 1 ? ` = ${ftex([fav, all])}` : ''}` },
+      { tex: `P = ${rawTex([fav, all])}${gcdOrOne(fav, all) > 1 ? ` = ${ftex([fav, all])}` : ''}` },
     ];
   },
 };
@@ -7652,7 +7652,7 @@ const threeBagTree: Generator<ThreeBagParams> = {
     return [
       { text: `The three come out together, so order does not matter. Any three of the $${x + y}$: $^{${x + y}}C_{3} = ${all}$ ways.` },
       way,
-      { tex: `P = ${rawTex([fav, all])}${gcd(fav, all) > 1 ? ` = ${ftex([fav, all])}` : ''}` },
+      { tex: `P = ${rawTex([fav, all])}${gcdOrOne(fav, all) > 1 ? ` = ${ftex([fav, all])}` : ''}` },
     ];
   },
 };

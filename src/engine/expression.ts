@@ -81,7 +81,7 @@ export function parseExpression(
 
   let node: MathNode;
   try {
-    node = math.parse(trimmed);
+    node = math.parse(bracketLoneLetters(trimmed));
   } catch (err) {
     return { ok: false, error: describeParseError(err) };
   }
@@ -113,6 +113,38 @@ export function parseExpression(
   return { ok: true, node, variables: [...variables].sort() };
 }
 
+/**
+ * A name followed by a bracket, found by reading names whole from the left so
+ * the `x` at the end of `x2x(` is never taken for one on its own.
+ */
+const NAME_BEFORE_BRACKET = /[A-Za-z_][A-Za-z0-9_]*(?=\s*\()/g;
+
+/**
+ * Write a lone letter in front of a bracket as a bracketed letter, `(x)(`.
+ *
+ * mathjs reads any name followed by a bracket as a function call, so `x(x+1)`
+ * was a call to a function named x and came back as "There is no function
+ * called x" — a factorised answer typed exactly as it is printed could not be
+ * graded, on every keypad offering a letter key beside `(`. No function is
+ * named by a single letter, so the letter is a factor.
+ *
+ * It is done to the string rather than to the parsed tree because a call binds
+ * tighter than `^`: `x(x+1)^2` parses as `(x(x+1))^2`, and turning that call
+ * into a product would square the x as well. `(x)(x+1)^2` is the implicit
+ * product the formula keypads already produce (`BRACKETED_LETTER` in
+ * `mathInput.ts`), with the power on the bracket alone.
+ *
+ * Longer names are left as they are, so a misspelt `sinn(x)` is still reported
+ * as a function that does not exist.
+ */
+function bracketLoneLetters(input: string): string {
+  return input.replace(NAME_BEFORE_BRACKET, (name) =>
+    name.length === 1 && typeof (math as unknown as Record<string, unknown>)[name] !== 'function'
+      ? `(${name})`
+      : name,
+  );
+}
+
 function describeParseError(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err);
   if (/Unexpected end of expression/i.test(raw)) return "That expression isn't finished.";
@@ -131,9 +163,34 @@ export function isInvalidScalar(value: unknown): boolean {
   return true;
 }
 
+/** Something `evaluateAt` can run: a parsed node, or one compiled ahead of time. */
+export interface Evaluable {
+  evaluate(scope?: Record<string, unknown>): unknown;
+}
+
+/**
+ * Compile a parsed expression once, for evaluating at many points.
+ *
+ * `node.evaluate` compiles the tree afresh on every call, and a check evaluates
+ * each side at up to 24 points; compiling once is several times faster. A node
+ * that fails to compile yields one whose every evaluation fails, which is what
+ * evaluating the node would have done, so no verdict changes.
+ */
+export function compileExpression(node: MathNode): Evaluable {
+  try {
+    return node.compile();
+  } catch (err) {
+    return {
+      evaluate: () => {
+        throw err;
+      },
+    };
+  }
+}
+
 /** Evaluate at a point. Returns `undefined` for a domain hole rather than throwing. */
 export function evaluateAt(
-  node: MathNode,
+  node: Evaluable,
   scope: Record<string, unknown>,
 ): Scalar | undefined {
   try {

@@ -28,6 +28,7 @@ import type { Block, ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } f
 import { bin, num, pow, valueOf, type Expr } from '../expr';
 import { markerWindow, plotSvg } from '../figures';
 import { sumTex, termTex } from './calculus';
+import { fracTex, gcdOrOne } from './format';
 import { lin, orderSlide, orderSolution, pickDistractors, polyTex as kPoly, type Distractor, type Proof } from './numberProof';
 
 /* ---------- shared ---------- */
@@ -88,22 +89,7 @@ function listLines(values: (number | string)[]): string {
   return `\\begin{gathered} ${lines.join(', \\\\ ')} \\end{gathered}`;
 }
 
-function gcd(x: number, y: number): number {
-  let a = Math.abs(x);
-  let b = Math.abs(y);
-  while (b) [a, b] = [b, a % b];
-  return a || 1;
-}
-
-/** p/q as the learner reads it, reduced, with a whole number left whole. */
-function fracTex(p: number, q: number): string {
-  const g = gcd(p, q) * (q < 0 ? -1 : 1);
-  const [n, d] = [p / g, q / g];
-  if (d === 1) return `${n}`;
-  return n < 0 ? `-\\frac{${-n}}{${d}}` : `\\frac{${n}}{${d}}`;
-}
-
-/** The same fraction for the grader; the outer brackets matter (PITFALLS 3.3). */
+/** The fraction `fracTex` shows, for the grader; the outer brackets matter (PITFALLS 3.3). */
 function fracAnswer(p: number, q: number): string {
   return `((${p})/(${q}))`;
 }
@@ -557,13 +543,16 @@ const termOf: Generator<TermParams> = {
     ),
   solution: (params) => {
     const { a, b, c, quad, k } = params;
+    // A coefficient of 1 multiplies nothing, and a constant of 0 adds nothing.
+    const middle = b === 0 ? '' : Math.abs(b) === 1 ? ` ${b < 0 ? '-' : '+'} ${k}` : ` ${signed(b)} \\times ${k}`;
+    const tail = c === 0 ? '' : ` ${signed(c)}`;
     return [
       { text: `Put $n = ${k}$ into the rule.` },
       {
         tex: chain(
           quad
-            ? `u_{${k}} &= ${times(a)}${k}^{2} ${b ? `${signed(b)} \\times ${k}` : ''} ${signed(c)}`
-            : `u_{${k}} &= ${a} \\times ${k} ${signed(c)}`,
+            ? `u_{${k}} &= ${times(a)}${k}^{2}${middle}${tail}`
+            : `u_{${k}} &= ${a} \\times ${k}${tail}`,
           `&= ${termValue(params, k)}`,
         ),
       },
@@ -5478,7 +5467,7 @@ const fromSlip: Generator<FromSlipParams> = {
 type Frac = [number, number];
 
 function reduced([p, q]: Frac): Frac {
-  const g = gcd(p, q) * (q < 0 ? -1 : 1);
+  const g = gcdOrOne(p, q) * (q < 0 ? -1 : 1);
   return [p / g, q / g];
 }
 
@@ -6135,7 +6124,7 @@ function indShape(s: PolyClaim): IndShape {
         ? { P: s.c, Q: 6, factors: [n, next, { a: 2, b: 1 + 3 * s.p, e: 1 }] }
         : { P: s.c, Q: 3, factors: [n, next, { a: 1, b: (1 + 3 * s.p) / 2, e: 1 }] };
   } else raw = { P: s.c, Q: 4, factors: [{ a: 1, b: 0, e: 2 }, { a: 1, b: 1, e: 2 }] };
-  const g = gcd(raw.P, raw.Q);
+  const g = gcdOrOne(raw.P, raw.Q);
   return { P: raw.P / g, Q: raw.Q / g, factors: raw.factors };
 }
 
@@ -7858,7 +7847,7 @@ function savingsRun(P: number, pct: number, n: number): number[] {
 /** The smallest payment that keeps n years of balances whole: q^n, rounded up to a multiple of 10 when that is small. */
 function unitFor(pct: number, n: number): number {
   const qn = rateOf(pct).q ** n;
-  return qn >= 16 ? qn : (qn * 10) / gcd(qn, 10);
+  return qn >= 16 ? qn : (qn * 10) / gcdOrOne(qn, 10);
 }
 
 /** Every payment of at most £1000 whose n years of balances are whole and under the cap. */

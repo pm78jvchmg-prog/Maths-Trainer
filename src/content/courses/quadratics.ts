@@ -165,7 +165,7 @@ const flightGraph = (h0: number, v: number, opts: Parameters<typeof flightFigure
 export const quadratics: Course = {
   id: 'quadratics',
   category: 'algebra-fundamentals',
-  position: 20,
+  position: 30,
   title: 'Quadratics',
   blurb: 'Expanding, factorising, three ways to solve, the parabola, where a line meets it, and inequalities.',
   levels: [

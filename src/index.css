@@ -224,6 +224,21 @@ button {
   padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
 }
 
+/* Read by a screen reader, not drawn: the verdict's live region, whose words
+   the feedback bar already shows. Absolute, so it takes no room in a flex
+   column either. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* ---------- Lesson header ---------- */
 
 .lesson-header {
@@ -291,13 +306,26 @@ button {
   background: var(--surface-raised);
 }
 
+/* A past question that scored. */
 .dot.done {
   background: var(--correct);
 }
 
+/* A past question that did not score: a quiet hollow ring rather than a red
+   dot, and hollow against filled so the two differ in shape as well as
+   colour. Every past level-check question used to be mint, so a wrong answer
+   sat green in the header once the check moved on. */
+.dot.missed {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--text-dim);
+}
+
+/* The question being asked, in the accent rather than mint: mint means right,
+   and straight after a wrong answer in a level check the current dot sat green
+   beside "Not quite.". */
 .dot.active {
-  background: var(--correct);
-  box-shadow: 0 0 0 4px var(--correct-bg), 0 0 12px rgb(75 214 173 / 0.45);
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-dim), 0 0 12px rgb(138 134 255 / 0.45);
 }
 
 /* ---------- Slide body ---------- */
@@ -543,7 +571,8 @@ button {
   .screen.enter-back,
   .footer.correct,
   .footer.wrong,
-  .solution {
+  .solution,
+  .leave-dialog {
     animation: none;
   }
   /* The press-to-shrink feedback is movement too, so it goes with the rest.
@@ -860,6 +889,51 @@ button {
   transform: scale(0.985);
 }
 
+/* ---------- Leave confirmation ---------- */
+
+/* "Leave the check?", asked only once a check is sealed (see LessonPlayer).
+   A sheet at the foot of the screen rather than a box in the middle, so both
+   answers sit where the thumb already is, with the safe one on top in the
+   primary style. The backdrop dims the lesson rather than hiding it, so it is
+   plain which run is about to be thrown away. */
+.leave-dialog {
+  width: min(100% - 24px, 596px);
+  max-width: none;
+  margin: auto auto calc(12px + env(safe-area-inset-bottom));
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: var(--lift);
+  animation: pane-in 200ms ease-out;
+}
+
+.leave-dialog::backdrop {
+  background: rgb(0 0 0 / 0.6);
+}
+
+.leave-sheet {
+  padding: 20px;
+}
+
+.leave-title {
+  margin: 0 0 4px;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.leave-body {
+  margin: 0 0 18px;
+  color: var(--text-soft);
+}
+
+.leave-dialog .ghost-button {
+  width: 100%;
+  margin-top: 10px;
+}
+
 
 .solution {
   animation: pane-in 200ms ease-out;
@@ -1114,6 +1188,14 @@ button {
 
 .plot-hits circle {
   cursor: pointer;
+  outline: none;
+}
+
+/* The ring a keyboard user steers by, drawn the way the force diagram's
+   focused arrow head is. */
+.plot-hits circle:focus-visible {
+  stroke: var(--accent);
+  stroke-width: 2;
 }
 
 .plot-hits.locked circle {
@@ -1187,11 +1269,16 @@ button {
   color: var(--text-dim);
 }
 
-/* The pips shrink to whatever the count label leaves, rather than sitting at a
-   fixed width. At 18px each a sixteen-lesson course needs 348px of pips, which
-   is wider than the card on a phone — so the row overflowed and pushed "1/16"
-   off the edge. Capped at 18px so a two-lesson course does not stretch them
-   into bars. */
+/* One pip per level, filled as far as that level is finished.
+
+   It was one pip per lesson, and courses run to 47 lessons and checks: at the
+   3px floor on a card this narrow the row was a smear, and past about forty it
+   overflowed onto the count beside it. Levels run to eight, so each pip keeps
+   a readable length. A pip grows with the number of lessons in its level
+   (`--size`, set by the course card) and is capped at what those lessons'
+   18px pips used to take, so a one-level course still reads as a short run
+   rather than a bar the width of the card. The row shrinks to whatever the
+   count label leaves, as before. */
 .progress-pips {
   display: flex;
   gap: 4px;
@@ -1200,12 +1287,20 @@ button {
 }
 
 .pip {
-  flex: 1 1 0;
-  max-width: 18px;
-  min-width: 3px;
+  flex: var(--size, 1) 1 0;
+  max-width: calc(var(--size, 1) * 22px - 4px);
+  min-width: 0;
   height: 5px;
   border-radius: 999px;
+  overflow: hidden;
   background: var(--surface-raised);
+}
+
+.pip-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
 }
 
 /* Never shrinks and never wraps: the count is the part that must stay readable
@@ -1215,11 +1310,7 @@ button {
   white-space: nowrap;
 }
 
-.pip.done {
-  background: var(--accent);
-}
-
-.course-card.complete .pip.done {
+.course-card.complete .pip-fill {
   background: var(--correct);
 }
 

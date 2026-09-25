@@ -1,5 +1,6 @@
 /**
- * Shared helpers for complex-number content.
+ * Shared helpers for complex-number content, and at the end the few that every
+ * course needs: `gcd`, `gcdOrOne`, `fracTex` and `say`.
  *
  * Two audiences, deliberately kept apart:
  *
@@ -7,7 +8,7 @@
  * - `*Answer` helpers produce what mathjs parses. These are never displayed,
  *   so they can be unambiguous rather than pretty.
  */
-import type { KeypadKey } from '../types';
+import type { Block, KeypadKey } from '../types';
 import type { Rng } from '../../engine/rng';
 
 /** The imaginary unit. Every keypad in this course offers it. */
@@ -105,3 +106,66 @@ export function nonZero(rng: Rng, max: number): number {
 export function distinct(tokens: string[]): string[] {
   return [...new Set(tokens)];
 }
+
+/* ---------- Shared by every course ---------- */
+
+/**
+ * The greatest common divisor of |a| and |b|: never negative, and 0 when both
+ * are 0. To divide by it where both could be 0, use `gcdOrOne`.
+ */
+export function gcd(a: number, b: number): number {
+  let x = Math.abs(a);
+  let y = Math.abs(b);
+  while (y) [x, y] = [y, x % y];
+  return x;
+}
+
+/**
+ * `gcd`, except that it is 1 rather than 0 when both are 0, so dividing by it
+ * never gives NaN. Kept apart from `gcd` because the copies it replaced
+ * answered 1 there: moving a caller to `gcd` means first showing it can never
+ * pass two zeros, which a fold from 0 over a list starting with 0 would.
+ */
+export function gcdOrOne(a: number, b: number): number {
+  return gcd(a, b) || 1;
+}
+
+/** top/bottom as the learner reads it: lowest terms, the sign out in front, a whole number left whole. */
+export function fracTex(top: number, bottom: number): string {
+  const g = gcdOrOne(top, bottom);
+  let p = top / g;
+  let q = bottom / g;
+  if (q < 0) {
+    p = -p;
+    q = -q;
+  }
+  if (q === 1) return `${p}`;
+  return `${p < 0 ? '-' : ''}\\frac{${Math.abs(p)}}{${q}}`;
+}
+
+/** Minus a number in a line of working: -3, -(-3), and -(0) rather than -0. */
+export const negatedTex = (t: number): string => (t <= 0 ? `-(${t})` : `-${t}`);
+
+/** A number added after another term: `+ 3`, or `- 3` when it is negative, never `+ -3`. */
+export const plusMinus = (n: number): string => (n < 0 ? `- ${-n}` : `+ ${n}`);
+
+/**
+ * "a" or "an" before a number, by how it is read aloud: an 8, an 11, an 18,
+ * an 80, an 8.5, an 11 000; but a 1, a 110, a 180.
+ */
+export function aOrAn(n: number, capital = false): string {
+  const whole = String(n).split('.')[0];
+  const an = whole.startsWith('8') || (/^1[18]/.test(whole) && whole.length % 3 === 2);
+  return `${capital ? 'A' : 'a'}${an ? 'n' : ''}`;
+}
+
+/** A position in prose: 1st, 2nd, 3rd, 11th, 22nd. A decimal takes th. */
+export function nth(n: number, shown = `${n}`): string {
+  if (!Number.isInteger(n)) return `${shown}th`;
+  const last2 = Math.abs(n) % 100;
+  const suffix = last2 >= 11 && last2 <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][last2 % 10] ?? 'th');
+  return `${shown}${suffix}`;
+}
+
+/** A paragraph of prose in a prompt; inline maths sits between $ signs. */
+export const say = (text: string): Block => ({ kind: 'prose', text });

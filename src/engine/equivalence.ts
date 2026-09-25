@@ -15,6 +15,7 @@
 import { makeRng } from './rng';
 import {
   parseExpression,
+  compileExpression,
   evaluateAt,
   samplePoint,
   distance,
@@ -138,6 +139,10 @@ export function checkAnswer(
     throw new Error(`Malformed expected answer in content: ${expected} (${target.error})`);
   }
 
+  // Compiled once here rather than on each of the evaluations below.
+  const userFn = compileExpression(user.node);
+  const targetFn = compileExpression(target.node);
+
   // Arbitrary constants are bound to 0 so "x^2/2" and "x^2/2 + C" probe alike.
   const zeroed: Record<string, unknown> = {};
   for (const name of constants) zeroed[name] = 0;
@@ -146,8 +151,8 @@ export function checkAnswer(
 
   // No variables: a single evaluation settles it. Covers arithmetic such as 3i + 7i.
   if (variables.length === 0) {
-    const a = evaluateAt(user.node, { ...zeroed });
-    const b = evaluateAt(target.node, { ...zeroed });
+    const a = evaluateAt(userFn, { ...zeroed });
+    const b = evaluateAt(targetFn, { ...zeroed });
     if (a === undefined || b === undefined) {
       return { status: 'indeterminate', message: 'That expression could not be evaluated.' };
     }
@@ -159,8 +164,8 @@ export function checkAnswer(
   const rng = makeRng(seed);
   let valid = 0;
   let agreeing = 0;
-  // For `upToConstant`, the running reference difference between the two sides.
-  let referenceGap: Scalar | undefined;
+  // For `upToConstant`, the difference between the two sides at each point.
+  const gaps: Scalar[] = [];
 
   for (let attempt = 0; attempt < policy.sampleCount; attempt++) {
     const scope = { ...zeroed, ...samplePoint(rng, variables, domain) };
@@ -170,8 +175,8 @@ export function checkAnswer(
     // object let a learner's `x=0` rebind x for the expected side too, so
     // `x=0` was graded correct against `2x`, `14x`, and every other answer
     // vanishing at 0.
-    const a = evaluateAt(user.node, { ...scope });
-    const b = evaluateAt(target.node, { ...scope });
+    const a = evaluateAt(userFn, { ...scope });
+    const b = evaluateAt(targetFn, { ...scope });
     if (a === undefined || b === undefined) continue; // domain hole
     valid++;
 
@@ -181,13 +186,17 @@ export function checkAnswer(
     }
 
     // upToConstant: the two sides may sit apart, but by the *same* amount everywhere.
-    const gap = gapBetween(a, b);
-    if (referenceGap === undefined) {
-      referenceGap = gap;
-      agreeing++;
-    } else if (closeEnough(gap, referenceGap, policy.relativeTolerance)) {
-      agreeing++;
-    }
+    gaps.push(gapBetween(a, b));
+  }
+
+  // Each gap is measured against the median rather than against the first
+  // point's. A first point sitting on float noise — cancellation beside a
+  // removable singularity — would otherwise be the reference every other point
+  // disagreed with, so the outliers the threshold absorbs in exact mode would
+  // fail a right answer here whenever one of them happened to come first.
+  if (mode === 'upToConstant' && gaps.length > 0) {
+    const reference = medianGap(gaps);
+    agreeing = gaps.filter((gap) => closeEnough(gap, reference, policy.relativeTolerance)).length;
   }
 
   if (valid < policy.minValidPoints) {
@@ -208,4 +217,16 @@ function gapBetween(a: Scalar, b: Scalar): Scalar {
   const br = typeof b === 'number' ? b : b.re;
   const bi = typeof b === 'number' ? 0 : b.im;
   return ai === 0 && bi === 0 ? ar - br : { re: ar - br, im: ai - bi };
+}
+
+/**
+ * The median gap, taken part by part. Whenever more than half the gaps agree —
+ * and acceptance needs nine in ten — it sits among them, wherever the
+ * disagreeing ones fell in the draw.
+ */
+function medianGap(gaps: readonly Scalar[]): Scalar {
+  const middle = (values: number[]) => values.sort((p, q) => p - q)[Math.floor((values.length - 1) / 2)];
+  const re = middle(gaps.map((gap) => (typeof gap === 'number' ? gap : gap.re)));
+  const im = middle(gaps.map((gap) => (typeof gap === 'number' ? 0 : gap.im)));
+  return im === 0 ? re : { re, im };
 }

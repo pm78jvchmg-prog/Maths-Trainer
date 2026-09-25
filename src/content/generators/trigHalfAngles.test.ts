@@ -408,7 +408,9 @@ describe('every equation in x/2 or 3x is answered by its own solutions', () => {
       const tex = (slide.prompt[1] as { tex: string }).tex;
       const all = solve(equation(tex).holds, 360).filter((x) => x > 0);
       const text = (slide.prompt[0] as { text: string }).text;
-      const want = text.includes('largest') ? all[all.length - 1] : text.includes('second') ? all[1] : all[0];
+      // "smallest", "second largest", "third smallest": a place counted in from one end.
+      const inward = text.includes('third') ? 2 : text.includes('second') ? 1 : 0;
+      const want = text.includes('largest') ? all[all.length - 1 - inward] : all[inward];
       expect(slide.answer, `${tex}: ${text}`).toBe(want);
       expect(slide.answer, 'the handle rests at 180').not.toBe(180);
       if (!text.includes('the solution')) expect(all.length).toBeGreaterThan(1);

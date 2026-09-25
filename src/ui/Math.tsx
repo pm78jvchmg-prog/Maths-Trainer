@@ -46,13 +46,7 @@ export function Tex({
 }
 
 /**
- * Prose with inline maths delimited by $...$.
- *
- * Splitting on a capturing group keeps the delimiters in the array, so odd
- * indices are always the maths segments.
- */
-/**
- * One paragraph of teaching text.
+ * Inline markup, without a paragraph around it.
  *
  * Three inline markups are understood: `$maths$`, `**bold**` and `*italic*`.
  * All three were written into the content from the start; only the maths was
@@ -63,13 +57,12 @@ export function Tex({
  *
  * One alternation, bold before italic so `**` is claimed by the bold branch
  * rather than being read as an empty italic followed by a stray asterisk.
- */
-/**
- * The markup, without a paragraph around it.
+ * Splitting on a capturing group keeps each marked-up span in the array; each
+ * part is then told apart by its delimiters.
  *
- * Split out because a decision tree's branch labels carry maths too, and they
- * live inside buttons — where a `<p>` is not valid content. Anything that needs
- * the inline markup in a non-paragraph context uses this.
+ * Split out from `Prose` because a decision tree's branch labels carry maths
+ * too, and they live inside buttons — where a `<p>` is not valid content.
+ * Anything that needs the inline markup in a non-paragraph context uses this.
  */
 export function Inline({ text }: { text: string }) {
   const parts = useMemo(() => text.split(/(\$[^$]+\$|\*\*[^*]+\*\*|\*[^*]+\*)/g), [text]);
@@ -91,6 +84,7 @@ export function Inline({ text }: { text: string }) {
   );
 }
 
+/** One paragraph of teaching text: `Inline` in a `<p>`. */
 export function Prose({ text }: { text: string }) {
   return (
     <p className="prose">

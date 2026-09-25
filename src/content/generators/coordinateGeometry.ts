@@ -47,6 +47,7 @@ import { markerWindow, plotSvg, type Curve } from '../figures';
 import { sumTex } from './calculus';
 import { TRIPLES } from './complexPlane';
 import { orderSlide, orderSolution, pickDistractors, type Proof } from './numberProof';
+import { gcdOrOne, say } from './format';
 
 /* ---------- fractions ---------- */
 
@@ -56,15 +57,8 @@ export interface Q {
   d: number;
 }
 
-function gcd(a: number, b: number): number {
-  let x = Math.abs(a);
-  let y = Math.abs(b);
-  while (y) [x, y] = [y, x % y];
-  return x || 1;
-}
-
 function q(n: number, d = 1): Q {
-  const g = gcd(n, d) * (d < 0 ? -1 : 1);
+  const g = gcdOrOne(n, d) * (d < 0 ? -1 : 1);
   // `+ 0` turns a -0 numerator into 0, so it prints as "0".
   return { n: n / g + 0, d: d / g };
 }
@@ -177,7 +171,6 @@ function squaredDistance(px: number, a: number, py: number, b: number): string {
 /** A long equation as inline maths in prose, which wraps where a display cannot. */
 const wrapped = (tex: string): Block => ({ kind: 'prose', text: `$${tex}$` });
 
-const say = (text: string): Block => ({ kind: 'prose', text });
 const show = (tex: string): Block => ({ kind: 'display', tex });
 
 function chain(...lines: string[]): string {
@@ -982,7 +975,7 @@ const coordGeneralTiles: Generator<GeneralTilesParams> = {
         const d = rng.pick([2, 3, 4, 5]);
         const n = nz(rng, 6);
         const e = nz(rng, 9);
-        if (gcd(n, d) !== 1) continue;
+        if (gcdOrOne(n, d) !== 1) continue;
         return { n, d, e };
       }
       return { n: nz(rng, 6), d: 1, e: nz(rng, 9) };
@@ -1038,7 +1031,7 @@ function sampleGeneral(rng: Rng, difficulty: number): GeneralParams {
       const a = rng.int(1, 7);
       const b = rng.int(2, 7) * rng.sign();
       const k = nz(rng, 12);
-      if (gcd(a, b) !== 1 || a % b === 0) continue;
+      if (gcdOrOne(a, b) !== 1 || a % b === 0) continue;
       return { a, b, k };
     }
     const m = nz(rng, 4);
@@ -1139,7 +1132,7 @@ const coordOnLine: Generator<OnLineParams> = {
       if (difficulty > 1) {
         const a = rng.int(1, 6);
         const b = rng.int(2, 6) * rng.sign();
-        if (gcd(a, b) !== 1) continue;
+        if (gcdOrOne(a, b) !== 1) continue;
         return { a, b, r: a * px + b * py, px, py, slope: false };
       }
       const m = nz(rng, 4);
@@ -1442,7 +1435,8 @@ const coordPerpThroughTree: Generator<PerpThroughParams> = {
       ],
       bank: bank(
         answer,
-        [qTex(neg(m1)), qTex(inv(m1)), String(p.cy + value(mul(m2, q(p.cx)))), String(-c), String(p.cy - value(mul(m1, q(p.cx))))],
+        // AB's own gradient through C can leave a fraction, so it is written as one.
+        [qTex(neg(m1)), qTex(inv(m1)), String(p.cy + value(mul(m2, q(p.cx)))), String(-c), qTex(sub(q(p.cy), mul(m1, q(p.cx))))],
         [c],
       ),
       answer,
@@ -2676,7 +2670,7 @@ function tangentGeneral({ a, b, dx, dy }: TangentParams): [number, number, numbe
   const px = a + dx;
   const py = b + dy;
   const k = -(dx * px + dy * py);
-  const g = gcd(gcd(dx, dy), k) * (dx < 0 ? -1 : 1);
+  const g = gcdOrOne(gcdOrOne(dx, dy), k) * (dx < 0 ? -1 : 1);
   return [dx / g, dy / g, k / g + 0];
 }
 
@@ -5713,7 +5707,7 @@ const slantedVec = ([x, y]: Pt): boolean => x !== 0 && y !== 0;
 
 /** The shortest lattice step in the same direction. */
 function primitive([x, y]: Pt): Pt {
-  const g = gcd(x, y);
+  const g = gcdOrOne(x, y);
   return [x / g, y / g];
 }
 
@@ -7307,7 +7301,7 @@ function apexSolution(p: LevelTriParams, letter = 'k'): SolutionStep[] {
   const area = (b * h) / 2;
   return [
     {
-      text: `$AB$ lies on the line $${baseLine(p)}$, so it is level and its length is the base: $b = ${b}$. Put the area into half base times height:`,
+      text: `$AB$ lies on the line $${baseLine(p)}$, so it is ${p.along === 'x' ? 'level' : 'upright'} and its length is the base: $b = ${b}$. Put the area into half base times height:`,
     },
     { tex: chain(`\\tfrac{1}{2} \\times ${b} \\times h &= ${area}`, `h &= ${area * 2} \\div ${b} = ${h}`) },
     {
@@ -7862,7 +7856,7 @@ function expandedSquares([a, b]: Pt, m = 1, linear = m, constant = m): string {
 
 /** ax + by + k = 0 divided through by its common factor, the first term positive. */
 function reducedLine(a: number, b: number, k: number): [number, number, number] {
-  const g = gcd(gcd(a, b), k) * ((a || b) < 0 ? -1 : 1);
+  const g = gcdOrOne(gcdOrOne(a, b), k) * ((a || b) < 0 ? -1 : 1);
   return [a / g + 0, b / g + 0, k / g + 0];
 }
 
@@ -8315,7 +8309,8 @@ const ratioPrompt = (p: RatioParams): string =>
 function collectedRatio(p: RatioParams, m = 3, flipConstant = false): string {
   const [a, b] = p.O;
   const k = m * (a * a + b * b - ratioR2(p)) * (flipConstant ? -1 : 1);
-  return `${sumTex([`${m}x^2`, `${m}y^2`, termOf(q(-2 * m * a)), termOf(q(-2 * m * b), 'y'), String(k)])} = 0`;
+  const sq = m === 1 ? '' : String(m);
+  return `${sumTex([`${sq}x^2`, `${sq}y^2`, termOf(q(-2 * m * a)), termOf(q(-2 * m * b), 'y'), String(k)])} = 0`;
 }
 
 /** The squaring-out and the collecting, then the centre and radius. */

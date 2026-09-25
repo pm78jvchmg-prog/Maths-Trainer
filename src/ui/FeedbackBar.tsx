@@ -1,8 +1,10 @@
 /**
  * The bar along the bottom of a lesson.
  *
- * The rule that matters: a wrong answer shows "Not quite." and offers *Show me*
- * beside *Try again*. It never prints the answer. The reveal is a deliberate
+ * The rule that matters: a wrong answer shows "Not quite." and offers only
+ * *Show me*; retrying is a tap on the question (`tapOnQuestion`), and
+ * *Try again* appears only once the worked steps are showing. It never prints
+ * the answer. The reveal is a deliberate
  * second tap, and the worked steps only appear once the reducer has moved to
  * the `revealed` state.
  */
@@ -27,6 +29,12 @@ interface Props {
    * onwards — there is deliberately no Try again and no Show me to hunt for.
    */
   assessment: boolean;
+  /**
+   * A guided slide already solved, stepped back onto for review: Continue is
+   * offered beside Check, so reviewing it does not mean answering it again.
+   * Read from `canPassSolved`, the same gate the reducer applies.
+   */
+  canPass: boolean;
   onSubmit: () => void;
   onTryAgain: () => void;
   onReveal: () => void;
@@ -120,6 +128,7 @@ export function FeedbackBar({
   canSubmit,
   isLastQuestion,
   assessment,
+  canPass,
   onSubmit,
   onTryAgain,
   onReveal,
@@ -141,6 +150,13 @@ export function FeedbackBar({
     case 'idle':
       return (
         <div className="footer">
+          {canPass && (
+            <div className="footer-head">
+              <button type="button" className="ghost-button" onClick={onContinue}>
+                {advanceLabel}
+              </button>
+            </div>
+          )}
           <button
             type="button"
             className="primary-button"
@@ -225,4 +241,38 @@ export function FeedbackBar({
         </div>
       );
   }
+}
+
+/**
+ * The verdict, said aloud.
+ *
+ * The bar above is rebuilt for every verdict, and a live region only speaks
+ * reliably when it is already in the page before its words change; one that
+ * arrives together with its text is often passed over. So this is a separate
+ * status line that is always present and holds nothing but the verdict, read
+ * out when a check lands without the learner having to find the footer. It is
+ * visually hidden, since the bar already shows the same words, and it says no
+ * more than the bar does: never the answer, never the worked steps.
+ */
+export function VerdictAnnouncer({ feedback }: { feedback: Feedback }) {
+  const said = (() => {
+    switch (feedback.kind) {
+      case 'correct':
+        return 'Correct';
+      case 'incorrect':
+        return 'Not quite.';
+      case 'invalid':
+        return feedback.message;
+      case 'revealed':
+        return 'Here is how';
+      case 'idle':
+        return '';
+    }
+  })();
+
+  return (
+    <div className="visually-hidden" role="status" aria-live="polite">
+      {said}
+    </div>
+  );
 }

@@ -14,9 +14,40 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Maths Trainer</title>
+    <!-- The splash is what shows while the bundle downloads and parses, which
+         on a phone is long enough to see; an empty #root is a blank screen.
+         React empties #root on its first render, so nothing removes it by
+         hand. Styled here rather than in index.css so it needs no bundle. -->
+    <style>
+      #splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        color: #f3f3f8;
+        text-align: center;
+      }
+      #splash .splash-name {
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+      #splash .splash-note {
+        font-size: 15px;
+        color: #9ba2bb;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="splash" role="status">
+        <div class="splash-name">Maths Trainer</div>
+        <div class="splash-note">Loading…</div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -52,7 +52,8 @@ import { canonicalSet } from '../numberLine';
 import { ALGEBRA_KEYS, sumTex } from './calculus';
 import { windowFor } from './numberLine';
 import { fmt } from './numericalMethods';
-import { fracTex, gcd, mix, numberChoices, steered, stepBank, tokenBank, treeBank, turned } from './parametricImplicit';
+import { mix, numberChoices, steered, stepBank, tokenBank, treeBank, turned } from './parametricImplicit';
+import { fracTex, gcdOrOne, say } from './format';
 
 /* ================================================================
  * Exact fractions
@@ -66,7 +67,7 @@ export interface Q {
 
 export function q(n: number, d = 1): Q {
   if (d === 0) throw new Error('q: zero denominator');
-  const g = gcd(n, d);
+  const g = gcdOrOne(n, d);
   const top = ((d < 0 ? -1 : 1) * n) / g;
   return { n: top === 0 ? 0 : top, d: Math.abs(d) / g };
 }
@@ -306,7 +307,6 @@ export function derivName(p: number, at = '0'): string {
  * Banks and options
  * ================================================================ */
 
-const say = (text: string): Block => ({ kind: 'prose', text });
 const show = (tex: string): Block => ({ kind: 'display', tex });
 
 /** A number that may be a fraction. */
@@ -897,9 +897,11 @@ const expTerm: Generator<ExpTermParams> = {
   }),
   solution: ({ f, n }) => {
     const u = uTex(f.k);
+    // k^n in front of x^n, with no 1 written.
+    const kn = qTex(pow(f.k, n));
     return [
       { text: `The $u^{${n}}$ term of $e^{u}$ is $\\frac{u^{${n}}}{${n}!}$. Put $u = ${u}$:` },
-      { tex: `${lead(f.scale)}\\frac{(${u})^{${n}}}{${n}!} = ${lead(f.scale)}\\frac{${qTex(pow(f.k, n))}x^{${n}}}{${fact(n)}} = ${monoTex(coefOf(f, n), n)}` },
+      { tex: `${lead(f.scale)}\\frac{(${u})^{${n}}}{${n}!} = ${lead(f.scale)}\\frac{${kn === '1' ? '' : kn === '-1' ? '-' : kn}x^{${n}}}{${fact(n)}} = ${monoTex(coefOf(f, n), n)}` },
     ];
   },
   choices: ({ f, n }) => {
@@ -980,7 +982,7 @@ const expSlider: Generator<ExpSliderParams> = {
             { f: poly, accent: true },
           ],
           verticals: [{ x: a, dashed: true }],
-          label: `The curve y = e to the ${k}x, dashed, and its Maclaurin polynomial of degree ${params.deg}, with a line at x = ${dec(a)}`,
+          label: `The curve y = e to the ${lead(k)}x, dashed, and its Maclaurin polynomial of degree ${params.deg}, with a line at x = ${dec(a)}`,
         }),
         ...markerWindow(SLIDER_LO, SLIDER_HI, 'y'),
         axis: 'y',
@@ -1590,7 +1592,7 @@ const subTiles: Generator<SubParams> = {
     const u = uTex(f.k, f.m);
     const inner = termsOf(f, 3, SUB_CAP - r);
     const steps: SolutionStep[] = [
-      { text: `Replace every $u$ with $${u}$: its coefficient is raised to the same power as the $x^{${f.m}}$, so $u^{j}$ becomes $(${qTex(f.k)})^{j}x^{${f.m}j}$.` },
+      { text: `Replace every $u$ with $${u}$: its coefficient is raised to the same power as the $${f.m === 1 ? 'x' : `x^{${f.m}}`}$, so $u^{j}$ becomes $(${qTex(f.k)})^{j}x^{${f.m === 1 ? '' : f.m}j}$.` },
       { tex: `${fnTex({ ...f, scale: 1 })} = ${seriesTex(inner)}` },
     ];
     if (r > 0) steps.push({ text: 'Multiplying by $x$ raises every power by one:' }, { tex: `${subTex(params)} = ${seriesTex(subTerms(params))}` });
@@ -4068,10 +4070,15 @@ const degreeN: Generator<DegreeParams> = {
   solution: (params) => {
     const { f, x, tol } = params;
     const n = degreeNeeded(params);
-    const m = waveM(f, n + 1, x, decQ);
-    const row = (k: number) => `n = ${k}: \\; ${m.tex} \\times \\frac{${fmt(Math.abs(val(x)))}^{${k + 1}}}{${k + 1}!} \\approx ${fmt(Number(boundAt(f, k, x).toPrecision(3)))}`;
+    // M bounds f^(n+1), so with a multiplier inside it changes from row to row.
+    const mAt = (k: number) => waveM(f, k + 1, x, decQ).tex;
+    const row = (k: number) => `n = ${k}: \\; ${mAt(k)} \\times \\frac{${fmt(Math.abs(val(x)))}^{${k + 1}}}{${k + 1}!} \\approx ${fmt(Number(boundAt(f, k, x).toPrecision(3)))}`;
+    const mSay =
+      mAt(n - 1) === mAt(n)
+        ? `Here $M = ${mAt(n)}$.`
+        : `Here $M$ bounds $f^{(n+1)}$, so it changes with $n$: $${mAt(n - 1)}$ for $n = ${n - 1}$, $${mAt(n)}$ for $n = ${n}$.`;
     return [
-      { text: `Here $M = ${m.tex}$. Work the bound out for each $n$ until it drops under $${fmt(tol)}$:` },
+      { text: `${mSay} Work the bound out for each $n$ until it drops under $${fmt(tol)}$:` },
       { tex: row(n - 1) },
       { tex: row(n) },
       { text: `So $n = ${n}$ is the first that is small enough.` },

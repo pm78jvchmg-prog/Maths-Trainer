@@ -29,6 +29,7 @@ import { options } from '../choiceVariant';
 import { bankFor, bin, num, pow, type Expr } from '../expr';
 import { sumTex, termTex } from './calculus';
 import { bankOf, numberTile, offer, signedTile } from './quadratics';
+import { negatedTex } from './format';
 
 /* ---------- Formatting ---------- */
 
@@ -1733,7 +1734,7 @@ const mappingFlow: Generator<MappingFlowParams> = {
       line: 'A straight line that is not horizontal never takes the same height twice.',
       squareHalf: `Cutting the domain at the vertex keeps only one side of the parabola, which never takes the same height twice.`,
       cube: 'A cubic of this shape is always rising, so it never takes the same height twice.',
-      recip: 'Each output of $\\frac{1}{x - a}$ comes from exactly one input.',
+      recip: `Each output of $\\frac{1}{x ${signedTile(-a)}}$ comes from exactly one input.`,
     };
     return [
       { text: 'Each $x$ gives one $y$, so it is a function.' },
@@ -3307,12 +3308,15 @@ const findK: Generator<FindKParams> = {
   render: (params): Slide => {
     const { form, a, h } = params;
     const [p, q] = findKPoint(params);
+    // At the origin the curve crosses both axes, so naming one would mislead.
     const where =
-      form === 'point'
-        ? `passes through $(${p}, ${q})$`
-        : form === 'yAxis'
-          ? `crosses the $y$-axis at $(0, ${q})$`
-          : `crosses the $x$-axis at $(${p}, 0)$`;
+      p === 0 && q === 0
+        ? 'passes through the origin, $(0, 0)$'
+        : form === 'point'
+          ? `passes through $(${p}, ${q})$`
+          : form === 'yAxis'
+            ? `crosses the $y$-axis at $(0, ${q})$`
+            : `crosses the $x$-axis at $(${p}, 0)$`;
     return {
       kind: 'expression',
       prompt: [{ kind: 'prose', text: `The curve $y = ${recipTex(a, h, 0)} + k$ ${where}. Find $k$.` }],
@@ -3401,7 +3405,7 @@ function endSteps(params: EndParams, end: 'left' | 'right'): SolutionStep[] {
   const limit = limitTex(limitAt(params, end));
   if (form === 'ratio') {
     return [
-      { text: `When $x$ is ${big}, the numbers added on hardly matter: $\\frac{${linTex(a, b)}}{${shiftedX(h)}}$ is nearly $\\frac{${a}x}{x} = ${a}$.` },
+      { text: `When $x$ is ${big}, the numbers added on hardly matter: $\\frac{${linTex(a, b)}}{${shiftedX(h)}}$ is nearly $\\frac{${termTex(a, 1)}}{x} = ${a}$.` },
       { tex: `y \\to ${limit}` },
     ];
   }
@@ -3575,7 +3579,7 @@ const leadingFlow: Generator<LeadParams> = {
       const power = deg === 2 ? 'x^2' : 'x';
       return [
         { text: `Both have $${power}$ as their highest power. When $x$ is large the rest hardly matters:` },
-        { tex: `\\frac{${top}}{${bottom}} \\approx \\frac{${a}${power}}{${c}${power}} = ${a / c}` },
+        { tex: `\\frac{${top}}{${bottom}} \\approx \\frac{${termTex(a, deg === 2 ? 2 : 1)}}{${termTex(c, deg === 2 ? 2 : 1)}} = ${a / c}` },
         { text: `So $y$ heads for $${a / c}$.` },
       ];
     }
@@ -5438,7 +5442,7 @@ function pieceAt({ sq, m, q }: Piece, x: number): number {
 function pieceSubTex({ sq, m, q }: Piece, x: number): string {
   if (sq) return `${br(x)}^2 ${q === 0 ? '' : signedTile(q)}`;
   if (m === 0) return `${q}`;
-  return `${m === 1 ? '' : m === -1 ? '-' : `${m} \\times `}${br(x)} ${q === 0 ? '' : signedTile(q)}`;
+  return `${m === 1 ? br(x) : m === -1 ? negatedTex(x) : `${m} \\times ${br(x)}`} ${q === 0 ? '' : signedTile(q)}`;
 }
 
 type PieceKind = 'lin' | 'const' | 'sq';
@@ -8081,7 +8085,7 @@ const familyFlow: Generator<FamilyFlowParams> = {
           ask: 'So which kind of function fits the table?',
           branches: turned(FAMILIES.map((f) => FAMILY_NAME[f])).map((label) => ({
             label,
-            outcome: `So a ${label.toLowerCase()} function fits.`,
+            outcome: `So ${/^[aeiou]/i.test(label) ? 'an' : 'a'} ${label.toLowerCase()} function fits.`,
           })),
         },
       ],
@@ -9277,6 +9281,13 @@ interface PriceSetting {
   key: string;
   /** The thing priced: "a coat". */
   item: string;
+  /**
+   * What the number is: "price" for a thing bought, else the quantity itself,
+   * so a wage is never "the price of a weekly wage".
+   */
+  noun: 'price' | 'wage' | 'total';
+  /** In pounds, or a bare count. */
+  pounds: boolean;
   /** The fixed change: a voucher takes off, a fee adds on. */
   sign: 1 | -1;
   /** "a £$10$ voucher", "a £$15$ delivery charge". */
@@ -9289,13 +9300,13 @@ interface PriceSetting {
 }
 
 const PRICES: PriceSetting[] = [
-  { key: 'voucher', item: 'a coat', sign: -1, amount: (v) => `a £$${v}$ voucher comes off`, m: 1.2, multiply: 'VAT at $20$% is added', unit: 5 },
-  { key: 'delivery', item: 'a sofa', sign: 1, amount: (v) => `a £$${v}$ delivery charge is added`, m: 0.8, multiply: 'the sale takes $20$% off', unit: 5 },
-  { key: 'service', item: 'a meal', sign: -1, amount: (v) => `a £$${v}$ money-off voucher is used`, m: 1.1, multiply: 'a $10$% service charge is added', unit: 10 },
-  { key: 'booking', item: 'a hotel room', sign: 1, amount: (v) => `a £$${v}$ booking fee is added`, m: 1.2, multiply: 'tax at $20$% is added', unit: 5 },
-  { key: 'trade-in', item: 'a bike', sign: -1, amount: (v) => `a £$${v}$ trade-in comes off`, m: 0.75, multiply: 'the sale takes $25$% off', unit: 4 },
-  { key: 'bonus', item: 'a weekly wage', sign: 1, amount: (v) => `a £$${v}$ bonus is added`, m: 1.1, multiply: 'a $10$% pay rise is applied', unit: 10 },
-  { key: 'points', item: 'a points total', sign: 1, amount: (v) => `$${v}$ bonus points are added`, m: 2, multiply: 'the total is doubled', unit: 1 },
+  { key: 'voucher', item: 'a coat', noun: 'price', pounds: true, sign: -1, amount: (v) => `a £$${v}$ voucher comes off`, m: 1.2, multiply: 'VAT at $20$% is added', unit: 5 },
+  { key: 'delivery', item: 'a sofa', noun: 'price', pounds: true, sign: 1, amount: (v) => `a £$${v}$ delivery charge is added`, m: 0.8, multiply: 'the sale takes $20$% off', unit: 5 },
+  { key: 'service', item: 'a meal', noun: 'price', pounds: true, sign: -1, amount: (v) => `a £$${v}$ money-off voucher is used`, m: 1.1, multiply: 'a $10$% service charge is added', unit: 10 },
+  { key: 'booking', item: 'a hotel room', noun: 'price', pounds: true, sign: 1, amount: (v) => `a £$${v}$ booking fee is added`, m: 1.2, multiply: 'tax at $20$% is added', unit: 5 },
+  { key: 'trade-in', item: 'a bike', noun: 'price', pounds: true, sign: -1, amount: (v) => `a £$${v}$ trade-in comes off`, m: 0.75, multiply: 'the sale takes $25$% off', unit: 4 },
+  { key: 'bonus', item: 'a weekly wage', noun: 'wage', pounds: true, sign: 1, amount: (v) => `a £$${v}$ bonus is added`, m: 1.1, multiply: 'a $10$% pay rise is applied', unit: 10 },
+  { key: 'points', item: 'a points total', noun: 'total', pounds: false, sign: 1, amount: (v) => `$${v}$ bonus points are added`, m: 2, multiply: 'the total is doubled', unit: 1 },
 ];
 
 interface PriceParams {
@@ -9323,10 +9334,12 @@ function priceParts({ c, v, swap }: PriceParams) {
 
 function pricePrompt(params: PriceParams): Block[] {
   const { setting, fTex, gTex } = priceParts(params);
+  const start =
+    setting.noun === 'price' ? `The price of ${setting.item}` : `${setting.item[0].toUpperCase()}${setting.item.slice(1)}`;
   return [
     {
       kind: 'prose',
-      text: `The price of ${setting.item} is £$${params.p}$ before two changes: ${setting.amount(params.v)}, and ${setting.multiply}. As functions of the price $x$:`,
+      text: `${start} is ${setting.pounds ? '£' : ''}$${params.p}$ before two changes: ${setting.amount(params.v)}, and ${setting.multiply}. As functions of the ${setting.noun} $x$:`,
     },
     { kind: 'display', tex: pairTex(fTex, gTex) },
   ];
@@ -9379,7 +9392,7 @@ const priceTree: Generator<PriceParams> = {
     if (!hard) {
       const [first, second] = priceAfter(params);
       const answer = [`${first}`, `${second}`];
-      prompt.push({ kind: 'prose', text: `The shop makes them in this order: ${priceOrderWords(params)}. Fill in the price after each change.` });
+      prompt.push({ kind: 'prose', text: `The changes are made in this order: ${priceOrderWords(params)}. Fill in the ${PRICES[params.c].noun} after each change.` });
       return {
         kind: 'tree',
         prompt,
@@ -9396,7 +9409,7 @@ const priceTree: Generator<PriceParams> = {
     const answer = [`${a1}`, `${a2}`, `${b1}`, `${b2}`, `${gap}`];
     prompt.push({
       kind: 'prose',
-      text: `Work out both orders — ${priceOrderWords(params, true)}; and ${priceOrderWords(params, false)} — and how far apart the two prices are.`,
+      text: `Work out both orders — ${priceOrderWords(params, true)}; and ${priceOrderWords(params, false)} — and how far apart the two ${PRICES[params.c].noun}s are.`,
     });
     return {
       kind: 'tree',
@@ -9424,7 +9437,7 @@ const priceTree: Generator<PriceParams> = {
     };
     if (!params.hard) {
       return [
-        { text: `The change made first is the one nearest the $x$: ${priceOrderWords(params)} is $${priceName(params)}$.` },
+        { text: `The change made first is the one nearest the $x$. Here ${priceOrderWords(params)}, so the composite is $${priceName(params)}$.` },
         { tex: line(params.amountFirst) },
       ];
     }
@@ -9463,7 +9476,7 @@ const orderChoice: Generator<PriceParams> = {
     const other = compositeRuleTex(params, !params.amountFirst);
     return {
       kind: 'choice',
-      prompt: [...pricePrompt(params), { kind: 'prose', text: `The changes are made ${priceOrderWords(params)}. Which function gives the final price?` }],
+      prompt: [...pricePrompt(params), { kind: 'prose', text: `The changes are made in this order: ${priceOrderWords(params)}. Which function gives the final ${PRICES[params.c].noun}?` }],
       ...fixedChoice(
         [`${right}(x) = ${rule}`, `${right}(x) = ${other}`, `${wrong}(x) = ${rule}`, `${wrong}(x) = ${other}`].map((label) => ({ label, tex: true })),
       ),
@@ -9498,13 +9511,14 @@ const priceValue: Generator<PriceParams> = {
   render: (params): Slide => {
     const [, right] = priceAfter(params);
     const name = priceName(params);
+    const { noun, pounds } = PRICES[params.c];
     const ask = params.hard
-      ? `The changes are made ${priceOrderWords(params)}. What is the final price, in pounds?`
-      : `Find $${name}(${params.p})$, the final price in pounds.`;
+      ? `The changes are made in this order: ${priceOrderWords(params)}. What is the final ${noun}${pounds ? ', in pounds' : ''}?`
+      : `Find $${name}(${params.p})$, the final ${noun}${pounds ? ' in pounds' : ''}.`;
     return {
       kind: 'expression',
       prompt: [...pricePrompt(params), { kind: 'prose', text: ask }],
-      lead: params.hard ? '\\text{price} =' : `${name}(${params.p}) =`,
+      lead: params.hard ? `\\text{${noun}} =` : `${name}(${params.p}) =`,
       keypad: [],
       answer: `${right}`,
       domain: 'real',
@@ -9515,7 +9529,7 @@ const priceValue: Generator<PriceParams> = {
     const [first, second] = priceAfter(params);
     const name = priceName(params);
     return [
-      { text: `${params.hard ? `${priceOrderWords(params)[0].toUpperCase()}${priceOrderWords(params).slice(1)} is $${name}$. ` : ''}In $${name}(${params.p})$ the letter nearest the price acts first.` },
+      { text: `${params.hard ? `${priceOrderWords(params)[0].toUpperCase()}${priceOrderWords(params).slice(1)}, so the composite is $${name}$. ` : ''}In $${name}(${params.p})$ the letter nearest the ${PRICES[params.c].noun} acts first.` },
       { tex: `${name}(${params.p}) = ${name[0]}(${first}) = ${second}` },
     ];
   },
@@ -9537,7 +9551,7 @@ const compositeTiles: Generator<PriceParams> = {
     const answer = [name[0], name[1], compositeRuleTex(params, params.amountFirst)];
     return {
       kind: 'tiles',
-      prompt: [...pricePrompt(params), { kind: 'prose', text: `The changes are made ${priceOrderWords(params)}. Build the function that gives the final price.` }],
+      prompt: [...pricePrompt(params), { kind: 'prose', text: `The changes are made in this order: ${priceOrderWords(params)}. Build the function that gives the final ${PRICES[params.c].noun}.` }],
       template: '{0}{1}(x) = {2}',
       // Never the expanded form of the right rule: it is equal, so marking it
       // wrong would be unfair. The other order, and the fixed amount's sign

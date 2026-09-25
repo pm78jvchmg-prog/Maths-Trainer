@@ -5,7 +5,7 @@ import type { Block, ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } f
 import { hashSeed, type Rng } from '../../engine/rng';
 import { bin, num, pow, root } from '../expr';
 import {
-  I_KEY, coeffTex, complexTex, complexAnswer, bracketedTex, distinct, powersOf, nonZero,
+  I_KEY, coeffTex, complexTex, complexAnswer, bracketedTex, distinct, gcd, powersOf, nonZero,
   surdParts, surdTex, surdAnswer,
 } from './format';
 import { PLANE_VIEWBOX, complexPlaneSvg, planeGridSvg, pointPosition, rangeFor } from './plane';
@@ -46,7 +46,7 @@ const ANGLE_KEYS: KeypadKey[] = [
  * serialises to `sqrt(24^(2)+10^(2))`, which grades correct.
  *
  * `)` is gone. `sqrt(` is a template that closes itself (`applyKey`,
- * `src/ui/slides.tsx`), and no key on this pad opens a bracket, so the only
+ * `src/ui/mathInput.ts`), and no key on this pad opens a bracket, so the only
  * thing `)` could ever add was a stray one — `sqrt(13))`, which grades
  * `invalid`. It mattered little while every modulus answered a whole number
  * and the root was decorative; it matters now that most answers are surds.
@@ -918,10 +918,6 @@ export const polarForm: Generator<PolarParams> = {
 };
 
 /* ---------- De Moivre: powers in modulus-argument form ---------- */
-
-function gcd(a: number, b: number): number {
-  return b === 0 ? Math.abs(a) : gcd(b, a % b);
-}
 
 /** m·π/d in lowest terms, as the learner reads it. Canonical: equal values give equal strings. */
 function angleTex(m: number, d: number): string {

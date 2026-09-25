@@ -31,6 +31,8 @@ import type { ChoiceOption, Generator, Slide } from '../types';
 import { markerWindow, parabolaSvg } from '../figures';
 import { options } from '../choiceVariant';
 import { bin, num, pow } from '../expr';
+import { termTex } from './calculus';
+import { gcd } from './format';
 import {
   bankOf,
   factorTile,
@@ -93,11 +95,6 @@ function squareTile(coefficient: number): string {
   return coefficient === 1 ? 'x^2' : `${coefficient}x^2`;
 }
 
-/** Highest common factor, for keeping a "take the common factor out" question honest. */
-function hcf(a: number, b: number): number {
-  return b === 0 ? Math.abs(a) : hcf(b, a % b);
-}
-
 /* ---------- Level 1: expanding ---------- */
 
 interface ProductParams {
@@ -148,9 +145,9 @@ const expandTerm: Generator<ProductParams> = {
       text: 'The middle term is the only one built from two multiplications: the outside pair and the inside pair, added together.',
     },
     {
-      tex: `${m}x \\times ${q < 0 ? `\\left(${q}\\right)` : q} = ${m * q}x \\qquad ${p < 0 ? `\\left(${p}\\right)` : p} \\times ${n}x = ${n * p}x`,
+      tex: `${termTex(m, 1)} \\times ${q < 0 ? `\\left(${q}\\right)` : q} = ${termTex(m * q, 1)} \\qquad ${p < 0 ? `\\left(${p}\\right)` : p} \\times ${termTex(n, 1)} = ${termTex(n * p, 1)}`,
     },
-    { tex: `${m * q}x ${signedTile(n * p, 'x')} = ${m * q + n * p}x` },
+    { tex: `${termTex(m * q, 1)} ${signedTile(n * p, 'x')} = ${termTex(m * q + n * p, 1)}` },
     {
       text: `So the coefficient is $${m * q + n * p}$. Adding $${p}$ and $${q}$ instead gives $${p + q}$, which is only the same answer when both brackets start with a plain $x$.`,
     },
@@ -222,11 +219,11 @@ const expandSquare: Generator<SquareParams> = {
       tex: `\\left(${factorTile(m, p)}\\right)\\left(${factorTile(m, p)}\\right)`,
     },
     {
-      text: `The outside and inside products are both $${m * p}x$, and together they make $${2 * m * p}x$. That doubling is the whole reason the middle term is there.`,
+      text: `The outside and inside products are both $${termTex(m * p, 1)}$, and together they make $${termTex(2 * m * p, 1)}$. That doubling is the whole reason the middle term is there.`,
     },
     { tex: `${quadraticTex(m * m, 2 * m * p, p * p)}` },
     {
-      text: `Squaring the two pieces separately would give $${quadraticTex(m * m, 0, p * p)}$, which is short by $${2 * m * p}x$.`,
+      text: `Squaring the two pieces separately would give $${quadraticTex(m * m, 0, p * p)}$, which is short by $${termTex(2 * m * p, 1)}$.`,
     },
   ],
 };
@@ -481,7 +478,7 @@ const factoriseRoute: Generator<RouteParams> = {
   }),
   solution: ({ a, b, c, route }) => {
     if (route === 'common') {
-      const common = hcf(a, Math.abs(b));
+      const common = gcd(a, Math.abs(b));
       return [
         {
           text: 'There is no constant term, so every term carries an $x$ — and that is a common factor before anything else is tried.',
@@ -714,7 +711,7 @@ const commonFactor: Generator<CommonFactorParams> = {
       const p = nonZero(rng.int(-9, 9), -2);
       // The factor taken out has to be the whole of what is common, or there
       // is a second right answer sitting inside the bracket.
-      const shared = terms === 2 ? hcf(m, n) : hcf(hcf(m, n), p);
+      const shared = terms === 2 ? gcd(m, n) : gcd(gcd(m, n), p);
       if (shared === 1) return { k, m, n, p, terms };
     }
     return { k, m: 1, n: 3, p: -2, terms };
@@ -753,7 +750,7 @@ const commonFactor: Generator<CommonFactorParams> = {
         },
         { tex: `${quadraticTex(k * m, k * n, 0)} = ${k}x\\left(${factorTile(m, n)}\\right)` },
         {
-          text: `Divide each term by $${k}x$ rather than by $${k}$ alone: $${k * m}x^{2} \\div ${k}x = ${m}x$, and $${k * n}x \\div ${k}x = ${n}$. Leaving the $x$ behind is the usual half-done answer.`,
+          text: `Divide each term by $${k}x$ rather than by $${k}$ alone: $${termTex(k * m, 2)} \\div ${k}x = ${termTex(m, 1)}$, and $${termTex(k * n, 1)} \\div ${k}x = ${n}$. Leaving the $x$ behind is the usual half-done answer.`,
         },
       ];
     }
@@ -867,7 +864,14 @@ const rootSlider: Generator<RootsParams> = {
     {
       text: 'A root is where the curve meets the horizontal axis — where $y$ is zero, not where the curve turns.',
     },
-    { tex: `${quadraticTex(1, -(r + t), r * t)} = \\left(x ${signedTile(-r)}\\right)\\left(x ${signedTile(-t)}\\right)` },
+    {
+      // A root at 0 is a bare factor of x, not (x + 0).
+      tex: `${quadraticTex(1, -(r + t), r * t)} = ${
+        r * t === 0
+          ? `x\\left(x ${signedTile(-(r + t))}\\right)`
+          : `\\left(x ${signedTile(-r)}\\right)\\left(x ${signedTile(-t)}\\right)`
+      }`,
+    },
     {
       text: `The crossings are at $x = ${r}$ and $x = ${t}$, so the larger is $${t}$. The turning point sits midway between them, at $x = ${(r + t) / 2}$.`,
     },

@@ -615,8 +615,12 @@ const betweenTiles: Generator<IneqParams> = {
  * Solve, when the answer is the two pieces outside the roots.
  *
  * The same bank of slips, and one more: the two signs point opposite ways —
- * $x < p$ on the left, $x > q$ on the right — and placing them the same way
+ * $x < p$ below the roots, $x > q$ above them — and placing them the same way
  * round is the mistake this shape invites.
+ *
+ * Each piece is one tile, sign and number together, so the two can go in
+ * either order: graded unordered, loose signs and numbers could swap between
+ * the pieces and pass `x < q or x > p`, which is every real number.
  */
 const outsideTiles: Generator<IneqParams> = {
   id: 'quad-ineq-outside-tiles',
@@ -627,19 +631,31 @@ const outsideTiles: Generator<IneqParams> = {
   render: (params): Slide => {
     const { p, q, op } = params;
     const strict = isStrict(op);
-    const answer = [strict ? '<' : '\\le', `${p}`, strict ? '>' : '\\ge', `${q}`];
+    const less = strict ? '<' : '\\le';
+    const greater = strict ? '>' : '\\ge';
+    const answer = [`x ${less} ${p}`, `x ${greater} ${q}`];
     return {
       kind: 'tiles',
       prompt: [
         {
           kind: 'prose',
-          text: 'Solve the inequality. The answer is two pieces: fill in the sign and the number for each.',
+          text: 'Solve the inequality. The answer is two pieces: place both, in either order.',
         },
         { kind: 'display', tex: expandedTex(params) },
       ],
-      template: 'x {0} {1} \\text{ or } x {2} {3}',
-      bank: bankOf(answer, [`${-p}`, `${-q}`, strict ? '\\le' : '<', strict ? '\\ge' : '>']),
+      template: '{0} \\text{ or } {1}',
+      bank: bankOf(answer, [
+        // Both signs the same way round.
+        `x ${greater} ${p}`,
+        `x ${less} ${q}`,
+        // The other strictness, and the roots read off the brackets unflipped.
+        `x ${strict ? '\\le' : '<'} ${p}`,
+        `x ${strict ? '\\ge' : '>'} ${q}`,
+        `x ${less} ${-p}`,
+        `x ${greater} ${-q}`,
+      ]),
       answer,
+      unordered: true,
     };
   },
   solution: (params) => [
@@ -1109,10 +1125,11 @@ interface ParamRangeParams {
   slot: number;
 }
 
+/** Worded to follow "does this curve", so the verb is in its base form. */
 const CURVE_TEXT: Record<RootCondition, string> = {
-  two: 'crosses the $x$-axis twice',
-  none: 'never meets the $x$-axis',
-  real: 'meets the $x$-axis at least once',
+  two: 'cross the $x$-axis twice',
+  none: 'never meet the $x$-axis',
+  real: 'meet the $x$-axis at least once',
 };
 
 /**

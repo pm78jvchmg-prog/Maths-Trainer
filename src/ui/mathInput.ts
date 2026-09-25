@@ -23,9 +23,7 @@
  * - `toAnswer` is what mathjs parses. It is never displayed, so it can be
  *   unambiguous rather than pretty: `(3)/(4)` for that same fraction.
  */
-import { useMemo } from 'react';
 import type { KeypadKey } from '../content/types';
-import { Tex } from './Math';
 
 /**
  * A node of the answer.
@@ -327,24 +325,59 @@ export function fnTex(name: string): string {
  * dragged into it. A learner typing 4x^2 as a fraction times x^2 was graded
  * wrong until the outer pair went in. Since `/` is only ever reached through
  * the fraction template, bracketing here closes the hole everywhere.
+ *
+ * An empty slot is written as `()`, which mathjs refuses to read, so the answer
+ * comes back as unreadable rather than as a value. It used to be a neutral
+ * value — a fraction 0/1, a denominator 1, a root sqrt(0), an exponent 1 — and
+ * Check is live as soon as anything else is typed, so `5 + □/□` was a right
+ * answer to "5" and `x^□` a right answer to "x". A bare `sqrt()` would not do
+ * for the root: mathjs parses it as a call with no argument.
+ *
+ * A letter key is bracketed, `(x)`, whenever what follows it could run into
+ * it. mathjs reads a run of letters and digits as one name and a name followed
+ * by a bracket as a call, so `i` then √3 came out as `isqrt(3)` ("There is no
+ * function called isqrt"), `x` then `ln(` as `xln(`, `x` then `e^x` as a
+ * symbol named `xe`, and π before a fraction as a call to `pi`. Bracketed, each
+ * is the implicit product the formula keypads already produce with their
+ * `(a)` keys. Only where needed, so `x^(2)` and `2x+1` read as they always did.
  */
 export function toAnswer(nodes: Node[]): string {
-  return nodes
-    .map((node) => {
-      if (node.kind === 'atom') return node.ans;
-      if (node.kind === 'frac') return `((${toAnswer(node.num) || '0'})/(${toAnswer(node.den) || '1'}))`;
-      if (node.kind === 'root') return `sqrt(${toAnswer(node.arg) || '0'})`;
-      // Bracketed whole for the same reason as a fraction, and in degree mode
-      // renamed to the degree functions in `expression.ts`. An empty slot is
-      // left as `()`, which mathjs refuses to read: grading sin() as sin(0)
-      // would mark a learner right for a question whose answer happens to be 0.
-      if (node.kind === 'fn') {
-        const name = node.unit === 'degrees' ? `${node.name}d` : node.name;
-        return `(${name}(${toAnswer(node.arg) || '()'}))`;
-      }
-      return `^(${toAnswer(node.arg) || '1'})`;
+  const pieces = nodes.map((node) => {
+    if (node.kind === 'atom') return node.ans;
+    if (node.kind === 'frac') return `((${slotAnswer(node.num)})/(${slotAnswer(node.den)}))`;
+    // Bracketed whole, like the fraction and the function, so nothing written
+    // either side of it can be read as part of its name or its call.
+    if (node.kind === 'root') return `(sqrt(${slotAnswer(node.arg)}))`;
+    // Bracketed whole for the same reason as a fraction, and in degree mode
+    // renamed to the degree functions in `expression.ts`. Grading sin() as
+    // sin(0) would mark a learner right for a question whose answer happens
+    // to be 0.
+    if (node.kind === 'fn') {
+      const name = node.unit === 'degrees' ? `${node.name}d` : node.name;
+      return `(${name}(${slotAnswer(node.arg)}))`;
+    }
+    return `^(${slotAnswer(node.arg)})`;
+  });
+  return pieces
+    .map((piece, idx) => {
+      const node = nodes[idx];
+      const next = pieces[idx + 1] ?? '';
+      return node.kind === 'atom' && NAME.test(piece) && RUNS_INTO_A_NAME.test(next)
+        ? `(${piece})`
+        : piece;
     })
     .join('');
+}
+
+/** A key that mathjs reads as a name: a letter such as `x`, `e`, `i`, or `pi`. */
+const NAME = /^[A-Za-z][A-Za-z0-9_]*$/;
+
+/** What would continue a name written straight before it, or make it a call. */
+const RUNS_INTO_A_NAME = /^[A-Za-z0-9_(]/;
+
+/** A slot's contents, or `()` — which mathjs will not read — when it is empty. */
+function slotAnswer(nodes: Node[]): string {
+  return toAnswer(nodes) || '()';
 }
 
 /** True once there is something to grade. An empty slot does not count. */
@@ -354,32 +387,6 @@ export function isFilled(nodes: Node[]): boolean {
     if (node.kind === 'frac') return isFilled(node.num) || isFilled(node.den);
     return isFilled(node.arg);
   });
-}
-
-/**
- * Rebuild an editor state from a stored answer.
- *
- * One atom per character, so a fraction typed earlier comes back as the `(3)/(4)`
- * the session stored rather than as a stacked fraction. That is a real loss of
- * shape, and it is confined to one path: stepping back through the guided deck
- * and forward again, where the draft cache missed. Everything the learner does
- * inside a slide keeps its structure, because the component stays mounted.
- */
-export function docFromAnswer(text: string): Doc {
-  const nodes: Node[] = [];
-  for (let at = 0; at < text.length; ) {
-    // A function key's name comes back as one atom that reads as the key did,
-    // rather than as the letters `sind` the learner never typed.
-    const name = /^a?(sin|cos|tan)d?(?=\()/.exec(text.slice(at))?.[0];
-    if (name) {
-      nodes.push({ kind: 'atom', tex: fnTex(name.replace(/d$/, '')), ans: name });
-      at += name.length;
-    } else {
-      nodes.push({ kind: 'atom', tex: text[at], ans: text[at] });
-      at += 1;
-    }
-  }
-  return { nodes, caret: { steps: [], index: nodes.length } };
 }
 
 /* ---------- keys ---------- */
@@ -427,27 +434,4 @@ export function applyKey(doc: Doc, key: KeypadKey): Doc {
 /** The editor as a slide's `prefill` leaves it: those keys pressed in order. */
 export function docFromKeys(keys: readonly KeypadKey[] = []): Doc {
   return keys.reduce(applyKey, EMPTY_DOC);
-}
-
-/* ---------- the slot ---------- */
-
-export function MathSlot({
-  doc,
-  showCaret,
-  filled,
-}: {
-  doc: Doc;
-  showCaret: boolean;
-  filled: boolean;
-}) {
-  const tex = useMemo(
-    () => toTex(doc.nodes, showCaret ? doc.caret : undefined),
-    [doc, showCaret],
-  );
-
-  return (
-    <span className={`answer-slot${filled ? ' filled' : ''}${showCaret ? ' focus' : ''}`}>
-      {tex ? <Tex tex={tex} trust /> : ' '}
-    </span>
-  );
 }

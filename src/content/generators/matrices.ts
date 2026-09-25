@@ -20,6 +20,7 @@ import {
   VECTOR_TEMPLATE,
 } from './vectorFormat';
 import { spanFor, transformGridSvg, type Mirror } from './transformFigure';
+import { fracTex } from './format';
 
 interface MatrixPairParams {
   a: number;
@@ -780,6 +781,16 @@ interface MissingParams extends MatrixPairParams {
 }
 
 /**
+ * The four entries of the missing matrix: `A + X = E` gives `X = E - A`, and
+ * `A - X = E` gives `X = A - E`.
+ */
+function missingEntries(p: MissingParams): number[] {
+  return p.addend
+    ? [p.e - p.a, p.f - p.b, p.g - p.c, p.h - p.d]
+    : [p.a - p.e, p.b - p.f, p.c - p.g, p.d - p.h];
+}
+
+/**
  * The matrix that completes an equation.
  *
  * `mat-add` asks what two matrices come to; this asks what is missing, which
@@ -789,12 +800,12 @@ interface MissingParams extends MatrixPairParams {
 const missing: Generator<MissingParams> = {
   id: 'mat-missing',
   choices: (p) => {
-    const sign = p.addend ? 1 : -1;
+    const [w, x, y, z] = missingEntries(p);
     return options(
-      { tex: matrixTex(p.e - sign * p.a, p.f - sign * p.b, p.g - sign * p.c, p.h - sign * p.d) },
+      { tex: matrixTex(w, x, y, z) },
       // The two sides subtracted the other way round, and added instead.
-      { tex: matrixTex(sign * p.a - p.e, sign * p.b - p.f, sign * p.c - p.g, sign * p.d - p.h) },
-      { tex: matrixTex(p.e + sign * p.a, p.f + sign * p.b, p.g + sign * p.c, p.h + sign * p.d) },
+      { tex: matrixTex(-w, -x, -y, -z) },
+      { tex: matrixTex(p.e + p.a, p.f + p.b, p.g + p.c, p.h + p.d) },
       { tex: matrixTex(p.e, p.f, p.g, p.h) },
     );
   },
@@ -803,13 +814,7 @@ const missing: Generator<MissingParams> = {
     addend: rng.pick([true, false]),
   }),
   render: (p) => {
-    const sign = p.addend ? 1 : -1;
-    const entries = [
-      p.e - sign * p.a,
-      p.f - sign * p.b,
-      p.g - sign * p.c,
-      p.h - sign * p.d,
-    ];
+    const entries = missingEntries(p);
     return {
       kind: 'tiles',
       prompt: [
@@ -824,14 +829,13 @@ const missing: Generator<MissingParams> = {
         entries.map(String),
         // The subtraction taken the other way round, which is the whole of
         // what goes wrong here.
-        [sign * p.a - p.e, sign * p.b - p.f, sign * p.c - p.g, sign * p.d - p.h].map(String),
+        entries.map((entry) => String(-entry)),
       ),
       answer: entries.map(String),
     };
   },
   solution: (p) => {
-    const sign = p.addend ? 1 : -1;
-    const entries = [p.e - sign * p.a, p.f - sign * p.b, p.g - sign * p.c, p.h - sign * p.d];
+    const entries = missingEntries(p);
     return [
       {
         text: p.addend
@@ -5413,13 +5417,14 @@ const sysCount: Generator<SysCountParams> = {
         { text: 'Two straight lines can never meet at exactly two points: they cross once, never, or all the way along.' },
       ];
     }
-    const ratio = p.s === 1 ? `${p.t}` : `\\frac{${p.t}}{${p.s}}`;
+    // In lowest terms with the sign out front, and bracketed when negative after a times sign.
+    const ratio = fracTex(p.t, p.s);
     return [
       ...steps,
       {
         text: `It is zero: the second row is $${ratio}$ times the first. Now check the right-hand side against the same multiple.`,
       },
-      { text: `$${br(r1)} \\times ${ratio} = ${(r1 * p.t) / p.s}$, against $${r2}$.` },
+      { text: `$${br(r1)} \\times ${ratio.startsWith('-') ? `\\left(${ratio}\\right)` : ratio} = ${(r1 * p.t) / p.s}$, against $${r2}$.` },
       {
         text:
           p.route === 'same'
@@ -7086,12 +7091,16 @@ const invOffsetCoeffs: Generator<OffsetCoeffsParams> = {
   },
   solution: ({ m, g, row }) => {
     const [a, b, c, d] = m;
+    // Each coordinate before and after collecting, written once if collecting changes nothing.
+    const coordinate = (p: number, q: number) =>
+      [...new Set([termsTex([p, q], ['x', `(${slopeTex(g)} + c)`]), termsTex([p + q * g, q], ['x', 'c'])])].join(' = ');
     return [
       { text: `Multiply $(x, \\; ${slopeTex(g)} + c)$ by $\\mathbf{M}$. The ${row === 0 ? 'top' : 'bottom'} row gives $${row === 0 ? "x'" : "y'"}$.` },
-      { text: `$x' = ${a}x + ${br(b)}(${slopeTex(g)} + c) = ${a + b * g}x + ${br(b)}c$` },
-      { text: `$y' = ${c}x + ${br(d)}(${slopeTex(g)} + c) = ${c + d * g}x + ${br(d)}c$` },
+      { text: `$x' = ${coordinate(a, b)}$` },
+      { text: `$y' = ${coordinate(c, d)}$` },
+      { text: `So the numbers in front of $x$ and $c$ in $${row === 0 ? "x'" : "y'"}$ are $${row === 0 ? a + b * g : c + d * g}$ and $${row === 0 ? b : d}$.` },
       {
-        text: `For the line to be invariant, $y' = ${g}x' + c$ has to hold for every $x$. The $x$ terms give the same condition on the gradient as before, and the $c$ terms give $${d}c = ${g * b}c + c$.`,
+        text: `For the line to be invariant, $y' = ${slopeTex(g, "x'")} + c$ has to hold for every $x$. The $x$ terms give the same condition on the gradient as before, and the $c$ terms give $${termsTex([d], ['c'])} = ${termsTex([g * b, 1], ['c', 'c'])}$.`,
       },
     ];
   },

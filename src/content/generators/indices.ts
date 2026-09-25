@@ -24,7 +24,7 @@ import { markerWindow, plotSvg } from '../figures';
 // restated so a question cannot be built against a rule the widget has moved.
 import { defaultSliderValue } from '../../ui/sliderValue';
 import { ALGEBRA_KEYS, termTex } from './calculus';
-import { surdAnswer, surdTex } from './format';
+import { gcd, surdAnswer, surdParts, surdTex } from './format';
 import type { Rng } from '../../engine/rng';
 import { growthGenerators } from './growth';
 
@@ -33,10 +33,6 @@ const SURD_KEYS: KeypadKey[] = [...ALGEBRA_KEYS, { insert: 'sqrt(' }];
 
 /** Numbers whose square root does not simplify, for the surd questions. */
 const SURD_FREE: number[] = [2, 3, 5, 6, 7, 10, 11, 13, 14, 15, 17, 19, 21, 22, 23];
-
-function gcd(a: number, b: number): number {
-  return b === 0 ? a : gcd(b, a % b);
-}
 
 /**
  * Every whole-number root worth asking about, as `base = root^den`.
@@ -117,7 +113,7 @@ const multiplyPowers: Generator<PairParams> = {
   }),
   solution: ({ a, b }) => [
     {
-      text: `Multiplying powers of the same base adds the exponents, because $${powerTex(a)}$ is $a$ copies of $x$ and $${powerTex(b)}$ is $b$ more.`,
+      text: `Multiplying powers of the same base adds the exponents, because $${powerTex(a)}$ is $${a}$ copies of $x$ and $${powerTex(b)}$ is $${b}$ more.`,
     },
     { tex: `${powerTex(a)} \\times ${powerTex(b)} = x^{${a} + ${b}} = ${powerTex(a + b)}` },
     {
@@ -278,9 +274,14 @@ const negativeIndex: Generator<{ a: number; c: number }> = {
       text: 'A negative exponent means one over the positive power. The sign of the exponent has nothing to do with the sign of the answer.',
     },
     { tex: `${termTex(c, -a)} = \\frac{${c}}{x^{${a}}}` },
-    {
-      text: `Note the coefficient stays on top. $${termTex(c, -a)}$ is $\\frac{${c}}{x^{${a}}}$, not $\\frac{1}{${c}x^{${a}}}$ — only the $x$ carried the negative index.`,
-    },
+    // At c = 1 there is no coefficient to drag down, and the warning would read 1/(1x^a).
+    ...(c === 1
+      ? []
+      : [
+          {
+            text: `Note the coefficient stays on top. $${termTex(c, -a)}$ is $\\frac{${c}}{x^{${a}}}$, not $\\frac{1}{${c}x^{${a}}}$ — only the $x$ carried the negative index.`,
+          },
+        ]),
   ],
 };
 
@@ -386,13 +387,22 @@ const simplifySurd: Generator<SurdParams> = {
 /** Multiplying two surds and simplifying the result. */
 const multiplySurds: Generator<{ a: number; b: number }> = {
   id: 'rad-multiply',
-  choices: ({ a, b }) =>
-    options(
-      { tex: `\\sqrt{${a * b}}`, answer: `sqrt(${a * b})` },
-      { tex: `\\sqrt{${a + b}}`, answer: `sqrt(${a + b})` },
+  // The answer in its simplest form, since the question says simplify. A
+  // perfect square or a square factor can make two slips land on one form, so
+  // there are more slips than places and the first three distinct ones stay.
+  choices: ({ a, b }) => {
+    const { k, m } = surdParts(a * b);
+    return options(
+      { tex: surdTex(a * b), answer: surdAnswer(a * b) },
+      ...(a + b === a * b ? [] : [{ tex: surdTex(a + b), answer: surdAnswer(a + b) }]),
       { tex: `${a * b}`, answer: `${a * b}` },
-      { tex: `2\\sqrt{${a * b}}`, answer: `2 * sqrt(${a * b})` },
-    ),
+      // The square factor brought out without taking its root.
+      ...(k > 1 && m > 1 ? [{ tex: `${k * k}\\sqrt{${m}}`, answer: `${k * k} * sqrt(${m})` }] : []),
+      { tex: surdTex(4 * a * b), answer: surdAnswer(4 * a * b) },
+      { tex: `${a}\\sqrt{${b}}`, answer: `${a} * sqrt(${b})` },
+      { tex: `\\sqrt{${a}}`, answer: `sqrt(${a})` },
+    ).slice(0, 4);
+  },
   sample: (rng, difficulty) => {
     const pool = difficulty > 1 ? [2, 3, 5, 6, 7, 8, 10, 12, 14, 15, 18, 20] : [2, 3, 5, 6, 7, 8];
     return { a: rng.pick(pool), b: rng.pick(pool) };
@@ -406,13 +416,28 @@ const multiplySurds: Generator<{ a: number; b: number }> = {
     domain: 'real',
     mode: 'exact',
   }),
-  solution: ({ a, b }) => [
-    { text: 'Roots multiply straight across: the product of the roots is the root of the product.' },
-    { tex: `\\sqrt{${a}} \\times \\sqrt{${b}} = \\sqrt{${a} \\times ${b}} = \\sqrt{${a * b}}` },
-    {
-      text: 'This works for multiplication and division, and for nothing else. $\\sqrt{a} + \\sqrt{b}$ is emphatically not $\\sqrt{a + b}$ — try it with $9$ and $16$.',
-    },
-  ],
+  solution: ({ a, b }) => {
+    const { k, m } = surdParts(a * b);
+    // The product can hold a square factor, and the question says simplify.
+    // When it is a perfect square outright, the root is a whole number.
+    const simplify: SolutionStep[] =
+      k === 1
+        ? []
+        : m === 1
+          ? [{ text: `$${a * b}$ is a perfect square:` }, { tex: `\\sqrt{${a * b}} = ${k}` }]
+          : [
+              { text: `$${a * b}$ has the square factor $${k * k}$, which comes out as its root:` },
+              { tex: `\\sqrt{${a * b}} = \\sqrt{${k * k}} \\times \\sqrt{${m}} = ${surdTex(a * b)}` },
+            ];
+    return [
+      { text: 'Roots multiply straight across: the product of the roots is the root of the product.' },
+      { tex: `\\sqrt{${a}} \\times \\sqrt{${b}} = \\sqrt{${a} \\times ${b}} = \\sqrt{${a * b}}` },
+      ...simplify,
+      {
+        text: 'This works for multiplication and division, and for nothing else. $\\sqrt{a} + \\sqrt{b}$ is emphatically not $\\sqrt{a + b}$ — try it with $9$ and $16$.',
+      },
+    ];
+  },
 };
 
 /* ---------- Level 3: working with surds ---------- */
@@ -478,9 +503,10 @@ const rationalise: Generator<{ c: number; m: number }> = {
     m: rng.pick(difficulty > 1 ? SURD_FREE : SURD_FREE.slice(0, 8)),
   }),
   render: ({ c, m }) => {
+    const g = gcd(c, m);
     const options = [
-      { id: 'rationalised', label: `\\frac{${c}\\sqrt{${m}}}{${m}}`, tex: true },
-      { id: 'bottom-only', label: `\\frac{${c}}{${m}}`, tex: true },
+      { id: 'rationalised', label: rationalisedTex(c, m), tex: true },
+      { id: 'bottom-only', label: m === g ? `${c / g}` : `\\frac{${c / g}}{${m / g}}`, tex: true },
       { id: 'top-only', label: `\\frac{${c}\\sqrt{${m}}}{\\sqrt{${m}}}`, tex: true },
       { id: 'all-under', label: `\\frac{\\sqrt{${m}}}{${c * m}}`, tex: true },
     ];
@@ -505,13 +531,20 @@ const rationalise: Generator<{ c: number; m: number }> = {
       text: 'Multiply top and bottom by the root. That is multiplying by one, so the value does not change — only how it is written.',
     },
     {
-      tex: `\\frac{${c}}{\\sqrt{${m}}} \\times \\frac{\\sqrt{${m}}}{\\sqrt{${m}}} = \\frac{${c}\\sqrt{${m}}}{${m}}`,
+      tex: `\\frac{${c}}{\\sqrt{${m}}} \\times \\frac{\\sqrt{${m}}}{\\sqrt{${m}}} = \\frac{${c}\\sqrt{${m}}}{${m}}${gcd(c, m) === 1 ? '' : ` = ${rationalisedTex(c, m)}`}`,
     },
     {
-      text: `The denominator becomes $${m}$ because $\\sqrt{${m}} \\times \\sqrt{${m}} = ${m}$ by definition. A whole number underneath is easier to work with and easier to compare, which is the whole reason for doing this.`,
+      text: `The denominator becomes $${m}$ because $\\sqrt{${m}} \\times \\sqrt{${m}} = ${m}$ by definition.${gcd(c, m) === 1 ? '' : ` Then $${c}$ and $${m}$ share a factor of $${gcd(c, m)}$, which cancels.`} A whole number underneath is easier to work with and easier to compare, which is the whole reason for doing this.`,
     },
   ],
 };
+
+/** c√m over m with the whole numbers cancelled: 11√11/11 is √11, 6√3/3 is 2√3. */
+function rationalisedTex(c: number, m: number): string {
+  const g = gcd(c, m);
+  const top = `${c / g === 1 ? '' : c / g}\\sqrt{${m}}`;
+  return m / g === 1 ? top : `\\frac{${top}}{${m / g}}`;
+}
 
 interface IndexEquationParams {
   base: number;
@@ -1849,7 +1882,7 @@ const chooseRootRoute: Generator<RootRouteParams> = {
     if (n === 1) {
       return [
         {
-          text: `The $${d}$ underneath names the root, and the 1 on top leaves it at that — so this is simply the $${d}$th root of $${base}$.`,
+          text: `The $${d}$ underneath names the root, and the 1 on top leaves it at that — so this is simply ${ROOT_NAMES[d].toLowerCase()} of $${base}$.`,
         },
         { tex: `${base}^{\\frac{1}{${d}}} = ${rootOf(d, base)} = ${root}` },
         {
@@ -1859,7 +1892,7 @@ const chooseRootRoute: Generator<RootRouteParams> = {
     }
     return [
       {
-        text: `The $${d}$ underneath names the root and the $${n}$ on top names the power, so this reads as the $${d}$th root of $${base}$, then raised to the power $${n}$.`,
+        text: `The $${d}$ underneath names the root and the $${n}$ on top names the power, so this reads as ${ROOT_NAMES[d].toLowerCase()} of $${base}$, then raised to the power $${n}$.`,
       },
       { tex: `${rootOf(d, base)} = ${root} \\quad\\text{then}\\quad ${root}^{${n}} = ${Math.pow(root, n)}` },
       {
@@ -4137,11 +4170,29 @@ const conjugateProduct: Generator<ConjugateProductParams> = {
     const { shape, a, b, d } = params;
     const value = conjugateValue(params);
     const whole = (n: number) => ({ tex: `${n}`, answer: `${n}` });
+    // With b = 1 (always, at difficulty 1) "b not squared" is the answer
+    // itself, and with a = 1 so can "a not squared" be, so two more slips wait
+    // behind them: the root squared to d^2 instead of d, and the subtraction
+    // taken the other way round. The first three distinct slips are offered.
     if (shape === 'number') {
-      return options(whole(value), whole(a * a + b * b * d), whole(a * a - b * d), whole(a - b * b * d));
+      return options(
+        whole(value),
+        whole(a * a + b * b * d),
+        whole(a * a - b * d),
+        whole(a - b * b * d),
+        whole(a * a - b * b * d * d),
+        whole(-value),
+      ).slice(0, 4);
     }
     if (shape === 'root') {
-      return options(whole(value), whole(b * b * d + a * a), whole(b * d - a * a), whole(b * b * d - a));
+      return options(
+        whole(value),
+        whole(b * b * d + a * a),
+        whole(b * d - a * a),
+        whole(b * b * d - a),
+        whole(b * b * d * d - a * a),
+        whole(-value),
+      ).slice(0, 4);
     }
     return options(whole(value), whole(d + a), whole(d * d - a * a), whole(a - d));
   },

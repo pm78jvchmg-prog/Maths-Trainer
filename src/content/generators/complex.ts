@@ -7,7 +7,8 @@
  * steps always describe the question actually on screen.
  */
 import type { Generator } from '../types';
-import { I_KEY, coeffTex, complexTex, complexAnswer, distinct, nonZero } from './format';
+import { I_KEY, coeffTex, complexTex, complexAnswer, distinct, nonZero, plusMinus } from './format';
+import { sumTex, termTex } from './calculus';
 import { options } from '../choiceVariant';
 
 
@@ -237,7 +238,7 @@ export const complexAdd: Generator<AddParams> = {
   solution: ({ a, b, c, d }) => [
     {
       text: 'Add the real parts and the imaginary parts separately.',
-      tex: `(${a} + ${c}) + (${b} + ${d})i`,
+      tex: `(${a} ${plusMinus(c)}) + (${b} ${plusMinus(d)})i`,
     },
     { text: 'Which simplifies to:', tex: complexTex(a + c, b + d) },
   ],
@@ -644,7 +645,7 @@ export const complexEquate: Generator<EquateParams> = {
   solution: ({ x, y, c, d }) => [
     {
       text: 'Two complex numbers are equal only when their real parts match *and* their imaginary parts match. So one equation here is really two.',
-      tex: `x + ${c} = ${x + c} \\quad\\text{and}\\quad y + ${d} = ${y + d}`,
+      tex: `x ${plusMinus(c)} = ${x + c} \\quad\\text{and}\\quad y ${plusMinus(d)} = ${y + d}`,
     },
     { text: 'Each is now an ordinary real equation.', tex: `x = ${x}, \\quad y = ${y}` },
     {
@@ -738,7 +739,7 @@ export const rootPair: Generator<PairParams> = {
     },
     {
       text: 'The reason is what happens when you put them back together.',
-      tex: `(x - (${complexTex(p, q)}))(x - (${complexTex(p, -q)})) = x^2 - ${2 * p}x + ${p * p + q * q}`,
+      tex: `(x - (${complexTex(p, q)}))(x - (${complexTex(p, -q)})) = ${sumTex([termTex(1, 2), termTex(-2 * p, 1), termTex(p * p + q * q, 0)])}`,
     },
     {
       text: `Both coefficients came out real. Pairing it with $${complexTex(-p, q)}$ instead would leave an $i$ behind in the middle term.`,

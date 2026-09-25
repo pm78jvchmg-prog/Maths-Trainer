@@ -10,6 +10,7 @@ import { Blocks, Inline } from './Math';
 import type { Slide } from '../content/types';
 import { frameClass, isLocked, type SlideProps } from './slides';
 import { moveInList, useSlotDrag } from './slotDrag';
+import { inlineToSpeech } from './texSpeech';
 
 type OrderSlideData = Extract<Slide, { kind: 'order' }>;
 
@@ -70,7 +71,9 @@ function OrderBody({
                 type="button"
                 className={`answer-slot proof-slot${id ? ' filled' : ''}`}
                 disabled={locked || !id}
-                aria-label={id ? undefined : `Step ${idx + 1}, empty`}
+                // `Inline` maths is hidden from assistive tech like any KaTeX,
+                // so a step's name is written out rather than read off it.
+                aria-label={`Step ${idx + 1}, ${id ? inlineToSpeech(text.get(id) ?? '') : 'empty'}`}
                 onClick={() => unplace(idx)}
               >
                 {id ? <Inline text={text.get(id) ?? ''} /> : null}
@@ -88,6 +91,7 @@ function OrderBody({
               key={step.id}
               type="button"
               className={`tile proof-step${used ? ' used' : ''}`}
+              aria-label={inlineToSpeech(step.text)}
               disabled={locked || used}
               onClick={() => place(step.id)}
             >

@@ -38,6 +38,7 @@ import { options } from '../choiceVariant';
 import { sumTex, termTex } from './calculus';
 import { bankOf, numberTile, offer, signedTile } from './quadratics';
 import { windowFor } from './numberLine';
+import { fracTex } from './format';
 
 /* ---------- The inequality sign ---------- */
 
@@ -127,23 +128,6 @@ function surdTex(h: number, sign: 1 | -1, k: number): string {
   const root = `\\sqrt{${k}}`;
   if (h === 0) return sign < 0 ? `-${root}` : root;
   return `${h} ${sign < 0 ? '-' : '+'} ${root}`;
-}
-
-function gcd(a: number, b: number): number {
-  return b === 0 ? Math.abs(a) : gcd(b, a % b);
-}
-
-/** num / den in lowest terms, the sign in front: `-\frac{13}{3}`, or a whole number. */
-function fracTex(num: number, den: number): string {
-  const g = gcd(num, den) || 1;
-  let n = num / g;
-  let d = den / g;
-  if (d < 0) {
-    n = -n;
-    d = -d;
-  }
-  if (d === 1) return `${n}`;
-  return `${n < 0 ? '-' : ''}\\frac{${Math.abs(n)}}{${d}}`;
 }
 
 /** Draw until `accept` holds, falling back to a fixed draw that passes. */
@@ -1345,15 +1329,20 @@ const squareLine: Generator<SquareParams> = {
     const steps: SolutionStep[] = [{ tex: squareDisplay(params) }];
     if (neg) steps.push({ text: 'Multiply through by $-1$ to make the $x^2$ term positive. The sign turns round.' });
     if (right) steps.push({ text: 'Bring the constant back to the left-hand side.' });
+    // At h = 0 there is no x term: the square is already there, and nothing is added to x.
+    const inside = h === 0 ? 'x' : `x ${signedTile(-h)}`;
     steps.push(
       {
-        text: `Complete the square: $x^2 ${signedTile(-2 * h, 'x')}$ is $${squareTex(h)} - ${h * h}$.`,
+        text:
+          h === 0
+            ? 'There is no $x$ term, so $x^2$ is already a square: move the number across.'
+            : `Complete the square: $x^2 ${signedTile(-2 * h, 'x')}$ is $${squareTex(h)} - ${h * h}$.`,
         tex: `${squareTex(h)} ${OP_TEX[op]} ${r * r}`,
       },
       {
         text: pointsRight(op)
-          ? `A square bigger than $${r * r}$ means $x ${signedTile(-h)}$ is further than $${r}$ from zero, on either side.`
-          : `A square below $${r * r}$ means $x ${signedTile(-h)}$ is within $${r}$ of zero.`,
+          ? `A square bigger than $${r * r}$ means $${inside}$ is further than $${r}$ from zero, on either side.`
+          : `A square below $${r * r}$ means $${inside}$ is within $${r}$ of zero.`,
         tex: setTex(pieces),
       },
     );
@@ -5513,7 +5502,8 @@ const fabsArmTiles: Generator<ArmParams4> = {
       );
     } else {
       steps.push(
-        { text: `$(-x)^2 = x^2$ and $${b}(-x) = ${-b}x$, and the number stays.` },
+        // No 1 in front: at b = 1 the x term simply becomes -x, and at b = -1 it is -(-x) = x.
+        { text: `$(-x)^2 = x^2$ and ${b === 1 ? '$x$ becomes $-x$' : `$${b === -1 ? '-' : b}(-x) = ${termTex(-b, 1)}$`}, and the number stays.` },
         { tex: `y = ${quadTex(1, -b, c)}` },
       );
     }
@@ -7842,7 +7832,8 @@ function subTex({ m, q }: Lin, x: number): string {
   if (m === 0) return `${q}`;
   const size = Math.abs(m) === 1 ? br(x) : `${Math.abs(m)} \\times ${br(x)}`;
   if (m < 0 && q > 0) return `${q} - ${size}`;
-  const head = m < 0 ? `-${size}` : size;
+  // A minus straight onto 0 is bracketed, as a negative number is: -(0), not -0.
+  const head = m < 0 ? `-${size === '0' ? '(0)' : size}` : size;
   return q === 0 ? head : `${head} ${signedTile(q)}`;
 }
 
@@ -8863,7 +8854,8 @@ function kTidyTex({ f, side, slope }: KParams): string {
     const lead = c === 1 ? 'k' : c === -1 ? '-k' : `${c}k`;
     return q === 0 ? lead : `${lead} ${signedTile(q)}`;
   }
-  return m === 0 ? 'k' : `${m * c} + k`;
+  // At a join at 0 the other term is gone: k, not 0 + k (whose sign slip would read -0 + k).
+  return m === 0 || c === 0 ? 'k' : `${m * c} + k`;
 }
 
 function sampleK(rng: Rng, difficulty: number): KParams {
@@ -8886,7 +8878,8 @@ function kSolution(p: KParams): SolutionStep[] {
     { text: `For $f$ to be continuous, both pieces must give the same value at $x = ${c}$.` },
     { text: `The ${p.side === 0 ? 'right' : 'left'} piece gives $${subTex(other, c)} = ${known}$.` },
     { tex: `${kTidyTex(p)} = ${known}` },
-    { tex: `k = ${kValue(p)}` },
+    // Already k = known when k stands alone, which is not written twice.
+    ...(kTidyTex(p) === 'k' ? [] : [{ tex: `k = ${kValue(p)}` }]),
   ];
 }
 

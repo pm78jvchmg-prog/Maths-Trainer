@@ -15,7 +15,6 @@
  * an arrow they left off stays faint, whether or not it acts. After a wrong
  * `fill` every value they placed looks the same and only the frame says so.
  */
-import { useState } from 'react';
 import { Tex, Blocks } from './Math';
 import type { Slide } from '../content/types';
 import { frameClass, isLocked, type SlideProps } from './slides';
@@ -31,7 +30,8 @@ import {
   type Direction,
   type Point,
 } from '../content/forces';
-import { swapSlots, useSlotDrag } from './slotDrag';
+import { useBankFill } from './bankFill';
+import { blankName, texToSpeech } from './texSpeech';
 
 type ForcesSlideData = Extract<Slide, { kind: 'forces' }>;
 
@@ -71,11 +71,15 @@ function ForcesBody({
   const draft = typeof answer === 'string' ? answer : '';
 
   /* ----- fill ----- */
+  // No blanks in `pick`, but the hook runs either way so hooks never sit
+  // behind the mode.
   const size = slide.mode === 'fill' ? slide.answer.length : 0;
-  const filled = Array.from({ length: size }, (_, i) => (Array.isArray(answer) ? (answer[i] ?? '') : ''));
-  const [chosen, setChosen] = useState(0);
-  const firstEmpty = filled.findIndex((slot) => slot === '');
-  const target = filled[chosen] === '' ? chosen : firstEmpty;
+  const { filled, target, used, tapBlank, place, clear, slotProps } = useBankFill(
+    answer,
+    size,
+    onAnswer,
+    locked,
+  );
   // Which blank each arrow owns, in arrow order.
   const blankOf = new Map<Direction, number>();
   for (const arrow of slide.arrows) {
@@ -105,30 +109,6 @@ function ForcesBody({
     const id = tapped.closest('[data-arrow]')?.getAttribute('data-arrow') as Direction | null;
     if (id) onAnswer(toggleForce(draft, id));
   };
-
-  const tapBlank = (idx: number) => {
-    if (filled[idx] !== '') {
-      const next = [...filled];
-      next[idx] = '';
-      onAnswer(next);
-    }
-    setChosen(idx);
-  };
-
-  const place = (value: string) => {
-    if (target === -1) return;
-    const next = [...filled];
-    next[target] = value;
-    onAnswer(next);
-    const after = [...next.slice(target + 1), ...next.slice(0, target + 1)].findIndex((slot) => slot === '');
-    setChosen(after === -1 ? target : (target + 1 + after) % size);
-  };
-
-  const spent = new Map<string, number>();
-  for (const token of filled) if (token) spent.set(token, (spent.get(token) ?? 0) + 1);
-
-  // A filled blank dragged onto another swaps the two; onto an empty one, moves.
-  const { slotProps } = useSlotDrag(!locked, (from, to) => onAnswer(swapSlots(filled, from, to)));
 
   const angleAt = angleLabelAt(slide.scene);
   const nothingDone = slide.mode === 'pick' ? draft === '' : filled.every((slot) => !slot);
@@ -175,7 +155,7 @@ function ForcesBody({
                         !locked && blank === target ? ' focus' : ''
                       }`}
                       disabled={locked}
-                      aria-label={`${arrow.label}${filled[blank] ? `, ${filled[blank]}` : ', empty'}`}
+                      aria-label={blankName(texToSpeech(arrow.label), filled[blank])}
                       onClick={() => tapBlank(blank)}
                     >
                       {filled[blank] ? <Tex tex={filled[blank]} /> : ' '}
@@ -194,15 +174,14 @@ function ForcesBody({
       {slide.mode === 'fill' && (
         <div className="tile-bank">
           {slide.bank.map((value, idx) => {
-            const placed = spent.get(value) ?? 0;
-            const earlier = slide.bank.slice(0, idx).filter((other) => other === value).length;
-            const used = earlier < placed;
+            const spent = used(slide.bank, idx);
             return (
               <button
                 key={idx}
                 type="button"
-                className={`tile${used ? ' used' : ''}`}
-                disabled={locked || used || target === -1}
+                className={`tile${spent ? ' used' : ''}`}
+                aria-label={texToSpeech(value)}
+                disabled={locked || spent || target === -1}
                 onClick={() => place(value)}
               >
                 <Tex tex={value} />
@@ -218,10 +197,7 @@ function ForcesBody({
         disabled={locked || nothingDone}
         onClick={() => {
           if (slide.mode === 'pick') onAnswer('');
-          else {
-            onAnswer(Array.from({ length: size }, () => ''));
-            setChosen(0);
-          }
+          else clear();
         }}
       >
         &#8635; Start over

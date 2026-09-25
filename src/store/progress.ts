@@ -19,7 +19,19 @@ export interface LessonRecord {
 
 interface ProgressState {
   lessons: Record<string, LessonRecord>;
+  /**
+   * How many times each lesson's skill check or level check was left before
+   * its summary, keyed like `lessons`.
+   *
+   * A record of walking away, not a score: kept out of `lessons` on purpose,
+   * since a `LessonRecord` existing is what marks a lesson finished and feeds
+   * mastery, and an abandoned run is neither. Nothing reads it for display,
+   * a best, mastery or the streak. Saved progress from before it existed
+   * loads without it, and the default shallow merge fills in `{}`.
+   */
+  abandoned: Record<string, number>;
   recordCompletion: (lessonId: string, score: { correct: number; total: number }) => void;
+  recordAbandon: (lessonId: string) => void;
   reset: () => void;
 }
 
@@ -27,6 +39,7 @@ export const useProgress = create<ProgressState>()(
   persist(
     (set) => ({
       lessons: {},
+      abandoned: {},
       recordCompletion: (lessonId, score) =>
         set((state) => {
           const previous = state.lessons[lessonId];
@@ -51,7 +64,11 @@ export const useProgress = create<ProgressState>()(
             },
           };
         }),
-      reset: () => set({ lessons: {} }),
+      recordAbandon: (lessonId) =>
+        set((state) => ({
+          abandoned: { ...state.abandoned, [lessonId]: (state.abandoned[lessonId] ?? 0) + 1 },
+        })),
+      reset: () => set({ lessons: {}, abandoned: {} }),
     }),
     { name: 'maths-trainer:v1' },
   ),

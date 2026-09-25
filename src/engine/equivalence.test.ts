@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { checkAnswer, probePolicy, type CheckOptions } from './equivalence';
+import { math, samplePoint } from './expression';
 import { makeRng, hashSeed } from './rng';
 
 /** Fixed seed everywhere so a failure is always reproducible. */
@@ -191,6 +192,61 @@ describe('calculus-shaped answers', () => {
 });
 
 /**
+ * mathjs reads a name followed by a bracket as a call, so `x(x+1)` was a call
+ * to a function named x and came back `invalid` — on keypads offering both the
+ * `x` key and `(`, a factorised answer typed exactly as printed could not be
+ * graded at all. A single letter never names a function here, so it is read as
+ * multiplying the bracket instead.
+ */
+describe('a letter before a bracket multiplies it', () => {
+  it('reads x( as x times the bracket', () => {
+    expect(check('x(x+1)', 'x^2+x')).toBe('correct');
+    expect(check('2x(3x+1)', '6x^2+2x')).toBe('correct');
+    // d/dx of x^2(x+1)^3, left in the factorised form the product rule gives.
+    expect(check('2x(x+1)^3 + 3x^2(x+1)^2', '5x^4 + 12x^3 + 9x^2 + 2x')).toBe('correct');
+  });
+
+  it('reads e( as e times the bracket', () => {
+    expect(check('e(x+1)', 'e*x + e')).toBe('correct');
+    expect(check('2e(x+1)', '2e*x + 2e')).toBe('correct');
+  });
+
+  it('reads C( as C times the bracket', () => {
+    // A general solution with its constant written in front of a factor.
+    expect(check('C(x^2+1)', 'C*x^2 + C')).toBe('correct');
+    expect(check('x^2/2 + C(1)', 'x^2/2', { mode: 'upToConstant' })).toBe('correct');
+  });
+
+  it('keeps the power on the bracket, not on the product', () => {
+    // mathjs binds a call tighter than ^, so turning the call node into a
+    // product would square x as well: x(x+1)^2 must be x(x+1)(x+1).
+    expect(check('x(x+1)^2', 'x^3 + 2x^2 + x')).toBe('correct');
+    expect(check('x(x+1)^2', 'x^4 + 2x^3 + x^2')).toBe('incorrect');
+    expect(check('-x(x+1)^2', '-(x^3 + 2x^2 + x)')).toBe('correct');
+  });
+
+  it('still grades a wrong factorisation wrong', () => {
+    expect(check('x(x+2)', 'x^2+x')).toBe('incorrect');
+  });
+
+  it('leaves real functions as functions', () => {
+    expect(check('sin(x)', 'sin(x)')).toBe('correct');
+    expect(check('2ln(x)', 'ln(x^2)', { domain: 'positive' })).toBe('correct');
+    expect(check('sqrt(x^2)', 'abs(x)')).toBe('correct');
+    expect(check('exp(x)', 'e^x')).toBe('correct');
+    expect(check('log(x)', 'ln(x)')).toBe('correct');
+    expect(check('cos(x)^2', '1 - sin(x)^2')).toBe('correct');
+  });
+
+  it('still reports an unknown name of more than one letter', () => {
+    const verdict = checkAnswer('sinn(x)', 'sin(x)', { seed: SEED });
+    expect(verdict.status).toBe('invalid');
+    if (verdict.status === 'invalid') expect(verdict.message).toMatch(/no function called sinn/);
+    expect(check('xy(x+1)', 'x^2+x')).toBe('invalid');
+  });
+});
+
+/**
  * The positive domain.
  *
  * Fractional indices are the reason it exists. `sqrt(x^3)` and `x^(3/2)` are
@@ -252,5 +308,68 @@ describe('an equals sign cannot leak into the other side', () => {
   it('leaves a genuinely correct answer alone', () => {
     expect(check('x=3', '3')).toBe('correct');
     expect(check('y=2x', '2x')).toBe('correct');
+  });
+});
+
+/**
+ * `node.evaluate` compiles the tree afresh on every call, and a check evaluates
+ * each side at up to 24 points. Each side is compiled once per check instead;
+ * this counts the compilations, so a return to evaluating the parsed node
+ * directly shows up as 48 rather than 2.
+ */
+describe('compiling', () => {
+  it('compiles each side once per check, not once per point', () => {
+    const { prototype } = (math as unknown as { Node: { prototype: { compile: () => unknown } } }).Node;
+    const compile = vi.spyOn(prototype, 'compile');
+    try {
+      expect(check('(x+1)^2', 'x^2+2x+1')).toBe('correct');
+      expect(compile).toHaveBeenCalledTimes(2);
+    } finally {
+      compile.mockRestore();
+    }
+  });
+});
+
+/**
+ * Up to a constant, every gap between the two sides is compared with a
+ * reference gap. That reference used to be the first valid point's, so if the
+ * first point was the noisy one — floating-point cancellation beside a
+ * removable singularity, the case the 0.9 threshold exists to absorb — every
+ * other point disagreed with it and a right answer was marked wrong. Anywhere
+ * else the same noisy point cost one agreement out of 24. The median gap is
+ * the same wherever the noisy point falls.
+ *
+ * `noisyAt(k)` is a term that is exactly 0 algebraically but, evaluated at the
+ * k-th point the checker will draw, divides by about 1e-12 and keeps only a few
+ * significant digits.
+ */
+describe('a noisy point up to a constant', () => {
+  const points = () => {
+    const rng = makeRng(SEED);
+    return Array.from({ length: probePolicy().sampleCount }, () => samplePoint(rng, ['x'], 'real').x as number);
+  };
+  const noisyAt = (k: number) => {
+    // Bracketed, since a point may be negative and -0.77^2 is -(0.77^2).
+    const a = `(${(points()[k] + 1e-12).toPrecision(17)})`;
+    return `((x^2 - ${a}^2)/(x - ${a}) - (x + ${a}))`;
+  };
+  const upToConstant: CheckOptions = { mode: 'upToConstant' };
+
+  it('is absorbed in exact mode wherever it falls', () => {
+    expect(check(`x^2/2 + ${noisyAt(0)}`, 'x^2/2')).toBe('correct');
+    expect(check(`x^2/2 + ${noisyAt(5)}`, 'x^2/2')).toBe('correct');
+  });
+
+  it('is absorbed up to a constant when it is not the first point', () => {
+    expect(check(`x^2/2 + 5 + ${noisyAt(5)}`, 'x^2/2', upToConstant)).toBe('correct');
+  });
+
+  it('is absorbed up to a constant when it is the first point', () => {
+    expect(check(`x^2/2 + 5 + ${noisyAt(0)}`, 'x^2/2', upToConstant)).toBe('correct');
+  });
+
+  it('still rejects a wrong antiderivative', () => {
+    expect(check(`x^3/3 + 5 + ${noisyAt(0)}`, 'x^2/2', upToConstant)).toBe('incorrect');
+    expect(check('abs(x)', 'x', upToConstant)).toBe('incorrect');
   });
 });

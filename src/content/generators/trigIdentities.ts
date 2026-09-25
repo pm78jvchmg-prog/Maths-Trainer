@@ -38,6 +38,7 @@ import { hashSeed } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
 import { orderBank } from './proofOrder';
+import { gcdOrOne } from './format';
 
 /* ---------- Shared helpers ---------- */
 
@@ -54,17 +55,10 @@ type Fn = 'sin' | 'cos' | 'tan';
 
 type Rat = [number, number];
 
-function gcd(a: number, b: number): number {
-  let x = Math.abs(a);
-  let y = Math.abs(b);
-  while (y) [x, y] = [y, x % y];
-  return x || 1;
-}
-
 /** n/d in lowest terms with the sign on top. */
 function rat(n: number, d: number): Rat {
   const sign = d < 0 ? -1 : 1;
-  const g = gcd(n, d);
+  const g = gcdOrOne(n, d);
   return [(sign * n) / g, (sign * d) / g];
 }
 
@@ -689,23 +683,23 @@ const VALUE_FORMS: ValueForm[] = [
   {
     hard: false,
     given: 'sin',
-    expr: ({ k }, v) => `${k} - ${k}\\cos^2 ${v}`,
+    expr: ({ k }, v) => `${k} - ${co(k)}\\cos^2 ${v}`,
     value: ({ k, p, q }) => rat(k * sq(p), sq(q)),
     slips: ({ k, p, q }) => [rat(k * p, q), rat(k * (sq(q) - sq(p)), sq(q)), rat(sq(p), sq(q))],
     why: ({ k, p, q }, v) => [
-      { text: `Take out the $${k}$ and use $1 - \\cos^2 ${v} = \\sin^2 ${v}$:` },
-      { tex: `${k} - ${k}\\cos^2 ${v} = ${k}\\sin^2 ${v} = ${k} \\times \\left(\\frac{${p}}{${q}}\\right)^2 = ${ratTex(rat(k * sq(p), sq(q)))}` },
+      { text: `${k === 1 ? 'Use' : `Take out the $${k}$ and use`} $1 - \\cos^2 ${v} = \\sin^2 ${v}$:` },
+      { tex: `${k} - ${co(k)}\\cos^2 ${v} = ${co(k)}\\sin^2 ${v} = ${k === 1 ? '' : `${k} \\times `}\\left(\\frac{${p}}{${q}}\\right)^2 = ${ratTex(rat(k * sq(p), sq(q)))}` },
     ],
   },
   {
     hard: false,
     given: 'cos',
-    expr: ({ k }, v) => `${k} - ${k}\\sin^2 ${v}`,
+    expr: ({ k }, v) => `${k} - ${co(k)}\\sin^2 ${v}`,
     value: ({ k, p, q }) => rat(k * sq(p), sq(q)),
     slips: ({ k, p, q }) => [rat(k * p, q), rat(k * (sq(q) - sq(p)), sq(q)), rat(sq(p), sq(q))],
     why: ({ k, p, q }, v) => [
-      { text: `Take out the $${k}$ and use $1 - \\sin^2 ${v} = \\cos^2 ${v}$:` },
-      { tex: `${k} - ${k}\\sin^2 ${v} = ${k}\\cos^2 ${v} = ${k} \\times \\left(\\frac{${p}}{${q}}\\right)^2 = ${ratTex(rat(k * sq(p), sq(q)))}` },
+      { text: `${k === 1 ? 'Use' : `Take out the $${k}$ and use`} $1 - \\sin^2 ${v} = \\cos^2 ${v}$:` },
+      { tex: `${k} - ${co(k)}\\sin^2 ${v} = ${co(k)}\\cos^2 ${v} = ${k === 1 ? '' : `${k} \\times `}\\left(\\frac{${p}}{${q}}\\right)^2 = ${ratTex(rat(k * sq(p), sq(q)))}` },
     ],
   },
   {
@@ -735,13 +729,13 @@ const VALUE_FORMS: ValueForm[] = [
   {
     hard: true,
     given: 'sin',
-    expr: ({ k, b }, v) => `${k}\\sin^2 ${v} + ${b}\\cos^2 ${v}`,
+    expr: ({ k, b }, v) => `${co(k)}\\sin^2 ${v} + ${co(b)}\\cos^2 ${v}`,
     value: ({ k, b, p, q }) => rat(b * sq(q) + (k - b) * sq(p), sq(q)),
     slips: ({ k, b, p, q }) => [rat(k * sq(p) + b * sq(p), sq(q)), rat(k + b, 1), rat(k * sq(q) + (b - k) * sq(p), sq(q))],
     why: ({ k, b, p, q }, v) => [
       { text: `Write $\\cos^2 ${v}$ as $1 - \\sin^2 ${v}$, so everything is in terms of the sine you know:` },
-      { tex: `${k}\\sin^2 ${v} + ${b}(1 - \\sin^2 ${v}) = ${b} + ${signed(k - b, `\\sin^2 ${v}`, true)}` },
-      { tex: `= ${b} + ${k - b === 1 ? '' : k - b === -1 ? '-' : k - b}\\left(\\frac{${p}}{${q}}\\right)^2 = ${ratTex(rat(b * sq(q) + (k - b) * sq(p), sq(q)))}` },
+      { tex: `${co(k)}\\sin^2 ${v} + ${co(b)}(1 - \\sin^2 ${v}) = ${b} ${signed(k - b, `\\sin^2 ${v}`)}` },
+      { tex: `= ${b} ${signed(k - b, `\\left(\\frac{${p}}{${q}}\\right)^2`)} = ${ratTex(rat(b * sq(q) + (k - b) * sq(p), sq(q)))}` },
     ],
   },
   {
@@ -763,8 +757,8 @@ const VALUE_FORMS: ValueForm[] = [
     value: ({ k, p, q }) => rat(k * (sq(q) - sq(p)), sq(p)),
     slips: ({ k, p, q }) => [rat(k * (sq(q) - sq(p)), sq(q)), rat(k * sq(q), sq(p)), rat(k * (sq(q) + sq(p)), sq(p))],
     why: ({ k, p, q }, v) => [
-      { text: `$\\tan^2 ${v} = \\sec^2 ${v} - 1$, and $\\sec ${v} = \\frac{1}{\\cos ${v}} = \\frac{${q}}{${p}}$:` },
-      { tex: `\\tan^2 ${v} = \\left(\\frac{${q}}{${p}}\\right)^2 - 1 = ${ratTex(rat(sq(q) - sq(p), sq(p)))}` },
+      { text: `$\\tan^2 ${v} = \\sec^2 ${v} - 1$, and $\\sec ${v} = \\frac{1}{\\cos ${v}} = ${p === 1 ? q : `\\frac{${q}}{${p}}`}$:` },
+      { tex: `\\tan^2 ${v} = ${p === 1 ? `${q}^2` : `\\left(\\frac{${q}}{${p}}\\right)^2`} - 1 = ${ratTex(rat(sq(q) - sq(p), sq(p)))}` },
       ...(k === 1 ? [] : [{ tex: `${k}\\tan^2 ${v} = ${ratTex(rat(k * (sq(q) - sq(p)), sq(p)))}` }]),
     ],
   },
@@ -781,7 +775,7 @@ const valueFromIdentity: Generator<ValueParams> = {
     for (;;) {
       const q = rng.int(2, 7);
       const p = rng.int(1, q - 1);
-      if (gcd(p, q) !== 1) continue;
+      if (gcdOrOne(p, q) !== 1) continue;
       const k = rng.int(1, 5);
       let b = rng.int(1, 5);
       if (b === k) b = k === 5 ? 1 : k + 1;
@@ -2509,7 +2503,7 @@ function surdTex(s: SurdSum): string {
 function surdSumTex(s: SurdSum): string {
   const terms = [...s].sort((a, b) => b[0] - a[0]);
   if (terms.length <= 1) return surdTex(s);
-  const common = terms.reduce((l, [, [, d]]) => (l * d) / gcd(l, d), 1);
+  const common = terms.reduce((l, [, [, d]]) => (l * d) / gcdOrOne(l, d), 1);
   const nums = terms.map(([m, [n, d]]) => ({ m, n: (n * common) / d }));
   const negate = nums.every(({ n }) => n < 0);
   const ordered = [...nums.filter(({ n }) => (negate ? -n : n) > 0), ...nums.filter(({ n }) => (negate ? -n : n) < 0)];
@@ -2873,10 +2867,15 @@ const doubleTiles: Generator<DoubleTilesParams> = {
     f.answer(H, D).forEach((token, i) => {
       line = line.replace(`{${i}}`, token);
     });
+    // The formula's own letter, kept apart from the question's: never "A = 4A",
+    // and no "with A = A" when the question's letter is already the formula's.
+    const g = x === 'A' && m !== 1 ? 'B' : 'A';
     return [
       { text: 'The formula is' },
-      { tex: f.says },
-      { text: m === 1 ? `with $A = ${x}$.` : `with $A = ${H}$, so $2A = ${D}$: the single angle is always half the double one.` },
+      { tex: f.says.replace(/A/g, g) },
+      ...(m === 1 && x === 'A'
+        ? []
+        : [{ text: m === 1 ? `with $${g} = ${x}$.` : `with $${g} = ${H}$, so $2${g} = ${D}$: the single angle is always half the double one.` }]),
       { tex: line },
     ];
   },
@@ -3845,7 +3844,7 @@ const rAlphaSteps: Generator<RWholeParams> = {
   sample: (rng, difficulty) => ({ ...sampleWhole(rng, difficulty), swapped: false }),
   render: (p): Slide => {
     const { C, S, R } = p.pair;
-    const g = gcd(C, S);
+    const g = gcdOrOne(C, S);
     const a = alphaDp(S, C);
     const frac = (n: number, d: number) => `\\frac{${n}}{${d}}`;
     const reductions: { span: [number, number]; value: string; bank: string[] }[] = [
@@ -6177,8 +6176,8 @@ const tripleValue: Generator<TripleValueParams> = {
     const n = ratTex(need);
     const line =
       p.ask === 'sin'
-        ? `\\sin 3${v} = 3\\sin ${v} - 4\\sin^3 ${v} = 3 \\times ${br(n)} - 4 \\times ${br(n)}^3`
-        : `\\cos 3${v} = 4\\cos^3 ${v} - 3\\cos ${v} = 4 \\times ${br(n)}^3 - 3 \\times ${br(n)}`;
+        ? `\\sin 3${v} = 3\\sin ${v} - 4\\sin^3 ${v} = 3 \\times ${br(n)} - 4 \\times \\left(${n}\\right)^3`
+        : `\\cos 3${v} = 4\\cos^3 ${v} - 3\\cos ${v} = 4 \\times \\left(${n}\\right)^3 - 3 \\times ${br(n)}`;
     steps.push({ tex: line }, { tex: `\\${p.ask} 3${v} = ${ratTex(tripleOf(p.ask, p))}` });
     return steps;
   },
@@ -6298,8 +6297,10 @@ const tripleChoice: Generator<TripleChoiceParams> = {
 /**
  * fn(x/2) = k or fn(3x) = k with 0 <= x < top. Solve for the whole bracket over
  * its own range, then undo the halving or the tripling. A 3x equation that is
- * typed or slid keeps k to 0 and +-1: sin 3x = 1/2 gives x = 10 degrees, which
- * is off the 30-and-45 lattice every typed angle here sits on.
+ * typed keeps k to 0 and +-1: sin 3x = 1/2 gives x = 10 degrees, which is off
+ * the 30-and-45 lattice every typed angle here sits on. A slid one may also
+ * take +-root 2 over 2, or +-1 for a tangent, whose solutions are all multiples
+ * of 15 degrees, but is only ever asked for one of them on that lattice.
  */
 interface MultiEq {
   kind: 'half' | 'triple';
@@ -6440,6 +6441,19 @@ const multiEqFlow: Generator<MultiFlowParams> = {
   solution: (p) => multiSteps(multiFlowEq(p), MULTI_LETTERS[p.v]),
 };
 
+/** How a slider names a solution, by `end`: see `MultiSliderParams`. Before the equations, which are filtered with it. */
+const SLIDER_WORDS = ['smallest', 'largest', 'second smallest', 'second largest', 'third smallest', 'third largest'];
+
+/** 3x equations with six solutions from 0 to 360, every one a multiple of 15 degrees. */
+const TRIPLE_ROOT_TWO: [Fn, number][] = [
+  ['sin', Math.SQRT2 / 2],
+  ['sin', -Math.SQRT2 / 2],
+  ['cos', Math.SQRT2 / 2],
+  ['cos', -Math.SQRT2 / 2],
+  ['tan', 1],
+  ['tan', -1],
+];
+
 /** Equations whose solutions from 0 to 360 are all multiples of 15 degrees. */
 const SLIDER_EQS: TaggedEq[] = [
   ...(['sin', 'cos', 'tan'] as const).flatMap((fn) =>
@@ -6447,6 +6461,7 @@ const SLIDER_EQS: TaggedEq[] = [
   ),
   ...TRIPLE_TYPED.map(([fn, value]) => ({ kind: 'triple' as const, fn, value, top: 360, hard: false })),
   { kind: 'triple', fn: 'tan', value: 0, top: 360, hard: true } as TaggedEq,
+  ...TRIPLE_ROOT_TWO.map(([fn, value]) => ({ kind: 'triple' as const, fn, value, top: 360, hard: true })),
 ].filter((eq) => sliderEnds(eq, 2).length > 0);
 
 /** Every solution strictly inside 0 to 360. */
@@ -6456,31 +6471,56 @@ function openSolutions(eq: MultiEq): number[] {
 
 interface MultiSliderParams {
   eq: number;
-  /** 0: the smallest; 1: the largest; 2: the second smallest, asked only of harder draws. */
+  /**
+   * The solution's place, counted from one end: even from the smallest, odd
+   * from the largest, and the pair further in each time. 0 and 1 are the ends;
+   * 2 to 5, second and third from an end, are asked only of harder draws.
+   */
   end: number;
 }
-
-const SLIDER_WORDS = ['smallest', 'largest', 'second smallest'];
 
 /** The solution each word names. */
 function sliderPick(eq: MultiEq, end: number): number {
   const all = openSolutions(eq);
-  return end === 0 ? all[0] : end === 1 ? all[all.length - 1] : all[1];
+  const inward = Math.floor(end / 2);
+  return end % 2 === 0 ? all[inward] : all[all.length - 1 - inward];
 }
 
-/** The words a slider may ask with: never one naming 180, where an untouched handle rests. */
+/**
+ * The words a slider may ask with. Easier draws name an end; harder ones name
+ * any solution by its place from the nearer end, so each is named once. Never
+ * one at 180, where an untouched handle rests, nor one off the 30-and-45 lattice.
+ */
 function sliderEnds(eq: MultiEq, difficulty: number): number[] {
   const all = openSolutions(eq);
   if (all.length === 0) return [];
-  const ends = all.length === 1 ? [0] : [0, 1, ...(difficulty > 1 && all.length > 2 ? [2] : [])];
-  return ends.filter((end) => sliderPick(eq, end) !== 180);
+  const ends =
+    all.length === 1
+      ? [0]
+      : difficulty > 1
+        ? all.map((_, i) => (2 * i <= all.length - 1 ? 2 * i : 2 * (all.length - 1 - i) + 1)).filter((end) => end < SLIDER_WORDS.length)
+        : [0, 1];
+  return ends.filter((end) => {
+    const x = sliderPick(eq, end);
+    return x !== 180 && (x % 30 === 0 || x % 45 === 0);
+  });
 }
 
 /** The curve and the level drawn: slide to one solution, named by its place. */
 const multiEqSlider: Generator<MultiSliderParams> = {
   id: 'tid-multi-eq-slider',
+  // Harder draws are all 3x equations with more than one solution, named by
+  // place rather than only by end: a root-two or tangent level, or the second
+  // or third from an end, which difficulty 1 never asks. Each question is drawn
+  // equally often, so an equation with more places to ask is not rarer.
   sample: (rng, difficulty) => {
-    const eqs = SLIDER_EQS.map((e, i) => ({ e, i })).filter(({ e }) => (difficulty > 1 || !e.hard) && sliderEnds(e, difficulty).length > 0);
+    if (difficulty > 1) {
+      const questions = SLIDER_EQS.flatMap((e, eq) =>
+        e.kind === 'triple' && openSolutions(e).length > 1 ? sliderEnds(e, difficulty).map((end) => ({ eq, end })) : [],
+      );
+      return rng.pick(questions);
+    }
+    const eqs = SLIDER_EQS.map((e, i) => ({ e, i })).filter(({ e }) => !e.hard && sliderEnds(e, difficulty).length > 0);
     const eq = rng.pick(eqs).i;
     return { eq, end: rng.pick(sliderEnds(SLIDER_EQS[eq], difficulty)) };
   },

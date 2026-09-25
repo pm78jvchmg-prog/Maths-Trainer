@@ -14,6 +14,7 @@ import { Tex, Blocks } from './Math';
 import type { Slide } from '../content/types';
 import { frameClass, isLocked, type SlideProps } from './slides';
 import { useBankFill } from './bankFill';
+import { blankName, texToSpeech } from './texSpeech';
 
 type VennSlideData = Extract<Slide, { kind: 'venn' }>;
 
@@ -101,7 +102,7 @@ function VennBody({
                   }`}
                   style={at(SPOTS[idx])}
                   disabled={locked}
-                  aria-label={`Region ${NAMES[idx]}${value ? `, ${value}` : ', empty'}`}
+                  aria-label={blankName(`Region ${NAMES[idx]}`, value)}
                   onClick={() => bank.tapBlank(index)}
                 >
                   {value ? <Tex tex={value} /> : ' '}
@@ -120,6 +121,7 @@ function VennBody({
               key={idx}
               type="button"
               className={`tile${used ? ' used' : ''}`}
+              aria-label={texToSpeech(value)}
               disabled={locked || used || bank.target === -1}
               onClick={() => bank.place(value)}
             >

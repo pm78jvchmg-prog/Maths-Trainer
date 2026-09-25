@@ -8,24 +8,42 @@
 # rest until the thread happened to push again. Nothing in the repository can
 # re-run a Cloudflare build, but any new commit gets a build of its own.
 #
-# So every ten minutes this finds each open, non-draft pull request whose head
-# has had only a queued Cloudflare suite for over twenty minutes, and merges
-# main into it (GitHub's "Update branch"). That is a real commit, not an empty
-# one, and it only happens to a pull request that is otherwise stranded. It
-# fails harmlessly on a branch that is already up to date or conflicts with
+# So every thirty minutes this finds each open, non-draft pull request whose
+# head has had only a queued Cloudflare suite for over twenty minutes, and
+# merges main into it (GitHub's "Update branch"). That is a real commit, not an
+# empty one, and it only happens to a pull request that is otherwise stranded.
+# It fails harmlessly on a branch that is already up to date or conflicts with
 # main; that is reported as a warning.
+#
+# The update is pushed with this workflow's GITHUB_TOKEN, and GitHub does not
+# start `pull_request` workflows for a push made with that token, so the new
+# head would never get a "Fast checks" run and would wait for ever once that
+# check is required. workflow_dispatch is the one exception GitHub makes, so
+# once the pull request's head has moved this starts checks.yml on the branch
+# by hand. That run checks out the branch's new head, and its job reports as
+# "Fast checks" on that commit, which is the check the ruleset looks for.
+#
+# A stranded head is therefore updated somewhere between twenty and fifty
+# minutes after its suite opened, later still when GitHub starts a scheduled
+# run late, which it does under load. The schedule used to be every ten
+# minutes; each run bills at least a minute, so that was about 4,300
+# job-minutes a month against about 1,440 now, and on a private repository the
+# Actions quota it drains is the same one the auto-merge workflow runs on.
+# To unstick a pull request sooner, run this by hand (workflow_dispatch).
 
 name: Stuck builds
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '*/30 * * * *'
   workflow_dispatch:
 
 permissions:
   contents: write
   pull-requests: write
   checks: read
+  # To start checks.yml by workflow_dispatch after updating a branch.
+  actions: write
 
 jobs:
   update-branch:
@@ -38,9 +56,9 @@ jobs:
       - name: Update pull requests whose build never started
         run: |
           now=$(date +%s)
-          gh pr list --state open --limit 100 --json number,isDraft,headRefOid \
-            --jq '.[] | select(.isDraft | not) | "\(.number) \(.headRefOid)"' |
-          while read -r pr sha; do
+          gh pr list --state open --limit 100 --json number,isDraft,headRefOid,headRefName \
+            --jq '.[] | select(.isDraft | not) | "\(.number) \(.headRefOid) \(.headRefName)"' |
+          while read -r pr sha branch; do
             queued_since=$(gh api "repos/$GH_REPO/commits/$sha/check-suites" --jq '
               [.check_suites[] | select(.app.slug == "cloudflare-workers-and-pages")] as $cf
               | if ($cf | length) > 0 and all($cf[]; .status == "queued" and .latest_check_runs_count == 0)
@@ -49,9 +67,24 @@ jobs:
               continue
             fi
             echo "#$pr: Cloudflare has not built ${sha:0:7} for $(( (now - queued_since) / 60 )) minutes"
-            if gh api -X PUT "repos/$GH_REPO/pulls/$pr/update-branch" -f expected_head_sha="$sha" >/dev/null; then
-              echo "#$pr: merged main in, so the new head gets a build"
-            else
+            if ! gh api -X PUT "repos/$GH_REPO/pulls/$pr/update-branch" -f expected_head_sha="$sha" >/dev/null; then
               echo "::warning::#$pr: could not update the branch (see the message above); push to it by hand"
+              continue
+            fi
+            echo "#$pr: merged main in, so the new head gets a build"
+            # The update is accepted before it is made, so wait for the head to
+            # move: dispatched any sooner, the checks would run on the old one.
+            head="$sha"
+            for _ in $(seq 1 30); do
+              sleep 2
+              head=$(gh api "repos/$GH_REPO/pulls/$pr" --jq .head.sha) || head="$sha"
+              if [ "$head" != "$sha" ]; then break; fi
+            done
+            if [ "$head" = "$sha" ]; then
+              echo "::warning::#$pr: the head has not moved yet; run Checks on $branch by hand"
+            elif gh workflow run checks.yml --ref "$branch" </dev/null; then
+              echo "#$pr: started Fast checks on $branch for ${head:0:7}"
+            else
+              echo "::warning::#$pr: could not start Fast checks (see the message above); run Checks on $branch by hand"
             fi
           done

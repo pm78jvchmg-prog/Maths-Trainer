@@ -37,6 +37,7 @@ import { options } from '../choiceVariant';
 import { bin, num, pow } from '../expr';
 import { ALGEBRA_KEYS } from './calculus';
 import { bankOf, numberTile, offer, signedTile } from './quadratics';
+import { aOrAn } from './format';
 
 /* ---------- Formatting ---------- */
 
@@ -177,7 +178,7 @@ const LAUNCHES: readonly Launch[] = [
     opening: (h0, v) =>
       h0 === 0
         ? `A stone is flicked straight up from the beach at ${v} m/s.`
-        : `A stone is flicked straight up at ${v} m/s from the top of a ${h0} m cliff.`,
+        : `A stone is flicked straight up at ${v} m/s from the top of ${aOrAn(h0)} ${h0} m cliff.`,
   },
   {
     noun: 'rocket',

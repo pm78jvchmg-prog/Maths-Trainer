@@ -271,8 +271,10 @@ A batch is one thread on one branch, and **its record is one file of its own**,
   once its build is green. Merge main only when GitHub says the branch
   conflicts, or when your work needs something that landed there. Each merge is
   a fresh build and a fresh wait. If Cloudflare never builds a head (its check
-  stays absent), the `Stuck builds` workflow merges main in for you after
-  twenty minutes, which gets the branch a new build.
+  stays absent), the `Stuck builds` workflow, which runs every thirty minutes,
+  merges main in for you once the head has waited over twenty minutes: twenty
+  to fifty minutes after it stalled, later if GitHub starts the scheduled run
+  late. That gets the branch a new build.
 
 A batch file is exactly this shape; `npx vitest run docs/roadmap` checks every
 one, and `node docs/roadmap/batches.mjs` prints them all as the phase B and C

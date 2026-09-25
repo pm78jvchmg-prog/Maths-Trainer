@@ -17,7 +17,6 @@ import {
   applyKey,
   deleteBack,
   docFromKeys,
-  docFromAnswer,
   insertAtom,
   insertFraction,
   insertRoot,
@@ -63,7 +62,7 @@ describe('editing', () => {
     let doc = insertFraction(EMPTY_DOC);
     doc = moveRight(type(doc, '1')); // numerator typed, caret in the denominator
     doc = deleteBack(doc); // out of the empty denominator
-    expect(toAnswer(doc.nodes)).toBe('((1)/(1))');
+    expect(toAnswer(doc.nodes)).toBe('((1)/(()))');
     expect(doc.nodes).toHaveLength(1);
   });
 
@@ -85,11 +84,6 @@ describe('editing', () => {
   it('treats an empty slot as nothing to grade', () => {
     expect(isFilled(insertFraction(EMPTY_DOC).nodes)).toBe(false);
     expect(isFilled(type(insertFraction(EMPTY_DOC), '1').nodes)).toBe(true);
-  });
-
-  it('round-trips a stored answer', () => {
-    const text = '((3)/(4))x^2';
-    expect(toAnswer(docFromAnswer(text).nodes)).toBe(text);
   });
 });
 
@@ -139,7 +133,7 @@ describe('grading a typed fraction', () => {
     doc = moveRight(type(doc, '2'));
     doc = insertRoot(doc);
     doc = type(doc, 'x');
-    expect(toAnswer(doc.nodes)).toBe('((1)/(2))sqrt(x)');
+    expect(toAnswer(doc.nodes)).toBe('((1)/(2))(sqrt(x))');
     expect(grade(toAnswer(doc.nodes), 'sqrt(x)/2')).toBe('correct');
   });
 
@@ -291,10 +285,107 @@ describe('trig function keys', () => {
     const doc = type(docFromKeys([{ insert: '6' }, key('sin')]), '150');
     expect(checkAnswer(toAnswer(doc.nodes), '3').status).toBe('correct');
   });
+});
 
-  it('reads a stored degree function back as the key, not as its mathjs name', () => {
-    const doc = docFromAnswer('4(sind(30))');
-    expect(toTex(doc.nodes)).toBe('4(\\sin(30))');
-    expect(toAnswer(doc.nodes)).toBe('4(sind(30))');
+/**
+ * An empty slot used to be written as a neutral value — a fraction as 0/1, a
+ * denominator as 1, a root as sqrt(0), an exponent as 1 — so a template opened
+ * and left empty vanished from the graded string. Check is live as soon as
+ * anything else is typed, which made `5 + □/□` a right answer to "5". Each
+ * template now refuses an empty slot the way the function template does.
+ */
+describe('an empty slot is never graded as a value', () => {
+  it('refuses a fraction with nothing in it', () => {
+    let doc = type(EMPTY_DOC, '5+');
+    doc = insertFraction(doc);
+    expect(isFilled(doc.nodes)).toBe(true); // Check is live
+    expect(checkAnswer(toAnswer(doc.nodes), '5').status).toBe('invalid');
+  });
+
+  it('refuses a fraction with an empty denominator', () => {
+    const doc = moveRight(type(insertFraction(EMPTY_DOC), '3'));
+    expect(checkAnswer(toAnswer(doc.nodes), '3').status).toBe('invalid');
+  });
+
+  it('refuses a fraction with an empty numerator', () => {
+    const doc = type(moveRight(insertFraction(EMPTY_DOC)), '4');
+    expect(checkAnswer(toAnswer(doc.nodes), '0').status).toBe('invalid');
+  });
+
+  it('refuses a root with nothing under it', () => {
+    const doc = insertRoot(type(EMPTY_DOC, '7+'));
+    expect(checkAnswer(toAnswer(doc.nodes), '7').status).toBe('invalid');
+  });
+
+  it('refuses an exponent with nothing in it', () => {
+    const doc = insertSup(type(EMPTY_DOC, 'x'));
+    expect(checkAnswer(toAnswer(doc.nodes), 'x').status).toBe('invalid');
+  });
+
+  it('still grades each template once its slots are filled', () => {
+    let frac = type(EMPTY_DOC, '5+');
+    frac = type(moveRight(type(insertFraction(frac), '1')), '2');
+    expect(checkAnswer(toAnswer(frac.nodes), '5.5').status).toBe('correct');
+    const root = type(insertRoot(type(EMPTY_DOC, '7+')), '9');
+    expect(checkAnswer(toAnswer(root.nodes), '10').status).toBe('correct');
+    const sup = type(insertSup(type(EMPTY_DOC, 'x')), '2');
+    expect(checkAnswer(toAnswer(sup.nodes), 'x^2').status).toBe('correct');
+  });
+});
+
+/**
+ * mathjs reads a run of letters as one name, and a name followed by a bracket
+ * as a call. So a letter key written straight against what comes next merged
+ * with it: `i` then √3 serialised to `isqrt(3)`, "There is no function called
+ * isqrt", and `x` then `ln(` to `xln(`. Every key here is one the keypads
+ * offer side by side (EXACT_KEYS and SURD_KEYS with √, EXP_KEYS with e and
+ * ln, the calculus TRIG_KEYS with sin, PI_KEYS with the fraction), and every
+ * answer is typed exactly as it is printed.
+ */
+describe('a letter key never merges with what follows it', () => {
+  const press = (...keys: string[]): Doc =>
+    keys.reduce<Doc>((acc, k) => (k === '>' ? moveRight(acc) : applyKey(acc, { insert: k })), EMPTY_DOC);
+
+  it('reads i√3 as i times root 3', () => {
+    const doc = press('1', '+', 'i', 'sqrt(', '3');
+    expect(checkAnswer(toAnswer(doc.nodes), '1 + sqrt(3)*i').status).toBe('correct');
+  });
+
+  it('reads 2x√3 as 2 times x times root 3', () => {
+    const doc = press('2', 'x', 'sqrt(', '3');
+    expect(checkAnswer(toAnswer(doc.nodes), '2*sqrt(3)*x').status).toBe('correct');
+  });
+
+  it('reads x√x as x times root x', () => {
+    const doc = press('x', 'sqrt(', 'x');
+    expect(checkAnswer(toAnswer(doc.nodes), 'x^(3/2)', { domain: 'positive' }).status).toBe('correct');
+  });
+
+  it('reads x ln(x) and x sin(x) as products, not functions named xln and xsin', () => {
+    const ln = press('x', 'ln(', 'x', ')');
+    expect(checkAnswer(toAnswer(ln.nodes), 'x*log(x)', { domain: 'positive' }).status).toBe('correct');
+    const sin = press('x', 'sin(', 'x', ')');
+    expect(checkAnswer(toAnswer(sin.nodes), 'x*sin(x)').status).toBe('correct');
+  });
+
+  it('reads x e^x as x times e^x, not a symbol named xe', () => {
+    const doc = press('x', 'e', '^', 'x');
+    expect(checkAnswer(toAnswer(doc.nodes), 'x*exp(x)').status).toBe('correct');
+  });
+
+  it('reads π before a fraction as a product, not a call to pi', () => {
+    const doc = press('pi', '/', '1', '>', '6');
+    expect(checkAnswer(toAnswer(doc.nodes), 'pi/6').status).toBe('correct');
+  });
+
+  it('keeps a power on the bracket after a letter, x(x+1)^2', () => {
+    const doc = press('x', '(', 'x', '+', '1', ')', '^', '2');
+    expect(checkAnswer(toAnswer(doc.nodes), 'x*(x+1)^2').status).toBe('correct');
+    expect(checkAnswer(toAnswer(doc.nodes), '(x*(x+1))^2').status).toBe('incorrect');
+  });
+
+  it('leaves a letter alone where nothing can merge with it', () => {
+    expect(toAnswer(press('x', '^', '2').nodes)).toBe('x^(2)');
+    expect(toAnswer(press('2', 'x', '+', '1').nodes)).toBe('2x+1');
   });
 });

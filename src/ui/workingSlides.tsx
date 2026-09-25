@@ -1,28 +1,23 @@
 /**
- * The two slide kinds that show working rather than just a final answer.
+ * The slide kinds that show working or a path through a decision rather than
+ * just a final answer: steps, tree and flow.
  *
  * Both are controlled components in the same sense as the widgets in
- * `slides.tsx`: they hold the in-progress picks and nothing else. No verdict is
- * computed here — a filled-in step looks identical whether it is right or
- * wrong, and only the reducer knows which.
+ * `SlideView.tsx`: they hold the in-progress picks and nothing else. No
+ * verdict is computed here — a filled-in step looks identical whether it is
+ * right or wrong, and only the reducer knows which.
  */
 import { useLayoutEffect, useRef, useState } from 'react';
 import { Tex, Blocks, Inline } from './Math';
 import type { Slide } from '../content/types';
 import { frameClass, isLocked, type SlideProps } from './slides';
 import { walkFlow } from './flow';
+import { blankName, inlineToSpeech, texToSpeech } from './texSpeech';
 
 /* ---------- Steps: reduce an expression one operation at a time ---------- */
 
 type StepsSlide = Extract<Slide, { kind: 'steps' }>;
 
-/**
- * Replays the chosen values to get every line of working so far.
- *
- * Returns one more line than there are picks: the last entry is the line
- * currently being worked on. Spans index the line they act on, so this has to
- * be applied in order rather than computed per step.
- */
 /**
  * One answered stage: which sub-expression was collapsed, and into what.
  *
@@ -44,7 +39,10 @@ export function stepToken(span: [number, number] | undefined, value: string): st
 }
 
 /**
- * The working so far, one line per stage.
+ * The working so far, one line per stage, replayed from the chosen values.
+ * Normally one more line than there are picks: the last entry is the line
+ * currently being worked on. Spans index the line they act on, so this has to
+ * be applied in order rather than computed per step.
  *
  * The span that collapses is the one the *learner* chose, not the one the
  * author expected. That matters the moment ordering is being graded: a learner
@@ -149,6 +147,8 @@ function Line({
           key={i}
           type="button"
           className={`step-target${isArmed(target.span) ? ' armed' : ''}`}
+          // Maths alone, which KaTeX hides from assistive tech: named in words.
+          aria-label={inner.map(texToSpeech).join(' ')}
           disabled={!onArm}
           onClick={onArm ? () => onArm(target.span) : undefined}
         >
@@ -260,6 +260,7 @@ function StepsBody({
               key={idx}
               type="button"
               className="tile"
+              aria-label={texToSpeech(value)}
               disabled={locked}
               onClick={() => pick(value)}
             >
@@ -425,6 +426,7 @@ function TreeBody({
                     else cells.current.delete(node.id);
                   }}
                   className={`answer-slot${filled[idx] ? ' filled' : ''}`}
+                  aria-label={blankName(`Blank ${idx + 1} of ${slide.nodes.length}`, filled[idx] ?? '')}
                   disabled={locked || !filled[idx]}
                   onClick={() => clear(idx)}
                 >
@@ -446,6 +448,7 @@ function TreeBody({
               key={idx}
               type="button"
               className={`tile${used ? ' used' : ''}`}
+              aria-label={texToSpeech(value)}
               disabled={locked || used}
               onClick={() => place(value)}
             >
@@ -523,7 +526,15 @@ export function FlowSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideP
         <ol className="flow-trail">
           {trail.map((entry, idx) => (
             <li key={idx}>
-              <button type="button" className="flow-step" disabled={locked} onClick={() => rewindTo(idx)}>
+              <button
+                type="button"
+                className="flow-step"
+                // `Inline` maths is hidden from assistive tech like any KaTeX,
+                // so the name is written out rather than read off the content.
+                aria-label={`${inlineToSpeech(entry.ask)} ${inlineToSpeech(entry.label)}`}
+                disabled={locked}
+                onClick={() => rewindTo(idx)}
+              >
                 <span className="flow-ask">
                   <Inline text={entry.ask} />
                 </span>
@@ -550,6 +561,7 @@ export function FlowSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideP
               key={branch.label}
               type="button"
               className="flow-branch"
+              aria-label={inlineToSpeech(branch.label)}
               disabled={locked}
               onClick={() => choose(branch.label)}
             >

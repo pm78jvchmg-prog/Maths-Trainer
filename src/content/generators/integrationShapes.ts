@@ -33,22 +33,16 @@ import type { Block, Generator, Slide } from '../types';
 import { options } from '../choiceVariant';
 import { plotSvg } from '../figures';
 import { termTex } from './calculus';
+import { coeffTex } from './format';
 
 /** A non-zero integer: resample-free, since the caller supplies the escape. */
 function nonZero(value: number, fallback: number): number {
   return value === 0 ? fallback : value;
 }
 
-/** A coefficient in front of a function, with 1 and -1 left implied. */
-function coefTex(coefficient: number, body: string): string {
-  if (coefficient === 1) return body;
-  if (coefficient === -1) return `-${body}`;
-  return `${coefficient}${body}`;
-}
-
-/** The same, carrying its own sign so it can follow another term. */
+/** A coefficient in front of a function (`coeffTex`), carrying its own sign so it can follow another term. */
 function signedCoefTex(coefficient: number, body: string): string {
-  return `${coefficient < 0 ? '-' : '+'} ${coefTex(Math.abs(coefficient), body)}`;
+  return `${coefficient < 0 ? '-' : '+'} ${coeffTex(Math.abs(coefficient), body)}`;
 }
 
 /**
@@ -177,8 +171,8 @@ const termTiles: Generator<TwoTermParams> = {
       {
         text: 'An integral of a sum is the sum of the integrals, so each term goes through the power rule on its own.',
       },
-      { tex: `\\int ${termTex(a, m)} \\, dx = \\frac{${a}x^{${m + 1}}}{${m + 1}} = ${termTex(first, m + 1)}` },
-      { tex: `\\int ${termTex(b, n)} \\, dx = \\frac{${b}x^{${n + 1}}}{${n + 1}} = ${termTex(second, n + 1)}` },
+      { tex: `\\int ${termTex(a, m)} \\, dx = \\frac{${termTex(a, m + 1)}}{${m + 1}} = ${termTex(first, m + 1)}` },
+      { tex: `\\int ${termTex(b, n)} \\, dx = \\frac{${termTex(b, n + 1)}}{${n + 1}} = ${termTex(second, n + 1)}` },
       { tex: `${twoTermIntegral(params)} = ${termTex(first, m + 1)} + ${termTex(second, n + 1)} + C` },
       {
         text: `Divide by the *new* index every time. Dividing $${a}$ by $${m}$ rather than by $${m + 1}$ is the slip, and differentiating the answer back catches it at once.`,
@@ -359,28 +353,28 @@ function rewritePieces({ form, a, n }: RewriteParams): {
   if (form === 'fraction') {
     return {
       shown: `\\frac{${a}}{x^{${n}}}`,
-      indexForm: coefTex(a, `x^{-${n}}`),
+      indexForm: coeffTex(a, `x^{-${n}}`),
       integrated: termTex(-a / (n - 1), -(n - 1)),
     };
   }
   if (form === 'root') {
     return {
-      shown: coefTex(a, '\\sqrt{x}'),
-      indexForm: coefTex(a, 'x^{1/2}'),
-      integrated: coefTex((2 * a) / 3, 'x^{3/2}'),
+      shown: coeffTex(a, '\\sqrt{x}'),
+      indexForm: coeffTex(a, 'x^{1/2}'),
+      integrated: coeffTex((2 * a) / 3, 'x^{3/2}'),
     };
   }
   if (form === 'rootTimes') {
     return {
-      shown: coefTex(a, 'x\\sqrt{x}'),
-      indexForm: coefTex(a, 'x^{3/2}'),
-      integrated: coefTex((2 * a) / 5, 'x^{5/2}'),
+      shown: coeffTex(a, 'x\\sqrt{x}'),
+      indexForm: coeffTex(a, 'x^{3/2}'),
+      integrated: coeffTex((2 * a) / 5, 'x^{5/2}'),
     };
   }
   return {
     shown: `\\frac{${a}}{\\sqrt{x}}`,
-    indexForm: coefTex(a, 'x^{-1/2}'),
-    integrated: coefTex(2 * a, 'x^{1/2}'),
+    indexForm: coeffTex(a, 'x^{-1/2}'),
+    integrated: coeffTex(2 * a, 'x^{1/2}'),
   };
 }
 
@@ -435,24 +429,24 @@ const rewritePower: Generator<RewriteParams> = {
       bank: bankOf(answer, [
         // The index left the way round it was written, which is the whole
         // reason for the rewrite.
-        form === 'fraction' ? coefTex(a, `x^{${n}}`) : coefTex(a, 'x^{-1/2}'),
+        form === 'fraction' ? coeffTex(a, `x^{${n}}`) : coeffTex(a, 'x^{-1/2}'),
         // Raised without dividing, and divided without raising.
         form === 'fraction'
-          ? coefTex(a, `x^{-${n - 1}}`)
+          ? coeffTex(a, `x^{-${n - 1}}`)
           : form === 'root'
-            ? coefTex(a, 'x^{3/2}')
+            ? coeffTex(a, 'x^{3/2}')
             : form === 'rootTimes'
-              ? coefTex(a, 'x^{5/2}')
-              : coefTex(a, 'x^{1/2}'),
+              ? coeffTex(a, 'x^{5/2}')
+              : coeffTex(a, 'x^{1/2}'),
         form === 'fraction'
           ? termTex(a / (n - 1), -(n + 1))
           : form === 'root'
-            ? coefTex((2 * a) / 3, 'x^{1/2}')
+            ? coeffTex((2 * a) / 3, 'x^{1/2}')
             : form === 'rootTimes'
-              ? coefTex((2 * a) / 5, 'x^{3/2}')
-              : coefTex(2 * a, 'x^{3/2}'),
+              ? coeffTex((2 * a) / 5, 'x^{3/2}')
+              : coeffTex(2 * a, 'x^{3/2}'),
         // The sign of the new index dropped.
-        form === 'fraction' ? termTex(a / (n - 1), n - 1) : coefTex(a, 'x^{-3/2}'),
+        form === 'fraction' ? termTex(a / (n - 1), n - 1) : coeffTex(a, 'x^{-3/2}'),
       ]),
       answer,
     };
@@ -461,11 +455,11 @@ const rewritePower: Generator<RewriteParams> = {
     if (form === 'fraction') {
       return [
         { text: 'A power of $x$ underneath a fraction is a negative power on the top.' },
-        { tex: `\\frac{${a}}{x^{${n}}} = ${coefTex(a, `x^{-${n}}`)}` },
+        { tex: `\\frac{${a}}{x^{${n}}} = ${coeffTex(a, `x^{-${n}}`)}` },
         {
           text: `Now the power rule applies unchanged: adding one to $-${n}$ gives $-${n - 1}$, and the division is by $-${n - 1}$.`,
         },
-        { tex: `\\int ${coefTex(a, `x^{-${n}}`)} \\, dx = \\frac{${a}x^{-${n - 1}}}{-${n - 1}} = ${termTex(-a / (n - 1), -(n - 1))} + C` },
+        { tex: `\\int ${coeffTex(a, `x^{-${n}}`)} \\, dx = \\frac{${coeffTex(a, `x^{-${n - 1}}`)}}{-${n - 1}} = ${termTex(-a / (n - 1), -(n - 1))} + C` },
         {
           text: 'Both minus signs are real and both have to be carried. Trying to integrate while the term is still a fraction is where the guessing starts.',
         },
@@ -474,11 +468,11 @@ const rewritePower: Generator<RewriteParams> = {
     if (form === 'root') {
       return [
         { text: 'A square root is the power $\\frac{1}{2}$, and the rule has never assumed the index was whole.' },
-        { tex: `${coefTex(a, '\\sqrt{x}')} = ${coefTex(a, 'x^{1/2}')}` },
+        { tex: `${coeffTex(a, '\\sqrt{x}')} = ${coeffTex(a, 'x^{1/2}')}` },
         {
           text: `Adding one to $\\frac{1}{2}$ gives $\\frac{3}{2}$, and dividing by $\\frac{3}{2}$ multiplies by $\\frac{2}{3}$: $${a} \\times \\frac{2}{3} = ${(2 * a) / 3}$.`,
         },
-        { tex: `\\int ${coefTex(a, 'x^{1/2}')} \\, dx = ${coefTex((2 * a) / 3, 'x^{3/2}')} + C` },
+        { tex: `\\int ${coeffTex(a, 'x^{1/2}')} \\, dx = ${coeffTex((2 * a) / 3, 'x^{3/2}')} + C` },
         {
           text: 'Dividing by a fraction is multiplying by its reciprocal. Writing the division out before simplifying is what keeps that straight.',
         },
@@ -487,11 +481,11 @@ const rewritePower: Generator<RewriteParams> = {
     if (form === 'rootTimes') {
       return [
         { text: '$x$ multiplied by its own square root adds the indices: $1 + \\frac{1}{2}$.' },
-        { tex: `${coefTex(a, 'x\\sqrt{x}')} = ${coefTex(a, 'x^{3/2}')}` },
+        { tex: `${coeffTex(a, 'x\\sqrt{x}')} = ${coeffTex(a, 'x^{3/2}')}` },
         {
           text: `Adding one to $\\frac{3}{2}$ gives $\\frac{5}{2}$, and dividing by $\\frac{5}{2}$ multiplies by $\\frac{2}{5}$: $${a} \\times \\frac{2}{5} = ${(2 * a) / 5}$.`,
         },
-        { tex: `\\int ${coefTex(a, 'x^{3/2}')} \\, dx = ${coefTex((2 * a) / 5, 'x^{5/2}')} + C` },
+        { tex: `\\int ${coeffTex(a, 'x^{3/2}')} \\, dx = ${coeffTex((2 * a) / 5, 'x^{5/2}')} + C` },
         {
           text: 'Nothing about $\\frac{5}{2}$ is harder than $\\frac{3}{2}$; the arithmetic of the fraction is the whole of the difficulty, and writing the division out handles it.',
         },
@@ -499,11 +493,11 @@ const rewritePower: Generator<RewriteParams> = {
     }
     return [
       { text: 'A root underneath a fraction is a negative fractional power, and both negatives have to survive the rewrite.' },
-      { tex: `\\frac{${a}}{\\sqrt{x}} = ${coefTex(a, 'x^{-1/2}')}` },
+      { tex: `\\frac{${a}}{\\sqrt{x}} = ${coeffTex(a, 'x^{-1/2}')}` },
       {
         text: `Adding one to $-\\frac{1}{2}$ gives $\\frac{1}{2}$, and dividing by $\\frac{1}{2}$ doubles: $${a} \\times 2 = ${2 * a}$.`,
       },
-      { tex: `\\int ${coefTex(a, 'x^{-1/2}')} \\, dx = ${coefTex(2 * a, 'x^{1/2}')} + C` },
+      { tex: `\\int ${coeffTex(a, 'x^{-1/2}')} \\, dx = ${coeffTex(2 * a, 'x^{1/2}')} + C` },
       {
         text: 'The new index comes out positive here, which surprises people. Adding one to a negative index can land either side of zero, and only $-1$ lands on it.',
       },
@@ -577,10 +571,10 @@ const whichRule: Generator<RuleParams> = {
           : kind === 'fraction'
             ? `\\frac{${a}}{x^{${n}}}`
             : kind === 'root'
-              ? coefTex(a, '\\sqrt{x}')
+              ? coeffTex(a, '\\sqrt{x}')
               : kind === 'exp'
-                ? coefTex(a, `e^{${termTex(n, 1)}}`)
-                : coefTex(a, `\\${kind}\\left(${termTex(n, 1)}\\right)`);
+                ? coeffTex(a, `e^{${termTex(n, 1)}}`)
+                : coeffTex(a, `\\${kind}\\left(${termTex(n, 1)}\\right)`);
     return {
       kind: 'flow',
       prompt: [
@@ -628,8 +622,8 @@ const whichRule: Generator<RuleParams> = {
   solution: ({ route, a, n, kind }) => {
     if (route === 'log') {
       return [
-        { text: `$\\frac{${a}}{x}$ is $${coefTex(a, 'x^{-1}')}$, and $-1$ is the single index the power rule cannot reach — adding one to it gives zero, and the rule would divide by zero.` },
-        { tex: `\\int \\frac{${a}}{x} \\, dx = ${a}\\ln|x| + C` },
+        { text: `$\\frac{${a}}{x}$ is $${coeffTex(a, 'x^{-1}')}$, and $-1$ is the single index the power rule cannot reach — adding one to it gives zero, and the rule would divide by zero.` },
+        { tex: `\\int \\frac{${a}}{x} \\, dx = ${coeffTex(a, '\\ln|x|')} + C` },
         {
           text: 'The modulus signs matter, because $\\frac{1}{x}$ is defined on both sides of zero and $\\ln x$ is defined on only one.',
         },
@@ -638,9 +632,9 @@ const whichRule: Generator<RuleParams> = {
     }
     if (route === 'power') {
       const shown =
-        kind === 'plain' ? termTex(a, n) : kind === 'fraction' ? `\\frac{${a}}{x^{${n}}}` : coefTex(a, '\\sqrt{x}');
+        kind === 'plain' ? termTex(a, n) : kind === 'fraction' ? `\\frac{${a}}{x^{${n}}}` : coeffTex(a, '\\sqrt{x}');
       const asPower =
-        kind === 'plain' ? termTex(a, n) : kind === 'fraction' ? coefTex(a, `x^{-${n}}`) : coefTex(a, 'x^{1/2}');
+        kind === 'plain' ? termTex(a, n) : kind === 'fraction' ? coeffTex(a, `x^{-${n}}`) : coeffTex(a, 'x^{1/2}');
       return [
         { text: `The index is not $-1$, and $${shown}$ is a power of $x$ once it is written as one.` },
         { tex: `${shown} = ${asPower}` },
@@ -651,13 +645,13 @@ const whichRule: Generator<RuleParams> = {
       ];
     }
     const shown =
-      kind === 'exp' ? coefTex(a, `e^{${termTex(n, 1)}}`) : coefTex(a, `\\${kind}\\left(${termTex(n, 1)}\\right)`);
+      kind === 'exp' ? coeffTex(a, `e^{${termTex(n, 1)}}`) : coeffTex(a, `\\${kind}\\left(${termTex(n, 1)}\\right)`);
     const integrated =
       kind === 'exp'
-        ? `\\frac{${a}e^{${termTex(n, 1)}}}{${n}}`
+        ? `\\frac{${coeffTex(a, `e^{${termTex(n, 1)}}`)}}{${n}}`
         : kind === 'sin'
-          ? `-\\frac{${a}\\cos\\left(${termTex(n, 1)}\\right)}{${n}}`
-          : `\\frac{${a}\\sin\\left(${termTex(n, 1)}\\right)}{${n}}`;
+          ? `-\\frac{${coeffTex(a, `\\cos\\left(${termTex(n, 1)}\\right)`)}}{${n}}`
+          : `\\frac{${coeffTex(a, `\\sin\\left(${termTex(n, 1)}\\right)`)}}{${n}}`;
     return [
       { text: `$${shown}$ is not a power of $x$ at all, so neither of the first two routes reaches it; it is one of the three standard results.` },
       { tex: `\\int ${shown} \\, dx = ${integrated} + C` },
@@ -709,24 +703,24 @@ const standardTiles: Generator<StandardParams> = {
     const other = `\\${form === 'sin' ? 'cos' : 'sin'}\\left(${termTex(m, 1)}\\right)`;
     // Integrating sine turns it into minus cosine; cosine into plus sine.
     const sign = form === 'sin' ? -1 : 1;
-    const answer = [coefTex(first, exponential), signedCoefTex(sign * second, other)];
+    const answer = [coeffTex(first, exponential), signedCoefTex(sign * second, other)];
     return {
       kind: 'tiles',
       prompt: integralPrompt(
         'Integrate both terms and place the answer.',
-        `\\int \\left(${coefTex(first * k, exponential)} ${signedCoefTex(second * m, wave)}\\right) \\, dx`,
+        `\\int \\left(${coeffTex(first * k, exponential)} ${signedCoefTex(second * m, wave)}\\right) \\, dx`,
       ),
       template: '= {0} {1} + C',
       bank: bankOf(answer, [
         // Never divided by the coefficient inside the function.
-        coefTex(first * k, exponential),
+        coeffTex(first * k, exponential),
         signedCoefTex(sign * second * m, other),
         // The sign of the trigonometric result flipped.
         signedCoefTex(-sign * second, other),
         // The function left as it was, rather than turned into its partner.
         signedCoefTex(sign * second, wave),
         // Multiplied by the coefficient instead of divided by it.
-        coefTex(first * k * k, exponential),
+        coeffTex(first * k * k, exponential),
       ]),
       answer,
     };
@@ -738,11 +732,11 @@ const standardTiles: Generator<StandardParams> = {
     const sign = form === 'sin' ? -1 : 1;
     return [
       { text: 'Each term is its own standard result, and each divides by the coefficient of $x$ inside it.' },
-      { tex: `\\int ${coefTex(first * k, exponential)} \\, dx = \\frac{${first * k}${exponential}}{${k}} = ${coefTex(first, exponential)}` },
+      { tex: `\\int ${coeffTex(first * k, exponential)} \\, dx = \\frac{${coeffTex(first * k, exponential)}}{${k}} = ${coeffTex(first, exponential)}` },
       {
-        tex: `\\int ${coefTex(second * m, wave)} \\, dx = ${
-          form === 'sin' ? `-\\frac{${second * m}${other}}{${m}}` : `\\frac{${second * m}${other}}{${m}}`
-        } = ${coefTex(sign * second, other)}`,
+        tex: `\\int ${coeffTex(second * m, wave)} \\, dx = ${
+          form === 'sin' ? `-\\frac{${coeffTex(second * m, other)}}{${m}}` : `\\frac{${coeffTex(second * m, other)}}{${m}}`
+        } = ${coeffTex(sign * second, other)}`,
       },
       {
         text:
@@ -875,7 +869,7 @@ function definitePieces({ form, scale, n, b }: DefiniteShapeParams): {
   }
   return {
     integrand: `${termTex(2 * scale, 1)} ${b < 0 ? '-' : '+'} ${Math.abs(b)}`,
-    antiderivative: `${termTex(scale, 2)} ${b < 0 ? '-' : '+'} ${Math.abs(b)}x`,
+    antiderivative: `${termTex(scale, 2)} ${b < 0 ? '-' : '+'} ${termTex(Math.abs(b), 1)}`,
     at: (x) => scale * x * x + b * x,
   };
 }
@@ -1094,7 +1088,7 @@ const substitutionTiles: Generator<SubstitutionSetupParams> = {
   render: ({ a, b, power }): Slide => {
     const inner = `x^{2} ${b < 0 ? '-' : '+'} ${Math.abs(b)}`;
     const half = a / 2;
-    const answer = [inner, '2x', coefTex(half, `u^{${power}}`)];
+    const answer = [inner, '2x', coeffTex(half, `u^{${power}}`)];
     return {
       kind: 'tiles',
       prompt: integralPrompt(
@@ -1110,9 +1104,9 @@ const substitutionTiles: Generator<SubstitutionSetupParams> = {
         termTex(a, 1),
         `2x ${b < 0 ? '-' : '+'} ${Math.abs(b)}`,
         // The coefficient carried across whole rather than halved.
-        coefTex(a, `u^{${power}}`),
+        coeffTex(a, `u^{${power}}`),
         // Integrated a step too early.
-        coefTex(half, `u^{${power + 1}}`),
+        coeffTex(half, `u^{${power + 1}}`),
       ]),
       answer,
     };
@@ -1129,7 +1123,7 @@ const substitutionTiles: Generator<SubstitutionSetupParams> = {
       {
         text: `The integrand carries $${termTex(a, 1)} \\, dx$, which is $${half}$ lots of $2x \\, dx$, so it becomes $${half} \\, du$.`,
       },
-      { tex: `\\int ${termTex(a, 1)}\\left(${inner}\\right)^{${power}} \\, dx = ${coefTex(half, '')}\\int u^{${power}} \\, du = \\frac{${half}u^{${n}}}{${n}} + C` },
+      { tex: `\\int ${termTex(a, 1)}\\left(${inner}\\right)^{${power}} \\, dx = ${coeffTex(half, '')}\\int u^{${power}} \\, du = \\frac{${coeffTex(half, `u^{${n}}`)}}{${n}} + C` },
       {
         text: 'A constant factor left over is no obstacle. An $x$ left over is: it means the substitution has failed and a different $u$ is needed.',
       },

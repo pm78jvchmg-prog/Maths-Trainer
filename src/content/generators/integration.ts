@@ -26,17 +26,17 @@ import { options } from '../choiceVariant';
 import { ALGEBRA_KEYS, EXP_KEYS, TRIG_KEYS, ROOT_KEYS, termTex, termAnswer, sumTex, sumAnswer } from './calculus';
 import { bin, num, pow, valueOf, type Expr } from '../expr';
 import { markerWindow, plotSvg } from '../figures';
+import { gcd } from './format';
 
 /** The algebra keys plus the constant of integration. */
 const INTEGRAL_KEYS: KeypadKey[] = [...ALGEBRA_KEYS, { insert: 'C' }];
 const EXP_INTEGRAL_KEYS: KeypadKey[] = [...EXP_KEYS, { insert: 'C' }];
 const TRIG_INTEGRAL_KEYS: KeypadKey[] = [...TRIG_KEYS, { insert: 'C' }];
 
-function gcd(a: number, b: number): number {
-  return b === 0 ? a : gcd(b, a % b);
-}
-
 /** A fraction in lowest terms, with the sign carried by the numerator. */
+/** A coefficient written in front of a letter: nothing for 1, a bare minus for -1. */
+const inFront = (c: string): string => (c === '1' ? '' : c === '-1' ? '-' : c);
+
 function reduce(num: number, den: number): { n: number; d: number } {
   const sign = den < 0 ? -1 : 1;
   const g = gcd(Math.abs(num), Math.abs(den)) || 1;
@@ -215,7 +215,7 @@ const integratePower: Generator<PowerParams> = {
       },
       { tex: `\\int x^{n} \\, dx = \\frac{x^{n + 1}}{n + 1} + C` },
       {
-        tex: `${integralTex(termTex(coefficient, power))} = \\frac{${coefficient}x^{${n}}}{${n}} + C = ${fracTermTex(coefficient, n, n)} + C`,
+        tex: `${integralTex(termTex(coefficient, power))} = \\frac{${termTex(coefficient, n)}}{${n}} + C = ${fracTermTex(coefficient, n, n)} + C`,
       },
       {
         text:
@@ -289,7 +289,7 @@ const integrateSum: Generator<SumParams> = {
     {
       text:
         n === 0
-          ? `A constant term integrates to a multiple of $x$, since $${b}$ is really $${b}x^{0}$. Leaving it out altogether is the mistake to watch for.`
+          ? `A constant term integrates to a multiple of $x$, since $${b}$ is really $${b === 1 ? '' : b === -1 ? '-' : b}x^{0}$. Leaving it out altogether is the mistake to watch for.`
           : 'Each term keeps its own coefficient through the division. Only one constant of integration is needed no matter how many terms there are, because the sum of several constants is just another constant.',
     },
   ],
@@ -1015,7 +1015,7 @@ const substitution: Generator<SubstitutionParams> = {
     const coefficient = cd === 1 ? `${cn}` : `\\frac{${cn}}{${cd}}`;
     return [
       {
-        text: `Put $u = x^{2} ${b < 0 ? '-' : '+'} ${Math.abs(b)}$. Then $\\frac{du}{dx} = 2x$, so $${a}x \\, dx$ becomes $\\frac{${a}}{2} \\, du$.`,
+        text: `Put $u = x^{2} ${b < 0 ? '-' : '+'} ${Math.abs(b)}$. Then $\\frac{du}{dx} = 2x$, so $${termTex(a, 1)} \\, dx$ becomes $\\frac{${a}}{2} \\, du$.`,
       },
       { tex: `${integralTex(`${termTex(a, 1)}${bracket}^{${power}}`)} = \\frac{${a}}{2}\\int u^{${power}} \\, du` },
       { tex: `= \\frac{${a}}{2} \\times \\frac{u^{${n}}}{${n}} = ${coefficient}u^{${n}}` },
@@ -1043,18 +1043,22 @@ const byParts: Generator<PartsParams> = {
     const kx = termTex(k, 1);
     const sq = k * k;
     const inner = `(${k}) * x`;
+    // The number in front, with no 1 written; and kx added or taken away with
+    // one sign, so a negative k reads "+ 5x" rather than "- -5x".
+    const A = inFront(`${a}`);
+    const withKx = (sign: '+' | '-') => (k < 0 ? `${sign === '-' ? '+' : '-'} ${termTex(-k, 1)}` : `${sign} ${kx}`);
     if (form === 'exp') {
       return options(
-        { tex: `\\frac{${a}e^{${kx}}\\left(${kx} - 1\\right)}{${sq}} + C`, answer: `((${a})/((${k})^2)) * e^(${inner}) * ((${k}) * x - 1)` },
-        { tex: `\\frac{${a}e^{${kx}}\\left(${kx} + 1\\right)}{${sq}} + C`, answer: `((${a})/((${k})^2)) * e^(${inner}) * ((${k}) * x + 1)` },
-        { tex: `\\frac{${a}xe^{${kx}}}{${k}} + C`, answer: `((${a})/(${k})) * x * e^(${inner})` },
+        { tex: `\\frac{${A}e^{${kx}}\\left(${kx} - 1\\right)}{${sq}} + C`, answer: `((${a})/((${k})^2)) * e^(${inner}) * ((${k}) * x - 1)` },
+        { tex: `\\frac{${A}e^{${kx}}\\left(${kx} + 1\\right)}{${sq}} + C`, answer: `((${a})/((${k})^2)) * e^(${inner}) * ((${k}) * x + 1)` },
+        { tex: `\\frac{${A}xe^{${kx}}}{${k}} + C`, answer: `((${a})/(${k})) * x * e^(${inner})` },
         // Choosing u the other way round, which the worked solution warns about.
-        { tex: `\\frac{${a}x^{2}e^{${kx}}}{2} + C`, answer: `((${a})/2) * x^2 * e^(${inner})` },
+        { tex: `\\frac{${A}x^{2}e^{${kx}}}{2} + C`, answer: `((${a})/2) * x^2 * e^(${inner})` },
         // Only a slip when there is something to divide by: at |k| = 1 this is
         // the correct answer, not a distractor.
         ...(Math.abs(k) === 1
           ? []
-          : [{ tex: `${a}e^{${kx}}\\left(${kx} - 1\\right) + C`, answer: `(${a}) * e^(${inner}) * ((${k}) * x - 1)` }]),
+          : [{ tex: `${A}e^{${kx}}\\left(${kx} - 1\\right) + C`, answer: `(${a}) * e^(${inner}) * ((${k}) * x - 1)` }]),
       );
     }
     const fn = form;
@@ -1062,25 +1066,25 @@ const byParts: Generator<PartsParams> = {
     const sign = form === 'sin' ? '-' : '+';
     return options(
       {
-        tex: `\\frac{${a}\\left(\\${fn}\\left(${kx}\\right) ${sign} ${kx}\\${other}\\left(${kx}\\right)\\right)}{${sq}} + C`,
+        tex: `\\frac{${A}\\left(\\${fn}\\left(${kx}\\right) ${withKx(sign)}\\${other}\\left(${kx}\\right)\\right)}{${sq}} + C`,
         answer:
           form === 'sin'
             ? `((${a})/((${k})^2)) * (sin(${inner}) - (${k}) * x * cos(${inner}))`
             : `((${a})/((${k})^2)) * (cos(${inner}) + (${k}) * x * sin(${inner}))`,
       },
       {
-        tex: `\\frac{${a}\\left(\\${fn}\\left(${kx}\\right) ${sign === '-' ? '+' : '-'} ${kx}\\${other}\\left(${kx}\\right)\\right)}{${sq}} + C`,
+        tex: `\\frac{${A}\\left(\\${fn}\\left(${kx}\\right) ${withKx(sign === '-' ? '+' : '-')}\\${other}\\left(${kx}\\right)\\right)}{${sq}} + C`,
         answer:
           form === 'sin'
             ? `((${a})/((${k})^2)) * (sin(${inner}) + (${k}) * x * cos(${inner}))`
             : `((${a})/((${k})^2)) * (cos(${inner}) - (${k}) * x * sin(${inner}))`,
       },
       {
-        tex: `\\frac{${a}x\\${other}\\left(${kx}\\right)}{${k}} + C`,
+        tex: `\\frac{${A}x\\${other}\\left(${kx}\\right)}{${k}} + C`,
         answer: `((${a})/(${k})) * x * ${other}(${inner})`,
       },
       {
-        tex: `${a}\\${fn}\\left(${kx}\\right) + C`,
+        tex: `${A}\\${fn}\\left(${kx}\\right) + C`,
         answer: `(${a}) * ${fn}(${inner})`,
       },
     );
@@ -1417,7 +1421,7 @@ const definiteSubstitution: Generator<DefiniteSubstitutionParams> = {
     const total = at(upper) - at(lower);
     return [
       {
-        text: `Put $u = x^{2} ${b < 0 ? '-' : '+'} ${Math.abs(b)}$, so $\\frac{du}{dx} = 2x$ and $${a}x \\, dx$ becomes $${(n + 1) * m} \\, du$. Change the limits with the variable: at $x = ${lower}$, $u = ${lower * lower + b}$; at $x = ${upper}$, $u = ${upper * upper + b}$.`,
+        text: `Put $u = x^{2} ${b < 0 ? '-' : '+'} ${Math.abs(b)}$, so $\\frac{du}{dx} = 2x$ and $${termTex(a, 1)} \\, dx$ becomes $${(n + 1) * m} \\, du$. Change the limits with the variable: at $x = ${lower}$, $u = ${lower * lower + b}$; at $x = ${upper}$, $u = ${upper * upper + b}$.`,
       },
       {
         tex: `${(n + 1) * m}\\int_{${lower * lower + b}}^{${upper * upper + b}} u^{${n}} \\, du = \\left[${m === 1 ? '' : m}u^{${n + 1}}\\right]_{${lower * lower + b}}^{${upper * upper + b}}`,
@@ -1597,7 +1601,7 @@ const substitutionGeneral: Generator<GeneralSubstitutionParams> = {
       const correct = `${fracCoeffTex(a, 3 * (n + 1), `${bracket}^{${n + 1}}`)} + C`;
       return [
         {
-          text: `Inside the bracket is $x^{3} ${b < 0 ? '-' : '+'} ${Math.abs(b)}$, whose derivative is $3x^{2}$, and there is an $x^{2}$ outside. Put $u = x^{3} ${b < 0 ? '-' : '+'} ${Math.abs(b)}$, so $${a}x^{2} \\, dx$ becomes $\\frac{${a}}{3} \\, du$.`,
+          text: `Inside the bracket is $x^{3} ${b < 0 ? '-' : '+'} ${Math.abs(b)}$, whose derivative is $3x^{2}$, and there is an $x^{2}$ outside. Put $u = x^{3} ${b < 0 ? '-' : '+'} ${Math.abs(b)}$, so $${termTex(a, 2)} \\, dx$ becomes $\\frac{${a}}{3} \\, du$.`,
         },
         { tex: `\\frac{${a}}{3}\\int u^{${n}} \\, du = \\frac{${a}}{3} \\times \\frac{u^{${n + 1}}}{${n + 1}}` },
         { tex: `= ${correct}` },
@@ -1610,7 +1614,7 @@ const substitutionGeneral: Generator<GeneralSubstitutionParams> = {
       const correct = `${fracCoeffTex(a, 2, 'e^{x^{2}}')} + C`;
       return [
         {
-          text: `The derivative of $x^{2}$ is $2x$, and there is an $x$ outside the exponential. Put $u = x^{2}$, so $${a}x \\, dx$ becomes $\\frac{${a}}{2} \\, du$.`,
+          text: `The derivative of $x^{2}$ is $2x$, and there is an $x$ outside the exponential. Put $u = x^{2}$, so $${termTex(a, 1)} \\, dx$ becomes $\\frac{${a}}{2} \\, du$.`,
         },
         { tex: `\\frac{${a}}{2}\\int e^{u} \\, du = \\frac{${a}}{2}e^{u}` },
         { tex: `= ${correct}` },
@@ -6968,7 +6972,7 @@ const verdict: Generator<VerdictParams> = {
     }
     return [
       { text: rule },
-      { text: `The antiderivative is $${ratioTex(reduce(k * power.q, power.q - power.m))}x^{${ratioTex(after)}}$. ${kind === 'tail' ? 'Its value as $x$ grows is $0$, and at $x = 1$ it is the number in front.' : 'At $x = 1$ it is the number in front, and as $x \\to 0$ it goes to $0$.'}` },
+      { text: `The antiderivative is $${inFront(ratioTex(reduce(k * power.q, power.q - power.m)))}x^{${ratioTex(after)}}$. ${kind === 'tail' ? 'Its value as $x$ grows is $0$, and at $x = 1$ it is the number in front.' : 'At $x = 1$ it is the number in front, and as $x \\to 0$ it goes to $0$.'}` },
       { tex: `\\text{Converges to } ${ratioTex(value)}` },
     ];
   },
@@ -7117,8 +7121,8 @@ const rootTail: Generator<RootTailParams> = {
     const K = reduce(k * q, m - q);
     const down = `-\\frac{${m - q}}{${q}}`;
     return [
-      { text: `Write the integrand as a power: $${k}x^{-\\frac{${m}}{${q}}}$. Adding one to the power gives $${down}$, which is negative, so the integral converges.` },
-      { tex: stacked(`\\int ${k}x^{-\\frac{${m}}{${q}}} \\, dx`, `= -${ratioTex(K)}x^{${down}}`) },
+      { text: `Write the integrand as a power: $${inFront(`${k}`)}x^{-\\frac{${m}}{${q}}}$. Adding one to the power gives $${down}$, which is negative, so the integral converges.` },
+      { tex: stacked(`\\int ${inFront(`${k}`)}x^{-\\frac{${m}}{${q}}} \\, dx`, `= ${inFront(`-${ratioTex(K)}`)}x^{${down}}`) },
       {
         text: `As $x$ grows the term at $t$ dies away, leaving the value at $x = ${a}$, where $x^{${down}} = \\frac{1}{${r ** (m - q)}}$${r === 1 ? ' is just $1$' : ''}.`,
       },
@@ -7259,7 +7263,7 @@ const poleTree: Generator<PoleTreeParams> = {
     const { upper, front, root, total } = poleTreeParts(params);
     const after = powerValueTex(pw(power.q - power.m, power.q));
     return [
-      { text: `Adding one to the power $-${powerValueTex(power)}$ gives $${after}$; dividing by it puts $${front}$ in front: $\\int ${k}x^{-${powerValueTex(power)}} \\, dx = ${front}x^{${after}}$.` },
+      { text: `Adding one to the power $-${powerValueTex(power)}$ gives $${after}$; dividing by it puts $${front}$ in front: $\\int ${inFront(`${k}`)}x^{-${powerValueTex(power)}} \\, dx = ${front}x^{${after}}$.` },
       { text: `At $x = ${upper}$, $${upper}^{${after}} = ${root}$, so the antiderivative there is $${front} \\times ${root} = ${total}$.` },
       { text: `At $x = t$ it is $${front}t^{${after}}$, which goes to $0$ as $t \\to 0$, because the power is positive.` },
       { tex: `${total} - 0 = ${total}` },

@@ -47,12 +47,12 @@ import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
 import { ALGEBRA_KEYS, ROOT_KEYS, sumTex, termTex } from './calculus';
 import { ITERATES, bracketTex, fixedScheme, written, type FixedFamily } from './iterationTable';
+import { gcd, say } from './format';
 
 /* ================================================================
  * Shared helpers
  * ================================================================ */
 
-const say = (text: string): Block => ({ kind: 'prose', text });
 const show = (tex: string): Block => ({ kind: 'display', tex });
 
 /** A value as it is written: no float dust, no trailing zeros. */
@@ -60,6 +60,9 @@ export function fmt(value: number): string {
   const text = String(Number(value.toFixed(6)));
   return text === '-0' ? '0' : text;
 }
+
+/** `+ 3` or `+ (-3)`: a number added in a substitution line, bracketed when negative. */
+const plusTex = (value: number): string => (value < 0 ? `+ (${fmt(value)})` : `+ ${fmt(value)}`);
 
 /** Whether a value is an exact decimal of at most `dp` places. */
 function terminates(value: number, dp = 3): boolean {
@@ -1905,7 +1908,7 @@ const gPrime: Generator<GParams> = {
     const how: Record<GFamily, string> = {
       square: `Write it as $\\frac{1}{${a}}(x^{2} ${signed(b)})$: the constant goes, and $x^{2}$ gives $2x$.`,
       cube: `Write it as $\\frac{1}{${a}}(x^{3} ${signed(b)})$: the constant goes, and $x^{3}$ gives $3x^{2}$.`,
-      recip: `Write it as $${a}(${polyTex([1, b])})^{-1}$ and use the chain rule: the power drops to $-2$.`,
+      recip: `Write it as $${a === 1 ? '' : a}(${polyTex([1, b])})^{-1}$ and use the chain rule: the power drops to $-2$.`,
       sqrt: `Write it as $(${polyTex([a, b])})^{\\frac{1}{2}}$ and use the chain rule: $\\frac{1}{2}$ times the inside's derivative, $${a}$.`,
       fall: `Write it as $\\frac{1}{${a}}(${b} - x^{3})$: the constant goes, and $-x^{3}$ gives $-3x^{2}$.`,
     };
@@ -2216,7 +2219,7 @@ const newtonDerivative: Generator<DerivativeParams> = {
     const df = polyTex(derivative(poly));
     const steps: SolutionStep[] = [{ text: 'Differentiate term by term: multiply by the power, then take one off it. A constant goes.' }];
     if (k !== 0) {
-      steps.push({ text: `Write $\\frac{${k}}{x}$ as $${k}x^{-1}$, which gives $${-k}x^{-2}$.` });
+      steps.push({ text: `Write $\\frac{${k}}{x}$ as $${termTex(k, -1)}$, which gives $${termTex(-k, -2)}$.` });
       steps.push({ tex: `f'(x) = ${df} ${k > 0 ? '-' : '+'} \\frac{${Math.abs(k)}}{x^{2}}` });
     } else {
       steps.push({ tex: `f'(x) = ${df}` });
@@ -3555,12 +3558,12 @@ const meanHeightSlider: Generator<MeanHeightParams> = {
     return n === 1
       ? [
           { text: `The end heights are $${fmt(ys[0])}$ and $${fmt(ys[1])}$.` },
-          { tex: `\\frac{${fmt(ys[0])} + ${fmt(ys[1])}}{2} = ${fmt(total / 2)}` },
+          { tex: `\\frac{${fmt(ys[0])} ${plusTex(ys[1])}}{2} = ${fmt(total / 2)}` },
           { text: 'Width times this height is exactly the trapezium rule with one strip.' },
         ]
       : [
           { text: `The heights are $${ys.map(fmt).join('$, $')}$. The middle one is shared by both trapezia, so it counts twice.` },
-          { tex: `\\frac{${fmt(ys[0])} + 2 \\times ${fmt(ys[1])} + ${fmt(ys[2])}}{4} = ${fmt(total / 4)}` },
+          { tex: `\\frac{${fmt(ys[0])} + 2 \\times ${ys[1] < 0 ? `(${fmt(ys[1])})` : fmt(ys[1])} ${plusTex(ys[2])}}{4} = ${fmt(total / 4)}` },
         ];
   },
 };
@@ -3568,10 +3571,6 @@ const meanHeightSlider: Generator<MeanHeightParams> = {
 /* ================================================================
  * Level 3: bounds and errors, shared helpers
  * ================================================================ */
-
-function gcd(a: number, b: number): number {
-  return b === 0 ? Math.abs(a) : gcd(b, a % b);
-}
 
 /** The other sign of a written number. */
 function flipped(token: string): string {
@@ -4076,7 +4075,9 @@ const relSlider: Generator<RelSliderParams> = {
       min,
       max,
       step: 0.5,
-      answer: inverse ? exact : estimate,
+      // On the half-step lattice by construction; rounded so float noise
+      // (50 x 1.11 = 55.50000000000001) never reaches the answer.
+      answer: Math.round((inverse ? exact : estimate) * 2) / 2,
       readout: inverse ? '\\text{exact value} = {v}' : '\\text{estimate} = {v}',
       figure: {
         svg: plotSvg({
@@ -6738,7 +6739,9 @@ function termPieces(terms: [number, string[]][]): string[] {
   for (const [c, factors] of terms) {
     if (c === 0) continue;
     const size = Math.abs(c);
-    const parts = size === 1 && factors.length > 0 ? factors : [fmt(size), ...factors];
+    // A leading minus straight onto 0 is bracketed, as a negative number is: -(0), not -0.
+    const bare = size === 1 && factors.length > 0 ? factors : [fmt(size), ...factors];
+    const parts = c < 0 && out.length === 0 && bare[0] === '0' ? ['(0)', ...bare.slice(1)] : bare;
     // A bracketed factor sits against what it multiplies: `0.5(-3)`, which keeps a line of working short.
     const body = parts.reduce((acc, part) => (acc === '' ? part : part.startsWith('(') ? `${acc}${part}` : `${acc} \\times ${part}`), '');
     out.push(out.length === 0 ? (c < 0 ? `-${body}` : body) : c < 0 ? `- ${body}` : `+ ${body}`);
@@ -6966,8 +6969,11 @@ const errorTex = (estimate: number, exact: number, error: number) =>
 /** The working for step i: the gradient, then the new y. */
 function stepLines({ rhs, h }: Ivp, run: EulerRun, i: number): SolutionStep[] {
   const { xs, ys, gs } = run;
+  // When substituting already gives the value (f(x) = -x at x = 1 is -1), it is written once.
+  const sub = substituted(rhsSubTex(rhs, xs[i], ys[i]));
+  const value = `&= ${fmt(gs[i])}`;
   return [
-    { tex: aligned(`&${gradName(rhs, fmt(xs[i]), fmt(ys[i]))}`, ...substituted(rhsSubTex(rhs, xs[i], ys[i])), `&= ${fmt(gs[i])}`) },
+    { tex: aligned(`&${gradName(rhs, fmt(xs[i]), fmt(ys[i]))}`, ...sub, ...(sub.length === 1 && sub[0] === value ? [] : [value])) },
     { tex: aligned(`y_{${i + 1}} &= ${fmt(ys[i])} + ${fmt(h)}${gs[i] < 0 ? paren(gs[i]) : ` \\times ${fmt(gs[i])}`}`, `&= ${fmt(ys[i + 1])}`) },
   ];
 }
@@ -8415,7 +8421,7 @@ const bisectFlow: Generator<BisectParams> = {
   solution: ({ poly, a }) => {
     const [lo, hi] = halvings(poly, a, a + 1, 1).next;
     return [
-      { tex: `m = \\frac{${fmt(a)} + ${fmt(a + 1)}}{2} = ${fmt(a + 0.5)}` },
+      { tex: `m = \\frac{${fmt(a)} ${plusTex(a + 1)}}{2} = ${fmt(a + 0.5)}` },
       ...halvingLines(poly, a, a + 1, 1),
       { text: `The next midpoint is the middle of that interval, $${fmt((lo + hi) / 2)}$.` },
     ];
@@ -9316,7 +9322,7 @@ const reachValue: Generator<Kit & { stated: boolean }> = {
     const plan = reachFor(kit);
     const first =
       plan === 'bisection'
-        ? { tex: `m = \\frac{${bracket[0]} + ${bracket[1]}}{2} = ${reachFirst(kit)}` }
+        ? { tex: `m = \\frac{${fmt(bracket[0])} ${plusTex(bracket[1])}}{2} = ${reachFirst(kit)}` }
         : plan === 'iteration'
           ? { tex: aligned(`x_1 &= g(${x0})`, `&= ${tex.replace(/x/g, `(${x0})`)}`, `&= ${reachFirst(kit)}`) }
           : { tex: `x_1 = ${x0} - \\frac{${fmt(valueAt(poly, x0))}}{${fmt(valueAt(derivative(poly), x0))}} = ${reachFirst(kit)}` };

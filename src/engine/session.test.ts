@@ -4,6 +4,7 @@ import {
   reduce,
   currentSlide,
   canGoBack,
+  canPassSolved,
   canReveal,
   canRetry,
   scorePercent,
@@ -229,6 +230,53 @@ describe('advancing', () => {
     const s = start();
     expect(currentSlide(s)!.slide.kind).toBe('teach');
     expect(reduce(s, { type: 'continue' }).index).toBe(1);
+  });
+
+  it('lets a solved slide be passed again after stepping back onto it', () => {
+    let s = pastTeach(start());
+    const answer = (currentSlide(s)!.slide as { answer: string }).answer;
+    s = run(s, [{ type: 'submit', answer }, { type: 'continue' }, { type: 'back' }]);
+
+    // Back on the solved slide, idle: reviewing it must not mean solving it again.
+    expect(s.index).toBe(1);
+    expect(s.feedback.kind).toBe('idle');
+    expect(canPassSolved(s)).toBe(true);
+    expect(reduce(s, { type: 'continue' }).index).toBe(2);
+  });
+
+  it('still asks for an answer on a slide stepped back onto but never solved', () => {
+    // Revealed, not solved: stepping back onto it gives no free pass.
+    let s = pastTeach(start());
+    s = run(s, [
+      { type: 'submit', answer: '999i' },
+      { type: 'reveal' },
+      { type: 'continue' },
+      { type: 'back' },
+    ]);
+    expect(s.index).toBe(1);
+    expect(canPassSolved(s)).toBe(false);
+    expect(reduce(s, { type: 'continue' })).toBe(s);
+  });
+
+  it('gives no free pass in the skill check, even on a solved question', () => {
+    // Guided slides answered, then the first skill-check question solved and
+    // put back to idle: the pass is for review, and review is guided only.
+    let s = pastTeach(start());
+    s = run(s, [
+      { type: 'submit', answer: (currentSlide(s)!.slide as { answer: string }).answer },
+      { type: 'continue' },
+      { type: 'submit', answer: 'no' },
+      { type: 'continue' },
+    ]);
+    expect(s.phase).toBe('skillCheck');
+    s = run(s, [
+      { type: 'submit', answer: (currentSlide(s)!.slide as { answer: string }).answer },
+      { type: 'tryAgain' },
+    ]);
+    expect(s.states[currentSlide(s)!.id].solved).toBe(true);
+    expect(s.feedback.kind).toBe('idle');
+    expect(canPassSolved(s)).toBe(false);
+    expect(reduce(s, { type: 'continue' })).toBe(s);
   });
 });
 
@@ -495,10 +543,26 @@ describe('a level check is an assessment, not a lesson', () => {
     expect(next.feedback.kind).toBe('idle');
   });
 
+  it('refuses a second submit at a question already answered', () => {
+    // No widget offers this, which is exactly why the reducer has to refuse it:
+    // a second submit would turn a wrong answer into a solved one.
+    const wrong = reduce(open(), { type: 'submit', answer: '1i' });
+    expect(wrong.feedback.kind).toBe('incorrect');
+    expect(reduce(wrong, { type: 'submit', answer: right(wrong) })).toBe(wrong);
+  });
+
   it('still lets a typo be corrected, since nothing was graded', () => {
     const invalid = reduce(open(), { type: 'submit', answer: '3i +' });
     expect(invalid.feedback.kind).toBe('invalid');
     expect(reduce(invalid, { type: 'edit' }).feedback.kind).toBe('idle');
+  });
+
+  it('grades the corrected answer after a typo, with first-try credit', () => {
+    const invalid = reduce(open(), { type: 'submit', answer: '3i +' });
+    const slide = currentSlide(invalid)!;
+    const graded = reduce(invalid, { type: 'submit', answer: right(invalid) });
+    expect(graded.feedback.kind).toBe('correct');
+    expect(graded.states[slide.id]).toMatchObject({ attempts: 1, solved: true, firstTry: true });
   });
 
   it('scores as a percentage of the questions asked', () => {
@@ -681,9 +745,9 @@ describe('decision tree grading', () => {
  * Reducing an expression.
  *
  * Graded by replaying the moves over the original tree, so there is no expected
- * sequence and every order precedence allows passes equally. What fails is a
- * piece taken before its operands were settled — which is the order mistake,
- * and it fails whatever value came with it.
+ * sequence and the value is the only test. A piece taken before its operands
+ * were settled is not refused for that: it is marked on the number given for
+ * it, which is where an order mistake shows.
  */
 describe('reduce grading', () => {
   // 2^3 + (5 - 3)^2 x sqrt(9) = 20, the expression from the reference app.

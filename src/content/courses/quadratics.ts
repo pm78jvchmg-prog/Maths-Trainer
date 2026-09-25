@@ -187,6 +187,8 @@ export const quadratics: Course = {
               prose(
                 'Two brackets of two terms always give three terms, which is why this shape — a **quadratic** — turns up everywhere.',
               ),
+              prose('A minus sign travels with its number. The same four products:'),
+              maths('\\begin{aligned} &\\left(x - 4\\right)\\left(x + 7\\right) \\\\ &= x^{2} + 7x - 4x - 28 \\\\ &= x^{2} + 3x - 28 \\end{aligned}'),
             ),
             ask('quad-expand'),
             ask('quad-expand-term'),
@@ -202,19 +204,24 @@ export const quadratics: Course = {
               prose(
                 'Swapping the sum and the product is the error to watch for. Both come from the same pair of numbers, so a wrong answer still looks plausible.',
               ),
+              prose(
+                'A square is the same pattern with both numbers equal. For $\\left(x - 6\\right)^{2}$ the numbers are $-6$ and $-6$: the sum is $-12$ and the product is $36$.',
+              ),
+              maths('\\begin{aligned} \\left(x - 6\\right)^{2} &= \\left(x - 6\\right)\\left(x - 6\\right) \\\\ &= x^{2} - 12x + 36 \\end{aligned}'),
             ),
             ask('quad-expand-square'),
             askWith('quad-evaluate-steps', 'Here is the check that costs nothing. Put a number in for $x$: the expanded form and the brackets must give the same value.'),
             ask('quad-expand-term+choice'),
             teach(
-              prose('Negative numbers need no new rule, only care with signs.'),
-              maths('\\left(x - 4\\right)\\left(x + 7\\right) = x^{2} + 3x - 28'),
               prose(
-                'The sum is $-4 + 7 = 3$ and the product is $-4 \\times 7 = -28$. Carry each number with its own sign into both calculations.',
+                'A number in front of $x$ needs one change: the sum-and-product shortcut no longer works, so go back to the four products.',
               ),
+              maths('\\begin{aligned} &\\left(2x + 3\\right)\\left(3x - 1\\right) \\\\ &= 6x^{2} - 2x + 9x - 3 \\\\ &= 6x^{2} + 7x - 3 \\end{aligned}'),
               prose(
-                'A negative constant always means the two numbers had opposite signs. That is a useful check here, and the first thing to notice when factorising later.',
+                'The middle term is the outside pair plus the inside pair: $2x \\times \\left(-1\\right) = -2x$ and $3 \\times 3x = 9x$, together $7x$.',
               ),
+              prose('A square with a number in front of $x$ is the same, with the two middle products equal.'),
+              maths('\\begin{aligned} \\left(3x - 2\\right)^{2} &= 9x^{2} - 6x - 6x + 4 \\\\ &= 9x^{2} - 12x + 4 \\end{aligned}'),
             ),
             ask('quad-expand-square+choice'),
             ask('quad-evaluate-steps+choice'),
@@ -257,7 +264,7 @@ export const quadratics: Course = {
                 'Here the constant is negative, so the signs differ; the middle term is negative, so the larger of the two numbers is the negative one.',
               ),
             ),
-            ask('quad-factorise-route'),
+            askWith('quad-evaluate-steps', 'A check on any factorising: both forms must agree at every value of $x$, so pick one and work it out.'),
             askWith('quad-expand-term', 'Factorising is expanding run backwards, so expanding is how you check it. This one asks for the middle coefficient alone.'),
             ask('quad-factor-one+choice'),
             teach(
@@ -269,10 +276,16 @@ export const quadratics: Course = {
                 'No pair of whole numbers multiplies to 1 and adds to 1, so this one does not factorise. Recognising that quickly is worth as much as factorising the ones that do.',
               ),
               prose(
-                'Check by expanding, always. It takes seconds and catches a sign slip immediately.',
+                'Two shapes need no search at all. With no constant term, every term carries an $x$, so $x$ comes out:',
               ),
+              maths('x^{2} - 6x = x\\left(x - 6\\right)'),
+              prose(
+                'With no $x$ term and a square taken away, the pair adds to 0, so it is a number and its negative:',
+              ),
+              maths('x^{2} - 9 = \\left(x - 3\\right)\\left(x + 3\\right)'),
+              prose('So check those two shapes first, then search for a pair.'),
             ),
-            askWith('quad-evaluate-steps', 'The other check: both forms must agree at every value of $x$, so pick one and work it out.'),
+            ask('quad-factorise-route'),
             ask('quad-expand-term+choice'),
           ],
           skillCheck: [
@@ -297,18 +310,30 @@ export const quadratics: Course = {
               prose(
                 'So a quadratic with *no* $x$ term and a negative constant is the one to test for this pattern first.',
               ),
+              prose(
+                'Both factors carry the square *root*, not the original number: 49 is $7^{2}$, so 7 goes in each bracket. A coefficient on $x^{2}$ is fine if it is a square too: $9x^{2}$ is $\\left(3x\\right)^{2}$.',
+              ),
+              maths('x^{2} - 49 = \\left(x - 7\\right)\\left(x + 7\\right)'),
+              maths('9x^{2} - 25 = \\left(3x - 5\\right)\\left(3x + 5\\right)'),
             ),
             ask('quad-difference-squares'),
-            askWith('quad-squares-arithmetic', 'The same identity, turned on numbers. Two squarings and a subtraction become one small multiplication.'),
+            askWith(
+              'quad-squares-arithmetic',
+              'The same identity works on numbers: $17^{2} - 16^{2} = \\left(17 - 16\\right)\\left(17 + 16\\right) = 1 \\times 33 = 33$, with no squaring at all.',
+            ),
             ask('quad-squares-spot'),
             teach(
-              prose('Both factors carry the square *root*, not the original number.'),
-              maths('x^{2} - 49 = \\left(x - 7\\right)\\left(x + 7\\right)'),
               prose(
-                'The 49 becomes 7 in each bracket. Writing $\\left(x - 49\\right)\\left(x + 49\\right)$ is the standard mistake, and expanding it gives $x^{2} - 2401$.',
+                'A quadratic that arrives with no hint gets three checks, in this order. First, a factor every term shares:',
               ),
-              prose('A coefficient on $x^{2}$ is no obstacle provided it is a square too.'),
-              maths('9x^{2} - 25 = \\left(3x - 5\\right)\\left(3x + 5\\right)'),
+              maths('x^{2} + 5x = x\\left(x + 5\\right)'),
+              prose('Second, no $x$ term and a square taken away:'),
+              maths('x^{2} - 36 = \\left(x - 6\\right)\\left(x + 6\\right)'),
+              prose(
+                'Third, two numbers multiplying to the constant and adding to the coefficient of $x$. For $x^{2} + 2x - 8$ that is $4$ and $-2$, since $4 \\times \\left(-2\\right) = -8$ and $4 + \\left(-2\\right) = 2$.',
+              ),
+              maths('x^{2} + 2x - 8 = \\left(x + 4\\right)\\left(x - 2\\right)'),
+              prose('If no pair exists, it does not factorise with whole numbers.'),
             ),
             ask('quad-difference-squares+choice'),
             ask('quad-factorise-route'),
@@ -350,6 +375,12 @@ export const quadratics: Course = {
                 'But the middle term is no longer their sum. Each constant gets multiplied by the coefficient in the other bracket on its way to the middle.',
               ),
               maths('3 \\times 3 + 2 \\times 1 = 11'),
+              prose(
+                'With a minus in the middle and a plus at the end, both constants are negative. For $4x^{2} - 13x + 3$, try $4x$ and $x$ first ($2x$ and $2x$ is the other way to split the 4), and $-1$ and $-3$:',
+              ),
+              prose('Test $\\left(4x - 1\\right)\\left(x - 3\\right)$ by its middle term:'),
+              maths('4 \\times \\left(-3\\right) + \\left(-1\\right) \\times 1 = -13'),
+              prose('That matches, so $4x^{2} - 13x + 3 = \\left(4x - 1\\right)\\left(x - 3\\right)$.'),
             ),
             ask('quad-factorise-coefficient'),
             ask('quad-expand-term', 2),
@@ -364,7 +395,10 @@ export const quadratics: Course = {
                 'So expanding to check is not optional here. It is the only way to know which of the two arrangements is the right one.',
               ),
             ),
-            askWith('quad-common-factor', 'Before any of that, look for a factor every term shares. Taking it out makes what is left smaller.'),
+            askWith(
+              'quad-common-factor',
+              'Before any of that, look for a factor every term shares. In $14x^{2} - 21x$, 7 divides 14 and 21 and every term has an $x$, so $14x^{2} - 21x = 7x\\left(2x - 3\\right)$.',
+            ),
             ask('quad-evaluate-steps', 2),
             ask('quad-common-factor+choice'),
             teach(
@@ -376,6 +410,9 @@ export const quadratics: Course = {
               ),
               prose(
                 'The 2 came out and left a quadratic with a leading coefficient of 1 — back to the simple case. Checking for a common factor costs nothing and often removes the difficulty entirely.',
+              ),
+              prose(
+                'So the full order is: a common factor first; then no $x$ term with a square taken away, such as $x^{2} - 16 = \\left(x - 4\\right)\\left(x + 4\\right)$; then the search for a pair. If no pair works, it does not factorise with whole numbers.',
               ),
             ),
             ask('quad-factorise-route'),
@@ -425,7 +462,10 @@ export const quadratics: Course = {
               ),
             ),
             ask('quad-solve-factorise'),
-            askWith('quad-other-root', 'The two roots are tied together by the equation, so one of them hands you the other without any factorising at all.'),
+            askWith(
+              'quad-other-root',
+              'One root hands you the other. The brackets are $\\left(x - r\\right)\\left(x - s\\right)$, so the two roots multiply to the constant. For $x^{2} - 4x - 5 = 0$ with root $5$, the other is $-5 \\div 5 = -1$.',
+            ),
             ask('quad-solve-factorise+choice'),
             teach(
               prose(
@@ -438,6 +478,10 @@ export const quadratics: Course = {
               prose(
                 'Substituting back is the check: $\\left(-3\\right)^{2} - 2\\left(-3\\right) - 15 = 9 + 6 - 15 = 0$, so $-3$ is genuinely a root.',
               ),
+              prose(
+                'On a graph, a root is where the curve crosses the $x$-axis, because $y = 0$ there. $y = \\left(x - 2\\right)\\left(x - 4\\right)$ crosses at $x = 2$ and $x = 4$.',
+              ),
+              graph(1, -6, 8, { xMin: -1, xMax: 7, marks: [{ x: 2, y: 0 }, { x: 4, y: 0 }] }),
             ),
             ask('quad-root-slider'),
             askWith('quad-evaluate-steps', 'Substituting is how a root is checked: a value that makes the whole expression zero is a root, and anything else is not.'),
@@ -479,7 +523,10 @@ export const quadratics: Course = {
               maths('\\left(x + 3\\right)^{2} + 2 = x^{2} + 6x + 9 + 2'),
             ),
             ask('quad-complete-square'),
-            askWith('quad-min-value', 'Which is what the completed square is for: once $x$ appears only inside a square, the smallest the curve ever gets is in plain sight.'),
+            askWith(
+              'quad-min-value',
+              'Once completed, the least value is in plain sight: $x^{2} - 6x + 4 = \\left(x - 3\\right)^{2} - 5$, and a square is never below 0, so the least value is $-5$, at $x = 3$.',
+            ),
             ask('quad-complete-square-steps'),
             teach(
               prose('So the method is two steps: halve the middle coefficient, then correct the constant.'),
@@ -490,6 +537,9 @@ export const quadratics: Course = {
                 'Forgetting the correction is the characteristic error, and it always leaves the answer wrong by exactly the square of the halved number.',
               ),
               prose('Expanding the bracket back is the check, and it takes one line.'),
+              prose(
+                'The turning point is where the square is zero. For $x^{2} - 8x + 10 = \\left(x - 4\\right)^{2} - 6$ that is $x = 4$, where $y = -6$: the point $\\left(4, -6\\right)$. The sign inside the bracket flips; the constant outside does not.',
+              ),
             ),
             ask('quad-turning-point'),
             ask('quad-vertex-slider'),
@@ -501,8 +551,12 @@ export const quadratics: Course = {
                 'A square is never negative, so the smallest this expression can be is 2, reached when $x = -3$. The minimum value and where it happens both fall straight out.',
               ),
               prose(
-                'It also solves the equation directly with no factorising: set it to zero, move the constant across, and take the square root of both sides.',
+                'With a number in front of $x^{2}$, take it out of the first two terms, complete the square inside, then multiply back:',
               ),
+              maths(
+                '\\begin{aligned} &2x^{2} - 8x + 11 \\\\ &= 2\\left(x^{2} - 4x\\right) + 11 \\\\ &= 2\\left[\\left(x - 2\\right)^{2} - 4\\right] + 11 \\\\ &= 2\\left(x - 2\\right)^{2} + 3 \\end{aligned}',
+              ),
+              prose('So the least value is 3, at $x = 2$.'),
             ),
             ask('quad-turning-point+choice'),
             ask('quad-vertex-slider'),
@@ -531,7 +585,10 @@ export const quadratics: Course = {
               ),
             ),
             askWith('quad-formula-values', 'Start where the errors start. Name the three coefficients, with their signs, before anything goes into the formula.'),
-            ask('quad-discriminant-steps'),
+            askWith(
+              'quad-discriminant-steps',
+              'The part under the root comes first. For $2x^{2} + 5x - 3 = 0$: $b^{2} - 4ac = 5^{2} - 4 \\times 2 \\times \\left(-3\\right) = 25 + 24 = 49$. A negative $c$ makes $-4ac$ positive.',
+            ),
             ask('quad-formula-values+choice'),
             teach(
               prose('Work out the part under the root first, on its own, and then substitute.'),
@@ -556,7 +613,10 @@ export const quadratics: Course = {
                 'Note that the whole numerator sits over $2a$, not just the root. Writing the $-b$ outside the fraction is a common slip and gives an answer wrong by a predictable amount.',
               ),
               prose(
-                'Try factorising first. When it works it is faster, and when it does not, the formula is waiting.',
+                'Try factorising first: a square taken away, or a pair of whole numbers. When neither works, look at $b^{2} - 4ac$. Negative means there is no square root to take, so no real roots: for $x^{2} + 2x + 5 = 0$ it is $4 - 20 = -16$.',
+              ),
+              prose(
+                'Zero means the $\\pm$ adds nothing, so one root. Positive means two roots, and the formula finds them.',
               ),
             ),
             ask('quad-choose-method'),
@@ -584,7 +644,7 @@ export const quadratics: Course = {
                 'Positive means two distinct real roots. Zero means exactly one. Negative means none at all, since no real number squares to a negative.',
               ),
               prose(
-                'So the discriminant answers "how many roots" without ever finding them, which is often all a question wants.',
+                'For $x^{2} + 4x - 5 = 0$: $b^{2} = 16$ and $4ac = 4 \\times 1 \\times \\left(-5\\right) = -20$, so $\\Delta = 16 - \\left(-20\\right) = 36$. Positive, so two real roots.',
               ),
             ),
             ask('quad-discriminant-tree'),
@@ -612,8 +672,10 @@ export const quadratics: Course = {
                 'Squaring $b$ always gives a positive number whatever the sign of $b$. Losing that is the most frequent arithmetic slip in this calculation.',
               ),
               prose(
-                'Compute it, look at the sign, stop. Going on to find the roots when the question only asked how many is wasted work.',
+                'To solve rather than count: a square taken away or a pair of whole numbers factorises. Otherwise the discriminant decides. $x^{2} - 3x - 1 = 0$ has no pair, and $\\Delta = 9 + 4 = 13$ is positive, so the formula gives',
               ),
+              maths('x = \\frac{3 \\pm \\sqrt{13}}{2}'),
+              prose('The larger root is the plus branch, $\\frac{3 + \\sqrt{13}}{2}$.'),
             ),
             ask('quad-choose-method'),
             ask('quad-formula'),
@@ -666,7 +728,10 @@ export const quadratics: Course = {
                 'A positive coefficient on $x^{2}$ opens the curve upwards, so the turning point is a minimum. A negative one opens it downwards and the turning point is a maximum.',
               ),
               prose(
-                'The sign of $b$ goes into the formula attached to the term. A negative $b$ gives a positive line of symmetry, and that double negative is where this goes wrong.',
+                'The sign of $b$ goes into the formula attached to the term. For $y = x^{2} - 6x + 2$, $b = -6$, so $x = -\\frac{-6}{2 \\times 1} = 3$: a negative $b$ gives a positive line.',
+              ),
+              prose(
+                'With a number in front of $x^{2}$ the answer can be a fraction. For $y = 2x^{2} - 3x + 1$, $x = -\\frac{-3}{2 \\times 2} = \\frac{3}{4}$.',
               ),
             ),
             ask('quad-symmetry-slider'),
@@ -695,11 +760,14 @@ export const quadratics: Course = {
                 'So the line of symmetry is the average of the two roots, which is often the fastest way to find it when the roots are already known.',
               ),
               prose(
-                'It works in the other direction too: one root plus the line of symmetry gives the other root immediately, with no factorising at all.',
+                'It works in the other direction too. $x^{2} - 10x + 16 = 0$ has a root at $2$, and its line is $x = \\frac{10}{2} = 5$. The root is 3 to the left of the line, so the other is 3 to the right: $x = 8$.',
               ),
             ),
             askWith('quad-other-root', 'The two roots sit at equal distances either side of that line, so one root and the equation fix the other.'),
-            askWith('quad-complete-square', 'Completing the square puts the line of symmetry in plain sight: it runs through the value that makes the bracket zero.'),
+            askWith(
+              'quad-complete-square',
+              'Completing the square shows the line too. For $x^{2} - 6x + 5$, half of $-6$ is $-3$, and $\\left(x - 3\\right)^{2} = x^{2} - 6x + 9$, so correct by $5 - 9 = -4$: $\\left(x - 3\\right)^{2} - 4$. The line is $x = 3$, where the bracket is zero.',
+            ),
             ask('quad-other-root+choice'),
             teach(
               prose(
@@ -727,7 +795,7 @@ export const quadratics: Course = {
           slides: [
             teach(
               prose(
-                'Completing the square gives the turning point exactly, with no calculus and no guessing.',
+                'Completing the square gives the turning point exactly, with no calculus and no guessing. For $y = x^{2} + 6x + 11$: half of 6 is 3, and $\\left(x + 3\\right)^{2} = x^{2} + 6x + 9$, which is 2 short of 11.',
               ),
               maths('y = \\left(x + 3\\right)^{2} + 2'),
               prose(
@@ -750,6 +818,11 @@ export const quadratics: Course = {
                 'Written with a minus inside, the $x$ coordinate reads off unchanged; written with a plus, it changes sign. The safest habit is to ask where the bracket equals zero rather than trying to remember which way round it goes.',
               ),
               prose('The $y$ coordinate is the constant outside, always unchanged.'),
+              prose('With a number in front of $x^{2}$, take it out of the first two terms first:'),
+              maths(
+                '\\begin{aligned} &2x^{2} + 8x + 5 \\\\ &= 2\\left(x^{2} + 4x\\right) + 5 \\\\ &= 2\\left[\\left(x + 2\\right)^{2} - 4\\right] + 5 \\\\ &= 2\\left(x + 2\\right)^{2} - 3 \\end{aligned}',
+              ),
+              prose('The bracket is zero at $x = -2$, so the turning point is $\\left(-2, -3\\right)$ and the least value is $-3$.'),
             ),
             ask('quad-complete-square', 2),
             ask('quad-evaluate-tree'),
@@ -795,27 +868,27 @@ export const quadratics: Course = {
               prose(
                 'The signs flip in both directions, which is worth saying twice because it catches people both ways round.',
               ),
+              prose(
+                'Going from roots to an equation: each root $r$ contributes a factor $\\left(x - r\\right)$, then expand. Roots 4 and $-2$ give',
+              ),
+              maths('\\begin{aligned} y &= \\left(x - 4\\right)\\left(x + 2\\right) \\\\ &= x^{2} - 2x - 8 \\end{aligned}'),
             ),
             ask('quad-from-roots'),
-            ask('quad-root-count'),
             ask('quad-root-slider'),
+            ask('quad-from-roots'),
             teach(
               prose(
-                'Going from roots to an equation: each root $r$ contributes a factor $\\left(x - r\\right)$.',
-              ),
-              maths(
-                'x = 4, \\; x = -2 \\implies y = \\left(x - 4\\right)\\left(x + 2\\right) = x^{2} - 2x - 8',
+                'The number of crossings can be found without finding them. The discriminant $b^{2} - 4ac$ is positive for two roots, zero for one, negative for none.',
               ),
               prose(
-                'Any multiple of that has the same roots, so the answer is only unique once the question fixes the coefficient of $x^{2}$.',
+                'For $2x^{2} + 3x - 4 = 0$: $b^{2} = 9$ and $4ac = 4 \\times 2 \\times \\left(-4\\right) = -32$.',
               ),
-              prose(
-                'Expanding at the end is usually expected, but the factorised form is the one that shows the roots, so keep both.',
-              ),
+              maths('\\Delta = 9 - \\left(-32\\right) = 41 > 0'),
+              prose('Positive, so the curve crosses the $x$-axis twice.'),
             ),
-            ask('quad-from-roots'),
             ask('quad-discriminant-steps'),
             ask('quad-root-count'),
+            ask('quad-discriminant-steps+choice'),
             teach(
               prose('The discriminant and the graph agree, as they must.'),
               prose(
@@ -826,8 +899,8 @@ export const quadratics: Course = {
                 'That last case is worth picturing. The curve still exists and still has a turning point; it simply has no real roots, which is a statement about the axis rather than about the curve.',
               ),
             ),
+            ask('quad-root-count'),
             ask('quad-root-slider'),
-            ask('quad-discriminant-steps+choice'),
           ],
           skillCheck: [
             ask('quad-from-roots', 2),
@@ -850,22 +923,29 @@ export const quadratics: Course = {
               prose(
                 'Positive coefficient, so it opens upwards. Constant $-8$, so it crosses the vertical axis there. Factorising gives $\\left(x - 4\\right)\\left(x + 2\\right)$, so the roots are 4 and $-2$.',
               ),
+              maths('x = \\frac{4 + \\left(-2\\right)}{2} = 1'),
+              maths('y = 1 - 2 - 8 = -9'),
               prose(
                 'The line of symmetry is the average of the roots, $x = 1$, and substituting gives $y = -9$. So the turning point is $\\left(1, -9\\right)$.',
+              ),
+              prose(
+                'When the roots are not whole numbers, or there are none, use $x = -\\frac{b}{2a}$ and complete the square. For $y = x^{2} + 6x + 11$ the line is $x = -\\frac{6}{2} = -3$, and $x^{2} + 6x + 11 = \\left(x + 3\\right)^{2} + 2$, so the turning point is $\\left(-3, 2\\right)$.',
               ),
             ),
             ask('quad-symmetry'),
             ask('quad-turning-point'),
             ask('quad-from-roots'),
             teach(
-              prose('Work in that order and nothing has to be guessed — each step uses what the last one found.'),
-              maths('x = \\frac{4 + \\left(-2\\right)}{2} = 1 \\qquad y = 1 - 2 - 8 = -9'),
               prose(
-                'The average of the roots is the quickest route to the line of symmetry whenever the roots are known — quicker than completing the square and quicker than the formula.',
+                'Two more tools finish the kit. The discriminant counts the roots before any are found: for $2x^{2} - 4x + 1$, $\\Delta = 16 - 4 \\times 2 \\times 1 = 8$, positive, so two crossings.',
               ),
               prose(
-                'When there are no real roots, completing the square is the only route to the turning point, and the sketch is simply the curve sitting clear of the axis.',
+                'With a number in front of $x^{2}$, the line is still $x = -\\frac{b}{2a}$, and completing the square takes that number out first. For $y = 3x^{2} - 12x + 5$ the line is $x = \\frac{12}{6} = 2$, and',
               ),
+              maths(
+                '\\begin{aligned} &3x^{2} - 12x + 5 \\\\ &= 3\\left(x^{2} - 4x\\right) + 5 \\\\ &= 3\\left[\\left(x - 2\\right)^{2} - 4\\right] + 5 \\\\ &= 3\\left(x - 2\\right)^{2} - 7 \\end{aligned}',
+              ),
+              prose('so the lowest point is $\\left(2, -7\\right)$.'),
             ),
             ask('quad-root-count', 2),
             ask('quad-symmetry', 2),
@@ -927,14 +1007,17 @@ export const quadratics: Course = {
               prose(
                 'Elimination, which works for two straight lines, gets stuck here. **Substitution** does not: both equations say what $y$ is, so where they meet those two expressions are equal.',
               ),
-              maths('x^{2} - 2x - 1 = x + 3'),
+              maths('\\begin{aligned} x^{2} - 2x - 1 &= x + 3 \\\\ x^{2} - 3x - 4 &= 0 \\end{aligned}'),
               prose(
-                'That is one equation in one letter — a quadratic — and every root it has is the $x$ of a meeting point.',
+                'Taking $x$ and $3$ across to the left gives one equation in one letter — a quadratic — and every root it has is the $x$ of a meeting point.',
+              ),
+              prose(
+                'If the line does not start $y = \\ldots$, rearrange it first. From $3x - y = 2$, take $3x$ across to get $-y = 2 - 3x$, then divide by $-1$: $y = 3x - 2$.',
               ),
             ),
             ask('quad-sim-subject'),
             ask('quad-sim-substitute'),
-            ask('quad-sim-route'),
+            ask('quad-sim-substitute+choice'),
             teach(
               prose(
                 'The line is not always handed over as $y = \\ldots$. Rearrange it first, then substitute.',
@@ -946,12 +1029,12 @@ export const quadratics: Course = {
               ),
               maths('x^{2} + 6x - 7 = 0'),
               prose(
-                'Two curves work the same way. Set them equal and collect on the side with more $x^{2}$, so the leading term stays positive.',
+                'Two curves work the same way. Set them equal and collect on the side with more $x^{2}$, so the leading term stays positive. For $y = x^{2} + 1$ and $y = 2x^{2} - 3x - 3$:',
               ),
+              maths('\\begin{aligned} x^{2} + 1 &= 2x^{2} - 3x - 3 \\\\ 0 &= x^{2} - 3x - 4 \\end{aligned}'),
             ),
             ask('quad-sim-two-curves'),
             ask('quad-sim-subject'),
-            ask('quad-sim-substitute+choice'),
             teach(
               prose(
                 'Which letter to free is a choice. $y$ is usual, because the curve is already written as $y = \\ldots$ — but not when it would mean fractions.',
@@ -966,6 +1049,7 @@ export const quadratics: Course = {
             ),
             ask('quad-sim-route'),
             ask('quad-sim-two-curves'),
+            ask('quad-sim-route'),
           ],
           skillCheck: [
             ask('quad-sim-substitute', 2),
@@ -979,9 +1063,9 @@ export const quadratics: Course = {
           slides: [
             teach(
               prose(
-                'Substituting leaves an ordinary quadratic, and everything from the level on solving applies. Factorise if you can.',
+                'Substituting leaves an ordinary quadratic, and everything from the level on solving applies. Factorise if you can. For $y = x^{2} - 2x - 1$ and $y = x + 3$:',
               ),
-              maths('x^{2} - 3x - 4 = 0'),
+              maths('\\begin{aligned} x^{2} - 2x - 1 &= x + 3 \\\\ x^{2} - 3x - 4 &= 0 \\end{aligned}'),
               maths('\\left(x - 4\\right)\\left(x + 1\\right) = 0'),
               prose(
                 'So $x = 4$ or $x = -1$. Those are the $x$-coordinates of the two places the line crosses the curve — not the points themselves yet, which is the next lesson.',
@@ -991,7 +1075,10 @@ export const quadratics: Course = {
               ),
             ),
             ask('quad-sim-x-values'),
-            ask('quad-sim-other-x'),
+            askWith(
+              'quad-sim-other-x',
+              'One known meeting point gives the other. The roots of $ax^{2} + bx + c = 0$ add to $-\\frac{b}{a}$: for $x^{2} + x - 6 = 0$ with root $2$, they add to $-1$, so the other is $-1 - 2 = -3$.',
+            ),
             ask('quad-sim-substitute+choice'),
             teach(
               prose(
@@ -1039,6 +1126,9 @@ export const quadratics: Course = {
               maths('x = 4: \\quad y = 4 + 3 = 7'),
               maths('x = -1: \\quad y = -1 + 3 = 2'),
               prose('So the solutions are $\\left(4, 7\\right)$ and $\\left(-1, 2\\right)$.'),
+              prose(
+                'A point offered as a solution must fit **both** equations. $\\left(4, 7\\right)$ in the curve $y = x^{2} - 2x - 1$ gives $16 - 8 - 1 = 7$, and in the line $y = x + 3$ gives $4 + 3 = 7$. Both agree, so it is one.',
+              ),
             ),
             ask('quad-sim-line-y'),
             ask('quad-sim-pair'),
@@ -1048,11 +1138,11 @@ export const quadratics: Course = {
                 'Each $y$ belongs to the $x$ that made it. Swapping them gives $\\left(4, 2\\right)$, which is on neither graph — the mistake looks tidy and is completely wrong.',
               ),
               prose(
-                'A point can be checked in both equations at once. $\\left(4, 7\\right)$ in the curve gives $16 - 8 - 1 = 7$, and in the line $4 + 3 = 7$. Both agree, so it is a solution.',
+                'Finding the $x$ values in the first place is the substitution from before: set the curve equal to the line, collect, and factorise.',
               ),
-              prose(
-                'Substituting into the curve is the longer check, since it has a square in it. It is worth doing once, as proof that the line was the easier choice.',
-              ),
+              maths('\\begin{aligned} x^{2} - 2x - 1 &= x + 3 \\\\ x^{2} - 3x - 4 &= 0 \\end{aligned}'),
+              maths('\\left(x - 4\\right)\\left(x + 1\\right) = 0'),
+              prose('So $x = 4$ or $x = -1$, the two values used above.'),
             ),
             ask('quad-evaluate-steps'),
             ask('quad-sim-x-values'),
@@ -1090,7 +1180,13 @@ export const quadratics: Course = {
                 { x: 4, y: 7 },
               ]),
               prose(
-                'The algebra says $x = -1$ and $x = 4$; the picture shows the line cutting the curve at exactly those two places. Each is a check on the other.',
+                'The algebra: set the curve $y = x^{2} - 2x - 1$ equal to the line $y = x + 3$, collect, and factorise.',
+              ),
+              maths('\\begin{aligned} x^{2} - 2x - 1 &= x + 3 \\\\ x^{2} - 3x - 4 &= 0 \\end{aligned}'),
+              maths('\\left(x - 4\\right)\\left(x + 1\\right) = 0'),
+              maths('x = 4 \\text{ or } x = -1'),
+              prose(
+                'The picture shows the line cutting the curve at exactly those two places. To test a point, put it in both equations: $\\left(4, 7\\right)$ gives $16 - 8 - 1 = 7$ and $4 + 3 = 7$, so it is on both.',
               ),
             ),
             ask('quad-sim-meet-slider'),
@@ -1105,6 +1201,9 @@ export const quadratics: Course = {
               ),
               prose(
                 'A graph gives the rough answer and algebra the exact one. When a crossing falls between grid lines, only the algebra will do.',
+              ),
+              prose(
+                'One known crossing gives the other: the roots of $x^{2} + bx + c = 0$ add to $-b$. For $y = x^{2} + 2x - 5$ and $y = x + 1$, collecting gives $x^{2} + x - 6 = 0$. With one crossing at $x = 2$, the roots add to $-1$, so the other is $x = -3$.',
               ),
             ),
             ask('quad-sim-height-slider'),
@@ -1152,7 +1251,7 @@ export const quadratics: Course = {
             ),
             ask('quad-sim-disc-tree'),
             ask('quad-sim-count'),
-            ask('quad-sim-tangent-k'),
+            ask('quad-sim-disc-tree', 2),
             teach(
               prose(
                 'Run it backwards to find a tangent. Leave the unknown in, and set the discriminant to zero.',
@@ -1167,9 +1266,9 @@ export const quadratics: Course = {
                 'The sign inside the bracket is where this goes wrong: $c$ is $-k$ here, not $k$, because $k$ crossed the equals sign.',
               ),
             ),
-            ask('quad-sim-touch-slider'),
+            ask('quad-sim-tangent-k'),
             ask('quad-sim-tangent-k+choice'),
-            ask('quad-sim-disc-tree', 2),
+            ask('quad-sim-count', 2),
             teach(
               prose(
                 'Where does a tangent touch? At the repeated root. A zero discriminant means the quadratic is a perfect square.',
@@ -1179,7 +1278,7 @@ export const quadratics: Course = {
                 'So the line touches at $x = 1$, and the line gives $y = 2 - 1 = 1$. The point is $\\left(1, 1\\right)$ — one solution, where every other line of that gradient had two or none.',
               ),
             ),
-            ask('quad-sim-count', 2),
+            ask('quad-sim-touch-slider'),
             ask('quad-sim-touch-slider', 2),
           ],
           skillCheck: [
@@ -1228,13 +1327,19 @@ export const quadratics: Course = {
               prose(
                 'Check with any value in between: $x = 0$ gives $2 \\times \\left(-3\\right) = -6$, which is negative. That is a **test point**, and it backs up the picture.',
               ),
+              prose(
+                'Outside the roots the curve is **above** the axis, so $\\left(x + 2\\right)\\left(x - 3\\right) > 0$ gives two pieces: $x < -2$ or $x > 3$. The smallest whole number in the right-hand piece is 4.',
+              ),
+              prose(
+                'The rings are **hollow** because the roots give $y = 0$, which is neither above nor below. With $\\le$ or $\\ge$ the roots count and the rings are **solid**: $\\left(x + 2\\right)\\left(x - 3\\right) \\le 0$ gives $-2 \\le x \\le 3$, so its largest whole number is 3.',
+              ),
             ),
             ask('quad-ineq-read-graph'),
             ask('quad-ineq-test-point'),
             ask('quad-ineq-end-slider'),
             teach(
               prose(
-                'Outside the roots the same curve is **above** the axis, so $y > 0$ there: two pieces, one on each side.',
+                'Here are the two arms above the axis on a graph: two pieces, one on each side of the roots.',
               ),
               signGraph(1, -2, 3, {
                 strict: true,
@@ -1244,7 +1349,7 @@ export const quadratics: Course = {
               maths('\\left(x + 2\\right)\\left(x - 3\\right) > 0'),
               maths('x < -2 \\text{ or } x > 3'),
               prose(
-                'The rings are **hollow** because the roots give $y = 0$, which is neither above nor below. With $\\le$ or $\\ge$ the roots count, and the rings are drawn **solid**.',
+                'An upside-down curve swaps the two: $y = -\\left(x + 1\\right)\\left(x - 4\\right)$ is **above** the axis between its roots, so $-\\left(x + 1\\right)\\left(x - 4\\right) \\ge 0$ gives $-1 \\le x \\le 4$.',
               ),
             ),
             ask('quad-ineq-count'),
@@ -1252,17 +1357,22 @@ export const quadratics: Course = {
             ask('quad-ineq-test-point+choice'),
             teach(
               prose(
-                'An upside-down curve swaps the two. $y = -\\left(x + 1\\right)\\left(x - 4\\right)$ is **above** the axis between its roots and below it outside.',
+                'Here is that upside-down curve: $y = -\\left(x + 1\\right)\\left(x - 4\\right)$ is **above** the axis between its roots and below it outside.',
               ),
               signGraph(-1, -1, 4, {
                 strict: false,
                 region: 'between',
                 label: 'The upside-down curve y = -(x + 1)(x - 4), shaded where it is above the x-axis',
               }),
-              maths('-\\left(x + 1\\right)\\left(x - 4\\right) \\ge 0'),
-              maths('-1 \\le x \\le 4'),
               prose(
                 'So the sign of the $x^{2}$ coefficient always matters: it decides which side of the axis the middle piece is on.',
+              ),
+              prose(
+                'Given no graph and no brackets, take out any common factor and factorise first. For $2x^{2} + 2x - 12 < 0$:',
+              ),
+              maths('\\begin{aligned} 2x^{2} + 2x - 12 &= 2\\left(x^{2} + x - 6\\right) \\\\ &= 2\\left(x + 3\\right)\\left(x - 2\\right) \\end{aligned}'),
+              prose(
+                'The 2 is positive, so the curve is still U-shaped, and the answer is $-3 < x < 2$. Its largest whole number is 1.',
               ),
             ),
             ask('quad-ineq-end-slider', 2),
@@ -1288,6 +1398,9 @@ export const quadratics: Course = {
                 'The roots are $-2$ and $3$, the curve is U-shaped, and $< 0$ asks for below the axis: the piece **between** the roots.',
               ),
               maths('-2 < x < 3'),
+              prose(
+                'With $\\le$ the roots count as well, since the curve is on the axis there: $x^{2} - x - 6 \\le 0$ gives $-2 \\le x \\le 3$.',
+              ),
             ),
             ask('quad-ineq-region-flow'),
             ask('quad-ineq-between-tiles'),
@@ -1303,7 +1416,7 @@ export const quadratics: Course = {
               }),
               maths('x < -2 \\text{ or } x > 3'),
               prose(
-                'The two pieces point away from each other: smaller than the smaller root, **or** bigger than the bigger one.',
+                'The two pieces point away from each other: smaller than the smaller root, **or** bigger than the bigger one. With $\\ge$ the roots join in: $x^{2} - x - 6 \\ge 0$ gives $x \\le -2$ or $x \\ge 3$.',
               ),
             ),
             ask('quad-ineq-outside-tiles'),
@@ -1315,7 +1428,12 @@ export const quadratics: Course = {
               ),
               maths('2x^{2} - 2x - 12 \\le 0'),
               maths('-2 \\le x \\le 3'),
-              prose('With $\\le$ the roots are included, so both signs in the answer are $\\le$ as well.'),
+              prose(
+                'A negative leading coefficient: multiply every term by $-1$, which **turns the inequality round**, and the curve becomes U-shaped.',
+              ),
+              maths('-2x^{2} + 2x + 12 > 0'),
+              maths('2x^{2} - 2x - 12 < 0'),
+              prose('That is the same U-shaped curve as above, now asking for below the axis: $-2 < x < 3$.'),
             ),
             ask('quad-ineq-between-tiles', 2),
             ask('quad-ineq-outside-tiles', 2),
@@ -1338,10 +1456,16 @@ export const quadratics: Course = {
               prose(
                 'The one-piece form cannot stand in for two pieces: $3 < x < -2$ would need $x$ bigger than $3$ and smaller than $-2$ at once, and no number is.',
               ),
+              prose('A full one, start to finish, with a common factor taken out first:'),
+              maths('2x^{2} - 10x + 8 \\le 0'),
+              maths('2\\left(x - 1\\right)\\left(x - 4\\right) \\le 0'),
+              prose(
+                'U-shaped, and $\\le 0$ asks for on or below the axis: one piece, roots included, $1 \\le x \\le 4$.',
+              ),
             ),
             ask('quad-ineq-which-set'),
-            ask('quad-ineq-negate'),
             ask('quad-ineq-region-flow', 2),
+            ask('quad-ineq-end-slider', 2),
             teach(
               prose(
                 'When the $x^{2}$ coefficient is negative, multiply every term by $-1$ first. Multiplying by a negative number **turns the inequality round**:',
@@ -1357,9 +1481,9 @@ export const quadratics: Course = {
                 'Both say the same thing about $x$, and the second is a U-shaped curve: $-2 < x < 3$, the piece where the upside-down one is above the axis.',
               ),
             ),
+            ask('quad-ineq-negate'),
             ask('quad-ineq-endpoint', 2),
             ask('quad-ineq-which-set', 2),
-            ask('quad-ineq-negate', 2),
             teach(
               prose(
                 '$\\le$ and $\\ge$ include the roots, where the curve is on the axis. The answer then uses $\\le$ and $\\ge$ too, and on a graph the rings are **solid**.',
@@ -1372,7 +1496,7 @@ export const quadratics: Course = {
               maths('x^{2} - 3x - 4 \\ge 0'),
               maths('x \\le -1 \\text{ or } x \\ge 4'),
             ),
-            ask('quad-ineq-end-slider', 2),
+            ask('quad-ineq-negate', 2),
             ask('quad-ineq-endpoint+choice', 2),
           ],
           skillCheck: [
@@ -1407,17 +1531,18 @@ export const quadratics: Course = {
               prose(
                 'U-shaped and entirely above the axis, so $x^{2} + 2x + 5 > 0$ is true for **every** $x$, and $x^{2} + 2x + 5 < 0$ for **none**.',
               ),
+              prose(
+                'Upside down, it goes the other way. $-x^{2} + 4x - 5$ has discriminant $16 - 20 = -4$ and an $x^{2}$ coefficient below zero, so it sits entirely **below** the axis: $-x^{2} + 4x - 5 < 0$ for every $x$.',
+              ),
             ),
             ask('quad-discriminant-tree'),
             ask('quad-ineq-always'),
             ask('quad-ineq-rearrange', 2),
             teach(
-              prose(
-                'Upside down, it goes the other way. $-x^{2} + 4x - 5$ has discriminant $16 - 20 = -4$ and sits entirely below the axis.',
-              ),
+              prose('Here is that upside-down curve, entirely below the axis.'),
               graph(-1, 4, -5, { xMin: -1, xMax: 5, label: 'The curve y = -x^2 + 4x - 5, entirely below the x-axis' }),
               prose(
-                'So $-x^{2} + 4x - 5 < 0$ holds for every $x$, and $> 0$ for none. A negative discriminant makes the answer all or nothing.',
+                'A negative discriminant makes the answer all or nothing. With a number in front of $x^{2}$ the tree has one more step: for $2x^{2} - 4x + 3$, $b^{2} = 16$, $4a = 8$, $4ac = 8 \\times 3 = 24$, so $\\Delta = 16 - 24 = -8$. U-shaped, so $2x^{2} - 4x + 3 > 0$ for every $x$.',
               ),
             ),
             ask('quad-ineq-always', 2),
@@ -1445,7 +1570,10 @@ export const quadratics: Course = {
               ),
             ),
             ask('quad-ineq-param-critical'),
-            ask('quad-sim-tangent-k'),
+            askWith(
+              'quad-sim-tangent-k',
+              'A tangent is the one-root case, $\\Delta = 0$. For $y = x^{2}$ and $y = 2x + k$: $x^{2} - 2x - k = 0$, so $\\left(-2\\right)^{2} - 4 \\times 1 \\times \\left(-k\\right) = 4 + 4k = 0$, and $k = -1$.',
+            ),
             ask('quad-ineq-param-critical+choice'),
             teach(
               prose(
@@ -1531,6 +1659,9 @@ export const quadratics: Course = {
               maths('A = x(10 - x)'),
               areaGraph(10, [], 'The area of the pen against the side length, a hill from 0 to 10'),
               prose('Any correct way of writing it is the same model: $10x - x^{2}$ is just as right.'),
+              prose(
+                'Against a wall, only three sides are fenced. With 20 m of fencing and the two sides meeting the wall $x$ m each, the side opposite the wall gets what is left, $20 - 2x$, so $A = x\\left(20 - 2x\\right)$.',
+              ),
             ),
             ask('quad-model-area'),
             ask('quad-model-evaluate+choice'),
@@ -1571,17 +1702,15 @@ export const quadratics: Course = {
               prose(
                 'Three points tell the story. Where it meets the $h$-axis is the start, 25 m. The top is the greatest height. Where it comes back to the $t$-axis is the landing.',
               ),
+              prose('The landing is where $h = 0$. Divide $25 + 20t - 5t^{2} = 0$ by $-5$ and factorise:'),
+              maths('t^{2} - 4t - 5 = 0'),
+              maths('(t - 5)(t + 1) = 0'),
+              prose('$t = -1$ is before the throw, so it is thrown away: the ball lands after 5 seconds.'),
             ),
             ask('quad-model-feature'),
             ask('quad-model-land'),
             ask('quad-model-land-slider'),
             teach(
-              prose('The landing is where $h = 0$. Divide by $-5$ and factorise:'),
-              maths('t^{2} - 4t - 5 = 0'),
-              maths('(t - 5)(t + 1) = 0'),
-              prose(
-                '$t = -1$ is before the throw, so it is thrown away: the ball lands after 5 seconds.',
-              ),
               prose(
                 'A parabola is symmetrical, so the top is halfway between the two roots, at $t = 2$, even though half the curve is off the picture. There $h = 25 + 40 - 20 = 45$.',
               ),
@@ -1616,8 +1745,8 @@ export const quadratics: Course = {
                 'The pen $A = x(10 - x)$ has no area at $x = 0$ or $x = 10$. Halfway, $x = 5$, gives the greatest area: $5 \\times 5 = 25$.',
               ),
               areaGraph(10, [{ x: 5, y: 25 }], 'The area against the side length, with the top of the hill ringed'),
-              prose('Completing the square shows it in one line:'),
-              maths('A = 25 - (x - 5)^{2}'),
+              prose('Completing the square shows why. Take out $-1$, complete the square inside, then multiply back:'),
+              maths('\\begin{aligned} A &= -\\left(x^{2} - 10x\\right) \\\\ &= -\\left[(x - 5)^{2} - 25\\right] \\\\ &= 25 - (x - 5)^{2} \\end{aligned}'),
               prose('The square is never negative and it is taken away, so $A$ is never more than 25.'),
             ),
             ask('quad-model-vertex-tiles'),
@@ -1631,6 +1760,11 @@ export const quadratics: Course = {
               prose(
                 'Here the square is added, so it can only push $C$ up. The least cost is 4, when $x = 4$.',
               ),
+              prose('A height model has $-5$ in front. Take out $-5$ from the two $t$ terms and complete the square inside:'),
+              maths(
+                '\\begin{aligned} h &= 20 + 20t - 5t^{2} \\\\ &= 20 - 5\\left(t^{2} - 4t\\right) \\\\ &= 20 - 5\\left[(t - 2)^{2} - 4\\right] \\\\ &= 40 - 5(t - 2)^{2} \\end{aligned}',
+              ),
+              prose('So the greatest height is 40 m, at $t = 2$.'),
             ),
             ask('quad-model-cost-steps'),
             ask('quad-model-max-value+choice'),
@@ -1771,25 +1905,27 @@ export const quadratics: Course = {
               maths('x^{4} - 5x^{2} + 4 = 0'),
               prose('$x^{4}$ is $\\left(x^{2}\\right)^{2}$. Put $u = x^{2}$ and it becomes an ordinary quadratic:'),
               maths('u^{2} - 5u + 4 = 0'),
-              prose('Solve that for $u$ first, then go back to $x$.'),
+              prose(
+                'The test: one term is exactly the square of another, and the third is a plain number. $x - 5\\sqrt{x} + 6 = 0$ passes, since $x = \\left(\\sqrt{x}\\right)^{2}$: with $u = \\sqrt{x}$ it is $u^{2} - 5u + 6 = 0$.',
+              ),
+              prose('$x^{4} - 5x + 4 = 0$ fails: the square of $x$ is $x^{2}$, not $x^{4}$, so no $u$ works.'),
             ),
             ask('quad-disguise-spot'),
             ask('quad-disguise-u-tiles'),
             ask('quad-disguise-is-it-flow'),
             teach(
-              prose(
-                'The test is always the same: one term is exactly the square of another, and the third is a plain number. Some other disguises:',
-              ),
-              prose('$x - 5\\sqrt{x} + 6 = 0$ is a quadratic in $u = \\sqrt{x}$, since $x = \\left(\\sqrt{x}\\right)^{2}$.'),
-              prose('$\\frac{6}{x^{2}} - \\frac{5}{x} + 1 = 0$ is a quadratic in $u = \\frac{1}{x}$.'),
-              prose('$(x + 1)^{2} - 5(x + 1) + 6 = 0$ is a quadratic in $u = x + 1$.'),
+              prose('The same test finds some other disguises:'),
+              prose('$\\frac{6}{x^{2}} - \\frac{5}{x} + 1 = 0$ is a quadratic in $u = \\frac{1}{x}$, and $x^{6} - 9x^{3} + 8 = 0$ is one in $u = x^{3}$.'),
+              prose('$(x + 1)^{2} - 5(x + 1) + 6 = 0$ is a quadratic in $u = x + 1$. Solving in $u$:'),
+              maths('u^{2} - 5u + 6 = (u - 2)(u - 3) = 0'),
+              prose('So $u = 2$ or $u = 3$.'),
             ),
             ask('quad-disguise-u-roots'),
             ask('quad-disguise-spot', 2),
             ask('quad-disguise-u-tiles', 2),
             teach(
               prose(
-                'Look-alikes fail the test. In $x^{4} - 5x + 4 = 0$ the square of $x$ is $x^{2}$, not $x^{4}$, so no $u$ turns it into a quadratic.',
+                'Look-alikes fail the test. In $x^{6} - 5x^{2} + 4 = 0$ the square of $x^{2}$ is $x^{4}$, not $x^{6}$, so no $u$ turns it into a quadratic.',
               ),
               prose(
                 'The same idea turns up in other courses: $4^{x} - 5\\left(2^{x}\\right) + 4 = 0$ is a quadratic in $u = 2^{x}$ (Exponents and Radicals), and $\\left(\\log x\\right)^{2} - 3\\log x + 2 = 0$ is one in $u = \\log x$ (Logarithms).',
@@ -1820,10 +1956,11 @@ export const quadratics: Course = {
                 [-2, -1, 1, 2],
                 'A W-shaped curve crossing the x-axis four times, at -2, -1, 1 and 2',
               ),
+              prose('A negative $u$ gives no $x$ at all: $x^{2} = -3$ has no real solution, since a square is never negative.'),
             ),
             ask('quad-disguise-even-steps'),
             ask('quad-disguise-split-tree'),
-            ask('quad-disguise-count'),
+            ask('quad-disguise-even-slider'),
             teach(
               prose('A negative $u$ gives nothing. In $x^{4} + 3x^{2} - 4 = 0$:'),
               maths('(u + 4)(u - 1) = 0'),
@@ -1837,7 +1974,7 @@ export const quadratics: Course = {
                 'A U-shaped curve crossing the x-axis twice, at -1 and 1',
               ),
             ),
-            ask('quad-disguise-even-slider'),
+            ask('quad-disguise-count'),
             ask('quad-disguise-count+choice'),
             ask('quad-disguise-even-steps', 2),
             teach(
@@ -1865,6 +2002,7 @@ export const quadratics: Course = {
               maths('u^{2} - 5u + 6 = 0'),
               maths('(u - 2)(u - 3) = 0'),
               prose('Going back means squaring: $\\sqrt{x} = 2$ gives $x = 4$, and $\\sqrt{x} = 3$ gives $x = 9$.'),
+              prose('A square root is never negative, so a negative $u$ is thrown away: $\\sqrt{x} = -4$ gives no $x$.'),
             ),
             ask('quad-disguise-root-back-flow'),
             ask('quad-disguise-root-tree'),
@@ -1963,7 +2101,7 @@ export const quadratics: Course = {
                 'Two identical parabolas, the solid one a step to the left of the dashed one, crossing at 1 and 2',
               ),
             ),
-            ask('quad-disguise-count-flow'),
+            ask('quad-disguise-shift-slider', 2),
             ask('quad-disguise-bracket-solve+choice'),
             ask('quad-disguise-bracket-steps', 2),
             teach(
@@ -1972,9 +2110,12 @@ export const quadratics: Course = {
               ),
               prose('$u = x^{2}$ gives two for a positive root and none for a negative one. $u = \\sqrt{x}$ gives one, or none for a negative root.'),
               prose('$u = x^{3}$, $u = \\frac{1}{x}$ and $u = x + k$ give exactly one each time.'),
+              prose(
+                'So for $x^{4} + 5x^{2} - 36 = 0$, with $u = x^{2}$: $(u + 9)(u - 4) = 0$. $u = -9$ gives none and $u = 4$ gives $x = \\pm 2$: two solutions.',
+              ),
             ),
+            ask('quad-disguise-count-flow'),
             ask('quad-disguise-count-flow', 2),
-            ask('quad-disguise-shift-slider', 2),
           ],
           skillCheck: [
             ask('quad-disguise-bracket-steps', 2),

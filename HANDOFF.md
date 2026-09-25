@@ -254,10 +254,14 @@ deploys to https://maths-trainer.pm78jvchmg.workers.dev. Build command
 `npm run build`, deploy command `npx wrangler deploy`, root directory `/`. The
 output path lives in `wrangler.jsonc`, never in the dashboard.
 
-**Every push to `main` deploys straight to production**, deliberately — the owner
-wants a change on their phone a couple of minutes after it is made, so commits
-land on `main` directly rather than through a pull request. There is no
-branch-protection backstop.
+**Every change that reaches `main` deploys straight to production**, deliberately
+— the owner wants a change on their phone a couple of minutes after it is made.
+It cannot be pushed there directly: the "auto merge" ruleset refuses a push to
+`main` (`GH013`), so a change lands by pull request, and
+`.github/workflows/auto-merge.yml` merges each one once its required checks pass
+— `Workers Builds: maths-trainer` (a build) and **Fast checks** (typechecks,
+lint, the fast tests and a five-seed generator sweep).
 
-The cost of that is that nothing catches a bad change before the learner meets
-it. The checks in §6 have to happen **before** the push, not after.
+Nobody looks at a pull request between those checks passing and the learner
+meeting the change, and neither runs the full suite. The checks in §6 still have
+to happen **before** the pull request, not after.

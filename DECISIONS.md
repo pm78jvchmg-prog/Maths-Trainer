@@ -675,6 +675,12 @@ checking them. A file can have real type errors and a green suite.
 
 ### X9 Commits go straight to `main`, with no pull request
 
+**Superseded (2026-09).** An "auto merge" ruleset now refuses direct pushes to
+`main`; changes land by pull request and auto-merge once `Workers Builds:
+maths-trainer` and Fast checks pass. Merging still deploys straight to
+production, so the reasoning below about checking *before* a change lands still
+holds. The original record follows.
+
 **Decision.** Every push to `main` deploys to production.
 
 **Why.** The owner wants a change on their phone a couple of minutes after it is

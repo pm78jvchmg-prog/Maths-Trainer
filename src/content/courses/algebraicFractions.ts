@@ -715,25 +715,27 @@ export const algebraicFractions: Course = {
               working('\\frac{x + 4}{x - 2} &< 3', 'x + 4 &< 3(x - 2)', 'x &> 5'),
               prose('That working is wrong. Try $x = 0$: $\\frac{4}{-2} = -2$, which is less than $3$, so $0$ is in the set, and $x > 5$ missed it.'),
             ),
-            ask('frac-ineq-cases-flow'),
             ask('frac-ineq-test-tree'),
-            ask('frac-ineq-crossing'),
             teach(
               prose('One safe way is to take each side of the pole in turn. For $x > 2$ the bottom is positive, so the sign stays:'),
-              working('x + 4 &< 3x - 6', 'x &> 5'),
+              working('x + 4 &< 3(x - 2)', 'x + 4 &< 3x - 6', '-2x &< -10', 'x &> 5'),
               prose(
-                'For $x < 2$ it is negative, so the sign turns: $x + 4 > 3x - 6$, which gives $x < 5$, and all of $x < 2$ fits that. Together: $x < 2$ or $x > 5$.',
+                'All of $x > 5$ is inside $x > 2$, so that side gives $x > 5$. For $x < 2$ the bottom is negative, so the sign turns: $x + 4 > 3x - 6$, so $-2x > -10$ and $x < 5$. All of $x < 2$ fits that, so that side gives $x < 2$. Together: $x < 2$ or $x > 5$.',
               ),
             ),
+            ask('frac-ineq-cases-flow'),
             ask('frac-ineq-slip-which'),
-            ask('frac-ineq-cases-flow', 2),
             ask('frac-ineq-test-tree', 2),
             teach(
               prose(
-                'The answer can only change in two places: the pole, where the bottom is zero, and the crossing, where the fraction equals the number. Here those are $x = 2$ and $x = 5$.',
+                'The answer can only change in two places: the pole, where the bottom is zero, and the **crossing**, where the fraction equals the number. The pole here is $x = 2$.',
               ),
+              prose('To find the crossing, solve the equation. Multiplying through is safe in an equation, since there is no sign to turn round:'),
+              working('\\frac{x + 4}{x - 2} &= 3', 'x + 4 &= 3(x - 2)', '-2x &= -10', 'x &= 5'),
               prose('The pole is never in the set, since the fraction has no value there.'),
             ),
+            ask('frac-ineq-crossing'),
+            ask('frac-ineq-cases-flow', 2),
             ask('frac-ineq-crossing', 2),
             ask('frac-ineq-slip-which', 2),
           ],
@@ -759,13 +761,16 @@ export const algebraicFractions: Course = {
               ),
               working('x = 0: &\\quad \\tfrac{10}{-2} \\text{ is negative}', 'x = 3: &\\quad \\tfrac{4}{1} \\text{ is positive}', 'x = 6: &\\quad \\tfrac{-2}{4} \\text{ is negative}'),
               prose('We want it negative, so $x < 2$ or $x > 5$, both dots hollow.'),
+              prose(
+                'With $\\le$ or $\\ge$ the zero of the top is filled in, while the pole stays hollow: the fraction has no value there. So $\\frac{-2x + 10}{x - 2} \\le 0$ is $x < 2$ or $x \\ge 5$.',
+              ),
             ),
             ask('frac-ineq-line'),
             ask('frac-ineq-one-side-steps', 2),
             ask('frac-ineq-new-top-tiles', 2),
             teach(
               prose(
-                'Mind the minus in front of the bracket: $-3(x - 2)$ is $-3x + 6$, not $-3x - 6$. And with $\\le$ or $\\ge$, the zero of the top is filled in, while the pole stays hollow.',
+                'Mind the minus in front of the bracket: $-3(x - 2)$ is $-3x + 6$, not $-3x - 6$. In $\\frac{x + 4}{x - 2} - 3$ the top is $x + 4 - 3x + 6 = -2x + 10$.',
               ),
             ),
             ask('frac-ineq-critical-tree', 2),
@@ -785,21 +790,28 @@ export const algebraicFractions: Course = {
             ),
             ask('frac-ineq-square-steps'),
             ask('frac-ineq-square-tiles'),
-            ask('frac-ineq-shape-flow'),
             teach(
               prose(
-                'That is $-2(x - 2)(x - 5) < 0$, a quadratic whose graph opens downwards, with roots $2$ and $5$. It is negative outside the roots: $x < 2$ or $x > 5$, the same answer as before.',
+                'That is $-2(x - 2)(x - 5) < 0$. Its $x^{2}$ coefficient is $-2$, so its graph opens **downwards**, like an n, with roots $2$ and $5$: positive between the roots, negative outside them. We want negative, so $x < 2$ or $x > 5$, the same answer as before.',
               ),
-              prose('Take out the bracket rather than multiplying everything out: it hands you the pole as one of the roots.'),
-            ),
-            ask('frac-ineq-square-line'),
-            ask('frac-ineq-square-steps', 2),
-            ask('frac-ineq-square-tiles', 2),
-            teach(
+              prose(
+                'A positive $x^{2}$ coefficient opens **upwards**, like a U: negative between the roots, positive outside. $\\frac{x}{x - 1} > -1$ times $(x - 1)^{2}$ is $x(x - 1) > -(x - 1)^{2}$, so $(x - 1)[x + (x - 1)] > 0$, which is $(x - 1)(2x - 1) > 0$: a U, so $x < \\frac{1}{2}$ or $x > 1$.',
+              ),
               prose(
                 'One catch. With $\\le$ or $\\ge$ the quadratic is zero at the pole, so it counts the pole in. The fraction has no value there, so the pole is always a hollow dot. Only the crossing can be filled.',
               ),
             ),
+            ask('frac-ineq-shape-flow'),
+            ask('frac-ineq-square-line'),
+            ask('frac-ineq-square-steps', 2),
+            teach(
+              prose('The whole method once more, with $\\ge$. Multiply $\\frac{x - 1}{x + 2} \\ge 2$ by $(x + 2)^{2}$ and take out the bracket:'),
+              maths('\\begin{gathered} (x - 1)(x + 2) \\ge 2(x + 2)^{2} \\\\ (x + 2)[x - 1 - 2(x + 2)] \\ge 0 \\\\ (x + 2)(-x - 5) \\ge 0 \\end{gathered}'),
+              prose(
+                'The $x^{2}$ coefficient is $-1$, an n, so it is positive between the roots $-5$ and $-2$. The crossing $-5$ is filled; the pole $-2$ is hollow: $-5 \\le x < -2$.',
+              ),
+            ),
+            ask('frac-ineq-square-tiles', 2),
             ask('frac-ineq-shape-flow', 2),
             ask('frac-ineq-square-line', 2),
           ],
@@ -847,8 +859,13 @@ export const algebraicFractions: Course = {
               prose(
                 'Each end of the set is settled by what happens there. At a pole the dot is always hollow. At the crossing it is filled for $\\le$ or $\\ge$, and hollow for $<$ or $>$.',
               ),
+              prose('A full solve, from the question to a whole number. Take $2$ over and write one fraction:'),
+              working('\\frac{x + 2}{x - 1} &\\ge 2', '\\frac{x + 2 - 2(x - 1)}{x - 1} &\\ge 0', '\\frac{-x + 4}{x - 1} &\\ge 0'),
               prose(
-                'Read whole numbers with care. $-2 < x \\le 3$ holds $-1, 0, 1, 2, 3$: the least is $-1$, since $-2$ is left out.',
+                'The top is zero at $4$, the bottom at $1$. Test: $x = 0$ gives $\\frac{4}{-1}$, negative; $x = 2$ gives $\\frac{2}{1}$, positive; $x = 5$ gives $\\frac{-1}{4}$, negative. So $1 < x \\le 4$: the pole hollow, the crossing filled.',
+              ),
+              prose(
+                'Read whole numbers with care. $1 < x \\le 4$ holds $2, 3, 4$: the least is $2$, since the pole $1$ is left out, and the greatest is $4$.',
               ),
             ),
             ask('frac-ineq-table-line'),
@@ -865,6 +882,13 @@ export const algebraicFractions: Course = {
             teach(
               prose(
                 'A piece of the set can hold no whole number at all: $-1 < x < 0$ is a real stretch of the line, but nothing whole sits in it. So look past it for the least or greatest whole number.',
+              ),
+              prose(
+                'With a fraction on each side, take one over and use the product of the bottoms. $\\frac{x + 1}{x - 1} \\le \\frac{x + 3}{x + 2}$: the top is $(x + 1)(x + 2) - (x + 3)(x - 1)$, which is $x^{2} + 3x + 2 - (x^{2} + 2x - 3) = x + 5$.',
+              ),
+              maths('\\frac{x + 5}{(x - 1)(x + 2)} \\le 0'),
+              prose(
+                'Critical values $-5$, $-2$ and $1$. Test each region: $x = -6$ negative, $x = -3$ positive, $x = 0$ negative, $x = 2$ positive. So $x \\le -5$ or $-2 < x < 1$. The greatest whole number is $0$, since the pole $1$ is left out.',
               ),
             ),
             ask('frac-ineq-least-whole', 2),

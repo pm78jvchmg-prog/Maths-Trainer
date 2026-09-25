@@ -42,6 +42,14 @@ const ask = (generatorId: string, difficulty = 1): SlideRef => ({
   difficulty,
 });
 
+/** A question with teaching shown above it on the same slide. */
+const asking = (generatorId: string, difficulty: number, ...leadIn: Block[]): SlideRef => ({
+  type: 'generated',
+  generatorId,
+  difficulty,
+  leadIn,
+});
+
 const prose = (text: string): Block => ({ kind: 'prose', text });
 
 const maths = (tex: string): Block => ({ kind: 'display', tex });
@@ -278,9 +286,7 @@ export const numericalMethods: Course = {
                 'The sign changes, yet $\\frac{1}{x}$ is never $0$: the graph jumps across the axis at $x = 0$. $f$ is not continuous on $[-1, 1]$, so the rule does not apply.',
               ),
             ),
-            ask('numer-fail-picture'),
             ask('numer-fail-flow'),
-            ask('numer-touch-tiles'),
             teach(
               prose(
                 'Second, a touch. $f(x) = (x - 2)^{2}$ is $1$ at both $x = 1$ and $x = 3$, but it has a root at $x = 2$, where the curve touches the axis and turns back.',
@@ -288,9 +294,11 @@ export const numericalMethods: Course = {
               prose(
                 'A squared factor makes a repeated root, and the curve touches rather than crosses there, so $f$ keeps the same sign either side of it.',
               ),
+              prose(
+                'So a curve that touches the axis at $x = 2$ and crosses it at $x = -1$ has the factors $(x - 2)^{2}$ and $(x + 1)$: $y = (x - 2)^{2}(x + 1)$.',
+              ),
             ),
-            ask('numer-split-value'),
-            ask('numer-fail-picture', 2),
+            ask('numer-touch-tiles'),
             ask('numer-fail-flow', 2),
             teach(
               prose('Third, two roots close together. Both ends can have the same sign while the curve dips below the axis and back.'),
@@ -299,7 +307,10 @@ export const numericalMethods: Course = {
                 'The ends agree, but the middle is negative: a change of sign on $[1, 1.5]$ and another on $[1.5, 2]$, so two roots. Testing a point inside is how you find out.',
               ),
             ),
+            ask('numer-fail-picture'),
+            ask('numer-split-value'),
             ask('numer-touch-tiles', 2),
+            ask('numer-fail-picture', 2),
             ask('numer-split-value', 2),
           ],
           skillCheck: [ask('numer-fail-picture', 2), ask('numer-touch-tiles', 2), ask('numer-split-value', 2)],
@@ -327,15 +338,17 @@ export const numericalMethods: Course = {
               ),
             ),
             ask('iterate-fixed-point'),
-            ask('numer-rearrange-tiles', 2),
             ask('numer-scheme-equation', 2),
             teach(
-              prose('One equation has many rearrangements. $x^{3} - 3x - 5 = 0$ also gives'),
-              working('x &= \\frac{x^{3} - 5}{3}', 'x &= \\frac{5}{x^{2} - 3}'),
+              prose('One equation has many rearrangements. $x^{3} - 3x - 5 = 0$ can also keep the $x$ term on its own and divide:'),
+              working('3x &= x^{3} - 5', 'x &= \\frac{x^{3} - 5}{3}'),
+              prose('Or take out a factor of $x$ and divide by the bracket:'),
+              working('x(x^{2} - 3) &= 5', 'x &= \\frac{5}{x^{2} - 3}'),
               prose(
                 'All three have the same roots, but they do not all behave the same when iterated. Some close in on the root and some run away from it, which is the next two lessons.',
               ),
             ),
+            ask('numer-rearrange-tiles', 2),
             ask('numer-first-iterate-steps', 2),
             ask('iterate-fixed-point', 2),
           ],
@@ -354,7 +367,15 @@ export const numericalMethods: Course = {
             ),
             ask('numer-cobweb-slider'),
             ask('numer-cobweb-choice'),
-            ask('numer-fixed-limit'),
+            asking(
+              'numer-fixed-limit',
+              1,
+              prose(
+                'To give the root to a set accuracy, iterate until two values in a row agree to that many decimal places. $x_{n+1} = \\sqrt[3]{3x_n + 5}$ from $x_0 = 2$, written to 2 decimal places:',
+              ),
+              working('x_1 &= \\sqrt[3]{11} = 2.2240\\ldots \\to 2.22', 'x_2 &= 2.2684\\ldots \\to 2.27', 'x_3 &= 2.2770\\ldots \\to 2.28', 'x_4 &= 2.2786\\ldots \\to 2.28'),
+              prose('$x_3$ and $x_4$ agree, so the root is $2.28$ to 2 decimal places.'),
+            ),
             teach(
               prose('When $g$ slopes downward at the root, the path swings from side to side instead: a **cobweb**. This is $g(x) = \\frac{6}{x + 1}$ from $x_0 = 1$:'),
               cobweb,
@@ -367,8 +388,9 @@ export const numericalMethods: Course = {
             ask('numer-cobweb-choice', 2),
             teach(
               prose(
-                'To give the root to a set accuracy, iterate until two values in a row agree to that many decimal places. With a cobweb the values straddle the root, so the last two trap it between them.',
+                'With a cobweb the values land either side of the root in turn. $g(x) = \\frac{6}{x + 1}$ from $x_0 = 1$ gives $3$, $1.5$, $2.4$, $1.76$, $2.17$: over, under, over, under the root $2$.',
               ),
+              prose('So the last two values always trap the root between them, here $1.76 < 2 < 2.17$.'),
             ),
             ask('numer-fixed-limit', 2),
             ask('numer-cobweb-flow', 2),
@@ -389,23 +411,24 @@ export const numericalMethods: Course = {
               ),
             ),
             ask('numer-gprime'),
+            teach(
+              prose('$x^{3} - 3x - 5 = 0$ has a root $\\alpha \\approx 2.28$. Test its three rearrangements. For $g(x) = \\sqrt[3]{3x + 5} = (3x + 5)^{1/3}$, the chain rule gives'),
+              working("g'(x) &= \\tfrac{1}{3}(3x + 5)^{-2/3} \\times 3", '&= \\frac{1}{(3x + 5)^{2/3}}', "g'(2.28) &= \\frac{1}{11.84^{2/3}} \\approx 0.19"),
+              prose('For $g(x) = \\frac{x^{3} - 5}{3}$ and $g(x) = \\frac{5}{x^{2} - 3} = 5(x^{2} - 3)^{-1}$:'),
+              working("g'(x) &= x^{2}", "g'(2.28) &\\approx 5.2"),
+              working("g'(x) &= \\frac{-10x}{(x^{2} - 3)^{2}}", "g'(2.28) &\\approx -4.7"),
+              prose('Only the first has $|g\'(\\alpha)| < 1$, so only it converges; the other two throw every value further away than the last.'),
+            ),
             ask('numer-which-converges'),
             ask('numer-diverge-flow'),
-            teach(
-              prose('$x^{3} - 3x - 5 = 0$ has a root $\\alpha \\approx 2.28$. Test two rearrangements. For $g(x) = \\sqrt[3]{3x + 5}$:'),
-              maths("g'(\\alpha) = \\frac{1}{\\alpha^{2}} \\approx 0.19"),
-              prose('For $g(x) = \\frac{x^{3} - 5}{3}$:'),
-              maths("g'(\\alpha) = \\alpha^{2} \\approx 5.2"),
-              prose('The first converges; the second throws every value further away than the last.'),
-            ),
             ask('numer-fixed-limit'),
             ask('numer-gprime', 2),
-            ask('numer-which-converges', 2),
             teach(
               prose(
                 'A rearrangement that diverges says nothing against the root: $\\alpha$ is still there, and a different rearrangement of the same equation may find it. It is the recipe that failed, not the equation.',
               ),
             ),
+            ask('numer-which-converges', 2),
             ask('numer-diverge-flow', 2),
             ask('numer-fixed-limit', 2),
           ],
@@ -448,20 +471,22 @@ export const numericalMethods: Course = {
             ),
             ask('numer-newton-derivative'),
             ask('numer-newton-formula-tiles'),
-            ask('numer-newton-tree'),
             teach(
               prose('For $f(x) = x^{3} - 2x - 5$ from $x_0 = 2$: $f\'(x) = 3x^{2} - 2$.'),
-              working("f(2) &= -1, \\quad f'(2) = 10", 'x_1 &= 2 - \\frac{-1}{10} = 2.1'),
+              working("f(2) &= 8 - 4 - 5 = -1", "f'(2) &= 12 - 2 = 10", 'x_1 &= 2 - \\frac{-1}{10} = 2.1'),
               prose('Then do it again from $2.1$, and again, keeping full accuracy between steps.'),
             ),
+            ask('numer-newton-tree'),
             ask('iterate-newton-raphson'),
             ask('numer-newton-derivative', 2),
-            ask('numer-newton-formula-tiles', 2),
             teach(
               prose(
                 'Close to a root Newton-Raphson is fast: the number of correct decimal places roughly doubles each step. Three or four steps from a sensible start usually settle a root to four places.',
               ),
+              prose('Carrying on from $2.1$, the root being $2.094551\\ldots$, with how far out each step is beside it:'),
+              working('x_1 &= 2.1 & &0.005', 'x_2 &= 2.094568 & &0.00002', 'x_3 &= 2.094551 & &0.0000000002'),
             ),
+            ask('numer-newton-formula-tiles', 2),
             ask('numer-newton-tree', 2),
             ask('iterate-newton-raphson', 2),
           ],
@@ -523,12 +548,16 @@ export const numericalMethods: Course = {
             ),
             ask('numer-nr-fail-flow'),
             ask('numer-flat-tiles', 2),
-            ask('numer-nr-fail-picture', 2),
             teach(
               prose(
-                'Start close to the root you want, where the curve is steep, and away from turning points. Now and then a start sends the values back and forth between two points for ever, and a different start is the only cure.',
+                'Now and then a start sends the values back and forth between two points for ever. $f(x) = x^{3} - 2x + 2$ from $x_0 = 0$, with $f\'(x) = 3x^{2} - 2$:',
+              ),
+              working("x_1 &= 0 - \\frac{f(0)}{f'(0)} = 0 - \\frac{2}{-2} = 1", "x_2 &= 1 - \\frac{f(1)}{f'(1)} = 1 - \\frac{1}{1} = 0"),
+              prose(
+                'Back at $0$, so the next step gives $1$ again, and so on. A different start is the only cure: start close to the root you want, where the curve is steep, and away from turning points.',
               ),
             ),
+            ask('numer-nr-fail-picture', 2),
             ask('numer-tangent-slider', 2),
             ask('numer-nr-fail-flow', 2),
           ],
@@ -546,22 +575,25 @@ export const numericalMethods: Course = {
               prose('The two end heights count once. Every height in the middle is shared by two trapezia, so it counts twice.'),
             ),
             ask('numer-trapezium-tiles'),
-            ask('numer-ordinates-tree'),
-            ask('numer-trapezium-estimate'),
             teach(
-              prose('$\\int_0^3 (x^{2} + 1)\\,dx$ with 3 strips: $h = 1$, and the heights at $x = 0, 1, 2, 3$ are $1, 2, 5, 10$.'),
+              prose('$\\int_0^3 (x^{2} + 1)\\,dx$ with 3 strips: $h = \\frac{3 - 0}{3} = 1$, and the heights at $x = 0, 1, 2, 3$ are $1, 2, 5, 10$.'),
               trapezia,
-              maths('\\frac{1}{2}\\big[1 + 10 + 2(2 + 5)\\big] = 12.5'),
+              working('y_0 + y_3 &= 1 + 10 = 11', 'y_1 + y_2 &= 2 + 5 = 7', '\\tfrac{1}{2}(11 + 2 \\times 7) &= \\tfrac{1}{2} \\times 25 = 12.5'),
               prose('The exact value is $12$, so the estimate is close but not exact: it is an estimate, not the integral.'),
             ),
+            ask('numer-ordinates-tree'),
+            ask('numer-trapezium-estimate'),
             ask('numer-trapezium-steps'),
             ask('numer-trapezium-tiles', 2),
-            ask('numer-ordinates-tree', 2),
             teach(
               prose(
                 'More strips give a better estimate, since shorter chords hug the curve more closely. Halving $h$ cuts the error to about a quarter.',
               ),
+              prose(
+                'For $\\int_0^3 (x^{2} + 1)\\,dx$, 3 strips gave $12.5$, out by $0.5$. Six strips of $h = 0.5$ give $12.125$, out by $0.125$: a quarter of the error.',
+              ),
             ),
+            ask('numer-ordinates-tree', 2),
             ask('numer-trapezium-estimate', 2),
             ask('numer-trapezium-steps', 2),
           ],
@@ -640,13 +672,24 @@ export const numericalMethods: Course = {
               working('\\text{error} &= 0.63 - 0.625', '&= 0.005'),
               prose('Positive, so an overestimate; its size, the absolute error, is also $0.005$.'),
             ),
-            ask('numer-over-under-flow'),
+            asking(
+              'numer-over-under-flow',
+              1,
+              prose(
+                'A value correctly rounded to 2 decimal places is never out by more than $0.005$, half a unit in the last place (Numerical Methods Basics, A Root to a Set Accuracy). An estimate out by more than that is not the correctly rounded value.',
+              ),
+              prose('$\\frac{2}{3} = 0.66666\\ldots$:'),
+              working('0.67 - 0.66666\\ldots &\\approx 0.0033', '0.66 - 0.66666\\ldots &\\approx -0.0067'),
+              prose('$0.67$ is within $0.005$, so it is $\\frac{2}{3}$ correctly rounded. $0.66$ is out by more, so it is not.'),
+            ),
             ask('numer-abs-error', 2),
             ask('numer-abs-size-steps', 2),
             teach(
               prose(
-                'A value correctly rounded to 2 decimal places is never out by more than $0.005$, half a unit in the last place; Numerical Methods Basics, A Root to a Set Accuracy, turned that into bounds. An estimate out by more than that is not the correctly rounded value, however many places it shows.',
+                'Each extra decimal place makes that limit ten times smaller: to 3 decimal places it is $0.0005$. $\\sqrt{2} = 1.414213\\ldots$:',
               ),
+              working('1.414 - \\sqrt{2} &\\approx -0.00021', '1.415 - \\sqrt{2} &\\approx 0.00079'),
+              prose('$1.414$ is within $0.0005$, so it is $\\sqrt{2}$ correctly rounded; $1.415$ is not, however many places it shows.'),
             ),
             ask('numer-closest-choice', 2),
             ask('numer-over-under-flow', 2),
@@ -662,22 +705,38 @@ export const numericalMethods: Course = {
                 'An error of $1$ cm is huge in a $5$ cm pencil and nothing in a $100$ m track. The **relative error** measures the error against the size of the thing:',
               ),
               maths('\\frac{\\text{estimate} - \\text{exact value}}{\\text{exact value}}'),
-              prose('Times $100$, it is the **percentage error**.'),
+              prose('Times $100$, it is the **percentage error**. A length of exactly $40$ cm, measured as $41$ cm:'),
+              working('\\text{error} &= 41 - 40 = 1', '\\text{relative} &= \\tfrac{1}{40} = 0.025', '\\text{percent} &= 0.025 \\times 100 \\\\ &= 2.5\\%'),
+              prose('Always divide by the exact value, never the estimate.'),
             ),
             ask('numer-rel-error'),
             ask('numer-rel-tiles'),
-            ask('numer-rel-slider'),
             teach(
-              prose('A length of exactly $40$ cm, measured as $41$ cm:'),
-              working('\\text{error} &= 41 - 40 = 1', '\\text{relative} &= \\tfrac{1}{40} = 0.025', '\\text{percentage} &= 2.5\\%'),
-              prose('Always divide by the exact value, never the estimate.'),
+              prose(
+                'Relative error is what makes different measurements comparable. $2$ g out on $1$ kg, which is $1000$ g, and $0.3$ g out on $10$ g:',
+              ),
+              working('\\tfrac{2}{1000} &= 0.002 = 0.2\\%', '\\tfrac{0.3}{10} &= 0.03 = 3\\%'),
+              prose('The second error is smaller, but the first measurement is better: its error is a smaller share of the thing measured.'),
             ),
             ask('numer-rel-compare'),
+            asking(
+              'numer-rel-slider',
+              1,
+              prose(
+                'Backwards: from the exact value and the percentage error to the estimate. The error is that percentage **of the exact value**. Exactly $40$, with a percentage error of $-5\\%$:',
+              ),
+              working('5\\% \\text{ of } 40 &= 0.05 \\times 40 = 2', '\\text{estimate} &= 40 - 2 = 38'),
+              prose('A positive percentage adds instead: $+5\\%$ gives $40 + 2 = 42$.'),
+            ),
             ask('numer-rel-error', 2),
             ask('numer-rel-tiles', 2),
             teach(
               prose(
-                'Relative error is what makes different measurements comparable. $2$ g out on $1$ kg is $0.2\\%$; $0.3$ g out on $10$ g is $3\\%$. The second error is smaller, and the first measurement is better.',
+                'From the estimate back to the exact value, divide. A percentage error of $+10\\%$ makes the estimate $110\\%$ of the exact value, so an estimate of $44$ gives',
+              ),
+              working('\\text{exact} &= 44 \\div 1.1 = 40'),
+              prose(
+                'Not $44 - 4.4$: the $10\\%$ is of the exact value, not of the estimate. With $-5\\%$ the estimate is $95\\%$ of it, so an estimate of $38$ gives $38 \\div 0.95 = 40$.',
               ),
             ),
             ask('numer-rel-slider', 2),
@@ -691,28 +750,42 @@ export const numericalMethods: Course = {
           slides: [
             teach(
               prose(
-                'A value rounded to 1 decimal place could be anywhere within $0.05$ of it (Numerical Methods Basics, A Root to a Set Accuracy): $a = 3.4$ means $3.35 \\le a < 3.45$. Calculate with rounded values and the result is uncertain too.',
+                'A value rounded to 1 decimal place could be anywhere within $0.05$ of it (Numerical Methods Basics, A Root to a Set Accuracy): $a = 3.4$ means $3.35 \\le a < 3.45$. To the nearest whole number it is within $0.5$: $12$ means $11.5$ to $12.5$. Calculate with rounded values and the result is uncertain too.',
               ),
               prose('With $b = 2.7$ as well, the least sum takes both lower bounds and the greatest both upper bounds:'),
               working('3.35 + 2.65 &= 6.0', '3.45 + 2.75 &= 6.2'),
+              prose('A product of positive values works the same way, lower with lower and upper with upper, as for a rectangle $a$ by $b$:'),
+              working('3.35 \\times 2.65 &= 8.8775', '3.45 \\times 2.75 &= 9.4875'),
             ),
-            ask('numer-bound-tree'),
             ask('numer-bound-value'),
-            ask('numer-bound-ends'),
             teach(
               prose(
                 'Taking away or dividing turns an input round. The least $a - b$ is the least $a$ minus the greatest $b$; the least $\\frac{a}{b}$ is the least $a$ over the greatest $b$.',
               ),
-              prose('With the same $a$ and $b$, the least and greatest $a - b$:'),
+              prose('With the same $a$ and $b$, the least and greatest $a - b$, then $\\frac{a}{b}$:'),
               working('3.35 - 2.75 &= 0.6', '3.45 - 2.65 &= 0.8'),
+              working('\\tfrac{3.35}{2.75} &= 1.2181\\ldots', '\\tfrac{3.45}{2.65} &= 1.3018\\ldots'),
+            ),
+            ask('numer-bound-tree'),
+            ask('numer-bound-ends'),
+            teach(
+              prose(
+                'Bounds say how far a result can be trusted. If both bounds round to the same value at some accuracy, the result is known to that accuracy.',
+              ),
+              prose('$ab$ above runs from $8.8775$ to $9.4875$. To 1 decimal place those are $8.9$ and $9.5$, which differ; to the nearest whole number both are $9$. So $ab = 9$ to the nearest whole number.'),
             ),
             ask('numer-bound-accuracy-flow'),
             ask('numer-bound-tree', 2),
-            ask('numer-bound-value', 2),
-            teach(
+            asking(
+              'numer-bound-value',
+              2,
               prose(
-                'Bounds say how far a result can be trusted. If both bounds round to the same value at some accuracy, the result is known to that accuracy. $a + b$ above runs from $6.0$ to $6.2$: those differ at 1 decimal place but agree as $6$, so $a + b = 6$ to the nearest whole number.',
+                'With two operations, push each input to whichever end makes the whole thing smallest (or largest). Whatever is taken away, or sits on the bottom of a fraction, goes to the opposite end. With $c = 1.2$ as well:',
               ),
+              prose('Least: $3.35 \\times 2.65 - 1.25$'),
+              working('&= 8.8775 - 1.25', '&= 7.6275'),
+              prose('Greatest: $3.45 \\times 2.75 - 1.15$'),
+              working('&= 9.4875 - 1.15', '&= 8.3375'),
             ),
             ask('numer-bound-ends', 2),
             ask('numer-bound-accuracy-flow', 2),
@@ -732,21 +805,25 @@ export const numericalMethods: Course = {
               prose('The gap of $0.01$ in $x_n$ has shrunk to about $0.002$ in $x_{n+1}$.'),
             ),
             ask('numer-carry-tree'),
-            ask('numer-carry-error'),
             ask('numer-carry-slider'),
             teach(
               prose("Near the root each step multiplies the error by about $g'(\\alpha)$ (Numerical Methods Basics, When Iteration Fails):"),
               maths("x_{n+1} - \\alpha \\approx g'(\\alpha)(x_n - \\alpha)"),
-              prose("Above, $g'(x) = \\frac{1}{2\\sqrt{x + 3}}$ and $g'(\\alpha) \\approx 0.22$, so a gap of $0.01$ becomes about $0.002$."),
+              prose('Above, the root of $x = \\sqrt{x + 3}$ is $\\alpha \\approx 2.30$:'),
+              working("g'(x) &= \\frac{1}{2\\sqrt{x + 3}}", "g'(2.30) &= \\frac{1}{2\\sqrt{5.30}} \\approx 0.22", '0.22 \\times 0.01 &= 0.0022'),
+              prose('So a gap of $0.01$ in $x_n$ becomes about $0.002$ in $x_{n+1}$, as the bounds showed.'),
             ),
+            ask('numer-carry-error'),
             ask('numer-shrink-flow'),
             ask('numer-carry-tree', 2),
-            ask('numer-carry-error', 2),
             teach(
               prose(
                 "When $g$ is decreasing, $g'(\\alpha) < 0$: the error changes sign each step, and the upper bound of $x_n$ gives the lower bound of $x_{n+1}$. Its size still shrinks while $|g'(\\alpha)| < 1$.",
               ),
+              prose('For $x_{n+1} = \\frac{6}{x_n + 1}$ with $x_n = 2.0$ to 1 decimal place:'),
+              working('\\tfrac{6}{1.95 + 1} &= 2.034 \\quad \\text{(upper)}', '\\tfrac{6}{2.05 + 1} &= 1.967 \\quad \\text{(lower)}'),
             ),
+            ask('numer-carry-error', 2),
             ask('numer-carry-slider', 2),
             ask('numer-shrink-flow', 2),
           ],
@@ -759,15 +836,23 @@ export const numericalMethods: Course = {
             teach(
               prose("Each step multiplies the error by about $r = |g'(\\alpha)|$, so after $k$ steps a starting error of at most $\\delta$ is at most about"),
               maths('r^{k}\\delta'),
-              prose('To be sure of an accuracy $\\varepsilon$, find the first $k$ with $r^{k}\\delta < \\varepsilon$.'),
+              prose('To be sure of an accuracy $\\varepsilon$, find the first $k$ with $r^{k}\\delta < \\varepsilon$. With $r = 0.4$, $\\delta = 0.5$ and $\\varepsilon = 0.001$:'),
+              working('0.4^{k} \\times 0.5 &< 0.001', '0.4^{k} &< 0.002', 'k \\ln 0.4 &< \\ln 0.002', 'k &> \\frac{\\ln 0.002}{\\ln 0.4} = 6.78'),
+              prose('$\\ln 0.4$ is negative, so dividing by it turns the inequality round. The first whole number past $6.78$ is $k = 7$.'),
             ),
             ask('numer-k-count'),
             ask('numer-k-tiles'),
             ask('numer-k-logs-steps'),
             teach(
-              prose('With $r = 0.4$, $\\delta = 0.5$ and $\\varepsilon = 0.001$:'),
-              working('0.4^{k} \\times 0.5 &< 0.001', '0.4^{k} &< 0.002', 'k &> \\frac{\\ln 0.002}{\\ln 0.4} = 6.78'),
-              prose('$\\ln 0.4$ is negative, so dividing by it turns the inequality round. So $k = 7$.'),
+              prose(
+                'The same factor shows in a table. $x_{n+1} = \\sqrt[3]{3x_n + 5}$ from $x_0 = 2$, where $r \\approx 0.19$, written to 2 decimal places:',
+              ),
+              working('x_1 &= 2.2240\\ldots \\to 2.22', 'x_2 &= 2.2684\\ldots \\to 2.27', 'x_3 &= 2.2770\\ldots \\to 2.28'),
+              prose(
+                'The steps between rows, $0.224$, $0.044$, $0.009$, each shrink by about $0.2$, as the errors do. The values settle between $2.2$ and $2.3$, and a change of sign proves it:',
+              ),
+              working('f(x) &= x^{3} - 3x - 5', 'f(2.2) &= -0.952 < 0', 'f(2.3) &= 0.267 > 0'),
+              prose('So $2.2 < \\alpha < 2.3$.'),
             ),
             ask('numer-error-iterate'),
             ask('numer-k-count', 2),
@@ -818,7 +903,13 @@ export const numericalMethods: Course = {
               maths('A \\approx \\frac{h}{3}(y_0 + 4y_1 + y_2)'),
             ),
             ask('numer-parabola-tree'),
-            ask('numer-simpson-tiles'),
+            asking(
+              'numer-simpson-tiles',
+              1,
+              prose('When only the interval is given, find $h$ first: two strips share its width. Over $[1, 1.6]$:'),
+              working('h &= \\frac{1.6 - 1}{2} = 0.3', '\\frac{h}{3} &= \\frac{0.3}{3} = 0.1'),
+              prose('So $A \\approx 0.1(y_0 + 4y_1 + y_2)$, with the heights at $x = 1$, $1.3$ and $1.6$.'),
+            ),
             ask('numer-weights-choice'),
             teach(
               prose('$\\int_0^2 (3x^{2} + 1)\\,dx$ with $h = 1$ has heights $1$, $4$ and $13$:'),
@@ -827,16 +918,18 @@ export const numericalMethods: Course = {
             ),
             ask('numer-simpson-steps'),
             ask('numer-parabola-tree', 2),
-            ask('numer-simpson-tiles', 2),
+            ask('numer-simpson-tiles'),
             teach(
               prose(
                 'The weights $1, 4, 1$ add up to $6$, and $\\frac{h}{3} \\times 6 = 2h$, the width of the pair. So on a flat line every height is the same and the rule gives width times height, as it should. The middle height counts most because it sits in the middle of the parabola.',
               ),
+              prose('A flat line $y = 5$ over $[0, 2]$, $h = 1$: $\\tfrac{1}{3}(5 + 4 \\times 5 + 5) = \\tfrac{1}{3} \\times 30 = 10$, which is $2 \\times 5$.'),
             ),
-            ask('numer-weights-choice', 2),
-            ask('numer-simpson-steps', 2),
+            ask('numer-weights-choice'),
+            ask('numer-simpson-steps'),
           ],
-          skillCheck: [ask('numer-parabola-tree', 2), ask('numer-simpson-steps', 2), ask('numer-weights-choice', 2)],
+          // Difficulty 2 of these three uses four strips, which is the next lesson.
+          skillCheck: [ask('numer-parabola-tree', 2), ask('numer-simpson-steps'), ask('numer-weights-choice')],
         },
         {
           id: 'nm-l4-strips',
@@ -847,9 +940,14 @@ export const numericalMethods: Course = {
                 'With more strips, take them in pairs, one parabola to a pair. Each pair weights its heights $1, 4, 1$, and a height where two pairs meet collects a $1$ from each: $2$.',
               ),
               working('A &\\approx \\tfrac{h}{3}[y_0 + y_n', '&\\quad + 4(y_1 + y_3 + \\cdots)', '&\\quad + 2(y_2 + y_4 + \\cdots)]'),
-              prose('Four strips weight the heights $1, 4, 2, 4, 1$.'),
+              prose('Four strips weight the heights $1, 4, 2, 4, 1$; six strips, $1, 4, 2, 4, 2, 4, 1$.'),
             ),
-            ask('numer-strips-tree'),
+            asking(
+              'numer-strips-tree',
+              1,
+              prose('Heights $3, 5, 9, 15, 23$ at $x = 0, 3, 6, 9, 12$: four strips, so $h = 3$.'),
+              working('y_0 + y_4 &= 3 + 23 = 26', '4(y_1 + y_3) &= 4(5 + 15) = 80', '2y_2 &= 2 \\times 9 = 18', '\\tfrac{3}{3}(26 + 80 + 18) &= 124'),
+            ),
             ask('numer-weights-tiles'),
             ask('numer-simpson-estimate'),
             teach(
@@ -864,8 +962,9 @@ export const numericalMethods: Course = {
             ask('numer-strips-tree', 2),
             ask('numer-weights-tiles', 2),
             teach(
-              prose('Heights $3, 5, 9, 15, 23$ at $x = 0, 3, 6, 9, 12$, so $h = 3$:'),
-              working('3 + 23 &= 26', '4(5 + 15) &= 80', '2 \\times 9 &= 18', '\\tfrac{3}{3}(26 + 80 + 18) &= 124'),
+              prose('A check on the weights: they always add up to $3n$ for $n$ strips, so on a flat line the rule gives the whole width times the height.'),
+              working('1 + 4 + 2 + 4 + 1 &= 12 = 3 \\times 4', '\\tfrac{h}{3} \\times 12 &= 4h'),
+              prose('Four strips of width $h$ are $4h$ wide, as they should be. If your weights add up to anything else, one is wrong.'),
             ),
             ask('numer-simpson-estimate', 2),
             ask('numer-odd-flow', 2),
@@ -890,8 +989,10 @@ export const numericalMethods: Course = {
                 "Simpson's rule is the trapezium rule corrected. With $T_1$ from one strip and $T_2$ from two, on the same three heights:",
               ),
               maths('S = \\frac{4T_2 - T_1}{3}'),
+              prose('$y = 3x^{2}$ on $[0, 2]$ has heights $0, 3, 12$ at $x = 0, 1, 2$:'),
+              working('T_1 &= \\tfrac{2}{2}(0 + 12) = 12', 'T_2 &= \\tfrac{1}{2}(0 + 2 \\times 3 + 12) = 9', 'S &= \\frac{4 \\times 9 - 12}{3} = 8'),
               prose(
-                'And which way the estimate moved tells you the bend: if $T_2 < T_1$, the chords were sitting above the curve, so it bends upward.',
+                "That is $\\tfrac{1}{3}(0 + 4 \\times 3 + 12) = 8$, Simpson's rule. And which way the estimate moved tells you the bend: $T_2 < T_1$, so the chords were sitting above the curve, and it bends upward.",
               ),
             ),
             ask('numer-refine-flow'),
@@ -1007,12 +1108,16 @@ export const numericalMethods: Course = {
               ),
               working('x_1 &= x_0 + h', 'y_1 &= y_0 + h\\,f(x_0, y_0)'),
             ),
-            ask('numer-euler-step-tree'),
+            asking(
+              'numer-euler-step-tree',
+              1,
+              prose('$\\frac{dy}{dx} = x + y$ with $y = 1$ when $x = 0$, and $h = 0.5$:'),
+              working('x_1 &= 0 + 0.5 = 0.5', 'f(0, 1) &= 0 + 1 = 1', 'h\\,f(0, 1) &= 0.5 \\times 1 = 0.5', 'y_1 &= 1 + 0.5 = 1.5'),
+            ),
             ask('numer-euler-formula-tiles'),
             ask('numer-euler-point-choice'),
             teach(
-              prose('$\\frac{dy}{dx} = x + y$ with $y = 1$ when $x = 0$, and $h = 0.5$:'),
-              working('f(0, 1) &= 0 + 1 = 1', 'y_1 &= 1 + 0.5 \\times 1 = 1.5'),
+              prose('That first step, from $(0, 1)$ to $(0.5, 1.5)$, drawn with the true solution curve:'),
               eulerTangent,
               prose(
                 'The tangent reaches $1.5$ at $x = 0.5$; the curve itself is at about $1.8$ by then. One step is an estimate, and it drifts off the curve as the curve bends away.',
@@ -1026,8 +1131,9 @@ export const numericalMethods: Course = {
                 'Three slips to avoid. The rise is $h$ times the gradient, not the gradient itself. The gradient is taken where the step **starts**, not where it ends. And the step is added to $y_0$: $h\\,f(x_0, y_0)$ alone is how far $y$ climbs, not where it gets to.',
               ),
             ),
-            ask('numer-euler-formula-tiles', 2),
-            ask('numer-euler-point-choice', 2),
+            // Difficulty 2 of these two takes a second step, which is Stepping On.
+            ask('numer-euler-formula-tiles'),
+            ask('numer-euler-point-choice'),
           ],
           skillCheck: [ask('numer-euler-step-tree', 2), ask('numer-euler-tangent-slider', 2), ask('numer-euler-first-value', 2)],
         },
@@ -1044,7 +1150,6 @@ export const numericalMethods: Course = {
             ),
             ask('numer-euler-table'),
             ask('numer-euler-chain-steps'),
-            ask('numer-euler-count-flow'),
             teach(
               prose('$\\frac{dy}{dx} = 2x + 1$ with $y = 1$ when $x = 0$, and $h = 0.5$:'),
               maths(
@@ -1053,16 +1158,26 @@ export const numericalMethods: Course = {
               eulerSteps,
               prose('Each step is a straight line with the gradient at its own start, so the path is a chain of tangents.'),
             ),
-            ask('numer-euler-reach-value'),
+            asking(
+              'numer-euler-reach-value',
+              1,
+              prose(
+                'To estimate $y$ at a given $x$, count the steps first: from $x_0$ to $X$ in steps of $h$ is $\\frac{X - x_0}{h}$ of them, and the answer is the last $y$. In the table above:',
+              ),
+              working('\\frac{1.5 - 0}{0.5} &= 3 \\text{ steps}', 'y(1.5) &\\approx y_3 = 4'),
+            ),
             ask('numer-euler-table', 2),
             ask('numer-euler-chain-steps', 2),
             teach(
               prose(
-                'To estimate $y$ at a given $x$, count the steps first: from $x_0$ to $X$ in steps of $h$ is $\\frac{X - x_0}{h}$ of them, and the answer is the last $y$. From $0$ to $1.5$ with $h = 0.5$ is three steps, so $y(1.5) \\approx y_3 = 4$.',
+                'When $f$ has $y$ in it as well, each gradient uses the $y$ the last step reached. $\\frac{dy}{dx} = x + y$ with $y = 1$ when $x = 0$, estimating $y(1)$ with $h = 0.5$: $\\frac{1 - 0}{0.5} = 2$ steps, so the answer is $y_2$.',
               ),
+              working('f(0, 1) &= 0 + 1 = 1', 'y_1 &= 1 + 0.5 \\times 1 = 1.5', 'f(0.5, 1.5) &= 0.5 + 1.5 = 2', 'y_2 &= 1.5 + 0.5 \\times 2 = 2.5'),
+              prose('So $y(1) \\approx 2.5$. The next lesson, When f Has y in It, takes this further.'),
             ),
-            ask('numer-euler-count-flow', 2),
+            ask('numer-euler-count-flow'),
             ask('numer-euler-reach-value', 2),
+            ask('numer-euler-count-flow', 2),
           ],
           skillCheck: [ask('numer-euler-table', 2), ask('numer-euler-chain-steps', 2), ask('numer-euler-reach-value', 2)],
         },
@@ -1115,14 +1230,16 @@ export const numericalMethods: Course = {
             ),
             ask('numer-euler-exact-steps'),
             ask('numer-euler-error-tree'),
-            ask('numer-euler-miss-flow'),
             teach(
               prose(
                 'Which way Euler misses comes from the bend. If the gradient rises as $x$ grows, the curve bends upward, each tangent runs below it, and every step lands low: an **underestimate**. If the gradient falls, the curve bends down and Euler overshoots.',
               ),
               eulerSteps,
-              prose('$2x + 1$ rises, so the steps fall further below $y = x^{2} + x + 1$ at every step.'),
+              prose(
+                '$2x + 1$ is $1$ at $x = 0$ and $4$ at $x = 1.5$: it rises, so the steps fall further below $y = x^{2} + x + 1$ at every step, and the error, $-0.75$, is negative.',
+              ),
             ),
+            ask('numer-euler-miss-flow'),
             ask('numer-euler-error-value'),
             ask('numer-euler-miss-choice'),
             ask('numer-euler-exact-steps', 2),
@@ -1146,22 +1263,26 @@ export const numericalMethods: Course = {
               prose('Halving the step halved the error. That is the rule of thumb for Euler: the error is roughly **proportional to $h$**.'),
             ),
             ask('numer-euler-halve-table'),
-            ask('numer-euler-halve-choice'),
-            ask('numer-euler-size-slider'),
             teach(
               prose(
                 'For a straight-line gradient like $2x + 1$ the halving is exact. For anything else it is roughly so, and closer the smaller $h$ already is. The estimate stays on the same side of the true value, since the curve still bends the same way.',
+              ),
+              prose('So from one estimate and the true value, the next can be foreseen. Above, the true $y(1.5)$ is $4.75$:'),
+              prose('With $h = 0.5$ the error is $4 - 4.75 = -0.75$. With $h = 0.25$ it is roughly half that:'),
+              working('\\text{error} &\\approx \\tfrac{1}{2}(-0.75) = -0.375', 'y_6 &\\approx 4.75 - 0.375 = 4.375'),
+            ),
+            ask('numer-euler-halve-choice'),
+            ask('numer-euler-size-slider'),
+            teach(
+              prose('So a target error sets the step. The same journey, with an error of $0.75$ wanted down to $0.05$:'),
+              working('\\frac{0.75}{0.05} &= 15', 'h &= \\frac{0.5}{15} = \\frac{1}{30}', '\\text{steps} &= 3 \\times 15 = 45'),
+              prose(
+                'The error must shrink $15$ times, so $h$ must too, and a step $15$ times shorter takes $15$ times as many steps over the same journey: $45$ instead of $3$. Every extra decimal place costs about ten times the steps, which is why better methods than Euler exist.',
               ),
             ),
             ask('numer-euler-size-flow'),
             ask('numer-euler-needed-value'),
             ask('numer-euler-halve-table', 2),
-            teach(
-              prose(
-                'So a target error sets the step. An error of $0.75$ wanted down to $0.05$ must shrink $15$ times, so $h$ must too: $\\frac{0.5}{15}$, which is $3 \\times 15 = 45$ steps instead of $3$.',
-              ),
-              prose('Every extra decimal place costs about ten times the steps. That is why better methods than Euler exist.'),
-            ),
             ask('numer-euler-halve-choice', 2),
             ask('numer-euler-size-slider', 2),
           ],
@@ -1198,31 +1319,34 @@ export const numericalMethods: Course = {
               prose(
                 'A change of sign on $[a, b]$ traps a root (Numerical Methods Basics, The Change of Sign). **Bisection** tightens the trap: work out $f$ at the midpoint $m = \\frac{a + b}{2}$, and keep the half whose ends still differ in sign.',
               ),
-              bisectionFigure,
-              prose('Each halving keeps the root trapped and halves the interval. It cannot fail once it has started.'),
+              prose('$f(x) = x^{3} - 2x - 5$ with $f(2) = -1$ and $f(3) = 16$. The first midpoint is $2.5$, and $f(2.5) = 5.625$ is positive like $f(3)$, so keep $[2, 2.5]$. Then again:'),
+              maths(
+                '\\begin{array}{c|c|c|c|c} n & a & b & m & f(m) \\\\ \\hline 0 & 2 & 3 & 2.5 & + \\\\ 1 & 2 & 2.5 & 2.25 & + \\\\ 2 & 2 & 2.25 & 2.125 & + \\end{array}',
+              ),
+              prose('Every midpoint was positive, so $b$ moved in each time and the root is in $[2, 2.125]$.'),
             ),
             ask('numer-bisect-flow'),
             ask('numer-bisect-table'),
             ask('numer-bisect-choice'),
             teach(
-              prose('$f(x) = x^{3} - 2x - 5$ with $f(2) = -1$ and $f(3) = 16$:'),
-              maths(
-                '\\begin{array}{c|c|c|c|c} n & a & b & m & f(m) \\\\ \\hline 0 & 2 & 3 & 2.5 & + \\\\ 1 & 2 & 2.5 & 2.25 & + \\\\ 2 & 2 & 2.25 & 2.125 & + \\end{array}',
-              ),
+              bisectionFigure,
               prose(
-                'Every midpoint was positive, so $b$ moved in each time and the root is in $[2, 2.125]$. After $k$ halvings the width is $\\frac{b - a}{2^{k}}$: here $\\frac{1}{8}$.',
+                'Each halving keeps the root trapped and halves the interval. After $k$ halvings the width is $\\frac{b - a}{2^{k}}$: above, $\\frac{1}{2^{3}} = \\frac{1}{8}$.',
               ),
+              prose('To know how many halvings a job needs, solve that the other way. From width $1$ to below $0.001$:'),
+              working('\\frac{1}{2^{k}} &< 0.001', '2^{k} &> 1000'),
+              prose('$2^{9} = 512$ is not enough and $2^{10} = 1024$ is, so ten halvings.'),
             ),
             ask('numer-bisect-halvings'),
             ask('numer-bisect-table', 2),
             ask('numer-bisect-flow', 2),
             teach(
               prose(
-                'To know how many halvings a job needs, solve $\\frac{b - a}{2^{k}} < \\varepsilon$. From width $1$ to below $0.001$: $2^{k} > 1000$, and $2^{10} = 1024$, so ten halvings.',
-              ),
-              prose(
                 'The midpoint of the last interval is at most half its width from the root, so a midpoint within $\\varepsilon$ only needs a width below $2\\varepsilon$: one halving fewer.',
               ),
+              prose('From width $1$, a midpoint within $0.001$ needs a width below $0.002$:'),
+              working('\\frac{1}{2^{k}} &< 0.002', '2^{k} &> 500'),
+              prose('$2^{9} = 512$ is enough, so nine halvings.'),
             ),
             ask('numer-bisect-halvings', 2),
             ask('numer-bisect-choice', 2),
@@ -1241,9 +1365,15 @@ export const numericalMethods: Course = {
                 'For $f(x) = x^{3} - 2x - 5$: bisection on $[2, 3]$, the iteration $x_{n+1} = \\sqrt[3]{2x_n + 5}$, and Newton-Raphson, both from $x_0 = 2$.',
               ),
             ),
-            ask('numer-side-flow'),
+            asking(
+              'numer-side-flow',
+              1,
+              prose('The first step of each. Bisection: the midpoint of $[2, 3]$ is $2.5$. Iteration: put $x_0 = 2$ into $g$.'),
+              working('x_1 &= \\sqrt[3]{2 \\times 2 + 5} = \\sqrt[3]{9} = 2.0801'),
+              prose("Newton-Raphson: $f'(x) = 3x^{2} - 2$, then the formula at $x_0 = 2$."),
+              working("f(2) &= 8 - 4 - 5 = -1", "f'(2) &= 12 - 2 = 10", 'x_1 &= 2 - \\frac{-1}{10} = 2.1'),
+            ),
             ask('numer-side-steps'),
-            ask('numer-side-table'),
             teach(
               prose('Steps 1 to 3 of each:'),
               maths(
@@ -1253,16 +1383,19 @@ export const numericalMethods: Course = {
                 'The root is $2.0946$ to four places. Newton-Raphson has it after two steps and stops moving; the iteration is still creeping up; bisection is still $0.03$ away.',
               ),
             ),
-            ask('numer-nearest-method'),
-            ask('numer-side-table', 2),
+            ask('numer-side-table'),
             ask('numer-side-flow', 2),
             teach(
               prose(
                 'Without knowing the root, how much a column is still moving is the clue. A value that has stopped changing to four places has settled; one still changing in the second place has not.',
               ),
-              prose('Bisection only ever says which interval the root is in, so its midpoints jump by half the last width however close they are.'),
+              prose(
+                'In the table above, Newton-Raphson went $2.0946$ to $2.0946$: no change. The iteration went $2.0924$ to $2.0942$, still moving in the third place. Bisection went $2.25$ to $2.125$: it only ever says which interval the root is in, so its midpoints jump by half the last width however close they are.',
+              ),
             ),
+            ask('numer-nearest-method'),
             ask('numer-side-steps', 2),
+            ask('numer-side-table', 2),
             ask('numer-nearest-method', 2),
           ],
           skillCheck: [ask('numer-side-table', 2), ask('numer-side-flow', 2), ask('numer-nearest-method', 2)],
@@ -1282,11 +1415,21 @@ export const numericalMethods: Course = {
             ),
             ask('numer-speed-flow'),
             ask('numer-speed-table'),
-            ask('numer-k-count'),
+            asking(
+              'numer-k-count',
+              1,
+              prose(
+                'How many iteration steps a job needs comes from logarithms. Each step multiplies the error by $0.5$, it starts at most $0.5$, and it must get below $0.001$:',
+              ),
+              working('0.5^{k} \\times 0.5 &< 0.001', '0.5^{k} &< 0.002', 'k \\ln 0.5 &< \\ln 0.002', 'k &> \\frac{\\ln 0.002}{\\ln 0.5} = 8.97'),
+              prose('$\\ln 0.5$ is negative, so dividing by it turns the inequality round. The first whole number past $8.97$ is $k = 9$.'),
+            ),
             teach(
               prose('From an error of $0.1$ to below $10^{-6}$:'),
-              prose('Bisection: $\\frac{0.1}{2^{k}} < 10^{-6}$ needs $2^{k} > 100\\,000$, so $k = 17$.'),
-              prose("Iteration with $|g'| = 0.2$: $0.2^{k} \\times 0.1 < 10^{-6}$ needs $k = 8$."),
+              prose('Bisection: $\\frac{0.1}{2^{k}} < 10^{-6}$ needs $2^{k} > 100\\,000$; $2^{16} = 65\\,536$ is not enough and $2^{17} = 131\\,072$ is, so $k = 17$.'),
+              prose(
+                "Iteration with $|g'| = 0.2$: $0.2^{k} \\times 0.1 < 10^{-6}$ gives $0.2^{k} < 10^{-5}$, so $k > \\frac{\\ln 10^{-5}}{\\ln 0.2} = 7.15$ and $k = 8$.",
+              ),
               prose('Newton-Raphson: $1, 2, 4, 8$ correct places, so $k = 3$.'),
               prose('A small $|g\'(\\alpha)|$ makes iteration quick; one near $1$ makes it slower than bisection.'),
             ),
@@ -1316,13 +1459,24 @@ export const numericalMethods: Course = {
                 'These are Where the Sign Test Fails, When Iteration Fails and When Newton-Raphson Fails, all in Numerical Methods Basics. Here all three are set up on one $f$, and the question is which fails.',
               ),
             ),
-            ask('numer-breaks-flow'),
+            asking(
+              'numer-breaks-flow',
+              1,
+              prose(
+                "For the iteration, work out $g'(\\alpha)$. $f(x) = x^{3} - 12x + 5$ has a root $\\alpha \\approx 3.2$, and one rearrangement is $g(x) = \\sqrt[3]{12x - 5} = (12x - 5)^{1/3}$:",
+              ),
+              working("g'(x) &= \\tfrac{1}{3}(12x - 5)^{-2/3} \\times 12", '&= \\frac{4}{(12x - 5)^{2/3}}'),
+              prose(
+                "At the root $\\alpha^{3} = 12\\alpha - 5$, so $(12\\alpha - 5)^{2/3} = \\alpha^{2}$ and $g'(\\alpha) = \\frac{4}{\\alpha^{2}} = \\frac{4}{3.2^{2}} \\approx 0.39$. Below $1$, so it closes in.",
+              ),
+            ),
             ask('numer-breaks-tree'),
             ask('numer-breaks-picture'),
             teach(
               prose('$f(x) = x^{3} - 12x + 5$ turns at $x = \\pm 2$ and has roots near $-3.7$, $0.4$ and $3.2$. After the largest:'),
               working('f(0)\\,f(4) &= 5 \\times 21 > 0', "f'(2) &= 12 - 12 = 0"),
-              prose("For $g(x) = \\frac{x^{3} + 5}{12}$, $g'(3.2) \\approx 2.6$."),
+              prose('The other rearrangement, $g(x) = \\frac{x^{3} + 5}{12}$:'),
+              working("g'(x) &= \\frac{3x^{2}}{12} = \\frac{x^{2}}{4}", "g'(3.2) &= \\frac{10.24}{4} \\approx 2.6"),
               prose('Bisection on $[0, 4]$ has no sign change though two roots are inside, that $g$ runs away, and $x_0 = 2$ gives a flat tangent. $[3, 4]$, $\\sqrt[3]{12x - 5}$ and $x_0 = 4$ all work.'),
             ),
             ask('numer-diverge-flow'),
@@ -1350,13 +1504,21 @@ export const numericalMethods: Course = {
             ),
             ask('numer-reach-flow'),
             ask('numer-reach-choice'),
-            ask('numer-reach-value'),
+            asking(
+              'numer-reach-value',
+              1,
+              prose(
+                "Once a plan is chosen, take its first step. For $f(x) = x^{3} - 12x + 5$ from $x_0 = 4$, with $f'(x) = 3x^{2} - 12$, Newton-Raphson gives",
+              ),
+              working("f(4) &= 64 - 48 + 5 = 21", "f'(4) &= 48 - 12 = 36", 'x_1 &= 4 - \\frac{21}{36} = 3.4167'),
+              prose('The iteration $x_{n+1} = \\sqrt[3]{12x_n - 5}$ from the same start gives'),
+              working('x_1 &= \\sqrt[3]{12 \\times 4 - 5}', '&= \\sqrt[3]{43} = 3.5034'),
+            ),
             teach(
               prose(
                 'Newton-Raphson needs $f\'(x)$, so it is out when $f$ is only known from readings, or when the only start has a flat tangent. Iteration needs a rearrangement that converges. Bisection needs only the sign change, which is why it is the one that always works and the slowest.',
               ),
             ),
-            ask('numer-speed-tree', 2),
             ask('numer-reach-flow', 2),
             ask('numer-reach-choice', 2),
             teach(
@@ -1365,7 +1527,6 @@ export const numericalMethods: Course = {
               ),
             ),
             ask('numer-reach-value', 2),
-            ask('numer-side-table', 2),
           ],
           skillCheck: [ask('numer-reach-flow', 2), ask('numer-reach-choice', 2), ask('numer-reach-value', 2)],
         },

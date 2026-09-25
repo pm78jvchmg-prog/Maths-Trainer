@@ -299,7 +299,7 @@ export const trigIdentities: Course = {
               1,
               prose('Numbers in front come along when you divide:'),
               maths(
-                '\\begin{aligned} 2\\sin x + 2\\sqrt{3}\\cos x &= 0 \\\\ 2\\sin x &= -2\\sqrt{3}\\cos x \\\\ \\tan x &= \\frac{-2\\sqrt{3}}{2} = -\\sqrt{3} \\end{aligned}',
+                '\\begin{aligned} 2\\sin x + 2\\sqrt{3}\\cos x &= 0 \\\\ 2\\sin x &= -2\\sqrt{3}\\cos x \\\\ \\tan x &= \\frac{-2\\sqrt{3}}{2} \\\\ &= -\\sqrt{3} \\end{aligned}',
               ),
               prose(
                 '$\\tan 60^{\\circ} = \\sqrt{3}$, so $x = 180^{\\circ} - 60^{\\circ} = 120^{\\circ}$, and $120^{\\circ} + 180^{\\circ} = 300^{\\circ}$.',
@@ -384,7 +384,7 @@ export const trigIdentities: Course = {
                 'Past $90^{\\circ}$ a table value can be negative, and its sign goes in with it. $\\cos 120^{\\circ} = -\\frac{1}{2}$ and $\\sin 120^{\\circ} = \\frac{\\sqrt{3}}{2}$:',
               ),
               maths(
-                '\\begin{aligned} \\cos(x + 120^{\\circ}) &= \\cos x\\cos 120^{\\circ} \\\\ &\\quad - \\sin x\\sin 120^{\\circ} \\\\ &= -\\frac{1}{2}\\cos x - \\frac{\\sqrt{3}}{2}\\sin x \\end{aligned}',
+                '\\begin{aligned} \\cos(x + 120^{\\circ}) &= \\cos x\\cos 120^{\\circ} \\\\ &\\quad - \\sin x\\sin 120^{\\circ} \\\\ &= -\\tfrac{1}{2}\\cos x \\\\ &\\quad - \\tfrac{\\sqrt{3}}{2}\\sin x \\end{aligned}',
               ),
             ),
             teach(
@@ -1186,7 +1186,7 @@ export const trigIdentities: Course = {
               1,
               prose('The cosine goes the same way, keeping only cosines:'),
               maths(
-                '\\begin{aligned} \\cos 3x &= \\cos 2x\\cos x - \\sin 2x\\sin x \\\\ &= (2\\cos^2 x - 1)\\cos x \\\\ &\\quad - 2\\sin^2 x\\cos x \\\\ &= 2\\cos^3 x - \\cos x \\\\ &\\quad - 2(1 - \\cos^2 x)\\cos x \\\\ &= 4\\cos^3 x - 3\\cos x \\end{aligned}',
+                '\\begin{aligned} \\cos 3x &= \\cos 2x\\cos x \\\\ &\\quad - \\sin 2x\\sin x \\\\ &= (2\\cos^2 x - 1)\\cos x \\\\ &\\quad - 2\\sin^2 x\\cos x \\\\ &= 2\\cos^3 x - \\cos x \\\\ &\\quad - 2(1 - \\cos^2 x)\\cos x \\\\ &= 4\\cos^3 x - 3\\cos x \\end{aligned}',
               ),
             ),
             teach(
@@ -1474,8 +1474,9 @@ export const trigIdentities: Course = {
               2,
               prose('Fourth powers are squares of squares, so they factorise the same way:'),
               maths(
-                '\\begin{aligned} &\\cos^4 x - \\sin^4 x \\\\ &= (\\cos^2 x - \\sin^2 x)(\\cos^2 x + \\sin^2 x) \\\\ &= (\\cos^2 x - \\sin^2 x) \\times 1 \\\\ &= \\cos 2x \\end{aligned}',
+                '\\begin{aligned} &\\cos^4 x - \\sin^4 x \\\\ &= (\\cos^2 x - \\sin^2 x) \\\\ &\\quad \\times (\\cos^2 x + \\sin^2 x) \\end{aligned}',
               ),
+              prose('The second bracket is $1$, so this is $\\cos^2 x - \\sin^2 x = \\cos 2x$.'),
             ),
           ],
           skillCheck: [
@@ -1595,7 +1596,10 @@ export const trigIdentities: Course = {
                 'A difference comes from the subtraction above: $\\sin P - \\sin Q = 2\\cos \\frac{P + Q}{2} \\sin \\frac{P - Q}{2}$. When $Q$ is the larger, $B$ comes out negative, and $\\sin(-\\theta) = -\\sin \\theta$. For $\\sin 3x - \\sin 7x$:',
               ),
               maths(
-                '\\begin{aligned} A &= \\tfrac{3x + 7x}{2} = 5x \\\\ B &= \\tfrac{3x - 7x}{2} = -2x \\\\ \\sin 3x - \\sin 7x &= 2\\cos 5x \\sin(-2x) \\\\ &= -2\\cos 5x \\sin 2x \\end{aligned}',
+                '\\begin{aligned} A &= \\tfrac{3x + 7x}{2} = 5x \\\\ B &= \\tfrac{3x - 7x}{2} = -2x \\end{aligned}',
+              ),
+              maths(
+                '\\begin{aligned} &\\sin 3x - \\sin 7x \\\\ &= 2\\cos 5x \\sin(-2x) \\\\ &= -2\\cos 5x \\sin 2x \\end{aligned}',
               ),
             ),
             ask('tid-factor-derive-order', 2),

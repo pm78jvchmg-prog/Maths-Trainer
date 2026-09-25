@@ -688,7 +688,7 @@ export const numericalMethods: Course = {
               prose(
                 'Each extra decimal place makes that limit ten times smaller: to 3 decimal places it is $0.0005$. $\\sqrt{2} = 1.414213\\ldots$:',
               ),
-              working('1.414 - 1.414213\\ldots &\\approx -0.00021', '1.415 - 1.414213\\ldots &\\approx 0.00079'),
+              working('1.414 - \\sqrt{2} &\\approx -0.00021', '1.415 - \\sqrt{2} &\\approx 0.00079'),
               prose('$1.414$ is within $0.0005$, so it is $\\sqrt{2}$ correctly rounded; $1.415$ is not, however many places it shows.'),
             ),
             ask('numer-closest-choice', 2),
@@ -706,7 +706,7 @@ export const numericalMethods: Course = {
               ),
               maths('\\frac{\\text{estimate} - \\text{exact value}}{\\text{exact value}}'),
               prose('Times $100$, it is the **percentage error**. A length of exactly $40$ cm, measured as $41$ cm:'),
-              working('\\text{error} &= 41 - 40 = 1', '\\text{relative} &= \\tfrac{1}{40} = 0.025', '\\text{percentage} &= 0.025 \\times 100 = 2.5\\%'),
+              working('\\text{error} &= 41 - 40 = 1', '\\text{relative} &= \\tfrac{1}{40} = 0.025', '\\text{percent} &= 0.025 \\times 100 \\\\ &= 2.5\\%'),
               prose('Always divide by the exact value, never the estimate.'),
             ),
             ask('numer-rel-error'),
@@ -1512,7 +1512,7 @@ export const numericalMethods: Course = {
               ),
               working("f(4) &= 64 - 48 + 5 = 21", "f'(4) &= 48 - 12 = 36", 'x_1 &= 4 - \\frac{21}{36} = 3.4167'),
               prose('The iteration $x_{n+1} = \\sqrt[3]{12x_n - 5}$ from the same start gives'),
-              working('x_1 &= \\sqrt[3]{12 \\times 4 - 5} = \\sqrt[3]{43} = 3.5034'),
+              working('x_1 &= \\sqrt[3]{12 \\times 4 - 5}', '&= \\sqrt[3]{43} = 3.5034'),
             ),
             teach(
               prose(

@@ -19,6 +19,11 @@ const n3 = (v: number): number => Number(v.toFixed(6));
 const Nm = (v: number): string => `$${fmt(v)}\\text{ N m}^{-1}$`;
 const N = (v: number): string => `$${fmt(v)}\\text{ N}$`;
 
+/** `m \times rest`, or `rest` alone when m is 1, so no working line reads `1 \times`. */
+const times = (m: number, rest: string): string => (m === 1 ? rest : `${fmt(m)} \\times ${rest}`);
+/** `\frac{top}{m}`, or `top` alone when m is 1, so no working line divides by 1. */
+const over = (top: string, m: number): string => (m === 1 ? top : `\\frac{${top}}{${fmt(m)}}`);
+
 const tidyBank = (answer: number[], wrong: number[], spare = 3): string[] =>
   valueBank(
     answer,
@@ -92,7 +97,8 @@ const springTable: Generator<{ rows: ComboRow[] }> = {
     return {
       kind: 'table',
       prompt: [say('Each row is a pair of springs, stiffness in $\\text{N m}^{-1}$: side by side they add; end to end their reciprocals add. Fill in the gaps.')],
-      columns: ['k_{1}', 'k_{2}', '\\text{side by side}', '\\text{end to end}'],
+      // Two lines each: on one line the two word headers run into each other at 393 px.
+      columns: ['k_{1}', 'k_{2}', '\\begin{gathered}\\text{side by}\\\\ \\text{side}\\end{gathered}', '\\begin{gathered}\\text{end to}\\\\ \\text{end}\\end{gathered}'],
       rows: rows.map((r) => [fmt(r.k1), r.blank === 'k2' ? null : fmt(r.k2), r.blank === 'parallel' ? null : r.blank === 'k2' ? '' : fmt(r.k1 + r.k2), r.blank === 'series' ? null : fmt(series(r.k1, r.k2))]),
       bank: tidyBank(answer, rows.flatMap((r) => [n3((r.k1 + r.k2) / 2), n3(r.k1 * r.k2), Math.abs(r.k1 - r.k2)])),
       answer: answer.map(fmt),
@@ -255,8 +261,9 @@ const springSpeed: Generator<SpeedParams> = {
     const A = n3(p.tri[2] * p.s);
     const x = n3(p.tri[0] * p.s);
     return [
-      { tex: `\\tfrac{1}{2}mv^{2} = \\tfrac{1}{2}k\\left(A^{2} - x^{2}\\right)` },
-      { tex: `v^{2} = \\frac{${fmt(k)}}{${fmt(p.m)}}\\left(${fmt(A)}^{2} - ${fmt(x)}^{2}\\right) = ${fmt(n3(p.w * p.w))} \\times ${fmt(n3(A * A - x * x))}` },
+      { tex: `\\tfrac{1}{2}mv^{2} = \\tfrac{1}{2}k(A^{2} - x^{2})` },
+      { tex: `v^{2} = ${over(fmt(k), p.m)}(${fmt(A)}^{2} - ${fmt(x)}^{2})` },
+      { tex: `v^{2} = ${fmt(n3(p.w * p.w))} \\times ${fmt(n3(A * A - x * x))} = ${fmt(n3(speedAt(p) ** 2))}` },
       { tex: `v = ${fmt(speedAt(p))}` },
     ];
   },
@@ -344,7 +351,7 @@ const springWellFlow: Generator<SpeedParams> = {
     return [
       { tex: `E = \\tfrac{1}{2} \\times ${fmt(k)} \\times ${fmt(n3(A))}^{2} = ${fmt(n3(E))}` },
       { tex: `U = \\tfrac{1}{2} \\times ${fmt(k)} \\times ${fmt(n3(x))}^{2} = ${fmt(n3(U))}` },
-      { tex: `\\tfrac{1}{2} \\times ${fmt(p.m)} \\times v^{2} = ${fmt(n3(E - U))}` },
+      { tex: `${p.m === 1 ? '\\tfrac{1}{2}v^{2}' : `\\tfrac{1}{2} \\times ${fmt(p.m)} \\times v^{2}`} = ${fmt(n3(E - U))}` },
       { tex: `v = ${fmt(speedAt(p))}` },
     ];
   },
@@ -372,7 +379,9 @@ const shmOmega: Generator<OmegaParams> = {
   },
   solution: (p) => {
     const k = n3(p.m * p.w * p.w);
-    return p.find === 'w' ? [{ tex: `\\omega = \\sqrt{\\frac{k}{m}} = \\sqrt{\\frac{${fmt(k)}}{${fmt(p.m)}}} = \\sqrt{${p.w * p.w}} = ${p.w}` }] : [{ tex: `k = m\\omega^{2} = ${fmt(p.m)} \\times ${p.w}^{2} = ${fmt(k)}` }];
+    return p.find === 'w'
+      ? [{ tex: p.m === 1 ? `\\omega = \\sqrt{\\frac{k}{m}} = \\sqrt{${fmt(k)}} = ${p.w}` : `\\omega = \\sqrt{\\frac{k}{m}} = \\sqrt{\\frac{${fmt(k)}}{${fmt(p.m)}}} = \\sqrt{${p.w * p.w}} = ${p.w}` }]
+      : [{ tex: `k = m\\omega^{2} = ${times(p.m, `${p.w}^{2}`)} = ${fmt(k)}` }];
   },
   choices: (p) => {
     const k = n3(p.m * p.w * p.w);
@@ -412,7 +421,7 @@ const shmTree: Generator<ShmParams> = {
     };
   },
   solution: (p) => [
-    { tex: `\\omega = \\sqrt{\\frac{${fmt(n3(p.m * p.w * p.w))}}{${fmt(p.m)}}} = ${p.w}` },
+    { tex: `\\omega = \\sqrt{${over(fmt(n3(p.m * p.w * p.w)), p.m)}} = ${p.w}` },
     { tex: `v_{\\max} = ${fmt(p.A)} \\times ${p.w} = ${fmt(n3(p.A * p.w))}` },
     { tex: `a_{\\max} = ${fmt(p.A)} \\times ${p.w}^{2} = ${fmt(n3(p.A * p.w * p.w))}` },
   ],
@@ -614,18 +623,21 @@ const pendRatioFlow: Generator<RatioParams> = {
  * The large swing
  * ================================================================ */
 
-/** Release angles by their cosine: the drop is L(1 - cos theta). */
+/**
+ * Release angles by their cosine: the drop is L(1 - cos theta). `at` is prose
+ * finishing "let go from rest at ...", so the words stay out of the TeX.
+ */
 const RELEASES = [
-  { tex: '60^\\circ', c: 0.5 },
-  { tex: '90^\\circ', c: 0 },
-  { tex: '\\theta \\text{ where } \\cos\\theta = 0.8', c: 0.8 },
-  { tex: '\\theta \\text{ where } \\cos\\theta = 0.6', c: 0.6 },
-  { tex: '\\theta \\text{ where } \\cos\\theta = 0.2', c: 0.2 },
-  { tex: '\\theta \\text{ where } \\cos\\theta = 0.9', c: 0.9 },
+  { at: '$60^\\circ$ to the vertical', c: 0.5 },
+  { at: '$90^\\circ$ to the vertical', c: 0 },
+  { at: 'an angle $\\theta$ to the vertical, where $\\cos\\theta = 0.8$', c: 0.8 },
+  { at: 'an angle $\\theta$ to the vertical, where $\\cos\\theta = 0.6$', c: 0.6 },
+  { at: 'an angle $\\theta$ to the vertical, where $\\cos\\theta = 0.2$', c: 0.2 },
+  { at: 'an angle $\\theta$ to the vertical, where $\\cos\\theta = 0.9$', c: 0.9 },
 ];
 
 interface SwingParams {
-  release: { tex: string; c: number };
+  release: { at: string; c: number };
   L: number;
   m: number;
   what: string;
@@ -647,9 +659,9 @@ const sampleSwing = (rng: { int: (a: number, b: number) => number; pick: <T>(xs:
 const swingSpeedGen: Generator<SwingParams> = {
   id: 'clm-swing-speed',
   sample: (rng, difficulty) => sampleSwing(rng, difficulty > 1),
-  render: (p) => typed([say(`A ${p.what} ${metres(p.L)} long is let go from rest at $${p.release.tex}$ to the vertical. ${G_NOTE} How fast is it going at the bottom, in $\\text{m s}^{-1}$?`)], 'v =', swingSpeed(p)),
+  render: (p) => typed([say(`A ${p.what} ${metres(p.L)} long is let go from rest at ${p.release.at}. ${G_NOTE} How fast is it going at the bottom, in $\\text{m s}^{-1}$?`)], 'v =', swingSpeed(p)),
   solution: (p) => [
-    { tex: `h = L(1 - \\cos\\theta) = ${fmt(p.L)} \\times ${fmt(n3(1 - p.release.c))} = ${fmt(drop(p))}` },
+    { tex: `h = ${fmt(p.L)}(1 - ${fmt(p.release.c)}) = ${fmt(drop(p))}` },
     { tex: `v = \\sqrt{2 \\times 9.8 \\times ${fmt(drop(p))}} = ${fmt(swingSpeed(p))}` },
   ],
   choices: (p) => numChoices(swingSpeed(p), [n3(Math.sqrt(2 * 9.8 * p.L)), n3(2 * 9.8 * drop(p)), n3(Math.sqrt(9.8 * drop(p)))], salted(p.L * 10, p.release.c * 10)),
@@ -661,7 +673,7 @@ const swingTree: Generator<SwingParams> = {
   sample: (rng, difficulty) => sampleSwing(rng, difficulty > 1),
   render: (p) => ({
     kind: 'tree',
-    prompt: [say(`A ${kg(p.m)} bob on a string ${metres(p.L)} long is let go from rest at $${p.release.tex}$ to the vertical. ${G_NOTE}`), say('Find the height it drops, its speed at the bottom, and the tension in the string there.')],
+    prompt: [say(`A ${kg(p.m)} bob on a string ${metres(p.L)} long is let go from rest at ${p.release.at}. ${G_NOTE}`), say('Find the height it drops, its speed at the bottom, and the tension in the string there.')],
     expression: 'T = mg + \\frac{mv^{2}}{L}',
     nodes: [
       { id: 'h', from: [] },
@@ -674,7 +686,7 @@ const swingTree: Generator<SwingParams> = {
   solution: (p) => [
     { tex: `h = ${fmt(p.L)}(1 - ${fmt(p.release.c)}) = ${fmt(drop(p))}` },
     { tex: `v = \\sqrt{19.6 \\times ${fmt(drop(p))}} = ${fmt(swingSpeed(p))}` },
-    { tex: `T = ${fmt(p.m)} \\times 9.8 + \\frac{${fmt(p.m)} \\times ${fmt(n3(swingSpeed(p) ** 2))}}{${fmt(p.L)}} = ${fmt(bottomTension(p))}` },
+    { tex: `T = ${times(p.m, '9.8')} + \\frac{${times(p.m, `${fmt(swingSpeed(p))}^{2}`)}}{${fmt(p.L)}} = ${fmt(bottomTension(p))}` },
   ],
 };
 
@@ -725,7 +737,7 @@ const swingFlow: Generator<SwingFlowParams> = {
     const T = bottomTension(p);
     return {
       kind: 'flow',
-      prompt: [say(`A ${kg(p.m)} bob on a string ${metres(p.L)} long is let go from rest at $${p.release.tex}$ to the vertical. The string breaks at ${N(p.strength)}. ${G_NOTE}`)],
+      prompt: [say(`A ${kg(p.m)} bob on a string ${metres(p.L)} long is let go from rest at ${p.release.at}. The string breaks at ${N(p.strength)}. ${G_NOTE}`)],
       subject: 'T = mg + \\frac{mv^{2}}{L}',
       steps: [
         { id: 'v', ask: 'Its speed at the bottom, in $\\text{m s}^{-1}$:', branches: forks(v, [n3(Math.sqrt(19.6 * p.L)), n3(19.6 * drop(p))], 0.1).map((label) => ({ label, to: 'T' })) },
@@ -737,7 +749,7 @@ const swingFlow: Generator<SwingFlowParams> = {
   },
   solution: (p) => [
     { tex: `v = \\sqrt{19.6 \\times ${fmt(drop(p))}} = ${fmt(swingSpeed(p))}` },
-    { tex: `T = ${fmt(n3(p.m * 9.8))} + \\frac{${fmt(p.m)} \\times ${fmt(n3(swingSpeed(p) ** 2))}}{${fmt(p.L)}} = ${fmt(bottomTension(p))}` },
+    { tex: `T = ${fmt(n3(p.m * 9.8))} + \\frac{${times(p.m, `${fmt(swingSpeed(p))}^{2}`)}}{${fmt(p.L)}} = ${fmt(bottomTension(p))}` },
   ],
 };
 

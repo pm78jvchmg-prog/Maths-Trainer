@@ -12,19 +12,13 @@
  */
 import type { Block, Generator, Slide, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
+import { coeffTex } from './format';
 
 /* ---------- Shared helpers ---------- */
 
 /** `+ 4` or `- 4`, for writing a signed term after another. */
 function signed(value: number): string {
   return value < 0 ? `- ${-value}` : `+ ${value}`;
-}
-
-/** A coefficient in front of a symbol: `3n`, `n`, `-n`, `-2u_n`. */
-function coeffTex(k: number, symbol: string): string {
-  if (k === 1) return symbol;
-  if (k === -1) return `-${symbol}`;
-  return `${k}${symbol}`;
 }
 
 /** `k x + c` as written by hand, dropping a zero constant. */

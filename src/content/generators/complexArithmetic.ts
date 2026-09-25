@@ -2,7 +2,7 @@
  * Complex Numbers, Level 2: multiplication, conjugates and division.
  */
 import type { Generator, KeypadKey } from '../types';
-import { I_KEY, coeffTex, complexTex, complexAnswer, mulComplex, nonZero } from './format';
+import { I_KEY, coeffTex, complexTex, complexAnswer, gcd, mulComplex, nonZero } from './format';
 import { options } from '../choiceVariant';
 
 /** Division answers are fractions, so the learner needs a divide key. */
@@ -625,7 +625,6 @@ export const reciprocal: Generator<ReciprocalParams> = {
   id: 'reciprocal',
   sample: (rng, difficulty) => {
     const top = difficulty >= 2 ? 9 : 6;
-    const gcd = (x: number, y: number): number => (y === 0 ? x : gcd(y, x % y));
     let c = rng.int(1, top);
     let d = rng.int(1, top);
     while (c === d || gcd(c, d) !== 1) {

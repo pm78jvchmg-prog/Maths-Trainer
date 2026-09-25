@@ -52,7 +52,8 @@ import { canonicalSet } from '../numberLine';
 import { ALGEBRA_KEYS, sumTex } from './calculus';
 import { windowFor } from './numberLine';
 import { fmt } from './numericalMethods';
-import { fracTex, gcd, mix, numberChoices, steered, stepBank, tokenBank, treeBank, turned } from './parametricImplicit';
+import { mix, numberChoices, steered, stepBank, tokenBank, treeBank, turned } from './parametricImplicit';
+import { fracTex, gcdOrOne, say } from './format';
 
 /* ================================================================
  * Exact fractions
@@ -66,7 +67,7 @@ export interface Q {
 
 export function q(n: number, d = 1): Q {
   if (d === 0) throw new Error('q: zero denominator');
-  const g = gcd(n, d);
+  const g = gcdOrOne(n, d);
   const top = ((d < 0 ? -1 : 1) * n) / g;
   return { n: top === 0 ? 0 : top, d: Math.abs(d) / g };
 }
@@ -306,7 +307,6 @@ export function derivName(p: number, at = '0'): string {
  * Banks and options
  * ================================================================ */
 
-const say = (text: string): Block => ({ kind: 'prose', text });
 const show = (tex: string): Block => ({ kind: 'display', tex });
 
 /** A number that may be a fraction. */

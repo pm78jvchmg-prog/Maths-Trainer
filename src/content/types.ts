@@ -286,13 +286,6 @@ export type Slide =
       }[];
     })
   /**
-   * Fill the intermediate values of an evaluation tree.
-   *
-   * Nodes are listed in evaluation order and each names the nodes feeding it,
-   * which is enough to lay out rows and draw the connectors without the content
-   * author positioning anything by hand.
-   */
-  /**
    * Evaluate a whole expression in the head, from four options.
    *
    * The same subject as `reduce` with every support taken away: no pieces to
@@ -417,6 +410,13 @@ export type Slide =
       /** Ids of the proof's steps, in slot order. */
       answer: string[];
     })
+  /**
+   * Fill the intermediate values of an evaluation tree.
+   *
+   * Nodes are listed in evaluation order and each names the nodes feeding it,
+   * which is enough to lay out rows and draw the connectors without the content
+   * author positioning anything by hand.
+   */
   | ({ kind: 'tree' } & Prompted & {
       /** The expression the tree evaluates. TeX. */
       expression: string;

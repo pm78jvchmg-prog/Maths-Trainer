@@ -35,6 +35,7 @@ import { bankFor, bin, num, type Expr } from '../expr';
 import { ALGEBRA_KEYS, sumTex, termTex } from './calculus';
 import { bankOf, numberTile, offer, signedTile } from './quadratics';
 import { windowFor } from './numberLine';
+import { coeffTex, gcd } from './format';
 
 /* ---------- Formatting ---------- */
 
@@ -61,14 +62,9 @@ function br(value: number): string {
   return value < 0 ? `(${value})` : `${value}`;
 }
 
-/** A coefficient in front of a bracket: nothing for 1, a bare minus for -1. */
-function coefTex(a: number): string {
-  return a === 1 ? '' : a === -1 ? '-' : `${a}`;
-}
-
 /** a(x + b), written the way it appears on the page. */
 function bracketTex(a: number, b: number): string {
-  return `${coefTex(a)}(x ${signedTile(b)})`;
+  return coeffTex(a, `(x ${signedTile(b)})`);
 }
 
 /** Two equations stacked and numbered, so the prose can say "(1)" and "(2)". */
@@ -988,7 +984,7 @@ function bracketEqTex(params: BracketParams): string {
   const r = bracketRight(params);
   if (form === 'simple') return `${bracketTex(a, b)} = ${r}`;
   if (form === 'both') return `${bracketTex(a, b)} = ${linTex(c, r)}`;
-  return `${bracketTex(a, b)} ${c < 0 ? '-' : '+'} ${coefTex(Math.abs(c))}(x ${signedTile(e)}) = ${r}`;
+  return `${bracketTex(a, b)} ${c < 0 ? '-' : '+'} ${coeffTex(Math.abs(c), `(x ${signedTile(e)})`)} = ${r}`;
 }
 
 function sampleBracket(rng: Rng, difficulty: number, forms: readonly BracketForm[]): BracketParams {
@@ -1484,10 +1480,6 @@ interface MultiplierParams {
   /** x as a multiple of the lowest common multiple. */
   k: number;
   minus: boolean;
-}
-
-function gcd(a: number, b: number): number {
-  return b === 0 ? Math.abs(a) : gcd(b, a % b);
 }
 
 function lcm(a: number, b: number): number {

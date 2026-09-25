@@ -59,14 +59,14 @@ import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
 import { nCr } from './binomialExpansion';
 import { fmt } from './numericalMethods';
-import { fracTex, stepBank, tokenBank } from './parametricImplicit';
+import { fracTex, say } from './format';
+import { stepBank, tokenBank } from './parametricImplicit';
 import { canonicalSet } from '../numberLine';
 
 /* ================================================================
  * Shared helpers
  * ================================================================ */
 
-const say = (text: string): Block => ({ kind: 'prose', text });
 const show = (tex: string): Block => ({ kind: 'display', tex });
 
 /** Sums and products of tenths carry float dust; this wipes it. */

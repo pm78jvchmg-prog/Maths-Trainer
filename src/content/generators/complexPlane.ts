@@ -5,7 +5,7 @@ import type { Block, ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } f
 import { hashSeed, type Rng } from '../../engine/rng';
 import { bin, num, pow, root } from '../expr';
 import {
-  I_KEY, coeffTex, complexTex, complexAnswer, bracketedTex, distinct, powersOf, nonZero,
+  I_KEY, coeffTex, complexTex, complexAnswer, bracketedTex, distinct, gcd, powersOf, nonZero,
   surdParts, surdTex, surdAnswer,
 } from './format';
 import { PLANE_VIEWBOX, complexPlaneSvg, planeGridSvg, pointPosition, rangeFor } from './plane';
@@ -918,10 +918,6 @@ export const polarForm: Generator<PolarParams> = {
 };
 
 /* ---------- De Moivre: powers in modulus-argument form ---------- */
-
-function gcd(a: number, b: number): number {
-  return b === 0 ? Math.abs(a) : gcd(b, a % b);
-}
 
 /** m·π/d in lowest terms, as the learner reads it. Canonical: equal values give equal strings. */
 function angleTex(m: number, d: number): string {

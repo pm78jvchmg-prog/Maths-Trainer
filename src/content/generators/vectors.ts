@@ -11,7 +11,7 @@ import { options } from '../choiceVariant';
 import { hashSeed } from '../../engine/rng';
 import { vectorSvg } from '../figures';
 import { ALGEBRA_KEYS } from './calculus';
-import { coeffTex } from './format';
+import { coeffTex, gcd } from './format';
 import {
   bankOf,
   columnTex,
@@ -1332,13 +1332,6 @@ function pointOptions(correct: [number, number], ...wrong: [number, number][]) {
 /** Zero exactly when two vectors are parallel (or either is zero). */
 function cross(ux: number, uy: number, vx: number, vy: number): number {
   return ux * vy - uy * vx;
-}
-
-function gcd(a: number, b: number): number {
-  let x = Math.abs(a);
-  let y = Math.abs(b);
-  while (y !== 0) [x, y] = [y, x % y];
-  return x;
 }
 
 /** A fraction in lowest terms with a positive denominator. */

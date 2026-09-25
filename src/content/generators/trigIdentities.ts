@@ -38,6 +38,7 @@ import { hashSeed } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
 import { orderBank } from './proofOrder';
+import { gcdOrOne } from './format';
 
 /* ---------- Shared helpers ---------- */
 
@@ -54,17 +55,10 @@ type Fn = 'sin' | 'cos' | 'tan';
 
 type Rat = [number, number];
 
-function gcd(a: number, b: number): number {
-  let x = Math.abs(a);
-  let y = Math.abs(b);
-  while (y) [x, y] = [y, x % y];
-  return x || 1;
-}
-
 /** n/d in lowest terms with the sign on top. */
 function rat(n: number, d: number): Rat {
   const sign = d < 0 ? -1 : 1;
-  const g = gcd(n, d);
+  const g = gcdOrOne(n, d);
   return [(sign * n) / g, (sign * d) / g];
 }
 
@@ -781,7 +775,7 @@ const valueFromIdentity: Generator<ValueParams> = {
     for (;;) {
       const q = rng.int(2, 7);
       const p = rng.int(1, q - 1);
-      if (gcd(p, q) !== 1) continue;
+      if (gcdOrOne(p, q) !== 1) continue;
       const k = rng.int(1, 5);
       let b = rng.int(1, 5);
       if (b === k) b = k === 5 ? 1 : k + 1;
@@ -2509,7 +2503,7 @@ function surdTex(s: SurdSum): string {
 function surdSumTex(s: SurdSum): string {
   const terms = [...s].sort((a, b) => b[0] - a[0]);
   if (terms.length <= 1) return surdTex(s);
-  const common = terms.reduce((l, [, [, d]]) => (l * d) / gcd(l, d), 1);
+  const common = terms.reduce((l, [, [, d]]) => (l * d) / gcdOrOne(l, d), 1);
   const nums = terms.map(([m, [n, d]]) => ({ m, n: (n * common) / d }));
   const negate = nums.every(({ n }) => n < 0);
   const ordered = [...nums.filter(({ n }) => (negate ? -n : n) > 0), ...nums.filter(({ n }) => (negate ? -n : n) < 0)];
@@ -3850,7 +3844,7 @@ const rAlphaSteps: Generator<RWholeParams> = {
   sample: (rng, difficulty) => ({ ...sampleWhole(rng, difficulty), swapped: false }),
   render: (p): Slide => {
     const { C, S, R } = p.pair;
-    const g = gcd(C, S);
+    const g = gcdOrOne(C, S);
     const a = alphaDp(S, C);
     const frac = (n: number, d: number) => `\\frac{${n}}{${d}}`;
     const reductions: { span: [number, number]; value: string; bank: string[] }[] = [

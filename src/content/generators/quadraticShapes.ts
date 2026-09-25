@@ -32,6 +32,7 @@ import { markerWindow, parabolaSvg } from '../figures';
 import { options } from '../choiceVariant';
 import { bin, num, pow } from '../expr';
 import { termTex } from './calculus';
+import { gcd } from './format';
 import {
   bankOf,
   factorTile,
@@ -92,11 +93,6 @@ function treeBank(answer: string[], preferred: number[], anchor: number): string
 /** A bank token for `k` copies of x squared: `x^2`, `4x^2`. */
 function squareTile(coefficient: number): string {
   return coefficient === 1 ? 'x^2' : `${coefficient}x^2`;
-}
-
-/** Highest common factor, for keeping a "take the common factor out" question honest. */
-function hcf(a: number, b: number): number {
-  return b === 0 ? Math.abs(a) : hcf(b, a % b);
 }
 
 /* ---------- Level 1: expanding ---------- */
@@ -482,7 +478,7 @@ const factoriseRoute: Generator<RouteParams> = {
   }),
   solution: ({ a, b, c, route }) => {
     if (route === 'common') {
-      const common = hcf(a, Math.abs(b));
+      const common = gcd(a, Math.abs(b));
       return [
         {
           text: 'There is no constant term, so every term carries an $x$ — and that is a common factor before anything else is tried.',
@@ -715,7 +711,7 @@ const commonFactor: Generator<CommonFactorParams> = {
       const p = nonZero(rng.int(-9, 9), -2);
       // The factor taken out has to be the whole of what is common, or there
       // is a second right answer sitting inside the bracket.
-      const shared = terms === 2 ? hcf(m, n) : hcf(hcf(m, n), p);
+      const shared = terms === 2 ? gcd(m, n) : gcd(gcd(m, n), p);
       if (shared === 1) return { k, m, n, p, terms };
     }
     return { k, m: 1, n: 3, p: -2, terms };

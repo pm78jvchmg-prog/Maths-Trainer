@@ -18,6 +18,7 @@ import type { Rng } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import { markerWindow, plotSvg, wave } from '../figures';
 import { bin, num, trig, valueOf, type Expr } from '../expr';
+import { gcd } from './format';
 
 /**
  * Plain number entry. The base keypad already supplies digits, signs and the
@@ -2262,13 +2263,6 @@ const matchGraph: Generator<MatchGraphParams> = {
 
 /** Number entry with a pi key. `/` is what puts the fraction key on the pad; the point is already there. */
 const PI_KEYS: KeypadKey[] = [{ insert: 'pi', label: 'π' }, { insert: '/' }];
-
-function gcd(a: number, b: number): number {
-  let x = Math.abs(a);
-  let y = Math.abs(b);
-  while (y !== 0) [x, y] = [y, x % y];
-  return x;
-}
 
 /** The numerators from `from` to `to` that share no factor with `d`, so n/d is already in lowest terms. */
 function coprimeTo(d: number, from: number, to: number): number[] {

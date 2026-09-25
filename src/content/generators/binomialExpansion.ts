@@ -33,7 +33,7 @@ import type { Rng } from '../../engine/rng';
 import type { ChoiceOption, Generator, Slide, SolutionStep } from '../types';
 import { bin, num, pow, valueOf, type Expr } from '../expr';
 import { ALGEBRA_KEYS, sumTex, termAnswer, termTex } from './calculus';
-import { coeffTex } from './format';
+import { coeffTex, fracTex, gcd } from './format';
 import { markerWindow, plotSvg } from '../figures';
 import { defaultSliderValue } from '../../ui/sliderValue';
 
@@ -2332,10 +2332,6 @@ const productExpandTiles: Generator<ProductParams> = {
  * to 12, as nCr on its own does.
  */
 
-function gcd(x: number, y: number): number {
-  return y === 0 ? Math.abs(x) : gcd(y, x % y);
-}
-
 /** p/q in lowest terms, the sign carried on top. */
 function reduced(p: number, q: number): [number, number] {
   const g = gcd(p, q) || 1;
@@ -2343,14 +2339,7 @@ function reduced(p: number, q: number): [number, number] {
   return [(sign * p) / g, (sign * q) / g];
 }
 
-/** A fraction as the learner reads it: whole when it is whole, the sign out in front. */
-function fracTex(p: number, q: number): string {
-  const [top, bottom] = reduced(p, q);
-  if (bottom === 1) return `${top}`;
-  return top < 0 ? `-\\frac{${-top}}{${bottom}}` : `\\frac{${top}}{${bottom}}`;
-}
-
-/** The same fraction for mathjs. */
+/** The fraction `fracTex` shows, for mathjs. */
 function fracAnswer(p: number, q: number): string {
   const [top, bottom] = reduced(p, q);
   return bottom === 1 ? `${top}` : `${top}/${bottom}`;

@@ -30,16 +30,15 @@ import { options } from '../choiceVariant';
 import {
   choiceSlide,
   fillBank,
-  gcd,
   mod,
   orderSlide,
   orderSolution,
   pickDistractors,
-  say,
   stackTex,
   turned,
   type Proof,
 } from './numberProof';
+import { gcd, say } from './format';
 import { stepBank, treeBank } from './parametricImplicit';
 
 /* ---------- shared helpers ---------- */

@@ -49,14 +49,14 @@ import { hashSeed } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
 import { fmt } from './numericalMethods';
-import { OPERATOR_KEYS, gcd, spaced, stepBank, tokenBank } from './parametricImplicit';
+import { OPERATOR_KEYS, spaced, stepBank, tokenBank } from './parametricImplicit';
+import { gcdOrOne, say } from './format';
 import { WORKING_KEYS } from './workingKeys';
 
 /* ================================================================
  * Shared helpers
  * ================================================================ */
 
-const say = (text: string): Block => ({ kind: 'prose', text });
 
 /** g, as every question here states it. */
 const G = 9.8;
@@ -4717,7 +4717,7 @@ function coefTex(size: number): string {
   if (isTenth(size)) return fmt(size);
   for (const q of [3, 6, 9]) {
     const n = Math.round(size * q);
-    if (Math.abs(size * q - n) < 1e-9) return `\\tfrac{${n / gcd(n, q)}}{${q / gcd(n, q)}}`;
+    if (Math.abs(size * q - n) < 1e-9) return `\\tfrac{${n / gcdOrOne(n, q)}}{${q / gcdOrOne(n, q)}}`;
   }
   return fmt(size);
 }

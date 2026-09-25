@@ -49,11 +49,9 @@ import type { Rng } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
 import { EXP_KEYS, termAnswer, termTex } from './calculus';
-import { coeffTex } from './format';
+import { coeffTex, fracTex, gcdOrOne } from './format';
 import {
   OPERATOR_KEYS,
-  fracTex,
-  gcd,
   mix,
   numberChoices,
   spaced,
@@ -2426,7 +2424,7 @@ const outFlow = ({ r, fresh }: TankParams): number => r + fresh;
 
 /** The rate salt leaves at, (out flow / V) times S, as the learner reads it. */
 export function outTex(params: TankParams): string {
-  const g = gcd(outFlow(params), params.V);
+  const g = gcdOrOne(outFlow(params), params.V);
   const top = outFlow(params) / g;
   const bottom = params.V / g;
   if (bottom === 1) return `${coef(top)}S`;
@@ -2573,7 +2571,7 @@ const deMixWhen: Generator<TankWhenParams> = {
   sample: (rng, difficulty) => {
     for (;;) {
       const base = { ...sampleTank(rng, difficulty), fresh: 0 };
-      const unit = base.V / gcd(base.r, base.V);
+      const unit = base.V / gcdOrOne(base.r, base.V);
       const S = unit * rng.int(0, Math.floor((base.c * base.V * 1.5) / unit));
       const params = { ...base, S };
       const net = tankNet(params);
@@ -5943,7 +5941,7 @@ function samplePi(rng: Rng, de: SecondDe, type: PiType, hard: boolean): Particul
       const form = rng.pick(['cos', 'sin', 'both'] as const);
       if (form === 'both') return { type: 'trig', w, lambda: nonzero(rng, 3), mu: nonzero(rng, 3), n: 0 };
       // Built so that f(x) has the one term: λ and μ in the ratio that cancels the other.
-      const g = gcd(K, M);
+      const g = gcdOrOne(K, M);
       const s = rng.sign();
       const [lambda, mu] = form === 'cos' ? [(s * K) / g, (s * M) / g] : [(-s * M) / g, (s * K) / g];
       return { type: 'trig', w, lambda, mu, n: 0 };
@@ -7104,7 +7102,7 @@ const shmForms = (difficulty: number): SecondDe['written'][] => (difficulty >= 2
 
 /** A multiple of π as the learner reads it, in lowest terms: `\frac{\pi}{2}`, `2\pi`, `\frac{2\pi}{3}`. */
 function piMultipleTex(top: number, bottom: number): string {
-  const g = gcd(top, bottom);
+  const g = gcdOrOne(top, bottom);
   const p = top / g;
   const q = bottom / g;
   const head = p === 1 ? '\\pi' : `${p}\\pi`;

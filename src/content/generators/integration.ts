@@ -26,15 +26,12 @@ import { options } from '../choiceVariant';
 import { ALGEBRA_KEYS, EXP_KEYS, TRIG_KEYS, ROOT_KEYS, termTex, termAnswer, sumTex, sumAnswer } from './calculus';
 import { bin, num, pow, valueOf, type Expr } from '../expr';
 import { markerWindow, plotSvg } from '../figures';
+import { gcd } from './format';
 
 /** The algebra keys plus the constant of integration. */
 const INTEGRAL_KEYS: KeypadKey[] = [...ALGEBRA_KEYS, { insert: 'C' }];
 const EXP_INTEGRAL_KEYS: KeypadKey[] = [...EXP_KEYS, { insert: 'C' }];
 const TRIG_INTEGRAL_KEYS: KeypadKey[] = [...TRIG_KEYS, { insert: 'C' }];
-
-function gcd(a: number, b: number): number {
-  return b === 0 ? a : gcd(b, a % b);
-}
 
 /** A fraction in lowest terms, with the sign carried by the numerator. */
 function reduce(num: number, den: number): { n: number; d: number } {

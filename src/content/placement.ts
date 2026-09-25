@@ -38,10 +38,10 @@ export const NEW_COURSES: NewCourse[] = [
   {
     id: 'vectors-basics',
     title: 'Vectors Basics',
-    blurb: 'Column vectors, scalar multiples and length, then position vectors and vector paths.',
+    blurb: 'Column vectors, adding them and i, j notation, position vectors and proofs in shapes, then journeys on bearings.',
     category: 'algebra-fundamentals',
     position: 85,
-    levels: ['vm-l1', 'vm-l4'],
+    levels: ['vm-l1', 'vm-l13', 'vm-l14', 'vm-l4', 'vm-l16', 'vm-l15'],
   },
   {
     id: 'partial-fractions-rational',

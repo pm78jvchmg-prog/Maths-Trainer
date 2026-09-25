@@ -5,6 +5,12 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-25
 
+- **Complex square roots are taught before they are asked.** The Square Roots
+  lesson now works an example of squaring, then finds a root step by step with
+  no guessing, then practises gently: square a number, pick which candidate is
+  a root, fill in the method as a table (new `sqrt-check`, `sqrt-method`),
+  before typing a root alone. `complex-sqrt`'s worked solution is split into
+  short lines so it no longer scrolls sideways.
 - **Two grading bugs fixed (this PR).** `vec-parallel` could offer two
   parallel options, marking a correct pick wrong (~10% of draws). A negative
   base was shown unbracketed (`-1^{4}`) while the answer meant `(-1)^{4}`, in

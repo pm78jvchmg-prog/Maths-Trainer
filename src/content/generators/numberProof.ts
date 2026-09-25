@@ -1564,10 +1564,12 @@ function contraText({ family, p, m, n, c }: ContraParams): {
     case 'parity': {
       const odd = c % 2 === 1;
       const other = odd ? 'even' : 'odd';
+      // c can be 0, and then the expression is n^2, not n^2 + 0.
+      const expr = c === 0 ? 'n^2' : `n^2 + ${c}`;
       return {
-        claim: `if $n^2 + ${c}$ is even, then $n$ is ${odd ? 'odd' : 'even'}`,
-        assume: [`$n^2 + ${c}$ is even and $n$ is ${other}`, `$n^2 + ${c}$ is odd`, `$n$ is ${odd ? 'odd' : 'even'}`],
-        lead: [`$n^2 + ${c}$ is odd`, `$n^2 + ${c}$ is a multiple of $4$`, `$n = ${c}$`],
+        claim: `if $${expr}$ is even, then $n$ is ${odd ? 'odd' : 'even'}`,
+        assume: [`$${expr}$ is even and $n$ is ${other}`, `$${expr}$ is odd`, `$n$ is ${odd ? 'odd' : 'even'}`],
+        lead: [`$${expr}$ is odd`, `$${expr}$ is a multiple of $4$`, `$n = ${c}$`],
       };
     }
   }
@@ -1626,7 +1628,7 @@ const prfContraFlow: Generator<ContraParams> = {
       sqrt: `Squaring $\\sqrt{${p}} = \\frac{a}{b}$ gives $a^2 = ${p}b^2$, so $${p}$ divides $a$; writing $a = ${p}k$ gives $b^2 = ${p}k^2$, so $${p}$ divides $b$ too. That is a common factor.`,
       combo: `$${m}a + ${n}b = ${g}(${m / g}a + ${n / g}b)$ is a multiple of $${g}$, so $${c}$ would be too. It is not.`,
       largest: `$N + ${m}$ is a multiple of $${m}$ and bigger than $N$, so $N$ was not the largest.`,
-      parity: `If $n$ is ${c % 2 === 1 ? 'even, $n = 2k$ and $n^2 + ' + c + ' = 4k^2 + ' + c + '$' : 'odd, $n = 2k + 1$ and $n^2 + ' + c + ' = 4k^2 + 4k + ' + (c + 1) + '$'}, which is odd.`,
+      parity: `If $n$ is ${c % 2 === 1 ? 'even, $n = 2k$ and $n^2 + ' + c + ' = 4k^2 + ' + c + '$' : 'odd, $n = 2k + 1$ and $' + (c === 0 ? 'n^2' : 'n^2 + ' + c) + ' = 4k^2 + 4k + ' + (c + 1) + '$'}, which is odd.`,
     };
     const { assume } = contraText(params);
     return [

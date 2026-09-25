@@ -15,6 +15,9 @@
  */
 import type { Course } from '../types';
 import { angles } from './geometry/level1';
+import { polygons } from './geometry/level2';
+import { lengths } from './geometry/level3';
+import { scaling } from './geometry/level4';
 
 export const geometry: Course = {
   id: 'geometry',
@@ -22,6 +25,6 @@ export const geometry: Course = {
   // Just before Coordinate Geometry (80).
   position: 75,
   title: 'Geometry',
-  blurb: 'Angles on lines, in parallel lines and in triangles, with polygons, lengths, areas and volumes to come.',
-  levels: [angles],
+  blurb: 'Angles, polygons, perimeters and circles, and similar shapes, with areas, Pythagoras and volumes to come.',
+  levels: [angles, polygons, lengths, scaling],
 };

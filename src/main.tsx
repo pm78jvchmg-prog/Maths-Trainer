@@ -2,10 +2,10 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
-import { installAppHeight } from './ui/fullHeight'
+import { installTopInset } from './ui/fullHeight'
 import { installSync } from './sync/sync'
 
-installAppHeight()
+installTopInset()
 installSync()
 
 // Installed to a Home Screen, the app is mostly resumed rather than relaunched,

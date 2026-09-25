@@ -434,6 +434,53 @@ button {
   flex-shrink: 0;
 }
 
+/* Holds the slide, and while a right-swipe is held the one before it (see
+   `peekDrag.ts`). It takes the slide's place in the column, and clips the two
+   panes as they slide across. `pan-y` keeps vertical scrolling with the
+   browser and hands sideways drags to the peek; a box inside that scrolls
+   sideways is its own scroll container and keeps its own swipe. */
+.slide-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+/* The slide scrolls, so it is the element a touch's panning is decided on,
+   and it needs `pan-y` of its own: the stage's alone left the browser to
+   claim sideways drags and cancel them. */
+.slide-stage > .slide {
+  touch-action: pan-y;
+}
+
+/* The previous slide, laid over the stage and moved by transform alone. */
+.slide-peek {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform: translate3d(-100%, 0, 0);
+  box-shadow: 1px 0 0 var(--surface-raised);
+}
+
+.slide-stage.peek-live,
+.slide-stage.peek-settle {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.slide-stage.peek-live > .slide,
+.slide-stage.peek-settle > .slide {
+  will-change: transform;
+}
+
+/* The spring back; its length is `PEEK_SETTLE_MS`. */
+.slide-stage.peek-settle > .slide {
+  transition: transform 260ms cubic-bezier(0.32, 0.72, 0.28, 1);
+}
+
 /* One slide replacing another is the single most-used transition in the app,
    and swapping it instantly reads as a glitch rather than a step forward. The
    incoming slide enters from the side the deck moved.
@@ -651,7 +698,8 @@ button {
   .progress-fill {
     transition: none;
   }
-  .footer, .answer-frame {
+  .footer, .answer-frame,
+  .slide-stage.peek-settle > .slide {
     transition: none;
   }
   .slide.enter-forward,

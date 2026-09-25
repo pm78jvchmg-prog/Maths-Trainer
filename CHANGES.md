@@ -5,6 +5,11 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-25
 
+- **Streak no longer counts a day twice after travelling west (#196).** A play dated
+  a day or two before the last one is a day already counted and changes
+  nothing, and the home screen reads it as done. A day the calendar skipped
+  going east costs no charge, and a clock set far wrong and put right keeps
+  the streak (the day it replaced is remembered). `src/store/streak.ts`.
 - **Home-screen colours: the seams were an old copy (this PR).** The current
   build already runs one unbroken purple from Algebra Fundamentals to Advanced
   Maths and orange from the Statistics heading down (#180); the iPad was still

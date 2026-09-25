@@ -781,7 +781,10 @@ export const numericalMethods: Course = {
               prose(
                 'With two operations, push each input to whichever end makes the whole thing smallest (or largest). Whatever is taken away, or sits on the bottom of a fraction, goes to the opposite end. With $c = 1.2$ as well:',
               ),
-              working('\\text{least } ab - c &= 3.35 \\times 2.65 - 1.25', '&= 8.8775 - 1.25 = 7.6275', '\\text{greatest } ab - c &= 3.45 \\times 2.75 - 1.15', '&= 9.4875 - 1.15 = 8.3375'),
+              prose('Least: $3.35 \\times 2.65 - 1.25$'),
+              working('&= 8.8775 - 1.25', '&= 7.6275'),
+              prose('Greatest: $3.45 \\times 2.75 - 1.15$'),
+              working('&= 9.4875 - 1.15', '&= 8.3375'),
             ),
             ask('numer-bound-ends', 2),
             ask('numer-bound-accuracy-flow', 2),

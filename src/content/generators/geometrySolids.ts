@@ -9,7 +9,7 @@
  */
 import type { Generator, Slide } from '../types';
 import { num, numberBank, numberOptions, say, typed } from './contestMath';
-import { type Pt, DASHED, SVG_CLOSE, centroid, dot, f1, fit, seg, sideLabel, svgOpen, text } from './geometryKit';
+import { type Pt, DASHED, SVG_CLOSE, centroid, dot, f1, fit, labelHalf, minus, plus, seg, sideLabelAt, svgOpen, text, times } from './geometryKit';
 import { PI_KEYS, piAns, piOptions, piTex } from './geometryLengths';
 
 const diagram = (svg: string) => ({ kind: 'diagram' as const, svg });
@@ -28,24 +28,134 @@ type P3 = [number, number, number];
 /** Oblique projection: x across, y up, z back and to the right at half scale. */
 const project = ([x, y, z]: P3): Pt => [x + 0.5 * z * Math.cos(Math.PI / 6), -(y + 0.5 * z * Math.sin(Math.PI / 6))];
 
-interface SolidLabel {
-  from: number;
-  to: number;
-  text: string;
-  /** A point the label keeps away from; the figure's middle by default. */
-  away?: Pt;
+const lerp = (a: Pt, b: Pt, t: number): Pt => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+const dist = (a: Pt, b: Pt) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+
+/** Room kept between a label and any line or other label. */
+const LABEL_PAD = 3;
+
+/** Whether point p is inside the convex polygon `poly` (either winding). */
+function inside(p: Pt, poly: Pt[]): boolean {
+  let sign = 0;
+  for (let i = 0; i < poly.length; i += 1) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    const cross = (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]);
+    if (Math.abs(cross) < 1e-9) continue;
+    if (sign === 0) sign = Math.sign(cross);
+    else if (Math.sign(cross) !== sign) return false;
+  }
+  return true;
+}
+
+/** Points along an ellipse, as a polyline a label can be kept clear of. */
+function ellipseLine(c: Pt, R: number, ry: number, from = 0, to = 2 * Math.PI): [Pt, Pt][] {
+  const pts: Pt[] = Array.from({ length: 33 }, (_, i) => {
+    const t = from + ((to - from) * i) / 32;
+    return [c[0] + R * Math.cos(t), c[1] + ry * Math.sin(t)];
+  });
+  return pts.slice(1).map((p, i) => [pts[i], p]);
+}
+
+/**
+ * The labels of one figure, each put at the first of its candidate spots that
+ * sits inside the picture and clear of every line and every label before it.
+ * A solid crowds its lines together at a corner or an apex, and a label that
+ * is only offset from its own edge lands on the next one.
+ */
+class Labels {
+  private lines: [Pt, Pt][] = [];
+  private boxes: [Pt, Pt][] = [];
+  private height: number;
+
+  constructor(height: number) {
+    this.height = height;
+  }
+
+  line(a: Pt, b: Pt) {
+    this.lines.push([a, b]);
+  }
+
+  curve(segs: [Pt, Pt][]) {
+    this.lines.push(...segs);
+  }
+
+  /** Whether a label box centred at `c` fits here, and inside `within` if given. */
+  fits(c: Pt, half: Pt, within?: Pt[]): boolean {
+    const [hx, hy] = half;
+    if (c[0] - hx < 2 || c[0] + hx > 298 || c[1] - hy < 2 || c[1] + hy > this.height - 2) return false;
+    if (within) {
+      const m = LABEL_PAD;
+      const corners: Pt[] = [
+        [c[0] - hx - m, c[1] - hy - m],
+        [c[0] + hx + m, c[1] - hy - m],
+        [c[0] - hx - m, c[1] + hy + m],
+        [c[0] + hx + m, c[1] + hy + m],
+      ];
+      if (!corners.every((p) => inside(p, within))) return false;
+    }
+    for (const [a, b] of this.lines) {
+      const n = Math.max(2, Math.ceil(dist(a, b) / 4));
+      for (let i = 0; i <= n; i += 1) {
+        const [x, y] = lerp(a, b, i / n);
+        if (Math.abs(x - c[0]) < hx + LABEL_PAD && Math.abs(y - c[1]) < hy + LABEL_PAD) return false;
+      }
+    }
+    for (const [bc, bh] of this.boxes) {
+      if (Math.abs(bc[0] - c[0]) < hx + bh[0] + LABEL_PAD && Math.abs(bc[1] - c[1]) < hy + bh[1] + LABEL_PAD) return false;
+    }
+    return true;
+  }
+
+  /** The label at its first spot that fits, or the first spot if none does. */
+  put(value: string, spots: Pt[], within?: Pt[], size = 13): string {
+    const half = labelHalf(value, size);
+    const c = spots.find((s) => this.fits(s, half, within)) ?? spots[0];
+    this.boxes.push([c, half]);
+    return text(c, value, size);
+  }
+
+  /** Beside edge ab on the side away from `away`: its middle first, then along it and further out. */
+  edge(a: Pt, b: Pt, value: string, away: Pt): string {
+    const mid = lerp(a, b, 0.5);
+    const off = minus(sideLabelAt(a, b, value, away, 14), mid);
+    const len = Math.hypot(off[0], off[1]) || 1;
+    const spots: Pt[] = [];
+    for (const extra of [0, 5, 10, 16, 22]) {
+      for (const t of [0.5, 0.4, 0.6, 0.3, 0.7]) spots.push(plus(lerp(a, b, t), times(off, (len + extra) / len)));
+    }
+    return this.put(value, spots);
+  }
+
+  /** Inside `region`, as near `target` as fits. */
+  within(value: string, region: Pt[], target: Pt): string {
+    const xs = region.map((p) => p[0]);
+    const ys = region.map((p) => p[1]);
+    const spots: Pt[] = [];
+    for (let x = Math.min(...xs); x <= Math.max(...xs); x += 2) {
+      for (let y = Math.min(...ys); y <= Math.max(...ys); y += 2) spots.push([x, y]);
+    }
+    spots.sort((p, q) => dist(p, target) - dist(q, target));
+    // A little wider than the estimate first: squeezed between two lines, a label that only just fits reads as touching them.
+    const half = labelHalf(value);
+    const roomy: Pt = [half[0] + 3, half[1] + 1];
+    const c = spots.find((s) => this.fits(s, roomy, region)) ?? spots.find((s) => this.fits(s, half, region)) ?? target;
+    this.boxes.push([c, half]);
+    return text(c, value);
+  }
 }
 
 /** A solid from its corners and edges, fitted into the figure. Returns the page points too. */
 function solid(verts: P3[], edges: [number, number, boolean][], box: [number, number, number, number], height: number, label: string) {
   const pts = fit(verts.map(project), ...box);
   const parts = [svgOpen(height, label)];
-  for (const [i, j, hidden] of edges) parts.push(seg(pts[i], pts[j], hidden ? `${DASHED} stroke-width="1.5" opacity="0.7"` : ''));
-  return { pts, parts, middle: centroid(pts) };
-}
-
-function place(parts: string[], pts: Pt[], middle: Pt, labels: SolidLabel[]) {
-  for (const l of labels) if (l.text) parts.push(sideLabel(pts[l.from], pts[l.to], l.text, l.away ?? middle, 14));
+  const labels = new Labels(height);
+  for (const [i, j, hidden] of edges) {
+    parts.push(seg(pts[i], pts[j], hidden ? `${DASHED} opacity="0.7"` : ''));
+    labels.line(pts[i], pts[j]);
+  }
+  return { pts, parts, labels, middle: centroid(pts) };
 }
 
 /** A cuboid `l` across, `h` up and `w` deep, labels on a front bottom edge, a back upright edge and a bottom depth edge. */
@@ -60,28 +170,33 @@ export function cuboidSvg(l: number, w: number, h: number, labels: { l?: string;
       if (j !== i) edges.push([i, j, i === 4 || j === 4]);
     }
   }
-  const { pts, parts, middle } = solid(verts, edges, [190, 130, 45, 25], 185, 'A cuboid');
-  place(parts, pts, middle, [
-    { from: 0, to: 1, text: labels.l ?? '' },
-    { from: 5, to: 7, text: labels.h ?? '' },
-    { from: 1, to: 5, text: labels.w ?? '' },
-  ]);
+  const { pts, parts, labels: place, middle } = solid(verts, edges, [190, 130, 45, 25], 185, 'A cuboid');
+  if (labels.l) parts.push(place.edge(pts[0], pts[1], labels.l, middle));
+  if (labels.h) parts.push(place.edge(pts[5], pts[7], labels.h, middle));
+  if (labels.w) parts.push(place.edge(pts[1], pts[5], labels.w, middle));
   parts.push(SVG_CLOSE);
   return parts.join('');
 }
 
 /**
  * A prism whose end is a right-angled triangle, `a` across and `b` up, `L`
- * long. `area` writes the end's area on its face instead of its sides.
+ * long. `area` shades the end and writes its area beside it instead of its sides.
+ *
+ * Drawn to a tamed shape rather than to scale: an end 2 by 10 is a sliver
+ * with no room for a label, and 25 long on an end of 3 runs off as a rod. The
+ * labels carry the sizes.
  */
 export function prismSvg(a: number, b: number, L: number, labels: { a?: string; b?: string; c?: string; L?: string; area?: string }): string {
+  const tall = clamp(b / a, 0.5, 1.6);
+  const [da, db] = tall * a >= b ? [b / tall, b] : [a, a * tall];
+  const dL = clamp(L, 0.7 * Math.max(da, db), 2.5 * Math.max(da, db));
   const verts: P3[] = [
     [0, 0, 0],
-    [a, 0, 0],
-    [0, b, 0],
-    [0, 0, L],
-    [a, 0, L],
-    [0, b, L],
+    [da, 0, 0],
+    [0, db, 0],
+    [0, 0, dL],
+    [da, 0, dL],
+    [0, db, dL],
   ];
   const edges: [number, number, boolean][] = [
     [0, 1, false],
@@ -94,28 +209,41 @@ export function prismSvg(a: number, b: number, L: number, labels: { a?: string; 
     [3, 4, true],
     [3, 5, true],
   ];
-  const { pts, parts, middle } = solid(verts, edges, [200, 130, 45, 25], 185, 'A triangular prism');
-  const front = centroid([pts[0], pts[1], pts[2]]);
-  place(parts, pts, middle, [
-    { from: 0, to: 1, text: labels.a ?? '' },
-    { from: 0, to: 2, text: labels.b ?? '', away: pts[1] },
-    // The sloping side's label goes on the matching back edge, above the solid, clear of the end's labels.
-    { from: 4, to: 5, text: labels.c ?? '' },
-    { from: 1, to: 4, text: labels.L ?? '' },
-  ]);
-  if (labels.area) parts.push(text([front[0] - 4, front[1] + 6], labels.area, 12));
+  // An area label sits left of the end, so the solid moves right to make room for it.
+  const box: [number, number, number, number] = labels.area ? [180, 130, 100, 25] : [200, 130, 45, 25];
+  const { pts, parts, labels: place, middle } = solid(verts, edges, box, 185, 'A triangular prism');
+  if (labels.area) {
+    // The end is shaded, and its area written beside it with a leader into the shading: the
+    // hidden edges cross the end, and a label on it lands on one of them.
+    const end = [pts[0], pts[1], pts[2]];
+    parts.splice(1, 0, `<polygon points="${end.map((p) => `${f1(p[0])},${f1(p[1])}`).join(' ')}" class="plot-shade" stroke="none" />`);
+    const into = plus(pts[0], plus(times(minus(pts[1], pts[0]), 0.2), times(minus(pts[2], pts[0]), 0.45)));
+    const [hw] = labelHalf(labels.area);
+    const at: Pt = [pts[0][0] - 12 - hw, into[1]];
+    parts.push(seg([at[0] + hw + 3, at[1]], into), dot(into, 2.5), place.put(labels.area, [at]));
+  }
+  if (labels.a) parts.push(place.edge(pts[0], pts[1], labels.a, middle));
+  if (labels.b) parts.push(place.edge(pts[0], pts[2], labels.b, pts[1]));
+  // The sloping side's label goes on the matching back edge, above the solid, clear of the end's labels.
+  if (labels.c) parts.push(place.edge(pts[4], pts[5], labels.c, middle));
+  if (labels.L) parts.push(place.edge(pts[1], pts[4], labels.L, middle));
   parts.push(SVG_CLOSE);
   return parts.join('');
 }
 
-/** A square-based pyramid, base `s`, with its slant height or its vertical height dashed in. */
+/**
+ * A square-based pyramid, base `s`, with its slant height or its vertical
+ * height dashed in. Its height is drawn between 0.7 and 1 base whatever it
+ * is, so the dashed line always has room beside it for its label.
+ */
 export function pyramidSvg(s: number, H: number, labels: { s?: string; slant?: string; height?: string }): string {
+  const dH = clamp(H / s, 0.7, 1) * s;
   const verts: P3[] = [
     [0, 0, 0],
     [s, 0, 0],
     [s, 0, s],
     [0, 0, s],
-    [s / 2, H, s / 2],
+    [s / 2, dH, s / 2],
     [s / 2, 0, 0],
     [s / 2, 0, s / 2],
   ];
@@ -129,17 +257,25 @@ export function pyramidSvg(s: number, H: number, labels: { s?: string; slant?: s
     [2, 4, false],
     [3, 4, true],
   ];
-  const { pts, parts, middle } = solid(verts, edges, [180, 140, 60, 20], 185, 'A square-based pyramid');
-  place(parts, pts, middle, [{ from: 0, to: 1, text: labels.s ?? '' }]);
+  const { pts, parts, labels: place, middle } = solid(verts, edges, [180, 140, 60, 20], 185, 'A square-based pyramid');
   if (labels.slant) {
     parts.push(seg(pts[4], pts[5], DASHED));
-    // Beside the dashed line, halfway up, on the side away from the front-left edge.
-    const mid: Pt = [(pts[4][0] + pts[5][0]) / 2, (pts[4][1] + pts[5][1]) / 2];
-    parts.push(text([mid[0] + 8 + 3.4 * labels.slant.length, mid[1] + 10], labels.slant));
+    place.line(pts[4], pts[5]);
   }
   if (labels.height) {
     parts.push(seg(pts[4], pts[6], DASHED), dot(pts[6], 2.5));
-    parts.push(text([pts[6][0] - 8 - 3.6 * labels.height.length, (pts[4][1] + pts[6][1]) / 2], labels.height));
+    place.line(pts[4], pts[6]);
+    place.line(minus(pts[6], [3, 0]), plus(pts[6], [3, 0]));
+  }
+  if (labels.s) parts.push(place.edge(pts[0], pts[1], labels.s, middle));
+  if (labels.slant) {
+    // On the front face, right of the dashed line, low down where the face is widest.
+    const [hw] = labelHalf(labels.slant);
+    parts.push(place.within(labels.slant, [pts[4], pts[5], pts[1]], plus(lerp(pts[5], pts[4], 0.3), [hw + 6, 0])));
+  }
+  if (labels.height) {
+    const [hw] = labelHalf(labels.height);
+    parts.push(place.within(labels.height, [pts[0], pts[1], pts[2], pts[4]], plus(lerp(pts[6], pts[4], 0.2), [-hw - 6, 0])));
   }
   parts.push(SVG_CLOSE);
   return parts.join('');
@@ -159,9 +295,15 @@ function ellipse(c: Pt, R: number, whole: boolean): string {
   return front + back;
 }
 
-/** A cylinder standing up, its radius or diameter on the top and its height down the right. */
+/**
+ * A cylinder standing up, its radius or diameter on the top and its height
+ * down the right. Never drawn narrower than 0.3 of its height across the
+ * radius, so a 1 cm radius still reads as a cylinder rather than a line.
+ */
 export function cylinderSvg(r: number, h: number, labels: { radius?: string; diameter?: string; height?: string }): string {
-  const { R, H } = roundScale(r, h);
+  const scaled = roundScale(r, h);
+  const R = Math.max(scaled.R, 0.3 * scaled.H);
+  const H = scaled.H;
   const top: Pt = [150, 36 + R * 0.3];
   const bottom: Pt = [150, top[1] + H];
   const parts = [svgOpen(bottom[1] + R * 0.3 + 12, 'A cylinder'), ellipse(top, R, true), ellipse(bottom, R, false)];
@@ -175,38 +317,71 @@ export function cylinderSvg(r: number, h: number, labels: { radius?: string; dia
   return parts.join('');
 }
 
-/** A cone standing on its base, with its radius, slant side and dashed height as asked. */
+/**
+ * A cone standing on its base, with its radius, slant side and dashed height
+ * as asked. Drawn between 0.55 and 0.8 of its height across the radius, so a
+ * flat cone keeps room inside for the height's label and a thin one does not
+ * shrink to a spike.
+ */
 export function coneSvg(r: number, h: number, labels: { radius?: string; diameter?: string; slant?: string; height?: string }): string {
-  const { R, H } = roundScale(r, h);
+  const scaled = roundScale(r, h);
+  const ratio = clamp(scaled.R / scaled.H, 0.55, 0.8);
+  // A thin cone widens at its fitted height; a flat one grows taller at its fitted width.
+  const R = ratio * scaled.H > scaled.R ? ratio * scaled.H : scaled.R;
+  const H = R / ratio;
   const apex: Pt = [150, 22];
   const base: Pt = [150, 22 + H];
-  const parts = [svgOpen(base[1] + R * 0.3 + 26, 'A cone'), ellipse(base, R, false)];
-  parts.push(seg(apex, [base[0] - R, base[1]]), seg(apex, [base[0] + R, base[1]]));
+  const height = base[1] + R * 0.3 + 26;
+  const left: Pt = [base[0] - R, base[1]];
+  const right: Pt = [base[0] + R, base[1]];
+  const parts = [svgOpen(height, 'A cone'), ellipse(base, R, false)];
+  parts.push(seg(apex, left), seg(apex, right));
+  const place = new Labels(height);
+  place.line(apex, left);
+  place.line(apex, right);
+  place.curve(ellipseLine(base, R, R * 0.3));
   // Below the base ellipse, clear of its front edge.
   const under = base[1] + R * 0.3 + 12;
-  if (labels.radius) parts.push(dot(base, 2.5), seg(base, [base[0] + R, base[1]], DASHED), text([base[0] + R / 2, under], labels.radius));
-  if (labels.diameter) parts.push(seg([base[0] - R, base[1]], [base[0] + R, base[1]], DASHED), text([base[0], under], labels.diameter));
-  if (labels.slant) parts.push(sideLabel(apex, [base[0] + R, base[1]], labels.slant, base, 14));
+  if (labels.radius) {
+    parts.push(dot(base, 2.5), seg(base, right, DASHED), place.put(labels.radius, [[base[0] + R / 2, under]]));
+    place.line(base, right);
+  }
+  if (labels.diameter) {
+    parts.push(seg(left, right, DASHED), place.put(labels.diameter, [[base[0], under]]));
+    place.line(left, right);
+  }
   if (labels.height) {
     parts.push(seg(apex, base, DASHED));
-    parts.push(text([base[0] - 8 - 3.6 * labels.height.length, (apex[1] + base[1]) / 2], labels.height));
+    place.line(apex, base);
+  }
+  if (labels.slant) parts.push(place.edge(apex, right, labels.slant, base));
+  if (labels.height) {
+    // Inside the cone, left of the dashed line, as low as the back of the base allows.
+    const [hw] = labelHalf(labels.height);
+    parts.push(place.within(labels.height, [apex, left, right], [base[0] - hw - 6, (apex[1] + base[1]) / 2 + H / 6]));
   }
   parts.push(SVG_CLOSE);
   return parts.join('');
 }
 
-/** A sphere (or a hemisphere, cut flat on top) with its radius or diameter drawn. */
+/**
+ * A sphere (or a hemisphere, cut flat on top) with its radius or diameter
+ * drawn. The label sits above the back of the ellipse, since a label on the
+ * line itself runs into the dashed back edge.
+ */
 export function sphereSvg(labels: { radius?: string; diameter?: string }, hemi = false): string {
   const R = 80;
-  const c: Pt = [150, hemi ? 40 : 100];
-  const parts = [svgOpen(hemi ? 140 : 200, hemi ? 'A hemisphere' : 'A sphere')];
+  const ry = R * 0.3;
+  const c: Pt = [150, hemi ? 58 : 108];
+  const parts = [svgOpen(c[1] + R + 12, hemi ? 'A hemisphere' : 'A sphere')];
   if (hemi) {
     parts.push(`<path d="M ${c[0] - R} ${c[1]} A ${R} ${R} 0 0 0 ${c[0] + R} ${c[1]}" fill="none" stroke="currentColor" stroke-width="2" />`, ellipse(c, R, true));
   } else {
     parts.push(`<circle cx="${c[0]}" cy="${c[1]}" r="${R}" fill="none" stroke="currentColor" stroke-width="2" />`, ellipse(c, R, false));
   }
-  if (labels.radius) parts.push(dot(c, 2.5), seg(c, [c[0] + R, c[1]]), text([c[0] + R / 2, c[1] - 10], labels.radius));
-  if (labels.diameter) parts.push(dot(c, 2.5), seg([c[0] - R, c[1]], [c[0] + R, c[1]]), text([c[0], c[1] - 10], labels.diameter));
+  const over = c[1] - ry - 11;
+  if (labels.radius) parts.push(dot(c, 2.5), seg(c, [c[0] + R, c[1]]), text([c[0] + R / 2, over], labels.radius));
+  if (labels.diameter) parts.push(dot(c, 2.5), seg([c[0] - R, c[1]], [c[0] + R, c[1]]), text([c[0], over], labels.diameter));
   parts.push(SVG_CLOSE);
   return parts.join('');
 }
@@ -217,7 +392,8 @@ export function cuboidNetSvg(l: number, w: number, h: number, labels: { l: strin
   const across = [w, l, w, l];
   const total = 2 * (l + w);
   const tall = h + 2 * w;
-  const k = Math.min(250 / total, 170 / tall);
+  // 220 across leaves room at each end for the labels beside the net.
+  const k = Math.min(220 / total, 170 / tall);
   const x0 = 150 - (total * k) / 2;
   const y0 = 20;
   const parts = [svgOpen(tall * k + 40, 'The net of a cuboid')];
@@ -232,8 +408,8 @@ export function cuboidNetSvg(l: number, w: number, h: number, labels: { l: strin
   parts.push(rect(fx, y0, l * k, w * k), rect(fx, y0 + (w + h) * k, l * k, w * k));
   parts.push(text([fx + (l * k) / 2, y0 + (w + h / 2) * k], 'front', 12));
   parts.push(text([fx + (l * k) / 2, y0 + tall * k + 12], labels.l));
-  parts.push(text([fx - 6 - 3.4 * labels.h.length - (w * k) - 0, y0 + (w + h / 2) * k], labels.h));
-  parts.push(text([fx + l * k + 8 + 3.4 * labels.w.length, y0 + (w / 2) * k], labels.w));
+  parts.push(text([x0 - 6, y0 + (w + h / 2) * k], labels.h, 13, 'end'));
+  parts.push(text([fx + l * k + 8, y0 + (w / 2) * k], labels.w, 13, 'start'));
   parts.push(SVG_CLOSE);
   return parts.join('');
 }
@@ -326,7 +502,7 @@ const geoCuboidFaces: Generator<CuboidParams> = {
     const answers = [f, t, s, cuboidSA(p)];
     return {
       kind: 'table',
-      prompt: [diagram(cuboidFigure(p)), say('Fill in the area of one front, one top and one side face, then the total surface area, in cm².')],
+      prompt: [diagram(cuboidFigure(p)), say('Fill in the area of one front, one top and one side face, then the total surface area, in\u00a0cm².')],
       columns: ['\\text{Face}', '\\text{Area}'],
       rows: [
         ['\\text{Front}', null],
@@ -362,9 +538,9 @@ const geoCuboidSA: Generator<SAParams> = {
     return { l: a, w: a, h: a, kind: rng.pick(['cube', 'cubeBack'] as const) };
   },
   render(p) {
-    if (p.kind === 'cuboid') return typed([diagram(cuboidFigure(p)), say('Find the surface area of the cuboid, in cm².')], cuboidSA(p), 'A =');
-    if (p.kind === 'cube') return typed([diagram(cuboidSvg(p.l, p.l, p.l, { l: cm(p.l) })), say('Find the surface area of the cube, in cm².')], 6 * p.l * p.l, 'A =');
-    return typed([diagram(cuboidSvg(p.l, p.l, p.l, { l: 'x' })), say(`A cube has a surface area of $${cm2(6 * p.l * p.l)}$. Find the length of an edge, $x$, in cm.`)], p.l, 'x =');
+    if (p.kind === 'cuboid') return typed([diagram(cuboidFigure(p)), say('Find the surface area of the cuboid, in\u00a0cm².')], cuboidSA(p), 'A =');
+    if (p.kind === 'cube') return typed([diagram(cuboidSvg(p.l, p.l, p.l, { l: cm(p.l) })), say('Find the surface area of the cube, in\u00a0cm².')], 6 * p.l * p.l, 'A =');
+    return typed([diagram(cuboidSvg(p.l, p.l, p.l, { l: 'x' })), say(`A cube has a surface area of $${cm2(6 * p.l * p.l)}.$ Find the length of an edge, $x$, in\u00a0cm.`)], p.l, 'x =');
   },
   choices(p) {
     if (p.kind === 'cubeBack') return numberOptions(p.l, [p.l * p.l, (6 * p.l * p.l) / 6 / 2, p.l + 1], 1, 1);
@@ -419,8 +595,9 @@ const prismSteps = (p: PrismParams) => [
   ...(p.hideC ? [{ text: 'First the sloping side, by Pythagoras:' }, { tex: `\\sqrt{${p.a}^2 + ${p.b}^2} = \\sqrt{${p.a * p.a + p.b * p.b}} = ${p.c}` }] : []),
   { text: 'The two triangle ends make one rectangle:' },
   { tex: `2 \\times \\tfrac{1}{2} \\times ${p.a} \\times ${p.b} = ${p.a * p.b}` },
-  { text: 'The three rectangles round the sides are the perimeter times the length:' },
-  { tex: `(${p.a} + ${p.b} + ${p.c}) \\times ${p.L} = ${p.a + p.b + p.c} \\times ${p.L} = ${(p.a + p.b + p.c) * p.L}` },
+  { text: 'The three rectangles round the sides are the perimeter of an end times the length:' },
+  { tex: `${p.a} + ${p.b} + ${p.c} = ${p.a + p.b + p.c}` },
+  { tex: `${p.a + p.b + p.c} \\times ${p.L} = ${(p.a + p.b + p.c) * p.L}` },
   { tex: `A = ${p.a * p.b} + ${(p.a + p.b + p.c) * p.L} = ${prismSA(p)}` },
 ];
 
@@ -429,7 +606,7 @@ const geoPrismSA: Generator<PrismParams> = {
   sample: samplePrism,
   render(p) {
     const extra = p.hideC ? ' The ends are right-angled triangles.' : '';
-    return typed([diagram(prismFigure(p)), say(`Find the surface area of the prism, in cm².${extra}`)], prismSA(p), 'A =');
+    return typed([diagram(prismFigure(p)), say(`Find the surface area of the prism, in\u00a0cm².${extra}`)], prismSA(p), 'A =');
   },
   choices(p) {
     return numberOptions(prismSA(p), [(p.a * p.b) / 2 + (p.a + p.b + p.c) * p.L, (p.a + p.b + p.c) * p.L, p.a * p.b * p.L], 1, 1);
@@ -451,8 +628,9 @@ const geoShortcutTree: Generator<PrismParams> = {
     const answers = [p.a * p.b, perim, perim * p.L, prismSA(p)];
     return {
       kind: 'tree',
-      prompt: [diagram(prismFigure(p)), say('Work out the surface area in cm²: the two ends, the perimeter of an end, the sides, then the total.')],
-      expression: `2 \\times \\tfrac{1}{2} \\times ${p.a} \\times ${p.b} + (${p.a} + ${p.b} + ${p.c}) \\times ${p.L}`,
+      prompt: [diagram(prismFigure(p)), say('Work out the surface area in\u00a0cm²: the two ends, the perimeter of an end, the sides, then the total.')],
+      // The bracket is braced so a narrow screen breaks the line after the first +, never inside it.
+      expression: `2 \\times \\tfrac{1}{2} \\times ${p.a} \\times ${p.b} + {(${p.a} + ${p.b} + ${p.c})} \\times ${p.L}`,
       nodes: [
         { id: 'ends', from: [] },
         { id: 'perimeter', from: [] },
@@ -494,7 +672,7 @@ const geoCylinderSA: Generator<CylParams> = {
   render(p): Slide {
     return {
       kind: 'expression',
-      prompt: [diagram(cylFigure(p)), say('Find the total surface area of the cylinder in cm². Leave $\\pi$ in the answer.')],
+      prompt: [diagram(cylFigure(p)), say('Find the total surface area of the cylinder in\u00a0cm². Leave $\\pi$ in the answer.')],
       lead: 'A =',
       keypad: PI_KEYS,
       answer: piAns(2 * p.r * p.r + 2 * p.r * p.h),
@@ -532,14 +710,14 @@ const geoCylinderCurved: Generator<CurvedParams> = {
   render({ r, h, back }): Slide {
     if (back) {
       return typed(
-        [diagram(cylinderSvg(r, h, { radius: cm(r), height: 'x' })), say(`The curved surface of the cylinder has an area of $${piTex(2 * r * h)}\\text{ cm}^2$. Find its height $x$, in cm.`)],
+        [diagram(cylinderSvg(r, h, { radius: cm(r), height: 'x' })), say(`The curved surface of the cylinder has an area of $${piTex(2 * r * h)}\\text{ cm}^2.$ Find its height $x$, in\u00a0cm.`)],
         h,
         'x =',
       );
     }
     return {
       kind: 'expression',
-      prompt: [diagram(cylinderSvg(r, h, { radius: cm(r), height: cm(h) })), say('Find the area of the curved surface only, in cm². Leave $\\pi$ in the answer.')],
+      prompt: [diagram(cylinderSvg(r, h, { radius: cm(r), height: cm(h) })), say('Find the area of the curved surface only, in\u00a0cm². Leave $\\pi$ in the answer.')],
       lead: 'A =',
       keypad: PI_KEYS,
       answer: piAns(2 * r * h),
@@ -602,7 +780,7 @@ const geoPyramidSA: Generator<PyrParams> = {
   render(p) {
     const labels = p.useH ? { s: cm(p.s), height: cm(p.H) } : { s: cm(p.s), slant: cm(p.l) };
     const extra = p.useH ? ' Find the slant height of a triangle first.' : '';
-    return typed([diagram(pyramidSvg(p.s, p.H, labels)), say(`Find the surface area of the square-based pyramid, in cm².${extra}`)], pyrSA(p), 'A =');
+    return typed([diagram(pyramidSvg(p.s, p.H, labels)), say(`Find the surface area of the square-based pyramid, in\u00a0cm².${extra}`)], pyrSA(p), 'A =');
   },
   choices(p) {
     return numberOptions(pyrSA(p), [p.s * p.s + 4 * p.s * p.l, 2 * p.s * p.l, p.s * p.s + p.s * p.l], 1, 1);
@@ -655,7 +833,7 @@ const geoConeSA: Generator<ConeParams> = {
     const k = p.total ? p.r * p.l + p.r * p.r : p.r * p.l;
     return {
       kind: 'expression',
-      prompt: [diagram(coneFigure(p)), say(`Find the ${p.total ? 'total surface area' : 'area of the curved surface'} of the cone in cm². Leave $\\pi$ in the answer.`)],
+      prompt: [diagram(coneFigure(p)), say(`Find the ${p.total ? 'total surface area' : 'area of the curved surface'} of the cone in\u00a0cm². Leave $\\pi$ in the answer.`)],
       lead: 'A =',
       keypad: PI_KEYS,
       answer: piAns(k),
@@ -692,7 +870,7 @@ const geoConeTiles: Generator<ConeParams> = {
     const lead = p.useH ? ' Find the slant height first.' : '';
     return {
       kind: 'tiles',
-      prompt: [diagram(coneFigure(p)), say(`Fill in the curved surface $C$, then the total surface area $A$, in cm².${lead}`)],
+      prompt: [diagram(coneFigure(p)), say(`Fill in the curved surface $C$, then the total surface area $A$, in\u00a0cm².${lead}`)],
       template: 'C = {0}\\pi \\qquad A = {1}\\pi',
       bank: numberBank(answers, [p.r * p.r, 2 * p.r * p.l, p.r * p.l + 2 * p.r * p.r, p.r + p.l].filter(Number.isInteger), 3, 1, 1),
       answer: answers.map(num),

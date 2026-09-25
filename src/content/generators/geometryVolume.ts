@@ -49,8 +49,8 @@ const geoCuboidVol: Generator<CuboidVolParams> = {
     const V = p.l * p.w * p.h;
     const lab = (k: 'l' | 'w' | 'h') => (p.find === k ? 'x' : cm(p[k]));
     const figure = diagram(cuboidSvg(p.l, p.w, p.h, { l: lab('l'), w: lab('w'), h: lab('h') }));
-    if (p.find === 'V') return typed([figure, say('Find the volume of the cuboid, in cm³.')], V, 'V =');
-    return typed([figure, say(`The cuboid has a volume of $${cm3(V)}$. Find $x$, in cm.`)], p[p.find], 'x =');
+    if (p.find === 'V') return typed([figure, say('Find the volume of the cuboid, in\u00a0cm³.')], V, 'V =');
+    return typed([figure, say(`The cuboid has a volume of $${cm3(V)}.$ Find $x$, in\u00a0cm.`)], p[p.find], 'x =');
   },
   choices(p) {
     const V = p.l * p.w * p.h;
@@ -94,12 +94,12 @@ const geoPrismVol: Generator<PrismVolParams> = {
     const A = endArea(p);
     if (p.back) {
       return typed(
-        [diagram(prismSvg(p.a, p.b, p.L, { area: `${num(A)} cm²`, L: 'x' })), say(`The end of this prism has an area of $${cm2(A)}$, and its volume is $${cm3(A * p.L)}$. Find its length $x$, in cm.`)],
+        [diagram(prismSvg(p.a, p.b, p.L, { area: `${num(A)} cm²`, L: 'x' })), say(`The end of this prism has an area of $${cm2(A)},$ and its volume is $${cm3(A * p.L)}.$ Find its length $x$, in\u00a0cm.`)],
         p.L,
         'x =',
       );
     }
-    return typed([diagram(prismSvg(p.a, p.b, p.L, { a: cm(p.a), b: cm(p.b), L: cm(p.L) })), say('The ends are right-angled triangles. Find the volume of the prism, in cm³.')], A * p.L, 'V =');
+    return typed([diagram(prismSvg(p.a, p.b, p.L, { a: cm(p.a), b: cm(p.b), L: cm(p.L) })), say('The ends are right-angled triangles. Find the volume of the prism, in\u00a0cm³.')], A * p.L, 'V =');
   },
   choices(p) {
     const A = endArea(p);
@@ -127,7 +127,7 @@ const geoPrismVolTree: Generator<PrismVolParams> = {
     const answers = [p.a * p.b, A, A * p.L];
     return {
       kind: 'tree',
-      prompt: [diagram(prismSvg(p.a, p.b, p.L, { a: cm(p.a), b: cm(p.b), L: cm(p.L) })), say('The ends are right-angled triangles. Work out the volume in cm³: the two shorter sides multiplied, half of that for the end, then times the length.')],
+      prompt: [diagram(prismSvg(p.a, p.b, p.L, { a: cm(p.a), b: cm(p.b), L: cm(p.L) })), say('The ends are right-angled triangles. Work out the volume in\u00a0cm³: the two shorter sides multiplied, half of that for the end, then times the length.')],
       expression: `\\tfrac{1}{2} \\times ${p.a} \\times ${p.b} \\times ${p.L}`,
       nodes: [
         { id: 'product', from: [] },
@@ -176,7 +176,7 @@ const geoCylinderVol: Generator<CylVolParams> = {
   id: 'geo-cylinder-vol',
   sample: sampleCylVol,
   render(p) {
-    return piTyped([cylFig(p), say('Find the volume of the cylinder in cm³. Leave $\\pi$ in the answer.')], p.r * p.r * p.h);
+    return piTyped([cylFig(p), say('Find the volume of the cylinder in\u00a0cm³. Leave $\\pi$ in the answer.')], p.r * p.r * p.h);
   },
   choices({ r, h }) {
     return piOptions(r * r * h, [2 * r * h, r * h, 4 * r * r * h]);
@@ -196,7 +196,7 @@ const geoCylinderTiles: Generator<CylVolParams> = {
     const answers = [p.r * p.r, p.r * p.r * p.h];
     return {
       kind: 'tiles',
-      prompt: [cylFig(p), say('Find $r^2$, then the volume in cm³.')],
+      prompt: [cylFig(p), say('Find $r^2$, then the volume in\u00a0cm³.')],
       template: 'r^2 = {0} \\qquad V = {1}\\pi',
       bank: numberBank(answers, [2 * p.r, 2 * p.r * p.h, p.r * p.h, 4 * p.r * p.r].filter((v) => v !== p.r * p.r), 3, 1, 1),
       answer: answers.map(num),
@@ -222,9 +222,9 @@ const geoVolFactor: Generator<VolFactorParams> = {
     return { k, solids, kind: rng.pick(['back', 'similar'] as const), V: rng.int(2, 20) };
   },
   render({ k, solids, kind, V }) {
-    if (kind === 'forward') return typed([say(`Two ${solids} are similar, with a length scale factor of $${k}$. What is the volume scale factor?`)], k ** 3, '\\text{volume factor} =');
+    if (kind === 'forward') return typed([say(`Two ${solids} are similar, with a length scale factor of $${k}.$ What is the volume scale factor?`)], k ** 3, '\\text{volume factor} =');
     if (kind === 'back') return typed([say(`Two ${solids} are similar, and the volume of one is $${k ** 3}$ times the volume of the other. What is the length scale factor?`)], k, 'k =');
-    return typed([say(`Two similar ${solids}. The first has a volume of $${cm3(V)}$, and the second is $${k}$ times as long in every direction. Find the volume of the second, in cm³.`)], V * k ** 3, 'V =');
+    return typed([say(`Two similar ${solids}. The first has a volume of $${cm3(V)},$ and the second is $${k}$ times as long in every direction. Find the volume of the second, in\u00a0cm³.`)], V * k ** 3, 'V =');
   },
   choices({ k, kind, V }) {
     if (kind === 'forward') return numberOptions(k ** 3, [k * k, 3 * k, k], 1, 1);
@@ -260,8 +260,8 @@ const geoPyramidVol: Generator<PyrVolParams> = {
   },
   render({ s, h, back }) {
     const V = (s * s * h) / 3;
-    if (back) return typed([diagram(pyramidSvg(s, h, { s: cm(s), height: 'x' })), say(`The square-based pyramid has a volume of $${cm3(V)}$. Find its height $x$, in cm.`)], h, 'x =');
-    return typed([diagram(pyramidSvg(s, h, { s: cm(s), height: cm(h) })), say('Find the volume of the square-based pyramid, in cm³.')], V, 'V =');
+    if (back) return typed([diagram(pyramidSvg(s, h, { s: cm(s), height: 'x' })), say(`The square-based pyramid has a volume of $${cm3(V)}.$ Find its height $x$, in\u00a0cm.`)], h, 'x =');
+    return typed([diagram(pyramidSvg(s, h, { s: cm(s), height: cm(h) })), say('Find the volume of the square-based pyramid, in\u00a0cm³.')], V, 'V =');
   },
   choices({ s, h, back }) {
     const V = (s * s * h) / 3;
@@ -293,7 +293,7 @@ const geoConeVol: Generator<ConeVolParams> = {
   },
   render({ r, h, given }) {
     const labels = given === 'r' ? { radius: cm(r), height: cm(h) } : { diameter: cm(2 * r), height: cm(h) };
-    return piTyped([diagram(coneSvg(r, h, labels)), say('Find the volume of the cone in cm³. Leave $\\pi$ in the answer.')], (r * r * h) / 3);
+    return piTyped([diagram(coneSvg(r, h, labels)), say('Find the volume of the cone in\u00a0cm³. Leave $\\pi$ in the answer.')], (r * r * h) / 3);
   },
   choices({ r, h }) {
     return piOptions((r * r * h) / 3, [r * r * h, (r * h) / 3, (2 * r * r * h) / 3].filter(Number.isInteger));
@@ -301,8 +301,9 @@ const geoConeVol: Generator<ConeVolParams> = {
   solution({ r, h, given }) {
     return [
       ...(given === 'd' ? [{ text: 'Halve the diameter for the radius:' }, { tex: `r = ${2 * r} \\div 2 = ${r}` }] : []),
-      { text: 'A third of the circle times the height:' },
-      { tex: `V = \\tfrac{1}{3} \\times \\pi \\times ${r}^2 \\times ${h} = \\tfrac{1}{3} \\times ${piTex(r * r * h)} = ${piTex((r * r * h) / 3)}` },
+      { text: 'The circle times the height, then a third of that:' },
+      { tex: `\\pi \\times ${r}^2 \\times ${h} = ${piTex(r * r * h)}` },
+      { tex: `V = \\tfrac{1}{3} \\times ${piTex(r * r * h)} = ${piTex((r * r * h) / 3)}` },
     ];
   },
 };
@@ -337,7 +338,7 @@ const geoSphereVol: Generator<SphereVolParams> = {
     return { r: rng.pick(SPHERE_R), hemi: difficulty >= 2 && rng.int(0, 1) === 1, given: rng.pick(['r', 'd'] as const) };
   },
   render(p) {
-    return piTyped([sphereFig(p, p.given), say(`Find the volume of the ${p.hemi ? 'hemisphere' : 'sphere'} in cm³. Leave $\\pi$ in the answer.`)], sphereK(p));
+    return piTyped([sphereFig(p, p.given), say(`Find the volume of the ${p.hemi ? 'hemisphere' : 'sphere'} in\u00a0cm³. Leave $\\pi$ in the answer.`)], sphereK(p));
   },
   choices(p) {
     const k = sphereK(p);
@@ -355,7 +356,7 @@ const geoSphereTiles: Generator<SphereVolParams> = {
     const answers = [p.r ** 3, sphereK(p)];
     return {
       kind: 'tiles',
-      prompt: [sphereFig(p, p.given), say(`Find $r^3$, then the volume of the ${p.hemi ? 'hemisphere' : 'sphere'} in cm³.`)],
+      prompt: [sphereFig(p, p.given), say(`Find $r^3$, then the volume of the ${p.hemi ? 'hemisphere' : 'sphere'} in\u00a0cm³.`)],
       template: 'r^3 = {0} \\qquad V = {1}\\pi',
       bank: numberBank(answers, [3 * p.r, p.r * p.r, 4 * p.r * p.r, (4 * p.r ** 3) / 3 / (p.hemi ? 1 : 2)].filter((v) => !answers.includes(v)), 3, 0.5, 0.5),
       answer: answers.map(num),

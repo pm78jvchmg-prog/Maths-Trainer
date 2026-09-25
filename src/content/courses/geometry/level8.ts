@@ -18,11 +18,11 @@ export const volume: Level = {
       title: 'Volume',
       slides: [
         teach(
-          prose('**Volume** is the space inside a solid, counted in cubes. A cube with $1\\text{ cm}$ edges is $1\\text{ cm}^3$, one **cubic centimetre**. A cuboid is layers of cubes: length times width times height.'),
+          prose('**Volume** is the space inside a solid, counted in cubes. A cube with $1\\text{ cm}$ edges is $1\\text{ cm}^3,$ one **cubic centimetre**. A cuboid is layers of cubes: length times width times height.'),
           display('V = lwh'),
           diagram(cuboidSvg(5, 3, 4, { l: '5 cm', w: '3 cm', h: '4 cm' })),
           display('V = 5 \\times 3 \\times 4 = 60'),
-          prose('Backwards: a volume of $60\\text{ cm}^3$ with two edges $5\\text{ cm}$ and $3\\text{ cm}$. Divide by their product:'),
+          prose('Backwards: a volume of $60\\text{ cm}^3$ with two edges $5\\text{ cm}$ and $3\\text{ cm}.$ Divide by their product:'),
           display('x = 60 \\div 15 = 4'),
         ),
         ask('geo-cuboid-vol'),
@@ -100,7 +100,8 @@ export const volume: Level = {
           prose('A cone is a third of the cylinder around it:'),
           display('V = \\tfrac{1}{3}\\pi r^2 h'),
           diagram(coneSvg(3, 5, { radius: '3 cm', height: '5 cm' })),
-          display('V = \\tfrac{1}{3} \\times \\pi \\times 9 \\times 5 = \\tfrac{1}{3} \\times 45\\pi = 15\\pi'),
+          display('\\pi \\times 3^2 \\times 5 = 45\\pi'),
+          display('V = \\tfrac{1}{3} \\times 45\\pi = 15\\pi'),
           prose('Given a diameter, halve it first.'),
         ),
         ask('geo-cone-vol'),

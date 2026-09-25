@@ -322,7 +322,7 @@ export const trigIdentities: Course = {
               ),
               maths('\\tan x = 1 \\;\\Rightarrow\\; x = \\frac{\\pi}{4} \\text{ or } \\frac{5\\pi}{4}'),
               prose('To turn a degree answer into radians, multiply by $\\frac{\\pi}{180^{\\circ}}$ and simplify the fraction:'),
-              maths('\\tan x = -\\sqrt{3} \\;\\Rightarrow\\; x = 120^{\\circ} = \\frac{120}{180}\\pi = \\frac{2\\pi}{3}'),
+              maths('\\begin{aligned} \\tan x &= -\\sqrt{3} \\\\ x &= 120^{\\circ} \\\\ &= \\tfrac{120}{180}\\pi = \\tfrac{2\\pi}{3} \\end{aligned}'),
             ),
             ask('tid-tan-solve+choice', 2),
             ask('tid-tan-solve-tiles', 2),
@@ -594,11 +594,11 @@ export const trigIdentities: Course = {
             teach(
               prose('They also simplify. Pick the form of $\\cos 2x$ that cancels what is there:'),
               maths(
-                '\\begin{aligned} 1 + \\cos 2x &= 1 + (2\\cos^2 x - 1) = 2\\cos^2 x \\\\ 1 - \\cos 2x &= 1 - (1 - 2\\sin^2 x) = 2\\sin^2 x \\end{aligned}',
+                '\\begin{aligned} 1 + \\cos 2x &= 1 + (2\\cos^2 x - 1) \\\\ &= 2\\cos^2 x \\\\ 1 - \\cos 2x &= 1 - (1 - 2\\sin^2 x) \\\\ &= 2\\sin^2 x \\end{aligned}',
               ),
               prose('Then cancel:'),
               maths(
-                '\\begin{aligned} \\frac{3(1 + \\cos 2x)}{\\cos x} &= \\frac{6\\cos^2 x}{\\cos x} = 6\\cos x \\\\ \\frac{\\sin 2x}{\\sin x} &= \\frac{2\\sin x\\cos x}{\\sin x} = 2\\cos x \\end{aligned}',
+                '\\begin{aligned} \\frac{3(1 + \\cos 2x)}{\\cos x} &= \\frac{6\\cos^2 x}{\\cos x} \\\\ &= 6\\cos x \\\\ \\frac{\\sin 2x}{\\sin x} &= \\frac{2\\sin x\\cos x}{\\sin x} \\\\ &= 2\\cos x \\end{aligned}',
               ),
             ),
             ask('tid-double-collapse-choice', 2),
@@ -1021,7 +1021,7 @@ export const trigIdentities: Course = {
               maths('\\begin{aligned} 1 - \\cos x &= 2\\sin^2 \\tfrac{x}{2} \\\\ 1 + \\cos x &= 2\\cos^2 \\tfrac{x}{2} \\\\ \\sin x &= 2\\sin \\tfrac{x}{2}\\cos \\tfrac{x}{2} \\end{aligned}'),
               prose('So a number times $1 - \\cos x$ becomes a square, and a sine cancels:'),
               maths(
-                '\\begin{aligned} 3 - 3\\cos x &= 3(1 - \\cos x) = 6\\sin^2 \\tfrac{x}{2} \\\\ \\frac{1 - \\cos x}{\\sin x} &= \\frac{2\\sin^2 \\frac{x}{2}}{2\\sin \\frac{x}{2}\\cos \\frac{x}{2}} = \\tan \\tfrac{x}{2} \\end{aligned}',
+                '\\begin{aligned} 3 - 3\\cos x &= 3(1 - \\cos x) \\\\ &= 6\\sin^2 \\tfrac{x}{2} \\\\ \\frac{1 - \\cos x}{\\sin x} &= \\frac{2\\sin^2 \\frac{x}{2}}{2\\sin \\frac{x}{2}\\cos \\frac{x}{2}} \\\\ &= \\tan \\tfrac{x}{2} \\end{aligned}',
               ),
             ),
             lead(
@@ -1119,7 +1119,7 @@ export const trigIdentities: Course = {
               prose(
                 'Multiplying top and bottom by $2$ clears the fraction inside the fraction. Then take the root, top and bottom separately. $15^{\\circ}$ is acute, so the root is positive:',
               ),
-              maths('\\sin 15^{\\circ} = \\sqrt{\\tfrac{2 - \\sqrt{3}}{4}} = \\tfrac{\\sqrt{2 - \\sqrt{3}}}{\\sqrt{4}} = \\tfrac{1}{2}\\sqrt{2 - \\sqrt{3}}'),
+              maths('\\begin{aligned} \\sin 15^{\\circ} &= \\sqrt{\\tfrac{2 - \\sqrt{3}}{4}} = \\tfrac{\\sqrt{2 - \\sqrt{3}}}{\\sqrt{4}} \\\\ &= \\tfrac{1}{2}\\sqrt{2 - \\sqrt{3}} \\end{aligned}'),
             ),
             ask('tid-half-exact-tiles'),
             ask('tid-half-surd-tree'),
@@ -1195,7 +1195,7 @@ export const trigIdentities: Course = {
                 '\\begin{aligned} \\sin 3x &= 3\\sin x - 4\\sin^3 x \\\\ 4\\sin^3 x &= 3\\sin x - \\sin 3x \\end{aligned}',
               ),
               prose('In the same way $4\\cos^3 x = \\cos 3x + 3\\cos x$. Divided by the single angle, each term loses one power:'),
-              maths('\\frac{\\sin 3x}{\\sin x} = \\frac{3\\sin x - 4\\sin^3 x}{\\sin x} = 3 - 4\\sin^2 x'),
+              maths('\\begin{aligned} \\frac{\\sin 3x}{\\sin x} &= \\frac{3\\sin x - 4\\sin^3 x}{\\sin x} \\\\ &= 3 - 4\\sin^2 x \\end{aligned}'),
             ),
             ask('tid-triple-tiles'),
             lead(
@@ -1460,8 +1460,10 @@ export const trigIdentities: Course = {
                 'The third form, $\\cos 2x = \\cos^2 x - \\sin^2 x$, is a difference of two squares, so it factorises:',
               ),
               maths(
-                '\\begin{aligned} \\frac{\\cos 2x}{\\cos x - \\sin x} &= \\frac{\\cos^2 x - \\sin^2 x}{\\cos x - \\sin x} \\\\ &= \\frac{(\\cos x - \\sin x)(\\cos x + \\sin x)}{\\cos x - \\sin x} \\\\ &= \\cos x + \\sin x \\end{aligned}',
+                '\\begin{aligned} \\frac{\\cos 2x}{\\cos x - \\sin x} &= \\frac{\\cos^2 x - \\sin^2 x}{\\cos x - \\sin x} \\end{aligned}',
               ),
+              prose('The top is $(\\cos x - \\sin x)(\\cos x + \\sin x)$, and the $\\cos x - \\sin x$ cancels with the bottom:'),
+              maths('\\frac{\\cos 2x}{\\cos x - \\sin x} = \\cos x + \\sin x'),
               prose(
                 'Putting a table angle into both sides is a quick check on your working. If they agree, that is reassuring, but it is still not a proof.',
               ),

@@ -342,3 +342,18 @@ Generators in `src/content/generators/contestAdvancedCounting.ts`.
 | Balls and Urns | `cm-ac-urns-minimum`, `cm-ac-urns-tiles`, `cm-ac-dice-cap`, `cm-ac-terms` | hand out the minimums, then balls and dividers; odd parts are 2a + 1; an upper limit is taken off by inclusion–exclusion; terms of an expansion are shares of the power, and a slack unknown turns at most into equal |
 
 Level check: 14 questions across all five lessons.
+
+## Level 22: More Advanced Probability (`cm-l22`)
+
+Generators in `src/content/generators/contestAdvancedProbability.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Probability | `cm-ap-geom-square`, `cm-ap-birthday`, `cm-ap-dice-max`, `cm-ap-dice-max-table` | two random numbers are a point in a square, so a probability is an area; multiply the shrinking chances for all different; exactly is at most less at most, and smallest and largest together is inclusion and exclusion |
+| Conditional Probability | `cm-ap-test-bayes`, `cm-ap-test-table`, `cm-ap-cond-pair`, `cm-ap-coin-bag` | picture a crowd and count the positives; a second test multiplies both counts again; at least one is not the first one; weigh each coin by how likely its tosses were |
+| Expected Value | `cm-ap-ev-table`, `cm-ap-ev-missing`, `cm-ap-ev-max`, `cm-ap-ev-respin` | value times chance, added; read it backwards for a missing prize or a fair payout; k tickets make k + 1 equal gaps, and a whole score is the sum of its tail chances; keep what beats a fresh spin, working backwards |
+| Recursion | `cm-ap-wait`, `cm-ap-first-to-win`, `cm-ap-land-on`, `cm-ap-land-table` | after a miss it all starts again; both miss and the game comes back round; land on k from k − 1 or from k − 2 |
+| Linearity of Expectation | `cm-ap-draw-sum`, `cm-ap-distinct`, `cm-ap-adjacent`, `cm-ap-adjacent-tiles` | each draw alone averages the middle, and expectations add; a count is a sum of one-or-nothing scores; every neighbouring pair is a random pair, and a circle has one more |
+| Events with States | `cm-ap-streak`, `cm-ap-streak-table`, `cm-ap-pattern`, `cm-ap-ruin` | a run of j costs r(T + 1) from a run of j − 1; nothing is lost after the first half of a two-different pattern, and after a miss TH beats HH; the gambler's steps are equal, or in the ratio q : p |
+
+Level check: 14 questions across all six lessons.

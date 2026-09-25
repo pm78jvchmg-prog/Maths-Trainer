@@ -252,3 +252,38 @@ Generators in `src/content/generators/contestPolynomials.ts`.
 | Transformations | `cm-po-shift-product`, `cm-po-roots-sum-sub`, `cm-po-new-roots-table`, `cm-po-squared-roots-tiles` | (k − r)(k − s)(k − t) is p(k), and (r + k)(s + k)(t + k) is −p(−k); p(ax + b) has roots (r − b)/a, the shift counted once per root; scaling the roots by k scales the coefficients by k, k², k³; roots r² and s² from Vieta |
 
 Level check: 14 questions across all four lessons.
+
+## Level 15: Sequences and Series (`cm-l15`)
+
+Generators in `src/content/generators/contestSequencesSeries.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Arithmetic Sequences | `cm-ss-index-pairs`, `cm-ss-insert-tiles`, `cm-ss-symmetric-three`, `cm-ss-sum-rule`, `cm-ss-sum-rule-table`, `cm-ss-block-sums` | terms whose places add to the same number add to the same total, and the middle term is the mean; k numbers put in make k + 1 gaps; name three terms a − d, a, a + d; a term is the gap between two sums; block sums are arithmetic, so the third block is 2B₂ − B₁ |
+| Geometric Sequences | `cm-ss-geo-middle`, `cm-ss-geo-table`, `cm-ss-geo-shift-sum`, `cm-ss-geo-shift-tiles`, `cm-ss-geo-infinite`, `cm-ss-bounce` | the middle term is the geometric mean, not the average; a gap of k steps is r to the k; multiply by r and subtract, and only the ends survive; a series that goes on for ever holds a copy of itself; the first fall once, every bounce twice |
+| Telescoping Series | `cm-ss-tele-unit`, `cm-ss-tele-table`, `cm-ss-tele-gap`, `cm-ss-tele-roots`, `cm-ss-tele-factorial` | 1/(k(k + 1)) = 1/k − 1/(k + 1), even when the bottoms are multiplied out; a gap of g puts 1/g in front, and k(k + 2) leaves two at each end; multiply by the conjugate; k × k! = (k + 1)! − k! and k/(k + 1)! = 1/k! − 1/(k + 1)! |
+
+## Level 16: Finding and Counting Factors (`cm-l16`)
+
+Generators in `src/content/generators/contestFactors.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Prime Factorization | `cm-fc-perfect-power`, `cm-fc-digit-product`, `cm-fc-exponent-match`, `cm-fc-exponent-match-tiles`, `cm-fc-root-table` | the largest k is the HCF of the powers, after factorising the bases; pack the primes into the largest digits, 9s first; the powers of each prime must match on both sides; halve (or third) the powers, never multiply out |
+| GCD/LCM | `cm-fc-euclid`, `cm-fc-remainder-lcm`, `cm-fc-lcm-pairs`, `cm-fc-lcm-pairs-table`, `cm-fc-gcd-sum` | a common divisor divides the difference, and 2^m − 1 runs Euclid on its exponents; take the remainder away (or add one) for a multiple of the LCM; 2e + 1 pairs of powers for each prime, one pair with a = b; divide out the gcd and split the sum into coprime parts |
+| Counting Factors | `cm-fc-few-divisors`, `cm-fc-divisor-product`, `cm-fc-square-pairs`, `cm-fc-multiple-divisors`, `cm-fc-multiple-divisors-table` | divisors pair d with n/d, so only squares have an odd count and three divisors means a prime squared; the pairs multiply to N^{t/2}; the divisors of N² pair around N; a multiple of m is m times a divisor of N/m |
+
+Level check: 12 questions across all three lessons.
+
+## Level 17: Modular Arithmetic (`cm-l17`)
+
+Generators in `src/content/generators/contestModular.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| System of Congruences | `cm-md-remainder-shift`, `cm-md-crt-sieve`, `cm-md-crt-table`, `cm-md-same-gap` | put the remainder in place of N, then reduce once more; list the larger divisor's numbers and test the other, then step by the product for a third; every remainder the same distance short makes N + g a common multiple, so the LCM, not the product |
+| Fractions | `cm-md-inverse`, `cm-md-inverse-table`, `cm-md-linear`, `cm-md-decimal-digit` | add the modulus until the division comes out; a shared factor divides the modulus too and leaves several answers; a far decimal digit is its place modulo the block, after any digits before the repeat |
+| Units Digit | `cm-md-tower`, `cm-md-tower-table`, `cm-md-power-sum`, `cm-md-last-two` | a tower needs its exponent modulo 4, with 3 as −1; powers add a block of ten at a time, 45 or 33 a block; (10t + 1)^n is 1 + 10tn, and other bases repeat once a power ends in 01 |
+| Euler's Theorem | `cm-md-fermat`, `cm-md-cycle-table`, `cm-md-euler-tower`, `cm-md-phi` | cut the power down by p − 1, or by φ(n) for a composite modulus; the cycle's length divides p − 1; cut a tower's top down by p − 1 first; φ(n) keeps the same share for each prime |
+
+Level check: 13 questions across all four lessons.

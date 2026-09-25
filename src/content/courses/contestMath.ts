@@ -22,6 +22,7 @@ import { compositeFigures } from './contest/level6';
 import { combinatorics } from './contest/level7';
 import { probability } from './contest/level8';
 import { fastProblemSolving } from './contest/level9';
+import { factorization } from './contest/level10';
 
 export const contestMath: Course = {
   id: 'contest-math',
@@ -29,5 +30,5 @@ export const contestMath: Course = {
   position: 10,
   title: 'Contest Math',
   blurb: 'Competition problems: short to state, hard to crack, and each one opened by a single good idea.',
-  levels: [problemSolving, equationsRatios, basicStatistics, geometryFundamentals, similarityScaling, compositeFigures, combinatorics, probability, fastProblemSolving],
+  levels: [problemSolving, equationsRatios, basicStatistics, geometryFundamentals, similarityScaling, compositeFigures, combinatorics, probability, fastProblemSolving, factorization],
 };

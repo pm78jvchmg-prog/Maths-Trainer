@@ -185,3 +185,17 @@ Generators in `src/content/generators/contestFast.ts`.
 | What’s the Number? | `cm-undo-number`, `cm-undo-table`, `cm-always-same`, `cm-place-value` | undo the steps, last first; follow n through and watch it cancel; swapping digits changes a number by 9(b − a); a digit written on the end makes 10N + d |
 
 Level check: 14 questions across all five lessons.
+
+## Level 10: Factorization (`cm-l10`)
+
+Generators in `src/content/generators/contestFactorization.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Factorization | `cm-fz-square-multiplier`, `cm-fz-square-multiplier-tiles`, `cm-fz-zeros-product`, `cm-fz-near-square` | top each power up to even, or to a multiple of 3; a zero is a 2 paired with a 5, so the scarcer prime decides; a number just below a square is a difference of squares |
+| Number of Divisors | `cm-fz-divisor-count`, `cm-fz-divisor-table`, `cm-fz-divisor-sum`, `cm-fz-special-divisors` | one more choice than each power, multiplied; factorise a composite power first; multiply the brackets of powers for the sum; odd divisors drop the 2, square divisors take even powers only |
+| GCD and LCM | `cm-fz-hcf-lcm-tiles`, `cm-fz-together`, `cm-fz-pieces`, `cm-fz-hcf-lcm-product` | lower power of shared primes, higher power of every prime; meeting again is an LCM, one more meeting than gaps; the largest equal piece is the HCF; HCF × LCM = a × b, and coprime parts take whole prime powers |
+| Factorials | `cm-fz-factorial-zeros`, `cm-fz-factorial-table`, `cm-fz-factorial-power`, `cm-fz-factorial-smallest` | count the 5s, then the 25s and 125s; the scarcer prime of a composite base decides; run the count backwards along the multiples of p |
+| Cryptograms | `cm-fz-crypt-reverse`, `cm-fz-crypt-place`, `cm-fz-crypt-divisible`, `cm-fz-crypt-block` | AB + BA = 11(A + B), ABC − CBA = 99(A − C); ABC + AB + A = 111A + 11B + C; split the divisor into tests that share no factor; ABCABC = ABC × 7 × 11 × 13 |
+
+Level check: 13 questions across all five lessons.

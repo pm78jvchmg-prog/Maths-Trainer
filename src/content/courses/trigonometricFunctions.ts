@@ -657,17 +657,7 @@ export const trigonometricFunctions: Course = {
           slides: [
             teach(
               prose(
-                'Put a point on a circle of radius $1$, centred at the origin, starting at the far right. Now turn it anticlockwise and watch its height above the centre.',
-              ),
-              prose(
-                'That height starts at $0$, rises to $1$ after a quarter turn, falls back to $0$ at a half turn, drops to $-1$ at three quarters, and returns to $0$. Then it does it again.',
-              ),
-              prose(
-                'That height *is* the sine of the angle turned. Not a ratio of two sides — a height.',
-              ),
-              maths('\\sin(\\theta) = \\text{height of the point after turning } \\theta'),
-              prose(
-                'Its distance to the right of the centre is the other coordinate, the **cosine**. It starts at $1$, is $0$ at a quarter turn, $-1$ at a half turn and $0$ again at three quarters.',
+                'Put a point on a circle of radius $1$, centred at the origin, at the far right, and turn it anticlockwise. Its height above the centre *is* the **sine** of the angle turned — a height, not a ratio of two sides. Its distance to the right of the centre is the **cosine**. At each quarter turn:',
               ),
               maths(
                 '\\begin{array}{c|cccc} \\theta & 0^{\\circ} & 90^{\\circ} & 180^{\\circ} & 270^{\\circ} \\\\ \\hline \\sin & 0 & 1 & 0 & -1 \\\\ \\cos & 1 & 0 & -1 & 0 \\end{array}',
@@ -739,12 +729,11 @@ export const trigonometricFunctions: Course = {
               prose(
                 'The same turning point has a second coordinate: how far it is to the right of the centre. That is the cosine.',
               ),
-              maths('\\cos(\\theta) = \\text{horizontal displacement of the point}'),
               prose(
-                'It starts at $1$, since the point begins at the far right. After a quarter turn it is directly above the centre, so the displacement is $0$. At a half turn it is at the far left, giving $-1$. The height, the sine, runs $0$, $1$, $0$, $-1$ over the same quarter turns.',
+                'Over the quarter turns it runs $1$, $0$, $-1$, $0$, while the height, the sine, runs $0$, $1$, $0$, $-1$.',
               ),
               prose(
-                'At $60^{\\circ}$ the point, the centre and the start make a triangle with two sides of $1$ and $60^{\\circ}$ between them, so it is equilateral: the point is straight above the middle of the unit along the axis, and $\\cos(60^{\\circ}) = 0.5$. Reflecting that point gives the rest:',
+                'At $60^{\\circ}$ the point, the centre and the start make an equilateral triangle, so the point is straight above the middle of the unit along the axis: $\\cos(60^{\\circ}) = 0.5$. Reflections give the rest:',
               ),
               maths(
                 '\\begin{aligned} \\cos(60^{\\circ}) = \\cos(300^{\\circ}) &= 0.5 \\\\ \\cos(120^{\\circ}) = \\cos(240^{\\circ}) &= -0.5 \\end{aligned}',

@@ -212,3 +212,18 @@ Generators in `src/content/generators/contestReframing.ts`.
 | Autobiographical Numbers | `cm-look-say`, `cm-look-say-table`, `cm-self-describing`, `cm-digital-root`, `cm-number-plus-digits` | read runs, not digits; back a term, read in pairs; the digits of a self-describing number add to its length, but every place must be checked; digit sums keep the remainder on division by 9; name the digits and let their size decide |
 
 Level check: 14 questions across all four lessons.
+
+## Level 12: More Advanced Algebra (`cm-l12`)
+
+Generators in `src/content/generators/contestAdvancedAlgebra.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Systems of Equations | `cm-aa-sum-diff`, `cm-aa-swap`, `cm-aa-swap-tiles`, `cm-aa-cyclic` | x² − y² is (x + y)(x − y), so divide; swapped coefficients: add for the sum, subtract for the difference; add every equation when each holds the same letters |
+| Rates and Ratios | `cm-aa-avg-speed`, `cm-aa-avg-speed-tiles`, `cm-aa-meet`, `cm-aa-fill-drain` | average speed is total distance over total time, never the average of the speeds; time the dog, don't follow it; a chase closes at the difference of the speeds; rates add, times do not |
+| Quadratics | `cm-aa-complete-square`, `cm-aa-square-tiles`, `cm-aa-shared-root`, `cm-aa-nested-root` | complete the square, and a square is never negative; subtract the quadratics so x² cancels, then the product of the roots; an endless root contains a copy of itself |
+| Exponents | `cm-aa-power-equation`, `cm-aa-power-equation-tiles`, `cm-aa-power-sum`, `cm-aa-factor-power` | put both sides over one base, a fraction being a negative power; k copies of bˣ make k × bˣ; take the smallest power out of the top and the bottom |
+| Special Functions | `cm-aa-floor-sum`, `cm-aa-floor-table`, `cm-aa-abs-sum`, `cm-aa-functional`, `cm-aa-pair-sum` | ⌊√n⌋ = k for 2k + 1 values of n; absolute values are distances on the number line; substitute x and c − x; f(x) + f(1 − x) = 1 pairs the ends |
+| Logarithms | `cm-aa-log-chain`, `cm-aa-log-tiles`, `cm-aa-log-equation`, `cm-aa-log-power` | change of base makes a chain cancel; logs add by multiplying inside; a log to base bᵉ is 1/e of one to base b; b^(log_b c) = c |
+
+Level check: 13 questions across all six lessons.

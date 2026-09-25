@@ -632,10 +632,10 @@ function evalValue({ form, a, b, n, n1 }: EvalParams): number {
 }
 
 const EVAL_QUESTIONS: Record<EvalForm, (sym: string, n: number, n1: number) => string> = {
-  grow: (sym, n) => `The line below is $${sym}$ at $t = ${n}$, with $e^{t\\ln b}$ written as $b^{t}$.`,
-  gain: (sym, n) => `The line below is how much $${sym}$ has grown by at $t = ${n}$, with $e^{t\\ln b}$ written as $b^{t}$.`,
-  decay: (sym, n) => `The line below is $${sym}$ at $t = ${n}$, with $e^{-t\\ln b}$ written as $\\frac{1}{b^{t}}$.`,
-  between: (sym, n, n1) => `The line below is how much $${sym}$ grows between $t = ${n1}$ and $t = ${n}$, with $e^{t\\ln b}$ written as $b^{t}$.`,
+  grow: (sym, n) => `The line below is $${sym}$ at $t = ${n}$.`,
+  gain: (sym, n) => `The line below is how much $${sym}$ has grown by at $t = ${n}$.`,
+  decay: (sym, n) => `The line below is $${sym}$ at $t = ${n}$.`,
+  between: (sym, n, n1) => `The line below is how much $${sym}$ grows between $t = ${n1}$ and $t = ${n}$.`,
 };
 
 /**
@@ -663,6 +663,13 @@ const expmEvaluate: Generator<EvalParams> = {
     if (form === 'decay') return numberOptions(value, [a / (b * n), a - b ** n, a / b ** (n - 1), a * b ** n], true);
     if (form === 'between') return numberOptions(value, [a * b ** (n - n1), a * b ** n, a * (b ** n - b ** n1) + a, (a * b) ** n], true);
     return numberOptions(value, [(a * b) ** n - (form === 'gain' ? a : 0), a * b * n, a * b ** (n - 1), a * b ** n + a], true);
+  },
+  evaluatePrompt: ({ form, a, b, n, n1, ctx }) => {
+    const down = form === 'decay';
+    const story = storyOf(down, ctx);
+    return [
+      { kind: 'prose', text: `${opening(story, modelTex(a, { b, h: 1, down }))} ${EVAL_QUESTIONS[form](story.sym, n, n1)} What does it come to?` },
+    ];
   },
   render: (params): Slide => {
     const { form, a, b, n, n1, ctx } = params;
@@ -765,7 +772,7 @@ const expmAtTimeTree: Generator<AtTimeParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${opening(story, modelTex(a, { b, h, down }))} Find $${story.sym}$ when $t = ${t}$. It ${down ? 'divides' : 'multiplies'} by $${b}$ every $${h}$ ${story.unit}s, so fill in how many lots of $${h}$ that is, then that power of $${b}$, then $${story.sym}$.`,
+          text: `${opening(story, modelTex(a, { b, h, down }))} Find $${story.sym}$ when $t = ${t}$: fill in how many lots of $${h}$ ${story.unit}s that is, that power of $${b}$, then $${story.sym}$.`,
         },
       ],
       expression: down ? `${texNum(a)} \\div ${b}^{${t} \\div ${h}}` : `${a} \\times ${b}^{${t} \\div ${h}}`,
@@ -841,7 +848,7 @@ const expmPassSlider: Generator<PassParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${opening(story, modelTex(a, { b, h: 1, down }))} The dashed line is $${target}$, and each dot is the value at a whole ${story.unit}. Slide to the first whole ${story.unit} at which $${story.sym}$ is ${down ? 'below' : 'above'} $${target}$.`,
+          text: `${opening(story, modelTex(a, { b, h: 1, down }))} Each dot is a whole ${story.unit}. Slide to the first at which $${story.sym}$ is ${down ? 'below' : 'above'} the dashed line, $${target}$.`,
         },
       ],
       min: 0,
@@ -1621,7 +1628,7 @@ const expmFitTree: Generator<FitParams> = {
           kind: 'prose',
           text: fitPrompt(
             params,
-            `Fill in the ratio of the ${down ? 'first value to the second' : 'second value to the first'}, then the time between them, then what one unit of time ${down ? 'divides' : 'multiplies'} by, then the start $A$.`,
+            `Fill in the ratio of the ${down ? 'first value to the second' : 'second value to the first'}, the time between, what one unit of time ${down ? 'divides' : 'multiplies'} by, then $A$.`,
           ),
         },
       ],
@@ -1947,6 +1954,12 @@ function coolModel({ level, gap, b, h, rising }: CoolParams): string {
   return `${level} ${rising ? '-' : '+'} ${gap}e^{${ktTex({ b, h, down: true })}}`;
 }
 
+/** The model, and which time the line below is its value at. */
+function coolQuestion(params: CoolParams): string {
+  const story = boundedStory(params.rising, params.ctx);
+  return `${story.subject} after $t$ ${story.unit}s is $${story.sym} = ${coolModel(params)}$. At $t = ${params.m * params.h}$, $${story.sym}$ is the line below.`;
+}
+
 /** A bounded model at t = mh, reduced a piece at a time: level ± gap ÷ b^m. */
 const expmCoolEvaluate: Generator<CoolParams> = {
   id: 'expm-cool-evaluate',
@@ -1973,9 +1986,9 @@ const expmCoolEvaluate: Generator<CoolParams> = {
       true,
     );
   },
+  evaluatePrompt: (params) => [{ kind: 'prose', text: `${coolQuestion(params)} What does it come to?` }],
   render: (params): Slide => {
-    const { level, gap, b, h, m, rising, ctx } = params;
-    const story = boundedStory(rising, ctx);
+    const { level, gap, b, m, rising } = params;
     const power = b ** m;
     const part = gap / power;
     const op = rising ? '-' : '+';
@@ -1985,7 +1998,7 @@ const expmCoolEvaluate: Generator<CoolParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${story.subject} after $t$ ${story.unit}s is $${story.sym} = ${coolModel(params)}$. At $t = ${m * h}$ the power is $-${m}\\ln ${b}$, so $e$ to it is $\\frac{1}{${b}^{${m}}}$ and $${story.sym}$ is the line below. Tap the part you would do **next**, then choose what it comes to.`,
+          text: `${coolQuestion(params)} Tap the part you would do **next**, then choose what it comes to.`,
         },
       ],
       expr: bin(op, num(level), bin('/', num(gap), pow(num(b), num(m)))),
@@ -2291,7 +2304,7 @@ const expmReachTiles: Generator<ReachParams> = {
   id: 'expm-reach-tiles',
   sample: sampleReach,
   render: (params): Slide => {
-    const { a, b, h, m, down } = params;
+    const { a, b, h, m } = params;
     const target = reachTarget(params);
     const power = b ** m;
     const size = h === 1 ? `\\ln ${b}` : `\\frac{\\ln ${b}}{${h}}`;
@@ -2301,7 +2314,7 @@ const expmReachTiles: Generator<ReachParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${reachOpening(params)} Build the time it takes to reach $${texNum(target)}$: the logarithm of how many times ${down ? 'smaller' : 'bigger'} that is, divided by the size of $k$.`,
+          text: `${reachOpening(params)} Build the time it takes to reach $${texNum(target)}$.`,
         },
       ],
       template: 't = {0} \\div {1}',
@@ -3369,7 +3382,7 @@ const expmAvgReduce: Generator<AvgParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${opening(story, modelTex(a, params))} The line below is its average rate of change from $t = ${t1}$ to $t = ${t2}$, with $e^{${ktTex(params)}}$ written as $${everyTex(params)}$. Tap the part you would do **next**, then choose what it comes to.`,
+          text: `${opening(story, modelTex(a, params))} The line below is its average rate of change from $t = ${t1}$ to $t = ${t2}$. Tap the part you would do **next**, then choose what it comes to.`,
         },
       ],
       expr: avgExpr(params),
@@ -3813,7 +3826,7 @@ const expmRateCompareFlow: Generator<CurveParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${opening(story, model)} The dashed chord joins $t = ${t1}$ and $t = ${t2}$. Compare its rate at one end with the average, one question at a time.`,
+          text: `${opening(story, model)} The dashed chord joins $t = ${t1}$ and $t = ${t2}$. Compare its rate at one end with the average.`,
         },
         chordFigure(
           (t) => a * Math.exp(k * t),
@@ -4100,7 +4113,7 @@ const expmRateSolveSteps: Generator<InstantParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${opening(story, model)} Its rate is $\\frac{d${story.sym}}{dt} = ${kTex(params)} \\times ${story.sym}$. Find when $\\frac{d${story.sym}}{dt} = ${lnTex(c, b)}$ one step at a time: tap the step to do next, then choose what it gives.`,
+          text: `${opening(story, model)} Find when $\\frac{d${story.sym}}{dt} = ${lnTex(c, b)}$ one step at a time: tap the step to do next, then choose what it gives.`,
         },
       ],
       start: [`${kTex(params)} \\times ${model}`, '=', lnTex(c, b)],
@@ -4618,7 +4631,7 @@ const expmLeadTree: Generator<LeadParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${leadOpening(params)} Compare them at $t = ${t}$. Fill in the power of $${b}$ each start is multiplied or divided by, then $${s1}$ and $${s2}$, then $${s1} - ${s2}$, which is negative if $${s2}$ is ahead.`,
+          text: `${leadOpening(params)} Compare them at $t = ${t}$: fill in the power of $${b}$ on each start, then $${s1}$ and $${s2}$, then $${s1} - ${s2}$ (negative if $${s2}$ is ahead).`,
         },
       ],
       expression: `${s1}(${t}) - ${s2}(${t})`,
@@ -4896,7 +4909,7 @@ const expmOvertakeSteps: Generator<OvertakeParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${text} Find when they are the same size, one step at a time: write each in terms of $u = ${u}$, solve for $u$, then for $t$.`,
+          text: `${text} Find when they are the same size, one step at a time, with $u = ${u}$.`,
         },
       ],
       start: [multModel(left[0], left[1], b, h), '=', multModel(right[0], right[1], b, h)],
@@ -5145,7 +5158,7 @@ const expmMeetTree: Generator<MeetParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${meetOpening(params)} With $u = ${uTex(b, h)}$ they meet when $${uPow(p + q)} = \\frac{${texNum(a2)}}{${texNum(a)}}$. Fill in that fraction, then $u$, then the time they meet and the size both are then.`,
+          text: `${meetOpening(params)} With $u = ${uTex(b, h)}$ they meet when $${uPow(p + q)} = \\frac{${texNum(a2)}}{${texNum(a)}}$. Fill in that fraction, $u$, the time they meet, then the size both are then.`,
         },
       ],
       expression: `${uPow(p + q)} = \\frac{${texNum(a2)}}{${texNum(a)}}`,
@@ -5244,7 +5257,7 @@ const expmMeetWhich: Generator<MeetParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${meetOpening(params)} The picture shows both, with the point where they meet ringed. Which is the coloured curve, and when do they meet?`,
+          text: `${meetOpening(params)} They meet at the ringed point. Which is the coloured curve, and when do they meet?`,
         },
         {
           kind: 'diagram',
@@ -5678,7 +5691,7 @@ const expmDiffTree: Generator<GapParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${gapOpening(params)} With $u = ${uTex(b, h)}$, find $${P} - ${Q}$ at $t = ${t}$. Fill in $u$, then $${P}$ and $${Q}$, then $${P} - ${Q}$, which is negative if $${Q}$ is ahead.`,
+          text: `${gapOpening(params)} With $u = ${uTex(b, h)}$, find $${P} - ${Q}$ at $t = ${t}$. Fill in $u$, $${P}$ and $${Q}$, then $${P} - ${Q}$ (negative if $${Q}$ is ahead).`,
         },
       ],
       expression: `${P}(${t}) - ${Q}(${t})`,
@@ -6394,6 +6407,12 @@ const expmLogisticReduce: Generator<LogValueParams> = {
     const u = b ** m;
     return numberOptions(c * u, [c, c * b ** j, l / u, c * b ** (m + 1), c * u + c], true);
   },
+  evaluatePrompt: (params) =>
+    logisticPrompt(
+      logisticStory(params.ctx),
+      logValueModel(params),
+      `At $t = ${params.m * params.h}$, $e^{kt} = ${params.b}^{${params.m}}$ and $${logisticStory(params.ctx).sym}$ is the line below. What does it come to?`,
+    ),
   render: (params): Slide => {
     const { b, j, m, c, h, ctx } = params;
     const story = logisticStory(ctx);
@@ -6406,7 +6425,7 @@ const expmLogisticReduce: Generator<LogValueParams> = {
       prompt: logisticPrompt(
         story,
         logValueModel(params),
-        `At $t = ${m * h}$, $e^{kt} = ${b}^{${m}}$, and multiplying top and bottom by it makes $${story.sym}(${m * h})$ the line below. Tap the part you would do **next**, then choose what it comes to.`,
+        `At $t = ${m * h}$, $e^{kt} = ${b}^{${m}}$ and $${story.sym}$ is the line below. Tap the part you would do **next**, then choose what it comes to.`,
       ),
       expr: bin('*', bin('/', num(l), bin('+', pow(num(b), num(m)), num(a))), pow(num(b), num(m))),
       banks: {
@@ -6912,7 +6931,7 @@ const expmLogisticRateTree: Generator<LogRateParams> = {
       prompt: logisticPrompt(
         story,
         logRateModel(params),
-        `It grows at $\\frac{d${sym}}{dt} = ${k}${sym}\\left(1 - \\frac{${sym}}{${L}}\\right)$. Find the rate when $${sym} = ${value}$: fill in $${L} - ${value}$, then $${value}\\left(1 - \\frac{${value}}{${L}}\\right)$, which is $${value}$ times that divided by $${L}$, then the rate.`,
+        `It grows at $\\frac{d${sym}}{dt} = ${k}${sym}\\left(1 - \\frac{${sym}}{${L}}\\right)$. Find the rate when $${sym} = ${value}$: fill in $${L} - ${value}$, then $${value}\\left(1 - \\frac{${value}}{${L}}\\right)$, then the rate.`,
       ),
       expression: `${k} \\times ${value}\\left(1 - \\frac{${value}}{${L}}\\right)`,
       nodes: [
@@ -8722,7 +8741,7 @@ function dataTable(params: DataParams): string {
 
 function dataOpening(params: DataParams): string {
   const story = dataStory(params);
-  return `${story.subject} was measured ${everyUnit(params.gap * params.h, story.unit)}. The model $${story.sym} = ${modelTex(params.a, params)}$ was fitted to the measurements, with $t$ in ${story.unit}s.`;
+  return `${story.subject} was measured ${everyUnit(params.gap * params.h, story.unit)}, with $t$ in ${story.unit}s, and fitted with $${story.sym} = ${modelTex(params.a, params)}$.`;
 }
 
 /** The story, the table on a line of its own, then the question. */
@@ -9536,7 +9555,7 @@ function pairPrompt(params: PairParams, ask: string): Block[] {
   return [
     {
       kind: 'prose',
-      text: `${story.subject} was measured ${everyUnit(fit.gap * fit.h, story.unit)}, and two models were fitted to the measurements, with $t$ in ${story.unit}s.`,
+      text: `${story.subject} was measured ${everyUnit(fit.gap * fit.h, story.unit)}, with $t$ in ${story.unit}s, and two models were fitted.`,
     },
     { kind: 'display', tex: `\\begin{aligned} \\text{A:} \\;\\; ${story.sym} &= ${ma} \\\\ \\text{B:} \\;\\; ${story.sym} &= ${mb} \\end{aligned}` },
     {
@@ -9854,7 +9873,7 @@ function sampleFar(rng: Rng, difficulty: number): FarParams {
 
 function farOpening({ fit, story }: FarParams): string {
   const s = FAR_STORIES[story];
-  return `${s.subject} was measured ${everyUnit(fit.gap * fit.h, s.unit)}. The model $${s.sym} = ${modelTex(fit.a, fit)}$ was fitted to the measurements, with $t$ in ${s.unit}s.`;
+  return `${s.subject} was measured ${everyUnit(fit.gap * fit.h, s.unit)}, with $t$ in ${s.unit}s, and fitted with $${s.sym} = ${modelTex(fit.a, fit)}$.`;
 }
 
 const FAR_VERDICTS = ['It cannot happen', 'Only with caution', 'It can be trusted'];
@@ -9890,7 +9909,7 @@ const expmFarFlow: Generator<FarParams> = {
       prompt: [
         { kind: 'prose', text: farOpening(params) },
         { kind: 'display', tex: measuredTex(dataObserved(fit), fit.gap * fit.h, s.sym) },
-        { kind: 'prose', text: `${s.cap(texNum(cap))} Is the model's prediction at $t = ${t}$ sensible? Decide one question at a time.` },
+        { kind: 'prose', text: `${s.cap(texNum(cap))} Is the model's prediction at $t = ${t}$ sensible?` },
       ],
       subject: `${s.sym} = ${modelTex(fit.a, fit)}`,
       steps: [

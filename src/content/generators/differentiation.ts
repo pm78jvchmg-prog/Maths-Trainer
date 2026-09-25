@@ -2516,7 +2516,7 @@ const secondDerivative: Generator<SecondParams> = {
             : form === 'recip'
               ? 'The reciprocal is $x$ to a negative power, and each pass takes the power one further from zero: $-1$, then $-2$, then $-3$, with two sign changes on the way.'
               : form === 'exp'
-                ? `The chain rule brings down a factor of $${k}$ on each pass, so the exponential term ends up multiplied by $${k}^{2} = ${k * k}$.`
+                ? `The chain rule brings down a factor of $${k}$ on each pass, so the exponential term ends up multiplied by $${paren(k)}^{2} = ${k * k}$.`
                 : `The chain rule brings down a factor of $${k}$ on each pass, and going from $\\sin$ to $\\cos$ and back picks up exactly one minus sign.`,
       },
     ];

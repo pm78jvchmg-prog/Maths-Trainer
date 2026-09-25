@@ -61,6 +61,20 @@ is torn down anyway:
 fuser -k 5199/tcp 2>/dev/null || true
 ```
 
+**The same trap applies to `pgrep -f` inside a wait loop, and there it never
+ends.** `until ! pgrep -f vitest; do sleep 10; done` looks for "no vitest
+process", but the loop's own command line contains the word `vitest`, so it
+always finds itself and waits forever. Wait on the output instead — the line
+you are waiting for, in the file the command writes — or on the PID you
+launched (`$!`), never on the absence of a process name you typed.
+
+**Stop a background task once its result has arrived.** A waiter that never
+exits is not harmless: the session counts as busy for as long as it runs. One
+self-matching loop sat "in progress" overnight, and on the owner's side it kept
+a *usage limit reached* banner up for an hour after the limit had been raised,
+which stalled their paused threads in another session. When a result comes in
+by another route, stop every other task that was waiting for it.
+
 **`npm test` passing is not sufficient.** Vitest transforms TypeScript with
 esbuild, which strips types without checking them; a file can have real type
 errors and a green suite. Run the typecheck separately before committing.

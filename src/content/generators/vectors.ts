@@ -494,7 +494,11 @@ const parallel: Generator<ParallelParams> = {
   id: 'vec-parallel',
   sample: (rng, difficulty) => {
     const x = nonZero(rng.int(difficulty > 1 ? -8 : 1, 8), 3);
-    const y = nonZero(rng.int(difficulty > 1 ? -8 : -6, 8), -2);
+    const drawY = () => nonZero(rng.int(difficulty > 1 ? -8 : -6, 8), -2);
+    let y = drawY();
+    // Equal sizes would make the swapped distractor the given vector or its
+    // negative, both parallel: a second right answer marked wrong.
+    while (Math.abs(y) === Math.abs(x)) y = drawY();
     const k = nonZero(rng.int(difficulty > 1 ? -4 : 2, 4), 2);
     // k = 1 would offer the given vector itself as the parallel one.
     return { x, y, k: k === 1 ? -2 : k };

@@ -1,5 +1,5 @@
 /**
- * Classical Mechanics, level 1: Describing Motion (`cm-l1`).
+ * Classical Mechanics, level 1: Describing Motion (`clm-l1`).
  *
  * Speeds in two units, average speed over a race, closing speeds, stopping
  * distances, and stepping motion forward in time. Kinematics (motion graphs
@@ -66,7 +66,7 @@ interface ConvertParams {
 
 /** Expression: a speed from km h^-1 to m s^-1 (easy), or either way with halves (hard). */
 const kmhConvert: Generator<ConvertParams> = {
-  id: 'cm-kmh-convert',
+  id: 'clm-kmh-convert',
   sample: (rng, difficulty) => {
     const v = difficulty > 1 ? rng.int(10, 150) / 2 : rng.int(5, 70);
     return { who: moverFor(rng, v), v, to: difficulty > 1 ? rng.pick<ConvertParams['to']>(['ms', 'kmh']) : 'ms' };
@@ -97,7 +97,7 @@ interface LapParams {
 
 /** Expression: lap time from lap length and average speed in km h^-1, or (hard) the average speed. */
 const lapTime: Generator<LapParams> = {
-  id: 'cm-lap-time',
+  id: 'clm-lap-time',
   sample: (rng, difficulty) => ({
     v: rng.int(40, 90),
     t: difficulty > 1 ? rng.int(60, 120) : rng.int(70, 110),
@@ -142,7 +142,7 @@ interface SpeedRow {
 
 /** Table: three speeds each written in both units, one of the pair missing from each row. */
 const speedTable: Generator<{ rows: SpeedRow[] }> = {
-  id: 'cm-speed-table',
+  id: 'clm-speed-table',
   sample: (rng, difficulty) => {
     const hard = difficulty > 1;
     const blanks: SpeedRow['blank'][] = hard ? turned(['ms', 'kmh', rng.pick<SpeedRow['blank']>(['ms', 'kmh'])], rng.int(0, 2)) : ['ms', 'ms', 'ms'];
@@ -190,7 +190,7 @@ const GAP_SPAN = 100;
 
 /** Slider: a time gap between two cars at the same speed, as a distance: d = v t. */
 const gapSlider: Generator<GapParams> = {
-  id: 'cm-gap-slider',
+  id: 'clm-gap-slider',
   sample: (rng, difficulty) => ({ v: rng.int(4, 9) * 10, tenths: rng.int(1, 10), inKmh: difficulty > 1 }),
   render: ({ v, tenths, inKmh }) => {
     const figure = track(0, GAP_SPAN, [{ at: 0, name: 'A' }], 'A straight road marked in metres behind car A');
@@ -238,7 +238,7 @@ const stintNumbers = ({ v1, t1, v2, t2, pit }: StintParams) => {
 
 /** Tree: two stints (and, hard, a pit stop): each distance, the total, the total time, the average speed. */
 const stintTree: Generator<StintParams> = {
-  id: 'cm-stint-tree',
+  id: 'clm-stint-tree',
   sample: (rng, difficulty) =>
     until(
       () => ({
@@ -309,7 +309,7 @@ interface HalvesParams {
 
 /** Expression: equal distances at two speeds give 2ab/(a + b), not the mean; hard, the second speed that gives an average. */
 const equalHalves: Generator<HalvesParams> = {
-  id: 'cm-equal-halves',
+  id: 'clm-equal-halves',
   sample: (rng, difficulty) => {
     const [a, b] = rng.pick(difficulty > 1 ? HARD_HALVES : EASY_HALVES);
     const [first, second] = rng.chance(0.5) ? [a, b] : [b, a];
@@ -370,7 +370,7 @@ interface AvgTableParams {
 
 /** Table: distance, time and speed for three stints, one missing from each; hard adds the whole journey. */
 const avgTable: Generator<AvgTableParams> = {
-  id: 'cm-avg-table',
+  id: 'clm-avg-table',
   sample: (rng, difficulty) => {
     const hard = difficulty > 1;
     const blanks: StintCol[] = turned(hard ? ['v', 't', 'd'] : ['v', 'v', 'd'], rng.int(0, 2));
@@ -440,7 +440,7 @@ interface AvgFlowParams {
 
 /** Flow: the speed needed on a second lap to average V over two: time allowed, time used, speed. */
 const avgFlow: Generator<AvgFlowParams> = {
-  id: 'cm-avg-flow',
+  id: 'clm-avg-flow',
   sample: (rng, difficulty) => {
     const [a, b] = rng.pick(LAP_PAIRS);
     const [v1, v2] = rng.chance(0.5) ? [a, b] : [b, a];
@@ -516,7 +516,7 @@ const dirOf = (v: number): string => (v > 0 ? 'east' : 'west');
 
 /** Expression: the velocity of B relative to A along a line, b - a with signs. Easy: same way; hard: opposite ways. */
 const relVelocity: Generator<RelParams> = {
-  id: 'cm-rel-velocity',
+  id: 'clm-rel-velocity',
   sample: (rng, difficulty) =>
     until(
       () => {
@@ -559,7 +559,7 @@ const meetGap = ({ v1, v2, t, chase }: MeetParams): number => (chase ? v1 - v2 :
 
 /** Expression: time to meet head on, d/(v1 + v2); hard, time to catch up, d/(v1 - v2). */
 const meetTime: Generator<MeetParams> = {
-  id: 'cm-meet-time',
+  id: 'clm-meet-time',
   sample: (rng, difficulty) =>
     difficulty > 1
       ? until(
@@ -615,7 +615,7 @@ const pathLength = ({ vA, vB, head, t }: MeetSliderParams): number => vA * head 
 
 /** Slider: where two runners heading towards each other meet, measured from A's end; hard, B starts late. */
 const meetSlider: Generator<MeetSliderParams> = {
-  id: 'cm-meet-slider',
+  id: 'clm-meet-slider',
   sample: (rng, difficulty) =>
     until(
       () => ({ vA: rng.int(2, 9), vB: rng.int(2, 9), head: difficulty > 1 ? rng.int(2, 8) : 0, t: rng.int(3, 12) }),
@@ -669,7 +669,7 @@ const gainOf = (p: OvertakeParams): number => p.behind + p.car + p.lorry + p.ahe
 
 /** Tree: an overtake: the distance to gain, the relative speed, the time, and the car's distance. */
 const overtakeTree: Generator<OvertakeParams> = {
-  id: 'cm-overtake-tree',
+  id: 'clm-overtake-tree',
   sample: (rng, difficulty) =>
     until(
       () => ({
@@ -736,7 +736,7 @@ interface ThinkParams {
 
 /** Expression: thinking distance, speed times reaction time, from a speed in km h^-1; hard, the reaction time. */
 const thinking: Generator<ThinkParams> = {
-  id: 'cm-thinking',
+  id: 'clm-thinking',
   sample: (rng, difficulty) => ({ v: rng.pick(ROAD_SPEEDS), tr: rng.int(5, 15), find: difficulty > 1 ? 'tr' : 'd' }),
   render: ({ v, tr, find }) => {
     const d = (v * tr) / 10;
@@ -779,7 +779,7 @@ const brakeDistance = ({ v, a }: Pick<BrakeParams, 'v' | 'a'>): number => (v * v
 
 /** Expression: braking distance u^2/(2a) at a steady deceleration; hard, the deceleration from a distance. */
 const braking: Generator<BrakeParams> = {
-  id: 'cm-braking',
+  id: 'clm-braking',
   sample: (rng, difficulty) =>
     until(
       () => ({ v: rng.int(8, 32), a: rng.pick(DECELS), find: difficulty > 1 ? ('a' as const) : ('d' as const) }),
@@ -820,7 +820,7 @@ interface SquaredParams {
 
 /** Expression: braking distance goes as speed squared, so k times the speed is k^2 times the distance. */
 const speedSquared: Generator<SquaredParams> = {
-  id: 'cm-speed-squared',
+  id: 'clm-speed-squared',
   sample: (rng, difficulty) =>
     until(
       () => {
@@ -867,7 +867,7 @@ const speedPhrase = ({ v, inKmh }: Pick<StopParams, 'v' | 'inKmh'>): string => (
 
 /** Tree: stopping distance as thinking distance plus braking distance. Hard gives the speed in km h^-1. */
 const stoppingTree: Generator<StopParams> = {
-  id: 'cm-stopping-tree',
+  id: 'clm-stopping-tree',
   sample: (rng, difficulty) => sampleStop(rng, difficulty > 1),
   render: (p) => {
     const { think, brake, stop } = stopParts(p);
@@ -905,7 +905,7 @@ interface HazardParams extends StopParams {
 
 /** Flow: does a car stop before a hazard? Thinking distance, braking distance, then the verdict. */
 const stopFlow: Generator<HazardParams> = {
-  id: 'cm-stop-flow',
+  id: 'clm-stop-flow',
   sample: (rng, difficulty) => {
     const p = sampleStop(rng, difficulty > 1);
     const { stop } = stopParts(p);
@@ -985,7 +985,7 @@ const STEP_RULE = 'x_{n+1} = x_{n} + v_{n}\\,\\Delta t \\qquad v_{n+1} = v_{n} +
 
 /** Table: three steps of the rule from a given start: position and velocity on each row. */
 const stepTable: Generator<StepParams> = {
-  id: 'cm-step-table',
+  id: 'clm-step-table',
   sample: (rng, difficulty) =>
     until(
       () => ({
@@ -1048,7 +1048,7 @@ export function trafficStep(cars: Car[]): Car[] {
 
 /** Table: one step of the traffic rule for three cars: each new speed and new cell. */
 const trafficTable: Generator<TrafficParams> = {
-  id: 'cm-traffic-table',
+  id: 'clm-traffic-table',
   sample: (rng, difficulty) =>
     until(
       () => {
@@ -1114,7 +1114,7 @@ const positionAt = ({ x0, u, a, dt }: StepVelParams, n: number): number => x0 + 
 
 /** Expression: from positions at equal time steps, a velocity (easy) or the acceleration from a second difference (hard). */
 const stepVelocity: Generator<StepVelParams> = {
-  id: 'cm-step-velocity',
+  id: 'clm-step-velocity',
   sample: (rng, difficulty) => ({
     x0: rng.int(0, 20),
     u: rng.int(0, 10),
@@ -1186,7 +1186,7 @@ const trueDistance = ({ a, dt, N }: StepErrorParams): number => (a * (N * dt) **
 
 /** Tree: stepping from rest against the exact 1/2 a T^2: stepped distance, true distance, and the shortfall. */
 const stepErrorTree: Generator<StepErrorParams> = {
-  id: 'cm-step-error-tree',
+  id: 'clm-step-error-tree',
   sample: (rng, difficulty) =>
     difficulty > 1 ? { a: rng.pick([2, 4, 6, 8, 12]), dt: 0.5, N: rng.int(4, 8) } : { a: rng.int(2, 10), dt: 1, N: rng.int(3, 6) },
   render: (p) => {

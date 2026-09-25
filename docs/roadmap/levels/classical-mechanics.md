@@ -37,7 +37,7 @@ and worked-example style rather than read in full at build time.
 Slide kinds are abbreviated: expr (typed), choice, table, tree, flow, slider,
 forces (free-body diagram), tiles.
 
-### Level 1: Describing Motion (`cm-l1`)
+### Level 1: Describing Motion (`clm-l1`)
 Outline: Formula One Racing, Cellular Automaton, Kinematics in the City.
 
 | Lesson | Source | Leans on |
@@ -48,7 +48,7 @@ Outline: Formula One Racing, Cellular Automaton, Kinematics in the City.
 | Stopping Distances | UP1 2.5 (braking on dry and wet roads, reaction time); Highway Code | expr, tree, flow |
 | Stepping Through Time | Nagel and Schreckenberg; UP1 2.5 | table, tree, expr |
 
-### Level 2: Motion in Two Dimensions (`cm-l2`)
+### Level 2: Motion in Two Dimensions (`clm-l2`)
 Outline: The Kinematic Equations, Angular Kinematics, Projectile Motion.
 Kinematics has no projectiles, so this is new ground.
 
@@ -60,7 +60,7 @@ Kinematics has no projectiles, so this is new ground.
 | Angular Acceleration | UP1 10.2 Constant angular acceleration | tree, expr |
 | Centripetal Acceleration | UP1 4.4 Uniform circular motion | expr, slider, choice |
 
-### Level 3: Forces in Fluids and on Curves (`cm-l3`)
+### Level 3: Forces in Fluids and on Curves (`clm-l3`)
 Outline: What are Forces?, The Three Laws of Motion, Weight and Scales,
 Pressure, Buoyancy, Drag Forces, Banked Curve Problem. The laws and apparent
 weight in a lift are Forces' levels 1 and 2, so this level takes the forces
@@ -74,7 +74,7 @@ Forces never meets.
 | Drag and Terminal Speed | UP1 6.4 | expr, slider |
 | Round a Bend | UP1 6.3 Centripetal force (flat and banked curves) | tree, forces, flow |
 
-### Level 4: Energy (`cm-l4`)
+### Level 4: Energy (`clm-l4`)
 Outline: Exploring Energy, Work-Energy Theorem, Conservation of Energy, Power,
 Elastic Energy, Potential Energy, Drone Battery Problem. Work, KE, PE, the
 work-energy principle and P = Fv are Forces level 6.
@@ -87,7 +87,7 @@ work-energy principle and P = Fv are Forces level 6.
 | Potential Energy Diagrams | UP1 8.4 | slider, choice |
 | Efficiency and Batteries | UP1 7.4 Power; CP 7.6 | expr, table, flow |
 
-### Level 5: Momentum (`cm-l5`)
+### Level 5: Momentum (`clm-l5`)
 Outline: Momentum in the Office, Impulse-Momentum Theorem, Rocket Equation,
 Ideal Gas Law, Photon Problem. 1D collisions and impulse are Forces level 5.
 
@@ -99,7 +99,7 @@ Ideal Gas Law, Photon Problem. 1D collisions and impulse are Forces level 5.
 | The Rocket Equation | UP1 9.7 Rocket propulsion | expr, flow |
 | Gas Pressure and Light | UP2 2.1-2.2 Molecular model of an ideal gas; UP3 6.3 (photon momentum) | tree, expr |
 
-### Level 6: Frames of Reference (`cm-l6`)
+### Level 6: Frames of Reference (`clm-l6`)
 Outline: Relativity on the Train, Center-of-Mass Frame, Rotating Frames,
 Einstein's Theory of Relativity.
 
@@ -111,7 +111,7 @@ Einstein's Theory of Relativity.
 | Time Dilation | UP3 5.3 | expr, table |
 | Length Contraction and Velocity Addition | UP3 5.4, 5.6 | tree, choice |
 
-### Level 7: Statics (`cm-l7`)
+### Level 7: Statics (`clm-l7`)
 Outline: Tower of Cards, Irregular Towers, Static Equilibrium, Rope Statics,
 Body Statics, Plank Statics. Moments on rods, planks and ladders are Forces
 level 4.
@@ -124,7 +124,7 @@ level 4.
 | Rope Statics | UP1 12.2 (a load hung from a rope's middle) | tree, forces |
 | Body Statics | UP1 12.2 (forearm and biceps) | tree, expr |
 
-### Level 8: Springs (`cm-l8`)
+### Level 8: Springs (`clm-l8`)
 | Lesson | Source | Leans on |
 | --- | --- | --- |
 | Springs Together | UP1 7.1, 15.1 | table, expr |
@@ -133,7 +133,7 @@ level 4.
 | Pendulums | UP1 15.4 | expr, slider |
 | The Large-Angle Pendulum | UP1 8.3, 15.4 | tree, flow |
 
-### Level 9: Oscillations (`cm-l9`)
+### Level 9: Oscillations (`clm-l9`)
 Outline: Vibrations in Molecules, Coupled Oscillations, Strings, Loaded
 Strings, Firefly Problem.
 
@@ -145,7 +145,7 @@ Strings, Firefly Problem.
 | Waves on a String | UP1 16.3 | expr, table |
 | Standing Waves | UP1 16.6 | slider, tree |
 
-### Level 10: General Considerations (`cm-l10`)
+### Level 10: General Considerations (`clm-l10`)
 Outline: Natural Units, Lagrangian Mechanics.
 
 | Lesson | Source | Leans on |

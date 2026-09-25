@@ -75,22 +75,22 @@ function brakeByStepping(u: number, a: number): number {
 
 describe('classical mechanics level 1', () => {
   it('converts speeds with 1 m/s = 3600 m per hour', TIME, () => {
-    expectAll('cm-kmh-convert', (p) => [p.to === 'ms' ? (n(p.v) * 3600) / 1000 / 3.6 : (n(p.v) * 3600) / 1000]);
+    expectAll('clm-kmh-convert', (p) => [p.to === 'ms' ? (n(p.v) * 3600) / 1000 / 3.6 : (n(p.v) * 3600) / 1000]);
   });
 
   it('times a lap as metres over metres per second', TIME, () => {
-    expectAll('cm-lap-time', (p) => {
+    expectAll('clm-lap-time', (p) => {
       const L = n(p.v) * n(p.t);
       return [p.find === 't' ? L / n(p.v) : (L / n(p.t)) * 3.6];
     });
   });
 
   it('turns a time gap into a distance', TIME, () => {
-    expectAll('cm-gap-slider', (p) => [(n(p.v) * n(p.tenths)) / 10]);
+    expectAll('clm-gap-slider', (p) => [(n(p.v) * n(p.tenths)) / 10]);
   });
 
   it('averages over total time, pit stops included', TIME, () => {
-    expectAll('cm-stint-tree', (p) => {
+    expectAll('clm-stint-tree', (p) => {
       const d1 = n(p.v1) * n(p.t1);
       const d2 = n(p.v2) * n(p.t2);
       const T = n(p.t1) + n(p.t2) + n(p.pit);
@@ -99,13 +99,13 @@ describe('classical mechanics level 1', () => {
   });
 
   it('averages equal distances through the times they take', TIME, () => {
-    expectAll('cm-equal-halves', (p) => {
+    expectAll('clm-equal-halves', (p) => {
       const d = 1000;
       const T = d / n(p.first) + d / n(p.second);
       return [p.find === 'avg' ? (2 * d) / T : n(p.second)];
     });
     // And the second speed really gives the stated average.
-    for (const { p, slide } of draws('cm-equal-halves')) {
+    for (const { p, slide } of draws('clm-equal-halves')) {
       if (p.find !== 'second') continue;
       const v2 = answerOf(slide)[0];
       const T = 1 / n(p.first) + 1 / v2;
@@ -115,7 +115,7 @@ describe('classical mechanics level 1', () => {
   });
 
   it('walks the lap-two flow through the times', TIME, () => {
-    for (const { p, slide } of draws('cm-avg-flow')) {
+    for (const { p, slide } of draws('clm-avg-flow')) {
       if (slide.kind !== 'flow') throw new Error('not a flow');
       const L = n(p.L);
       const t1 = L / n(p.v1);
@@ -129,7 +129,7 @@ describe('classical mechanics level 1', () => {
   });
 
   it('fills the stage table from d = vt, and the whole journey from totals', TIME, () => {
-    for (const { p, slide } of draws('cm-avg-table')) {
+    for (const { p, slide } of draws('clm-avg-table')) {
       if (slide.kind !== 'table') throw new Error('not a table');
       const rows = p.rows as { v: number; t: number; blank: 'd' | 't' | 'v' }[];
       const want: number[] = rows.map((r) => (r.blank === 'd' ? r.v * r.t : r.blank === 't' ? r.t : r.v));
@@ -143,11 +143,11 @@ describe('classical mechanics level 1', () => {
   });
 
   it('gives relative velocity as B minus A', TIME, () => {
-    expectAll('cm-rel-velocity', (p) => [n(p.b) - n(p.a)]);
+    expectAll('clm-rel-velocity', (p) => [n(p.b) - n(p.a)]);
   });
 
   it('finds the meeting time by moving both until the gap closes', TIME, () => {
-    for (const { p, slide } of draws('cm-meet-time')) {
+    for (const { p, slide } of draws('clm-meet-time')) {
       const t = answerOf(slide)[0];
       const gap = (p.chase ? n(p.v1) - n(p.v2) : n(p.v1) + n(p.v2)) * n(p.t);
       // After t seconds one has closed the whole gap, with the other's motion counted.
@@ -157,7 +157,7 @@ describe('classical mechanics level 1', () => {
   });
 
   it('puts the meeting point where both runners are at once', TIME, () => {
-    for (const { p, slide } of draws('cm-meet-slider')) {
+    for (const { p, slide } of draws('clm-meet-slider')) {
       if (slide.kind !== 'slider') throw new Error('not a slider');
       const x = slide.answer;
       const d = slide.max;
@@ -168,7 +168,7 @@ describe('classical mechanics level 1', () => {
   });
 
   it('overtakes by gaining both lengths and gaps', TIME, () => {
-    expectAll('cm-overtake-tree', (p) => {
+    expectAll('clm-overtake-tree', (p) => {
       const gain = n(p.behind) + n(p.car) + n(p.lorry) + n(p.ahead);
       const t = gain / n(p.r);
       return [gain, n(p.r), t, (n(p.vl) + n(p.r)) * t];
@@ -176,7 +176,7 @@ describe('classical mechanics level 1', () => {
   });
 
   it('brakes over the distance stepping the motion gives', TIME, () => {
-    for (const { p, slide } of draws('cm-braking')) {
+    for (const { p, slide } of draws('clm-braking')) {
       const got = answerOf(slide)[0];
       if (p.find === 'd') expect(Math.abs(got - brakeByStepping(n(p.v), n(p.a)))).toBeLessThan(1e-2);
       else expect(close(got, n(p.a))).toBe(true);
@@ -184,7 +184,7 @@ describe('classical mechanics level 1', () => {
   });
 
   it('scales braking distance with the square of the speed', TIME, () => {
-    for (const { p, slide } of draws('cm-speed-squared')) {
+    for (const { p, slide } of draws('clm-speed-squared')) {
       const got = answerOf(slide)[0];
       const a = ((n(p.v1) / 3.6) ** 2) / (2 * n(p.d1));
       expect(Math.abs(got - (n(p.v2) / 3.6) ** 2 / (2 * a))).toBeLessThan(1e-9);
@@ -192,13 +192,13 @@ describe('classical mechanics level 1', () => {
   });
 
   it('adds thinking and braking distances, and says rightly whether the car stops', TIME, () => {
-    expectAll('cm-thinking', (p) => [p.find === 'd' ? (n(p.v) * n(p.tr)) / 10 : n(p.tr) / 10]);
-    expectAll('cm-stopping-tree', (p) => {
+    expectAll('clm-thinking', (p) => [p.find === 'd' ? (n(p.v) * n(p.tr)) / 10 : n(p.tr) / 10]);
+    expectAll('clm-stopping-tree', (p) => {
       const think = (n(p.v) * n(p.tr)) / 10;
       const brake = brakeByStepping(n(p.v), n(p.a));
       return [think, brake, think + brake].map((v) => Math.round(v * 100) / 100);
     });
-    for (const { p, slide } of draws('cm-stop-flow')) {
+    for (const { p, slide } of draws('clm-stop-flow')) {
       if (slide.kind !== 'flow') throw new Error('not a flow');
       const stop = (n(p.v) * n(p.tr)) / 10 + brakeByStepping(n(p.v), n(p.a));
       const verdict = slide.answer[slide.answer.length - 1];
@@ -207,7 +207,7 @@ describe('classical mechanics level 1', () => {
   });
 
   it('steps position with the old speed, and speed with the acceleration', TIME, () => {
-    for (const { p, slide } of draws('cm-step-table')) {
+    for (const { p, slide } of draws('clm-step-table')) {
       let x = n(p.x0);
       let v = n(p.v0);
       const want: number[] = [];
@@ -222,7 +222,7 @@ describe('classical mechanics level 1', () => {
   });
 
   it('moves traffic cell by cell without a car ever reaching the one in front', TIME, () => {
-    for (const { p, slide } of draws('cm-traffic-table')) {
+    for (const { p, slide } of draws('clm-traffic-table')) {
       const cars = p.cars as { x: number; v: number }[];
       const want: number[] = [];
       cars.forEach((car, i) => {
@@ -238,7 +238,7 @@ describe('classical mechanics level 1', () => {
   });
 
   it('reads velocity and acceleration off positions at equal steps', TIME, () => {
-    for (const { p, slide } of draws('cm-step-velocity')) {
+    for (const { p, slide } of draws('clm-step-velocity')) {
       const at = (t: number) => n(p.x0) + n(p.u) * t + 0.5 * n(p.a) * t * t;
       const k = n(p.k);
       const dt = n(p.dt);
@@ -250,7 +250,7 @@ describe('classical mechanics level 1', () => {
   });
 
   it('measures how far stepping falls short of half a T squared', TIME, () => {
-    for (const { p, slide } of draws('cm-step-error-tree')) {
+    for (const { p, slide } of draws('clm-step-error-tree')) {
       let x = 0;
       let v = 0;
       for (let k = 0; k < n(p.N); k += 1) {
@@ -267,7 +267,7 @@ describe('classical mechanics level 1', () => {
   });
 
   it('fills the unit table both ways', TIME, () => {
-    for (const { p, slide } of draws('cm-speed-table')) {
+    for (const { p, slide } of draws('clm-speed-table')) {
       const rows = p.rows as { v: number; blank: 'ms' | 'kmh' }[];
       answerOf(slide).forEach((got, i) => expect(close(got, rows[i].blank === 'ms' ? rows[i].v : rows[i].v * 3.6)).toBe(true));
     }

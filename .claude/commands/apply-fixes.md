@@ -12,5 +12,5 @@ Findings to fix: $ARGUMENTS
    - confirm each finding is resolved, labelled Verified/Suspected with evidence;
    - report any new issue the change introduced.
 5. **Retry once.** If any fix fails re-check, send it back to `fixer` once. If it fails again, drop that commit and report it.
-6. **PR.** Open a pull request to `main` with a table: ID | Fixed? | Re-check result | Evidence. Do not merge.
+6. **PR.** Open a pull request to `main` with a table: ID | Fixed? | Re-check result | Evidence. Open it ready for review, not as a draft: it merges itself once its checks pass.
 7. Report back with the same table and the PR link.

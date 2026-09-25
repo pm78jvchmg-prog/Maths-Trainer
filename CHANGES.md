@@ -5,6 +5,8 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-25
 
+- **Maths content reviewer agent now runs on Opus** instead of Fable, and
+  `/apply-fixes` no longer says "Do not merge" (PRs merge themselves).
 - **Two grading bugs fixed (this PR).** `vec-parallel` could offer two
   parallel options, marking a correct pick wrong (~10% of draws). A negative
   base was shown unbracketed (`-1^{4}`) while the answer meant `(-1)^{4}`, in

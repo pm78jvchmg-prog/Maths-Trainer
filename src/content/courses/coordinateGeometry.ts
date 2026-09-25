@@ -736,9 +736,9 @@ export const coordinateGeometry: Course = {
               prose(
                 'With the centre at $C(a, b)$, measure $P$ from the centre as well: if $P$ is $X$ across and $Y$ up from $C$, a line through it is $k = Y - mX$ above the centre, and the condition is $k^2 = r^2(1 + m^2)$ as before.',
               ),
-              prose('If the circle comes multiplied out, complete the square first, as in level 2, to find $C$ and $r^2$:'),
+              prose('If the circle comes multiplied out, complete the square first, as in level 2, to find $C$ and $r^2$. For $x^2 + y^2 - 2x - 4y - 4 = 0$, move the number across first:'),
               maths(
-                '\\begin{aligned} x^2 + y^2 - 2x - 4y - 4 &= 0 \\\\ (x - 1)^2 - 1 + (y - 2)^2 - 4 - 4 &= 0 \\\\ (x - 1)^2 + (y - 2)^2 &= 9 \\end{aligned}',
+                '\\begin{aligned} x^2 - 2x + y^2 - 4y &= 4 \\\\ (x - 1)^2 - 1 + (y - 2)^2 - 4 &= 4 \\\\ (x - 1)^2 + (y - 2)^2 &= 9 \\end{aligned}',
               ),
               prose('So $C(1, 2)$ and $r^2 = 9$. For $P(4, 6)$, $CP^2 = 3^2 + 4^2 = 25$, more than $9$: two tangents.'),
             ),
@@ -766,7 +766,7 @@ export const coordinateGeometry: Course = {
               prose(
                 'When a line cuts the chord off, its midpoint comes straight from the quadratic. If the roots of $x^2 + px + q = 0$ are $\\alpha$ and $\\beta$, it factorises as $(x - \\alpha)(x - \\beta)$, and multiplying out shows the $x$ coefficient:',
               ),
-              maths('(x - \\alpha)(x - \\beta) = x^2 - (\\alpha + \\beta)x + \\alpha\\beta'),
+              maths('\\begin{aligned} &(x - \\alpha)(x - \\beta) \\\\ &= x^2 - (\\alpha + \\beta)x + \\alpha\\beta \\end{aligned}'),
               prose(
                 'So $\\alpha + \\beta = -p$, and the midpoint\'s $x$ is half of $-p$. $y = -x + 4$ into $x^2 + y^2 = 10$ gives $2x^2 - 8x + 6 = 0$, that is $x^2 - 4x + 3 = 0$, which is $(x - 1)(x - 3) = 0$: the roots $1$ and $3$ do add to $4$.',
               ),
@@ -985,9 +985,9 @@ export const coordinateGeometry: Course = {
               ),
               prose('In $x^2 + y^2 = 25$ the chord with midpoint $M(3, -1)$: $CM$ has gradient $-\\frac{1}{3}$, so the chord has gradient $3$.'),
               maths('\\begin{aligned} -1 &= 3 \\times 3 + c \\\\ c &= -10 \\end{aligned}'),
-              prose('So the chord is $y = 3x - 10$. When the circle comes multiplied out, complete the square first to find its centre:'),
+              prose('So the chord is $y = 3x - 10$. When the circle comes multiplied out, complete the square first to find its centre. For $x^2 + y^2 - 4x + 2y - 20 = 0$, move the number across first:'),
               maths(
-                '\\begin{aligned} x^2 + y^2 - 4x + 2y - 20 &= 0 \\\\ (x - 2)^2 - 4 + (y + 1)^2 - 1 - 20 &= 0 \\\\ (x - 2)^2 + (y + 1)^2 &= 25 \\end{aligned}',
+                '\\begin{aligned} x^2 - 4x + y^2 + 2y &= 20 \\\\ (x - 2)^2 - 4 + (y + 1)^2 - 1 &= 20 \\\\ (x - 2)^2 + (y + 1)^2 &= 25 \\end{aligned}',
               ),
               prose('The centre is $C(2, -1)$, and every fact then works from there.'),
             ),
@@ -1041,10 +1041,10 @@ export const coordinateGeometry: Course = {
             ask('coord-parallel-tangent'),
             teach(
               prose(
-                'When the circle comes multiplied out, complete the square first, as in level 2, to find the centre and $r^2$. After that every fact works as before.',
+                'When the circle comes multiplied out, complete the square first, as in level 2, to find the centre and $r^2$. After that every fact works as before. For $x^2 + y^2 - 2x - 2y - 8 = 0$, move the number across first:',
               ),
               maths(
-                '\\begin{aligned} x^2 + y^2 - 2x - 2y - 8 &= 0 \\\\ (x - 1)^2 - 1 + (y - 1)^2 - 1 - 8 &= 0 \\\\ (x - 1)^2 + (y - 1)^2 &= 10 \\end{aligned}',
+                '\\begin{aligned} x^2 - 2x + y^2 - 2y &= 8 \\\\ (x - 1)^2 - 1 + (y - 1)^2 - 1 &= 8 \\\\ (x - 1)^2 + (y - 1)^2 &= 10 \\end{aligned}',
               ),
               prose('That is the same circle as above: centre $(1, 1)$ and $r^2 = 10$.'),
             ),
@@ -1161,7 +1161,7 @@ export const coordinateGeometry: Course = {
               prose(
                 'Equal diagonals prove a rectangle only for a **parallelogram**; a kite-like shape can have equal diagonals too. So show it is a parallelogram first: its diagonals share a midpoint.',
               ),
-              maths('\\begin{aligned} M_{AC} &= \\left(\\tfrac{-2 + (-2)}{2}, \\tfrac{-1 + 4}{2}\\right) = (-2, 1.5) \\\\ M_{BD} &= \\left(\\tfrac{0 + (-4)}{2}, \\tfrac{0 + 3}{2}\\right) = (-2, 1.5) \\end{aligned}'),
+              maths('\\begin{aligned} M_{AC} &= \\left(\\tfrac{-2 + (-2)}{2}, \\tfrac{-1 + 4}{2}\\right) \\\\ &= (-2, 1.5) \\\\ M_{BD} &= \\left(\\tfrac{0 + (-4)}{2}, \\tfrac{0 + 3}{2}\\right) \\\\ &= (-2, 1.5) \\end{aligned}'),
             ),
             ask('coord-diagonals-tree'),
             ask('coord-para-diagonal-steps'),

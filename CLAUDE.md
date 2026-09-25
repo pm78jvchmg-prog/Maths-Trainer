@@ -138,8 +138,11 @@ total is not.
 The **daily streak** is the one exception, asked for by the owner. It lives in
 `src/store/streak.ts` and is shown on the home screen only, never on a lesson
 screen. It rises by one per consecutive local calendar day a lesson is
-finished, and starting a streak banks a *charge*; a charge is spent
-automatically to cover one missed day, and at most two are ever banked. Days
+finished, and every day played banks a *charge* (the owner's choice; earning
+one only when a streak started left it stuck at one), spent after any charge
+that day's play needed; a charge is spent automatically to cover one missed
+day, and at most two are ever banked. A streak saved under the old rule is
+topped up once, by the persist `migrate` (`backfillCharges`). Days
 are the device's local calendar days held as `'YYYY-MM-DD'`, not 24-hour
 windows, so two plays in one afternoon count once and 23:50 then 00:10 counts
 twice. `resolveStreak` is pure and is the only place a gap is interpreted, so

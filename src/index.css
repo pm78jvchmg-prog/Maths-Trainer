@@ -1459,6 +1459,13 @@ button {
   transform: scale(0.99);
 }
 
+.course-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .course-card-title {
   font-size: 16px;
   font-weight: 700;
@@ -1500,14 +1507,17 @@ button {
   height: 5px;
   border-radius: 999px;
   overflow: hidden;
-  background: var(--surface-raised);
+  /* Light enough to read as a track on the coloured runs: the old dark
+     surface sank into the card, which the owner found hard to see. */
+  background: rgb(255 255 255 / 0.16);
 }
 
 .pip-fill {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: var(--accent);
+  background: color-mix(in srgb, var(--accent) 75%, white);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 70%, transparent);
 }
 
 /* Never shrinks and never wraps: the count is the part that must stay readable
@@ -1521,9 +1531,9 @@ button {
   background: var(--correct);
 }
 
-/* Marks earned, beside the lessons finished. Never shrinks either: the two
-   numbers together are the whole point of the row. */
+/* Marks earned, on the title line. Never shrinks: the title wraps first. */
 .mastery {
+  font-size: 14px;
   flex: 0 0 auto;
   white-space: nowrap;
   font-weight: 600;
@@ -3268,6 +3278,10 @@ button.streak-bar:active {
 
   .course-progress {
     font-size: 14px;
+  }
+
+  .mastery {
+    font-size: 17px;
   }
 
   .pip {

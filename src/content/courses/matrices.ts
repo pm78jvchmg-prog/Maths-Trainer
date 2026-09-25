@@ -51,6 +51,23 @@ const prose = (text: string) => ({ kind: 'prose' as const, text });
 const maths = (tex: string) => ({ kind: 'display' as const, tex });
 const figure = (svg: string) => ({ kind: 'diagram' as const, svg });
 
+/**
+ * The seven standard matrices, restated in every lesson that asks for them,
+ * so no question leans on a list the learner last saw in an earlier lesson.
+ */
+const standardTurns = maths(
+  '\\begin{gathered} 90^\\circ \\text{ anticlockwise}: \\begin{pmatrix} 0 & -1 \\\\ 1 & 0 \\end{pmatrix} \\\\ 90^\\circ \\text{ clockwise}: \\begin{pmatrix} 0 & 1 \\\\ -1 & 0 \\end{pmatrix} \\\\ 180^\\circ: \\begin{pmatrix} -1 & 0 \\\\ 0 & -1 \\end{pmatrix} \\end{gathered}',
+);
+const standardMirrors = maths(
+  '\\begin{gathered} x\\text{-axis}: \\begin{pmatrix} 1 & 0 \\\\ 0 & -1 \\end{pmatrix} \\\\ y\\text{-axis}: \\begin{pmatrix} -1 & 0 \\\\ 0 & 1 \\end{pmatrix} \\\\ y = x: \\begin{pmatrix} 0 & 1 \\\\ 1 & 0 \\end{pmatrix} \\\\ y = -x: \\begin{pmatrix} 0 & -1 \\\\ -1 & 0 \\end{pmatrix} \\end{gathered}',
+);
+const standardRecap = prose(
+  'The standard matrices, each rebuilt from where $\\mathbf{i}$ and $\\mathbf{j}$ go. A quarter turn clockwise, which is $270^\\circ$ anticlockwise, sends $\\mathbf{i}$ down to $(0, -1)$ and $\\mathbf{j}$ across to $(1, 0)$, and those are its columns. A mirror keeps what lies on it and flips the rest.',
+);
+const scalingRecap = prose(
+  'An enlargement about $O$ with scale factor $k$ is $\\begin{pmatrix} k & 0 \\\\ 0 & k \\end{pmatrix}$. A stretch parallel to the $x$-axis is $\\begin{pmatrix} k & 0 \\\\ 0 & 1 \\end{pmatrix}$, and parallel to the $y$-axis $\\begin{pmatrix} 1 & 0 \\\\ 0 & k \\end{pmatrix}$.',
+);
+
 export const matrices: Course = {
   id: 'matrices',
   category: 'advanced-maths',
@@ -116,6 +133,13 @@ export const matrices: Course = {
               maths(
                 '\\mathbf{A} + \\mathbf{X} = \\mathbf{B} \\implies \\mathbf{X} = \\mathbf{B} - \\mathbf{A}',
               ),
+              prose('With numbers: take the known matrix across, then subtract entry by entry.'),
+              maths(
+                '\\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix} + \\mathbf{X} = \\begin{pmatrix} 5 & 1 \\\\ 3 & 6 \\end{pmatrix}',
+              ),
+              maths(
+                '\\begin{gathered} \\mathbf{X} = \\begin{pmatrix} 5 - 1 & 1 - 2 \\\\ 3 - 3 & 6 - 4 \\end{pmatrix} \\\\ = \\begin{pmatrix} 4 & -1 \\\\ 0 & 2 \\end{pmatrix} \\end{gathered}',
+              ),
               prose(
                 'That is four small equations solved at once rather than anything new. Subtracting the other way round flips every sign, which answers a different question.',
               ),
@@ -158,6 +182,18 @@ export const matrices: Course = {
               maths('= \\begin{pmatrix} -4 & 7 \\\\ -3 & 3 \\end{pmatrix}'),
               prose(
                 'Write the two scaled matrices down before subtracting. Trying to do both steps in one pass is what produces sign errors in the entries that were already negative.',
+              ),
+              prose(
+                'A missing matrix rearranges like an ordinary equation. In $\\mathbf{A} + \\mathbf{X} = \\mathbf{B}$, $\\mathbf{X} = \\mathbf{B} - \\mathbf{A}$. When $\\mathbf{X}$ is being subtracted, add it to both sides first:',
+              ),
+              maths(
+                '\\begin{gathered} \\mathbf{A} - \\mathbf{X} = \\mathbf{B} \\\\ \\mathbf{A} = \\mathbf{B} + \\mathbf{X} \\\\ \\mathbf{X} = \\mathbf{A} - \\mathbf{B} \\end{gathered}',
+              ),
+              maths(
+                '\\begin{pmatrix} 3 & 1 \\\\ 0 & 5 \\end{pmatrix} - \\mathbf{X} = \\begin{pmatrix} 1 & 4 \\\\ -2 & 5 \\end{pmatrix}',
+              ),
+              maths(
+                '\\begin{gathered} \\mathbf{X} = \\begin{pmatrix} 3 - 1 & 1 - 4 \\\\ 0 - (-2) & 5 - 5 \\end{pmatrix} \\\\ = \\begin{pmatrix} 2 & -3 \\\\ 2 & 0 \\end{pmatrix} \\end{gathered}',
               ),
             ),
             ask('mat-combine+choice'),
@@ -269,6 +305,12 @@ export const matrices: Course = {
               prose(
                 'Using the columns of the matrix instead of the rows is the standard error, and it gives an answer that looks entirely reasonable.',
               ),
+              prose(
+                'A row can only be paired with a column of the same length, so the orders decide whether a product exists. Write them side by side: the inner pair must match, and the outer pair is the order of the answer. Here a $2 \\times 2$ times a $2 \\times 1$ gives a $2 \\times 1$, a column.',
+              ),
+              maths('\\left(3 \\times 4\\right)\\left(4 \\times 2\\right) \\implies 3 \\times 2'),
+              maths('\\left(3 \\times 4\\right)\\left(6 \\times 4\\right): \\; 4 \\neq 6'),
+              prose('The inner pair disagree there, so that product does not exist.'),
             ),
             ask('mat-vector'),
             ask('vec-dot-steps'),
@@ -286,6 +328,11 @@ export const matrices: Course = {
               prose(
                 'The columns of a matrix are where $\\mathbf{i}$ and $\\mathbf{j}$ end up, which is the quickest way to read a transformation off a matrix or write one down.',
               ),
+              prose(
+                'A matrix times a matrix is the same rule, one column of the second matrix at a time. The entry in row 1, column 2 pairs row 1 of the first with column 2 of the second:',
+              ),
+              maths('\\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix} \\begin{pmatrix} 5 & 6 \\\\ 7 & 8 \\end{pmatrix}'),
+              maths('\\left(1\\right)\\left(6\\right) + \\left(2\\right)\\left(8\\right) = 22'),
             ),
             ask('mat-vector+choice'),
             ask('mat-product-entry'),
@@ -354,50 +401,52 @@ export const matrices: Course = {
             ),
             ask('mat-determinant'),
             ask('mat-determinant-steps'),
-            ask('mat-multiply'),
             teach(
               prose(
-                'The determinant has a meaning: it is the factor by which the matrix scales area.',
+                'The determinant has a meaning: it is the factor by which the matrix scales area. The matrix above has determinant $17$, so a shape of area $2$ lands on an image of area $17 \\times 2 = 34$.',
               ),
               prose(
-                'A determinant of 2 doubles every area in the plane. A determinant of 1 preserves area, which is why rotations and reflections all have determinant $\\pm 1$.',
+                'A determinant of 1 preserves area, which is why rotations and reflections all have determinant $\\pm 1$.',
               ),
-              maths('\\det \\begin{pmatrix} 0 & -1 \\\\ 1 & 0 \\end{pmatrix} = 1'),
+              maths('\\det \\begin{pmatrix} 0 & -1 \\\\ 1 & 0 \\end{pmatrix} = 0 - \\left(-1\\right) = 1'),
               prose(
-                'A negative determinant means the transformation turns the plane over as well as scaling it — a reflection is in there somewhere.',
+                'A negative determinant means the transformation turns the plane over as well as scaling it — a reflection is in there somewhere. Area itself is never negative, so the area is scaled by the size of the determinant.',
+              ),
+              maths('\\det \\begin{pmatrix} 1 & 3 \\\\ 2 & 1 \\end{pmatrix} = 1 - 6 = -5'),
+              prose(
+                'So that matrix sends a shape of area $2$ to one of area $5 \\times 2 = 10$, turned over.',
+              ),
+            ),
+            ask('mat-area-image'),
+            ask('mat-orientation'),
+            ask('mat-area-image+choice'),
+            teach(
+              prose(
+                'Four rules follow, each checked here on $\\mathbf{A} = \\begin{pmatrix} 3 & 2 \\\\ -1 & 5 \\end{pmatrix}$, with $\\det\\mathbf{A} = 17$.',
               ),
               prose(
-                'The area reading also settles what scaling the whole matrix does. Multiplying a two-by-two matrix by $k$ stretches both directions by $k$, so area is scaled twice.',
+                'Multiplying a two-by-two matrix by $k$ stretches both directions by $k$, so area is scaled twice: $\\det\\left(k\\mathbf{A}\\right) = k^{2}\\det\\mathbf{A}$.',
               ),
-              maths('\\det\\left(k\\mathbf{A}\\right) = k^{2}\\det\\mathbf{A}'),
+              maths('3\\mathbf{A} = \\begin{pmatrix} 9 & 6 \\\\ -3 & 15 \\end{pmatrix}'),
+              maths('\\begin{gathered} \\det\\left(3\\mathbf{A}\\right) = 135 - \\left(-18\\right) \\\\ = 153 = 3^{2} \\times 17 \\end{gathered}'),
               prose(
-                'Multiplying the determinant by $k$ once is the mistake to avoid: the power is the size of the matrix, not something to be guessed at.',
+                'Transposing swaps rows and columns. The leading diagonal is untouched and the other two entries only swap places, so $\\det\\left(\\mathbf{A}^{T}\\right) = \\det\\mathbf{A}$.',
+              ),
+              maths('\\det \\begin{pmatrix} 3 & -1 \\\\ 2 & 5 \\end{pmatrix} = 15 - \\left(-2\\right) = 17'),
+              prose(
+                'Doing one transformation and then another scales area by both factors, so $\\det\\left(\\mathbf{AB}\\right) = \\det\\mathbf{A} \\times \\det\\mathbf{B}$. With $\\det\\mathbf{B} = 2$, $\\det\\left(\\mathbf{AB}\\right) = 17 \\times 2 = 34$. There is no such rule for sums.',
+              ),
+              prose(
+                'The inverse undoes $\\mathbf{A}$, so it has to scale area back: $\\det\\left(\\mathbf{A}^{-1}\\right) = \\frac{1}{\\det\\mathbf{A}} = \\frac{1}{17}$. For a stretch that is easy to see: $\\begin{pmatrix} 2 & 0 \\\\ 0 & 3 \\end{pmatrix}$ has determinant $6$ and is undone by $\\begin{pmatrix} \\frac{1}{2} & 0 \\\\ 0 & \\frac{1}{3} \\end{pmatrix}$, whose determinant is $\\frac{1}{2} \\times \\frac{1}{3} = \\frac{1}{6}$.',
               ),
             ),
             ask('mat-det-property'),
-            ask('mat-vector'),
-            ask('mat-multiply+choice'),
-            teach(
-              prose('Determinants interact with products in a way that is worth knowing.'),
-              maths('\\det\\left(\\mathbf{AB}\\right) = \\det\\mathbf{A} \\times \\det\\mathbf{B}'),
-              prose(
-                'Which makes sense from the area reading: doing one transformation and then another scales area by both factors in turn.',
-              ),
-              prose(
-                'Note that there is no such rule for sums. $\\det\\left(\\mathbf{A} + \\mathbf{B}\\right)$ has nothing to do with the two separate determinants, and assuming otherwise is a common and costly mistake.',
-              ),
-              prose(
-                'Transposing — reflecting the matrix in its leading diagonal — leaves the determinant alone, since the leading diagonal is untouched and the other two entries only swap places.',
-              ),
-              maths('\\det\\left(\\mathbf{A}^{T}\\right) = \\det\\mathbf{A}'),
-            ),
-            ask('mat-det-property'),
-            ask('mat-vector+choice'),
+            ask('mat-det-property', 2),
           ],
           skillCheck: [
             ask('mat-determinant', 2),
             ask('mat-det-property', 2),
-            ask('mat-multiply', 2),
+            ask('mat-area-image', 2),
           ],
         },
         {
@@ -415,35 +464,46 @@ export const matrices: Course = {
               prose(
                 'Once two different points have landed on the same place there is no way to tell them apart again, so the transformation cannot be undone. That is precisely what having no inverse means.',
               ),
-            ),
-            ask('mat-singular-k'),
-            ask('mat-determinant'),
-            ask('mat-det-property'),
-            teach(
               prose(
                 'So "find the value that makes this matrix singular" is the instruction to set the determinant to zero and solve.',
               ),
-              maths('\\det \\begin{pmatrix} k & 6 \\\\ 2 & 3 \\end{pmatrix} = 3k - 12 = 0 \\implies k = 4'),
+              maths('\\begin{gathered} \\det \\begin{pmatrix} k & 6 \\\\ 2 & 3 \\end{pmatrix} \\\\ = 3k - \\left(6\\right)\\left(2\\right) = 3k - 12 \\end{gathered}'),
+              maths('\\begin{gathered} 3k - 12 = 0 \\\\ 3k = 12 \\\\ k = 4 \\end{gathered}'),
+            ),
+            ask('mat-singular-k'),
+            ask('mat-determinant'),
+            teach(
               prose(
-                'Every other value of $k$ gives an invertible matrix. The singular case is a single value, not a range.',
+                'Every value of $k$ other than $4$ gives an invertible matrix. The singular case is a single value, not a range.',
               ),
               prose(
-                'Notice what a singular two-by-two matrix looks like: one row is a multiple of the other. That is the same statement as the determinant being zero, and it is often quicker to spot.',
+                'Notice what a singular two-by-two matrix looks like: one row is a multiple of the other. In $\\begin{pmatrix} 4 & 6 \\\\ 2 & 3 \\end{pmatrix}$ the top row is twice the bottom one.',
+              ),
+              prose(
+                'The determinant rules still hold. Suppose $\\det\\mathbf{A} = 5$ and $\\det\\mathbf{B} = -2$, with both $2 \\times 2$:',
+              ),
+              maths('\\det\\left(3\\mathbf{A}\\right) = 3^{2} \\times 5 = 45'),
+              maths('\\det\\left(\\mathbf{A}^{T}\\right) = \\det\\mathbf{A} = 5'),
+              maths('\\det\\left(\\mathbf{AB}\\right) = 5 \\times \\left(-2\\right) = -10'),
+              maths('\\det\\left(\\mathbf{A}^{-1}\\right) = \\frac{1}{5}'),
+              prose(
+                'The last one says again why a singular matrix has no inverse: a determinant of $0$ would need a reciprocal, and there is not one.',
               ),
             ),
             ask('mat-singular-k+choice'),
+            ask('mat-det-property'),
             ask('mat-determinant-steps'),
             ask('mat-det-property'),
             teach(
               prose(
-                'The same idea decides whether a pair of simultaneous equations has a unique solution.',
+                'The same idea decides whether a pair of simultaneous equations has a unique solution. A non-zero determinant means one solution. A zero determinant means none, or infinitely many.',
+              ),
+              maths('\\begin{pmatrix} 2 & 3 \\\\ 4 & 6 \\end{pmatrix} \\begin{pmatrix} x \\\\ y \\end{pmatrix} = \\begin{pmatrix} 5 \\\\ 10 \\end{pmatrix}'),
+              prose(
+                'The determinant is $12 - 12 = 0$, so there is no inverse. The second row, $4$ and $6$, is $2$ times the first. Now compare the right-hand sides: $2 \\times 5 = 10$, which matches. The second equation says the same as the first: one line, and **infinitely many** solutions.',
               ),
               prose(
-                'A non-zero determinant means one solution. A zero determinant means the two equations describe either the same line — infinitely many solutions — or two parallel lines, and then none at all.',
-              ),
-              maths('\\det = 0 \\implies \\text{no unique solution}'),
-              prose(
-                'Checking the determinant first is therefore worth doing before attempting to solve anything: it tells you whether there is an answer to find.',
+                'With $11$ at the bottom instead, $2 \\times 5 = 10 \\neq 11$. The two equations contradict each other, parallel lines, and there are **no** solutions.',
               ),
             ),
             ask('mat-method'),
@@ -473,20 +533,28 @@ export const matrices: Course = {
               prose(
                 'Swapping all four entries, or negating the diagonal instead of the off-diagonal, are the two ways this gets misremembered. The $a$ and $d$ trade places; the $b$ and $c$ stay put and change sign.',
               ),
+              prose('Worked through on a real matrix. The determinant comes first:'),
+              maths('\\det \\begin{pmatrix} 3 & 1 \\\\ 2 & 4 \\end{pmatrix} = 12 - 2 = 10'),
+              prose('The $3$ and $4$ trade places, and the $1$ and $2$ stay put with their signs changed:'),
+              maths(
+                '\\begin{pmatrix} 3 & 1 \\\\ 2 & 4 \\end{pmatrix}^{-1} = \\frac{1}{10}\\begin{pmatrix} 4 & -1 \\\\ -2 & 3 \\end{pmatrix}',
+              ),
+              prose('Leaving the $\\frac{1}{10}$ in front is tidier than dividing all four entries.'),
             ),
             ask('mat-inverse'),
             ask('mat-determinant'),
             ask('mat-inverse+choice'),
             teach(
-              prose('Worked through on a real matrix:'),
+              prose(
+                'Check by multiplying the matrix by the whole-number part of its inverse. Each entry pairs a row of the first with a column of the second:',
+              ),
+              maths('\\begin{pmatrix} 3 & 1 \\\\ 2 & 4 \\end{pmatrix} \\begin{pmatrix} 4 & -1 \\\\ -2 & 3 \\end{pmatrix}'),
               maths(
-                '\\begin{pmatrix} 3 & 1 \\\\ 2 & 4 \\end{pmatrix}^{-1} = \\frac{1}{10}\\begin{pmatrix} 4 & -1 \\\\ -2 & 3 \\end{pmatrix}',
+                '\\begin{gathered} \\left(3\\right)\\left(4\\right) + \\left(1\\right)\\left(-2\\right) = 10 \\\\ \\left(3\\right)\\left(-1\\right) + \\left(1\\right)\\left(3\\right) = 0 \\\\ \\left(2\\right)\\left(4\\right) + \\left(4\\right)\\left(-2\\right) = 0 \\\\ \\left(2\\right)\\left(-1\\right) + \\left(4\\right)\\left(3\\right) = 10 \\end{gathered}',
               ),
+              maths('= \\begin{pmatrix} 10 & 0 \\\\ 0 & 10 \\end{pmatrix}'),
               prose(
-                'The determinant is $12 - 2 = 10$, so the fraction out front is $\\frac{1}{10}$. Leaving it as a fraction in front is tidier than dividing all four entries.',
-              ),
-              prose(
-                'Check by multiplying the two together: the product should be the identity. That check is worth doing the first few times, because it catches every version of the misremembered recipe.',
+                'The $\\frac{1}{10}$ in front turns that into the identity, so the inverse is right. That check is worth doing the first few times, because it catches every version of the misremembered recipe.',
               ),
             ),
             ask('mat-determinant-steps'),
@@ -497,19 +565,21 @@ export const matrices: Course = {
                 'The recipe fails exactly when the determinant is zero, since it would divide by zero. That is the singular case again, from a different direction.',
               ),
               prose(
-                'Inverses reverse the order in a product, which follows from undoing things in the opposite order to doing them.',
-              ),
-              maths('\\left(\\mathbf{AB}\\right)^{-1} = \\mathbf{B}^{-1}\\mathbf{A}^{-1}'),
-              prose(
-                'Putting a coat on over a jumper and then taking them off is the same idea: the last thing on is the first thing off.',
+                'Determinants follow four rules, each checked here on $\\mathbf{A} = \\begin{pmatrix} 3 & 1 \\\\ 2 & 4 \\end{pmatrix}$, with $\\det\\mathbf{A} = 10$.',
               ),
               prose(
-                'The determinant of an inverse follows from the same undoing. If a matrix scales area by a factor, its inverse has to scale it back.',
+                'The inverse scales area back, so $\\det\\left(\\mathbf{A}^{-1}\\right) = \\frac{1}{\\det\\mathbf{A}}$. The inverse above is $\\frac{1}{10}$ times a matrix of determinant $12 - 2 = 10$, and taking out $\\frac{1}{10}$ from both rows gives',
               ),
-              maths('\\det\\left(\\mathbf{A}^{-1}\\right) = \\frac{1}{\\det\\mathbf{A}}'),
+              maths('\\begin{gathered} \\det\\left(\\mathbf{A}^{-1}\\right) \\\\ = \\frac{1}{10} \\times \\frac{1}{10} \\times 10 = \\frac{1}{10} \\end{gathered}'),
+              prose('Scaling both rows by $k$ scales the determinant by $k^{2}$: $\\det\\left(k\\mathbf{A}\\right) = k^{2}\\det\\mathbf{A}$.'),
+              maths('\\begin{gathered} \\det \\begin{pmatrix} 6 & 2 \\\\ 4 & 8 \\end{pmatrix} \\\\ = 48 - 8 = 40 = 2^{2} \\times 10 \\end{gathered}'),
+              prose('Transposing leaves it alone: $\\det\\left(\\mathbf{A}^{T}\\right) = \\det\\mathbf{A}$.'),
+              maths('\\det \\begin{pmatrix} 3 & 2 \\\\ 1 & 4 \\end{pmatrix} = 12 - 2 = 10'),
               prose(
-                'Which says again why a singular matrix has no inverse: a determinant of zero would need a reciprocal, and there is not one.',
+                'And products multiply: $\\det\\left(\\mathbf{AB}\\right) = \\det\\mathbf{A} \\times \\det\\mathbf{B}$. With $\\mathbf{B} = \\begin{pmatrix} 1 & 1 \\\\ 0 & 2 \\end{pmatrix}$, of determinant $2$:',
               ),
+              maths('\\mathbf{AB} = \\begin{pmatrix} 3 & 5 \\\\ 2 & 10 \\end{pmatrix}'),
+              maths('\\begin{gathered} \\det\\left(\\mathbf{AB}\\right) = 30 - 10 \\\\ = 20 = 10 \\times 2 \\end{gathered}'),
             ),
             ask('mat-det-property'),
             ask('mat-det-property'),
@@ -538,37 +608,43 @@ export const matrices: Course = {
                 'Written this way there is one unknown — the vector — so multiplying both sides by the inverse solves it in a single step.',
               ),
               maths('\\mathbf{M}\\mathbf{v} = \\mathbf{u} \\implies \\mathbf{v} = \\mathbf{M}^{-1}\\mathbf{u}'),
+              prose(
+                'The inverse comes from the usual recipe: swap the two entries on the leading diagonal, change the sign of the other two, and divide by the determinant.',
+              ),
+              maths('\\det = \\left(2\\right)\\left(-2\\right) - \\left(3\\right)\\left(1\\right) = -7'),
+              maths('\\mathbf{M}^{-1} = \\frac{1}{-7}\\begin{pmatrix} -2 & -3 \\\\ -1 & 2 \\end{pmatrix}'),
             ),
             ask('mat-vector'),
-            ask('mat-solve'),
             ask('mat-inverse+choice'),
+            ask('mat-inverse'),
             teach(
-              prose('So the method is: find the determinant, write the inverse, multiply.'),
-              maths('\\det = \\left(2\\right)\\left(-2\\right) - \\left(3\\right)\\left(1\\right) = -7'),
+              prose('Then multiply the inverse into the right-hand side: the whole-number matrix first, the fraction last.'),
+              maths('\\begin{pmatrix} -2 & -3 \\\\ -1 & 2 \\end{pmatrix} \\begin{pmatrix} 8 \\\\ -3 \\end{pmatrix}'),
               maths(
-                '\\mathbf{v} = \\frac{1}{-7}\\begin{pmatrix} -2 & -3 \\\\ -1 & 2 \\end{pmatrix} \\begin{pmatrix} 8 \\\\ -3 \\end{pmatrix} = \\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix}',
+                '\\begin{gathered} \\left(-2\\right)\\left(8\\right) + \\left(-3\\right)\\left(-3\\right) = -7 \\\\ \\left(-1\\right)\\left(8\\right) + \\left(2\\right)\\left(-3\\right) = -14 \\end{gathered}',
+              ),
+              maths('\\mathbf{v} = \\frac{1}{-7}\\begin{pmatrix} -7 \\\\ -14 \\end{pmatrix} = \\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix}'),
+              prose(
+                'So $x = 1$ and $y = 2$. The inverse goes on the *left* of the vector, because the other order is not even a valid product here.',
               ),
               prose(
-                'The inverse goes on the *left* of the vector, because matrix multiplication is not commutative and the other order is not even a valid product here.',
-              ),
-              prose(
-                'Substitute back into the original equations to check. It takes one line and catches any arithmetic slip in the inverse.',
+                'Substitute back to check: $2(1) + 3(2) = 8$ and $1 - 2(2) = -3$. It takes one line and catches any arithmetic slip in the inverse.',
               ),
             ),
+            ask('mat-solve'),
             ask('mat-solve+choice'),
-            ask('mat-inverse'),
             ask('mat-vector+choice'),
             teach(
               prose(
-                'The method needs a non-zero determinant, and what happens otherwise is exactly what the singular case predicted.',
+                'The method needs a non-zero determinant. When it is zero there is no inverse, and the right-hand sides decide between none and infinitely many.',
+              ),
+              maths('\\begin{pmatrix} 1 & -2 \\\\ 3 & -6 \\end{pmatrix} \\begin{pmatrix} x \\\\ y \\end{pmatrix} = \\begin{pmatrix} 4 \\\\ 12 \\end{pmatrix}'),
+              prose(
+                'The determinant is $-6 - (-6) = 0$. The second row is $3$ times the first, so compare the right-hand sides: $3 \\times 4 = 12$, which matches. Both equations are the same line, so there are **infinitely many** solutions.',
               ),
               prose(
-                'A zero determinant means the two equations describe the same line or two parallel lines, so there is either no single solution or none at all — and no inverse to find it with.',
+                'Had the bottom entry been $13$, then $3 \\times 4 = 12 \\neq 13$: the equations contradict each other, and there are **no** solutions.',
               ),
-              prose(
-                'For two equations this is slower than elimination by hand. Its value is that it scales: the same method solves ten equations in ten unknowns, where elimination becomes unmanageable and a computer needs a procedure rather than ingenuity.',
-              ),
-              maths('\\mathbf{v} = \\mathbf{M}^{-1}\\mathbf{u}'),
             ),
             ask('mat-method'),
             ask('mat-method'),
@@ -811,8 +887,18 @@ export const matrices: Course = {
               prose(
                 'The formula is for an anticlockwise turn. A clockwise turn is a negative angle, and since $\\sin\\left(-\\theta\\right) = -\\sin\\theta$ the minus sign moves to the bottom row.',
               ),
-              prose('So a turn of $60^\\circ$ anticlockwise is'),
+              prose('So a turn of $60^\\circ$ anticlockwise, with $\\cos 60^\\circ = \\frac{1}{2}$ and $\\sin 60^\\circ = \\frac{\\sqrt{3}}{2}$, is'),
               maths('\\begin{pmatrix} \\frac{1}{2} & -\\frac{\\sqrt{3}}{2} \\\\ \\frac{\\sqrt{3}}{2} & \\frac{1}{2} \\end{pmatrix}'),
+              prose(
+                'Past $90^\\circ$, use the acute angle to the $x$-axis for the size and the quadrant for the signs. The exact values needed are $\\cos 30^\\circ = \\frac{\\sqrt{3}}{2}$, $\\sin 30^\\circ = \\frac{1}{2}$, and $\\frac{\\sqrt{2}}{2}$ for both at $45^\\circ$.',
+              ),
+              prose(
+                'Take $150^\\circ$ clockwise, so $\\theta = -150^\\circ$. Turning $150^\\circ$ clockwise from the positive $x$-axis ends $30^\\circ$ below the negative $x$-axis, in the bottom-left quarter, where both coordinates are negative:',
+              ),
+              maths('\\begin{gathered} \\cos\\left(-150^\\circ\\right) = -\\frac{\\sqrt{3}}{2} \\\\ \\sin\\left(-150^\\circ\\right) = -\\frac{1}{2} \\end{gathered}'),
+              prose('Put those into the formula. The top-right entry is $-\\sin\\theta = \\frac{1}{2}$:'),
+              maths('\\begin{pmatrix} -\\frac{\\sqrt{3}}{2} & \\frac{1}{2} \\\\ -\\frac{1}{2} & -\\frac{\\sqrt{3}}{2} \\end{pmatrix}'),
+              prose('$150^\\circ$ clockwise ends where $210^\\circ$ anticlockwise does, so this is also the matrix for $210^\\circ$ anticlockwise.'),
             ),
             ask('mat-rotation-matrix'),
             ask('mat-rotation-matrix+choice'),
@@ -844,36 +930,47 @@ export const matrices: Course = {
               ),
             ),
             ask('mat-scale'),
-            ask('mat-standard-locate', 2),
             ask('mat-scale+choice'),
+            teach(
+              prose(
+                'Rotations and reflections come up alongside these, so here they are again.',
+              ),
+              standardRecap,
+              standardTurns,
+              standardMirrors,
+              prose(
+                'Moving a point is then one multiplication. A stretch parallel to the $x$-axis, factor $3$, sends $(2, 5)$ to $(3 \\times 2, \\; 5) = (6, 5)$; a quarter turn anticlockwise sends $(2, 3)$ to $(-3, 2)$:',
+              ),
+              maths('\\begin{gathered} \\begin{pmatrix} 0 & -1 \\\\ 1 & 0 \\end{pmatrix} \\begin{pmatrix} 2 \\\\ 3 \\end{pmatrix} = \\begin{pmatrix} 0 - 3 \\\\ 2 + 0 \\end{pmatrix} \\\\ = \\begin{pmatrix} -3 \\\\ 2 \\end{pmatrix} \\end{gathered}'),
+            ),
+            ask('mat-standard-locate', 2),
             teach(
               prose(
                 'Naming a transformation from its matrix runs the other way: read the columns, picture the two arrows, and say what happened to them.',
               ),
-              prose(
-                'If both arrows keep length $1$, it is a rotation or a reflection. If they only grow or shrink along the axes, it is an enlargement or a stretch.',
-              ),
               maths('\\begin{pmatrix} 1 & 0 \\\\ 0 & 4 \\end{pmatrix}: \\quad \\mathbf{i} \\to \\mathbf{i}, \\; \\mathbf{j} \\to 4\\mathbf{j}'),
               prose(
-                'So that is a stretch parallel to the $y$-axis, factor $4$. It is the easy one to get backwards: a stretch parallel to the $y$-axis moves points up and down, so it is the bottom-right entry that changes.',
-              ),
-            ),
-            ask('mat-describe'),
-            ask('mat-name'),
-            ask('mat-standard-locate', 2),
-            teach(
-              prose(
-                'The zeros say most of it before any picturing. Zeros off the leading diagonal mean each axis is only scaled; zeros on it mean the axes have been swapped over.',
+                'So that is a stretch parallel to the $y$-axis, factor $4$: the bottom-right entry changes, because the stretch moves points up and down.',
               ),
               prose(
-                'Scaled with equal entries is an enlargement, with unequal ones a stretch, and with a $1$ and a $-1$ a reflection in an axis. Swapped with matching signs is a mirror in $y = x$ or $y = -x$; with opposite signs, a quarter turn.',
+                'The zeros say most of it before any picturing. Zeros off the leading diagonal mean each axis is only scaled: equal entries are an enlargement, unequal ones a stretch, and a $1$ with a $-1$ a reflection in an axis.',
+              ),
+              prose(
+                'Zeros on the leading diagonal mean the axes have been swapped. Matching signs off it are a mirror in $y = x$ or $y = -x$; opposite signs, a quarter turn.',
+              ),
+              maths('\\begin{pmatrix} 0 & -1 \\\\ -1 & 0 \\end{pmatrix}: \\quad \\mathbf{i} \\to -\\mathbf{j}, \\; \\mathbf{j} \\to -\\mathbf{i}'),
+              prose(
+                'Both off-diagonal entries are $-1$, matching, so it is a mirror, and it swaps $\\mathbf{i}$ with $-\\mathbf{j}$: the reflection in $y = -x$. With $\\begin{pmatrix} 0 & -1 \\\\ 1 & 0 \\end{pmatrix}$ the signs are opposite, and $\\mathbf{i}$ turns up to $\\mathbf{j}$: a quarter turn anticlockwise.',
               ),
               prose(
                 'Entries both on and off the diagonal fit none of these. A **shear** such as $\\begin{pmatrix} 1 & 2 \\\\ 0 & 1 \\end{pmatrix}$ is the commonest: it slides every point sideways by an amount that grows with its height.',
               ),
             ),
-            ask('mat-name'),
             ask('mat-describe'),
+            ask('mat-name'),
+            ask('mat-standard-locate', 2),
+            ask('mat-describe'),
+            ask('mat-name'),
           ],
           skillCheck: [
             ask('mat-scale', 2),
@@ -919,21 +1016,22 @@ export const matrices: Course = {
             ),
             ask('mat-orientation'),
             ask('mat-area-steps+choice'),
-            ask('mat-area-k'),
             teach(
               prose(
-                'Knowing the area scale factor pins down an unknown entry. The determinant is a linear expression in any one entry, so setting it equal to the scale factor gives a linear equation.',
+                'Knowing the area scale factor pins down an unknown entry. Say a shape of area $3$ lands on an image of area $30$, kept the same way round: the scale factor is $30 \\div 3 = 10$, and the determinant is $+10$.',
               ),
               maths('\\det\\begin{pmatrix} k & 2 \\\\ 3 & 4 \\end{pmatrix} = 4k - 6'),
-              maths('4k - 6 = 10 \\implies k = 4'),
+              maths('\\begin{gathered} 4k - 6 = 10 \\\\ 4k = 16 \\\\ k = 4 \\end{gathered}'),
               prose(
-                'Settle the orientation first. If the shape is turned over, the determinant is the negative of the scale factor, and solving with the wrong sign gives a matrix that scales the area correctly but flips the shape when it should not.',
+                'Settle the orientation first. If the shape is turned over, the determinant is the negative of the scale factor, $-10$, and that gives a different $k$:',
               ),
+              maths('\\begin{gathered} 4k - 6 = -10 \\\\ 4k = -4 \\\\ k = -1 \\end{gathered}'),
               prose(
                 'A determinant of $0$ is the extreme case: every area becomes $0$, the plane is flattened onto a line, and there is no inverse. Those are the singular matrices of the last level, seen as pictures.',
               ),
             ),
             ask('mat-area-k'),
+            ask('mat-area-k', 2),
             ask('mat-orientation'),
           ],
           skillCheck: [
@@ -980,6 +1078,9 @@ export const matrices: Course = {
               prose(
                 'So a question that says "$\\mathbf{P}$, then $\\mathbf{Q}$" wants $\\mathbf{QP}$, with the first transformation on the right.',
               ),
+              standardRecap,
+              standardTurns,
+              standardMirrors,
             ),
             ask('mat-compose-order'),
             ask('mat-compose-point'),
@@ -1043,6 +1144,15 @@ export const matrices: Course = {
               prose(
                 'Two different places, so two different transformations. Reading the order carefully is not a formality.',
               ),
+              standardRecap,
+              standardTurns,
+              standardMirrors,
+              prose(
+                'With the matrices written down, follow a point through both orders. Take $(3, 1)$, a reflection $\\mathbf{A}$ in the $y$-axis and a reflection $\\mathbf{B}$ in $y = -x$. $\\mathbf{AB}$ does $\\mathbf{B}$ first:',
+              ),
+              maths('(3, 1) \\xrightarrow{\\mathbf{B}} (-1, -3) \\xrightarrow{\\mathbf{A}} (1, -3)'),
+              prose('$\\mathbf{BA}$ does $\\mathbf{A}$ first:'),
+              maths('(3, 1) \\xrightarrow{\\mathbf{A}} (-3, 1) \\xrightarrow{\\mathbf{B}} (-1, 3)'),
             ),
             ask('mat-order-point'),
             ask('mat-commute-tree'),
@@ -1057,6 +1167,7 @@ export const matrices: Course = {
               prose(
                 'Stretches along the axes agree with each other and with reflections in the axes. All of their matrices have zeros off the leading diagonal, and two such matrices can always be multiplied in either order.',
               ),
+              scalingRecap,
             ),
             ask('mat-commute-which'),
             ask('mat-order-point', 2),
@@ -1094,6 +1205,9 @@ export const matrices: Course = {
               prose(
                 'That is a reflection in the $x$-axis followed by a quarter turn anticlockwise, and together they are a reflection in the line $y = x$.',
               ),
+              standardRecap,
+              standardTurns,
+              standardMirrors,
             ),
             ask('mat-compose-standard'),
             ask('mat-compose-name'),
@@ -1108,6 +1222,8 @@ export const matrices: Course = {
               maths('\\begin{pmatrix} 0 & 1 \\\\ 1 & 0 \\end{pmatrix} \\begin{pmatrix} 1 & 0 \\\\ 0 & -1 \\end{pmatrix}'),
               maths('= \\begin{pmatrix} 0 & -1 \\\\ 1 & 0 \\end{pmatrix}'),
               prose('Swap the two mirrors and the turn goes the other way, so the order matters here too.'),
+              prose('Enlargements and stretches combine with these in the same way, first on the right.'),
+              scalingRecap,
             ),
             ask('mat-reflect-pair'),
             ask('mat-compose-standard', 2),
@@ -1116,6 +1232,14 @@ export const matrices: Course = {
               prose(
                 'The rule works for any two mirrors through the origin, not only the four with standard matrices. Mirrors at $30^\\circ$ and $60^\\circ$ to the $x$-axis are $30^\\circ$ apart, so reflecting in the first and then the second turns through $60^\\circ$ anticlockwise.',
               ),
+              prose(
+                'Take them the other way round, $60^\\circ$ first and then $30^\\circ$, and the difference is negative:',
+              ),
+              maths('2 \\times \\left(30^\\circ - 60^\\circ\\right) = -60^\\circ'),
+              prose(
+                'A negative angle is a clockwise turn: $60^\\circ$ clockwise. To give it as an anticlockwise angle between $0^\\circ$ and $360^\\circ$, add $360^\\circ$:',
+              ),
+              maths('-60^\\circ + 360^\\circ = 300^\\circ'),
               prose(
                 'A picture names a combination as well as a product does. Follow the $\\mathbf{i}$ arrow: if it has turned, and $\\mathbf{j}$ has turned the same way with it, the pair made a rotation; if the square has been turned over, a reflection.',
               ),
@@ -1143,6 +1267,13 @@ export const matrices: Course = {
               ),
               maths('\\begin{pmatrix} 0 & -1 \\\\ 1 & 0 \\end{pmatrix}^{-1} = \\begin{pmatrix} 0 & 1 \\\\ -1 & 0 \\end{pmatrix}'),
               prose('A quarter turn anticlockwise is undone by a quarter turn clockwise.'),
+              prose(
+                'A stretch of factor $k$ is undone by a stretch in the same direction with factor $\\frac{1}{k}$. A stretch parallel to the $y$-axis, factor $2$, is undone by one of factor $\\frac{1}{2}$, so if it sent $P$ to $P\'(1, 4)$, then $P$ was',
+              ),
+              maths('\\begin{pmatrix} 1 & 0 \\\\ 0 & \\frac{1}{2} \\end{pmatrix} \\begin{pmatrix} 1 \\\\ 4 \\end{pmatrix} = \\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix}'),
+              prose('For the others, the standard matrices:'),
+              standardTurns,
+              standardMirrors,
             ),
             ask('mat-undo-matrix'),
             ask('mat-undo-point'),
@@ -1158,6 +1289,20 @@ export const matrices: Course = {
               prose(
                 'Multiplying shows it works. In $\\mathbf{AB}\\mathbf{B}^{-1}\\mathbf{A}^{-1}$ the middle pair cancels to the identity, and then the outer pair does.',
               ),
+              prose(
+                'For a matrix with no name, use the inverse recipe: swap the leading diagonal, change the sign of the other two, and divide by the determinant. When the determinant is $1$ or $-1$ the entries stay whole.',
+              ),
+              maths('\\begin{gathered} \\mathbf{A} = \\begin{pmatrix} 2 & 1 \\\\ 1 & 1 \\end{pmatrix} \\\\ \\det\\mathbf{A} = 2 - 1 = 1 \\end{gathered}'),
+              maths('\\mathbf{A}^{-1} = \\begin{pmatrix} 1 & -1 \\\\ -1 & 2 \\end{pmatrix}'),
+              maths('\\begin{gathered} \\mathbf{B} = \\begin{pmatrix} 1 & 2 \\\\ 0 & -1 \\end{pmatrix} \\\\ \\det\\mathbf{B} = -1 - 0 = -1 \\end{gathered}'),
+              prose('Swap and change signs to get $\\begin{pmatrix} -1 & -2 \\\\ 0 & 1 \\end{pmatrix}$, then divide by $-1$, which flips every sign:'),
+              maths('\\mathbf{B}^{-1} = \\begin{pmatrix} 1 & 2 \\\\ 0 & -1 \\end{pmatrix}'),
+              prose('Then $(\\mathbf{AB})^{-1} = \\mathbf{B}^{-1}\\mathbf{A}^{-1}$, row of the first times column of the second:'),
+              maths('\\begin{pmatrix} 1 & 2 \\\\ 0 & -1 \\end{pmatrix} \\begin{pmatrix} 1 & -1 \\\\ -1 & 2 \\end{pmatrix}'),
+              maths(
+                '\\begin{gathered} (1)(1) + (2)(-1) = -1 \\\\ (1)(-1) + (2)(2) = 3 \\\\ (0)(1) + (-1)(-1) = 1 \\\\ (0)(-1) + (-1)(2) = -2 \\end{gathered}',
+              ),
+              maths('(\\mathbf{AB})^{-1} = \\begin{pmatrix} -1 & 3 \\\\ 1 & -2 \\end{pmatrix}'),
             ),
             ask('mat-inverse-order'),
             ask('mat-inverse-tree'),
@@ -1169,6 +1314,11 @@ export const matrices: Course = {
               prose(
                 'With named transformations this needs no inverse formula at all: turn back, reflect again, or divide out the scale factor, one step at a time starting from the last.',
               ),
+              prose(
+                'Say $P$ was enlarged by scale factor $2$ about $O$, then given a quarter turn anticlockwise, landing at $P\'(-4, 6)$. Undo the turn first, with a quarter turn clockwise:',
+              ),
+              maths('\\begin{pmatrix} 0 & 1 \\\\ -1 & 0 \\end{pmatrix} \\begin{pmatrix} -4 \\\\ 6 \\end{pmatrix} = \\begin{pmatrix} 6 \\\\ 4 \\end{pmatrix}'),
+              prose('Then undo the enlargement by dividing by $2$: $P$ was $(3, 2)$.'),
             ),
             ask('mat-undo-point', 2),
             ask('mat-inverse-tree', 2),
@@ -1191,6 +1341,11 @@ export const matrices: Course = {
               prose(
                 'So the determinant of a product needs no multiplying of matrices: find each determinant, and multiply those.',
               ),
+              maths('\\det \\begin{pmatrix} 2 & 1 \\\\ 0 & 3 \\end{pmatrix} = 6 - 0 = 6'),
+              maths('\\det \\begin{pmatrix} 1 & 2 \\\\ 1 & 4 \\end{pmatrix} = 4 - 2 = 2'),
+              prose(
+                'So their product, in either order, has determinant $6 \\times 2 = 12$, and a shape of area $3$ transformed by one and then the other ends with area $12 \\times 3 = 36$. A matrix used twice, $\\mathbf{M}^{2}$, has determinant $\\det\\mathbf{M} \\times \\det\\mathbf{M}$.',
+              ),
               prose(
                 'It does not matter which way round the product is. $\\det\\left(\\mathbf{AB}\\right)$ and $\\det\\left(\\mathbf{BA}\\right)$ are equal, even when $\\mathbf{AB}$ and $\\mathbf{BA}$ are not.',
               ),
@@ -1205,16 +1360,27 @@ export const matrices: Course = {
               prose(
                 'So the final image is turned over exactly when one of the two determinants is negative, and the same way round when both are, or neither is.',
               ),
+              prose(
+                'The named transformations have determinants you can read off their matrices: $1$ for any rotation, $-1$ for any reflection, $k$ for a stretch of factor $k$, and $k^{2}$ for an enlargement of factor $k$.',
+              ),
+              prose(
+                'So a triangle of area $3$ given a reflection in the $x$-axis and then a stretch of factor $2$ has determinant $-1 \\times 2 = -2$ in all: its image has area $2 \\times 3 = 6$ and is turned over.',
+              ),
+              prose(
+                'The rule runs backwards too. If $\\det\\mathbf{A} = 3$ and $\\det\\left(\\mathbf{AB}\\right) = -12$, then',
+              ),
+              maths('\\begin{gathered} -12 = 3 \\times \\det\\mathbf{B} \\\\ \\det\\mathbf{B} = -12 \\div 3 = -4 \\end{gathered}'),
+              prose('and $\\mathbf{B}$ is the one that turns shapes over.'),
             ),
             ask('mat-compose-orientation'),
             ask('mat-det-missing'),
             ask('mat-compose-area+choice', 2),
             teach(
               prose(
-                'The rule runs backwards too. If $\\det\\mathbf{A} = 3$ and $\\det\\left(\\mathbf{AB}\\right) = -12$, then $\\det\\mathbf{B} = -12 \\div 3 = -4$, and $\\mathbf{B}$ is the one that turns shapes over.',
+                'Working backwards with two negatives is the same division. If $\\det\\mathbf{S} = -2$ and $\\det\\left(\\mathbf{RS}\\right) = 10$, then $\\det\\mathbf{R} = 10 \\div \\left(-2\\right) = -5$: both turn shapes over, and together they do not.',
               ),
               prose(
-                'It also says why a product with a singular matrix in it is singular: one factor of $0$ makes the whole product $0$, and the plane is flattened whatever else happens.',
+                'The rule also says why a product with a singular matrix in it is singular: one factor of $0$ makes the whole product $0$, and the plane is flattened whatever else happens.',
               ),
             ),
             ask('mat-det-missing+choice', 2),
@@ -1266,7 +1432,7 @@ export const matrices: Course = {
             ),
             ask('mat-sys-read'),
             ask('mat-sys-back'),
-            ask('mat-sys-vector'),
+            ask('mat-sys-read', 2),
             teach(
               prose(
                 'A $3 \\times 3$ matrix times a column works as a 2 by 2 did, with one more pair in each row. Each row, multiplied across the column and added, gives one entry of the answer.',
@@ -1274,12 +1440,15 @@ export const matrices: Course = {
               maths('\\begin{pmatrix} 2 & 1 & -1 \\\\ 1 & -3 & 0 \\\\ 0 & 4 & 5 \\end{pmatrix} \\begin{pmatrix} 1 \\\\ 2 \\\\ 1 \\end{pmatrix}'),
               maths('= \\begin{pmatrix} 3 \\\\ -5 \\\\ 13 \\end{pmatrix}'),
               prose(
-                'The top entry is $2(1) + 1(2) + (-1)(1) = 3$, the left-hand side of the first equation at $x = 1$, $y = 2$, $z = 1$. Multiplying by $\\mathbf{A}$ substitutes into all three equations at once.',
+                'Row by row: $2(1) + 1(2) + (-1)(1) = 3$, then $1(1) + (-3)(2) + 0(1) = -5$, then $0(1) + 4(2) + 5(1) = 13$.',
+              ),
+              prose(
+                'The top entry, $3$, is the left-hand side of the first equation at $x = 1$, $y = 2$, $z = 1$. Multiplying by $\\mathbf{A}$ substitutes into all three equations at once.',
               ),
             ),
+            ask('mat-sys-vector'),
             ask('mat-sys-rhs'),
             ask('mat-sys-vector+choice'),
-            ask('mat-sys-read', 2),
             teach(
               prose(
                 'So $\\mathbf{A}\\mathbf{x} = \\mathbf{b}$ says that these values of $x$, $y$ and $z$ make every equation true. A proposed solution is checked by multiplying it by $\\mathbf{A}$ and comparing with $\\mathbf{b}$, row by row.',
@@ -1329,7 +1498,12 @@ export const matrices: Course = {
                 'Multiplying the whole $3 \\times 3$ matrix by $k$ multiplies all three rows by $k$, so the determinant goes up by $k$ three times over.',
               ),
               maths('\\det(k\\mathbf{A}) = k^3 \\det \\mathbf{A}'),
-              prose('And a matrix and its transpose have the same determinant.'),
+              prose(
+                'And a matrix and its transpose have the same determinant. Say $\\det\\mathbf{A} = 5$. Multiplying row 1 by $3$ gives $3 \\times 5 = 15$. Swapping rows 1 and 2 gives $-5$. Scaling the whole matrix by $2$:',
+              ),
+              maths('\\det(2\\mathbf{A}) = 2^3 \\times 5 = 40'),
+              prose('The rules stack. For $2\\mathbf{A}$ with two rows then swapped, scale first and then change the sign:'),
+              maths('-\\left(2^3 \\times 5\\right) = -40'),
             ),
             ask('mat-sys-det-rule'),
             ask('mat-sys-det-zero', 2),
@@ -1345,23 +1519,28 @@ export const matrices: Course = {
               prose(
                 'Back to two equations in two unknowns. Each is a straight line, and a solution is a point on both. Two lines cross once, never meet, or are the same line.',
               ),
+              prose(
+                'A zero determinant means the left-hand sides are multiples of each other, so the lines have the same gradient: parallel, or the same line. Rearranging each as $y = mx + c$ shows which.',
+              ),
+              maths('\\begin{aligned} 2x - 2y &= -2 \\\\ 3x - 3y &= 3 \\end{aligned}'),
+              maths('\\begin{gathered} 2y = 2x + 2 \\\\ y = x + 1 \\end{gathered}'),
+              maths('\\begin{gathered} 3y = 3x - 3 \\\\ y = x - 1 \\end{gathered}'),
+              prose(
+                'The same gradient, $1$, but different intercepts, $1$ and $-1$: parallel lines, which never meet, so there are **no** solutions.',
+              ),
               figure(
                 plotSvg({
                   xMin: -4,
                   xMax: 4,
                   yMin: -3.5,
                   yMax: 3.5,
-                  curves: [{ f: (x) => x / 2 + 1 }, { f: (x) => x / 2 - 1, accent: true }],
+                  curves: [{ f: (x) => x + 1 }, { f: (x) => x - 1, accent: true }],
                   height: 140,
-                  label: 'Two parallel lines with the same gradient, which never meet',
+                  label: 'The parallel lines y = x + 1 and y = x - 1, which never meet',
                 }),
               ),
               prose(
-                'A zero determinant means the left-hand sides are multiples of each other, so the lines have the same gradient: parallel, or the same line. The right-hand sides decide which.',
-              ),
-              maths('\\begin{aligned} x + 2y &= 3 \\\\ 2x + 4y &= 6 \\end{aligned}'),
-              prose(
-                'The second equation is exactly twice the first, right-hand side included: one line, and **infinitely many** solutions. With $2x + 4y = 7$ instead they would contradict each other, and there would be **none**.',
+                'The right-hand sides can be compared without rearranging. Both left-hand sides are multiples of $x - y$: two of it and three of it. The first says $x - y = -2 \\div 2 = -1$, so the second is the same line only if its right-hand side is $3 \\times (-1) = -3$. Then there are **infinitely many** solutions.',
               ),
             ),
             ask('mat-sys-lines'),
@@ -1371,9 +1550,12 @@ export const matrices: Course = {
               prose(
                 'Infinitely many solutions does not mean anything goes. The solutions are exactly the points on that one line, and writing it as $y = mx + c$ describes them all at once.',
               ),
-              maths('\\begin{aligned} 3x - y &= 2 \\\\ 6x - 2y &= 4 \\end{aligned}'),
-              maths('y = 3x - 2'),
-              prose('Each choice of $x$ gives one solution: $x = 1$ and $y = 1$, or $x = 2$ and $y = 4$, and so on for ever.'),
+              maths('\\begin{aligned} 6x + 2y &= 4 \\\\ 9x + 3y &= 6 \\end{aligned}'),
+              prose('Divide the first by $2$, then leave $y$ on its own:'),
+              maths('\\begin{gathered} 3x + y = 2 \\\\ y = -3x + 2 \\end{gathered}'),
+              prose(
+                'The second divided by $3$ is the same $3x + y = 2$, so it gives the same line. Each choice of $x$ gives one solution: $x = 0$ and $y = 2$, or $x = 1$ and $y = -1$, and so on for ever.',
+              ),
             ),
             ask('mat-sys-line-form'),
             ask('mat-sys-lines', 2),
@@ -1403,6 +1585,19 @@ export const matrices: Course = {
               prose(
                 'For $y$ it is column 2 that is replaced, and for $z$ column 3. The bottom is $\\det \\mathbf{A}$ every time, so it is worked out once, and it must not be zero.',
               ),
+              prose('Worked through for $y$:'),
+              maths('\\begin{pmatrix} 1 & 2 & 0 \\\\ 0 & 1 & 1 \\\\ 1 & 0 & 2 \\end{pmatrix} \\begin{pmatrix} x \\\\ y \\\\ z \\end{pmatrix} = \\begin{pmatrix} 5 \\\\ 5 \\\\ 7 \\end{pmatrix}'),
+              prose(
+                'Expand $\\det\\mathbf{A}$ along the first row. The minors are $1(2) - 1(0) = 2$, then $0(2) - 1(1) = -1$, then $0(0) - 1(1) = -1$:',
+              ),
+              maths('\\begin{gathered} \\det\\mathbf{A} \\\\ = 1(2) - 2(-1) + 0(-1) = 4 \\end{gathered}'),
+              prose('Now put $\\mathbf{b}$ in column 2, the $y$ column:'),
+              maths('\\mathbf{A}_y = \\begin{pmatrix} 1 & 5 & 0 \\\\ 0 & 5 & 1 \\\\ 1 & 7 & 2 \\end{pmatrix}'),
+              prose(
+                'Its minors along the first row are $5(2) - 1(7) = 3$, then $0(2) - 1(1) = -1$, then $0(7) - 5(1) = -5$:',
+              ),
+              maths('\\begin{gathered} \\det\\mathbf{A}_y \\\\ = 1(3) - 5(-1) + 0(-5) = 8 \\end{gathered}'),
+              maths('y = \\frac{8}{4} = 2'),
             ),
             ask('mat-sys-cramer-swap'),
             ask('mat-sys-cramer'),
@@ -1413,8 +1608,16 @@ export const matrices: Course = {
               ),
               maths('\\mathbf{x} = \\mathbf{A}^{-1}\\mathbf{b}'),
               prose(
-                'A $3 \\times 3$ inverse is long to find by hand, so here it is given. It often comes as a fraction times a whole-number matrix: multiply by the matrix first, and divide at the end.',
+                'A $3 \\times 3$ inverse is long to find by hand, so here it is given. It often comes as a fraction times a whole-number matrix: multiply by the matrix first, and divide at the end. For the same system:',
               ),
+              maths('\\mathbf{A}^{-1} = \\frac{1}{4}\\begin{pmatrix} 2 & -4 & 2 \\\\ 1 & 2 & -1 \\\\ -1 & 2 & 1 \\end{pmatrix}'),
+              prose('Each row of the whole-number matrix times $\\mathbf{b} = (5, 5, 7)$:'),
+              maths(
+                '\\begin{gathered} 2(5) - 4(5) + 2(7) = 4 \\\\ 1(5) + 2(5) - 1(7) = 8 \\\\ -1(5) + 2(5) + 1(7) = 12 \\end{gathered}',
+              ),
+              prose('Then divide each by $4$:'),
+              maths('\\mathbf{x} = \\begin{pmatrix} 1 \\\\ 2 \\\\ 3 \\end{pmatrix}'),
+              prose('That agrees with $y = 2$ from Cramer\'s rule.'),
             ),
             ask('mat-sys-inverse'),
             ask('mat-sys-cramer+choice', 2),
@@ -1568,17 +1771,23 @@ export const matrices: Course = {
                 'To find the invariant lines rather than test them, keep $m$ as a letter. The same matrix sends $(1, m)$ to $(3 + m, \\; 2 + 2m)$, a multiple of $(1, m)$ when the second entry is $m$ times the first:',
               ),
               maths('2 + 2m = m(3 + m)'),
-              maths('m^2 + m - 2 = 0'),
+              maths('\\begin{gathered} 2 + 2m = 3m + m^2 \\\\ m^2 + m - 2 = 0 \\end{gathered}'),
+              prose(
+                'Factorise to read off the gradients: two numbers that multiply to $-2$ and add to $1$ are $-1$ and $2$.',
+              ),
+              maths('(m - 1)(m + 2) = 0'),
+              prose('So $m = 1$ or $m = -2$: the invariant lines through $O$ are $y = x$ and $y = -2x$.'),
             ),
             ask('mat-inv-line-quad'),
             ask('mat-inv-line-gradients'),
             ask('mat-inv-line-quad+choice', 2),
             teach(
               prose(
-                'It factorises as $(m - 1)(m + 2) = 0$, so $m = 1$ or $m = -2$: the invariant lines through $O$ are $y = x$ and $y = -2x$.',
+                'Two solutions give two invariant lines, and one gives one. A quadratic with no real solutions means no line through $O$ survives, which is what happens under a quarter turn:',
               ),
+              maths('\\begin{pmatrix} 0 & -1 \\\\ 1 & 0 \\end{pmatrix} \\begin{pmatrix} 1 \\\\ m \\end{pmatrix} = \\begin{pmatrix} -m \\\\ 1 \\end{pmatrix}'),
               prose(
-                'Two solutions give two invariant lines, and one gives one. A quadratic with no real solutions means no line through $O$ survives, which is what happens under a quarter turn.',
+                'For that to be a multiple of $(1, m)$, the second entry must be $m$ times the first: $1 = -m^{2}$, so $m^{2} = -1$, which no real $m$ satisfies.',
               ),
             ),
             ask('mat-inv-line-stretch', 2),
@@ -1609,18 +1818,31 @@ export const matrices: Course = {
               prose(
                 'A rotation about $O$ turns every line, so it has none, except a half turn: it sends $(x, y)$ to $(-x, -y)$, which keeps every line through $O$.',
               ),
+              prose('An enlargement about $O$ pushes every point straight out along its own line, so every line through $O$ is invariant.'),
+              prose(
+                'A stretch parallel to the $x$-axis stretches the $x$-axis along itself and leaves the $y$-axis where it is, so those two are invariant. A stretch parallel to the $y$-axis keeps the same two. Every other line through $O$ changes gradient, and one point shows where it goes:',
+              ),
+              maths('\\begin{pmatrix} 3 & 0 \\\\ 0 & 1 \\end{pmatrix} \\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix} = \\begin{pmatrix} 3 \\\\ 2 \\end{pmatrix}'),
+              prose(
+                'So $y = 2x$ goes to the line through $O$ and $(3, 2)$, whose gradient is $2 \\div 3$: $y = \\tfrac{2}{3}x$, a different line.',
+              ),
             ),
             ask('mat-inv-std-lines'),
             ask('mat-inv-std-image'),
-            ask('mat-inv-std-flow'),
             teach(
-              prose('An enlargement about $O$ pushes every point straight out along its own line, so every line through $O$ is invariant.'),
               prose(
-                'A stretch parallel to the $x$-axis stretches the $x$-axis along itself and leaves the $y$-axis where it is. Every other line through $O$ changes gradient:',
+                'For a matrix given only as numbers, where the zeros sit gives a shortcut. Zeros off the leading diagonal mean a scaling along the axes:',
               ),
-              maths('\\begin{pmatrix} 3 & 0 \\\\ 0 & 1 \\end{pmatrix} \\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix} = \\begin{pmatrix} 3 \\\\ 2 \\end{pmatrix}'),
-              prose('So $y = 2x$ goes to the line through $O$ and $(3, 2)$, which is $y = \\tfrac{2}{3}x$: a different line.'),
+              maths('\\begin{pmatrix} 2 & 0 \\\\ 0 & 2 \\end{pmatrix}: \\text{ every line through } O'),
+              maths('\\begin{pmatrix} 3 & 0 \\\\ 0 & -2 \\end{pmatrix}: \\text{ just the two axes}'),
+              prose(
+                'Zeros on the leading diagonal mean the axes are swapped. Equal entries off it keep $y = x$ and $y = -x$: $\\begin{pmatrix} 0 & 3 \\\\ 3 & 0 \\end{pmatrix}$ sends $(1, 1)$ to $(3, 3)$ and $(1, -1)$ to $(-3, 3)$. Equal and opposite entries, as in $\\begin{pmatrix} 0 & -2 \\\\ 2 & 0 \\end{pmatrix}$, are a quarter turn with a scaling, and keep no line.',
+              ),
+              prose(
+                'Anything else has no shortcut: send $(1, m)$ through the matrix and solve the quadratic in $m$. For $\\begin{pmatrix} 3 & 1 \\\\ 2 & 2 \\end{pmatrix}$, $(1, m)$ goes to $(3 + m, \\; 2 + 2m)$, and $2 + 2m = m(3 + m)$ gives $m^2 + m - 2 = 0$: the lines $y = x$ and $y = -2x$.',
+              ),
             ),
+            ask('mat-inv-std-flow'),
             ask('mat-inv-std-lines', 2),
             ask('mat-inv-std-flow', 2),
             ask('mat-inv-std-image+choice', 2),
@@ -1651,7 +1873,13 @@ export const matrices: Course = {
                 "The image has to satisfy $y' = x' + c$ for every $x$. Compare the $x$ terms, which test the gradient, then the constant terms: here $2c = c + c$, true whatever $c$ is, so every line $y = x + c$ is invariant.",
               ),
               prose(
-                'In general the constant terms give $c$ times some number equal to $0$. If that number is $0$ every line of the gradient is invariant; if not, only $c = 0$ is.',
+                'In general the constant terms give $c$ times a bracket equal to $0$: the bottom-right entry, minus the top-right entry times the gradient, minus $1$. Here that is $2 - 1 \\times 1 - 1 = 0$, which is why every $c$ worked.',
+              ),
+              prose('The other invariant direction, gradient $-2$, gives a bracket that is not zero. For $y = -2x + c$:'),
+              maths('\\begin{pmatrix} 3 & 1 \\\\ 2 & 2 \\end{pmatrix} \\begin{pmatrix} x \\\\ -2x + c \\end{pmatrix}'),
+              maths('= \\begin{pmatrix} x + c \\\\ -2x + 2c \\end{pmatrix}'),
+              prose(
+                'The image must satisfy $y\' = -2x\' + c = -2x - 2c + c = -2x - c$. The $x$ terms agree; the constants need $2c = -c$, so $3c = 0$: the bracket $2 - 1 \\times (-2) - 1 = 3$ is not zero, and only $c = 0$ works. Of these lines only $y = -2x$ is invariant.',
               ),
             ),
             ask('mat-inv-offset-coeffs'),
@@ -1675,7 +1903,13 @@ export const matrices: Course = {
               ),
               maths('\\begin{pmatrix} 1 & 2 \\\\ 0 & 1 \\end{pmatrix} \\begin{pmatrix} x \\\\ c \\end{pmatrix} = \\begin{pmatrix} x + 2c \\\\ c \\end{pmatrix}'),
               prose(
-                'A stretch parallel to the $x$-axis keeps the lines $y = c$ as well, and a reflection in the $x$-axis keeps every line $x = c$, flipped end to end.',
+                'A stretch parallel to the $x$-axis keeps the lines $y = c$ as well, and a reflection in the $x$-axis keeps every line $x = c$, flipped end to end. A reflection in $y = x$ keeps every line $y = -x + c$, since it swaps $(x, \\; -x + c)$ to $(-x + c, \\; x)$, which is on the same line; in the same way a reflection in $y = -x$ keeps every $y = x + c$.',
+              ),
+              prose(
+                'Swap the roles of the axes and the same holds: a shear with the $y$-axis fixed, such as $\\begin{pmatrix} 1 & 0 \\\\ 2 & 1 \\end{pmatrix}$, sends $(c, y)$ to $(c, \\; 2c + y)$, so it keeps every line $x = c$, and so does a stretch parallel to the $y$-axis.',
+              ),
+              prose(
+                'An enlargement or a half turn keeps a different family: every line through $O$. With factor $3$, the point $(1, m)$ goes to $(3, 3m) = 3(1, m)$ whatever $m$ is. But the line $y = 2$ goes to $y = 6$, since $(x, 2)$ goes to $(3x, 6)$, so the lines $y = c$ are not kept.',
               ),
             ),
             ask('mat-inv-offset-family'),
@@ -1724,6 +1958,13 @@ export const matrices: Course = {
                 'Reflections have both kinds. The mirror is a line of invariant points. Any line perpendicular to the mirror is an invariant line, flipped end to end, so its points swap sides.',
               ),
               prose('Every line of invariant points is an invariant line, but not the other way round.'),
+              prose(
+                'To find a line of invariant points straight from the matrix, solve $\\mathbf{M}\\mathbf{p} = \\mathbf{p}$: take $1$ off each entry on the leading diagonal, and use either row.',
+              ),
+              maths('\\begin{gathered} \\mathbf{M} - \\mathbf{I} = \\begin{pmatrix} 3 - 1 & 1 \\\\ 2 & 2 - 1 \\end{pmatrix} \\\\ = \\begin{pmatrix} 2 & 1 \\\\ 2 & 1 \\end{pmatrix} \\end{gathered}'),
+              prose(
+                'The top row says $2x + y = 0$, so $y = -2x$: the line of invariant points found at the start of this lesson.',
+              ),
             ),
             ask('mat-inv-sort-flow', 2),
             ask('mat-inv-point-line', 2),

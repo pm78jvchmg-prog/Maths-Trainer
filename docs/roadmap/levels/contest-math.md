@@ -239,3 +239,16 @@ Generators in `src/content/generators/contestInequalities.ts`.
 | Cauchy-Schwarz | `cm-in-cs-max`, `cm-in-cs-table`, `cm-in-cs-min`, `cm-in-titu` | $(ax + by)^2 \le (a^2 + b^2)(x^2 + y^2)$ caps a line on a circle; equality is in step with the coefficients; turned round it is the least sum of squares on a line; the fractions form for a fixed sum of bottoms |
 
 Level check: 12 questions across all three lessons.
+
+## Level 14: Polynomials (`cm-l14`)
+
+Generators in `src/content/generators/contestPolynomials.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Roots | `cm-po-remainder`, `cm-po-find-k`, `cm-po-sum-coeffs`, `cm-po-integer-roots` | the remainder on dividing by x − a is p(a), and x + a means p(−a); a factor or a remainder fixes k; p(1) adds the coefficients, and p(1) + p(−1) doubles the even ones; whole-number roots divide the constant term |
+| Equations | `cm-po-quartic`, `cm-po-shared-root`, `cm-po-shared-root-tiles`, `cm-po-reciprocal`, `cm-po-fixed-values` | only even powers make a quadratic in y = x², and a negative y gives no real x; subtract to cancel x² and leave the shared root; divide by x for x + 1/x, then square or cube; p(x) − c or p(x) − x has the given points as roots |
+| Vieta's Formulas | `cm-po-vieta-quad`, `cm-po-vieta-cubic`, `cm-po-vieta-table`, `cm-po-root-ratio` | the roots add to −b and multiply to c; squares, reciprocals and cubes of the roots from the sum and product; a cubic's signs alternate once the leading coefficient is divided out; name the roots r and kr, or r and r + d |
+| Transformations | `cm-po-shift-product`, `cm-po-roots-sum-sub`, `cm-po-new-roots-table`, `cm-po-squared-roots-tiles` | (k − r)(k − s)(k − t) is p(k), and (r + k)(s + k)(t + k) is −p(−k); p(ax + b) has roots (r − b)/a, the shift counted once per root; scaling the roots by k scales the coefficients by k, k², k³; roots r² and s² from Vieta |
+
+Level check: 14 questions across all four lessons.

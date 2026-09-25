@@ -2,9 +2,9 @@
  * The two slide kinds that show working rather than just a final answer.
  *
  * Both are controlled components in the same sense as the widgets in
- * `slides.tsx`: they hold the in-progress picks and nothing else. No verdict is
- * computed here — a filled-in step looks identical whether it is right or
- * wrong, and only the reducer knows which.
+ * `SlideView.tsx`: they hold the in-progress picks and nothing else. No
+ * verdict is computed here — a filled-in step looks identical whether it is
+ * right or wrong, and only the reducer knows which.
  */
 import { useLayoutEffect, useRef, useState } from 'react';
 import { Tex, Blocks, Inline } from './Math';

@@ -201,8 +201,8 @@ export function texToSpeech(tex: string): string {
  * The name of a keypad key whose face is drawn in TeX alone, or `undefined`
  * for a key whose face is text and so names it already.
  *
- * Mirrors `keyFace` in `slides.tsx` branch for branch: a template key is named
- * for what it opens, a function key and a letter key for what they show.
+ * Mirrors `keyFace` in `SlideView.tsx` branch for branch: a template key is
+ * named for what it opens, a function key and a letter key for what they show.
  */
 export function keyName(key: KeypadKey): string | undefined {
   if (key.insert === '/') return 'fraction';

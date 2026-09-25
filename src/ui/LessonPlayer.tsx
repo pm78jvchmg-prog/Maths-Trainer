@@ -21,7 +21,8 @@ import {
 } from '../engine/session';
 import type { Answer } from '../engine/session';
 import type { Lesson, GeneratorRegistry } from '../content/types';
-import { SlideView, hasAnswer } from './slides';
+import { SlideView } from './SlideView';
+import { hasAnswer } from './slides';
 import { FeedbackBar, VerdictAnnouncer } from './FeedbackBar';
 import { tapOnQuestion } from './questionTap';
 
@@ -283,7 +284,6 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
         )}
         <SlideView
           slide={slide.slide}
-          id={slide.id}
           feedback={session.feedback}
           answer={answer}
           onAnswer={changeAnswer}

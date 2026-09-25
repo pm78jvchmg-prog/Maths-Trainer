@@ -23,9 +23,7 @@
  * - `toAnswer` is what mathjs parses. It is never displayed, so it can be
  *   unambiguous rather than pretty: `(3)/(4)` for that same fraction.
  */
-import { useMemo } from 'react';
 import type { KeypadKey } from '../content/types';
-import { Tex } from './Math';
 
 /**
  * A node of the answer.
@@ -368,32 +366,6 @@ export function isFilled(nodes: Node[]): boolean {
   });
 }
 
-/**
- * Rebuild an editor state from a stored answer.
- *
- * One atom per character, so a fraction typed earlier comes back as the `(3)/(4)`
- * the session stored rather than as a stacked fraction. That is a real loss of
- * shape, and it is confined to one path: stepping back through the guided deck
- * and forward again, where the draft cache missed. Everything the learner does
- * inside a slide keeps its structure, because the component stays mounted.
- */
-export function docFromAnswer(text: string): Doc {
-  const nodes: Node[] = [];
-  for (let at = 0; at < text.length; ) {
-    // A function key's name comes back as one atom that reads as the key did,
-    // rather than as the letters `sind` the learner never typed.
-    const name = /^a?(sin|cos|tan)d?(?=\()/.exec(text.slice(at))?.[0];
-    if (name) {
-      nodes.push({ kind: 'atom', tex: fnTex(name.replace(/d$/, '')), ans: name });
-      at += name.length;
-    } else {
-      nodes.push({ kind: 'atom', tex: text[at], ans: text[at] });
-      at += 1;
-    }
-  }
-  return { nodes, caret: { steps: [], index: nodes.length } };
-}
-
 /* ---------- keys ---------- */
 
 /** Keys whose two audiences differ: this one reads as × and parses as *. */
@@ -439,27 +411,4 @@ export function applyKey(doc: Doc, key: KeypadKey): Doc {
 /** The editor as a slide's `prefill` leaves it: those keys pressed in order. */
 export function docFromKeys(keys: readonly KeypadKey[] = []): Doc {
   return keys.reduce(applyKey, EMPTY_DOC);
-}
-
-/* ---------- the slot ---------- */
-
-export function MathSlot({
-  doc,
-  showCaret,
-  filled,
-}: {
-  doc: Doc;
-  showCaret: boolean;
-  filled: boolean;
-}) {
-  const tex = useMemo(
-    () => toTex(doc.nodes, showCaret ? doc.caret : undefined),
-    [doc, showCaret],
-  );
-
-  return (
-    <span className={`answer-slot${filled ? ' filled' : ''}${showCaret ? ' focus' : ''}`}>
-      {tex ? <Tex tex={tex} trust /> : ' '}
-    </span>
-  );
 }

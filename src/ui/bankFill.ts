@@ -1,6 +1,6 @@
 /**
- * Blanks filled from a bank, in any order: the state the probability tree
- * and the Venn diagram share, taken from `iterateSlide.tsx`.
+ * Blanks filled from a bank, in any order: the state the iteration table, the
+ * probability tree, the Venn diagram and a force diagram's `fill` share.
  *
  * Holds which blank the next tile goes into and nothing else. The values
  * placed so far are the draft itself, so the reducer still owns the answer

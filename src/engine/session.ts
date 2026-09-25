@@ -324,8 +324,11 @@ export function skillCheckScore(session: Session): { correct: number; total: num
  * A single string because `Answer` already carries `string[]`, so recording
  * both halves of a move this way needs no new shape in the session — and the
  * value and the ordering are then graded together rather than separately.
+ *
+ * Exported so the widget reads its own draft back through the same parser the
+ * grade uses, rather than a copy that could drift from it.
  */
-function parseMove(token: string): Move | undefined {
+export function parseMove(token: string): Move | undefined {
   const at = token.lastIndexOf('=');
   if (at < 1) return undefined;
   const value = Number(token.slice(at + 1));

@@ -49,6 +49,14 @@ const ask = (generatorId: string, difficulty = 1): SlideRef => ({
   difficulty,
 });
 
+/** A generated question with a worked example above it, on the same slide. */
+const asking = (generatorId: string, difficulty: number, ...leadIn: Block[]): SlideRef => ({
+  type: 'generated',
+  generatorId,
+  difficulty,
+  leadIn,
+});
+
 const prose = (text: string): Block => ({ kind: 'prose', text });
 const display = (tex: string): Block => ({ kind: 'display', tex });
 
@@ -180,7 +188,12 @@ export const dataAveragesSpread: Course = {
             ),
             ask('dat-add-value-steps'),
             ask('dat-total-tiles', 2),
-            ask('dat-add-value-steps', 2),
+            asking(
+              'dat-add-value-steps',
+              2,
+              prose('Taking a value out: the mean of $4$ values is $10$, and the value $16$ is taken out. Subtract it from the total, and divide by one fewer:'),
+              working('\\text{old total} &= 4 \\times 10 = 40', '\\text{new total} &= 40 - 16 = 24', '\\bar{x} &= \\frac{24}{3} = 8'),
+            ),
             teach(
               prose(
                 'Two groups combine the same way. $10$ pupils have a mean of $6$, a total of $60$, and $30$ pupils have a mean of $10$, a total of $300$:',
@@ -295,7 +308,14 @@ export const dataAveragesSpread: Course = {
               prose('This line is $y = 1 + x$, so at $x = 4.5$ it estimates $y = 1 + 4.5 = 5.5$.'),
             ),
             ask('dat-line-estimate'),
-            ask('dat-scatter-slider', 2),
+            asking(
+              'dat-scatter-slider',
+              2,
+              prose(
+                'The line also works the other way round. To find $x$ for a given $y$, go **across** from $y$ to the line, then straight **down** to the $x$ axis. On the line $y = 1 + x$ of the last picture, across from $y = 6$ meets the line above $x = 5$. The equation agrees:',
+              ),
+              working('1 + x &= 6', 'x &= 6 - 1 = 5'),
+            ),
             ask('dat-line-estimate', 2),
             teach(
               prose(
@@ -578,8 +598,12 @@ export const dataAveragesSpread: Course = {
               ),
               boxes([{ box: { min: 12, q1: 20, q2: 26, q3: 34, max: 46, outliers: [] } }], FINE, 'A box plot from 12 to 46, the box from 20 to 34 with the median at 26'),
               prose(
-                'The box runs from $Q_1 = 20$ to $Q_3 = 34$, with a line at the median, $26$. The **whiskers** reach out to the smallest value, $12$, and the largest, $46$.',
+                'To read the scale, first work out what one small division is worth: from $10$ to $20$ in five divisions is $10 \\div 5 = 2$ each.',
               ),
+              prose(
+                'The box runs from $Q_1 = 20$ to $Q_3 = 34$, with a line at the median, $26$. The **whiskers** reach out to the smallest value, $12$, and the largest, $46$. The IQR is the length of the box, and the range the whole length:',
+              ),
+              working('\\text{IQR} &= 34 - 20 = 14', '\\text{range} &= 46 - 12 = 34'),
             ),
             ask('dat-box-five'),
             ask('dat-box-read'),
@@ -589,7 +613,7 @@ export const dataAveragesSpread: Course = {
                 'Each of the four parts, whisker, half of the box, the other half and the other whisker, holds a quarter of the values. So half the values lie inside the box, and a quarter lie above $Q_3$.',
               ),
               prose(
-                'To read one, first work out what a small division is worth: from $10$ to $20$ in five divisions is $2$ each. In the plot above the IQR is the length of the box, $34 - 20 = 14$, and the range the whole length, $46 - 12 = 34$.',
+                'That is why the IQR, the length of the box, is the spread of the middle half of the values.',
               ),
               prose('A cross out beyond a whisker marks an outlier. That comes next.'),
             ),
@@ -676,7 +700,6 @@ export const dataAveragesSpread: Course = {
             ),
             ask('dat-fd-table'),
             ask('dat-fd-tiles'),
-            ask('dat-fd-slider'),
             teach(
               prose(
                 'A **histogram** draws each class as a bar as wide as the class and as tall as its frequency density, with no gaps between the bars. The same table:',
@@ -686,8 +709,9 @@ export const dataAveragesSpread: Course = {
                 'Height is density, so a bar\'s **area**, its density times its width, is its frequency: $8 \\times 5 = 40$ for the middle bar. How many values a bar holds is its area, not its height.',
               ),
             ),
-            ask('dat-fd-tiles', 2),
+            ask('dat-fd-slider'),
             ask('dat-fd-area'),
+            ask('dat-fd-tiles', 2),
             ask('dat-fd-table', 2),
             teach(
               prose('Densities need not be whole. $36$ values in a class $15$ wide have a density of $36 \\div 15 = 2.4$.'),
@@ -714,19 +738,19 @@ export const dataAveragesSpread: Course = {
             ),
             ask('dat-hist-total'),
             ask('dat-hist-tallest'),
-            ask('dat-hist-part'),
             teach(
               prose(
                 'A range that cuts through a bar takes the share of the bar it covers, as though the values were spread evenly across the class.',
               ),
               prose(
-                'In the histogram above, how many values lie between $30$ and $45$? The part of $20 \\le x < 40$ from $30$ is $10$ wide at height $3$, and the part of $40 \\le x < 50$ up to $45$ is $5$ wide at height $5$:',
+                'In the histogram of bars $2$, $3$ and $5$ high, how many values lie between $30$ and $45$? The part of $20 \\le x < 40$ from $30$ is $10$ wide at height $3$, and the part of $40 \\le x < 50$ up to $45$ is $5$ wide at height $5$:',
               ),
               working('3 \\times 10 &= 30', '5 \\times 5 &= 25', '30 + 25 &= 55'),
               prose('About $55$. It is an estimate, since the values inside a class are rarely spread exactly evenly.'),
             ),
-            ask('dat-hist-part', 2),
+            ask('dat-hist-part'),
             ask('dat-hist-total', 2),
+            ask('dat-hist-part', 2),
             ask('dat-hist-tallest', 2),
             teach(
               prose('Sometimes the vertical scale has no numbers. Frequency is still area, so count squares, and let one bar whose frequency is known set the scale.'),
@@ -772,8 +796,15 @@ export const dataAveragesSpread: Course = {
               prose('The last running total is every value counted, so it is always $n$: here $40$ journeys.'),
             ),
             ask('dat-cf-table'),
-            ask('dat-cf-back'),
+            teach(
+              prose('A running total is a count of values below a boundary. In the journeys table, the running total at the end of $20 \\le x < 30$ is $26$: $26$ journeys took less than $30$ minutes.'),
+              prose('So the rest took at least $30$ minutes: $40 - 26 = 14$.'),
+              prose('Going back, each frequency is its running total take the one above:'),
+              working('14 - 4 &= 10', '26 - 14 &= 12', '36 - 26 &= 10'),
+              prose('So if the $12$ were missing from the table but its running total $26$ were given, it would still be $26 - 14 = 12$.'),
+            ),
             ask('dat-cf-count'),
+            ask('dat-cf-back'),
             teach(
               prose(
                 'Each class gives one point to plot. By the end of $10 \\le x < 20$, all $14$ journeys under $20$ minutes have been counted, and not before. So the point goes at the **upper class boundary**:',
@@ -784,10 +815,6 @@ export const dataAveragesSpread: Course = {
             ask('dat-cf-point'),
             ask('dat-cf-table', 2),
             ask('dat-cf-point', 2),
-            teach(
-              prose('A running total is a count of values below a boundary: $26$ journeys took less than $30$ minutes.'),
-              prose('So the rest took at least $30$ minutes: $40 - 26 = 14$. And a table of running totals gives back its frequencies by taking each total from the next: $26 - 14 = 12$.'),
-            ),
             ask('dat-cf-back', 2),
             ask('dat-cf-count', 2),
           ],
@@ -807,8 +834,6 @@ export const dataAveragesSpread: Course = {
               ),
             ),
             ask('dat-cf-check'),
-            ask('dat-cf-below-slider'),
-            ask('dat-cf-above'),
             teach(
               prose('To read how many values lie below $35$, go **up** from $35$ to the curve, then **across**:'),
               cf({ down: [35], across: [31] }),
@@ -816,16 +841,18 @@ export const dataAveragesSpread: Course = {
                 '$31$ journeys took less than $35$ minutes, so $40 - 31 = 9$ took more. Between two values, take one reading from the other: below $15$ there are $9$, so $31 - 9 = 22$ lie between $15$ and $35$.',
               ),
             ),
+            ask('dat-cf-above'),
             ask('dat-cf-between'),
-            ask('dat-cf-below-slider', 2),
-            ask('dat-cf-check', 2),
             teach(
               prose(
-                'Between two points the curve is a straight join, so a reading inside a class is a share of it. $35$ is halfway through $30 \\le x < 40$, which holds $10$ journeys on top of the $26$ below it:',
+                'Between two points the curve is a straight join, so a reading inside a class is a share of it. $30 \\le x < 40$ holds $10$ journeys on top of the $26$ below it.',
               ),
-              display('26 + \\tfrac{1}{2} \\times 10 = 31'),
-              prose('Two tenths of the way through would add two tenths of the $10$, and so on.'),
+              prose('$35$ is $\\frac{35 - 30}{10} = 0.5$ of the way through the class, and $32$ is $\\frac{32 - 30}{10} = 0.2$ of the way. Add that share of the $10$:'),
+              working('35&: \\; 26 + 0.5 \\times 10 = 31', '32&: \\; 26 + 0.2 \\times 10 = 28'),
             ),
+            ask('dat-cf-below-slider'),
+            ask('dat-cf-below-slider', 2),
+            ask('dat-cf-check', 2),
             ask('dat-cf-above', 2),
             ask('dat-cf-between', 2),
           ],
@@ -844,24 +871,24 @@ export const dataAveragesSpread: Course = {
                 'The median is $25$ minutes. On a curve the position is $\\frac{n}{2}$, not $\\frac{n + 1}{2}$: the $4k + 3$ rule of Measures of Spread counts places along a list, and a curve has no places to count.',
               ),
             ),
-            ask('dat-cf-rule'),
             ask('dat-cf-quartile-slider'),
-            ask('dat-cf-positions'),
             teach(
-              prose('The quartiles are read the same way, a quarter and three quarters of the way up:'),
+              prose('The quartiles are read the same way, across from a quarter and three quarters of the way up, at $\\frac{n}{4}$ and $\\frac{3n}{4}$:'),
+              cf({ across: [10, 30], down: [16, 34] }),
               working('Q_1 &: \\tfrac{40}{4} = 10 \\to 16', 'Q_3 &: \\tfrac{3 \\times 40}{4} = 30 \\to 34'),
-              prose('Across from $10$ the curve comes down at $16$, and across from $30$ at $34$.'),
-              prose('The interquartile range is $34 - 16 = 18$ minutes: the spread of the middle half of the journeys.'),
+              prose('Across from $10$ the curve comes down at $16$, and across from $30$ at $34$. The interquartile range is $34 - 16 = 18$ minutes: the spread of the middle half of the journeys.'),
             ),
+            ask('dat-cf-rule'),
+            ask('dat-cf-positions'),
             ask('dat-cf-iqr'),
             ask('dat-cf-rule', 2),
-            ask('dat-cf-quartile-slider', 2),
             teach(
               prose(
                 'A reading will not always land on a grid line. Each class is two squares wide, so count how far between the lines the curve crosses, and use the table to check the arithmetic.',
               ),
               prose('The median and IQR go together, as in Measures of Spread: neither is moved much by a few extreme values.'),
             ),
+            ask('dat-cf-quartile-slider', 2),
             ask('dat-cf-positions', 2),
             ask('dat-cf-iqr', 2),
           ],

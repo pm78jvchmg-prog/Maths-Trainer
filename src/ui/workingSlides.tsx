@@ -12,6 +12,7 @@ import { Tex, Blocks, Inline } from './Math';
 import type { Slide } from '../content/types';
 import { frameClass, isLocked, type SlideProps } from './slides';
 import { walkFlow } from './flow';
+import { blankName, inlineToSpeech, texToSpeech } from './texSpeech';
 
 /* ---------- Steps: reduce an expression one operation at a time ---------- */
 
@@ -146,6 +147,8 @@ function Line({
           key={i}
           type="button"
           className={`step-target${isArmed(target.span) ? ' armed' : ''}`}
+          // Maths alone, which KaTeX hides from assistive tech: named in words.
+          aria-label={inner.map(texToSpeech).join(' ')}
           disabled={!onArm}
           onClick={onArm ? () => onArm(target.span) : undefined}
         >
@@ -257,6 +260,7 @@ function StepsBody({
               key={idx}
               type="button"
               className="tile"
+              aria-label={texToSpeech(value)}
               disabled={locked}
               onClick={() => pick(value)}
             >
@@ -422,6 +426,7 @@ function TreeBody({
                     else cells.current.delete(node.id);
                   }}
                   className={`answer-slot${filled[idx] ? ' filled' : ''}`}
+                  aria-label={blankName(`Blank ${idx + 1} of ${slide.nodes.length}`, filled[idx] ?? '')}
                   disabled={locked || !filled[idx]}
                   onClick={() => clear(idx)}
                 >
@@ -443,6 +448,7 @@ function TreeBody({
               key={idx}
               type="button"
               className={`tile${used ? ' used' : ''}`}
+              aria-label={texToSpeech(value)}
               disabled={locked || used}
               onClick={() => place(value)}
             >
@@ -520,7 +526,15 @@ export function FlowSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideP
         <ol className="flow-trail">
           {trail.map((entry, idx) => (
             <li key={idx}>
-              <button type="button" className="flow-step" disabled={locked} onClick={() => rewindTo(idx)}>
+              <button
+                type="button"
+                className="flow-step"
+                // `Inline` maths is hidden from assistive tech like any KaTeX,
+                // so the name is written out rather than read off the content.
+                aria-label={`${inlineToSpeech(entry.ask)} ${inlineToSpeech(entry.label)}`}
+                disabled={locked}
+                onClick={() => rewindTo(idx)}
+              >
                 <span className="flow-ask">
                   <Inline text={entry.ask} />
                 </span>
@@ -547,6 +561,7 @@ export function FlowSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideP
               key={branch.label}
               type="button"
               className="flow-branch"
+              aria-label={inlineToSpeech(branch.label)}
               disabled={locked}
               onClick={() => choose(branch.label)}
             >

@@ -198,6 +198,41 @@ export function texToSpeech(tex: string): string {
 }
 
 /**
+ * A plain-text reading of `Inline` markup: prose with `$maths$`, `**bold**`
+ * and `*italic*` in it, split the way `Inline` splits it.
+ *
+ * A proof step or a decision-tree branch drawn with `Inline` names its button
+ * from its text alone, so the maths in it dropped out of the name ("The
+ * midpoints of and are one point: .") and a label that was all maths named
+ * nothing.
+ */
+export function inlineToSpeech(text: string): string {
+  return tidy(
+    text
+      .split(/(\$[^$]+\$|\*\*[^*]+\*\*|\*[^*]+\*)/g)
+      .map((part) => {
+        if (part.startsWith('$') && part.endsWith('$') && part.length > 1) {
+          return ` ${texToSpeech(part.slice(1, -1))} `;
+        }
+        if (part.startsWith('**') && part.endsWith('**')) return part.slice(2, -2);
+        if (part.startsWith('*') && part.endsWith('*')) return part.slice(1, -1);
+        return part;
+      })
+      .join(''),
+  ).replace(/ ([.,;:?!])/g, '$1');
+}
+
+/**
+ * The name of a blank a learner fills: where it is, then what they put there.
+ *
+ * Only ever the learner's own value, never what the blank should hold, so a
+ * screen reader discloses no more than the screen does.
+ */
+export function blankName(where: string, value: string): string {
+  return `${where}, ${value ? texToSpeech(value) : 'empty'}`;
+}
+
+/**
  * The name of a keypad key whose face is drawn in TeX alone, or `undefined`
  * for a key whose face is text and so names it already.
  *

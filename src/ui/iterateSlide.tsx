@@ -16,6 +16,7 @@ import type { Slide } from '../content/types';
 import { frameClass, isLocked, type SlideProps } from './slides';
 import { useBankFill } from './bankFill';
 import { Calculator } from './Calculator';
+import { blankName, texToSpeech } from './texSpeech';
 
 type IterateSlideData = Extract<Slide, { kind: 'iterate' }>;
 
@@ -55,11 +56,10 @@ function IterateBody({
         !locked && idx === target ? ' focus' : ''
       }`}
       disabled={locked}
-      aria-label={
-        idx < size - 1
-          ? `x ${idx + 1}${filled[idx] ? `, ${filled[idx]}` : ', empty'}`
-          : `${CONCLUSION_LABEL[slide.conclusion]}${filled[idx] ? `, ${filled[idx]}` : ', empty'}`
-      }
+      aria-label={blankName(
+        idx < size - 1 ? `x ${idx + 1}` : CONCLUSION_LABEL[slide.conclusion],
+        filled[idx],
+      )}
       onClick={() => tapBlank(idx)}
     >
       {filled[idx] ? <Tex tex={filled[idx]} /> : ' '}
@@ -116,6 +116,7 @@ function IterateBody({
               key={idx}
               type="button"
               className={`tile${spent ? ' used' : ''}`}
+              aria-label={texToSpeech(value)}
               disabled={locked || spent || target === -1}
               onClick={() => place(value)}
             >

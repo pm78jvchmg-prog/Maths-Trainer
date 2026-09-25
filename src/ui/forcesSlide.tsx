@@ -31,6 +31,7 @@ import {
   type Point,
 } from '../content/forces';
 import { useBankFill } from './bankFill';
+import { blankName, texToSpeech } from './texSpeech';
 
 type ForcesSlideData = Extract<Slide, { kind: 'forces' }>;
 
@@ -154,7 +155,7 @@ function ForcesBody({
                         !locked && blank === target ? ' focus' : ''
                       }`}
                       disabled={locked}
-                      aria-label={`${arrow.label}${filled[blank] ? `, ${filled[blank]}` : ', empty'}`}
+                      aria-label={blankName(texToSpeech(arrow.label), filled[blank])}
                       onClick={() => tapBlank(blank)}
                     >
                       {filled[blank] ? <Tex tex={filled[blank]} /> : ' '}
@@ -179,6 +180,7 @@ function ForcesBody({
                 key={idx}
                 type="button"
                 className={`tile${spent ? ' used' : ''}`}
+                aria-label={texToSpeech(value)}
                 disabled={locked || spent || target === -1}
                 onClick={() => place(value)}
               >

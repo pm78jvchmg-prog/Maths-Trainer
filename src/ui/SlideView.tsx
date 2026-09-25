@@ -22,7 +22,7 @@ import {
   toAnswer,
   type Doc,
 } from './mathInput';
-import { keyName, texToSpeech } from './texSpeech';
+import { blankName, keyName, texToSpeech } from './texSpeech';
 import { EvaluateSlide, ReduceSlide } from './reduceSlide';
 import type { Slide, KeypadKey } from '../content/types';
 import {
@@ -296,6 +296,10 @@ export function TilesSlide({
               key={idx}
               type="button"
               className={`answer-slot${token ? ' filled' : ''}`}
+              // KaTeX hides what it draws from assistive tech, so a blank or a
+              // tile holding maths alone is named in words. A blank names only
+              // what the learner put in it.
+              aria-label={blankName(`Blank ${slotIndex + 1} of ${blanks}`, token)}
               disabled={locked || !token}
               onClick={() => clearSlot(slotIndex)}
             >
@@ -318,6 +322,7 @@ export function TilesSlide({
               key={idx}
               type="button"
               className={`tile${used ? ' used' : ''}`}
+              aria-label={texToSpeech(token)}
               disabled={locked || used}
               onClick={() => place(token)}
             >
@@ -609,7 +614,7 @@ function TableBody({
                       <button
                         type="button"
                         className={`answer-slot${token ? ' filled' : ''}${focus ? ' focus' : ''}`}
-                        aria-label={token ? `Clear ${token}` : 'Choose this blank'}
+                        aria-label={token ? `Clear ${texToSpeech(token)}` : 'Choose this blank'}
                         disabled={locked}
                         onClick={() => tapBlank(slot)}
                       >
@@ -634,6 +639,7 @@ function TableBody({
               key={idx}
               type="button"
               className={`tile${used ? ' used' : ''}`}
+              aria-label={texToSpeech(value)}
               disabled={locked || used || target === -1}
               onClick={() => place(value)}
             >

@@ -37,6 +37,7 @@ import {
   type Path,
 } from '../content/expr';
 import { movesOf, workingLines } from './reduceWorking';
+import { texToSpeech } from './texSpeech';
 
 const moveToken = (path: Path, value: number) => `${path}=${value}`;
 
@@ -99,6 +100,8 @@ function Line({
           type="button"
           ref={(el) => refFor?.(tap.path, el)}
           className={`reduce-handle${isLit ? ' lit' : ''}`}
+          // Maths alone, which KaTeX hides from assistive tech: named in words.
+          aria-label={texToSpeech(fragment.tex)}
           onClick={() => onTap(tap.path)}
         >
           <Tex tex={fragment.tex} />
@@ -228,6 +231,7 @@ function ReduceBody({
               key={idx}
               type="button"
               className="tile"
+              aria-label={texToSpeech(value)}
               disabled={locked}
               onClick={() => commit(value)}
             >
@@ -300,6 +304,7 @@ export function EvaluateSlide({ slide, feedback, answer, onAnswer, canEdit }: Sl
             key={option}
             type="button"
             className={`tile${chosen === option ? ' used' : ''}`}
+            aria-label={texToSpeech(option)}
             disabled={locked}
             onClick={() => onAnswer(chosen === option ? '' : option)}
           >

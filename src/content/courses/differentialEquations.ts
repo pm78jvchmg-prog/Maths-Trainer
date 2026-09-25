@@ -1001,6 +1001,8 @@ export const differentialEquations: Course = {
                 'y &= e^{x}(A\\cos 3x + B\\sin 3x)',
                 "y' &= e^{x}(A\\cos 3x + B\\sin 3x)",
                 '&\\quad + e^{x}(-3A\\sin 3x + 3B\\cos 3x)',
+              ),
+              working(
                 "y'(0) &= A + 3B",
                 '11 &= 2 + 3B, \\quad B = 3',
               ),
@@ -1475,8 +1477,8 @@ export const differentialEquations: Course = {
                 'x &= e^{-t}(A\\cos 2t + B\\sin 2t)',
                 '\\dot{x} &= -e^{-t}(A\\cos 2t + B\\sin 2t)',
                 '&\\quad + e^{-t}(-2A\\sin 2t + 2B\\cos 2t)',
-                '\\dot{x}(0) &= -A + 2B',
               ),
+              display('\\dot{x}(0) = -A + 2B'),
               prose('$x(0) = A = 3$, then $-3 + 2B = 1$, so $B = 2$ and $x = e^{-t}(3\\cos 2t + 2\\sin 2t)$. With roots $-p \\pm qi$, $\\dot{x}(0) = -pA + qB$.'),
             ),
             ask('de-damp-ivp-tree'),

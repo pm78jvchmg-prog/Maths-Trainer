@@ -1330,7 +1330,7 @@ const solveHeight: Generator<SolveHeightParams> = {
       fn === 'sin' ? (positive ? 'above' : 'below') : positive ? 'to the right of' : 'to the left of';
     const prompt =
       form === 'circle'
-        ? `A point starts at the far right of a circle of radius $${radius}$ centred at the origin and turns anticlockwise through an angle $\\theta$. Find both values of $\\theta$ with $${rangeTex}$ at which the point is $${half}$ ${where} the centre.`
+        ? `A point starts at the far right of a circle of radius $${radius}$ about the origin and turns $\\theta$ anticlockwise. Find both $\\theta$ with $${rangeTex}$ where it is $${half}$ ${where} the centre.`
         : `Find both solutions of $${radius}\\${fn}(\\theta) = ${value}$ with $${rangeTex}$.`;
     return {
       kind: 'tiles',
@@ -1895,7 +1895,7 @@ const circleCoords: Generator<CircleCoordsParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `A point starts at the far right of a circle of radius $${radius}$ centred on the origin and turns anticlockwise through $${turn.degrees}^{\\circ}$. Fill in its height above the centre and its displacement to the right of it.`,
+          text: `A point starts at the far right of a circle of radius $${radius}$ about the origin and turns $${turn.degrees}^{\\circ}$ anticlockwise. Fill in its height above the centre and displacement to the right of it.`,
         },
       ],
       template: '\\text{height} = {0} \\qquad \\text{displacement} = {1}',
@@ -6634,7 +6634,7 @@ const MODEL_CONTEXTS: ModelContext[] = [
     amplitudes: [1, 4],
   },
   {
-    subject: 'The height of a seat on a Ferris wheel',
+    subject: "A Ferris wheel seat's height",
     symbol: 'h',
     unit: 'metres',
     unitOne: 'metre',
@@ -6670,7 +6670,7 @@ const MODEL_CONTEXTS: ModelContext[] = [
     amplitudes: [2, 6],
   },
   {
-    subject: 'The height of a buoy above the sea bed',
+    subject: "A buoy's height above the sea bed",
     symbol: 'h',
     unit: 'metres',
     unitOne: 'metre',
@@ -6682,7 +6682,7 @@ const MODEL_CONTEXTS: ModelContext[] = [
     amplitudes: [1, 4],
   },
   {
-    subject: 'The height of a paddle on a water wheel above the river bed',
+    subject: "A water-wheel paddle's height above the river bed",
     symbol: 'h',
     unit: 'metres',
     unitOne: 'metre',
@@ -6863,8 +6863,8 @@ const modelBuild: Generator<BuildParams> = {
     const high = p.d + p.a;
     const low = p.d - p.a;
     const timing = p.halfGiven
-      ? `it takes $${p.period / 2}$ ${c.timeUnit} to fall from its greatest to its least`
-      : `it repeats every $${p.period}$ ${c.timeUnit}`;
+      ? `falls from greatest to least in $${p.period / 2}$ ${c.timeUnit}`
+      : `repeats every $${p.period}$ ${c.timeUnit}`;
     // The bracket's tile carries its t, which leaves the template one short
     // fragment after the last blank rather than a "t)" to wrap.
     const answer = [`${p.d}`, `${p.a}`, `${b}t`];
@@ -6874,7 +6874,7 @@ const modelBuild: Generator<BuildParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${c.subject} rises and falls between $${low}$ and $${high}$ ${c.unit}, and ${timing}. At $t = 0$ it is on its midline and rising. What is its model, with $t$ in ${c.timeUnit}?`,
+          text: `${c.subject} runs between $${low}$ and $${high}$ ${c.unit} and ${timing}. At $t = 0$ it is on its midline, rising. Find its model, $t$ in ${c.timeUnit}.`,
         },
         // The model's name sits above the blanks: three blanks and a prefix
         // did not fit one row on a phone, and the closing bracket wrapped
@@ -6939,7 +6939,7 @@ const modelFindB: Generator<ModelBParams> = {
         prompt: [
           {
             kind: 'prose',
-            text: `${c.subject} is modelled by $${modelTex(p)}$, with $t$ in ${c.timeUnit} ${c.clock}. How many ${c.timeUnit} does one full cycle take?`,
+            text: `${c.subject} is modelled by $${modelTex(p)}$, $t$ in ${c.timeUnit} ${c.clock}. How many ${c.timeUnit} does one full cycle take?`,
           },
         ],
         lead: '\\text{period} =',
@@ -6959,7 +6959,7 @@ const modelFindB: Generator<ModelBParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${c.subject} ${timing}. It is modelled by $${c.symbol} = ${modelRhs(p, 'bt')}$, with $t$ in ${c.timeUnit}. What is $b$?`,
+          text: `${c.subject}, modelled by $${c.symbol} = ${modelRhs(p, 'bt')}$ ($t$ in ${c.timeUnit}), ${timing}. What is $b$?`,
         },
       ],
       lead: 'b =',
@@ -7085,7 +7085,7 @@ const modelRead: Generator<ReadParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${c.subject} is modelled by $${modelTex(p)}$, with $t$ in ${c.timeUnit} ${c.clock}. ${question[p.asks]}`,
+          text: `${c.subject} is modelled by $${modelTex(p)}$, $t$ in ${c.timeUnit} ${c.clock}. ${question[p.asks]}`,
         },
       ],
       lead: READ_LEAD[p.asks],
@@ -7154,7 +7154,7 @@ const modelPeakSlider: Generator<PeakSliderParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `This is $${modelTex(p)}$ for ${lowerFirst(c.subject)}, over its first two cycles, with $t$ in ${c.timeUnit} ${c.clock}. The dashed line is the midline. Slide to the first time after $t = 0$ that it is at its ${p.asks === 'peak' ? 'greatest' : 'least'}.`,
+          text: `$${modelTex(p)}$ models ${lowerFirst(c.subject)}, $t$ in ${c.timeUnit} ${c.clock}. Slide to the first time after $t = 0$ that it is at its ${p.asks === 'peak' ? 'greatest' : 'least'}.`,
         },
       ],
       min: 0,
@@ -7219,7 +7219,7 @@ const modelValueTree: Generator<ValueTreeParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${c.subject} is modelled by $${modelTex(p)}$, with $t$ in ${c.timeUnit} ${c.clock}. Find $${c.symbol}$ at $t = ${p.t}$: the angle in the bracket, its ${FN_NAME[fn]}, then $${c.symbol}$.`,
+          text: `${c.subject} is modelled by $${modelTex(p)}$, $t$ in ${c.timeUnit} ${c.clock}. Find $${c.symbol}$ at $t = ${p.t}$: the angle in the bracket, its ${FN_NAME[fn]}, then $${c.symbol}$.`,
         },
       ],
       expression: `${c.symbol} = ${modelRhs(p, `${b} \\times ${p.t}`)}`,
@@ -7333,7 +7333,7 @@ const modelGraphMatch: Generator<ModelParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `This graph shows ${lowerFirst(c.subject)} over two cycles, with $t$ in ${c.timeUnit} ${c.clock}. The dashed line is the midline and the solid upright is $t = 0$. Which model fits?`,
+          text: `${c.subject} over two cycles, $t$ in ${c.timeUnit} ${c.clock}; the solid upright is $t = 0$. Which model fits?`,
         },
         { kind: 'diagram', svg: modelSvg(p, 'Two cycles of a repeating quantity from t = 0, with its midline dashed') },
       ],
@@ -7386,7 +7386,7 @@ const modelShiftTiles: Generator<ModelShiftParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${ctx.subject} ${told}. One cycle takes $${p.period}$ ${ctx.timeUnit}. Complete the model below, shifting a cosine to the first time after $t = 0$ that it is greatest.`,
+          text: `${ctx.subject} ${told}. One cycle takes $${p.period}$ ${ctx.timeUnit}. Complete the model, with $c$ the first time after $t = 0$ that it is greatest.`,
         },
         // The model sits above the blanks rather than around them: with its
         // blanks inside the brackets it broke across two rows on a phone,
@@ -7465,7 +7465,7 @@ const modelWhenTree: Generator<WhenParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `When in the first cycle, $0 \\le t < ${p.period}$, is ${lowerFirst(c.subject)} exactly ${qty(c, whenLevel(p))}? Top: the value the ${FN_NAME[fn]} must take. Then both angles from $0^{\\circ}$ to $360^{\\circ}$, then each time.`,
+          text: `When in the first cycle, $0 \\le t < ${p.period}$, is ${lowerFirst(c.subject)} exactly ${qty(c, whenLevel(p))}? Top: the ${FN_NAME[fn]}'s value. Then both angles in $0^{\\circ}$ to $360^{\\circ}$, then each time.`,
         },
       ],
       expression: `${modelRhs(p)} = ${whenLevel(p)}`,
@@ -7552,7 +7552,7 @@ const modelWhenTiles: Generator<WhenTilesParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${c.subject} is modelled by $${modelTex(p)}$, with $t$ in ${c.timeUnit} ${c.clock}. For $${p.from} \\le t < ${p.from + p.period}$, when is it exactly ${qty(c, whenLevel(p))}?`,
+          text: `${c.subject} is modelled by $${modelTex(p)}$, $t$ in ${c.timeUnit} ${c.clock}. For $${p.from} \\le t < ${p.from + p.period}$, when is it exactly ${qty(c, whenLevel(p))}?`,
         },
       ],
       template: 't = {0} \\; \\text{or} \\; t = {1}',
@@ -7604,7 +7604,7 @@ const modelCount: Generator<CountParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${c.subject} is modelled by $${modelTex(p)}$, with $t$ in ${c.timeUnit} ${c.clock}. For $0 \\le t < ${p.cycles * p.period}$, how many times is it exactly ${qty(c, countLevel(p))}?`,
+          text: `${c.subject} is modelled by $${modelTex(p)}$, $t$ in ${c.timeUnit} ${c.clock}. For $0 \\le t < ${p.cycles * p.period}$, how many times is it exactly ${qty(c, countLevel(p))}?`,
         },
       ],
       options: counts.map((n) => ({ id: `n${n}`, label: `${n}`, tex: true })),
@@ -7652,7 +7652,7 @@ const modelAbove: Generator<AboveParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${c.subject} is modelled by $${modelTex(p)}$, with $t$ in ${c.timeUnit} ${c.clock}. For how many ${c.timeUnit} in each cycle is it ${p.above ? 'above' : 'below'} ${qty(c, whenLevel(p))}?`,
+          text: `${c.subject} is modelled by $${modelTex(p)}$, $t$ in ${c.timeUnit} ${c.clock}. For how many ${c.timeUnit} in each cycle is it ${p.above ? 'above' : 'below'} ${qty(c, whenLevel(p))}?`,
         },
       ],
       lead: '\\text{time} =',
@@ -7709,7 +7709,7 @@ const modelPeriodTree: Generator<PeriodTreeParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${c.subject} is at its ${w1} at $t = ${p.first}$ and next at its ${w2} at $t = ${second}$, with $t$ in ${c.timeUnit}. Fill in the gap between the two, then the period, then $b$ for a model $${c.symbol} = d + a\\cos(bt)$.`,
+          text: `${c.subject} is at its ${w1} at $t = ${p.first}$ and next at its ${w2} at $t = ${second}$ ($t$ in ${c.timeUnit}). Fill in the gap, the period, then $b$ in $${c.symbol} = d + a\\cos(bt)$.`,
         },
       ],
       expression: `\\text{${w1 === 'greatest' ? 'high' : 'low'} } t = ${p.first}, \\quad \\text{${w2 === 'greatest' ? 'high' : 'low'} } t = ${second}`,
@@ -7774,7 +7774,7 @@ const modelFit: Generator<FitParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${c.subject} is at its ${w1}, ${qty(c, v1 as number)}, at $t = ${p.first}$, and next at its ${w2}, ${qty(c, v2 as number)}, at $t = ${p.first + p.period / 2}$, with $t$ in ${c.timeUnit}. Fit $${c.symbol} = d + a\\cos(b(t - c))$, with $c$ the first time after $t = 0$ that it is greatest.`,
+          text: `${c.subject} is at its ${w1}, ${qty(c, v1 as number)}, at $t = ${p.first}$, and next at its ${w2}, ${qty(c, v2 as number)}, at $t = ${p.first + p.period / 2}$ ($t$ in ${c.timeUnit}). Fit $${c.symbol} = d + a\\cos(b(t - c))$, $c$ being the first peak after $t = 0$.`,
         },
       ],
       lead: `${p.asks} =`,
@@ -7840,7 +7840,7 @@ const modelFitSlider: Generator<FitSliderParams> = {
     const f = (t: number) => p.d + p.a * Math.cos(modelB(p) * (t - c) * DEGREE);
     const readings = Array.from({ length: 25 }, (_, j) => ({ x: j * step, y: f(j * step) }));
     const every = step === 1 ? `every ${ctx.timeOne}` : `every $${step}$ ${ctx.timeUnit}`;
-    const intro = `Readings of ${lowerFirst(ctx.subject)}, taken ${every} over two cycles, with $t$ in ${ctx.timeUnit} ${ctx.clock}.`;
+    const intro = `Readings of ${lowerFirst(ctx.subject)} ${every}, $t$ in ${ctx.timeUnit} ${ctx.clock}.`;
     if (p.asks === 'peak') {
       const max = 2 * p.period;
       const svg = plotSvg({
@@ -7857,7 +7857,7 @@ const modelFitSlider: Generator<FitSliderParams> = {
         prompt: [
           {
             kind: 'prose',
-            text: `${intro} To fit $${ctx.symbol} = d + a\\cos(b(t - c))$, slide to $c$: the first time after $t = 0$ that it is greatest.`,
+            text: `${intro} To fit $${ctx.symbol} = d + a\\cos(b(t - c))$, slide to $c$, the first peak after $t = 0$.`,
           },
         ],
         min: 0,

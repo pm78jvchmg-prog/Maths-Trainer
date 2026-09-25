@@ -2381,7 +2381,7 @@ const boundsSteps: Generator<BoundsParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `An iteration suggests $\\alpha = ${claim}$ to ${params.dp} decimal places, for a root of $f(x) = ${polyTex(params.poly)}$. Check it: tap the part you would do next, then choose what it comes to. A negative product is a change of sign.`,
+          `Check that $\\alpha = ${claim}$ to ${params.dp} decimal places, a root of $f(x) = ${polyTex(params.poly)}$: tap the part you would do next, then choose what it comes to. A negative product is a change of sign.`,
         ),
       ],
       start: [`f(${lo})`, '\\times', `f(${hi})`],
@@ -3214,7 +3214,7 @@ const trapeziumSteps: Generator<TrapParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `The trapezium rule for $${integralTex(params)}$ with ${n} strips, $h = ${fmt(params.h)}$, is set up below from the heights $y_0$ to $y_${n}$. Tap the part you would work out next, then choose what it comes to.`,
+          `The trapezium rule for $${integralTex(params)}$, ${n} strips, $h = ${fmt(params.h)}$. Tap the part you would work out next, then choose what it comes to.`,
         ),
       ],
       start: [fmt(half), '\\times', '[', `${fmt(ys[0])} + ${fmt(ys[n])}`, '+', `2(${middle})`, ']'],
@@ -4251,7 +4251,7 @@ const boundTree: Generator<BoundTreeParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `$a = ${fmt(a.value)}$ and $b = ${fmt(b.value)}$, ${where}. Top row: the lower and upper bounds of $a$, then of $b$. Underneath: the lower bound of $${OP_TEX[op]}$, then its upper bound.`,
+          `$a = ${fmt(a.value)}$ and $b = ${fmt(b.value)}$, ${where}. Top row: the lower and upper bounds of $a$, then of $b$. Underneath: the bounds of $${OP_TEX[op]}$, lower first.`,
         ),
       ],
       expression: `\\text{bounds of } ${OP_TEX[op]}`,
@@ -4697,9 +4697,9 @@ const carryTree: Generator<CarryTreeParams> = {
     return {
       kind: 'tree',
       prompt: [
-        say(`$x_n = ${fmt(c)}$ ${precisionText(dp)}, and the next value comes from the scheme below.`),
+        say(`$x_n = ${fmt(c)}$ ${precisionText(dp)}, and`),
         show(f.scheme.schemeTex),
-        say('Top row: the lower and upper bounds of $x_n$. Middle: the scheme at each, to 4 decimal places. Bottom: how far apart those two are.'),
+        say('Top row: the bounds of $x_n$. Middle: the scheme at each, to 4 decimal places. Bottom: the gap between them.'),
       ],
       expression: 'x_{n+1} \\text{ from the bounds of } x_n',
       nodes: [
@@ -5096,11 +5096,11 @@ const kCount: Generator<KCountParams> = {
   render: (params): Slide => {
     const { r, delta, eps, scheme } = params;
     const rate = scheme
-      ? `$x_{n+1} = g(x_n)$ with $g(x) = ${exactScheme(scheme).tex}$ is converging to $\\alpha = ${scheme.alpha}$, so each step multiplies the error by about $|g'(\\alpha)|$.`
-      : `Near the root, each step of an iteration multiplies the error by about $${fmt(r)}$.`;
+      ? `$x_{n+1} = g(x_n)$ with $g(x) = ${exactScheme(scheme).tex}$ converges to $\\alpha = ${scheme.alpha}$.`
+      : `Each iteration step multiplies the error by about $${fmt(r)}$.`;
     return {
       kind: 'expression',
-      prompt: [say(`${rate} $x_0$ is out by at most $${fmt(delta)}$. After how many steps is the error first certain to be ${epsText(eps)}?`)],
+      prompt: [say(`${rate} $x_0$ is out by at most $${fmt(delta)}$. After how many steps is the error first sure to be ${epsText(eps)}?`)],
       lead: 'k =',
       keypad: [],
       answer: String(kOf(params)),
@@ -5148,9 +5148,9 @@ const kTiles: Generator<KTilesParams> = {
       kind: 'tiles',
       prompt: [
         say(
-          `Each step multiplies the error by about $${fmt(r)}$, and $x_0$ is out by at most $${fmt(delta)}$. ${
+          `Each step multiplies the error by about $${fmt(r)}$; $x_0$ is out by at most $${fmt(delta)}$. ${
             logs ? 'Take logarithms to build' : 'Build'
-          } the condition for the error after $k$ steps to be ${epsText(eps)}.`,
+          } the condition for $k$ steps to bring it ${epsText(eps)}.`,
         ),
       ],
       template: logs ? 'k > \\ln({0}) \\div \\ln({1})' : '({0})^k \\times {1} < {2}',
@@ -5202,7 +5202,7 @@ const kLogsSteps: Generator<KParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `The error after $k$ steps is at most $${fmt(r)}^{k} \\times ${fmt(delta)}$, and it must be below $${fmt(eps)}$. So $k$ must be greater than the quotient below. Work it out, each logarithm to 3 decimal places: tap the part you would do next, then choose what it comes to.`,
+          `For $${fmt(r)}^{k} \\times ${fmt(delta)} < ${fmt(eps)}$, $k$ must exceed the quotient below. Each logarithm to 3 decimal places: tap the part you would do next, then choose what it comes to.`,
         ),
       ],
       start: [`\\ln(${fmt(f.ratio)})`, '\\div', `\\ln(${fmt(r)})`],
@@ -5312,10 +5312,10 @@ const errorIterate: Generator<ErrorIterateParams> = {
       kind: 'iterate',
       prompt: [
         say(
-          `Starting from $x_0 = ${params.x0}$, this iteration converges to a root $\\alpha$ of $${work.scheme.equationTex} = 0$. Near $\\alpha$, $|g'(x)| \\approx ${work.rate.toFixed(2)}$, so each error is about $${work.rate.toFixed(2)}$ times the one before.`,
+          `From $x_0 = ${params.x0}$, this converges to a root $\\alpha$ of $${work.scheme.equationTex} = 0$, with $|g'(\\alpha)| \\approx ${work.rate.toFixed(2)}$.`,
         ),
         show(work.scheme.schemeTex),
-        say(`Keep full accuracy between steps and write each $x_n$ to ${params.dp} decimal places, then the two tenths $\\alpha$ lies between.`),
+        say(`Keep full accuracy; write each $x_n$ to ${params.dp} decimal places, then the two tenths $\\alpha$ lies between.`),
       ],
       start: String(params.x0),
       conclusion: 'bracket',
@@ -5864,7 +5864,7 @@ const bothTree: Generator<TrapParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `Estimate the integral both ways from the same ${n + 1} heights, $h = ${fmt(h)}$. Top row: $y_0$ to $y_${n}$ at ${heightsText(params)}. Then the trapezium bracket $${trapBracketTex(n)}$ and Simpson's bracket $${simpsonBracketTex(n)}$. Last, the estimates: $\\frac{h}{2}$ times the first, $\\frac{h}{3}$ times the second.`,
+          `Estimate the integral both ways, $h = ${fmt(h)}$. Top row: $y_0$ to $y_${n}$ at ${heightsText(params)}. Then the brackets: trapezium $${trapBracketTex(n)}$, Simpson's $${simpsonBracketTex(n)}$. Last, $\\frac{h}{2}$ times the first, $\\frac{h}{3}$ times the second.`,
         ),
       ],
       expression: integralTex(params),
@@ -6379,7 +6379,7 @@ const cubicSteps: Generator<CubicStepsParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `Simpson's rule with 2 strips, $h = ${fmt(h)}$, is set against the exact value of $${integralTex(trap)}$. Here $F(x) = ${antiTex(params.poly)}$, so the exact value is $F(${fmt(b)}) - F(${params.a})$. Tap the part you would work out next, then choose what it comes to.`,
+          `Simpson's rule (2 strips, $h = ${fmt(h)}$) minus the exact $${integralTex(trap)}$, which is $F(${fmt(b)}) - F(${params.a})$ with $F(x) = ${antiTex(params.poly)}$. Tap the part you would work out next, then choose what it comes to.`,
         ),
       ],
       start: [
@@ -6428,7 +6428,7 @@ interface Story {
 
 const STORIES: Story[] = [
   {
-    setup: (h) => `A river's depth $d$, in metres, is measured every $${h}$ m across it, from bank to bank.`,
+    setup: (h) => `A river's depth $d$ m is measured every $${h}$ m from bank to bank.`,
     x: 'x',
     y: 'd',
     ask: 'Estimate the area of its cross-section, in square metres.',
@@ -6550,7 +6550,7 @@ const tableTree: Generator<ReadingsParams> = {
         say(s.setup(fmt(h))),
         show(readingsTex(params)),
         say(
-          `${s.ask} Top row: the two end readings added, then the odd-numbered ones, then the even-numbered middle ones. Then 4 times and 2 times those; the bracket; last, $\\frac{h}{3}$ times it.`,
+          `${s.ask} Top row: sums of the end, odd-numbered and even-numbered middle readings. Then 4 times and 2 times those; the bracket; $\\frac{h}{3}$ times it.`,
         ),
       ],
       expression: `\\frac{${fmt(h)}}{3}[\\ldots]`,
@@ -6619,11 +6619,9 @@ const readingsSlider: Generator<ReadingsSliderParams> = {
     return {
       kind: 'slider',
       prompt: [
-        say(`A curve's heights at equal steps are below, with Simpson's parabolas drawn through them.`),
+        say(`A curve's heights at equal steps, with Simpson's parabolas:`),
         show(readingsTable('x', 'y', xs, ys)),
-        say(
-          `A rectangle $${fmt(width)}$ wide with the same area as Simpson's estimate has height $\\frac{S}{${fmt(width)}}$. Slide the line to that height.`,
-        ),
+        say(`Slide the line to $\\frac{S}{${fmt(width)}}$: the height of a rectangle $${fmt(width)}$ wide with Simpson's area $S$.`),
       ],
       min: 0,
       max: top,
@@ -6683,7 +6681,7 @@ const oddChoice: Generator<OddChoiceParams> = {
       ? [say(s.setup(fmt(params.h))), show(readingsTex(params))]
       : [say(`${s.setup(fmt(params.h))} The readings run from $${s.x} = 0$ to $${s.x} = ${fmt(n * params.h)}$.`)];
     return choiceSlide(
-      [...shown, say(`${s.ask} Which of these uses Simpson's rule properly and every reading?`)],
+      [...shown, say(`${s.ask} Which uses Simpson's rule properly and every reading?`)],
       (['all', 'mixed', 'drop'] as OddMethod[]).map((key) => ({ tex: ODD_LABELS[key], correct: key === right })),
       false,
     );
@@ -7031,7 +7029,7 @@ const eulerStepTree: Generator<Ivp> = {
       kind: 'tree',
       prompt: [
         say(
-          `${ivpText(ivp)}. One step of Euler's method with $h = ${fmt(h)}$ runs along the tangent at $(${fmt(x0)}, ${fmt(y0)})$. Top row: $x_1$, and the gradient $${gradName(rhs, 'x_0', 'y_0')}$. Then the rise, $h$ times that gradient; last, $y_1$.`,
+          `${ivpText(ivp)}. One Euler step, $h = ${fmt(h)}$, from $(${fmt(x0)}, ${fmt(y0)})$. Top row: $x_1$, and the gradient $${gradName(rhs, 'x_0', 'y_0')}$. Then the rise, $h$ times it; last, $y_1$.`,
         ),
       ],
       expression: `y_1 = y_0 + h\\,${gradName(rhs, 'x_0', 'y_0')}`,
@@ -7130,7 +7128,7 @@ const eulerTangentSlider: Generator<Ivp> = {
       kind: 'slider',
       prompt: [
         say(
-          `${ivpText(ivp)}. The curve is the solution; the accent line is its tangent at $(${fmt(x0)}, ${fmt(y0)})$. Slide the level to the height the tangent reaches at $x = ${fmt(run.xs[1])}$: Euler's $y_1$ with $h = ${fmt(h)}$.`,
+          `${ivpText(ivp)}. The accent line is the tangent at $(${fmt(x0)}, ${fmt(y0)})$. Slide the level to its height at $x = ${fmt(run.xs[1])}$: Euler's $y_1$ with $h = ${fmt(h)}$.`,
         ),
       ],
       min: lo,
@@ -7298,7 +7296,7 @@ const eulerChainSteps: Generator<ChainParams> = {
         kind: 'steps',
         prompt: [
           say(
-            `${ivpText(params)}. With $h = ${H}$, the first step of Euler's method reached $y_1 = ${fmt(y1)}$ at $x_1 = ${fmt(x1)}$. Work out $y_2$: tap the part you would work out next, then choose what it comes to.`,
+            `${ivpText(params)}. Euler's first step, $h = ${H}$, gave $y_1 = ${fmt(y1)}$ at $x_1 = ${fmt(x1)}$. Work out $y_2$: tap the part you would work out next, then choose what it comes to.`,
           ),
         ],
         start: [fmt(y1), '+', H, '\\times', gradName(rhs, fmt(x1), fmt(y1))],
@@ -7846,7 +7844,7 @@ const eulerMissChoice: Generator<Ivp> = {
     return keyedChoice(
       [
         say(
-          `The curve is the solution of ${ivpText(ivp)}. Euler's method with $h = ${fmt(ivp.h)}$ starts at the dot and estimates $y$ at $x = ${fmt(X)}$. How will its estimate compare with the true value?`,
+          `The curve solves ${ivpText(ivp)}. Euler's method, $h = ${fmt(ivp.h)}$, runs from the dot to estimate $y$ at $x = ${fmt(X)}$. How will that compare with the true value?`,
         ),
         {
           kind: 'diagram',
@@ -7915,7 +7913,7 @@ const eulerExactSteps: Generator<ExactStepsParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `${ivpText(params)}. Euler's method with $h = ${fmt(params.h)}$ estimates $y(${x}) \\approx ${fmt(estimate)}$. The true value is $F(${x}) - F(${x0}) + ${paren(y0)}$, ${where}. Work out the error, the estimate minus the true value: tap the part you would work out next, then choose what it comes to.`,
+          `${ivpText(params)}. Euler with $h = ${fmt(params.h)}$ gives $y(${x}) \\approx ${fmt(estimate)}$. Find the error, estimate minus true value, ${where}: tap the part you would work out next, then choose what it comes to.`,
         ),
       ],
       start: [fmt(estimate), '-', '(', `F(${x})`, '-', `F(${x0})`, '+', paren(y0), ')'],
@@ -8034,7 +8032,7 @@ const eulerNeededValue: Generator<NeededParams> = {
     kind: 'expression',
     prompt: [
       say(
-        `Euler's method with $${params.steps}$ steps of $h = ${fmt(params.h)}$, from $x = ${params.x0}$ to $x = ${fmt(clean(params.x0 + params.steps * params.h))}$, gives an estimate whose error has size $${fmt(params.error)}$. Taking the error as proportional to $h$, what is the fewest steps that brings it to $${fmt(params.target)}$ or less?`,
+        `Euler's method with $${params.steps}$ steps of $h = ${fmt(params.h)}$, from $x = ${params.x0}$ to $x = ${fmt(clean(params.x0 + params.steps * params.h))}$, has an error of size $${fmt(params.error)}$. What is the fewest steps that brings it to $${fmt(params.target)}$ or less?`,
       ),
     ],
     lead: '\\text{steps} =',
@@ -8208,7 +8206,7 @@ const eulerSizeSlider: Generator<SizeSliderParams> = {
       kind: 'slider',
       prompt: [
         say(
-          `Euler's method on one journey gives an error of size $${fmt(error)}$ with $h = ${fmt(h)}$, and $${fmt(clean(error / 2))}$ with $h = ${fmt(clean(h / 2))}$: the error is proportional to $h$, the line on the graph. Slide to the step that brings the error down to $${fmt(wanted)}$.`,
+          `On one journey Euler's error has size $${fmt(error)}$ with $h = ${fmt(h)}$ and $${fmt(clean(error / 2))}$ with $h = ${fmt(clean(h / 2))}$, the line on the graph. Slide to the step that brings it down to $${fmt(wanted)}$.`,
         ),
       ],
       min: 0,
@@ -8352,7 +8350,7 @@ const bisectTable: Generator<BisectParams> = {
       kind: 'table',
       prompt: [
         say(
-          `${bracketText(params)}, so a root lies between. Bisect three times: each row's midpoint $m$, then the half whose ends still differ in sign is the next row. The last column is the sign of $f(m)$.`,
+          `${bracketText(params)}. Bisect three times: each row's midpoint $m$; the half with the sign change is the next row. Last column: the sign of $f(m)$.`,
         ),
       ],
       columns: ['n', 'a', 'b', 'm', 'f(m)'],
@@ -8608,7 +8606,7 @@ function sampleSide(rng: Rng, difficulty: number): SideParams {
 }
 
 const sideText = (params: SideParams) =>
-  `$f(x) = ${polyTex(params.poly)}$ has a root $\\alpha$ in $[${params.lo}, ${params.lo + 1}]$. Three methods chase it: bisection on that interval, the iteration $x_{n+1} = ${sideGTex(params, 'x_n')}$, and Newton-Raphson, the last two from $x_0 = ${params.x0}$.`;
+  `$f(x) = ${polyTex(params.poly)}$ has a root $\\alpha$ in $[${params.lo}, ${params.lo + 1}]$. Methods: bisection on that interval; $x_{n+1} = ${sideGTex(params, 'x_n')}$ and Newton-Raphson, both from $x_0 = ${params.x0}$.`;
 
 /** The three columns as a display, rows 1 to 3 filled in, for the slides that compare them. */
 function sideDisplay(params: SideParams): string {
@@ -8799,7 +8797,7 @@ const sideSteps: Generator<NewtonStepParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `Bisection needs a bracket and iteration a rearrangement; Newton-Raphson needs $f'(x)$. For $f(x) = ${polyTex(poly)}$ from $x_0 = ${X}$, work out $x_1$: tap the part you would work out next, then choose what it comes to.`,
+          `Newton-Raphson for $f(x) = ${polyTex(poly)}$ from $x_0 = ${X}$. Work out $x_1$: tap the part you would work out next, then choose what it comes to.`,
         ),
       ],
       start: [X, '-', `f(${X})`, '\\div', `f'(${X})`],
@@ -8939,7 +8937,7 @@ const speedTable: Generator<SpeedTableParams> = {
       kind: 'table',
       prompt: [
         say(
-          `Three methods close in on one root. $w_n$ is the width of bisection's interval, $e_n$ the iteration's error with $|g'(\\alpha)| \\approx ${fmt(params.r)}$, and $d_n$ the correct decimal places of Newton-Raphson. Fill in the next ${params.steps === 2 ? 'two' : 'three'} rows.`,
+          `$w_n$: bisection's interval width. $e_n$: the iteration's error, $|g'(\\alpha)| \\approx ${fmt(params.r)}$. $d_n$: Newton-Raphson's correct decimal places. Fill in the next ${params.steps === 2 ? 'two' : 'three'} rows.`,
         ),
       ],
       columns: ['n', 'w_n', 'e_n', 'd_n'],
@@ -9007,7 +9005,7 @@ const speedTree: Generator<SpeedCountParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `Three methods each have an error of at most $${fmt(e0)}$, so Newton-Raphson has $${placesOf(e0)}$ correct place${placesOf(e0) > 1 ? 's' : ''}. Bisection halves its error bound each step, the iteration multiplies its error by about $${fmt(r)}$, and Newton-Raphson doubles its correct places. Top row: the steps each needs to get the error below $10^{-${P}}$, bisection, iteration, then Newton-Raphson. Below: the fewest.`,
+          `All three methods start with an error of at most $${fmt(e0)}$ ($${placesOf(e0)}$ correct place${placesOf(e0) > 1 ? 's' : ''}); the iteration's factor is $${fmt(r)}$. Top row: the steps to get the error below $10^{-${P}}$ for bisection, iteration, Newton-Raphson. Below: the fewest.`,
         ),
       ],
       expression: `\\text{error} < 10^{-${P}}`,
@@ -9090,7 +9088,7 @@ const kitKey = ({ s, q, ok, x0 }: Kit) => `${s}|${q}|${ok.bisection}|${ok.iterat
 /** The three plans in words, for a prompt. */
 function kitText(kit: Kit): string {
   const { poly, alpha, bracket, tex, x0 } = kitFacts(kit);
-  return `$f(x) = ${polyTex(poly)}$ has a root $\\alpha \\approx ${alpha.toFixed(1)}$. Three plans to find it: bisection on $[${bracket[0]}, ${bracket[1]}]$; the iteration $x_{n+1} = g(x_n)$ with $g(x) = ${tex}$; and Newton-Raphson from $x_0 = ${x0}$.`;
+  return `$f(x) = ${polyTex(poly)}$ has a root $\\alpha \\approx ${alpha.toFixed(1)}$. Plans: bisection on $[${bracket[0]}, ${bracket[1]}]$; iteration with $g(x) = ${tex}$; Newton-Raphson from $x_0 = ${x0}$.`;
 }
 
 /** Why each plan fails when it does. */
@@ -9268,7 +9266,7 @@ const reachChoice: Generator<Kit & { stated: boolean }> = {
   sample: (rng, difficulty) => ({ ...sampleReach(rng, difficulty, rng.pick(PLANS)), stated: difficulty === 1 }),
   render: (kit): Slide =>
     keyedChoice(
-      [say(`${kitText(kit)}${kit.stated ? kitValues(kit) : ''} Which should you reach for: the fastest plan that will work?`)],
+      [say(`${kitText(kit)}${kit.stated ? kitValues(kit) : ''} Which is the fastest plan that will work?`)],
       PLANS.map((plan) => ({ tex: PLAN_NAMES[plan], correct: plan === reachFor(kit) })),
       kitKey(kit),
       false,
@@ -9308,7 +9306,7 @@ const reachValue: Generator<Kit & { stated: boolean }> = {
     kind: 'expression',
     prompt: [
       say(
-        `${kitText(kit)}${kit.stated ? kitValues(kit) : ''} Take the fastest plan that will work, iteration also starting from $x_0 = ${kit.x0}$, and give its first estimate of $\\alpha$, to $${SIDE_DP}$ decimal places where it is not exact.`,
+        `${kitText(kit)}${kit.stated ? kitValues(kit) : ''} Give the first estimate from the fastest plan that works (iteration also from $x_0 = ${kit.x0}$), to $${SIDE_DP}$ decimal places if not exact.`,
       ),
     ],
     lead: '\\text{first estimate} =',

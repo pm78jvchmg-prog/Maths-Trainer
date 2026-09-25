@@ -4656,7 +4656,7 @@ const prfIndSumSteps: Generator<SumStepsParams> = {
         say(claimLine(params.claim)),
         say(
           params.wording
-            ? 'In the step, the sum up to $n = k + 1$ is the assumed sum plus the next term. Work it into the right side at $n = k + 1$.'
+            ? 'Below is the step: the assumed sum plus the next term. Work it into the right side at $n = k + 1$.'
             : 'The step has reached the line below. Simplify it into the right side of the claim at $n = k + 1$.',
         ),
         say('Tap the part to work on next, then choose what it becomes.'),
@@ -4709,7 +4709,7 @@ const prfIndSumCheck: Generator<SumCheckParams> = {
       prompt: [
         say(claimLine(claim)),
         say(
-          `The step says: the sum up to $n = ${k + 1}$ is the sum up to $n = ${k}$ plus the next term. Check it at $k = ${k}$. Top row: each part. Underneath: their total.`,
+          `Check the step at $k = ${k}$: the sum to $n = ${k + 1}$ is the sum to $n = ${k}$ plus the next term. Top row: each part. Underneath: their total.`,
         ),
       ],
       expression: `${sumRightTex(claim, 'k')} + ${bracketed(sumTermTex(claim, 'k', 1))}`,
@@ -5323,7 +5323,7 @@ const prfIndReadFlow: Generator<ReadParams> = {
       prompt: [
         say(claimLine(params.claim, from)),
         ...lines.map(say),
-        say('Check the proof one part at a time. Each answer chooses what gets asked next.'),
+        say('Check the proof. Each answer chooses what gets asked next.'),
       ],
       subject: '\\text{Is it a proof?}',
       steps: [

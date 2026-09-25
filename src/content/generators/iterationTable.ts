@@ -337,12 +337,12 @@ export const iterateFixedPoint: Generator<FixedPointParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `Starting from $x_0 = ${params.x0}$, the iteration below converges to a root $\\alpha$ of $${work.scheme.equationTex} = 0$.`,
+          text: `From $x_0 = ${params.x0}$, this converges to a root $\\alpha$ of $${work.scheme.equationTex} = 0$.`,
         },
         { kind: 'display', tex: work.scheme.schemeTex },
         {
           kind: 'prose',
-          text: `Keep full accuracy between steps and write each $x_n$ to ${params.dp} decimal places, then the two tenths $\\alpha$ lies between.`,
+          text: `Keep full accuracy; write each $x_n$ to ${params.dp} decimal places, then the two tenths $\\alpha$ lies between.`,
         },
       ],
       start: String(params.x0),

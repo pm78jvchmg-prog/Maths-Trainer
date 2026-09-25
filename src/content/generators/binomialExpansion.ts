@@ -1344,7 +1344,7 @@ const ncrReduce: Generator<NcrParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${NCR_CONTEXTS[ctx](n, r)} ${s === r ? '' : `That equals $${ncrTex(n, s)}$, which is quicker. `}With the factorials cancelled it is the top ${s} numbers of $${n}!$ divided by $${s}! = ${factorial(s)}$. Tap the part you would work out next, then choose what it comes to.`,
+          text: `${NCR_CONTEXTS[ctx](n, r)} ${s === r ? '' : `Use the quicker $${ncrTex(n, s)}$. `}Cancelled, it is the top ${s} numbers of $${n}!$ over $${s}! = ${factorial(s)}$. Tap the part you would work out next, then choose what it comes to.`,
         },
       ],
       expr,
@@ -2472,7 +2472,7 @@ function firstTwo({ n, k }: TwoUnknownParams): { A: number; B: number } {
 
 function twoUnknownsPrompt(params: TwoUnknownParams): string {
   const { A, B } = firstTwo(params);
-  return `In the expansion of $(1 + kx)^{n}$, the coefficient of $x$ is $${A}$ and the coefficient of $x^2$ is $${B}$.`;
+  return `In the expansion of $(1 + kx)^{n}$, the coefficients of $x$ and $x^2$ are $${A}$ and $${B}$.`;
 }
 
 /** The two equations, k from the first, and the one equation in n that is left. */
@@ -2567,7 +2567,7 @@ const twoUnknownsTree: Generator<TwoUnknownParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${twoUnknownsPrompt(params)} Putting $k = \\frac{${A}}{n}$ into the $x^2$ equation and solving gives $n$ below. Fill in $${baseTex(A)}^2$, $2 \\times ${B}$, the bottom of the fraction, $n$ and $k$, in that order.`,
+          text: `${twoUnknownsPrompt(params)} Fill in $${baseTex(A)}^2$, $2 \\times ${B}$, the bottom of the fraction for $n$, then $n$ and $k$.`,
         },
       ],
       expression: chain(`n &= \\frac{${baseTex(A)}^{2}}{${baseTex(A)}^{2} - 2 \\times ${B}}`, `k &= \\frac{${A}}{n}`),
@@ -2637,7 +2637,7 @@ const nextCoeffSteps: Generator<NextParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${twoUnknownsPrompt({ n, k })} That makes $n = ${n}$ and $k = ${k}$. Now find the coefficient of $x^{${r}}$: tap the step to do next, then choose what it gives.`,
+          text: `${twoUnknownsPrompt({ n, k })} So $n = ${n}$ and $k = ${k}$. Find the coefficient of $x^{${r}}$: tap the step to do next, then choose what it gives.`,
         },
       ],
       start: [ncrTex(n, r), '\\times', `${baseTex(k)}^{${r}}`],
@@ -3030,7 +3030,7 @@ const ratioReduce: Generator<RatioParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `In the expansion of $(1 + kx)^{${n}}$, ${ratioCondition(params)}. That says $\\frac{${n - r}k}{${r + 1}} = ${fracTex(p, q)}$, so $k$ is worked out below. Tap the part you would work out next, then choose what it comes to.`,
+          text: `In the expansion of $(1 + kx)^{${n}}$, ${ratioCondition(params)}: $\\frac{${n - r}k}{${r + 1}} = ${fracTex(p, q)}$, solved for $k$ below. Tap the part you would work out next, then choose what it comes to.`,
         },
       ],
       expr,
@@ -3062,7 +3062,7 @@ const ratioNSteps: Generator<RatioParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `In the expansion of $(1 + ${k}x)^{n}$, ${ratioCondition(params)}. The condition $\\frac{${k}(n - ${r})}{${r + 1}} = ${m}$ rearranges to the line below. Tap the step to do next, then choose what it gives.`,
+          text: `In the expansion of $(1 + ${k}x)^{n}$, ${ratioCondition(params)}: $\\frac{${k}(n - ${r})}{${r + 1}} = ${m}$, solved for $n$ below. Tap the step to do next, then choose what it gives.`,
         },
       ],
       start: [`${r + 1}`, '\\times', `${m}`, '\\div', `${k}`, '+', `${r}`],
@@ -3181,7 +3181,7 @@ const sumTree: Generator<SumTreeParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `Put $x = 1$ into $${sumBracketTex({ a, k, n })}$ and every term becomes its coefficient. Put $x = -1$ and the odd powers change sign. So the coefficients of the ${even ? 'even powers (the constant, $x^2$, $x^4$, …)' : 'odd powers ($x$, $x^3$, $x^5$, …)'} add up to half the ${even ? 'sum' : 'difference'} of the two. Fill in the tree.`,
+          text: `Add up the coefficients of the ${even ? 'even powers (the constant, $x^2$, $x^4$, …)' : 'odd powers ($x$, $x^3$, $x^5$, …)'} in $${sumBracketTex({ a, k, n })}$, using $x = 1$ and $x = -1$. Fill in the tree.`,
         },
       ],
       expression: `\\frac{${baseTex(plus)}^{${n}} ${even ? '+' : '-'} ${baseTex(minus)}^{${n}}}{2}`,
@@ -3344,7 +3344,7 @@ const sumSlider: Generator<SumParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `The coefficients in the expansion of $(${a} + kx)^{${n}}$ add up to $${S}$. The curve is that sum for each $k$, and the dashed line is $${S}$. Slide to $k$, which is positive.`,
+          text: `The coefficients in the expansion of $(${a} + kx)^{${n}}$ add up to $${S}$. The curve is that sum for each $k$. Slide to $k$, which is positive.`,
         },
       ],
       min: 0,
@@ -3814,7 +3814,7 @@ const twoExpTree: Generator<PairParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: 'Find the coefficient of $x^2$. Fill in what each pair makes: $1$ times the second expansion\'s $x^2$ term, the two $x$ terms, and the first expansion\'s $x^2$ term times $1$. Then add them.',
+          text: 'Find the coefficient of $x^2$. Fill in each pair: $1$ times the second\'s $x^2$ term, the two $x$ terms, the first\'s $x^2$ term times $1$. Then add them.',
         },
       ],
       expression: pairTex(params),
@@ -3970,7 +3970,7 @@ const firstThreeSteps: Generator<PairParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: "This is the coefficient of $x^2$ in the product below: the first expansion's $x^2$ coefficient, its $x$ coefficient times the second's, and the second's $x^2$ coefficient. Tap the step to do next, then choose what it gives.",
+          text: 'This is the coefficient of $x^2$ in the product below. Tap the step to do next, then choose what it gives.',
         },
         { kind: 'display', tex: pairTex(params) },
       ],
@@ -3998,7 +3998,7 @@ const firstThreeReduce: Generator<PairParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `This is the coefficient of $x^2$ in the product below: $${ncrTex(m, 2)}$ times the first number on $x$ squared, the two $x$ coefficients multiplied, and $${ncrTex(n, 2)}$ times the second number squared. Tap the part you would work out next, then choose what it comes to.`,
+          text: `This is the coefficient of $x^2$ in the product below. Tap the part you would work out next, then choose what it comes to.`,
         },
         { kind: 'display', tex: pairTex(params) },
       ],
@@ -4387,7 +4387,7 @@ const trinomialWorkSteps: Generator<TriParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `This is the coefficient of $x^2$ in the bracket below, with $u = ${triU(params)}$: the $x^2$ from $${n}u$, then the $x^2$ from $${ncrTex(n, 2)}u^2$. Tap the step to do next, then choose what it gives.`,
+          text: `This is the coefficient of $x^2$ in the bracket below, with $u = ${triU(params)}$. Tap the step to do next, then choose what it gives.`,
         },
         { kind: 'display', tex: triTex(params) },
       ],
@@ -4742,7 +4742,7 @@ const findATree: Generator<FindAParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${findAPrompt(params, true)} Fill in $${times(m, 'a')}$ and $a$, then the first bracket's own $x^2$ coefficient and the two $x$ coefficients multiplied. The $x^2$ coefficient adds those to the second bracket's own, $${B2}$.`,
+          text: `${findAPrompt(params, true)} Fill in $${times(m, 'a')}$, $a$, the first bracket's own $x^2$ coefficient and the $x$ coefficients multiplied; then the $x^2$ coefficient, adding the second bracket's $${B2}$.`,
         },
       ],
       expression: findATex(params),
@@ -4931,7 +4931,7 @@ const keptSumTree: Generator<DropParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `Estimate this from $(1 + x)^{${n}} \\approx 1 + ${n}x + ${c2}x^2$ with $x = ${dec(d, 100)}$. Top row, left to right: the $x$ term, the $x^2$ term, and the first term left out, $${termTex(nCr(n, 3), 3)}$. Then the estimate: $1$ plus the two terms kept.`,
+          text: `Estimate this from $(1 + x)^{${n}} \\approx 1 + ${n}x + ${c2}x^2$ with $x = ${dec(d, 100)}$. Top row: the $x$ term, the $x^2$ term, and the first term left out, $${termTex(nCr(n, 3), 3)}$. Then the estimate.`,
         },
       ],
       expression: `(${baseOf(d)})^{${n}}`,
@@ -5458,7 +5458,7 @@ function surdTreeSlide(params: SurdParams, lead: string): Slide {
     prompt: [
       {
         kind: 'prose',
-        text: `${lead}Top row, left to right: the whole-number terms, from the even powers of $${rootTex(k)}$, then the numbers on $${rootTex(k)}$ from the odd powers. Then add each group to make $a$ and $b$${one ? ', with the $1$ at the front going into $a$' : ''}.`,
+        text: `${lead}Top row: the whole-number terms (even powers of $${rootTex(k)}$), then the numbers on $${rootTex(k)}$ (odd powers). Then add each group for $a$ and $b$${one ? ', the $1$ at the front going into $a$' : ''}.`,
       },
     ],
     expression: `${surdPowTex(params)} = a + b${rootTex(k)}`,
@@ -5597,8 +5597,8 @@ const surdGatherSteps: Generator<SurdAskParams> = {
     const { start, reductions } = sumOfProducts(terms);
     const which =
       ask === 'a'
-        ? `$a$ is the sum of the terms with even powers of $${rootTex(k)}$, written out below.`
-        : `$b$ is the sum of the terms with odd powers of $${rootTex(k)}$, each with one $${rootTex(k)}$ taken out, written out below.`;
+        ? `Below is $a$, from the even powers of $${rootTex(k)}$.`
+        : `Below is $b$, from the odd powers of $${rootTex(k)}$, one $${rootTex(k)}$ taken out of each.`;
     return {
       kind: 'steps',
       prompt: [
@@ -5884,7 +5884,7 @@ const mixedTiles: Generator<SurdParams> = {
 const mixedTermsTree: Generator<SurdParams> = {
   id: 'bin-mixed-terms-tree',
   sample: (rng, difficulty) => (difficulty > 1 ? sampleMixed(rng, [2, 3, 4, 5], [1, 2], 3, 3) : sampleMixed(rng, [2, 3, 4], [1], 2, 3)),
-  render: (params) => surdTreeSlide(params, `The $${params.p}$ is raised to a power in every term. `),
+  render: (params) => surdTreeSlide(params, ''),
   solution: surdWorking,
 };
 

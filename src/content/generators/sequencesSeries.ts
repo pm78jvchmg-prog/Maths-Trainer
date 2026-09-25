@@ -2216,7 +2216,7 @@ const gpSumTree: Generator<GpSumParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `A geometric series has first term $a = ${a}$ and common ratio $r = ${r}$. Fill the tree for the sum of its first $${n}$ terms: $r^{${n}}$, the top $a(r^{${n}} - 1)$, the bottom $r - 1$, then $S_{${n}}$.`,
+          text: `A geometric series has $a = ${a}$ and $r = ${r}$. Fill the tree for $S_{${n}}$: $r^{${n}}$, the top $a(r^{${n}} - 1)$, the bottom $r - 1$, then $S_{${n}}$.`,
         },
       ],
       expression: `S_{${n}} = \\frac{${a === 1 ? '' : a}\\left(${br(r)}^{${n}} - 1\\right)}{${r} - 1}`,
@@ -2639,9 +2639,9 @@ interface Story {
 }
 
 const AP_STORIES: Story[] = [
-  { text: (a, d, n) => `Mia saves £$${a}$ in the first month, then £$${d}$ more each month than the month before. How much has she saved after $${n}$ months?` },
+  { text: (a, d, n) => `Mia saves £${a} in the first month, then £${d} more each month than the month before. How much has she saved after $${n}$ months?` },
   { text: (a, d, n) => `A theatre has $${a}$ seats in the front row and $${d}$ more in each row behind it. How many seats are in the first $${n}$ rows?` },
-  { text: (a, d, n) => `A salary starts at £$${a}$ thousand a year and rises by £$${d}$ thousand every year. How much, in thousands, is earned over the first $${n}$ years?` },
+  { text: (a, d, n) => `A salary starts at £${a} thousand a year and rises by £${d} thousand a year. How much, in thousands, is earned over the first $${n}$ years?` },
   { text: (a, d, n) => `A runner runs $${a}$ km in the first week of training, then $${d}$ km more each week. How far do they run in the first $${n}$ weeks?` },
   { text: (a, d, n) => `Logs are stacked in $${n}$ rows, with $${a}$ in the bottom row and $${-d}$ fewer in each row above. How many logs are there?`, down: true },
   { text: (a, d, n) => `A shop sells $${a}$ tickets on the first day of a sale and $${-d}$ fewer each day after. How many tickets does it sell in the first $${n}$ days?`, down: true },
@@ -2734,7 +2734,7 @@ const contextGp: Generator<ContextParams> = {
     const words = {
       bounce: `A ball is dropped from a height of $${h}$ m. After each bounce it rises to $${fracTex(p, q)}$ of the height it fell from. How high, in metres, does it rise after bounce $${n}$?`,
       bounceTotal: `A ball is dropped from a height of $${h}$ m. After each bounce it rises to $${fracTex(p, q)}$ of the height it fell from, then falls again. How far, in metres, does it travel before it comes to rest?`,
-      spread: `On day 1, one person tells $${h}$ people a secret. Each day after, everyone who heard it the day before tells $${h}$ new people. How many people have heard it by the end of day $${n}$?`,
+      spread: `On day 1, one person tells $${h}$ people a secret. Each day after, each of the previous day's hearers tells $${h}$ new people. How many have heard it by the end of day $${n}$?`,
       grains: `One square of a board gets $${h}$ grain${h === 1 ? '' : 's'} of rice, and each square after it gets $${p}$ times as many as the one before. How many grains are on the first $${n}$ squares?`,
     };
     return typed([{ kind: 'prose', text: words[story] }], story === 'bounce' ? '\\text{height} =' : '\\text{total} =', contextValue(params));
@@ -2911,8 +2911,8 @@ const firstExceed: Generator<ExceedParams> = {
     const { geo, a, d, target, span } = params;
     const top = target * 1.6;
     const story = geo
-      ? `A chain message reaches $${a}$ people on day 1, and each day $${d}$ times as many new people as the day before. The dots show how many have had it in total by each day; the dashed line is $${target}$. Slide to the first day the total is more than $${target}$.`
-      : `Ella saves £$${a}$ in week 1, and each week she saves £$${d}$ more than the week before. The dots show her total savings after each week; the dashed line is £$${target}$. Slide to the first week her total is more than £$${target}$.`;
+      ? `A chain message reaches $${a}$ people on day 1, and each day $${d}$ times as many new people as the day before. Dots: the running total; dashed line: $${target}$. Slide to the first day the total is over $${target}$.`
+      : `Ella saves £${a} in week 1 and £${d} more each week than the week before. Dots: her running total; dashed line: £${target}. Slide to the first week it is over £${target}.`;
     return {
       kind: 'slider',
       prompt: [{ kind: 'prose', text: story }],
@@ -3490,12 +3490,12 @@ const fixedPointSteps: Generator<FixedPointParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `The terms of $${affineTex(a, b, q)}$ settle on a limit $L$. Once they have, $u_{n+1}$ and $u_n$ are both $L$:`,
+          text: `The terms of $${affineTex(a, b, q)}$ settle on a limit $L$, so`,
         },
         { kind: 'display', tex: `L = ${pTimes(a, b, 'L')} ${signed(q)}` },
         {
           kind: 'prose',
-          text: 'Gathering the $L$ terms on one side turns this into the line below. Tap the operation to do next, then choose what it gives.',
+          text: 'With the $L$ terms gathered, that is the line below. Tap the operation to do next, then choose what it gives.',
         },
       ],
       start: [`${q}`, '\\div', '(', '1', '-', pBr(a, b), ')'],
@@ -4035,7 +4035,7 @@ const divideSteps: Generator<DivideParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `Find the limit of $u_n = \\frac{${linearTex(a, b)}}{${linearTex(c, d)}}$. Dividing its top and bottom by $n$ gives the line below, and as $n$ grows $${small(b)}$ and $${small(d)}$ both head for $0$. Tap the operation to do next, then choose what it heads for.`,
+          text: `Find the limit of $u_n = \\frac{${linearTex(a, b)}}{${linearTex(c, d)}}$. Below, top and bottom are divided by $n$. Tap the operation to do next, then choose what it heads for.`,
         },
       ],
       start: ['(', `${a}`, sign(b), small(b), ')', '\\div', '(', `${c}`, sign(d), small(d), ')'],
@@ -4405,7 +4405,7 @@ const gapTree: Generator<GapTreeParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `This sequence converges to $L = ${L}$. Each step multiplies the gap $u_n - L$ by $${fracTex(a, b)}$, so $${k - 1}$ steps divide it by $${divisor}$. Fill the tree: $u_1 - L$, then $${divisor}$, then $u_{${k}} - L$, then $u_{${k}}$.`,
+          text: `This converges to $L = ${L}$, each step multiplying the gap $u_n - L$ by $${fracTex(a, b)}$. Fill the tree: $u_1 - L$, then $${divisor}$, then $u_{${k}} - L$, then $u_{${k}}$.`,
         },
       ],
       expression: startTex(affineTex(a, b, q), `u_1 = ${L + g}`),
@@ -6504,7 +6504,7 @@ const stepCheck: Generator<StepCheckParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `The claim is $${claimTex(s)}$. Its step says the sum up to $k + 1$ is the sum up to $k$ plus the next term. Check that at $k = ${k}$: the formula at $n = ${k}$, the term $u_{${k + 1}}$, then their total.`,
+          text: `The claim is $${claimTex(s)}$. Check its step at $k = ${k}$: the formula at $n = ${k}$, the term $u_{${k + 1}}$, then their total.`,
         },
       ],
       // Three factors a side run past a phone's width on one line.
@@ -6785,7 +6785,7 @@ const standardStep: Generator<StepLineParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `The claim is $${claimTex(s)}$. In the step, the sum up to $k + 1$ is the assumed sum plus the next term, below. Work it into the right side at $n = k + 1$: tap the part to work on next, then choose what it becomes.`,
+          text: `The claim is $${claimTex(s)}$. Below is the step: the assumed sum plus the next term. Work it into the right side at $n = k + 1$: tap the part to work on next, then choose what it becomes.`,
         },
       ],
       start: stepStart(params),
@@ -6902,7 +6902,7 @@ const seriesStep: Generator<StepLineParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `The claim is $${claimTex(s)}$. In the step, the sum up to $k + 1$ is the assumed sum plus the next term, below. Work it into the right side at $n = k + 1$: tap the part to work on next, then choose what it becomes.`,
+          text: `The claim is $${claimTex(s)}$. Below is the step: the assumed sum plus the next term. Work it into the right side at $n = k + 1$: tap the part to work on next, then choose what it becomes.`,
         },
       ],
       start: stepStart(params),
@@ -7041,7 +7041,7 @@ const claimValue: Generator<ClaimValueParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `It has been proved that $${claimTex(params.s)}$. So the sum of the first $${params.n}$ terms is the right side at $n = ${params.n}$, written out below. Tap the part you would work out next, then choose what it comes to.`,
+          text: `It has been proved that $${claimTex(params.s)}$. So the sum of the first $${params.n}$ terms is the right side at $n = ${params.n}$, below. Tap the part you would work out next, then choose what it comes to.`,
         },
       ],
       expr,
@@ -7226,7 +7226,7 @@ const recStep: Generator<{ r: Rec; hard: boolean }> = {
       prompt: [
         {
           kind: 'prose',
-          text: `The claim is ${recClaimProse(r)}. Assume $u_k = ${recClosed(r, 'k')}$. The rule gives $u_{k+1}$ as below: work it into the formula at $n = k + 1$. Tap the part to work on next, then choose what it becomes.`,
+          text: `The claim is ${recClaimProse(r)}. Assume $u_k = ${recClosed(r, 'k')}$. The rule gives $u_{k+1}$ below; work it into the formula at $n = k + 1$. Tap the part to work on next, then choose what it becomes.`,
         },
       ],
       start: [`${p}`, '\\times', hard ? 'u_k' : closedK, ...tail],
@@ -7663,7 +7663,7 @@ const flawChoice: Generator<FlawParams> = {
     return {
       kind: 'choice',
       prompt: [
-        { kind: 'prose', text: `Here is a proof by induction that $${claimTex(s)}$ for every $n \\ge 1$.` },
+        { kind: 'prose', text: `A proof by induction that $${claimTex(s)}$ for every $n \\ge 1$:` },
         ...flawedLines(params).map((line, i): Block => ({ kind: 'prose', text: `${i + 1}. ${line}` })),
         { kind: 'prose', text: 'What, if anything, is wrong with it?' },
       ],
@@ -7875,7 +7875,7 @@ function samplePlan(rng: Rng, hard: boolean, most = 6): Plan {
 }
 
 function saveStory(name: string, P: number, pct: number): string {
-  return `${name} pays £${P} into a savings account at the start of each year, and at the end of each year the account adds ${interest(pct)}.`;
+  return `${name} pays £${P} into savings at the start of each year; at each year's end it earns ${interest(pct)}.`;
 }
 
 /** The balance after n years as a series: `1000 \times 1.1 + 1000 \times 1.1^2 + …`. */
@@ -7930,7 +7930,7 @@ const saveTable: Generator<SaveTableParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${saveStory(NAMES[name], P, pct)} Fill in the balance at the start of each year, just after the payment, and at the end, just after the interest.`,
+          text: `${saveStory(NAMES[name], P, pct)} Fill in each year's balance after the payment, then after the interest.`,
         },
       ],
       columns: ['n', '\\text{start}', '\\text{end}'],
@@ -7967,7 +7967,7 @@ const saveSeriesTiles: Generator<SavePlanParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${saveStory(NAMES[name], P, pct)} Each payment grows for the years left after it goes in. Write the balance at the end of year $${n}$ as a series, then work it out.`,
+          text: `${saveStory(NAMES[name], P, pct)} Each payment grows for the years left after it. Write the balance at the end of year $${n}$ as a series, then work it out.`,
         },
       ],
       template: `B_${n} = ${P}(${bracket}) = {${powers.length}}`,
@@ -8009,7 +8009,7 @@ const saveSumSteps: Generator<SavePlanParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${saveStory(NAMES[name], P, pct)} Below is the balance at the end of year $${n}$, one term for each payment. Work it out one step at a time.`,
+          text: `${saveStory(NAMES[name], P, pct)} Below is the balance at the end of year $${n}$, a term per payment. Work it out a step at a time.`,
         },
       ],
       start,
@@ -8124,7 +8124,7 @@ function sampleLoan(rng: Rng, years: number[]): LoanDraw {
 }
 
 function loanStory(name: string, { D, pct, R }: Loan): string {
-  return `${name} borrows £${D}. At the end of each year $${pct}\\%$ interest is added to what is owed, then £${R} is repaid, or the rest of the debt if that is less.`;
+  return `${name} borrows £${D}. Each year ends with $${pct}\\%$ interest added, then £${R} repaid (or the rest, if less).`;
 }
 
 function loanWorking({ D, pct, R }: Loan): SolutionStep {
@@ -8180,7 +8180,7 @@ const loanTable: Generator<LoanTableParams> = {
     }
     return {
       kind: 'table',
-      prompt: [{ kind: 'prose', text: `${loanStory(NAMES[name], { D, pct, R })} Fill in what is owed each year once the interest is added, and what is left after paying.` }],
+      prompt: [{ kind: 'prose', text: `${loanStory(NAMES[name], { D, pct, R })} Fill in what is owed each year after the interest, then after paying.` }],
       columns: ['n', '\\text{owed}', '\\text{after paying}'],
       rows,
       bank: moneyBank(answer, slips),
@@ -8207,7 +8207,7 @@ const loanRuleTiles: Generator<LoanParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${loanStory(NAMES[name], params)} Let $u_n$ be what is owed just after the $n$th payment, so $u_0$ is the amount borrowed. Write the recurrence, then find $u_2$.`,
+          text: `${loanStory(NAMES[name], params)} $u_n$ is owed after the $n$th payment; $u_0$ is the loan. Write the recurrence, then find $u_2$.`,
         },
       ],
       template: 'u_{n+1} = {0}u_n - {1} \\quad u_0 = {2} \\quad u_2 = {3}',
@@ -8267,7 +8267,7 @@ const loanInterestTree: Generator<LoanParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${loanStory(NAMES[name], params)} After the payment in year $${run.years - 1}$, £${run.after[run.years - 2]} is still owed, and year $${run.years}$ clears it. Fill the tree: the last payment, the full payments before it, the total repaid, then the interest.`,
+          text: `${loanStory(NAMES[name], params)} £${run.after[run.years - 2]} is owed after year $${run.years - 1}$, and year $${run.years}$ clears it. Fill the tree: the last payment, the full payments before it, the total repaid, then the interest.`,
         },
       ],
       expression: `\\text{interest} = \\text{repaid} - ${D}`,
@@ -8330,7 +8330,7 @@ const targetYear: Generator<TargetParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${saveStory(NAMES[name], P, pct)} The dots show the balance at the end of each year; the dashed line is £${T}. Slide to the first year the balance is more than £${T}.`,
+          text: `${saveStory(NAMES[name], P, pct)} Dots: year-end balances; dashed line: £${T}. Slide to the first year above £${T}.`,
         },
       ],
       min: 0,
@@ -8382,7 +8382,7 @@ const targetPayment: Generator<PaymentParams> = {
       [
         {
           kind: 'prose',
-          text: `${NAMES[name]} wants £${T} in a savings account at the end of year $${n}$. The account adds ${interest(pct)} at the end of each year. How much must be paid in at the start of each year?`,
+          text: `${NAMES[name]} wants £${T} in savings at the end of year $${n}$, earning ${interest(pct)} at each year's end. How much must go in at the start of each year?`,
         },
       ],
       '\\text{payment} =',
@@ -8433,7 +8433,7 @@ const targetScaleTree: Generator<ScaleParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `A savings account adds ${interest(pct)} at the end of each year, and the same amount is paid in at the start of each year. The aim is £${T} at the end of year $${n}$. Try £${unit} a year first: fill its balance at the end of each year, then how many times that the target is, then the payment needed.`,
+          text: `Savings earn ${interest(pct)} at each year's end, with a fixed payment at each start. The aim is £${T} at the end of year $${n}$. Try £${unit} a year: fill its year-end balances, how many times that the target is, then the payment needed.`,
         },
       ],
       expression: `\\text{payment} = ${unit} \\times ${T} \\div B_{${n}}`,
@@ -8490,7 +8490,7 @@ const targetTable: Generator<TargetTableParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${saveStory(NAMES[name], P, pct)} The target is £${T}. Fill in the balance at the end of each year and how far it is above the target: the last row is the first year it is more than £${T}.`,
+          text: `${saveStory(NAMES[name], P, pct)} Fill in each year-end balance and how far it is above a £${T} target, stopping at the first year over it.`,
         },
       ],
       columns: ['n', 'B_n', `B_n - ${T}`],
@@ -8909,7 +8909,7 @@ const plansOvertake: Generator<PlansParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${plansStory(params)} The hollow dots show Plan A and the filled dots Plan B. Slide to the first year Plan B pays more than Plan A.`,
+          text: `${plansStory(params)} Hollow dots: Plan A; filled: Plan B. Slide to the first year Plan B pays more.`,
         },
       ],
       min: 0,
@@ -8995,7 +8995,7 @@ const plansTotalTree: Generator<PlansParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${plansStory(params)} Fill the tree: the total Plan A pays over the first $${N}$ years, $S_A = \\frac{${N}}{2}(2 \\times ${a} + ${N - 1} \\times ${d})$, the total Plan B pays, $S_B = \\frac{${b}(${rateOf(pct).tex}^{${N}} - 1)}{${rateOf(pct).tex} - 1}$, then how much more the better plan pays.`,
+          text: `${plansStory(params)} Fill the tree: Plan A's total over $${N}$ years, $S_A = \\frac{${N}}{2}(2 \\times ${a} + ${N - 1} \\times ${d})$, Plan B's, $S_B = \\frac{${b}(${rateOf(pct).tex}^{${N}} - 1)}{${rateOf(pct).tex} - 1}$, then how much more the better plan pays.`,
         },
       ],
       expression: SA > SB ? 'S_A - S_B' : 'S_B - S_A',

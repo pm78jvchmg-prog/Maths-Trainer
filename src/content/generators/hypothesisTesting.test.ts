@@ -1260,3 +1260,329 @@ describe('hyp-rho-cause-choice', () => {
     }
   });
 });
+
+/* ================================================================
+ * Level 5: comparing two samples, and paired data. Every answer is worked
+ * again from the numbers the prompt shows, read back out of its TeX, and
+ * every tail from the words of the suspicion.
+ * ================================================================ */
+
+const Z_ONE_TAIL: Record<number, number> = { 5: 1.645, 1: 2.326 };
+const Z_TWO_TAIL: Record<number, number> = { 10: 1.645, 5: 1.96, 1: 2.576 };
+const zCritical = (level: number, tail: Tail): number => (tail === 'two' ? Z_TWO_TAIL : Z_ONE_TAIL)[level];
+
+/** The critical region for z, written as the slides write it. */
+function regionFor(level: number, tail: Tail): string {
+  const c = zCritical(level, tail);
+  if (tail === 'up') return `z > ${c}`;
+  if (tail === 'down') return `z < -${c}`;
+  return `|z| > ${c}`;
+}
+
+const levelIn = (slide: Slide): number => Number(/at the (\d+)% level/i.exec(shownTex(slide))![1]);
+
+type Samples = { A: Record<string, number>; B: Record<string, number> };
+
+/** The two samples' table, read back out of the prompt: each column by its header, for A and for B. */
+function samplesIn(slide: Slide): Samples {
+  const tex = shownTex(slide);
+  const match = /\\begin\{array\}\{c\|c+\} & (.*?) \\\\ \\hline A & (.*?) \\\\ B & (.*?) \\end\{array\}/.exec(tex);
+  if (!match) throw new Error(`no table of the two samples in ${tex}`);
+  const names: Record<string, string> = { '\\mu': 'mu', '\\sigma': 'sigma', n: 'n', '\\bar{x}': 'xbar' };
+  const heads = match[1].split(' & ').map((head) => names[head]);
+  const read = (cells: string) => Object.fromEntries(cells.split(' & ').map((cell, i) => [heads[i], Number(cell)]));
+  return { A: read(match[2]), B: read(match[3]) };
+}
+
+const varianceOf = ({ A, B }: Samples): number => A.sigma ** 2 / A.n + B.sigma ** 2 / B.n;
+const zOfSamples = (samples: Samples): number => (samples.A.xbar - samples.B.xbar) / Math.sqrt(varianceOf(samples));
+
+/** H_1's tail from the suspicion's own words: which group it names, and higher or lower. */
+function diffTail(slide: Slide): Tail {
+  const tex = shownTex(slide);
+  if (/suspects the mean .*? differs between/.test(tex)) return 'two';
+  const [, way, group] = /suspects the mean .*? is (higher|lower) .*? ([AB]) than/.exec(tex)!;
+  return (way === 'higher') === (group === 'A') ? 'up' : 'down';
+}
+
+/** z as the prompt states it, or worked from the table where it does not. */
+function statedOrWorkedZ(slide: Slide): number {
+  const stated = /\$z = (-?[\d.]+)\$/.exec(shownTex(slide));
+  return stated ? Number(stated[1]) : zOfSamples(samplesIn(slide));
+}
+
+describe('level 5: the difference of two sample means', () => {
+  it('models the difference with the means subtracted and the variances added', () => {
+    for (const { slide, seed } of draws('hyp-diff-model-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('not tiles');
+      const samples = samplesIn(slide);
+      expect(Number.isInteger(varianceOf(samples)), `seed ${seed}`).toBe(true);
+      expect(slide.answer.map(Number), `seed ${seed}`).toEqual([samples.A.mu - samples.B.mu, varianceOf(samples)]);
+    }
+  });
+
+  it('types the variance at difficulty 1 and its whole square root at difficulty 2', () => {
+    for (const { slide, seed, difficulty } of draws('hyp-diff-var')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const variance = varianceOf(samplesIn(slide));
+      const expected = difficulty > 1 ? Math.sqrt(variance) : variance;
+      expect(Number.isInteger(expected), `seed ${seed}`).toBe(true);
+      expect(Number(slide.answer), `seed ${seed}`).toBe(expected);
+    }
+  });
+
+  it('walks the flow through the subtracted means and the added variances', () => {
+    for (const { slide, seed } of draws('hyp-diff-rule-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow');
+      const samples = samplesIn(slide);
+      expect(slide.answer[0].endsWith(`= ${samples.A.mu - samples.B.mu}$`), `seed ${seed}: ${slide.answer[0]}`).toBe(true);
+      expect(slide.answer[1].endsWith(`= ${varianceOf(samples)}$`), `seed ${seed}: ${slide.answer[1]}`).toBe(true);
+      expect(slide.answer[1], `seed ${seed}`).toContain('+');
+      expect(verdict(slide, slide.answer), `seed ${seed}`).toBe('correct');
+    }
+  });
+
+  it('fills the tree with each term, their sum and its whole root', () => {
+    for (const { slide, seed } of draws('hyp-diff-spread-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree');
+      const { A, B } = samplesIn(slide);
+      const a = A.sigma ** 2 / A.n;
+      const b = B.sigma ** 2 / B.n;
+      expect(slide.answer.map(Number), `seed ${seed}`).toEqual([a, b, a + b, Math.sqrt(a + b)]);
+    }
+  });
+});
+
+describe('level 5: the two-sample z statistic', () => {
+  it('types z from the table, to at most two places', () => {
+    for (const { slide, seed } of draws('hyp-diff-z')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      expect(Math.abs(Number(slide.answer) - zOfSamples(samplesIn(slide))), `seed ${seed}`).toBeLessThan(1e-9);
+      expect(slide.answer, `seed ${seed}`).toMatch(/^-?\d+(\.\d{1,2})?$/);
+    }
+  });
+
+  it('marks that z as the right option, and no other', () => {
+    for (const id of ['hyp-diff-z+choice', 'hyp-paired-z+choice']) {
+      for (const { slide, seed } of draws(id)) {
+        if (slide.kind !== 'choice') throw new Error('not a choice');
+        const z = id.startsWith('hyp-diff') ? zOfSamples(samplesIn(slide)) : pairedZOf(slide);
+        for (const option of slide.options) {
+          expect(Math.abs(Number(option.label) - z) < 1e-9, `${id} seed ${seed}: ${option.label}`).toBe(option.id === slide.correctId);
+        }
+      }
+    }
+  });
+
+  it('sets z up as A minus B over the root of each sigma squared over n', () => {
+    for (const { slide, seed } of draws('hyp-diff-z-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('not tiles');
+      const { A, B } = samplesIn(slide);
+      expect(slide.answer.slice(0, 2).map(Number), `seed ${seed}`).toEqual([A.xbar, B.xbar]);
+      const [, a2, nA, b2, nB] = /^\\sqrt\{\\frac\{(\d+)\}\{(\d+)\} \+ \\frac\{(\d+)\}\{(\d+)\}\}$/.exec(slide.answer[2])!.map(Number);
+      expect([a2, nA, b2, nB], `seed ${seed}`).toEqual([A.sigma ** 2, A.n, B.sigma ** 2, B.n]);
+    }
+  });
+
+  it('fills the tree with the gap, the variance, its root and z', () => {
+    for (const { slide, seed } of draws('hyp-diff-stat-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree');
+      const samples = samplesIn(slide);
+      const values = slide.answer.map(Number);
+      expect(Math.abs(values[0] - (samples.A.xbar - samples.B.xbar)), `seed ${seed}`).toBeLessThan(1e-9);
+      expect(values[1], `seed ${seed}`).toBe(varianceOf(samples));
+      expect(values[2], `seed ${seed}`).toBe(Math.sqrt(varianceOf(samples)));
+      expect(Math.abs(values[3] - zOfSamples(samples)), `seed ${seed}`).toBeLessThan(1e-9);
+    }
+  });
+
+  it('puts the slider on z, on the side the suspicion points', () => {
+    for (const { slide, seed } of draws('hyp-diff-z-slider')) {
+      if (slide.kind !== 'slider') throw new Error('not a slider');
+      const z = zOfSamples(samplesIn(slide));
+      expect(Math.abs(slide.answer - z), `seed ${seed}`).toBeLessThan(1e-9);
+      expect(Math.sign(z), `seed ${seed}`).toBe(diffTail(slide) === 'up' ? 1 : -1);
+    }
+  });
+});
+
+describe('level 5: deciding in context', () => {
+  it('reads H_1 from the suspicion, whichever group it names first', () => {
+    const wordings = new Set<string>();
+    for (const { slide, seed } of draws('hyp-diff-hyp-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('not tiles');
+      const tail = diffTail(slide);
+      wordings.add(`${tail}|${/ is (higher|lower) /.exec(shownTex(slide))?.[1] ?? ''}`);
+      expect(slide.answer, `seed ${seed}`).toEqual([OPS[tail], regionFor(levelIn(slide), tail)]);
+    }
+    // Both wordings of both directions, and two tails.
+    expect(wordings.size).toBe(5);
+  });
+
+  it('puts the critical difference on the critical value of z', () => {
+    for (const { slide, seed } of draws('hyp-diff-crit')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const tail = diffTail(slide);
+      const sd = Math.sqrt(varianceOf(samplesIn(slide)));
+      const expected = (tail === 'down' ? -1 : 1) * zCritical(levelIn(slide), tail) * sd;
+      expect(Math.abs(Number(slide.answer) - expected), `seed ${seed}`).toBeLessThan(1e-9);
+    }
+  });
+
+  it('decides by z against the critical region, never within 0.05 of its edge', () => {
+    for (const id of ['hyp-diff-decision-flow', 'hyp-diff-conclusion-choice']) {
+      let rejected = 0;
+      const cases = draws(id);
+      for (const { slide, seed } of cases) {
+        const tail = diffTail(slide);
+        const level = levelIn(slide);
+        const z = statedOrWorkedZ(slide);
+        expect(Math.abs(Math.abs(z) - zCritical(level, tail)), `${id} seed ${seed}`).toBeGreaterThanOrEqual(0.05 - 1e-9);
+        const reject = rejects(z, tail, zCritical(level, tail));
+        if (reject) rejected += 1;
+        if (slide.kind === 'flow') {
+          expect(slide.subject, `seed ${seed}`).toBe(`H_1: \\mu_A ${OPS[tail]} \\mu_B`);
+          expect(slide.answer, `seed ${seed}`).toEqual([`$${regionFor(level, tail)}$`, reject ? 'Yes' : 'No']);
+          expect(verdict(slide, slide.answer), `seed ${seed}`).toBe('correct');
+        } else if (slide.kind === 'choice') {
+          const right = slide.options.find((option) => option.id === slide.correctId)!;
+          expect(right.label.startsWith(reject ? 'There is evidence' : 'There is not enough evidence'), `seed ${seed}`).toBe(true);
+          expect(right.label, `seed ${seed}`).not.toMatch(/proves|the same/);
+        } else {
+          throw new Error(`${id}: unexpected widget`);
+        }
+      }
+      // Neither decision is free: each is the answer a fair share of the time.
+      expect(rejected, id).toBeGreaterThan(cases.length * 0.3);
+      expect(rejected, id).toBeLessThan(cases.length * 0.7);
+    }
+  });
+});
+
+/** The pairs, read back out of the slide: from the table's rows, or from the array in the prompt. */
+function pairsIn(slide: Slide): { before: number[]; after: number[]; d?: number[] } {
+  if (slide.kind === 'table') {
+    return { before: slide.rows.map((row) => Number(row[0])), after: slide.rows.map((row) => Number(row[1])) };
+  }
+  const tex = shownTex(slide);
+  const match = /\\begin\{array\}\{c\|c(?:\|c)?\} \\text\{before\} & \\text\{after\}( & d)? \\\\ \\hline (.*?) \\end\{array\}/.exec(tex)!;
+  const rows = match[2].split(' \\\\ ').map((row) => row.split(' & ').map(Number));
+  return { before: rows.map((r) => r[0]), after: rows.map((r) => r[1]), d: match[1] ? rows.map((r) => r[2]) : undefined };
+}
+
+/** Whether the slide takes d as before minus after. */
+const flipped = (slide: Slide): boolean => shownTex(slide).includes('d = \\text{before} - \\text{after}');
+
+/** z for the mean difference from what the prompt states: n, then the mean or the total of d, and sigma_d. */
+function pairedZOf(slide: Slide): number {
+  const tex = shownTex(slide);
+  const n = Number(/Each of \$(\d+)\$/.exec(tex)![1]);
+  const sigma = Number(/\\sigma_d = (\d+)/.exec(tex)![1]);
+  const mean = /\\bar\{d\} = (-?[\d.]+)/.exec(tex);
+  const dbar = mean ? Number(mean[1]) : Number(/\\sum d = (-?[\d.]+)/.exec(tex)![1]) / n;
+  return dbar / (sigma / Math.sqrt(n));
+}
+
+/** H_1's tail for a paired test: the suspected effect, turned over when d is before minus after. */
+function pairedTail(slide: Slide): Tail {
+  const [, verb] = /suspects .*? (raises|lowers|changes) the mean/.exec(shownTex(slide))!;
+  if (verb === 'changes') return 'two';
+  return (verb === 'raises') !== flipped(slide) ? 'up' : 'down';
+}
+
+describe('level 5: paired data', () => {
+  it('fills each d the way round the prompt says', () => {
+    for (const { slide, seed } of draws('hyp-paired-diff-table')) {
+      if (slide.kind !== 'table') throw new Error('not a table');
+      const { before, after } = pairsIn(slide);
+      const d = before.map((b, i) => (flipped(slide) ? b - after[i] : after[i] - b));
+      expect(slide.answer.map(Number), `seed ${seed}`).toEqual(d);
+    }
+  });
+
+  it('types the mean of those differences, exactly', () => {
+    for (const { slide, seed } of draws('hyp-paired-mean')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const { before, after, d: shown } = pairsIn(slide);
+      const d = before.map((b, i) => (flipped(slide) ? b - after[i] : after[i] - b));
+      if (shown) expect(shown, `seed ${seed}`).toEqual(d);
+      const mean = d.reduce((s, v) => s + v, 0) / d.length;
+      expect(Math.abs(Number(slide.answer) - mean), `seed ${seed}`).toBeLessThan(1e-9);
+      expect(slide.answer, `seed ${seed}`).toMatch(/^-?\d+(\.\d{1,2})?$/);
+    }
+  });
+
+  it('sorts each study the same way in the choice and in the flow', () => {
+    const choice = registry['hyp-paired-design-choice'] as unknown as Generator<{ design: number }>;
+    const flow = registry['hyp-paired-method-flow'] as unknown as Generator<{ design: number }>;
+    const kinds = new Set<boolean>();
+    for (let design = 0; design < 30; design += 1) {
+      const pick = choice.render({ design });
+      const walk = flow.render({ design });
+      if (pick.kind !== 'choice' || walk.kind !== 'flow') throw new Error('wrong widgets');
+      const right = pick.options.find((option) => option.id === pick.correctId)!.label;
+      const paired = walk.answer[0] === 'Yes';
+      kinds.add(paired);
+      expect(right, `design ${design}`).toBe(
+        paired ? 'Paired: each value in one sample is matched with one in the other.' : 'Independent: the two samples are separate groups.',
+      );
+      expect(walk.answer[1], `design ${design}`).toBe(paired ? 'The differences' : 'The two sample means');
+      expect(verdict(walk, walk.answer), `design ${design}`).toBe('correct');
+    }
+    expect(kinds.size).toBe(2);
+  });
+
+  it('types z for the mean difference, to at most two places', () => {
+    for (const { slide, seed } of draws('hyp-paired-z')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      expect(Math.abs(Number(slide.answer) - pairedZOf(slide)), `seed ${seed}`).toBeLessThan(1e-9);
+      expect(slide.answer, `seed ${seed}`).toMatch(/^-?\d+(\.\d{1,2})?$/);
+    }
+  });
+
+  it('fills the tree with the mean from the total, the standard deviation and z', () => {
+    for (const { slide, seed } of draws('hyp-paired-stat-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree');
+      const tex = shownTex(slide);
+      const n = Number(/Each of \$(\d+)\$/.exec(tex)![1]);
+      const sigma = Number(/\\sigma_d = (\d+)/.exec(tex)![1]);
+      const total = Number(/\\sum d = (-?[\d.]+)/.exec(tex)![1]);
+      const values = slide.answer.map(Number);
+      expect(Math.abs(values[0] - total / n), `seed ${seed}`).toBeLessThan(1e-9);
+      expect(values[1], `seed ${seed}`).toBe(sigma / Math.sqrt(n));
+      expect(Math.abs(values[2] - pairedZOf(slide)), `seed ${seed}`).toBeLessThan(1e-9);
+    }
+  });
+
+  it('reads H_1 from the suspected effect and the way round d is', () => {
+    const seen = new Set<string>();
+    for (const { slide, seed } of draws('hyp-paired-h1-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('not tiles');
+      const tail = pairedTail(slide);
+      seen.add(`${tail}|${flipped(slide)}`);
+      expect(slide.answer, `seed ${seed}`).toEqual([OPS[tail], regionFor(levelIn(slide), tail)]);
+    }
+    // Up and down, each with d either way round, and two tails either way round.
+    expect(seen.size).toBe(6);
+  });
+
+  it('decides a paired test by z against the critical region, never within 0.05 of its edge', () => {
+    let rejected = 0;
+    const cases = draws('hyp-paired-decision-flow');
+    for (const { slide, seed } of cases) {
+      if (slide.kind !== 'flow') throw new Error('not a flow');
+      const tail = pairedTail(slide);
+      const level = levelIn(slide);
+      const stated = /\\qquad z = (-?[\d.]+)/.exec(shownTex(slide));
+      const z = stated ? Number(stated[1]) : pairedZOf(slide);
+      expect(Math.abs(Math.abs(z) - zCritical(level, tail)), `seed ${seed}`).toBeGreaterThanOrEqual(0.05 - 1e-9);
+      const reject = rejects(z, tail, zCritical(level, tail));
+      if (reject) rejected += 1;
+      expect(slide.subject, `seed ${seed}`).toBe(`H_1: \\mu_d ${OPS[tail]} 0`);
+      expect(slide.answer, `seed ${seed}`).toEqual([`$${regionFor(level, tail)}$`, reject ? 'Yes' : 'No']);
+      expect(verdict(slide, slide.answer), `seed ${seed}`).toBe('correct');
+    }
+    expect(rejected).toBeGreaterThan(cases.length * 0.3);
+    expect(rejected).toBeLessThan(cases.length * 0.7);
+  });
+});

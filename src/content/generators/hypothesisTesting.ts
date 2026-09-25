@@ -19,6 +19,11 @@
  * table (`PMCC_TABLE`), one- and two-tailed decisions with the column halved
  * for two, and how n and the level move the verdict. Every r and critical
  * value is quoted to four places, and no |r| is ever one.
+ * Level 5 compares two samples: `\bar{X}_A - \bar{X}_B` with its variance the
+ * sum `\sigma_A^2/n_A + \sigma_B^2/n_B`, each term whole and the sum a
+ * square, so the two-sample z has at most two places; then paired data, the
+ * difference in each pair and z for the mean difference with `\sigma_d /
+ * \sqrt{n}` whole. As in level 2, no z lands within 0.05 of its critical value.
  *
  * Nothing here is calculus, so no slide declares `source` and the generic
  * derivative oracle does not apply; `hypothesisTesting.test.ts` is the oracle.
@@ -5460,6 +5465,1162 @@ const rhoCauseChoice: Generator<CorrScene> = {
   ],
 };
 
+/* ================================================================
+ * Level 5: comparing two samples
+ * ================================================================ */
+
+/** Whether z lies in the critical region for a level and a tail. */
+function zInRegion(z: number, level: number, tail: Tail): boolean {
+  const c = critical(level, tail);
+  if (tail === 'up') return z > c;
+  if (tail === 'down') return z < -c;
+  return Math.abs(z) > c;
+}
+
+interface DiffContext {
+  /** Follows "the mean". */
+  quantity: string;
+  unit: string;
+  /** What a group is: "machine", as in machine A. */
+  group: string;
+  /** Names a group after the quantity: "from machine", as in "from machine A". */
+  of: string;
+  mus: number[];
+}
+
+const DIFF_CONTEXTS: DiffContext[] = [
+  { quantity: 'mass of a bag of flour', unit: 'g', group: 'machine', of: 'from machine', mus: [500, 750, 1000] },
+  { quantity: 'time a pizza delivery takes', unit: 'minutes', group: 'branch', of: 'from branch', mus: range(25, 45) },
+  { quantity: 'length of a bolt', unit: 'mm', group: 'factory', of: 'from factory', mus: range(40, 80, 5) },
+  { quantity: 'lifetime of a battery', unit: 'hours', group: 'brand', of: 'for brand', mus: range(100, 200, 10) },
+  { quantity: 'height of a seedling', unit: 'cm', group: 'compost', of: 'in compost', mus: range(12, 30) },
+  { quantity: 'mark on a test', unit: 'marks', group: 'school', of: 'at school', mus: range(40, 80) },
+  { quantity: 'time to run 400 m', unit: 'seconds', group: 'club', of: 'at club', mus: range(55, 75) },
+];
+
+/** For each v, the sample sizes from 8 to 100 with `\sigma^2 / n = v` for a whole `\sigma`: v n is a square. */
+const SIZES_FOR: number[][] = range(0, 99).map((v) => range(8, 100).filter((n) => Number.isInteger(Math.sqrt(v * n))));
+
+/**
+ * Two independent samples. Each `\sigma^2 / n` is whole and the two add to a
+ * square, so the standard deviation of `\bar{X}_A - \bar{X}_B` is whole, and
+ * `\bar{x}_A - \bar{x}_B` is drawn to one place so that z has at most two.
+ */
+interface DiffScene {
+  ctx: number;
+  /** The population mean the samples sit near. */
+  mu: number;
+  /** `\sigma_A^2 / n_A`, whole. */
+  vA: number;
+  nA: number;
+  /** `\sigma_B^2 / n_B`, whole. */
+  vB: number;
+  nB: number;
+  /** `\bar{x}_B` in tenths. */
+  xB: number;
+  /** z in hundredths. */
+  zh: number;
+  tail: Tail;
+  level: number;
+  /** Which group the suspicion names first: 0 for A, 1 for B. */
+  phr: number;
+}
+
+const diffSe = ({ vA, vB }: Pick<DiffScene, 'vA' | 'vB'>): number => Math.round(Math.sqrt(vA + vB));
+const sdA = ({ vA, nA }: Pick<DiffScene, 'vA' | 'nA'>): number => Math.round(Math.sqrt(vA * nA));
+const sdB = ({ vB, nB }: Pick<DiffScene, 'vB' | 'nB'>): number => Math.round(Math.sqrt(vB * nB));
+const diffZ = ({ zh }: Pick<DiffScene, 'zh'>): number => zh / 100;
+/** `\bar{x}_A - \bar{x}_B`, to one place. */
+const gapOf = (sc: DiffScene): number => Math.round((sc.zh * diffSe(sc)) / 10) / 10;
+const xbarB = (sc: DiffScene): number => sc.xB / 10;
+const xbarA = (sc: DiffScene): number => (sc.xB + Math.round((sc.zh * diffSe(sc)) / 10)) / 10;
+const diffIn = (sc: DiffScene): boolean => zInRegion(diffZ(sc), sc.level, sc.tail);
+
+interface DiffOptions {
+  tails?: Tail[];
+  /** |z| drawn in hundredths from this range. */
+  zLo?: number;
+  zHi?: number;
+  /** Draw z to one place, for a slider. */
+  tenths?: boolean;
+  /** The largest standard deviation of the difference. */
+  seHi?: number;
+}
+
+function sampleDiff(rng: Rng, { tails = TAILS, zLo = 30, zHi = 320, tenths = false, seHi = 8 }: DiffOptions = {}): DiffScene {
+  for (;;) {
+    const ctx = rng.int(0, DIFF_CONTEXTS.length - 1);
+    const mu = rng.pick(DIFF_CONTEXTS[ctx].mus);
+    const se = rng.int(2, seHi);
+    const vA = rng.int(1, se * se - 1);
+    const vB = se * se - vA;
+    if (SIZES_FOR[vA].length === 0 || SIZES_FOR[vB].length === 0) continue;
+    const nA = rng.pick(SIZES_FOR[vA]);
+    const nB = rng.pick(SIZES_FOR[vB]);
+    if (Math.max(Math.sqrt(vA * nA), Math.sqrt(vB * nB)) * 3 > mu) continue;
+    // A standard deviation equal to its sample size reads as a misprint.
+    if (Math.sqrt(vA * nA) === nA || Math.sqrt(vB * nB) === nB) continue;
+    const tail = rng.pick(tails);
+    const size = tenths ? rng.int(Math.ceil(zLo / 10), Math.floor(zHi / 10)) * 10 : rng.int(zLo, zHi);
+    // The difference of the sample means to one place.
+    if ((size * se) % 10 !== 0) continue;
+    const sign = tail === 'up' ? 1 : tail === 'down' ? -1 : rng.sign();
+    const level = tail === 'two' ? rng.pick([1, 5, 10]) : rng.pick([1, 5]);
+    const sc: DiffScene = { ctx, mu, vA, nA, vB, nB, xB: mu * 10 + rng.int(-30, 30), zh: sign * size, tail, level, phr: rng.int(0, 1) };
+    // Never so close to the critical value that the decision is a rounding question.
+    if (Math.abs(Math.abs(diffZ(sc)) - critical(level, tail)) < 0.05) continue;
+    return sc;
+  }
+}
+
+const diffIntro = ({ ctx }: Pick<DiffScene, 'ctx'>): string => {
+  const c = DIFF_CONTEXTS[ctx];
+  return `Independent random samples are taken of the ${c.quantity} ${c.of} A and ${c.of} B, in ${c.unit}.`;
+};
+
+/** What `H_1` says, in the scenario's words, naming A or B first as the suspicion does. */
+function diffWords({ ctx, tail, phr }: Pick<DiffScene, 'ctx' | 'tail' | 'phr'>, flipped = false): string {
+  const c = DIFF_CONTEXTS[ctx];
+  if (tail === 'two') {
+    return flipped
+      ? `the mean ${c.quantity} is the same for ${c.group} A and ${c.group} B`
+      : `the mean ${c.quantity} differs between ${c.group} A and ${c.group} B`;
+  }
+  const [first, second] = phr === 0 ? ['A', 'B'] : ['B', 'A'];
+  const higher = ((tail === 'up') === (phr === 0)) !== flipped;
+  return `the mean ${c.quantity} is ${higher ? 'higher' : 'lower'} ${c.of} ${first} than ${c.of} ${second}`;
+}
+
+const diffSuspicion = (sc: Pick<DiffScene, 'ctx' | 'tail' | 'phr'>): string => `A researcher suspects ${diffWords(sc)}.`;
+
+type DiffColumn = 'mu' | 'sigma' | 'n' | 'xbar';
+
+/** The two samples as a narrow table: a row for each group, a column for each figure asked for. */
+function diffTable(sc: DiffScene, columns: DiffColumn[], mus: [number, number] = [sc.mu, sc.mu]): Block {
+  const head: Record<DiffColumn, string> = { mu: '\\mu', sigma: '\\sigma', n: 'n', xbar: '\\bar{x}' };
+  const cell = (group: 'A' | 'B', column: DiffColumn): string => {
+    const a = group === 'A';
+    if (column === 'mu') return fmt(a ? mus[0] : mus[1]);
+    if (column === 'sigma') return String(a ? sdA(sc) : sdB(sc));
+    if (column === 'n') return String(a ? sc.nA : sc.nB);
+    return fmt(a ? xbarA(sc) : xbarB(sc));
+  };
+  const row = (group: 'A' | 'B') => [group, ...columns.map((column) => cell(group, column))].join(' & ');
+  return show(
+    `\\begin{array}{c|${columns.map(() => 'c').join('')}} & ${columns.map((column) => head[column]).join(' & ')} \\\\ \\hline ${row('A')} \\\\ ${row('B')} \\end{array}`,
+  );
+}
+
+/** The variance of the difference, worked: each `\sigma^2 / n`, then added. */
+const diffVarLine = (sc: DiffScene): string =>
+  chain(
+    '\\text{Var}',
+    `\\frac{${sdA(sc) ** 2}}{${sc.nA}} + \\frac{${sdB(sc) ** 2}}{${sc.nB}}`,
+    `${sc.vA} + ${sc.vB} = ${sc.vA + sc.vB}`,
+  );
+
+/** z worked from the two samples: the gap, the standard deviation of the difference, the division. */
+const diffZLines = (sc: DiffScene): SolutionStep[] => [
+  { tex: chain('\\bar{x}_A - \\bar{x}_B', `${fmt(xbarA(sc))} - ${fmt(xbarB(sc))}`, fmt(gapOf(sc))) },
+  { tex: chain('\\text{sd}', `\\sqrt{\\frac{${sdA(sc) ** 2}}{${sc.nA}} + \\frac{${sdB(sc) ** 2}}{${sc.nB}}}`, `\\sqrt{${sc.vA + sc.vB}} = ${diffSe(sc)}`) },
+  { tex: `z = \\frac{${fmt(gapOf(sc))}}{${diffSe(sc)}} = ${fmt(diffZ(sc))}` },
+];
+
+/** Options for a number: the right one, then the slips that are exact and differ from it. */
+function numberOptions(right: number, slips: number[]): ChoiceOption[] {
+  const wrong = slips.filter((v) => Number.isFinite(v) && terminates(v, 3) && Math.abs(v - right) > 1e-9);
+  return options({ tex: fmt(right), answer: fmt(right) }, ...wrong.map((v) => ({ tex: fmt(v), answer: fmt(v) }))).slice(0, 4);
+}
+
+/* ---------------- Lesson 1: the distribution of the difference ---------------- */
+
+interface DiffModelParams extends DiffScene {
+  /** `\mu_A - \mu_B`. */
+  dm: number;
+}
+
+function sampleDiffModel(rng: Rng, difficulty: number): DiffModelParams {
+  const sc = sampleDiff(rng, { seHi: difficulty > 1 ? 8 : 6 });
+  const size = rng.int(1, Math.max(2, Math.min(12, Math.floor(sc.mu / 4))));
+  return { ...sc, dm: difficulty > 1 && rng.chance(0.5) ? -size : size };
+}
+
+/** `[\mu_A, \mu_B]`. */
+const musOf = (p: DiffModelParams): [number, number] => [p.mu + p.dm, p.mu];
+
+const diffModelSolution = (p: DiffModelParams): SolutionStep[] => {
+  const [muA, muB] = musOf(p);
+  return [
+    { text: 'The mean of the difference is the difference of the means, and the variances add.' },
+    { tex: `\\mu_A - \\mu_B = ${muA} - ${muB} = ${fmt(p.dm)}` },
+    { tex: diffVarLine(p) },
+    { tex: `\\bar{X}_A - \\bar{X}_B \\sim N(${fmt(p.dm)}, ${p.vA + p.vB})` },
+  ];
+};
+
+/** `\bar{X}_A - \bar{X}_B \sim N(\mu_A - \mu_B, \sigma_A^2/n_A + \sigma_B^2/n_B)` with the numbers put in. */
+const diffModelTiles: Generator<DiffModelParams> = {
+  id: 'hyp-diff-model-tiles',
+  sample: sampleDiffModel,
+  render: (p): Slide => {
+    const [muA, muB] = musOf(p);
+    const answer = [fmt(p.dm), String(p.vA + p.vB)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(diffIntro(p)),
+        diffTable(p, ['mu', 'sigma', 'n'], [muA, muB]),
+        say('Complete the distribution of $\\bar{X}_A - \\bar{X}_B$.'),
+      ],
+      template: '\\bar{X}_A - \\bar{X}_B \\sim N({0}, {1})',
+      bank: tokenBank(
+        answer,
+        [fmt(-p.dm), String(muA + muB), String(Math.abs(p.vA - p.vB)), String(sdA(p) ** 2 + sdB(p) ** 2), String(diffSe(p))],
+        3,
+      ),
+      answer,
+    };
+  },
+  solution: diffModelSolution,
+};
+
+interface DiffVarParams extends DiffScene {
+  /** Difficulty 2 asks for the standard deviation rather than the variance. */
+  sd: boolean;
+}
+
+/** The variance of the difference at difficulty 1, its standard deviation at difficulty 2. */
+const diffVar: Generator<DiffVarParams> = {
+  id: 'hyp-diff-var',
+  sample: (rng, difficulty) => ({ ...sampleDiff(rng, { seHi: difficulty > 1 ? 8 : 6 }), sd: difficulty > 1 }),
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [
+      say(diffIntro(p)),
+      diffTable(p, ['sigma', 'n']),
+      say(p.sd ? 'Find the standard deviation of the difference of the sample means.' : 'Find the variance of the difference of the sample means.'),
+    ],
+    lead: p.sd ? '\\text{sd}(\\bar{X}_A - \\bar{X}_B) =' : '\\text{Var}(\\bar{X}_A - \\bar{X}_B) =',
+    keypad: [],
+    answer: String(p.sd ? diffSe(p) : p.vA + p.vB),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  choices: (p) => {
+    const a = sdA(p);
+    const b = sdB(p);
+    const variance = p.vA + p.vB;
+    // Adding the standard deviations, the variance itself, subtracting, and
+    // leaving out the sample sizes.
+    return p.sd
+      ? numberOptions(diffSe(p), [Math.sqrt(p.vA) + Math.sqrt(p.vB), variance, Math.sqrt(Math.abs(p.vA - p.vB)), a + b])
+      : numberOptions(variance, [Math.abs(p.vA - p.vB), a * a + b * b, diffSe(p), a / p.nA + b / p.nB]);
+  },
+  solution: (p) => [
+    { tex: diffVarLine(p) },
+    ...(p.sd
+      ? [
+          { tex: `\\text{sd} = \\sqrt{${p.vA + p.vB}} = ${diffSe(p)}` },
+          { text: 'Square root the variance after adding: standard deviations never add.' },
+        ]
+      : [{ text: 'The variances add, even though the means subtract.' }]),
+  ],
+};
+
+/** The mean of the difference, then its variance: which way each combines. */
+const diffRuleFlow: Generator<DiffModelParams> = {
+  id: 'hyp-diff-rule-flow',
+  sample: sampleDiffModel,
+  render: (p): Slide => {
+    const [muA, muB] = musOf(p);
+    const a2 = sdA(p) ** 2;
+    const b2 = sdB(p) ** 2;
+    const key = `${p.ctx}|${muA}|${muB}|${p.vA}|${p.nA}|${p.vB}|${p.nB}`;
+    const meanRight = `$${muA} - ${muB} = ${fmt(p.dm)}$`;
+    const varRight = `$\\frac{${a2}}{${p.nA}} + \\frac{${b2}}{${p.nB}} = ${p.vA + p.vB}$`;
+    return {
+      kind: 'flow',
+      prompt: [
+        say(diffIntro(p)),
+        diffTable(p, ['mu', 'sigma', 'n'], [muA, muB]),
+        say('Find the distribution of $\\bar{X}_A - \\bar{X}_B$.'),
+      ],
+      subject: '\\bar{X}_A - \\bar{X}_B',
+      steps: [
+        {
+          id: 'mean',
+          ask: 'What is its mean?',
+          branches: spun(
+            [
+              { label: meanRight, to: 'var' },
+              { label: `$${muA} + ${muB} = ${muA + muB}$`, outcome: 'Not this: the mean of a difference is the difference of the means.' },
+            ],
+            key,
+          ),
+        },
+        {
+          id: 'var',
+          ask: 'And its variance?',
+          branches: spun(
+            [
+              { label: varRight, outcome: `Right: $\\bar{X}_A - \\bar{X}_B \\sim N(${fmt(p.dm)}, ${p.vA + p.vB})$.` },
+              {
+                label: `$\\frac{${a2}}{${p.nA}} - \\frac{${b2}}{${p.nB}} = ${fmt(p.vA - p.vB)}$`,
+                outcome: 'Not this: the variances add, even though the means subtract.',
+              },
+              { label: `$${a2} + ${b2} = ${a2 + b2}$`, outcome: 'Not this: each variance is divided by its own sample size first.' },
+            ],
+            `${key}|v`,
+          ),
+        },
+      ],
+      answer: [meanRight, varRight],
+    };
+  },
+  solution: diffModelSolution,
+};
+
+/** Each `\sigma^2 / n`, their sum, then its square root. */
+const diffSpreadTree: Generator<DiffScene> = {
+  id: 'hyp-diff-spread-tree',
+  sample: (rng, difficulty) => sampleDiff(rng, { seHi: difficulty > 1 ? 8 : 5 }),
+  render: (sc): Slide => {
+    const a = sdA(sc);
+    const b = sdB(sc);
+    const answer = [sc.vA, sc.vB, sc.vA + sc.vB, diffSe(sc)];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(diffIntro(sc)),
+        diffTable(sc, ['sigma', 'n']),
+        say('Fill in each $\\frac{\\sigma^2}{n}$, then their sum, the variance of $\\bar{X}_A - \\bar{X}_B$, then its square root.'),
+      ],
+      expression: '\\sqrt{\\frac{\\sigma_A^2}{n_A} + \\frac{\\sigma_B^2}{n_B}}',
+      nodes: [
+        { id: 'a', from: [] },
+        { id: 'b', from: [] },
+        { id: 'v', from: ['a', 'b'] },
+        { id: 's', from: ['v'] },
+      ],
+      bank: treeBank(answer, [Math.abs(sc.vA - sc.vB), a + b, Math.sqrt(sc.vA) + Math.sqrt(sc.vB), a * a, b * b, a, b]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (sc) => [
+    { tex: `\\frac{${sdA(sc) ** 2}}{${sc.nA}} = ${sc.vA} \\qquad \\frac{${sdB(sc) ** 2}}{${sc.nB}} = ${sc.vB}` },
+    { tex: `${sc.vA} + ${sc.vB} = ${sc.vA + sc.vB}` },
+    { tex: `\\sqrt{${sc.vA + sc.vB}} = ${diffSe(sc)}` },
+  ],
+};
+
+/* ---------------- Lesson 2: the two-sample z statistic ---------------- */
+
+/** z for `H_0: \mu_A = \mu_B`: difficulty 1 with A's mean above B's only, difficulty 2 either way. */
+const diffZStat: Generator<DiffScene> = {
+  id: 'hyp-diff-z',
+  sample: (rng, difficulty) => sampleDiff(rng, { tails: difficulty > 1 ? TAILS : ['up'] }),
+  render: (sc): Slide => ({
+    kind: 'expression',
+    prompt: [say(diffIntro(sc)), diffTable(sc, ['sigma', 'n', 'xbar']), say('Find the test statistic $z$ for $H_0: \\mu_A = \\mu_B$.')],
+    lead: 'z =',
+    keypad: [],
+    answer: fmt(diffZ(sc)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  choices: (sc) => {
+    const g = gapOf(sc);
+    // The wrong way round, over the variance, over the standard deviations added.
+    return numberOptions(diffZ(sc), [
+      -diffZ(sc),
+      g / (sc.vA + sc.vB),
+      g / (Math.sqrt(sc.vA) + Math.sqrt(sc.vB)),
+      g / (sdA(sc) + sdB(sc)),
+    ]);
+  },
+  solution: (sc) => [{ text: 'If $H_0$ is true, $\\bar{X}_A - \\bar{X}_B$ has mean $0$.' }, ...diffZLines(sc)],
+};
+
+/** z set up in its form: which mean goes first, and what goes under the root. */
+const diffZTiles: Generator<DiffScene> = {
+  id: 'hyp-diff-z-tiles',
+  sample: (rng) => sampleDiff(rng),
+  render: (sc): Slide => {
+    const a = sdA(sc);
+    const b = sdB(sc);
+    const root = (op: string, power: number) => `\\sqrt{\\frac{${a ** power}}{${sc.nA}} ${op} \\frac{${b ** power}}{${sc.nB}}}`;
+    const answer = [fmt(xbarA(sc)), fmt(xbarB(sc)), root('+', 2)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(diffIntro(sc)),
+        diffTable(sc, ['sigma', 'n', 'xbar']),
+        say('Set up $z$ for $H_0: \\mu_A = \\mu_B$, taking $A$ minus $B$.'),
+      ],
+      template: 'z = ({0} - {1}) \\div {2}',
+      bank: tokenBank(
+        answer,
+        [root('-', 2), `\\frac{${a * a}}{${sc.nA}} + \\frac{${b * b}}{${sc.nB}}`, root('+', 1), `\\frac{${a}}{\\sqrt{${sc.nA}}} + \\frac{${b}}{\\sqrt{${sc.nB}}}`],
+        3,
+      ),
+      answer,
+    };
+  },
+  solution: (sc) => [
+    { text: 'The difference of the sample means on top, in the order $A - B$, divided by the square root of the two variances added.' },
+    ...diffZLines(sc),
+  ],
+};
+
+/** The statistic as a tree: the gap and the variance, the square root, then z. */
+const diffStatTree: Generator<DiffScene> = {
+  id: 'hyp-diff-stat-tree',
+  sample: (rng, difficulty) => sampleDiff(rng, { tails: difficulty > 1 ? TAILS : ['up'] }),
+  render: (sc): Slide => {
+    const g = gapOf(sc);
+    const variance = sc.vA + sc.vB;
+    const z = diffZ(sc);
+    const answer = [fmt(g), String(variance), String(diffSe(sc)), fmt(z)];
+    const slips = [-g, Math.abs(sc.vA - sc.vB), sdA(sc) + sdB(sc), -z, g / variance, xbarA(sc) + xbarB(sc), z * 2].filter((v) => terminates(v, 3));
+    return {
+      kind: 'tree',
+      prompt: [
+        say(diffIntro(sc)),
+        diffTable(sc, ['sigma', 'n', 'xbar']),
+        say('Top row: $\\bar{x}_A - \\bar{x}_B$, then the variance of $\\bar{X}_A - \\bar{X}_B$. Then its square root, and $z$.'),
+      ],
+      expression: 'z = \\frac{\\bar{x}_A - \\bar{x}_B}{\\sqrt{\\sigma_A^2 / n_A + \\sigma_B^2 / n_B}}',
+      nodes: [
+        { id: 'd', from: [] },
+        { id: 'v', from: [] },
+        { id: 's', from: ['v'] },
+        { id: 'z', from: ['d', 's'] },
+      ],
+      bank: decimalBank(answer, slips.map(fmt), 3),
+      answer,
+    };
+  },
+  solution: (sc) => [...diffZLines(sc).slice(0, 1), { tex: diffVarLine(sc) }, ...diffZLines(sc).slice(1)],
+};
+
+/** Work out z and slide the line to it, over the standard normal curve with the critical region shaded. */
+const diffZSlider: Generator<DiffScene> = {
+  id: 'hyp-diff-z-slider',
+  sample: (rng) => sampleDiff(rng, { tails: ['up', 'down'], tenths: true, zLo: 30, zHi: 330 }),
+  render: (sc): Slide => {
+    const c = critical(sc.level, sc.tail);
+    const tail = sc.tail as OneTail;
+    return {
+      kind: 'slider',
+      prompt: [
+        say(`${diffIntro(sc)} ${diffSuspicion(sc)}`),
+        diffTable(sc, ['sigma', 'n', 'xbar']),
+        say(`The shaded tail is the ${sc.level}% critical region. Slide the line to $z$.`),
+      ],
+      min: -Z_SPAN,
+      max: Z_SPAN,
+      step: 0.1,
+      answer: diffZ(sc),
+      readout: 'z = {v}',
+      figure: {
+        svg: normalSvg('The standard normal curve with one tail shaded as the critical region', { edge: tail === 'up' ? c : -c, tail }),
+        ...markerWindow(-Z_SPAN, Z_SPAN),
+      },
+    };
+  },
+  solution: (sc) => [
+    ...diffZLines(sc),
+    {
+      text: diffIn(sc)
+        ? `It lies in the shaded tail, beyond $${sc.tail === 'up' ? '' : '-'}${fmt(critical(sc.level, sc.tail))}$.`
+        : `It lies outside the shaded tail, which starts at $${sc.tail === 'up' ? '' : '-'}${fmt(critical(sc.level, sc.tail))}$.`,
+    },
+  ],
+};
+
+/* ---------------- Lesson 3: the decision in context ---------------- */
+
+interface DiffHypParams {
+  ctx: number;
+  tail: Tail;
+  level: number;
+  phr: number;
+}
+
+/** `H_1` from a suspicion that may name either group first, and the critical region that goes with it. */
+const diffHypTiles: Generator<DiffHypParams> = {
+  id: 'hyp-diff-hyp-tiles',
+  sample: (rng, difficulty) => {
+    const tail = rng.pick(TAILS);
+    return {
+      ctx: rng.int(0, DIFF_CONTEXTS.length - 1),
+      tail,
+      level: tail === 'two' ? rng.pick(difficulty > 1 ? [1, 5, 10] : [1, 5]) : rng.pick([1, 5]),
+      phr: rng.int(0, 1),
+    };
+  },
+  render: (p): Slide => {
+    const c = DIFF_CONTEXTS[p.ctx];
+    const answer = [OP[p.tail], zRegionTex(p.level, p.tail)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(`Samples of the ${c.quantity} ${c.of} A and ${c.of} B are compared. ${diffSuspicion(p)}`),
+        say(`The test of $H_0: \\mu_A = \\mu_B$ is at the ${p.level}% level. Complete $H_1$ and the critical region.`),
+      ],
+      template: 'H_1: \\mu_A {0} \\mu_B, \\quad {1}',
+      bank: tokenBank(answer, [...TAILS.map((t) => OP[t]), ...wrongRegions(p.level, p.tail)], 4),
+      answer,
+    };
+  },
+  solution: (p) => [
+    {
+      text:
+        p.tail === 'two'
+          ? 'The suspicion names no direction, so the test is two-tailed.'
+          : `The suspicion says the mean ${p.tail === 'up' ? 'is higher for A than for B' : 'is lower for A than for B'}, whichever group it names first.`,
+    },
+    { tex: `H_1: \\mu_A ${OP[p.tail]} \\mu_B` },
+    { tex: zRegionTex(p.level, p.tail) },
+  ],
+};
+
+interface DiffDecideParams extends DiffScene {
+  /** Difficulty 2 gives the samples and leaves z to the learner. */
+  hard: boolean;
+}
+
+function sampleDiffDecide(rng: Rng, difficulty: number): DiffDecideParams {
+  for (;;) {
+    const sc = sampleDiff(rng, { zLo: 30, zHi: 300 });
+    // About half should reject, so neither end is free.
+    if (rng.chance(0.5) !== diffIn(sc)) continue;
+    return { ...sc, hard: difficulty > 1 };
+  }
+}
+
+const diffVerdict = (sc: DiffScene, reject: boolean): string => verdict(diffWords(sc), sc.level, reject);
+
+/** The critical region, then whether z is in it; each end is the conclusion in context. */
+const diffDecisionFlow: Generator<DiffDecideParams> = {
+  id: 'hyp-diff-decision-flow',
+  sample: sampleDiffDecide,
+  render: (sc): Slide => {
+    const key = `${sc.ctx}|${sc.mu}|${sc.zh}|${sc.level}|${sc.tail}|${sc.phr}`;
+    const right = zRegionTex(sc.level, sc.tail);
+    const branches = [
+      { label: `$${right}$`, to: 'in' },
+      ...wrongRegions(sc.level, sc.tail).map((tex) => ({
+        label: `$${tex}$`,
+        outcome:
+          sc.tail === 'two'
+            ? 'Not this region: $H_1$ names no direction, so both tails count.'
+            : tex.startsWith('|')
+              ? 'Not this region: that is a two-tailed test, and $H_1$ names a direction.'
+              : 'Not this region: it is the wrong tail for $H_1$.',
+      })),
+    ];
+    return {
+      kind: 'flow',
+      prompt: [
+        say(`${diffIntro(sc)} ${diffSuspicion(sc)} The test is at the ${sc.level}% level.`),
+        ...(sc.hard ? [diffTable(sc, ['sigma', 'n', 'xbar'])] : [say(`The test statistic is $z = ${fmt(diffZ(sc))}$.`)]),
+      ],
+      subject: `H_1: \\mu_A ${OP[sc.tail]} \\mu_B`,
+      steps: [
+        { id: 'region', ask: 'Which is the critical region?', branches: spun(branches, key) },
+        {
+          id: 'in',
+          ask: sc.hard ? 'Work out $z$. Is it in the critical region?' : `Is $z = ${fmt(diffZ(sc))}$ in the critical region?`,
+          branches: spun(
+            [
+              { label: 'Yes', outcome: diffVerdict(sc, true) },
+              { label: 'No', outcome: diffVerdict(sc, false) },
+            ],
+            `${key}|in`,
+          ),
+        },
+      ],
+      answer: [`$${right}$`, diffIn(sc) ? 'Yes' : 'No'],
+    };
+  },
+  solution: (sc) => [
+    ...(sc.hard ? diffZLines(sc) : []),
+    { tex: `\\text{critical region: } ${zRegionTex(sc.level, sc.tail)}` },
+    { text: diffVerdict(sc, diffIn(sc)) },
+  ],
+};
+
+/** The conclusion worded properly: evidence, the level and the context, never proof. */
+const diffConclusionChoice: Generator<DiffDecideParams> = {
+  id: 'hyp-diff-conclusion-choice',
+  sample: sampleDiffDecide,
+  render: (sc): Slide => {
+    const words = diffWords(sc);
+    const reject = diffIn(sc);
+    const yes = `There is evidence at the ${sc.level}% level that ${words}.`;
+    const no = `There is not enough evidence at the ${sc.level}% level that ${words}.`;
+    return choiceSlide(
+      [
+        say(`${diffIntro(sc)} ${diffSuspicion(sc)}`),
+        say(`At the ${sc.level}% level the critical region is $${zRegionTex(sc.level, sc.tail)}$, and $z = ${fmt(diffZ(sc))}$. Which conclusion is right?`),
+      ],
+      options(
+        { tex: reject ? yes : no },
+        { tex: reject ? no : yes },
+        { tex: `This proves that ${words}.` },
+        { tex: `There is evidence at the ${sc.level}% level that ${diffWords(sc, true)}.` },
+      ),
+      false,
+    );
+  },
+  solution: (sc) => [
+    { text: `$z = ${fmt(diffZ(sc))}$ is ${diffIn(sc) ? '' : 'not '}in the critical region $${zRegionTex(sc.level, sc.tail)}$.` },
+    {
+      text: `${diffIn(sc) ? 'So' : 'So there is no reason to'} reject $H_0$. A test gives evidence at a level, never proof, and the conclusion names the two groups.`,
+    },
+  ],
+};
+
+/** The critical value of `\bar{x}_A - \bar{x}_B` itself: how far apart the sample means must be to reject. */
+const diffCrit: Generator<DiffScene> = {
+  id: 'hyp-diff-crit',
+  sample: (rng, difficulty) => sampleDiff(rng, { tails: difficulty > 1 ? TAILS : ['up', 'down'] }),
+  render: (sc): Slide => {
+    const ask = sc.tail === 'up' ? 'the smallest value' : sc.tail === 'down' ? 'the largest value' : 'the upper critical value';
+    return {
+      kind: 'expression',
+      prompt: [
+        say(`${diffIntro(sc)} ${diffSuspicion(sc)} The test is at the ${sc.level}% level.`),
+        diffTable(sc, ['sigma', 'n']),
+        say(`Find ${ask} of $\\bar{x}_A - \\bar{x}_B$ that would lead to rejecting $H_0$, in ${DIFF_CONTEXTS[sc.ctx].unit}.`),
+      ],
+      lead: '\\bar{x}_A - \\bar{x}_B =',
+      keypad: [],
+      answer: fmt((sc.tail === 'down' ? -1 : 1) * critical(sc.level, sc.tail) * diffSe(sc)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (sc) => {
+    const c = critical(sc.level, sc.tail);
+    const sign = sc.tail === 'down' ? '-' : '';
+    return [
+      { tex: diffVarLine(sc) },
+      { tex: `\\text{sd} = \\sqrt{${sc.vA + sc.vB}} = ${diffSe(sc)}` },
+      { text: `The boundary is where $z = ${sign}${fmt(c)}$.` },
+      { tex: chain('\\bar{x}_A - \\bar{x}_B', `${sign}${fmt(c)} \\times ${diffSe(sc)}`, fmt((sc.tail === 'down' ? -1 : 1) * c * diffSe(sc))) },
+    ];
+  },
+};
+
+/* ---------------- Lessons 4 and 5: paired data ---------------- */
+
+interface PairContext {
+  who: string;
+  measure: string;
+  unit: string;
+  cause: string;
+  /** The range the "before" values are drawn from. */
+  lo: number;
+  hi: number;
+  /** The largest change in one pair. */
+  dMax: number;
+}
+
+const PAIR_CONTEXTS: PairContext[] = [
+  { who: 'runners', measure: 'time to run 400 m', unit: 'seconds', cause: 'the training programme', lo: 55, hi: 75, dMax: 6 },
+  { who: 'pupils', measure: 'mark on a test', unit: 'marks', cause: 'the revision course', lo: 35, hi: 80, dMax: 10 },
+  { who: 'patients', measure: 'blood pressure', unit: 'mmHg', cause: 'the new drug', lo: 120, hi: 165, dMax: 15 },
+  { who: 'workers', measure: 'number of items made in an hour', unit: 'items', cause: 'the new layout', lo: 30, hi: 60, dMax: 8 },
+  { who: 'drivers', measure: 'reaction time', unit: 'ms', cause: 'coffee', lo: 200, hi: 300, dMax: 30 },
+  { who: 'swimmers', measure: 'time to swim 100 m', unit: 'seconds', cause: 'the new technique', lo: 60, hi: 90, dMax: 6 },
+  { who: 'adults', measure: 'resting heart rate', unit: 'beats per minute', cause: 'the exercise plan', lo: 60, hi: 90, dMax: 10 },
+];
+
+const capital = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
+
+/** How d is taken: after minus before, or the other way round. */
+const pairDef = (flip: boolean): string => (flip ? 'd = \\text{before} - \\text{after}' : 'd = \\text{after} - \\text{before}');
+
+const EFFECT_VERB: Record<Tail, string> = { up: 'raises', down: 'lowers', two: 'changes' };
+
+/** What the suspicion says, in the scenario's words. */
+const pairEffect = ({ ctx, effect }: { ctx: number; effect: Tail }): string => {
+  const c = PAIR_CONTEXTS[ctx];
+  return `${c.cause} ${EFFECT_VERB[effect]} the mean ${c.measure}`;
+};
+
+/** The sign in `H_1: \mu_d ? 0`: the effect's, turned over when d is before minus after. */
+const pairTail = ({ effect, flip }: { effect: Tail; flip: boolean }): Tail =>
+  effect === 'two' ? 'two' : flip ? (effect === 'up' ? 'down' : 'up') : effect;
+
+const pairWho = ({ ctx }: { ctx: number }): string => {
+  const c = PAIR_CONTEXTS[ctx];
+  return `${capital(c.who)} each have their ${c.measure} measured before and after ${c.cause}, in ${c.unit}.`;
+};
+
+/**
+ * A test on paired differences: `\sigma_d / \sqrt{n}` is whole and `\bar{d}`
+ * is drawn to one place, so z has at most two.
+ */
+interface PairScene {
+  ctx: number;
+  /** The number of pairs, a square. */
+  n: number;
+  /** `\sigma_d / \sqrt{n}`, whole. */
+  se: number;
+  /** z in hundredths. */
+  zh: number;
+  /** What the suspicion says the cause does: raise, lower or change. */
+  effect: Tail;
+  /** d is before minus after, rather than after minus before. */
+  flip: boolean;
+  level: number;
+}
+
+const PAIR_NS = [9, 16, 25, 36, 49, 64, 100];
+
+const sigmaD = ({ se, n }: Pick<PairScene, 'se' | 'n'>): number => se * Math.round(Math.sqrt(n));
+const pairZ = ({ zh }: Pick<PairScene, 'zh'>): number => zh / 100;
+const dbarOf = (p: PairScene): number => Math.round((p.zh * p.se) / 10) / 10;
+const pairIn = (p: PairScene): boolean => zInRegion(pairZ(p), p.level, pairTail(p));
+
+interface PairOptions {
+  effects?: Tail[];
+  flips?: boolean[];
+  zLo?: number;
+  zHi?: number;
+}
+
+function samplePair(rng: Rng, { effects = TAILS, flips = [false], zLo = 30, zHi = 320 }: PairOptions = {}): PairScene {
+  for (;;) {
+    const ctx = rng.int(0, PAIR_CONTEXTS.length - 1);
+    const n = rng.pick(PAIR_NS);
+    const se = rng.int(1, 6);
+    // A spread of the differences the scenario could have.
+    if (se * Math.sqrt(n) > PAIR_CONTEXTS[ctx].dMax * 3) continue;
+    const effect = rng.pick(effects);
+    const flip = rng.pick(flips);
+    const tail = pairTail({ effect, flip });
+    const size = rng.int(zLo, zHi);
+    if ((size * se) % 10 !== 0) continue;
+    const sign = tail === 'up' ? 1 : tail === 'down' ? -1 : rng.sign();
+    const level = tail === 'two' ? rng.pick([1, 5, 10]) : rng.pick([1, 5]);
+    const p: PairScene = { ctx, n, se, zh: sign * size, effect, flip, level };
+    if (Math.abs(Math.abs(pairZ(p)) - critical(level, tail)) < 0.05) continue;
+    return p;
+  }
+}
+
+const pairIntro = (p: PairScene): string => {
+  const c = PAIR_CONTEXTS[p.ctx];
+  return `Each of $${p.n}$ ${c.who} has their ${c.measure} measured before and after ${c.cause}, in ${c.unit}.`;
+};
+
+/** The definition of d and the summary of the differences, stacked as separate results. */
+const pairData = (p: PairScene): Block => show(`${pairDef(p.flip)} \\qquad \\bar{d} = ${fmt(dbarOf(p))} \\qquad \\sigma_d = ${sigmaD(p)}`);
+
+const pairZLines = (p: PairScene): SolutionStep[] => [
+  { tex: `\\frac{\\sigma_d}{\\sqrt{n}} = \\frac{${sigmaD(p)}}{\\sqrt{${p.n}}} = ${p.se}` },
+  { tex: `z = \\frac{${fmt(dbarOf(p))}}{${p.se}} = ${fmt(pairZ(p))}` },
+];
+
+interface PairTableParams {
+  ctx: number;
+  before: number[];
+  /** Each pair's d, taken the way `flip` says. */
+  d: number[];
+  flip: boolean;
+}
+
+const afterOf = ({ before, d, flip }: PairTableParams): number[] => before.map((b, i) => (flip ? b - d[i] : b + d[i]));
+
+function samplePairTable(rng: Rng, sizes: number[], flips: boolean[], meanDp?: number): PairTableParams {
+  for (;;) {
+    const ctx = rng.int(0, PAIR_CONTEXTS.length - 1);
+    const c = PAIR_CONTEXTS[ctx];
+    const n = rng.pick(sizes);
+    const before = Array.from({ length: n }, () => rng.int(c.lo, c.hi));
+    const d = Array.from({ length: n }, () => rng.int(-c.dMax, c.dMax));
+    if (new Set(d).size < 3) continue;
+    const sum = d.reduce((s, v) => s + v, 0);
+    if (meanDp !== undefined && (sum === 0 || !terminates(sum / n, meanDp))) continue;
+    return { ctx, before, d, flip: rng.pick(flips) };
+  }
+}
+
+/** Each pair's difference, written into the column beside the pair. */
+const pairedDiffTable: Generator<PairTableParams> = {
+  id: 'hyp-paired-diff-table',
+  sample: (rng, difficulty) => samplePairTable(rng, difficulty > 1 ? [5] : [4, 5], difficulty > 1 ? [false, true] : [false]),
+  render: (p): Slide => {
+    const after = afterOf(p);
+    const answer = p.d.map(String);
+    const slips = [...p.d.map((v) => -v), ...p.d.map((v) => v + 1), ...p.d.map((v) => v - 1)].map(String);
+    return {
+      kind: 'table',
+      prompt: [say(pairWho(p)), show(pairDef(p.flip)), say('Fill in $d$ for each pair.')],
+      columns: ['\\text{before}', '\\text{after}', 'd'],
+      rows: p.before.map((b, i) => [String(b), String(after[i]), null]),
+      bank: decimalBank(answer, slips, 3),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const after = afterOf(p);
+    return [
+      { tex: pairDef(p.flip) },
+      {
+        tex: aligned(
+          p.before.map((b, i) => (p.flip ? `${b} - ${after[i]} &= ${p.d[i]}` : `${after[i]} - ${b} &= ${p.d[i]}`)),
+        ),
+      },
+    ];
+  },
+};
+
+interface PairMeanParams extends PairTableParams {
+  /** Difficulty 1 shows the d column. */
+  given: boolean;
+}
+
+/** The mean difference from a table of pairs. */
+const pairedMean: Generator<PairMeanParams> = {
+  id: 'hyp-paired-mean',
+  sample: (rng, difficulty) => ({
+    ...samplePairTable(rng, difficulty > 1 ? [5, 6] : [4, 5], difficulty > 1 ? [false, true] : [false], 2),
+    given: difficulty < 2,
+  }),
+  render: (p): Slide => {
+    const after = afterOf(p);
+    const rows = p.before.map((b, i) => [String(b), String(after[i]), ...(p.given ? [String(p.d[i])] : [])].join(' & '));
+    const sum = p.d.reduce((s, v) => s + v, 0);
+    return {
+      kind: 'expression',
+      prompt: [
+        say(pairWho(p)),
+        show(
+          `\\begin{array}{c|c${p.given ? '|c' : ''}} \\text{before} & \\text{after}${p.given ? ' & d' : ''} \\\\ \\hline ${rows.join(' \\\\ ')} \\end{array}`,
+        ),
+        show(pairDef(p.flip)),
+        say('Find $\\bar{d}$, the mean difference.'),
+      ],
+      lead: '\\bar{d} =',
+      keypad: [],
+      answer: fmt(sum / p.d.length),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (p) => {
+    const sum = p.d.reduce((s, v) => s + v, 0);
+    const n = p.d.length;
+    // The wrong way round, never divided, and divided by one too few.
+    return numberOptions(sum / n, [-sum / n, sum, sum / (n - 1)]);
+  },
+  solution: (p) => {
+    const sum = p.d.reduce((s, v) => s + v, 0);
+    const terms = p.d.map((v, i) => (i === 0 ? fmt(v) : v < 0 ? `- ${fmt(-v)}` : `+ ${fmt(v)}`)).join(' ');
+    return [
+      { tex: pairDef(p.flip) },
+      { tex: chain('\\bar{d}', `\\frac{${terms}}{${p.d.length}}`, `\\frac{${sum}}{${p.d.length}} = ${fmt(sum / p.d.length)}`) },
+    ];
+  },
+};
+
+interface Design {
+  text: string;
+  paired: boolean;
+}
+
+/** Studies to sort: matched values, or two separate groups. */
+const DESIGNS: Design[] = [
+  { text: 'Twenty runners are each timed before and after a training programme.', paired: true },
+  { text: 'Twelve pupils each sit a test before and after a revision course.', paired: true },
+  { text: 'Fifteen patients each have their blood pressure taken before and after a new drug.', paired: true },
+  { text: 'Ten plots of land are each split in half: one half gets fertiliser A, the other fertiliser B.', paired: true },
+  { text: 'In each of eight pairs of identical twins, one twin tries diet A and the other diet B.', paired: true },
+  { text: 'Thirty drivers each have their reaction time measured with and without a cup of coffee.', paired: true },
+  { text: 'Twelve cars each run for a week on fuel A and for a week on fuel B.', paired: true },
+  { text: 'Twenty shoppers each rate two brands of cola in a blind tasting.', paired: true },
+  { text: 'Twenty-five people each have the grip strength of their left and right hands tested.', paired: true },
+  { text: 'Eighteen workers each work an hour with the old layout and an hour with the new one.', paired: true },
+  { text: 'Two judges each score the same fifteen ice skaters.', paired: true },
+  { text: 'The noon temperature at fourteen weather stations is recorded on two days.', paired: true },
+  { text: 'Sixteen athletes each run 100 m in old shoes and then in new shoes.', paired: true },
+  { text: 'Ten machines are each run on oil A one week and on oil B the next.', paired: true },
+  { text: 'Nine students each estimate a length before and after a demonstration.', paired: true },
+  { text: 'Twenty runners from club A and twenty from club B are each timed over 400 m.', paired: false },
+  { text: 'A test is sat by 30 pupils at school A and 25 pupils at school B.', paired: false },
+  { text: 'Fifteen patients get a new drug and a different fifteen get the old one.', paired: false },
+  { text: 'Sixteen bags from machine A and sixteen from machine B are weighed.', paired: false },
+  { text: 'Ten plots get fertiliser A and ten other plots get fertiliser B.', paired: false },
+  { text: 'The reaction times of 40 drivers under 25 and 40 drivers over 60 are measured.', paired: false },
+  { text: 'Twelve seedlings grown in compost A and fifteen grown in compost B are measured.', paired: false },
+  { text: 'Twenty batteries of brand A and twenty of brand B are run until they fail.', paired: false },
+  { text: 'Delivery times from branch A and from branch B are recorded for 25 orders each.', paired: false },
+  { text: 'Two separate groups of 18 shoppers each rate one brand of cola.', paired: false },
+  { text: 'Thirty bolts from factory A and thirty from factory B are measured.', paired: false },
+  { text: 'The heights of 20 men and 20 women are recorded.', paired: false },
+  { text: 'One class is taught by method A and another by method B, and both sit the same test.', paired: false },
+  { text: 'Eggs from 15 hens fed diet A and from 15 other hens fed diet B are weighed.', paired: false },
+  { text: 'Commuting times are recorded for 20 people who drive and 20 who cycle.', paired: false },
+];
+
+const DESIGN_PAIRED = 'Paired: each value in one sample is matched with one in the other.';
+const DESIGN_INDEPENDENT = 'Independent: the two samples are separate groups.';
+
+/** Paired or independent, with the reason. */
+const pairedDesignChoice: Generator<{ design: number }> = {
+  id: 'hyp-paired-design-choice',
+  sample: (rng) => ({ design: rng.int(0, DESIGNS.length - 1) }),
+  render: ({ design }): Slide => {
+    const { text, paired } = DESIGNS[design];
+    return keyedChoice(
+      [say(text), say('Are the two samples paired or independent?')],
+      [
+        { tex: DESIGN_PAIRED, correct: paired },
+        { tex: DESIGN_INDEPENDENT, correct: !paired },
+        { tex: 'Paired: the two samples are the same size.' },
+        { tex: 'Independent: the two samples give different values.' },
+      ],
+      text,
+      false,
+    );
+  },
+  solution: ({ design }) => [
+    {
+      text: DESIGNS[design].paired
+        ? 'Each value in one sample belongs with one value in the other, so the data is paired: work with the difference in each pair.'
+        : 'Nothing links a value in one sample to a value in the other, so the samples are independent.',
+    },
+    { text: 'Equal sample sizes, or different values, say nothing either way.' },
+  ],
+};
+
+/** Paired or not decides the test: the mean difference, or the difference of two means. */
+const pairedMethodFlow: Generator<{ design: number }> = {
+  id: 'hyp-paired-method-flow',
+  sample: (rng) => ({ design: rng.int(0, DESIGNS.length - 1) }),
+  render: ({ design }): Slide => {
+    const { text, paired } = DESIGNS[design];
+    const differences = 'The differences';
+    const means = 'The two sample means';
+    return {
+      kind: 'flow',
+      prompt: [say(text), say('Choose the test.')],
+      subject: '\\text{paired or independent?}',
+      steps: [
+        {
+          id: 'match',
+          ask: 'Is each value in one sample matched with one value in the other?',
+          branches: spun(
+            [
+              { label: 'Yes', to: 'paired' },
+              { label: 'No', to: 'independent' },
+            ],
+            text,
+          ),
+        },
+        {
+          id: 'paired',
+          ask: 'So what does the test work with?',
+          branches: spun(
+            [
+              { label: differences, outcome: 'Right: one sample of differences $d$, testing $H_0: \\mu_d = 0$ with $\\bar{d}$.' },
+              { label: means, outcome: 'Not this: matched values are not independent, so take the difference in each pair.' },
+            ],
+            `${text}|p`,
+          ),
+        },
+        {
+          id: 'independent',
+          ask: 'So what does the test work with?',
+          branches: spun(
+            [
+              { label: means, outcome: 'Right: test $H_0: \\mu_A = \\mu_B$ with $\\bar{x}_A - \\bar{x}_B$.' },
+              { label: differences, outcome: 'Not this: with no pairs there is no difference to take for each one.' },
+            ],
+            `${text}|i`,
+          ),
+        },
+      ],
+      answer: paired ? ['Yes', differences] : ['No', means],
+    };
+  },
+  solution: ({ design }) =>
+    DESIGNS[design].paired
+      ? [{ text: 'The values are matched in pairs, so test the mean difference:' }, { tex: 'H_0: \\mu_d = 0' }]
+      : [{ text: 'Two separate groups, so compare the two means:' }, { tex: 'H_0: \\mu_A = \\mu_B' }],
+};
+
+/** z for the mean difference: difficulty 1 with d after minus before, difficulty 2 either way round. */
+const pairedZ: Generator<PairScene> = {
+  id: 'hyp-paired-z',
+  sample: (rng, difficulty) =>
+    samplePair(rng, difficulty > 1 ? { flips: [false, true] } : { effects: ['up', 'down'] }),
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [say(pairIntro(p)), pairData(p), say('Find the test statistic $z$ for $H_0: \\mu_d = 0$.')],
+    lead: 'z =',
+    keypad: [],
+    answer: fmt(pairZ(p)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  choices: (p) => {
+    const dbar = dbarOf(p);
+    // The wrong way round, over sigma_d without the root of n, over the variance, and over sigma_d / n.
+    return numberOptions(pairZ(p), [-pairZ(p), dbar / sigmaD(p), dbar / (p.se * p.se), (dbar * p.n) / sigmaD(p)]);
+  },
+  solution: (p) => [{ text: `A test of one mean: $\\bar{d}$ over its standard deviation, with $n = ${p.n}$ pairs.` }, ...pairZLines(p)],
+};
+
+/** The paired statistic as a tree: the mean difference from the total, the standard deviation, then z. */
+const pairedStatTree: Generator<PairScene> = {
+  id: 'hyp-paired-stat-tree',
+  sample: (rng, difficulty) =>
+    samplePair(rng, difficulty > 1 ? { flips: [false, true] } : { effects: ['up', 'down'] }),
+  render: (p): Slide => {
+    const dbar = dbarOf(p);
+    const total = Math.round(dbar * p.n * 10) / 10;
+    const z = pairZ(p);
+    const answer = [fmt(dbar), String(p.se), fmt(z)];
+    const slips = [-dbar, total / (p.n - 1), sigmaD(p) / p.n, sigmaD(p), -z, dbar / sigmaD(p), z * 2].filter((v) => terminates(v, 3));
+    return {
+      kind: 'tree',
+      prompt: [
+        say(pairIntro(p)),
+        show(`${pairDef(p.flip)} \\qquad \\textstyle\\sum d = ${fmt(total)} \\qquad \\sigma_d = ${sigmaD(p)}`),
+        say('Top row: $\\bar{d}$, then $\\frac{\\sigma_d}{\\sqrt{n}}$. Underneath, $z$.'),
+      ],
+      expression: 'z = \\frac{\\bar{d}}{\\sigma_d / \\sqrt{n}}',
+      nodes: [
+        { id: 'd', from: [] },
+        { id: 's', from: [] },
+        { id: 'z', from: ['d', 's'] },
+      ],
+      bank: decimalBank(answer, slips.map(fmt), 3),
+      answer,
+    };
+  },
+  solution: (p) => [{ tex: `\\bar{d} = \\frac{${fmt(Math.round(dbarOf(p) * p.n * 10) / 10)}}{${p.n}} = ${fmt(dbarOf(p))}` }, ...pairZLines(p)],
+};
+
+interface PairHypParams {
+  ctx: number;
+  effect: Tail;
+  flip: boolean;
+  level: number;
+}
+
+/** `H_1: \mu_d ? 0` from the suspicion and the way round d is, with its critical region. */
+const pairedH1Tiles: Generator<PairHypParams> = {
+  id: 'hyp-paired-h1-tiles',
+  sample: (rng, difficulty) => {
+    const effect = rng.pick(TAILS);
+    return {
+      ctx: rng.int(0, PAIR_CONTEXTS.length - 1),
+      effect,
+      flip: difficulty > 1 && rng.chance(0.5),
+      level: effect === 'two' ? rng.pick([1, 5, 10]) : rng.pick([1, 5]),
+    };
+  },
+  render: (p): Slide => {
+    const tail = pairTail(p);
+    const answer = [OP[tail], zRegionTex(p.level, tail)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(`${pairWho(p)} A researcher suspects ${pairEffect(p)}.`),
+        show(pairDef(p.flip)),
+        say(`The test of $H_0: \\mu_d = 0$ is at the ${p.level}% level. Complete $H_1$ and the critical region.`),
+      ],
+      template: 'H_1: \\mu_d {0} 0, \\quad {1}',
+      bank: tokenBank(answer, [...TAILS.map((t) => OP[t]), ...wrongRegions(p.level, tail)], 4),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const tail = pairTail(p);
+    return [
+      {
+        text:
+          p.effect === 'two'
+            ? 'The suspicion names no direction, so the test is two-tailed.'
+            : `If ${p.effect === 'up' ? 'the values rise' : 'the values fall'}, after minus before is ${p.effect === 'up' ? 'positive' : 'negative'}${p.flip ? ', so before minus after is the opposite sign' : ''}.`,
+      },
+      { tex: `H_1: \\mu_d ${OP[tail]} 0` },
+      { tex: zRegionTex(p.level, tail) },
+    ];
+  },
+};
+
+interface PairDecideParams extends PairScene {
+  /** Difficulty 2 gives the differences and leaves z to the learner. */
+  hard: boolean;
+}
+
+const pairVerdict = (p: PairScene, reject: boolean): string => verdict(pairEffect(p), p.level, reject);
+
+/** The critical region, then whether z is in it; each end is the conclusion in context. */
+const pairedDecisionFlow: Generator<PairDecideParams> = {
+  id: 'hyp-paired-decision-flow',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const p = samplePair(rng, { flips: difficulty > 1 ? [false, true] : [false], zLo: 30, zHi: 300 });
+      if (rng.chance(0.5) !== pairIn(p)) continue;
+      return { ...p, hard: difficulty > 1 };
+    }
+  },
+  render: (p): Slide => {
+    const tail = pairTail(p);
+    const key = `${p.ctx}|${p.n}|${p.zh}|${p.level}|${p.effect}|${p.flip}`;
+    const right = zRegionTex(p.level, tail);
+    const branches = [
+      { label: `$${right}$`, to: 'in' },
+      ...wrongRegions(p.level, tail).map((tex) => ({
+        label: `$${tex}$`,
+        outcome:
+          tail === 'two'
+            ? 'Not this region: $H_1$ names no direction, so both tails count.'
+            : tex.startsWith('|')
+              ? 'Not this region: that is a two-tailed test, and $H_1$ names a direction.'
+              : 'Not this region: it is the wrong tail for $H_1$.',
+      })),
+    ];
+    return {
+      kind: 'flow',
+      prompt: [
+        say(`${pairIntro(p)} A researcher suspects ${pairEffect(p)}. The test is at the ${p.level}% level.`),
+        p.hard ? pairData(p) : show(`${pairDef(p.flip)} \\qquad z = ${fmt(pairZ(p))}`),
+      ],
+      subject: `H_1: \\mu_d ${OP[tail]} 0`,
+      steps: [
+        { id: 'region', ask: 'Which is the critical region?', branches: spun(branches, key) },
+        {
+          id: 'in',
+          ask: p.hard ? 'Work out $z$. Is it in the critical region?' : `Is $z = ${fmt(pairZ(p))}$ in the critical region?`,
+          branches: spun(
+            [
+              { label: 'Yes', outcome: pairVerdict(p, true) },
+              { label: 'No', outcome: pairVerdict(p, false) },
+            ],
+            `${key}|in`,
+          ),
+        },
+      ],
+      answer: [`$${right}$`, pairIn(p) ? 'Yes' : 'No'],
+    };
+  },
+  solution: (p) => [
+    ...(p.hard ? pairZLines(p) : []),
+    { tex: `\\text{critical region: } ${zRegionTex(p.level, pairTail(p))}` },
+    { text: pairVerdict(p, pairIn(p)) },
+  ],
+};
+
 export const hypothesisTestingGenerators = [
   claimFlow,
   hypothesesTiles,
@@ -5540,4 +6701,24 @@ export const hypothesisTestingGenerators = [
   rhoShiftFlow,
   rhoWhichRejects,
   rhoCauseChoice,
+  diffModelTiles,
+  diffVar,
+  diffRuleFlow,
+  diffSpreadTree,
+  diffZStat,
+  diffZTiles,
+  diffStatTree,
+  diffZSlider,
+  diffHypTiles,
+  diffDecisionFlow,
+  diffConclusionChoice,
+  diffCrit,
+  pairedDiffTable,
+  pairedMean,
+  pairedDesignChoice,
+  pairedMethodFlow,
+  pairedZ,
+  pairedStatTree,
+  pairedH1Tiles,
+  pairedDecisionFlow,
 ] as Generator<never>[];

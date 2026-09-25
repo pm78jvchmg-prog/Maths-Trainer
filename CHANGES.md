@@ -16,6 +16,10 @@ its pull request; the PR description holds the evidence.
   value, so only an added constant is forgiven (`2C` and `ln(C)` still pass).
   A typed `2e-1` was read as 0.2; a digit before `e` is now read as a product,
   so it is 2e − 1.
+- **Going back onto a slide finished with Show me no longer asks for it again
+  (#194).** It comes back showing the answer it showed, and Continue moves
+  on. A slide solved (first try or after a wrong answer) still comes back idle
+  with Continue beside Check. `canPassSolved` is now `canPassFinished`.
 - **Two grading bugs fixed (this PR).** `vec-parallel` could offer two
   parallel options, marking a correct pick wrong (~10% of draws). A negative
   base was shown unbracketed (`-1^{4}`) while the answer meant `(-1)^{4}`, in

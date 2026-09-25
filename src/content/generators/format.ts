@@ -34,9 +34,13 @@ export function complexAnswer(a: number, b: number): string {
   return `(${a}) + (${b})*i`;
 }
 
-/** Wraps a complex number in brackets when it needs them, e.g. before a power. */
+/**
+ * Wraps a complex number in brackets when it needs them, e.g. before a power.
+ * A negative real needs them as much as a + bi does: `-1^{4}` is minus one,
+ * and the fourth power of -1 is `(-1)^{4}`.
+ */
 export function bracketedTex(a: number, b: number): string {
-  return b === 0 ? `${a}` : `(${complexTex(a, b)})`;
+  return b === 0 && a >= 0 ? `${a}` : `(${complexTex(a, b)})`;
 }
 
 /**

@@ -1096,7 +1096,7 @@ const chooseMethod: Generator<MethodParams> = {
         {
           text: `Look for two whole numbers multiplying to $${c}$ and adding to $${b}$. They exist here, so the brackets can be written down directly.`,
         },
-        { tex: `b^{2} - 4ac = ${b}^{2} - 4 \\times ${c} = ${disc}` },
+        { tex: `b^{2} - 4ac = ${b < 0 ? `\\left(${b}\\right)` : b}^{2} - 4 \\times ${c} = ${disc}` },
         {
           text: `The discriminant is $${disc}$, a perfect square, which is exactly the condition for whole-number factors to exist. Spotting them by eye is quicker, but this is the check when they will not come.`,
         },
@@ -1106,7 +1106,7 @@ const chooseMethod: Generator<MethodParams> = {
       {
         text: `No pair of whole numbers multiplies to $${c}$ and adds to $${b}$, so the brackets will not come out by inspection.`,
       },
-      { tex: `b^{2} - 4ac = ${b}^{2} - 4 \\times ${c} = ${disc}` },
+      { tex: `b^{2} - 4ac = ${b < 0 ? `\\left(${b}\\right)` : b}^{2} - 4 \\times ${c} = ${disc}` },
       {
         text: `The discriminant is $${disc}$ — positive, so there are two real roots, but not a perfect square, so they are irrational. That is precisely the case the formula exists for.`,
       },

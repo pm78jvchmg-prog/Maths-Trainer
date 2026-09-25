@@ -2,7 +2,7 @@
  * Complex Numbers, Level 2: multiplication, conjugates and division.
  */
 import type { Generator, KeypadKey } from '../types';
-import { I_KEY, coeffTex, complexTex, complexAnswer, gcd, mulComplex, nonZero } from './format';
+import { I_KEY, bracketedTex, coeffTex, complexTex, complexAnswer, gcd, mulComplex, nonZero } from './format';
 import { options } from '../choiceVariant';
 
 /** Division answers are fractions, so the learner needs a divide key. */
@@ -120,7 +120,7 @@ export const complexConjugate: Generator<ConjParams> = {
       ? [
           {
             text: 'Multiplying by the conjugate is a difference of two squares.',
-            tex: `(${complexTex(a, b)})(${complexTex(a, -b)}) = ${a}^2 - (${coeffTex(b)})^2`,
+            tex: `(${complexTex(a, b)})(${complexTex(a, -b)}) = ${bracketedTex(a, 0)}^2 - (${coeffTex(b)})^2`,
           },
           {
             text: 'Since $i^2 = -1$, that second term flips sign and the result is real.',

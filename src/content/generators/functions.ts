@@ -1117,11 +1117,17 @@ const compositeOrder: Generator<OrderParams> = {
   id: 'fun-composite-order',
   sample: (rng, difficulty) => {
     const hard = difficulty > 1;
+    const outer = rng.pick(hard ? (['sq', 'recip', 'root'] as const) : (['sq'] as const));
+    const c = rng.int(0, 4);
+    const p = rng.pick(hard ? [1, 2, 3, -1] : [1, 1, 2, 3]);
+    const d = rng.pick(nonZeroRange(-7, 7));
     return {
-      outer: rng.pick(hard ? (['sq', 'recip', 'root'] as const) : (['sq'] as const)),
-      c: rng.int(0, 4),
-      p: rng.pick(hard ? [1, 2, 3, -1] : [1, 1, 2, 3]),
-      d: rng.pick(nonZeroRange(-7, 7)),
+      outer,
+      c,
+      p,
+      // With f = 1/x and g = px + p, the product (1/x)(px + p) is p + p/x,
+      // which is g(f(x)): a second right answer. -d is never p when d is.
+      d: outer === 'recip' && d === p ? -d : d,
       fg: hard ? rng.chance(0.5) : rng.chance(0.7),
     };
   },

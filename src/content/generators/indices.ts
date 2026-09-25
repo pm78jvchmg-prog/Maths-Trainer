@@ -96,7 +96,8 @@ const multiplyPowers: Generator<PairParams> = {
       { tex: powerTex(a + b), answer: powerAnswer(a + b) },
       { tex: powerTex(a * b), answer: powerAnswer(a * b) },
       { tex: powerTex(a + b + 1), answer: powerAnswer(a + b + 1) },
-      { tex: `${powerTex(a + b)}${powerTex(a + b)}`, answer: powerAnswer(2 * (a + b)) },
+      // Doubled is a*b too when 2(a + b) = ab, at 3 and 6 or 4 and 4.
+      ...(2 * (a + b) === a * b ? [] : [{ tex: `${powerTex(a + b)}${powerTex(a + b)}`, answer: powerAnswer(2 * (a + b)) }]),
     ),
   sample: (rng, difficulty) => ({
     a: rng.int(2, difficulty > 1 ? 12 : 9),
@@ -4959,7 +4960,8 @@ const pythagSurd: Generator<PythagParams> = {
         right,
         { tex: `${x + y}`, answer: `${x + y}` },
         { tex: `\\sqrt{${x + y}}`, answer: `sqrt(${x + y})` },
-        ...(y !== x ? [{ tex: surdTex(y * y - x * x), answer: surdAnswer(y * y - x * x) }] : []),
+        // At y = x + 1, y^2 - x^2 is x + y: the slip before this one again.
+        ...(y !== x && y !== x + 1 ? [{ tex: surdTex(y * y - x * x), answer: surdAnswer(y * y - x * x) }] : []),
       );
     }
     if (shape === 'leg') {

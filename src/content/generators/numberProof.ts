@@ -282,6 +282,10 @@ function alwaysWhy(target: Target, { shape, c }: Pick): string {
   return `$${tex} = 2(${inner})${odd ? ' + 1' : ''}$, so it is ${target} for every $k$.`;
 }
 
+/** Whether two picks are one expression in k, checked at k = 0 to 6. */
+const sameRule = (a: Pick, b: Pick): boolean =>
+  [0, 1, 2, 3, 4, 5, 6].every((k) => SHAPES[a.shape].f(k, a.c) === SHAPES[b.shape].f(k, b.c));
+
 const prfAlways: Generator<AlwaysParams> = {
   id: 'prf-always',
   sample(rng, difficulty) {
@@ -298,6 +302,9 @@ const prfAlways: Generator<AlwaysParams> = {
         const tex = pickTex(pick);
         if (always(target, pick)) continue;
         if (tex === pickTex(correct) || distractors.some((d) => pickTex(d) === tex)) continue;
+        // Two shapes can write one expression, 2(k + 1) and 2k + 2: offering
+        // both hands the learner a free elimination.
+        if (distractors.some((d) => sameRule(d, pick))) continue;
         distractors.push(pick);
       }
       if (distractors.length === 3) return { target, correct, distractors };

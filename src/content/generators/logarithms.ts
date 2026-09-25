@@ -563,7 +563,8 @@ const solveExponential: Generator<ExponentialParams> = {
       { tex: `\\frac{\\ln\\left(${target}\\right)}{\\ln\\left(${base}\\right)}`, answer: `log(${target}) / log(${base})` },
       { tex: `\\frac{\\ln\\left(${base}\\right)}{\\ln\\left(${target}\\right)}`, answer: `log(${base}) / log(${target})` },
       { tex: `\\ln\\left(\\frac{${target}}{${base}}\\right)`, answer: `log(${target} / ${base})` },
-      { tex: `\\ln\\left(${target}\\right) - \\ln\\left(${base}\\right)`, answer: `log(${target}) - log(${base})` },
+      // Not ln(target) - ln(base): that is the slip above written another way.
+      { tex: `\\frac{\\ln\\left(${target}\\right)}{${base}}`, answer: `log(${target}) / ${base}` },
     ),
   sample: (rng, difficulty) => {
     for (let tries = 0; tries < 40; tries += 1) {

@@ -5,6 +5,13 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-25
 
+- **Wrong options are now checked by value (this PR).** The sweep reads every
+  choice option's label as a value and fails when a wrong option equals the
+  right one or another wrong one. It found four questions with a second right
+  answer (`mat-det-property` at a determinant of 1 or -1, `frac-lcd`,
+  `fun-composite-order`, and `bin-sum-which` at `a + k = -2`) and eleven with
+  two wrong options worth the same; all fixed. Eleven form questions are
+  exempt, each with its reason.
 - **Two grading bugs fixed (this PR).** `vec-parallel` could offer two
   parallel options, marking a correct pick wrong (~10% of draws). A negative
   base was shown unbracketed (`-1^{4}`) while the answer meant `(-1)^{4}`, in

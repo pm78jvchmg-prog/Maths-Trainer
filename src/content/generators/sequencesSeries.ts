@@ -28,7 +28,7 @@ import type { Block, ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } f
 import { bin, num, pow, valueOf, type Expr } from '../expr';
 import { markerWindow, plotSvg } from '../figures';
 import { sumTex, termTex } from './calculus';
-import { fracTex, gcdOrOne } from './format';
+import { coeffTex, fracTex, gcdOrOne } from './format';
 import { lin, orderSlide, orderSolution, pickDistractors, polyTex as kPoly, type Distractor, type Proof } from './numberProof';
 
 /* ---------- shared ---------- */
@@ -620,7 +620,7 @@ const apTree: Generator<ApTreeParams> = {
   solution: ({ a, d, p, q, k }) => [
     { text: `From $u_{${p}}$ to $u_{${q}}$ is $${q - p}$ steps of $d$.` },
     { tex: chain(`${q - p}d &= ${ap(a, d, q)} - ${br(ap(a, d, p))} = ${(q - p) * d}`, `d &= ${d}`) },
-    { text: `$u_{${p}} = a + ${p - 1}d$, so step back from $u_{${p}}$.` },
+    { text: `$u_{${p}} = a + ${coeffTex(p - 1, 'd')}$, so step back from $u_{${p}}$.` },
     { tex: `a = ${ap(a, d, p)} - ${p - 1} \\times ${br(d)} = ${a}` },
     ...(k ? [{ tex: chain(`u_{${k}} &= ${a} + ${k - 1} \\times ${br(d)}`, `&= ${ap(a, d, k)}`) }] : []),
   ],
@@ -5062,7 +5062,8 @@ const splitTiles: Generator<SplitTilesParams> = {
   render: (params): Slide => {
     const { form, a, b } = params;
     const [x2, x1, x0] = splitCoefficients(params);
-    const per = (value: number) => `${token(value)}n`;
+    // Signed like `token`, as a term is written: +3n, but +n, -n, and +0 rather than +1n, -1n, +0n.
+    const per = (value: number) => (value === 0 ? token(0) : `${value < 0 ? '-' : '+'}${coeffTex(Math.abs(value), 'n')}`);
     let template: string;
     let answer: string[];
     let slips: string[];
@@ -5107,7 +5108,7 @@ const splitTiles: Generator<SplitTilesParams> = {
     const parts = sumTex([
       x2 === 0 ? '0' : `${x2 === 1 ? '' : x2}\\sum r^2`,
       x1 === 0 ? '0' : `${x1 === 1 ? '' : x1 === -1 ? '-' : x1}\\sum r`,
-      x0 === 0 ? '0' : `${x0}n`,
+      x0 === 0 ? '0' : coeffTex(x0, 'n'),
     ]);
     return [
       ...(params.form === 'pq' || params.form === 'square' ? [{ tex: `${splitTermTex(params)} = ${expanded}` }] : []),

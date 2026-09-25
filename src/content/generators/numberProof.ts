@@ -32,7 +32,7 @@ import { orderBank } from './proofOrder';
 import { canonicalPieces, formatSet, type Piece } from '../numberLine';
 import { windowFor } from './numberLine';
 import { stepBank, treeBank } from './parametricImplicit';
-import { gcd, say } from './format';
+import { coeffTex, gcd, say } from './format';
 
 /* ---------- shared helpers ---------- */
 
@@ -503,7 +503,9 @@ const prfParityFlow: Generator<ParityFlowParams> = {
     const expr = flowExpr(params);
     const coefs = flowExpanded(params);
     const s = coefs[coefs.length - 1];
-    const inside = [...coefs.slice(0, -1).map((c, i) => termTex(c / 2, coefs.length - 1 - i)), String(Math.floor(s / 2))];
+    const half = Math.floor(s / 2);
+    // A constant of 1 leaves nothing inside the bracket but the k terms: 2(2k) + 1, not 2(2k + 0) + 1.
+    const inside = [...coefs.slice(0, -1).map((c, i) => termTex(c / 2, coefs.length - 1 - i)), ...(half === 0 ? [] : [String(half)])];
     return [
       { text: `$n$ is ${params.r ? 'odd' : 'even'}, so start from $n = ${lin(2, params.r)}$.` },
       { tex: stackTex(`${expr} = ${polyTex(coefs)}`) },
@@ -1932,14 +1934,14 @@ function missingProof(params: MissingParams): MissingProof {
             lines,
             template: `(n + ${a})^2 = {0} + {1} + {2}`,
             answer: ['n^2', `${2 * a}n`, String(a * a)],
-            distractors: [`${a}n`, String(2 * a), `${a * a}n`, String(a * a + 1)],
+            distractors: [coeffTex(a, 'n'), String(2 * a), coeffTex(a * a, 'n'), String(a * a + 1)],
           }
         : {
             claim,
             lines,
             template: `(n - ${a})^2 = {0} - {1} + {2}`,
             answer: ['n^2', `${2 * a}n`, String(a * a)],
-            distractors: [`${a}n`, String(2 * a), `${a * a}n`, String(a * a + 1)],
+            distractors: [coeffTex(a, 'n'), String(2 * a), coeffTex(a * a, 'n'), String(a * a + 1)],
           };
     }
   }

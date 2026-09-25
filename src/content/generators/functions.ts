@@ -6264,10 +6264,11 @@ function ratioTex(top: number, bottom: number): string {
   return m === 1 ? `${n}` : `\\tfrac{${n}}{${m}}`;
 }
 
-/** A number in front times a factor, as it would sit in front of the sine. */
+/** A number in front times a factor, as it would sit in front of the sine: nothing when it comes to 1. */
 function scaledFront(a: number, factor: number): string {
   const [top, bottom] = Number.isInteger(factor) ? [a * factor, 1] : [a, Math.round(1 / factor)];
-  return ratioTex(top, bottom);
+  const front = ratioTex(top, bottom);
+  return front === '1' ? '' : front;
 }
 
 /**

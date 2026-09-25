@@ -1781,7 +1781,7 @@ const polyDivideSteps: Generator<DivideParams> = {
       // One step to a line, as prose: a step written out in full is wider than a phone.
       { text: `$x^{3} ${placeTerm(p[1], 2)} - x^{2}${lin} = ${termTex(b, 2)}$` },
       { text: `$${termTex(b, 2)} ${placeTerm(p[2], 1)} - ${factor(termTex(b, 1))}${lin} = ${termTex(c, 1)}$` },
-      { text: `$${termTex(c, 1)} ${placeTerm(p[3], 0)} - ${factor(String(c))}${lin} = ${r}$` },
+      { text: `$${termTex(c, 1)} ${placeTerm(p[3], 0)} - ${c === 1 ? '' : factor(String(c))}${lin} = ${r}$` },
       {
         text: `What was taken away is the quotient, $${polyTex(q)}$, and the remainder is $${r}$.`,
       },
@@ -3692,7 +3692,8 @@ const polySketchFormTiles: Generator<SketchParams> = {
     } else {
       const monic = r * r * -s;
       steps.push({ text: `Put $x = 0$ into $a(${linTex(r)})^{2}(${linTex(s)})$ and set it equal to the $y$-intercept:` });
-      steps.push({ tex: chain(`a \\times ${productNum(-r)}^{2} \\times ${productNum(-s)} &= ${sketchIntercept(params)}`, `${monic}a &= ${sketchIntercept(params)}`, `a &= ${lead}`) });
+      // At monic = 1 the middle line is already a = ..., so it is not written twice.
+      steps.push({ tex: chain(`a \\times ${productNum(-r)}^{2} \\times ${productNum(-s)} &= ${sketchIntercept(params)}`, `${coeffTex(monic, 'a')} &= ${sketchIntercept(params)}`, ...(monic === 1 ? [] : [`a &= ${lead}`])) });
     }
     steps.push({ tex: `y = ${leadTex(lead)}(${linTex(r)})^{2}(${linTex(s)})` });
     return steps;
@@ -4172,7 +4173,7 @@ const polyFindLead: Generator<FindLeadParams> = {
     );
     return [
       { text: `Put $x = ${at}$ and $y = ${y}$ into the equation:` },
-      { tex: chain(`${y} &= a${pieces}`, `${y} &= ${m}a`, `a &= ${a}`) },
+      { tex: chain(`${y} &= a${pieces}`, `${y} &= ${coeffTex(m, 'a')}`, ...(m === 1 ? [] : [`a &= ${a}`])) },
       { text: `So $y = ${formTex(rootsForm(roots, powers, a))}$.` },
     ];
   },

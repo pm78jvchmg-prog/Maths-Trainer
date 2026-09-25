@@ -38,7 +38,7 @@ import { options } from '../choiceVariant';
 import { sumTex, termTex } from './calculus';
 import { bankOf, numberTile, offer, signedTile } from './quadratics';
 import { windowFor } from './numberLine';
-import { fracTex } from './format';
+import { coeffTex, fracTex } from './format';
 
 /* ---------- The inequality sign ---------- */
 
@@ -8936,7 +8936,7 @@ const kSolveSteps: Generator<KParams> = {
       reductions.push({
         span: [kAt, kAt + 1],
         value: tidy,
-        bank: stepBank(tidy, tidy.startsWith('-') ? tidy.slice(1) : `-${tidy}`, p.slope ? `${-c}k${p.f.pieces[p.side].q === 0 ? '' : ` ${signedTile(p.f.pieces[p.side].q)}`}` : `${p.f.pieces[p.side].m + c} + k`),
+        bank: stepBank(tidy, tidy.startsWith('-') ? tidy.slice(1) : `-${tidy}`, p.slope ? `${coeffTex(-c, 'k')}${p.f.pieces[p.side].q === 0 ? '' : ` ${signedTile(p.f.pieces[p.side].q)}`}` : p.f.pieces[p.side].m + c === 0 ? 'k' : `${p.f.pieces[p.side].m + c} + k`),
       });
     }
     reductions.push({

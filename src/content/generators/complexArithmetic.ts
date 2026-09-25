@@ -55,7 +55,7 @@ export const complexMultiply: Generator<MulParams> = {
     },
     {
       text: 'The last term carries $i^2$, which is $-1$ — that is what turns it real.',
-      tex: `${coeffTex(b)} \\cdot ${coeffTex(d)} = ${b * d}i^2 = ${-(b * d)}`,
+      tex: `${coeffTex(b)} \\cdot ${coeffTex(d)} = ${coeffTex(b * d, 'i^2')} = ${-(b * d)}`,
     },
     {
       text: 'Collect the real and imaginary parts.',
@@ -460,7 +460,8 @@ export const complexSquare: Generator<SquareParams> = {
     },
     {
       text: 'The last term carries $i^2 = -1$, so it lands in the real part with its sign turned over.',
-      tex: `${paren(coeffTex(b))}^2 = ${b * b}i^2 = ${-(b * b)}`,
+      // For b = 1 the left is already i^2: writing it again would say the same thing twice.
+      tex: `${paren(coeffTex(b))}^2 = ${b === 1 ? '' : `${coeffTex(b * b, 'i^2')} = `}${-(b * b)}`,
     },
     {
       text: 'Collect what is left.',

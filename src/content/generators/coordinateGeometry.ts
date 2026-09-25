@@ -1650,7 +1650,7 @@ const coordMeetY: Generator<MeetPointParams> = {
       {
         tex: chain(
           `${termOf(q(a))} ${b < 0 ? '-' : '+'} (${rhsTex(q(p.m1), q(c1Of(p)))}) &= ${r}`,
-          `${termOf(q(a + b * p.m1))} ${signedN(b * c1Of(p))} &= ${r}`,
+          `${termOf(q(a + b * p.m1))}${b * c1Of(p) === 0 ? '' : ` ${signedN(b * c1Of(p))}`} &= ${r}`,
           `x &= ${p.x}`,
         ),
       },

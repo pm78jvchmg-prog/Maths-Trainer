@@ -2473,7 +2473,7 @@ export const unitySumPower: Generator<SumPowerParams> = {
       return [
         { text: `The roots are $\\omega^{k}$ for $k = 0, \\ldots, ${n - 1}$, so raised to the power ${p} they become $\\omega^{${p}k}$.` },
         {
-          text: `${p} is a multiple of ${n}, so every one of those is $\\left(\\omega^{${n}}\\right)^{${p / n}k} = 1$.`,
+          text: `${p} is a multiple of ${n}, so every one of those is $\\left(\\omega^{${n}}\\right)^{${coeffTex(p / n, 'k')}} = 1$.`,
           tex: `\\underbrace{1 + 1 + \\cdots + 1}_{${n}} = ${n}`,
         },
       ];
@@ -3583,7 +3583,7 @@ export const locusHalflinePoint: Generator<HalfPointParams> = {
         text: `The half-line starts at $${complexTex(p, q)}$ and heads off at angle $${tex}$, which is the direction of $${complexTex(re, im)}$.`,
       },
       {
-        text: `Take ${k} of those steps from the start: $${complexTex(p, q)} + ${k}(${complexTex(re, im)})$.`,
+        text: `Take ${k} of those steps from the start: $${complexTex(p, q)} + ${coeffTex(k, `(${complexTex(re, im)})`)}$.`,
         tex: `z = ${complexTex(p + k * re, q + k * im)}`,
       },
     ];
@@ -3697,7 +3697,7 @@ export const locusHalflineThrough: Generator<HalfThroughParams> = {
     const { re, im, tex } = ANGLES[index];
     return [
       {
-        text: `The half-line starts at $${complexTex(p, q)}$ and runs only one way, in the direction of $${complexTex(re, im)}$ at angle $${tex}$. ${k} step${k === 1 ? '' : 's'} along it: $${complexTex(p, q)} + ${k}(${complexTex(re, im)})$.`,
+        text: `The half-line starts at $${complexTex(p, q)}$ and runs only one way, in the direction of $${complexTex(re, im)}$ at angle $${tex}$. ${k} step${k === 1 ? '' : 's'} along it: $${complexTex(p, q)} + ${coeffTex(k, `(${complexTex(re, im)})`)}$.`,
         tex: `z = ${complexTex(p + k * re, q + k * im)}`,
       },
       {
@@ -4730,7 +4730,7 @@ export const expformRead: Generator<ReadParams> = {
         num(modTex(mod), modAnswer(mod)),
         num(`-${modTex(mod)}`, `-${modAnswer(mod)}`),
         num(`${mod.a * mod.a * mod.s}`, `${mod.a * mod.a * mod.s}`),
-        num(mod.s === 2 ? `${mod.a}` : `${mod.a}\\sqrt{2}`, mod.s === 2 ? `${mod.a}` : `${mod.a}*sqrt(2)`),
+        num(mod.s === 2 ? `${mod.a}` : modTex({ a: mod.a, s: 2 }), mod.s === 2 ? `${mod.a}` : `${mod.a}*sqrt(2)`),
       ), mix(params.a, params.s, params.m, params.d, 1));
     }
     const ang = ({ m, d }: Angle) => num(angleTex(m, d), angleAnswer(m, d));
@@ -7709,7 +7709,7 @@ export const trigidSeriesGeometric: Generator<GeometricParams> = {
     const last = p + s * (count - 1);
     return [
       { text: `The first term is $${eTex(p)}$.` },
-      { text: `The powers go up by $${s}i\\theta$ each time, so each term is the one before times $${eTex(s)}$.` },
+      { text: `The powers go up by $${coeffTex(s, 'i\\theta')}$ each time, so each term is the one before times $${eTex(s)}$.` },
       {
         text: `The powers of $e^{i\\theta}$ run from $${p}$ to $${last}$ in steps of $${s}$:`,
         tex: `N = ${s === 1 ? `${last} - ${p} + 1` : `\\tfrac{${last} - ${p}}{${s}} + 1`} = ${count}`,

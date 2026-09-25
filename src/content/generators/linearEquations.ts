@@ -1875,8 +1875,9 @@ const plans: Generator<PlansParams> = {
     return [
       { text: 'Write each total with $n$ for the unknown, and set the two equal.' },
       { tex: `${linTex(p, a).replace('x', 'n')} = ${linTex(q, b).replace('x', 'n')}` },
-      { text: `Collect the $n$ terms on the side with more: take $${q}n$ from both sides, and $${a}$ too.` },
-      { tex: `${p - q}n = ${b - a} \\implies n = ${n}` },
+      { text: `Collect the $n$ terms on the side with more: take $${coeffTex(q, 'n')}$ from both sides, and $${a}$ too.` },
+      // At p - q = 1 that already is n = ..., so it is not said twice.
+      { tex: p - q === 1 ? `n = ${n}` : `${p - q}n = ${b - a} \\implies n = ${n}` },
     ];
   },
 };
@@ -4406,7 +4407,14 @@ function twiceFormula(params: TwiceParams): Formula & {
         [lines[3], 'divide'],
       ],
       // Not 1 - Y: S(1 - y) = -(qy + p) is the same line negated.
-      factor: { template: `${S}({0}) = {1}`, answer: [bottom, top], extras: [`${Y} + 1`, `${qY} - ${p}`, `${Y} - ${q}`, `${p}${Y} + ${q}`] },
+      // At p = q = 1 every extra here is one of the answer's own tiles (the swap
+      // used to survive only as `1y + 1`, the right top written another way),
+      // so the top's sign slip, which the choice form offers too, stands in.
+      factor: {
+        template: `${S}({0}) = {1}`,
+        answer: [bottom, top],
+        extras: [`${Y} + 1`, `${qY} - ${p}`, `${Y} - ${q}`, `${coeffTex(p, Y)} + ${q}`, ...(p === 1 && q === 1 ? [`${p} - ${qY}`] : [])],
+      },
     };
   }
   const a = m;
@@ -10839,7 +10847,7 @@ function evenWorking(p: EvenParams): SolutionStep[] {
   return [
     { text: `With $n$ sold, the income is $${price}n$ and the costs are $${F} + ${p.c}n$. At break-even they are equal.` },
     { tex: `${price}n = ${F} + ${p.c}n` },
-    { tex: stackTex([`${p.g}n = ${F}`, `n = ${p.n}`]) },
+    { tex: stackTex(p.g === 1 ? [`n = ${p.n}`] : [`${p.g}n = ${F}`, `n = ${p.n}`]) },
   ];
 }
 

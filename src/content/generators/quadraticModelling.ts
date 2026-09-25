@@ -54,6 +54,9 @@ function coefficientTex(a: number): string {
   return a === 1 ? '' : a === -1 ? '-' : `${a}`;
 }
 
+/** The turning point's height after the square: ` + 3`, ` - 3`, or nothing for 0 rather than ` + 0`. */
+const turningShift = (K: number): string => (K === 0 ? '' : K < 0 ? ` - ${-K}` : ` + ${K}`);
+
 /** A root's bracket in any letter: `(x - 3)`, `(t + 2)`. */
 function factorTex(root: number, v = 'x'): string {
   return root === 0 ? v : `(${v} ${signedTile(-root)})`;
@@ -1388,7 +1391,7 @@ const fitVertex: Generator<FitVertexParams> = {
       kind: 'expression',
       prompt: [
         prose(`${story} So it has the form below. Find $a$.`),
-        display(`y = a(x - ${m})^{2} ${K < 0 ? `- ${-K}` : `+ ${K}`}`),
+        display(`y = a(x - ${m})^{2}${turningShift(K)}`),
       ],
       lead: 'a =',
       keypad: [],
@@ -1402,8 +1405,8 @@ const fitVertex: Generator<FitVertexParams> = {
     const { x0, y0 } = fitPoint(params);
     return [
       { text: `Put the point $(${x0}, ${y0})$ in.` },
-      { tex: `${y0} = a(${x0} - ${m})^{2} ${K < 0 ? `- ${-K}` : `+ ${K}`}` },
-      { tex: `${y0 - K} = ${d * d}a` },
+      { tex: `${y0} = a(${x0} - ${m})^{2}${turningShift(K)}` },
+      { tex: `${y0 - K} = ${coefficientTex(d * d)}a` },
       { tex: `a = ${a}` },
       { text: `Forgetting to square $${bracketed(d)}$ would give $${(y0 - K) / d}$.` },
     ];
@@ -1474,7 +1477,7 @@ const fitAbc: Generator<FitRootsParams> = {
     const product = (x0 - r1) * (x0 - r2);
     return [
       { tex: `y = a${factorTex(r1)}${factorTex(r2)}` },
-      { text: `At $x = ${x0}$ the brackets multiply to $${bracketed(x0 - r1)} \\times ${bracketed(x0 - r2)} = ${product}$, so $${product}a = ${y0}$ and $a = ${a}$.` },
+      { text: `At $x = ${x0}$ the brackets multiply to $${bracketed(x0 - r1)} \\times ${bracketed(x0 - r2)} = ${product}$, so $${coefficientTex(product)}a = ${y0}$ and $a = ${a}$.` },
       { text: 'Expand the brackets, then multiply every term by $a$.' },
       { tex: `y = ${coefficientTex(a)}(${quadIn(1, -(r1 + r2), r1 * r2, 'x')})` },
       { tex: `y = ${quadIn(a, -a * (r1 + r2), a * r1 * r2, 'x')}` },
@@ -1525,7 +1528,7 @@ const fitATree: Generator<FitRootsParams> = {
     return [
       { text: `At $x = ${x0}$: $${x0} - ${bracketed(r1)} = ${first}$ and $${x0} - ${bracketed(r2)} = ${second}$.` },
       { text: `Their product is $${first * second}$, so` },
-      { tex: `${y0} = ${first * second}a` },
+      { tex: `${y0} = ${coefficientTex(first * second)}a` },
       { tex: `a = ${a}` },
     ];
   },

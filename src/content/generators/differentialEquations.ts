@@ -4273,7 +4273,8 @@ const deIfPowerSteps: Generator<LinearDe> = {
           span: [0, 1],
           operator: 0,
           value: integrated,
-          bank: stepBank(integrated, `${Iy} = ${termTex(q, k + m + 1)} + C`, `${Iy} = ${termTex(q * (k + m), k + m - 1)} + C`, `${Iy} = ${antiTex(de)}`),
+          // Differentiating a constant power leaves 0, and 0 + C is written C.
+          bank: stepBank(integrated, `${Iy} = ${termTex(q, k + m + 1)} + C`, `${Iy} = ${k + m === 0 ? 'C' : `${termTex(q * (k + m), k + m - 1)} + C`}`, `${Iy} = ${antiTex(de)}`),
         },
         {
           span: [0, 1],

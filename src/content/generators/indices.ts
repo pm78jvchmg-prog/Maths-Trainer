@@ -24,7 +24,7 @@ import { markerWindow, plotSvg } from '../figures';
 // restated so a question cannot be built against a rule the widget has moved.
 import { defaultSliderValue } from '../../ui/sliderValue';
 import { ALGEBRA_KEYS, termTex } from './calculus';
-import { gcd, surdAnswer, surdParts, surdTex } from './format';
+import { coeffTex, gcd, surdAnswer, surdParts, surdTex } from './format';
 import type { Rng } from '../../engine/rng';
 import { growthGenerators } from './growth';
 
@@ -4573,7 +4573,7 @@ const surdEquation: Generator<SurdEquationParams> = {
         {
           text: `Dividing leaves $\\frac{${e}}{\\sqrt{${d}} - 1}$, a two-term denominator. Multiply top and bottom by the conjugate $\\sqrt{${d}} + 1$; the bottom becomes $${d} - 1 = ${d - 1}$.`,
         },
-        { tex: chain(`x &= \\frac{${e}(\\sqrt{${d}} + 1)}{${d - 1}}`, `&= ${formTex(p, q, d)}`) },
+        { tex: chain(`x &= \\frac{${coeffTex(e, `(\\sqrt{${d}} + 1)`)}}{${d - 1}}`, `&= ${formTex(p, q, d)}`) },
       ];
     }
     const e = k * d;
@@ -4646,7 +4646,7 @@ const divideSurdSteps: Generator<DivideSurdParams> = {
             [finished],
             sign > 0
               ? [kSurd(k + f, d), `${k + f}`, `${kSurd(k, d)} + ${kSurd(f, d)}`]
-              : [`${f} - ${kSurd(k, d)}`, `${kSurd(k, d)} - ${kSurd(f, d)}`, `${k * f}\\sqrt{${d}}`],
+              : [`${f} - ${kSurd(k, d)}`, `${kSurd(k, d)} - ${kSurd(f, d)}`, kSurd(k * f, d)],
           ),
         },
       ],
@@ -4893,7 +4893,7 @@ const formFlow: Generator<FormFlowParams> = {
       return single
         ? [
             { text: `There is a root underneath, so that goes first. Multiply that fraction by $\\frac{\\sqrt{${d}}}{\\sqrt{${d}}}$.` },
-            { tex: `\\frac{${c}}{\\sqrt{${d}}} = \\frac{${c}\\sqrt{${d}}}{${d}}` },
+            { tex: `\\frac{${c}}{\\sqrt{${d}}} = \\frac{${kSurd(c, d)}}{${d}}` },
           ]
         : [
             {

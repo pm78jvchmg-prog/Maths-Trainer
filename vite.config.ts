@@ -39,8 +39,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon-192.png', 'icon-512.png'],
       manifest: {
-        name: 'Maths Trainer',
-        short_name: 'Maths',
+        name: 'Excellent',
+        short_name: 'Excellent',
         description: 'Guided maths practice, offline.',
         theme_color: '#11121a',
         background_color: '#11121a',

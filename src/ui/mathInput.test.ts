@@ -133,7 +133,7 @@ describe('grading a typed fraction', () => {
     doc = moveRight(type(doc, '2'));
     doc = insertRoot(doc);
     doc = type(doc, 'x');
-    expect(toAnswer(doc.nodes)).toBe('((1)/(2))sqrt(x)');
+    expect(toAnswer(doc.nodes)).toBe('((1)/(2))(sqrt(x))');
     expect(grade(toAnswer(doc.nodes), 'sqrt(x)/2')).toBe('correct');
   });
 
@@ -330,5 +330,62 @@ describe('an empty slot is never graded as a value', () => {
     expect(checkAnswer(toAnswer(root.nodes), '10').status).toBe('correct');
     const sup = type(insertSup(type(EMPTY_DOC, 'x')), '2');
     expect(checkAnswer(toAnswer(sup.nodes), 'x^2').status).toBe('correct');
+  });
+});
+
+/**
+ * mathjs reads a run of letters as one name, and a name followed by a bracket
+ * as a call. So a letter key written straight against what comes next merged
+ * with it: `i` then √3 serialised to `isqrt(3)`, "There is no function called
+ * isqrt", and `x` then `ln(` to `xln(`. Every key here is one the keypads
+ * offer side by side (EXACT_KEYS and SURD_KEYS with √, EXP_KEYS with e and
+ * ln, the calculus TRIG_KEYS with sin, PI_KEYS with the fraction), and every
+ * answer is typed exactly as it is printed.
+ */
+describe('a letter key never merges with what follows it', () => {
+  const press = (...keys: string[]): Doc =>
+    keys.reduce<Doc>((acc, k) => (k === '>' ? moveRight(acc) : applyKey(acc, { insert: k })), EMPTY_DOC);
+
+  it('reads i√3 as i times root 3', () => {
+    const doc = press('1', '+', 'i', 'sqrt(', '3');
+    expect(checkAnswer(toAnswer(doc.nodes), '1 + sqrt(3)*i').status).toBe('correct');
+  });
+
+  it('reads 2x√3 as 2 times x times root 3', () => {
+    const doc = press('2', 'x', 'sqrt(', '3');
+    expect(checkAnswer(toAnswer(doc.nodes), '2*sqrt(3)*x').status).toBe('correct');
+  });
+
+  it('reads x√x as x times root x', () => {
+    const doc = press('x', 'sqrt(', 'x');
+    expect(checkAnswer(toAnswer(doc.nodes), 'x^(3/2)', { domain: 'positive' }).status).toBe('correct');
+  });
+
+  it('reads x ln(x) and x sin(x) as products, not functions named xln and xsin', () => {
+    const ln = press('x', 'ln(', 'x', ')');
+    expect(checkAnswer(toAnswer(ln.nodes), 'x*log(x)', { domain: 'positive' }).status).toBe('correct');
+    const sin = press('x', 'sin(', 'x', ')');
+    expect(checkAnswer(toAnswer(sin.nodes), 'x*sin(x)').status).toBe('correct');
+  });
+
+  it('reads x e^x as x times e^x, not a symbol named xe', () => {
+    const doc = press('x', 'e', '^', 'x');
+    expect(checkAnswer(toAnswer(doc.nodes), 'x*exp(x)').status).toBe('correct');
+  });
+
+  it('reads π before a fraction as a product, not a call to pi', () => {
+    const doc = press('pi', '/', '1', '>', '6');
+    expect(checkAnswer(toAnswer(doc.nodes), 'pi/6').status).toBe('correct');
+  });
+
+  it('keeps a power on the bracket after a letter, x(x+1)^2', () => {
+    const doc = press('x', '(', 'x', '+', '1', ')', '^', '2');
+    expect(checkAnswer(toAnswer(doc.nodes), 'x*(x+1)^2').status).toBe('correct');
+    expect(checkAnswer(toAnswer(doc.nodes), '(x*(x+1))^2').status).toBe('incorrect');
+  });
+
+  it('leaves a letter alone where nothing can merge with it', () => {
+    expect(toAnswer(press('x', '^', '2').nodes)).toBe('x^(2)');
+    expect(toAnswer(press('2', 'x', '+', '1').nodes)).toBe('2x+1');
   });
 });

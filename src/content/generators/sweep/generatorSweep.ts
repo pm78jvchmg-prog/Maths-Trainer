@@ -59,7 +59,26 @@ import {
 import { docFromKeys, toAnswer } from '../../../ui/mathInput';
 import type { Generator } from '../../types';
 
-export const SEEDS = 200;
+const FULL_SEEDS = 200;
+
+/**
+ * Seeds per difficulty: 200, unless `SWEEP_SEEDS` names another count.
+ *
+ * Only the smoke run in Fast checks sets it (to 5), so every generator's answer
+ * still meets the checker on each pull request at a fortieth of the draws;
+ * `npm test` leaves it unset and sweeps the full 200. A value that is not a
+ * whole number above zero is refused rather than quietly read as 200.
+ */
+export const SEEDS = sweepSeeds(import.meta.env.SWEEP_SEEDS);
+
+function sweepSeeds(value: unknown): number {
+  if (value === undefined || value === '') return FULL_SEEDS;
+  const seeds = Number(value);
+  if (!Number.isInteger(seeds) || seeds < 1) {
+    throw new Error(`SWEEP_SEEDS must be a whole number above zero, not ${JSON.stringify(value)}`);
+  }
+  return seeds;
+}
 
 /** Tiles a bank may repeat beyond what the answer needs; see the repeated-tile check. */
 const SIGN_TILES = new Set(['+', '-', '+\\infty', '-\\infty']);
@@ -1163,7 +1182,10 @@ function sweepGenerator(_id: string, generator: RegisteredGenerator): void {
     }
   });
 
-  it('can ask more distinct questions than a lesson has slides', () => {
+  // Six hundred draws per difficulty whatever SEEDS says, so it is left to the
+  // full sweep: in the smoke run it was three fifths of the time and tests the
+  // generator's pool, not the checker the smoke run is there for.
+  it.skipIf(SEEDS < FULL_SEEDS)('can ask more distinct questions than a lesson has slides', () => {
     // The reducer re-draws a slide that duplicates one already in the deck, but
     // it can only do that while the generator has another question left to
     // give. A pool smaller than a lesson's appetite exhausts that budget and

@@ -434,6 +434,9 @@ means changing `SWEEP_SHARDS` and the files together. A generator's draws are
 made by its first test and dropped after its last, not held for the whole run.
 To sweep one generator, `npx vitest run generators.sweep -t '^<id> >'` (escape
 the `+` of a `+choice` id).
+`vitest list` parses files statically by default and reports "No test suite
+found" for the shards, whose tests a function call registers; use
+`npx vitest list --staticParse=false`.
 
 Per generator, across 200 seeds × 2 difficulties:
 
@@ -496,24 +499,29 @@ command `npm run build`, deploy command `npx wrangler deploy`, **root directory
 `/`** (that is where the build runs; the output path lives in `wrangler.jsonc`,
 never in the dashboard).
 
-Every push to `main` deploys straight to production, and that is deliberate:
-the owner wants a change on their phone a couple of minutes after it is made,
-so commits land on `main` directly rather than going through a pull request.
-There is no branch-protection backstop either (the repo is private on a plan
-where GitHub's branch-protection API returns 403).
+Every change that reaches `main` deploys straight to production, and that is
+deliberate: the owner wants a change on their phone a couple of minutes after it
+is made. It cannot be pushed there directly, though. The "auto merge" ruleset
+refuses a push to `main` with `GH013: Repository rule violations` and requires
+the `Workers Builds: maths-trainer` check, so a change lands by pull request,
+and `.github/workflows/auto-merge.yml` switches on auto-merge for each one, which
+merges it as soon as that check passes.
 
-The cost of that choice is that nothing catches a bad change before the learner
-meets it, so the checks have to happen before the push, not after: typecheck,
-full suite, lint, and — for anything with a visible surface — the change
-actually exercised in a browser. A test suite cannot tell you that a dot is
-clipped in half by the edge of its viewBox.
+That required check is a build (`tsc -b && vite build`), not a verification,
+and nobody looks at the pull request between it passing and the learner meeting
+the change. So the checks have to happen before the pull request, not after:
+typecheck, full suite, lint, and — for anything with a visible surface — the
+change actually exercised in a browser. A test suite cannot tell you that a dot
+is clipped in half by the edge of its viewBox.
 
 `.github/workflows/checks.yml` runs one job, **Fast checks**, on every pull
-request: `npm ci`, the app, node and eval typechecks, `npm run lint`, and
+request: `npm ci`, the app, node and eval typechecks, `npm run lint`,
 `npm run test:fast`, which is every test file except the `generators.sweep-NN`
 shards and the four slowest per-family generator files (listed in the
-workflow), to spare the private repo's Actions minutes. It blocks a merge only
-once the owner adds "Fast checks" to the auto-merge ruleset as a required
+workflow), and then the shards at five seeds per difficulty rather than 200
+(`SWEEP_SEEDS=5`), so a change to the checker still meets every generator's
+answers — all to spare the private repo's Actions minutes. It blocks a merge
+only once the owner adds "Fast checks" to the auto-merge ruleset as a required
 check; until then auto-merge still waits on the Cloudflare build alone. Either
 way, run the full `npm test` before a change to a generator lands.
 

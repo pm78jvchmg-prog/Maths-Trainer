@@ -16,6 +16,18 @@
 # and 6.5 without (tests 5.7). Run the full `npm test` locally before landing a
 # change to a generator.
 #
+# The shards then run on their own at five seeds per difficulty, not 200
+# (SWEEP_SEEDS), so a change to the checker, the expression parser or the
+# answer editor still meets every generator's own answers. The pool-size test,
+# which draws 600 seeds whatever SWEEP_SEEDS says, is left to the full sweep.
+# Pinned to two cores, test:fast took 355 s and this 140 s: 8.3 minutes of
+# tests against the 15-minute timeout.
+#
+# workflow_dispatch is also how stuck-builds.yml starts this on a branch it has
+# updated: that push is made with GITHUB_TOKEN, which starts no pull_request
+# run. The job keeps its name either way, so the check it reports on the head
+# commit is "Fast checks".
+#
 # A newer push to the same pull request cancels the run it replaces.
 
 name: Checks
@@ -55,3 +67,7 @@ jobs:
       # runs one worker on two cores unless told otherwise.
       - name: Tests, without the generator sweeps
         run: npm run test:fast -- --maxWorkers=2
+      - name: Generator sweep at five seeds
+        env:
+          SWEEP_SEEDS: '5'
+        run: npx vitest run src/content/generators/generators.sweep --maxWorkers=2

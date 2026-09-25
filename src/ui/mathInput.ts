@@ -332,25 +332,48 @@ export function fnTex(name: string): string {
  * Check is live as soon as anything else is typed, so `5 + □/□` was a right
  * answer to "5" and `x^□` a right answer to "x". A bare `sqrt()` would not do
  * for the root: mathjs parses it as a call with no argument.
+ *
+ * A letter key is bracketed, `(x)`, whenever what follows it could run into
+ * it. mathjs reads a run of letters and digits as one name and a name followed
+ * by a bracket as a call, so `i` then √3 came out as `isqrt(3)` ("There is no
+ * function called isqrt"), `x` then `ln(` as `xln(`, `x` then `e^x` as a
+ * symbol named `xe`, and π before a fraction as a call to `pi`. Bracketed, each
+ * is the implicit product the formula keypads already produce with their
+ * `(a)` keys. Only where needed, so `x^(2)` and `2x+1` read as they always did.
  */
 export function toAnswer(nodes: Node[]): string {
-  return nodes
-    .map((node) => {
-      if (node.kind === 'atom') return node.ans;
-      if (node.kind === 'frac') return `((${slotAnswer(node.num)})/(${slotAnswer(node.den)}))`;
-      if (node.kind === 'root') return `sqrt(${slotAnswer(node.arg)})`;
-      // Bracketed whole for the same reason as a fraction, and in degree mode
-      // renamed to the degree functions in `expression.ts`. Grading sin() as
-      // sin(0) would mark a learner right for a question whose answer happens
-      // to be 0.
-      if (node.kind === 'fn') {
-        const name = node.unit === 'degrees' ? `${node.name}d` : node.name;
-        return `(${name}(${slotAnswer(node.arg)}))`;
-      }
-      return `^(${slotAnswer(node.arg)})`;
+  const pieces = nodes.map((node) => {
+    if (node.kind === 'atom') return node.ans;
+    if (node.kind === 'frac') return `((${slotAnswer(node.num)})/(${slotAnswer(node.den)}))`;
+    // Bracketed whole, like the fraction and the function, so nothing written
+    // either side of it can be read as part of its name or its call.
+    if (node.kind === 'root') return `(sqrt(${slotAnswer(node.arg)}))`;
+    // Bracketed whole for the same reason as a fraction, and in degree mode
+    // renamed to the degree functions in `expression.ts`. Grading sin() as
+    // sin(0) would mark a learner right for a question whose answer happens
+    // to be 0.
+    if (node.kind === 'fn') {
+      const name = node.unit === 'degrees' ? `${node.name}d` : node.name;
+      return `(${name}(${slotAnswer(node.arg)}))`;
+    }
+    return `^(${slotAnswer(node.arg)})`;
+  });
+  return pieces
+    .map((piece, idx) => {
+      const node = nodes[idx];
+      const next = pieces[idx + 1] ?? '';
+      return node.kind === 'atom' && NAME.test(piece) && RUNS_INTO_A_NAME.test(next)
+        ? `(${piece})`
+        : piece;
     })
     .join('');
 }
+
+/** A key that mathjs reads as a name: a letter such as `x`, `e`, `i`, or `pi`. */
+const NAME = /^[A-Za-z][A-Za-z0-9_]*$/;
+
+/** What would continue a name written straight before it, or make it a call. */
+const RUNS_INTO_A_NAME = /^[A-Za-z0-9_(]/;
 
 /** A slot's contents, or `()` — which mathjs will not read — when it is empty. */
 function slotAnswer(nodes: Node[]): string {

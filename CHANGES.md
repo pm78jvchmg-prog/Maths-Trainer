@@ -5,6 +5,29 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-25
 
+- **Lessons back in place on the installed app (#249).** Lessons sit where they
+  should again on the installed app.
+- **The installed app fills the screen to the bottom edge (#248).** The
+  installed app fills the screen to the bottom edge again.
+- **Classical Mechanics Level 7 (#247).** Statics, five lessons and a level
+  check.
+- **The app fits the window iOS gives it (#246).** The app no longer tries to
+  stretch past the window iOS gives it, and the launch colour matches the course
+  list.
+- **Classical Mechanics Levels 5 and 6 (#245).** Momentum and Frames of
+  Reference, five lessons and a level check each.
+- **Geometry (#244).** New course in Algebra Fundamentals, Level 1 Angles
+  (angles on lines and round a point, parallel lines, triangles).
+- **Contest Math Levels 6 to 8 (#243).** Composite Figures, Combinatorics and
+  Probability (14 lessons and 3 level checks).
+- **Clearer course progress (#242).** Course progress bars stand out more, and
+  each course's percentage sits beside its title.
+- **The course list scrolls on its own again (#241).** The course list scrolls
+  on its own again, without the background moving with it.
+- **Classical Mechanics Levels 2 to 4 (#239).** Motion in Two Dimensions, Forces
+  in Fluids and on Curves, and Energy (fifteen lessons, three level checks).
+- **Contest Math Levels 3 to 5 (#238).** Basic Statistics, Geometry
+  Fundamentals, and Similarity and Scaling (14 lessons and 3 level checks).
 - **Calculus, series and trig questions are shorter (#237).** Set-ups are said
   once and methods the lesson just taught are no longer repeated.
 - **The installed app fills the screen (#236).** The gap at the bottom of the

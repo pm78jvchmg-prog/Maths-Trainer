@@ -5,6 +5,9 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-25
 
+- **Exponential Models teaches before it asks (this PR).** 37 questions came
+  before the worked example they needed; examples moved earlier or added as
+  lead-ins, questions reordered. Audit: `teach-before-ask.md` in project files.
 - **Two grading bugs fixed (this PR).** `vec-parallel` could offer two
   parallel options, marking a correct pick wrong (~10% of draws). A negative
   base was shown unbracketed (`-1^{4}`) while the answer meant `(-1)^{4}`, in

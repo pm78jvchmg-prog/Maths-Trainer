@@ -89,7 +89,7 @@ export const NEW_COURSES: NewCourse[] = [
     blurb: 'How the roots of a polynomial sit in its coefficients.',
     category: 'advanced-maths',
     position: 15,
-    levels: ['pl-l4'],
+    levels: ['pl-l4', 'pl-l8', 'pl-l9', 'pl-l10', 'pl-l11'],
   },
   {
     id: 'series-induction',

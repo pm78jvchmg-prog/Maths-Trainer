@@ -61,9 +61,15 @@ export function resolveStreak(state: StreakState, today: string): StreakState {
 
   const gap = daysApart(state.lastPlayedDay, today);
   // gap 0 is a second play today; gap 1 is today continuing yesterday. Neither
-  // has missed a day yet. A negative gap means the device clock moved back —
-  // treat it as the same day rather than punishing it.
-  if (gap <= 1) return state;
+  // has missed a day yet. A gap of -1 is a timezone crossed westward: the last
+  // play is dated tomorrow here, a day already counted, so nothing is missed.
+  if (gap >= -1 && gap <= 1) return state;
+
+  // Further back than a timezone reaches, the clock was wrong when the last
+  // play was recorded — set a year ahead, say. That play is taken as today's:
+  // the streak stands, and tomorrow continues it. Ignoring every play dated
+  // before it instead froze the streak until the wrong date came round.
+  if (gap < -1) return { ...state, lastPlayedDay: today };
 
   const missed = gap - 1;
   // One charge per missed day. Charges that cannot cover the gap are not
@@ -74,14 +80,17 @@ export function resolveStreak(state: StreakState, today: string): StreakState {
 
 /** The streak after playing on `today`. */
 export function playOn(state: StreakState, today: string): StreakState {
-  // Twice in one day is one day. Without this the resolved gap of 0 would
-  // increment again. A day *before* the last play (the clock or the timezone
-  // moved back) is a day already counted, the reading `resolveStreak` gives it:
-  // recording it would add one and pull `lastPlayedDay` backwards, so the next
-  // day forward would count again.
-  if (state.lastPlayedDay && daysApart(state.lastPlayedDay, today) <= 0) return state;
-
   const base = resolveStreak(state, today);
+
+  // A day already counted, in the reading `resolveStreak` gives it, adds
+  // nothing. Twice in one day is one day; without this the resolved gap of 0
+  // would increment again. The day before the last play (a timezone crossed
+  // westward) is counted too: recording it would add one and pull
+  // `lastPlayedDay` backwards, so the next day forward would count again. A
+  // last play dated further ahead comes back from `resolveStreak` re-dated to
+  // today, so it lands here as well, with the corrected date kept.
+  if (base.lastPlayedDay && daysApart(base.lastPlayedDay, today) <= 0) return base;
+
   const starting = base.streak === 0;
 
   return {

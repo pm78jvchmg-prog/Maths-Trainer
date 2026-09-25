@@ -421,6 +421,14 @@ an `=` or `+`. Use `\qquad` between separate results on one display and
 `\quad` inside one statement, which is never split. An `aligned` block or an
 `array` cannot break, so it still scrolls if it is wider than the phone.
 
+Prose never carries a line of algebra inside a sentence: `Blocks` passes every
+prose block through `liftBlocks` (`src/ui/liftAlgebra.ts`), which moves an
+inline equation or inequality with something to read (`T = 20 + 80e^{-kt}`,
+`x^{2} - 5x + 6 = 0`) onto a line of its own, and leaves a value (`t = 18`,
+`k = \frac{\ln 2}{5}`) in the sentence. The owner asked for it. Content can
+go on writing the equation inline; a display block that repeats one just lifted
+is dropped rather than shown twice.
+
 ## TeX escaping — the recurring hazard
 
 TeX lives inside JavaScript string literals, so **every backslash must be

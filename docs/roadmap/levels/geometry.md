@@ -29,7 +29,7 @@ Id prefix `geo-` (levels `geo-l1` to `geo-l8`); no other course uses it.
 
 ## Levels
 
-Eight levels, 28 lessons and 8 level checks: 36 on the home-screen card.
+Eight levels, 26 lessons and 8 level checks: 34 on the home-screen card.
 Slide kinds are abbreviated: expr (typed), choice, tiles, table, tree, slider.
 
 ### Level 1: Angles (`geo-l1`)
@@ -88,16 +88,17 @@ Pythagoras is stated and used, never proved (owner, 19:20).
 
 | Lesson | Teaches | Leans on |
 | --- | --- | --- |
-| Surface Area | nets, cuboids face by face | table, expr, choice |
+| Surface Area | faces, edges and vertices; nets, cuboids face by face, cubes | table, expr, choice |
 | Surface Area Shortcut | a prism: two ends plus perimeter × length; cylinders | expr, choice, tree |
-| Pyramids and Cones | triangle faces, πrl (formula given) | expr, choice |
+| Pyramids and Cones | triangle faces and slant height, πrl (formula given) | expr, choice, tiles |
 
 ### Level 8: Volume (`geo-l8`)
 
 | Lesson | Teaches | Leans on |
 | --- | --- | --- |
-| Volume | cuboids, prisms, cylinders, volume scale factor k³ | expr, choice, tree |
-| Pyramids and Cones | ⅓ × base × height, spheres ⁴⁄₃πr³ (formulas given) | expr, choice |
+| Volume | cuboids and prisms, and backwards to a length | expr, choice, tree |
+| Cylinders and Scaling | πr²h, from a diameter, volume scale factor k³ | expr, tiles, choice |
+| Pyramids, Cones and Spheres | ⅓ × base × height, ⅓πr²h, ⁴⁄₃πr³ and hemispheres (formulas given) | expr, choice, tiles |
 
 Pacing (the owner's rule for new courses): Level 1 on its own first, later
 levels in bigger batches.

@@ -20,6 +20,8 @@ import { lengths } from './geometry/level3';
 import { scaling } from './geometry/level4';
 import { areas } from './geometry/level5';
 import { pythagoras } from './geometry/level6';
+import { surfaceArea } from './geometry/level7';
+import { volume } from './geometry/level8';
 
 export const geometry: Course = {
   id: 'geometry',
@@ -27,6 +29,6 @@ export const geometry: Course = {
   // Just before Coordinate Geometry (80).
   position: 75,
   title: 'Geometry',
-  blurb: 'Angles, polygons, perimeters and circles, similar shapes, areas and Pythagoras, with surface area and volume to come.',
-  levels: [angles, polygons, lengths, scaling, areas, pythagoras],
+  blurb: 'Angles, polygons, perimeters and circles, similar shapes, areas, Pythagoras, surface area and volume.',
+  levels: [angles, polygons, lengths, scaling, areas, pythagoras, surfaceArea, volume],
 };

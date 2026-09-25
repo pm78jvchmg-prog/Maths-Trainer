@@ -421,7 +421,7 @@ export const coordinateGeometry: Course = {
               prose(
                 'The right-hand side is $r^2$, not $r$: $(x + 4)^2 + y^2 = 16$ has radius $4$. Often the radius is not given but a point on the circle is, and then $r^2$ is the squared distance from the centre to it. Centre $C(1, -2)$ through $P(4, 2)$:',
               ),
-              maths('r^2 = (4 - 1)^2 + (2 - (-2))^2 = 9 + 16 = 25'),
+              maths('\\begin{aligned} r^2 &= (4 - 1)^2 + (2 - (-2))^2 \\\\ &= 9 + 16 = 25 \\end{aligned}'),
               prose(
                 'A point is on the circle exactly when putting it into the left-hand side gives $r^2$; less means inside, more outside. $(3, 0)$ in $(x - 1)^2 + (y + 2)^2$ gives $2^2 + 2^2 = 8$, less than $25$: inside.',
               ),
@@ -781,9 +781,9 @@ export const coordinateGeometry: Course = {
                 'With the circle multiplied out and its number unknown, find $r^2$ first, then multiply out. A chord of $6$ with midpoint $M(4, -1)$ in $x^2 + y^2 - 4x + 6y + k = 0$: the centre is $C(2, -3)$, so $CM^2 = 2^2 + 2^2 = 8$.',
               ),
               maths(
-                '\\begin{aligned} r^2 &= 3^2 + 8 = 17 \\\\ (x - 2)^2 + (y + 3)^2 &= 17 \\\\ x^2 + y^2 - 4x + 6y + 4 + 9 - 17 &= 0 \\end{aligned}',
+                '\\begin{aligned} r^2 &= 3^2 + 8 = 17 \\\\ (x - 2)^2 + (y + 3)^2 &= 17 \\end{aligned}',
               ),
-              prose('So $k = 4 + 9 - 17 = -4$.'),
+              prose('Multiplying out, $(x - 2)^2$ gives $+4$ and $(y + 3)^2$ gives $+9$, and the 17 comes across. So $k = 4 + 9 - 17 = -4$.'),
             ),
             teach(
               prose(

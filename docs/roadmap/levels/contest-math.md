@@ -89,3 +89,16 @@ Generators in `src/content/generators/contestEquationsRatios.ts`.
 | Non-numeric Geometric Ratios | `cm-scale-factor`, `cm-scale-tiles`, `cm-half-rectangle`, `cm-midpoint-triangles`, `cm-nested-squares` | areas by k², volumes by k³; same base and height is half; midpoints make a quarter; a square in a circle in a square is half |
 
 Level check: 12 questions across all five lessons.
+
+## Level 3: Basic Statistics (`cm-l3`)
+
+Generators in `src/content/generators/contestStatistics.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Data Measures | `cm-stat-measures`, `cm-freq-median`, `cm-missing-score`, `cm-consecutive-mean` | sort before the median; a frequency table's median counts places, not columns; the total is the mean times the count; evenly spread numbers have the middle as their mean |
+| Changing Data Sets | `cm-new-mean`, `cm-count-from-shift`, `cm-combined-mean`, `cm-combined-mean-tiles`, `cm-change-table` | compare totals before and after; run it backwards for the count; add totals, not means; gaps from the combined mean cancel; a shift, a stretch or one end moved each move the measures their own way |
+| Determine the Set | `cm-set-from-measures`, `cm-set-tiles`, `cm-three-numbers`, `cm-four-set` | the mode fills both places on its side of the median, the range fixes the far end, the total the last gap; two numbers from their sum and difference; an even count's median is a pair |
+| Multiple Possibilities | `cm-mean-median-cases`, `cm-mean-median-x`, `cm-count-sets`, `cm-extreme-value` | where x lands decides the median, so solve each case; count the lists by the one free number; make the rest as small as the facts allow |
+
+Level check: 14 questions across all four lessons.

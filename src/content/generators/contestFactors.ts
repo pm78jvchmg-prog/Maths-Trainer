@@ -64,8 +64,17 @@ function listText(items: (string | number)[]): string {
   return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 }
 
-/** `(3 + 1)(2 + 1)` */
-const choicesTex = (f: Factors) => f.map(([, e]) => `(${e} + 1)`).join('');
+/** `(3 + 1)(2 + 1)`, or a lone prime's `7 + 1` with no bracket to multiply. */
+const choicesTex = (f: Factors) => (f.length === 1 ? `${f[0][1]} + 1` : f.map(([, e]) => `(${e} + 1)`).join(''));
+
+/**
+ * The divisor count as working. With three primes the line is too wide for a
+ * phone, so the count goes on a line of its own.
+ */
+const countSteps = (f: Factors, count: number): SolutionStep[] =>
+  f.length >= 3
+    ? [{ tex: `\\text{divisors} = ${choicesTex(f)}` }, { tex: `= ${count}` }]
+    : [{ tex: `\\text{divisors} = ${choicesTex(f)} = ${count}` }];
 
 /* ================================================================
  * Lesson 1: Prime Factorization
@@ -649,7 +658,7 @@ const cmFcGcdSum: Generator<GcdSumParams> = {
   },
   render({ g, m }) {
     return typed(
-      [say(`How many pairs of positive whole numbers $a < b$ have $a + b = ${g * m}$ and $\\gcd(a, b) = ${g}$?`)],
+      [say('How many pairs of positive whole numbers $a < b$ have'), show(`a + b = ${g * m}, \\qquad \\gcd(a, b) = ${g}`)],
       coprimeHalves(m).length,
       '\\text{pairs} =',
     );
@@ -664,7 +673,8 @@ const cmFcGcdSum: Generator<GcdSumParams> = {
       { text: `Both are multiples of ${g}: write $a = ${g}x$ and $b = ${g}y$, where $x$ and $y$ share no factor, or the gcd would be larger than ${g}.` },
       { tex: `x + y = ${g * m} \\div ${g} = ${m}` },
       { text: `A factor of $x$ and ${m} also divides $y = ${m} - x$, so $x$ must share no factor with ${m}. With $x < y$:` },
-      { tex: `x = ${xs.join(', ')}` },
+      // Seven to a line: a list only breaks where it is cut, never at a comma.
+      ...Array.from({ length: Math.ceil(xs.length / 7) }, (_, i) => ({ tex: `${i === 0 ? 'x = ' : ''}${xs.slice(7 * i, 7 * i + 7).join(', ')}` })),
       { text: `That is ${xs.length} pairs. Counting every split with $x < y$, ${Math.ceil(m / 2) - 1}, forgets the gcd.` },
     ];
   },
@@ -779,12 +789,12 @@ const cmFcFewDivisors: Generator<FewDivisorsParams> = {
   },
   solution(p) {
     const s = Math.floor(Math.sqrt(p.M));
-    const squareLine = `${s}^2 = ${s * s} \\le ${p.M} < ${(s + 1) ** 2} = ${s + 1}^2`;
+    const squareLine = `${s}^{2} = ${s * s} \\le ${p.M} < ${(s + 1) ** 2} = ${s + 1}^{2}`;
     if (p.kind === 'odd') {
       return [
         { text: 'Divisors pair up, $d$ with $n \\div d$. The count is odd only when a divisor pairs with itself, $d \\times d = n$, so $n$ is a perfect square.' },
         { tex: squareLine },
-        { text: `So the squares $1^2$ to $${s}^2$: ${s} numbers.` },
+        { text: `So the squares $1^{2}$ to $${s}^{2}$: ${s} numbers.` },
       ];
     }
     const primes = primesUpTo(s);
@@ -794,7 +804,7 @@ const cmFcFewDivisors: Generator<FewDivisorsParams> = {
         : [{ tex: primes.slice(0, 6).join(', ') }, { tex: primes.slice(6).join(', ') }];
     return [
       {
-        text: `An odd count of divisors means a square. The square of a prime $p$ has just $1$, $p$ and $p^2$. If the square root is not prime, it has a divisor other than 1 and itself, a fourth divisor. So count the primes $p$ with $p^2 \\le ${p.M}$:`,
+        text: `An odd count of divisors means a square. The square of a prime $p$ has just $1$, $p$ and $p^{2}$. If the square root is not prime, it has a divisor other than 1 and itself, a fourth divisor. So count the primes $p$ with $p^{2} \\le ${p.M}$:`,
       },
       { tex: squareLine },
       { text: `The primes up to ${s}:` },
@@ -860,7 +870,7 @@ const cmFcDivisorProduct: Generator<DivisorProductParams> = {
     const name = exponent ? 'N' : `${N}`;
     if (!exponent) steps.push({ tex: `${N} = ${factorsTex(f)}` });
     steps.push(
-      { tex: `\\text{divisors} = ${choicesTex(f)} = ${t}` },
+      ...countSteps(f, t),
       {
         text: `Pair each divisor $d$ with $${name} \\div d$: each pair multiplies to $${name}$, and $${name}$ is not a square, so no divisor pairs with itself. ${t} divisors make ${t / 2} pairs:`,
       },
@@ -906,13 +916,13 @@ const cmFcSquarePairs: Generator<SquarePairsParams> = {
     const below = (T2 - 1) / 2;
     if (notDividing) {
       return typed(
-        [say('How many positive divisors of $N^2$ are less than $N$ but do not divide $N$?'), show(`N = ${factorsTex(f)}`)],
+        [say('How many positive divisors of $N^{2}$ are less than $N$ but do not divide $N$?'), show(`N = ${factorsTex(f)}`)],
         below - (tau(f) - 1),
         '\\text{count} =',
       );
     }
     const N = valueOf(f);
-    return typed([say(`How many positive divisors of $${N}^2$ are less than ${N}?`)], below, '\\text{count} =');
+    return typed([say(`How many positive divisors of $${N}^{2}$ are less than ${N}?`)], below, '\\text{count} =');
   },
   choices({ f, notDividing }) {
     const T2 = tau(scale(f, 2));
@@ -931,17 +941,19 @@ const cmFcSquarePairs: Generator<SquarePairsParams> = {
     const N = valueOf(f);
     const name = notDividing ? 'N' : `${N}`;
     const steps: SolutionStep[] = [
-      { tex: `${notDividing ? 'N' : N}^2 = ${factorsTex(f2)}` },
-      { tex: `\\text{divisors} = ${choicesTex(f2)} = ${T2}` },
+      { tex: `${notDividing ? 'N' : N}^{2} = ${factorsTex(f2)}` },
+      ...countSteps(f2, T2),
       {
-        text: `Pair $d$ with $${name}^2 \\div d$: one of each pair is below $${name}$ and one above, except $${name}$ itself, which pairs with itself.`,
+        text: `Pair $d$ with $${name}^{2} \\div d$: one of each pair is below $${name}$ and one above, except $${name}$ itself, which pairs with itself.`,
       },
       { tex: `\\frac{${T2} - 1}{2} = ${below}` },
     ];
     if (notDividing) {
       const t = tau(f);
       steps.push(
-        { text: `Every divisor of $N$ other than $N$ is among these. $N$ has $${choicesTex(f)} = ${t}$ divisors, so take off ${t - 1}:` },
+        { text: 'Every divisor of $N$ other than $N$ is among these. Count the divisors of $N$:' },
+        { tex: `${choicesTex(f)} = ${t}` },
+        { text: `All but $N$ itself are below $N$, so take off ${t - 1}:` },
         { tex: `${below} - ${t - 1} = ${below - (t - 1)}` },
       );
     }

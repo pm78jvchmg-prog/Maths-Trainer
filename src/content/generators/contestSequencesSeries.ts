@@ -17,7 +17,7 @@
  */
 import type { ChoiceOption, Generator, SolutionStep } from '../types';
 import { options } from '../choiceVariant';
-import { FRACTION_KEYS, fracAnswer, fracTex, num, numberBank, numberOptions, say, show, typed } from './contestMath';
+import { FRACTION_KEYS, fracAnswer, fracTex, gcd, num, numberBank, numberOptions, say, show, typed } from './contestMath';
 
 /* ---------- small helpers of this level ---------- */
 
@@ -36,6 +36,9 @@ function linTex(g: number, c: number, v = 'k'): string {
 }
 
 const bracket = (v: number) => (v < 0 ? `(${v})` : `${v}`);
+
+/** A number in prose: a negative one set as maths, so its minus sign is a real minus. */
+const inl = (v: number) => (v < 0 ? `$${v}$` : `${v}`);
 
 function factorial(n: number): number {
   let out = 1;
@@ -159,7 +162,7 @@ const cmSsIndexPairs: Generator<PairsParams> = {
     return [
       { text: `Places ${i} and ${j} add to ${p.n + 1}, the same as places 1 and ${p.n}: going from term ${i} back to term 1 loses what going from term ${j} on to term ${p.n} gains.` },
       { tex: `u_{1} + u_{${p.n}} = u_{${i}} + u_{${j}} = ${given}` },
-      { text: `Write the sum forwards and backwards and add the two rows: each of the ${p.n} columns makes ${given}, which is twice the sum.` },
+      { text: `Write the sum forwards and backwards and add the two rows: each of the ${p.n} columns makes ${inl(given)}, which is twice the sum.` },
       { tex: `S_{${p.n}} = \\frac{${p.n} \\times ${bracket(given)}}{2} = ${pairsSum(p)}` },
     ];
   },
@@ -195,10 +198,12 @@ const cmSsInsertTiles: Generator<InsertParams> = {
     return {
       kind: 'tiles',
       prompt: [
-        say(`Put ${p.k} numbers between ${p.low} and ${high} so that all ${p.k + 2} numbers make an arithmetic sequence.`),
+        say(`Put ${p.k} numbers between ${p.low} and ${inl(high)} so that all ${p.k + 2} numbers make an arithmetic sequence.`),
         say('Find the common difference and the sum of the numbers put in.'),
       ],
-      template: 'd = {0}, \\qquad \\text{sum put in} = {1}',
+      // No comma: on a phone the row wraps before the label, and a comma would
+      // open the second line on its own.
+      template: 'd = {0} \\quad \\text{sum put in} = {1}',
       bank: numberBank([p.step, insertSum(p)], [...fence, insertSum(p) + p.low + high, p.k * (p.low + high), -p.step], 3, 1, -Infinity),
       answer: [num(p.step), num(insertSum(p))],
     };
@@ -209,8 +214,8 @@ const cmSsInsertTiles: Generator<InsertParams> = {
       { text: `${p.k + 2} numbers in a row have ${p.k + 1} gaps between them, not ${p.k}:` },
       { tex: `d = (${high} - ${p.low}) \\div ${p.k + 1} = ${p.step}` },
       { text: `The numbers put in pair up from the outside in, and each pair adds to the same as the two ends:` },
-      { tex: `\\text{pair} = ${p.low} + ${high} = ${p.low + high}` },
-      { tex: `\\text{sum} = \\frac{${p.k} \\times ${p.low + high}}{2} = ${insertSum(p)}` },
+      { tex: `\\text{pair} = ${p.low} + ${bracket(high)} = ${p.low + high}` },
+      { tex: `\\text{sum} = \\frac{${p.k} \\times ${bracket(p.low + high)}}{2} = ${insertSum(p)}` },
     ];
   },
 };
@@ -256,7 +261,8 @@ const cmSsSymmetricThree: Generator<ThreeParams> = {
     if (p.squares) {
       steps.push(
         { text: 'In the squares the cross terms $-2ad$ and $+2ad$ cancel too:' },
-        { tex: `(a - d)^{2} + a^{2} + (a + d)^{2} = 3a^{2} + 2d^{2}` },
+        { tex: '(a - d)^{2} + a^{2} + (a + d)^{2}' },
+        { tex: '= 3a^{2} + 2d^{2}' },
         { tex: `${3 * mid * mid} + 2d^{2} = ${threeFact(p)}` },
         { tex: `d^{2} = ${gap * gap}` },
       );
@@ -268,7 +274,7 @@ const cmSsSymmetricThree: Generator<ThreeParams> = {
         { tex: `d^{2} = ${gap * gap}` },
       );
     }
-    steps.push({ text: `Either sign of $d$ gives the same three numbers, ${mid - gap}, ${mid} and ${mid + gap}, so the largest is ${mid + gap}.` });
+    steps.push({ text: `Either sign of $d$ gives the same three numbers, ${inl(mid - gap)}, ${mid} and ${mid + gap}, so the largest is ${mid + gap}.` });
     return steps;
   },
 };
@@ -397,7 +403,8 @@ const cmSsBlockSums: Generator<BlockParams> = {
     const b3 = 2 * b2 - b1;
     return [
       { text: `Cut the ${3 * m} terms into three blocks of ${m}. Each term of a block is ${m} steps past the one above it, so the block sums go up by the same amount each time:` },
-      { tex: `B_{1} = ${b1}, \\qquad B_{2} = ${blockS(p, 2 * m)} - ${b1} = ${b2}` },
+      { tex: `B_{1} = ${b1}` },
+      { tex: `B_{2} = ${blockS(p, 2 * m)} - ${b1} = ${b2}` },
       { tex: `B_{3} = ${b2} + (${b2} - ${b1}) = ${b3}` },
       { tex: `S_{${3 * m}} = ${b1} + ${b2} + ${bracket(b3)} = ${blockS(p, 3 * m)}` },
       { text: `That is three times the middle block, ${b2}.` },
@@ -536,7 +543,7 @@ const cmSsGeoShiftTiles: Generator<ShiftParams> = {
     return {
       kind: 'tiles',
       prompt: [say(`Call the sum $S$. Multiply it by ${r} and subtract $S$.`), show(`S = ${shiftTex(p)}`)],
-      template: `${r}S - S = {0} - {1}, \\qquad S = {2}`,
+      template: `${r}S - S = {0} - {1} \\quad S = {2}`,
       bank: numberBank([r * last, p.first, shiftSum(p)], [last, p.first * r, r * last - p.first + 1, shiftSum(p) + p.first], 3, 1, 1),
       answer: [num(r * last), num(p.first), num(shiftSum(p))],
     };
@@ -772,7 +779,7 @@ const cmSsTeleUnit: Generator<UnitParams> = {
     steps.push(
       { text: 'Split each term into a difference:' },
       { tex: '\\frac{1}{k(k + 1)} = \\frac{1}{k} - \\frac{1}{k + 1}' },
-      { tex: `\\left(${s === 1 ? '1' : `\\frac{1}{${s}}`} - \\frac{1}{${s + 1}}\\right) +\\left(\\frac{1}{${s + 1}} - \\frac{1}{${s + 2}}\\right) + \\cdots` },
+      { tex: `\\left(${s === 1 ? '1' : `\\frac{1}{${s}}`} - \\frac{1}{${s + 1}}\\right) + \\left(\\frac{1}{${s + 1}} - \\frac{1}{${s + 2}}\\right) + \\cdots` },
       { tex: `\\cdots + \\left(\\frac{1}{${n}} - \\frac{1}{${n + 1}}\\right)` },
       { text: 'Every fraction in the middle appears once with each sign and cancels, leaving the first and the last:' },
       { tex: `${s === 1 ? '1' : `\\frac{1}{${s}}`} - \\frac{1}{${n + 1}} = ${fracTex(top, bottom)}` },
@@ -833,33 +840,54 @@ const cmSsTeleTable: Generator<PartialParams> = {
 /* ---------- bottoms that differ by more than one ---------- */
 
 interface GapParams {
-  /** Difficulty 1: a/(a + g) steps; difficulty 2: k(k + 2) for k = 1 to n. */
+  /** Difficulty 1: a/(a + g) steps; difficulty 2: k(k + 2) for k = first to n. */
   first: number;
   gap: number;
   n: number;
   skip: boolean;
 }
 
-function gapValue(p: GapParams): [number, number] {
-  if (p.skip) {
-    const n = p.n;
-    // 1/2 (1 + 1/2 - 1/(n + 1) - 1/(n + 2))
-    return [3 * (n + 1) * (n + 2) - 2 * (2 * n + 3), 4 * (n + 1) * (n + 2)];
+/** 1/2 (1/a + 1/(a + 1) - 1/(n + 1) - 1/(n + 2)), unreduced. */
+function skipValue(a: number, n: number): [number, number] {
+  const top = (2 * a + 1) * (n + 1) * (n + 2) - a * (a + 1) * (2 * n + 3);
+  return [top, 2 * a * (a + 1) * (n + 1) * (n + 2)];
+}
+
+/**
+ * The k(k + 2) sums a phone can take as a typed fraction: a start of 1 or 2
+ * and the ends whose answer, in lowest terms, has a bottom of at most 600.
+ */
+const SKIP_DRAWS: [number, number][] = [];
+for (const a of [1, 2]) {
+  for (let n = a + 5; n <= 45; n += 1) {
+    const [top, bottom] = skipValue(a, n);
+    if (bottom / gcd(top, bottom) <= 600) SKIP_DRAWS.push([a, n]);
   }
+}
+
+function gapValue(p: GapParams): [number, number] {
+  if (p.skip) return skipValue(p.first, p.n);
   const last = p.first + p.n * p.gap;
   return [p.n, p.first * last];
 }
 
+/** `1` for k = 1, otherwise `\frac{1}{k}`. */
+const unitFrac = (k: number) => (k === 1 ? '1' : `\\frac{1}{${k}}`);
+
 const cmSsTeleGap: Generator<GapParams> = {
   id: 'cm-ss-tele-gap',
   sample(rng, difficulty) {
-    if (difficulty >= 2) return { first: 1, gap: 2, n: rng.int(6, 40), skip: true };
+    if (difficulty >= 2) {
+      const [first, n] = rng.pick(SKIP_DRAWS);
+      return { first, gap: 2, n, skip: true };
+    }
     return { first: rng.int(1, 5), gap: rng.int(2, 4), n: rng.int(6, 30), skip: false };
   },
   render(p) {
     let tex: string;
     if (p.skip) {
-      tex = `\\frac{1}{1 \\times 3} + \\frac{1}{2 \\times 4} + \\frac{1}{3 \\times 5} + \\cdots + \\frac{1}{${p.n} \\times ${p.n + 2}}`;
+      const term = (k: number) => `\\frac{1}{${k} \\times ${k + 2}}`;
+      tex = `${term(p.first)} + ${term(p.first + 1)} + ${term(p.first + 2)} + \\cdots + ${term(p.n)}`;
     } else {
       const b = (i: number) => p.first + i * p.gap;
       tex = `\\frac{1}{${b(0)} \\times ${b(1)}} + \\frac{1}{${b(1)} \\times ${b(2)}} + \\cdots + \\frac{1}{${b(p.n - 1)} \\times ${b(p.n)}}`;
@@ -870,10 +898,11 @@ const cmSsTeleGap: Generator<GapParams> = {
   choices(p) {
     const [top, bottom] = gapValue(p);
     if (p.skip) {
-      const n = p.n;
+      const { first: a, n } = p;
+      // One survivor at each end, the sum that never stops, and the half forgotten.
       return fractionOptions(
         [top, bottom],
-        [[n + 1, 2 * (n + 2)], [3, 4], [3 * (n + 1) * (n + 2) - 2 * (2 * n + 3), 2 * (n + 1) * (n + 2)]],
+        [[n + 2 - a, 2 * a * (n + 2)], [2 * a + 1, 2 * a * (a + 1)], [2 * top, bottom]],
       );
     }
     const last = p.first + p.n * p.gap;
@@ -882,12 +911,12 @@ const cmSsTeleGap: Generator<GapParams> = {
   solution(p) {
     const [top, bottom] = gapValue(p);
     if (p.skip) {
-      const n = p.n;
+      const { first: a, n } = p;
       return [
         { text: 'The bottom numbers differ by 2, so each term splits with $\\frac{1}{2}$ in front:' },
         { tex: '\\frac{1}{k(k + 2)} = \\frac{1}{2}\\left(\\frac{1}{k} - \\frac{1}{k + 2}\\right)' },
         { text: 'Each fraction cancels with the one two terms later, so two survive at each end:' },
-        { tex: `\\frac{1}{2}\\left(1 + \\frac{1}{2} - \\frac{1}{${n + 1}} - \\frac{1}{${n + 2}}\\right)` },
+        { tex: `\\frac{1}{2}\\left(${unitFrac(a)} + \\frac{1}{${a + 1}} - \\frac{1}{${n + 1}} - \\frac{1}{${n + 2}}\\right)` },
         { tex: `= ${fracTex(top, bottom)}` },
       ];
     }
@@ -970,11 +999,15 @@ interface FactParams {
   fraction: boolean;
 }
 
-/** Every (start, end) with at least three terms and end at most 9. */
+/**
+ * Every (start, end) with at least two terms and end at most 8, so the answer,
+ * 9! at most, stays within six digits.
+ */
 const PRODUCT_RANGES: [number, number][] = [];
-for (let s = 1; s <= 7; s += 1) for (let n = s + 2; n <= 9; n += 1) PRODUCT_RANGES.push([s, n]);
+for (let s = 1; s <= 7; s += 1) for (let n = s + 1; n <= 8; n += 1) PRODUCT_RANGES.push([s, n]);
+/** End at most 5, so the typed fraction's bottom is 6! = 720 at most. */
 const FRACTION_RANGES: [number, number][] = [];
-for (let s = 1; s <= 5; s += 1) for (let n = s + 2; n <= 8; n += 1) FRACTION_RANGES.push([s, n]);
+for (let s = 1; s <= 4; s += 1) for (let n = s + 1; n <= 5; n += 1) FRACTION_RANGES.push([s, n]);
 
 const factProduct = (p: FactParams) => factorial(p.end + 1) - factorial(p.start);
 /** 1/start! - 1/(end + 1)!. */
@@ -982,8 +1015,8 @@ const factFraction = (p: FactParams): [number, number] => [factorial(p.end + 1) 
 
 function factTerms(p: FactParams): string[] {
   const term = (k: number) => (p.fraction ? `\\frac{${k}}{${k + 1}!}` : `${k} \\times ${k}!`);
-  const ks = p.end - p.start + 1 <= 3 ? [p.start, p.start + 1, p.end] : [p.start, p.start + 1];
-  return ks.map(term).concat(p.end - p.start + 1 <= 3 ? [] : ['\\cdots', term(p.end)]);
+  if (p.end - p.start + 1 <= 3) return Array.from({ length: p.end - p.start + 1 }, (_, i) => term(p.start + i));
+  return [term(p.start), term(p.start + 1), '\\cdots', term(p.end)];
 }
 
 const cmSsTeleFactorial: Generator<FactParams> = {
@@ -1023,7 +1056,8 @@ const cmSsTeleFactorial: Generator<FactParams> = {
       const [top, bottom] = factFraction(p);
       return [
         { text: 'Write the top as $(k + 1) - 1$ and split:' },
-        { tex: '\\frac{k}{(k + 1)!} = \\frac{k + 1}{(k + 1)!} - \\frac{1}{(k + 1)!} = \\frac{1}{k!} - \\frac{1}{(k + 1)!}' },
+        { tex: '\\frac{k}{(k + 1)!} = \\frac{k + 1}{(k + 1)!} - \\frac{1}{(k + 1)!}' },
+        { tex: '= \\frac{1}{k!} - \\frac{1}{(k + 1)!}' },
         { text: 'Adding, the middle fractions cancel, leaving the first and the last:' },
         { tex: `\\frac{1}{${s}!} - \\frac{1}{${n + 1}!} = ${s === 1 ? '1' : `\\frac{1}{${factorial(s)}}`} - \\frac{1}{${factorial(n + 1)}}` },
         { tex: `= ${fracTex(top, bottom)}` },

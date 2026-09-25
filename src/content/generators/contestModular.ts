@@ -263,7 +263,7 @@ const cmMdCrtSieve: Generator<SieveParams> = {
     }
     const n = smallestSolution(mods, rems);
     out.push(
-      { text: `Numbers meeting both of those conditions step up by ${mods[w.big]} × ${mods[w.next]} = ${w.step}. Check them on dividing by ${mods[w.last]}:` },
+      { text: `Numbers meeting both of those conditions step up by ${w.step}, which is $${mods[w.big]} \\times ${mods[w.next]}$. Check them on dividing by ${mods[w.last]}:` },
       { tex: `${w.finalList.join(', ')}, \\ldots` },
       { tex: divisionTex(n, mods[w.last]) },
       { text: `So $N = ${n}$.` },
@@ -839,7 +839,10 @@ const cmMdPowerSum: Generator<PowerSumParams> = {
       out.push({ text: `There are ${m} blocks:` }, { tex: `${m} \\times ${S} = ${m * S}` }, { text: `The last digit is ${powerSumAnswer(p)}.` });
       return out;
     }
-    out.push({ text: `There ${m === 1 ? 'is 1 full block' : `are ${m} full blocks`} up to ${10 * m}, then 1 to ${r} again from ${10 * m + 1} to ${10 * m + r}:` });
+    const blocks = `There ${m === 1 ? 'is 1 full block' : `are ${m} full blocks`} up to ${10 * m}`;
+    out.push({
+      text: r === 1 ? `${blocks}, then ${10 * m + 1} on its own, which ends like 1:` : `${blocks}, then 1 to ${r} again from ${10 * m + 1} to ${10 * m + r}:`,
+    });
     if (r >= 2) out.push({ tex: `${digits.slice(0, r).join(' + ')} = ${P}` });
     out.push({ tex: `${m} \\times ${S} + ${P} = ${m * S + P}` }, { text: `The last digit is ${powerSumAnswer(p)}.` });
     return out;
@@ -883,7 +886,7 @@ const cmMdLastTwo: Generator<LastTwoParams> = {
     if (base % 10 === 1 && base <= 91) {
       const tens = base - 1;
       return [
-        { text: `Write ${base} as ${tens} + 1 and multiply out $(${tens} + 1)^{${n}}$. Every term but the last two holds $${tens}^{2}$ or a higher power, a multiple of 100, so` },
+        { text: `Write ${base} as $${tens} + 1$ and multiply out $(${tens} + 1)^{${n}}$. Every term but the last two holds $${tens}^{2}$ or a higher power, a multiple of 100, so` },
         { tex: `(${tens} + 1)^{${n}} \\equiv 1 + ${n} \\times ${tens} ${pmod(100)}` },
         { tex: `1 + ${n} \\times ${tens} = ${1 + n * tens}` },
         { text: `The last two digits are ${pad2(answer)}.` },
@@ -894,7 +897,7 @@ const cmMdLastTwo: Generator<LastTwoParams> = {
     const out: SolutionStep[] = [{ text: 'Find the last two digits of the first few powers, keeping only the last two digits each time:' }];
     for (let i = 1; i < L; i += 1) {
       const product = cycle[i - 1] * base;
-      const lhs = i === 1 ? `${base}^{2}` : `${pad2(cycle[i - 1])} \\times ${base}`;
+      const lhs = i === 1 ? `${base}^{2}` : `${cycle[i - 1]} \\times ${base}`;
       out.push({ tex: product < 100 ? `${lhs} = ${product}` : `${lhs} = ${product} \\to ${pad2(product % 100)}` });
     }
     const r = n % L;
@@ -952,7 +955,8 @@ const cmMdPhi: Generator<PhiParams> = {
     return [
       { tex: `${n} = ${factorTex(n)}` },
       { text: `A number shares a factor with ${n} exactly when it is a multiple of ${listText(primes).replace(/ and (\d+)$/, ' or $1')}. Of the numbers 1 to ${n}, the non-multiples of ${primes[0]} are $\\frac{${primes[0] - 1}}{${primes[0]}}$ of them, and each further prime keeps the same share of what is left:` },
-      { tex: `\\varphi(${n}) = ${n} \\times ${fractions}` },
+      // Braced so a phone breaks the line after the `=`, never inside the product.
+      { tex: `\\varphi(${n}) = {${n} \\times ${fractions}}` },
       { tex: `\\varphi(${n}) = ${phiOf(n)}` },
       { text: 'Taking away the multiples of each prime separately takes away the numbers divisible by two of them twice; the fractions count each number once.' },
     ];

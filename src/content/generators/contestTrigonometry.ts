@@ -21,6 +21,7 @@
 import type { ChoiceOption, Generator, KeypadKey, SolutionStep } from '../types';
 import { FRACTION_KEYS, fracAnswer, fracTex, gcd, num, numberBank, numberOptions, say, show, typed } from './contestMath';
 import { options } from '../choiceVariant';
+import { Clearance, sideSpots } from './contestSyntheticGeometry';
 
 /** The keypad for an exact answer: a square root and a fraction. */
 const EXACT_KEYS: KeypadKey[] = [...FRACTION_KEYS, { insert: 'sqrt(', label: '√(' }];
@@ -217,10 +218,9 @@ const text = (p: Pt, value: string, size = 13) =>
   `<text x="${f1(p[0])}" y="${f1(p[1])}" font-size="${size}" fill="currentColor" text-anchor="middle" dominant-baseline="middle">${value}</text>`;
 
 /** An arc at `v` between the rays towards `a` and `b`, its label out along the bisector far enough to clear both rays. */
-function angleMark(v: Pt, a: Pt, b: Pt, label: string): string {
+function angleMark(v: Pt, a: Pt, b: Pt, label: string, r = 16): string {
   const u1 = unit(v, a);
   const u2 = unit(v, b);
-  const r = 16;
   const s = plus(v, scale(u1, r));
   const e = plus(v, scale(u2, r));
   const cross = u1[0] * u2[1] - u1[1] * u2[0];
@@ -232,6 +232,14 @@ function angleMark(v: Pt, a: Pt, b: Pt, label: string): string {
     `<path d="M ${f1(s[0])} ${f1(s[1])} A ${r} ${r} 0 0 ${cross > 0 ? 1 : 0} ${f1(e[0])} ${f1(e[1])}" fill="none" stroke="currentColor" stroke-width="1.5" />`,
     text(plus(v, scale(mid, R)), label, 12),
   ].join('');
+}
+
+/** The square marking a right angle at v between the rays towards a and b. */
+function rightSquare(v: Pt, a: Pt, b: Pt, size = 10): string {
+  const e1 = plus(v, scale(unit(v, a), size));
+  const e2 = plus(v, scale(unit(v, b), size));
+  const c = plus(e1, scale(unit(v, b), size));
+  return `<path d="M ${f1(e1[0])} ${f1(e1[1])} L ${f1(c[0])} ${f1(c[1])} L ${f1(e2[0])} ${f1(e2[1])}" fill="none" stroke="currentColor" stroke-width="1.5" />`;
 }
 
 /** A label beside the middle of side ab, on the side away from `inside`. */
@@ -299,15 +307,31 @@ function triangleSvg(
   const [A, B, C] = fit([[0, 0], [c, 0], [ax, ay]], 230, 140, 35, 24);
   const mid = centroid([A, B, C]);
   const out = [svgOpen(188, aria), outline([A, B, C])];
+  const room = new Clearance(188).loop([A, B, C]);
+  for (const [v, name] of [[A, 'A'], [B, 'B'], [C, 'C']] as [Pt, string][]) room.box(plus(v, scale(unit(mid, v), 13)), name);
+  const corners: [Pt, Pt, Pt][] = [[A, B, C], [B, C, A], [C, A, B]];
+  corners.forEach(([v, p, q], i) => {
+    if (!angles[i]) return;
+    if (angles[i] === '90°') {
+      // A right angle takes the usual square, which says 90 degrees without a label.
+      out.push(rightSquare(v, p, q));
+      room.line(plus(v, scale(unit(v, p), 10)), plus(v, scale(plus(unit(v, p), unit(v, q)), 10)), plus(v, scale(unit(v, q), 10)));
+      return;
+    }
+    out.push(angleMark(v, p, q, ''));
+    room.arc(v, p, q, 16);
+  });
+  // Each angle's value out along its bisector, as close in as it clears both arms; then the sides.
+  corners.forEach(([v, p, q], i) => {
+    const value = angles[i];
+    if (!value || value === '90°') return;
+    const mid2 = unit([0, 0], plus(unit(v, p), unit(v, q)));
+    out.push(room.put(Array.from({ length: 16 }, (_, k) => plus(v, scale(mid2, 26 + 3 * k))), value, 12));
+  });
   const pairs: [Pt, Pt][] = [[B, C], [C, A], [A, B]];
   pairs.forEach(([p, q], i) => {
     const value = labels[i];
-    if (value) out.push(sideLabel(p, q, value, mid));
-  });
-  const corners: [Pt, Pt, Pt][] = [[A, B, C], [B, C, A], [C, A, B]];
-  corners.forEach(([v, p, q], i) => {
-    const value = angles[i];
-    if (value) out.push(angleMark(v, p, q, value));
+    if (value) out.push(room.put(sideSpots(p, q, value, mid), value));
   });
   out.push(letter(A, 'A', mid), letter(B, 'B', mid), letter(C, 'C', mid), '</svg>');
   return out.join('');
@@ -543,7 +567,8 @@ const cmSquareSum: Generator<SquareSumParams> = {
     const other = p.fn === 'sin' ? '\\cos' : '\\sin';
     const steps: SolutionStep[] = [
       { text: 'Pair each angle with the one that makes $90^\\circ$ with it. Each pair adds to $1$:' },
-      { tex: `${f}^{2} x + ${f}^{2}(90^\\circ - x) = ${f}^{2} x + ${other}^{2} x = 1` },
+      { tex: `${f}^{2} x + ${f}^{2}(90^\\circ - x)` },
+      { tex: `= ${f}^{2} x + ${other}^{2} x = 1` },
     ];
     if (p.toNinety) {
       steps.push(
@@ -555,8 +580,8 @@ const cmSquareSum: Generator<SquareSumParams> = {
     const pairs = Math.floor(paired / 2);
     if (paired % 2 === 1) {
       steps.push(
-        { text: `The middle term is $${f}^{2} 45^\\circ = \\tfrac{1}{2}$, and the other ${paired - 1} make ${pairs} pairs:` },
-        { tex: p.toNinety ? `${pairs} + \\tfrac{1}{2} + ${last} = ${num(total)}` : `${pairs} + \\tfrac{1}{2} = ${num(total)}` },
+        { text: `The middle term is $${f}^{2} 45^\\circ$, which is $\\frac{1}{2}$, and the other ${paired - 1} make ${pairs} pairs:` },
+        { tex: p.toNinety ? `${pairs} + \\frac{1}{2} + ${last} = ${num(total)}` : `${pairs} + \\frac{1}{2} = ${num(total)}` },
       );
     } else {
       steps.push(
@@ -664,7 +689,8 @@ const cmCosSide: Generator<CosSideParams> = {
   solution({ ab, ac, bc, angle }) {
     return [
       { text: 'The law of cosines, with the angle between the two sides you know:' },
-      { tex: `BC^{2} = ${ab}^{2} + ${ac}^{2} - 2 \\times ${ab} \\times ${ac} \\cos ${angle}^\\circ` },
+      // The product is one group, so a narrow screen wraps before it rather than inside it.
+      { tex: `BC^{2} = ${ab}^{2} + ${ac}^{2} - {2 \\times ${ab} \\times ${ac} \\cos ${angle}^\\circ}` },
       {
         text: angle === 60
           ? 'Since $\\cos 60^\\circ = \\tfrac{1}{2}$, the last term is just the product of the two sides, taken off:'
@@ -1015,8 +1041,10 @@ interface CircumParams {
 }
 
 function circumSvg(a: number, A: number): string {
-  const R = 78;
-  const O: Pt = [150, 104];
+  // An obtuse A makes a flat triangle across the top of the circle, so the circle is drawn larger to give it height.
+  const R = A > 90 ? 100 : 78;
+  const O: Pt = [150, R + 30];
+  const height = 2 * R + 52;
   const at = (deg: number): Pt => [O[0] + R * Math.cos(rad(deg)), O[1] - R * Math.sin(rad(deg))];
   // An obtuse A sits on the short arc between B and C, so it goes in the middle of it, clear of both.
   const PA = at(A > 90 ? 90 : 110);
@@ -1024,18 +1052,37 @@ function circumSvg(a: number, A: number): string {
   const PC = at(-90 + A);
   const mid = scale(plus(PB, PC), 0.5);
   const toA = unit(mid, PA);
-  const side = A < 90 ? plus(mid, scale(toA, 14)) : plus(mid, scale(toA, -14));
+  const room = new Clearance(height).loop([PA, PB, PC]);
+  for (let i = 0; i < 60; i += 1) room.line(at(6 * i), at(6 * i + 6));
   const out = [
-    svgOpen(208, `Triangle ABC with its corners on a circle, BC ${a} and angle A ${A} degrees`),
+    svgOpen(height, `Triangle ABC with its corners on a circle, BC ${a} and angle A ${A} degrees`),
     `<circle cx="${O[0]}" cy="${O[1]}" r="${R}" fill="none" stroke="currentColor" stroke-width="1.5" />`,
     `<circle cx="${O[0]}" cy="${O[1]}" r="2.5" fill="currentColor" />`,
     outline([PA, PB, PC]),
-    text(side, `${a}`),
     letter(PA, 'A', O, 14),
     letter(PB, 'B', O, 14),
     letter(PC, 'C', O, 14),
   ];
-  if (A <= 90) out.push(angleMark(PA, PB, PC, `${A}°`));
+  for (const [v, name] of [[PA, 'A'], [PB, 'B'], [PC, 'C']] as [Pt, string][]) room.box(plus(v, scale(unit(O, v), 14)), name);
+  // BC's length on the side of the chord away from A: below it, inside the circle.
+  const side = A < 90 ? plus(mid, scale(toA, 14)) : plus(mid, scale(toA, -14));
+  out.push(text(side, `${a}`));
+  room.box(side, `${a}`);
+  // The angle at A, with its value where the triangle has room for it. At 150 degrees it has none,
+  // and the value is left to the question, which states it.
+  if (A === 90) {
+    // A right angle takes the usual square, which says 90 degrees without a label.
+    out.push(rightSquare(PA, PB, PC), '</svg>');
+    return out.join('');
+  }
+  const r = A > 90 ? 8 : 16;
+  out.push(angleMark(PA, PB, PC, '', r));
+  room.arc(PA, PB, PC, r);
+  const bis = unit([0, 0], plus(unit(PA, PB), unit(PA, PC)));
+  // Inside the triangle only: past BC the value would read as a label of the chord.
+  const depth = Math.hypot(PA[0] - mid[0], PA[1] - mid[1]);
+  const spots = Array.from({ length: 14 }, (_, k) => plus(PA, scale(bis, r + 9 + 2 * k))).filter((q) => Math.hypot(q[0] - PA[0], q[1] - PA[1]) < depth - 8);
+  if (spots.some((q) => room.gap(q, `${A}°`, 12) >= 1)) out.push(room.put(spots, `${A}°`, 12));
   out.push('</svg>');
   return out.join('');
 }
@@ -1381,8 +1428,9 @@ const cmSumProduct: Generator<SumProductParams> = {
     ];
     if (p.tanCot) {
       steps.push(
-        { text: 'Over a common denominator, the top is $\\sin^{2}\\theta + \\cos^{2}\\theta = 1$:' },
-        { tex: '\\tan\\theta + \\frac{1}{\\tan\\theta} = \\frac{\\sin^{2}\\theta + \\cos^{2}\\theta}{\\sin\\theta\\cos\\theta} = \\frac{1}{\\sin\\theta\\cos\\theta}' },
+        { text: 'Over a common denominator, the top is $\\sin^{2}\\theta + \\cos^{2}\\theta$, which is $1$:' },
+        { tex: '\\tan\\theta + \\frac{1}{\\tan\\theta} = \\frac{\\sin^{2}\\theta + \\cos^{2}\\theta}{\\sin\\theta\\cos\\theta}' },
+        { tex: '= \\frac{1}{\\sin\\theta\\cos\\theta}' },
         { tex: `1 \\div ${fracTex(top, bottom)} = ${fracTex(bottom, top)}` },
       );
     }
@@ -1541,7 +1589,8 @@ const cmMaxValue: Generator<MaxValueParams> = {
     const steps: SolutionStep[] = [
       { text: 'Take out the length of the vector of coefficients:' },
       { tex: `\\sqrt{${aa}^{2} + ${bb}^{2}} = ${R}` },
-      { tex: `${combo([[a, '\\sin x'], [b, '\\cos x']])} = ${R}\\left(\\tfrac{${a}}{${R}}\\sin x ${b < 0 ? '-' : '+'} \\tfrac{${bb}}{${R}}\\cos x\\right)` },
+      { tex: combo([[a, '\\sin x'], [b, '\\cos x']]) },
+      { tex: `= ${R}\\left(\\frac{${a}}{${R}}\\sin x ${b < 0 ? '-' : '+'} \\frac{${bb}}{${R}}\\cos x\\right)` },
       { text: `The two fractions are the cosine and sine of one angle $\\alpha$, since their squares add to $1$. So the bracket is $\\sin(x ${b < 0 ? '-' : '+'} \\alpha)$, which runs from $-1$ to $1$, and the wave runs from $${-R}$ to $${R}$.` },
     ];
     if (shift) {
@@ -1785,7 +1834,7 @@ const cmRootPolygon: Generator<PolygonParams> = {
       { tex: `|z|^{${n}} = ${c}` },
       { tex: `|z|^{2} = ${r2}` },
       { text: `${p.minus ? 'The minus sign only turns the solutions round the origin; it does not change their size. ' : ''}The ${n} solutions are spread evenly round that circle, so the polygon is ${n} triangles from the centre, each with two sides $|z|$ and $${angle}^\\circ$ between them:` },
-      { tex: `\\text{area} = ${n} \\times \\tfrac{1}{2} \\times ${r2} \\times \\sin ${angle}^\\circ` },
+      { tex: `\\text{area} = ${n} \\times \\frac{1}{2} \\times ${r2} \\times \\sin ${angle}^\\circ` },
       { tex: `= ${fracTex(n * r2, 2)} \\times ${sTex(exactSin(angle))} = ${sTex(polygonArea(p))}` },
     ];
   },
@@ -1845,7 +1894,8 @@ const cmUnityProduct: Generator<UnityProductParams> = {
       { text: `The powers $${n === 3 ? '1, \\omega, \\omega^{2}' : n === 4 ? '1, \\omega, \\omega^{2}, \\omega^{3}' : `1, \\omega, \\omega^{2}, \\ldots, \\omega^{${n - 1}}`}$ are the ${n} solutions of $z^{${n}} = 1$, so they are the roots of $z^{${n}} - 1$:` },
       { tex: `z^{${n}} - 1 = (z - 1)(z - \\omega)\\cdots(z - \\omega^{${n - 1}})` },
       { text: 'Divide by $z - 1$:' },
-      { tex: `(z - \\omega)\\cdots(z - \\omega^{${n - 1}}) = 1 + z + \\cdots + z^{${n - 1}}` },
+      { tex: `(z - \\omega)\\cdots(z - \\omega^{${n - 1}})` },
+      { tex: `= 1 + z + \\cdots + z^{${n - 1}}` },
     ];
     if (a === 1) {
       steps.push({ text: `Put $z = 1$: each of the ${n} terms on the right is $1$.` }, { tex: `\\text{value} = ${n}` });

@@ -198,8 +198,11 @@ const dot = (p: Pt, r = 3) => `<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="${r}
 const txt = (p: Pt, text: string, anchor: 'start' | 'middle' | 'end' = 'middle', size = 13) =>
   `<text x="${f1(p[0])}" y="${f1(p[1])}" font-size="${size}" fill="currentColor" text-anchor="${anchor}" dominant-baseline="middle">${text}</text>`;
 
+/** Where `vtx` puts a letter. */
+const vtxAt = (p: Pt, from: Pt, gap = 13) => add(p, mul(dir(from, p), gap));
+
 /** A letter beside point p, pushed away from `from`. */
-const vtx = (p: Pt, name: string, from: Pt, gap = 13) => txt(add(p, mul(dir(from, p), gap)), name);
+const vtx = (p: Pt, name: string, from: Pt, gap = 13) => txt(vtxAt(p, from, gap), name);
 
 /** How far a label's centre must sit from a line to clear it, for text of `len` characters. */
 const clearance = (n: Pt, len: number) => 7 + Math.abs(n[0]) * 3.6 * len + Math.abs(n[1]) * 3;
@@ -294,6 +297,153 @@ function rightMark(v: Pt, a: Pt, b: Pt, size = 9): string {
   return `<path d="M ${f1(p[0])} ${f1(p[1])} L ${f1(c[0])} ${f1(c[1])} L ${f1(q[0])} ${f1(q[1])}" fill="none" stroke="currentColor" stroke-width="1.5" />`;
 }
 
+/* ---------- labels kept clear of everything drawn ---------- */
+
+/** Half the width and half the height of a label's letters at `size`. */
+const halfBox = (text: string, size = 13): Pt => [0.31 * size * text.length + 1.5, 0.36 * size + 1];
+
+/** How far the box of half-size h centred at c stands from the segment ab: 0 when they touch. */
+function boxGap(c: Pt, h: Pt, a: Pt, b: Pt): number {
+  const [x0, x1, y0, y1] = [c[0] - h[0], c[0] + h[0], c[1] - h[1], c[1] + h[1]];
+  // Liang-Barsky: does ab cross the box?
+  let t0 = 0;
+  let t1 = 1;
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const clip = (p: number, q: number) => {
+    if (p === 0) return q >= 0;
+    const r = q / p;
+    if (p < 0) {
+      if (r > t1) return false;
+      t0 = Math.max(t0, r);
+    } else {
+      if (r < t0) return false;
+      t1 = Math.min(t1, r);
+    }
+    return true;
+  };
+  if (clip(-dx, a[0] - x0) && clip(dx, x1 - a[0]) && clip(-dy, a[1] - y0) && clip(dy, y1 - a[1])) return 0;
+  const toBox = (p: Pt) => Math.hypot(Math.max(0, x0 - p[0], p[0] - x1), Math.max(0, y0 - p[1], p[1] - y1));
+  const corners: Pt[] = [[x0, y0], [x1, y0], [x0, y1], [x1, y1]];
+  return Math.min(toBox(a), toBox(b), ...corners.map((q) => segDist(q, a, b)));
+}
+
+/**
+ * What a figure has drawn so far, as short segments (a circle or an arc as
+ * chords, a label as the four sides of its box), so each new label can go
+ * wherever it stands clearest of all of it and of the edge of the frame.
+ */
+export class Clearance {
+  private segs: [Pt, Pt][] = [];
+  private height: number;
+  /** The least room any label placed so far was left with: below 0, one touches something. */
+  worst = Infinity;
+
+  constructor(height: number) {
+    this.height = height;
+  }
+
+  line(...pts: Pt[]): this {
+    for (let i = 0; i + 1 < pts.length; i += 1) this.segs.push([pts[i], pts[i + 1]]);
+    return this;
+  }
+
+  loop(pts: Pt[]): this {
+    return this.line(...pts, pts[0]);
+  }
+
+  circle(c: Pt, r: number): this {
+    return this.loop(Array.from({ length: 60 }, (_, i) => add(c, polar(r, i * 6))));
+  }
+
+  /** The arc `angleMark` draws at v, radius r. */
+  arc(v: Pt, a: Pt, b: Pt, r: number): this {
+    const t1 = Math.atan2(a[1] - v[1], a[0] - v[0]);
+    let t2 = Math.atan2(b[1] - v[1], b[0] - v[0]);
+    if (t2 - t1 > Math.PI) t2 -= 2 * Math.PI;
+    if (t1 - t2 > Math.PI) t2 += 2 * Math.PI;
+    return this.line(...Array.from({ length: 9 }, (_, i): Pt => add(v, [r * Math.cos(t1 + ((t2 - t1) * i) / 8), r * Math.sin(t1 + ((t2 - t1) * i) / 8)])));
+  }
+
+  box(c: Pt, text: string, size = 13): this {
+    const [w, h] = halfBox(text, size);
+    return this.loop([add(c, [-w, -h]), add(c, [w, -h]), add(c, [w, h]), add(c, [-w, h])]);
+  }
+
+  /**
+   * How far a label at c stands from everything drawn and from the frame's
+   * edge. Once that is known to be no more than `floor` it stops looking, and
+   * a segment whose bounding box is already further off than the best so far
+   * is skipped: samplers lay a figure out many times to reject a crowded one.
+   */
+  gap(c: Pt, text: string, size = 13, floor = -Infinity): number {
+    const h = halfBox(text, size);
+    const [x0, x1, y0, y1] = [c[0] - h[0], c[0] + h[0], c[1] - h[1], c[1] + h[1]];
+    let best = Math.min(x0, 300 - x1, y0, this.height - y1);
+    for (const [a, b] of this.segs) {
+      if (best <= floor) return best;
+      const ox = Math.max(0, Math.min(a[0], b[0]) - x1, x0 - Math.max(a[0], b[0]));
+      const oy = Math.max(0, Math.min(a[1], b[1]) - y1, y0 - Math.max(a[1], b[1]));
+      if (ox >= best || oy >= best) continue;
+      best = Math.min(best, boxGap(c, h, a, b));
+    }
+    return best;
+  }
+
+  /** The first spot at least `want` clear, or failing that the clearest; drawn, and kept clear of from now on. */
+  put(spots: Pt[], text: string, size = 13, want = 3.5): string {
+    let best = spots[0];
+    let bestGap = -Infinity;
+    for (const s of spots) {
+      // A spot matters only if it beats the clearest so far, which is short of `want`.
+      const g = this.gap(s, text, size, bestGap);
+      if (g >= want) {
+        best = s;
+        bestGap = g;
+        break;
+      }
+      if (g > bestGap) {
+        bestGap = g;
+        best = s;
+      }
+    }
+    this.worst = Math.min(this.worst, bestGap);
+    this.box(best, text, size);
+    return txt(best, text, 'middle', size);
+  }
+}
+
+/** Spots on rings round p, nearest first, each ring starting from the direction `from` → p. */
+export function ringSpots(p: Pt, from: Pt, radii = [12, 15, 19, 24]): Pt[] {
+  const start = Math.atan2(p[1] - from[1], p[0] - from[0]);
+  const out: Pt[] = [];
+  for (const r of radii) {
+    for (let i = 0; i < 16; i += 1) {
+      const k = i === 0 ? 0 : (i % 2 === 1 ? 1 : -1) * Math.ceil(i / 2);
+      const t = start + (k * Math.PI) / 8;
+      out.push(add(p, [r * Math.cos(t), r * Math.sin(t)]));
+    }
+  }
+  return out;
+}
+
+/** Spots either side of segment ab for a label `text`, the middle first, then further along each way. */
+export function sideSpots(a: Pt, b: Pt, text: string, prefer?: Pt, ts = [0.5, 0.4, 0.6, 0.3, 0.7, 0.22, 0.78]): Pt[] {
+  const d = dir(a, b);
+  let n: Pt = [-d[1], d[0]];
+  // The preferred side first: away from `prefer` when it is given.
+  if (prefer && dot2(n, sub(prefer, lerp(a, b, 0.5))) > 0) n = mul(n, -1);
+  const out: Pt[] = [];
+  for (const extra of [0, 4, 9]) {
+    const gap = clearance(n, text.length) + extra;
+    for (const t of ts) {
+      const m = lerp(a, b, t);
+      out.push(add(m, mul(n, gap)), add(m, mul(n, -gap)));
+    }
+  }
+  return out;
+}
+
 /** Model coordinates of a triangle with `base` along the x-axis from L to R and apex T: |TL| = left, |TR| = right. */
 function placeTriangle(base: number, left: number, right: number): [Pt, Pt, Pt] {
   const x = (base * base + left * left - right * right) / (2 * base);
@@ -367,15 +517,15 @@ function flagSvg(p: FlagParams): string {
     [D, 'D', p.equal ? 'x' : '?'],
   ];
   const parts = [outline([A, B, C, D])];
-  for (const [Q] of corners) parts.push(seg(P, Q, true, 1.5));
-  corners.forEach(([Q, name, len], i) => {
-    parts.push(vtx(Q, name, O, 14));
-    // The label goes into the gap between this line and the next one round.
-    const next = corners[(i + 1) % 4][0];
-    const others = corners.filter((_, j) => j !== i).map(([R]) => [P, R] as [Pt, Pt]);
-    parts.push(beside(P, Q, len, [...others, [Q, next]], 0.55));
-  });
-  parts.push(dot(P), gapLetter(P, [A, B, C, D], 'P'));
+  const room = new Clearance(F.height).loop([A, B, C, D]);
+  for (const [Q] of corners) {
+    parts.push(seg(P, Q, true, 1.5));
+    room.line(P, Q);
+  }
+  for (const [Q, name] of corners) parts.push(vtx(Q, name, O, 14));
+  // Each length sits beside its own line, wherever the other lines and the sides leave it most room.
+  for (const [Q, , len] of corners) parts.push(room.put(sideSpots(P, Q, len, undefined, [0.55, 0.45, 0.65, 0.35, 0.75]), len));
+  parts.push(dot(P), room.put(ringSpots(P, O, [11, 14, 18]), 'P', 12));
   return svg(F.height, 'A rectangle ABCD with a point P inside joined to the four corners', parts);
 }
 
@@ -423,9 +573,9 @@ const cmSgBritishFlag: Generator<FlagParams> = {
   solution(p) {
     const { a, b, c } = p;
     const steps: SolutionStep[] = [
-      { text: 'Drop perpendiculars from $P$ to the sides. They cut the width into $w_1$ and $w_2$ and the height into $h_1$ and $h_2$, and each distance to a corner is a hypotenuse:' },
-      { tex: 'PA^{2} = w_1^{2} + h_1^{2}, \\qquad PC^{2} = w_2^{2} + h_2^{2}' },
-      { tex: 'PB^{2} = w_2^{2} + h_1^{2}, \\qquad PD^{2} = w_1^{2} + h_2^{2}' },
+      { text: 'Drop perpendiculars from $P$ to the sides. They cut the width into $w_{1}$ and $w_{2}$ and the height into $h_{1}$ and $h_{2}$, and each distance to a corner is a hypotenuse:' },
+      { tex: 'PA^{2} = w_{1}^{2} + h_{1}^{2}, \\qquad PC^{2} = w_{2}^{2} + h_{2}^{2}' },
+      { tex: 'PB^{2} = w_{2}^{2} + h_{1}^{2}, \\qquad PD^{2} = w_{1}^{2} + h_{2}^{2}' },
       { text: 'Each pair of opposite corners uses all four pieces once, so' },
       { tex: 'PA^{2} + PC^{2} = PB^{2} + PD^{2}' },
     ];
@@ -522,7 +672,7 @@ function poleSolution(p: PoleParams): SolutionStep[] {
       { text: `Let the pole be $x$ m tall. The rope is $x + ${e}$, and pulled tight it is the hypotenuse of a right triangle with the pole and the ground:` },
       { tex: `(x + ${e})^{2} = x^{2} + ${d}^{2}` },
       { tex: `x^{2} + ${2 * e}x + ${e * e} = x^{2} + ${d * d}` },
-      { text: 'The $x^2$ on each side cancel, leaving a plain equation:' },
+      { text: 'The $x^{2}$ on each side cancel, leaving a plain equation:' },
       { tex: `${2 * e}x = ${d * d} - ${e * e} = ${d * d - e * e}` },
       { tex: `x = ${x}` },
     ];
@@ -532,7 +682,7 @@ function poleSolution(p: PoleParams): SolutionStep[] {
     { text: `Let the break be $x$ m up. The fallen part is what is left of the pole, $${h} - x$, and it is the hypotenuse of a right triangle with the standing part and the ground:` },
     { tex: `x^{2} + ${d}^{2} = (${h} - x)^{2}` },
     { tex: `x^{2} + ${d * d} = ${h * h} - ${2 * h}x + x^{2}` },
-    { text: 'The $x^2$ on each side cancel, leaving a plain equation:' },
+    { text: 'The $x^{2}$ on each side cancel, leaving a plain equation:' },
     { tex: `${2 * h}x = ${h * h} - ${d * d} = ${h * h - d * d}` },
     { tex: `x = ${x}` },
   ];
@@ -574,7 +724,8 @@ const cmSgPoleTiles: Generator<PoleParams> = {
       return {
         kind: 'tiles',
         prompt: [say(`${polePrompt(p)} Let the pole be $x$ m tall.`), { kind: 'diagram', svg: poleSvg(p) }, say('Fill in the equation, then solve it.')],
-        template: '(x + {0})^2 = x^2 + {1}, \\quad x = {2}',
+        // `^2`, not `^{2}`: a braced digit is a blank in a template.
+        template: '(x + {0})^2 = x^2 + {1} \\quad x = {2}',
         bank: numberBank(answer, [d, 2 * e, p.hyp, d - e, e * e], 3, 1, 1),
         answer: answer.map(num),
       };
@@ -584,7 +735,7 @@ const cmSgPoleTiles: Generator<PoleParams> = {
     return {
       kind: 'tiles',
       prompt: [say(`${polePrompt(p)} Let the break be $x$ m up.`), { kind: 'diagram', svg: poleSvg(p) }, say('Fill in the equation, then solve it.')],
-      template: 'x^2 + {0} = ({1} - x)^2, \\quad x = {2}',
+      template: 'x^2 + {0} = ({1} - x)^2 \\quad x = {2}',
       bank: numberBank(answer, [d, 2 * h, p.hyp, h - d, h / 2], 3, 1, 1),
       answer: answer.map(num),
     };
@@ -1061,7 +1212,7 @@ const cmSgInradius: Generator<InradiusParams> = {
       const s = heronS(HERON[p.i]);
       return [
         { text: 'Join the centre to the three corners. That cuts the triangle into three triangles, each with a side as its base and $r$ as its height, so the area is $r$ times half the perimeter:' },
-        { tex: '\\text{area} = \\tfrac{1}{2}ar + \\tfrac{1}{2}br + \\tfrac{1}{2}cr = rs' },
+        { tex: '\\text{area} = \\frac{1}{2}ar + \\frac{1}{2}br + \\frac{1}{2}cr = rs' },
         ...heronSteps(p.i).slice(2),
         { tex: `r = ${A} \\div ${s} = ${num(inradius(p.i))}` },
       ];
@@ -1069,7 +1220,7 @@ const cmSgInradius: Generator<InradiusParams> = {
     const d3 = thirdDistance(p);
     return [
       { text: 'Join the point to the three corners. That cuts the triangle into three triangles, each with a side as its base and the distance to that side as its height, and together they make the whole:' },
-      { tex: `\\tfrac{1}{2}(${a} \\times ${p.d1} + ${b} \\times ${p.d2} + ${c}d) = ${A}` },
+      { tex: `\\frac{1}{2}(${a} \\times ${p.d1} + ${b} \\times ${p.d2} + ${c}d) = ${A}` },
       { tex: `${a * p.d1} + ${b * p.d2} + ${c}d = ${2 * A}` },
       { tex: `${c}d = ${2 * A - a * p.d1 - b * p.d2}` },
       { tex: `d = ${num(d3)}` },
@@ -1247,7 +1398,9 @@ const cmSgInscribedSquare: Generator<SquareParams> = {
       { tex: `${h}s = ${b * h} - ${b}s` },
       { tex: `${b + h}s = ${b * h}` },
       { tex: `s = ${s}` },
-      { text: `So $s = \\frac{bh}{b + h}$. Taking half the height, $${num(h / 2)}$, is the trap.` },
+      { text: 'So in general' },
+      { tex: 's = \\frac{bh}{b + h}' },
+      { text: `Taking half the height, $${num(h / 2)}$, is the trap.` },
     ];
   },
 };
@@ -1289,20 +1442,15 @@ function angleSimSvg(ab: number, ac: number, ad: number, labels: { ab?: string; 
   const F = frame([Am, Bm, Cm], 205, 30);
   const [A, B, C, D] = [Am, Bm, Cm, Dm].map(F.at);
   const G = centroid([A, B, C]);
-  const parts = [
-    outline([A, B, C]),
-    seg(B, D),
-    angleMark(B, A, D, '', 18),
-    angleMark(C, A, B, '', 18),
-    vtx(A, 'A', G, 13),
-    vtx(B, 'B', G, 13),
-    vtx(C, 'C', G, 13),
-    gapLetter(D, [A, B, C, add(D, [-15, 30]), add(D, [15, 30])], 'D'),
-  ];
-  if (labels.ad) parts.push(txt(add(lerp(A, D, 0.5), [0, 15]), labels.ad));
-  if (labels.dc) parts.push(txt(add(lerp(D, C, 0.5), [0, 15]), labels.dc));
-  if (labels.ab) parts.push(outside(A, B, labels.ab, G));
-  if (labels.bc) parts.push(outside(B, C, labels.bc, G));
+  const parts = [outline([A, B, C]), seg(B, D), angleMark(B, A, D, '', 18), angleMark(C, A, B, '', 18), vtx(A, 'A', G, 13), vtx(B, 'B', G, 13), vtx(C, 'C', G, 13)];
+  const room = new Clearance(F.height).loop([A, B, C]).line(B, D).arc(B, A, D, 18).arc(C, A, B, 18);
+  for (const [X, name] of [[A, 'A'], [B, 'B'], [C, 'C']] as [Pt, string][]) room.box(vtxAt(X, G, 13), name);
+  parts.push(room.put(ringSpots(D, add(D, [0, 10]), [12, 15, 19, 24]).filter((q) => q[1] < D[1] - 4), 'D', 12));
+  const below = (X: Pt, Y: Pt, label: string) => room.put([0.5, 0.4, 0.6, 0.3, 0.7].map((t) => add(lerp(X, Y, t), [0, 15])), label);
+  if (labels.ad) parts.push(below(A, D, labels.ad));
+  if (labels.dc) parts.push(below(D, C, labels.dc));
+  if (labels.ab) parts.push(room.put(sideSpots(A, B, labels.ab, G), labels.ab));
+  if (labels.bc) parts.push(room.put(sideSpots(B, C, labels.bc, G), labels.bc));
   return svg(F.height, 'Triangle ABC with D on AC, and angle ABD marked equal to angle ACB', parts);
 }
 
@@ -1400,7 +1548,7 @@ const cmSgAngleSimilarTiles: Generator<AngleTilesParams> = {
         },
         say('Match the triangles corner to corner, then fill in the lengths.'),
       ],
-      template: `\\triangle ABD \\sim \\triangle {0}, \\quad ${s.back ? 'DC' : 'AB'} = {1}, \\quad BD = {2}`,
+      template: `\\triangle ABD \\sim \\triangle {0} \\quad ${s.back ? 'DC' : 'AB'} = {1} \\quad BD = {2}`,
       bank: [...CORRESPONDENCES, ...bank],
       answer: ['ACB', num(numbers[0]), num(numbers[1])],
     };
@@ -1509,7 +1657,8 @@ const cmSgParallelArea: Generator<ParallelAreaParams> = {
       return [
         { text: 'Triangle $ADE$ is similar to triangle $ABC$, so its area is the length ratio squared:' },
         { tex: `[ABC] = ${X} + ${Y} = ${X + Y}` },
-        { tex: X === m * m ? `[ADE] : [ABC] = ${X} : ${X + Y}` : `[ADE] : [ABC] = ${X} : ${X + Y} = ${m * m} : ${whole}` },
+        { tex: `[ADE] : [ABC] = ${X} : ${X + Y}` },
+        ...(X === m * m ? [] : [{ tex: `= ${m * m} : ${whole}` }]),
         { text: 'Lengths go by the square roots:' },
         { tex: `AD : AB = ${m} : ${m + n}` },
         { tex: `AD : DB = ${m} : ${n}` },
@@ -1626,21 +1775,23 @@ function bisectorSvg(a: number, b: number, c: number, L: BisLabels): string {
   const [A, B, C, D] = [Am, Bm, Cm, Dm].map(F.at);
   const G = centroid([A, B, C]);
   const parts = [outline([A, B, C]), seg(A, D), tickedArc(A, B, D), tickedArc(A, D, C), vtx(A, 'A', G), txt(add(B, [-9, 4]), 'B', 'end'), txt(add(C, [9, 4]), 'C', 'start')];
-  if (L.bd || L.dc) {
-    parts.push(gapLetter(D, [A, B, C, add(D, [-15, 30]), add(D, [15, 30])], 'D'));
-    if (L.bd) parts.push(txt(add(lerp(B, D, 0.5), [0, 15]), L.bd));
-    if (L.dc) parts.push(txt(add(lerp(D, C, 0.5), [0, 15]), L.dc));
-  } else {
-    parts.push(L.incentre ? gapLetter(D, [A, B, C, add(D, [-15, 30]), add(D, [15, 30])], 'D') : txt(add(D, [7, -10]), 'D', 'start'));
-    if (L.bc) parts.push(txt(add(lerp(B, C, 0.5), [0, 15]), L.bc));
-  }
-  if (L.ab) parts.push(outside(A, B, L.ab, G));
-  if (L.ac) parts.push(outside(A, C, L.ac, G));
-  if (L.ad) parts.push(beside(A, D, L.ad, [[A, B], [A, C]], 0.6));
+  const room = new Clearance(F.height).loop([A, B, C]).line(A, D).arc(A, B, D, 20).arc(A, D, C, 20).arc(A, B, C, 24);
+  room.box(vtxAt(A, G), 'A').box(add(B, [-13, 4]), 'B').box(add(C, [13, 4]), 'C');
+  const I = F.at(mul(add(add(mul(Am, a), mul(Bm, b)), mul(Cm, c)), 1 / (a + b + c)));
   if (L.incentre) {
-    const I = F.at(mul(add(add(mul(Am, a), mul(Bm, b)), mul(Cm, c)), 1 / (a + b + c)));
-    parts.push(seg(B, I, true, 1.5), dot(I, 2.5), gapLetter(I, [A, D, B], 'I', 11));
+    parts.push(seg(B, I, true, 1.5), dot(I, 2.5));
+    room.line(B, I);
   }
+  // D above BC, in a gap beside the bisector: below, it would read as part of a length.
+  parts.push(room.put(ringSpots(D, add(D, [0, 10]), [12, 15, 19, 24]).filter((q) => q[1] < D[1] - 4), 'D', 12));
+  const below = (X: Pt, Y: Pt, label: string) => room.put([0.5, 0.4, 0.6, 0.3, 0.7].map((t) => add(lerp(X, Y, t), [0, 15])), label);
+  if (L.bd) parts.push(below(B, D, L.bd));
+  if (L.dc) parts.push(below(D, C, L.dc));
+  if (L.bc) parts.push(below(B, C, L.bc));
+  if (L.ab) parts.push(room.put(sideSpots(A, B, L.ab, G), L.ab));
+  if (L.ac) parts.push(room.put(sideSpots(A, C, L.ac, G), L.ac));
+  if (L.ad) parts.push(room.put(sideSpots(A, D, L.ad, undefined, [0.55, 0.45, 0.65, 0.4, 0.7]), L.ad));
+  if (L.incentre) parts.push(room.put(ringSpots(I, B, [10, 13, 16]), 'I', 12));
   return svg(F.height, 'Triangle ABC with the bisector of angle A meeting BC at D', parts);
 }
 
@@ -1875,7 +2026,7 @@ const cmSgIncentreRatio: Generator<IncentreParams> = {
         { tex: `AI = ${p.ad} \\times \\frac{${u}}{${u + v}} = ${num(ai)}` },
       );
     } else {
-      steps.push({ text: `In general $AI : ID = (AB + AC) : BC$. The bisector ratio $${c} : ${b}$ is the trap: that splits $BC$, not $AD$.` });
+      steps.push({ text: 'In general' }, { tex: 'AI : ID = (AB + AC) : BC' }, { text: `The bisector ratio $${c} : ${b}$ is the trap: that splits $BC$, not $AD$.` });
     }
     return steps;
   },
@@ -1916,7 +2067,7 @@ const cmSgBisectorTiles: Generator<BisTilesParams> = {
         { kind: 'diagram', svg: bisectorSvg(r.a, r.b, r.c, { ab: `${r.c}`, ac: `${r.b}`, bc: `${r.a}`, incentre: p.withI }) },
         say('Fill in the lengths.'),
       ],
-      template: p.withI ? 'BD = {0}, \\quad AD = {1}, \\quad AI = {2}' : 'BD = {0}, \\quad DC = {1}, \\quad AD = {2}',
+      template: p.withI ? 'BD = {0} \\quad AD = {1} \\quad AI = {2}' : 'BD = {0} \\quad DC = {1} \\quad AD = {2}',
       bank: numberBank(values, [r.a / 2, r.b + r.c - r.ad, r.ad / 2, r.dc + 1, r.c - r.bd], 3, 1, 1),
       answer: values.map(num),
     };
@@ -1933,7 +2084,8 @@ const cmSgBisectorTiles: Generator<BisTilesParams> = {
     ];
     if (p.withI) {
       steps.push(
-        { text: `$I$ cuts $AD$ in the ratio $(AB + AC) : BC = ${r.b + r.c} : ${r.a}$:` },
+        { text: '$I$ cuts $AD$ in the ratio' },
+        { tex: `(AB + AC) : BC = ${r.b + r.c} : ${r.a}` },
         { tex: `AI = ${r.ad} \\times \\frac{${r.b + r.c}}{${r.a + r.b + r.c}} = ${num(incentreAI(r))}` },
       );
     }
@@ -1992,22 +2144,21 @@ function chordsSvg(p: ChordsParams): string {
   const D = F.at(add(Pm, mul(u2, p.pd)));
   const P = F.at(Pm);
   const parts = [ring(O, R * F.k), seg(A, B), seg(C, D), dot(P, 2.5)];
-  for (const [X, name] of [[A, 'A'], [B, 'B'], [C, 'C'], [D, 'D']] as [Pt, string][]) parts.push(vtx(X, name, O, 12));
-  const labels: [Pt, string, [Pt, Pt]][] = [
-    [A, `${p.ap}`, [C, D]],
-    [B, `${p.pb}`, [C, D]],
-    [C, p.whole ? '?' : `${p.cp}`, [A, B]],
-    [D, p.whole ? '' : '?', [A, B]],
-  ];
-  const placed: Pt[] = [];
-  for (const [X, label, other] of labels) {
-    if (!label) continue;
-    const at = besidePt(P, X, label, [other], 0.55);
-    placed.push(at);
-    parts.push(txt(at, label));
+  const room = new Clearance(F.height).circle(O, R * F.k).line(A, B).line(C, D);
+  for (const [X, name] of [[A, 'A'], [B, 'B'], [C, 'C'], [D, 'D']] as [Pt, string][]) {
+    parts.push(vtx(X, name, O, 12));
+    room.box(vtxAt(X, O, 12), name);
   }
-  // P goes in a gap between the chords that no length label has taken.
-  parts.push(gapLetter(P, [A, B, C, D, ...placed], 'P'));
+  const labels: [Pt, string][] = [
+    [A, `${p.ap}`],
+    [B, `${p.pb}`],
+    [C, p.whole ? '?' : `${p.cp}`],
+    [D, p.whole ? '' : '?'],
+  ];
+  // The shortest pieces first, while they still have room beside them.
+  labels.sort((x, y) => dist(P, x[0]) - dist(P, y[0]));
+  for (const [X, label] of labels) if (label) parts.push(room.put(sideSpots(P, X, label, O, [0.55, 0.45, 0.65, 0.35, 0.75]), label));
+  parts.push(room.put(ringSpots(P, O, [11, 14, 18]), 'P', 12));
   return svg(F.height, 'Two chords AB and CD of a circle crossing at P', parts);
 }
 
@@ -2121,17 +2272,28 @@ function secantSvg(p: SecantParams): string {
   const O = F.at(Om);
   const A = F.at(mul(u1, p.pa));
   const B = F.at(mul(u1, p.pb));
-  const parts = [ring(O, R * F.k), seg(P, B), dot(P, 2.5), txt(add(P, [-8, 0]), 'P', 'end'), vtx(A, 'A', O, 12), vtx(B, 'B', O, 12)];
+  const parts = [ring(O, R * F.k), seg(P, B), dot(P, 2.5), txt(add(P, [-8, 0]), 'P', 'end')];
+  const room = new Clearance(F.height).circle(O, R * F.k).line(P, B).box(add(P, [-12, 0]), 'P');
+  // A chord's length goes inside the circle, towards the centre.
+  const inward = (X: Pt, Y: Pt) => {
+    const m = lerp(X, Y, 0.5);
+    return add(m, sub(m, O));
+  };
   if (p.tangent) {
     const T = F.at(Tm);
-    parts.push(seg(P, T), dot(T, 2.5), vtx(T, 'T', O, 12), beside(P, T, `${p.pc}`, [[P, B]]), beside(P, A, `${p.pa}`, [[P, T]]), txt(add(lerp(A, B, 0.5), mul(dir(lerp(A, B, 0.5), O), 12)), '?'));
+    parts.push(seg(P, T), dot(T, 2.5));
+    room.line(P, T);
+    parts.push(room.put(ringSpots(T, O), 'T'), room.put(ringSpots(B, O), 'B'), room.put(ringSpots(A, O), 'A'));
+    parts.push(room.put(sideSpots(P, T, `${p.pc}`, B), `${p.pc}`), room.put(sideSpots(P, A, `${p.pa}`, T), `${p.pa}`), room.put(sideSpots(A, B, '?', inward(A, B)), '?'));
     return svg(F.height, 'A tangent PT and a line through P cutting the circle at A and B', parts);
   }
   const C = F.at(mul(u2, p.pc));
   const D = F.at(mul(u2, p.pd));
-  parts.push(seg(P, D), vtx(C, 'C', O, 12), vtx(D, 'D', O, 12));
-  parts.push(beside(P, A, `${p.pa}`, [[P, D]]), beside(P, C, `${p.pc}`, [[P, B]]));
-  parts.push(txt(add(lerp(A, B, 0.5), mul(dir(lerp(A, B, 0.5), O), 12)), `${p.pb - p.pa}`), txt(add(lerp(C, D, 0.5), mul(dir(lerp(C, D, 0.5), O), 12)), '?'));
+  parts.push(seg(P, D));
+  room.line(P, D);
+  parts.push(room.put(ringSpots(B, O), 'B'), room.put(ringSpots(D, O), 'D'), room.put(ringSpots(A, O), 'A'), room.put(ringSpots(C, O), 'C'));
+  parts.push(room.put(sideSpots(P, A, `${p.pa}`, D), `${p.pa}`), room.put(sideSpots(P, C, `${p.pc}`, B), `${p.pc}`));
+  parts.push(room.put(sideSpots(A, B, `${p.pb - p.pa}`, inward(A, B)), `${p.pb - p.pa}`), room.put(sideSpots(C, D, '?', inward(C, D)), '?'));
   return svg(F.height, 'Two lines from a point P outside a circle, cutting it at A and B, and at C and D', parts);
 }
 
@@ -2225,30 +2387,34 @@ function powerRadiusSvg(p: PowerRadiusParams): string {
   const O = F.at([0, 0]);
   const P = F.at([d, 0]);
   const parts = [ring(O, r * F.k), seg(O, P, false, 1.5), dot(O, 2.5), dot(P, 2.5)];
+  const room = new Clearance(F.height).circle(O, r * F.k).line(O, P);
   const blocked: number[] = [0];
-  let chord: [Pt, Pt] | null = null;
-  const labelsAtP: Pt[] = [];
+  let A: Pt | null = null;
+  let B: Pt | null = null;
   if (p.pa > 0) {
     const ux = (p.pa - p.pb) / (2 * d);
     const u: Pt = [ux, Math.sqrt(1 - ux * ux)];
     const Am = sub([d, 0], mul(u, p.pa));
     const Bm = add([d, 0], mul(u, p.pb));
-    const A = F.at(Am);
-    const B = F.at(Bm);
-    chord = [A, B];
+    A = F.at(Am);
+    B = F.at(Bm);
     blocked.push((Math.atan2(Am[1], Am[0]) * 180) / Math.PI, (Math.atan2(Bm[1], Bm[0]) * 180) / Math.PI);
-    // PB can be short, so its label goes on the side towards O, clear of the letter B out at the rim.
-    const q = besidePt(P, B, '?', [[P, add(P, sub(P, O))]]);
-    labelsAtP.push(q);
-    parts.push(seg(A, B), vtx(A, 'A', O, 12), vtx(B, 'B', O, 12), beside(P, A, `${p.pa}`, [[O, P]]), txt(q, '?'));
+    parts.push(seg(A, B));
+    room.line(A, B);
   }
   // A radius drawn where nothing else is.
   const gap = (t: number) => Math.min(...blocked.map((b) => Math.abs((((t - b) % 360) + 540) % 360 - 180)));
   const angle = [135, 225, 180, 90, 270, 45, 315].reduce((best, t) => (gap(t) > gap(best) ? t : best));
   const Q = F.at(polar(r, angle));
-  parts.push(seg(O, Q, false, 1.5), beside(O, Q, `${r}`, chord ? [chord, [O, P]] : [[O, P]]));
-  parts.push(beside(O, P, `${d}`, chord ? [chord, [O, Q]] : [[O, Q]]));
-  parts.push(gapLetter(O, [Q, P], 'O'), chord ? gapLetter(P, [O, ...chord, ...labelsAtP], 'P') : txt(add(P, [0, 13]), 'P', 'middle', 12));
+  parts.push(seg(O, Q, false, 1.5));
+  room.line(O, Q);
+  if (A && B) parts.push(room.put(ringSpots(A, O), 'A'), room.put(ringSpots(B, O), 'B'));
+  parts.push(room.put(ringSpots(P, O, [11, 14, 18]), 'P', 12));
+  if (A && B) {
+    parts.push(room.put(sideSpots(P, B, '?', O), '?'), room.put(sideSpots(P, A, `${p.pa}`, O), `${p.pa}`));
+  }
+  parts.push(room.put(sideSpots(O, Q, `${r}`), `${r}`), room.put(sideSpots(O, P, `${d}`), `${d}`));
+  parts.push(room.put(ringSpots(O, P, [11, 14, 18]), 'O', 12));
   return svg(F.height, 'A circle with centre O and a point P inside it', parts);
 }
 
@@ -2376,16 +2542,19 @@ function powerTableSvg(p: PowerTableParams): string {
   const O = F.at([0, 0]);
   const P = F.at([d, 0]);
   const parts = [ring(O, R * F.k), dot(P, 2.5)];
+  const room = new Clearance(F.height).circle(O, R * F.k);
   const names = ['AB', 'CD', 'EF'];
-  const ends: Pt[] = [];
+  const ends: [Pt, string][] = [];
   p.rows.forEach(([x, y], i) => {
     const u = polar(1, angles[i]);
     const X = F.at(sub([d, 0], mul(u, x)));
     const Y = F.at(add([d, 0], mul(u, y)));
-    ends.push(X, Y);
-    parts.push(seg(X, Y), vtx(X, names[i][0], O, 12), vtx(Y, names[i][1], O, 12));
+    ends.push([X, names[i][0]], [Y, names[i][1]]);
+    parts.push(seg(X, Y));
+    room.line(X, Y);
   });
-  parts.push(gapLetter(P, ends, 'P'));
+  for (const [X, name] of ends) parts.push(room.put(ringSpots(X, O), name));
+  parts.push(room.put(ringSpots(P, O, [11, 14, 18]), 'P', 12));
   return svg(F.height, 'Three chords AB, CD and EF of a circle through one point P', parts);
 }
 
@@ -2476,22 +2645,48 @@ type Mark = [vertex: number, from: number, to: number, label: string];
 
 /** The cyclic quadrilateral with both diagonals, and angles marked at corners (0 to 3 for A to D). */
 function cyclicSvg(al: number, be: number, ga: number, marks: Mark[], crossMark?: string): string {
+  return cyclicLayout(al, be, ga, marks, crossMark).svg;
+}
+
+/** Whether every angle's value finds a clear spot in the figure. */
+const cyclicFits = (al: number, be: number, ga: number, marks: Mark[], crossMark?: string) => cyclicLayout(al, be, ga, marks, crossMark).worst >= 1;
+
+function cyclicLayout(al: number, be: number, ga: number, marks: Mark[], crossMark?: string): { svg: string; worst: number } {
   const model = cyclicPts(al, be, ga);
   const F = frame([[-1, -1], [1, 1]], 215, 26);
   const O = F.at([0, 0]);
   const V = model.map(F.at);
   const parts = [ring(O, F.k), outline(V), seg(V[0], V[2], false, 1.5), seg(V[1], V[3], false, 1.5)];
-  ['A', 'B', 'C', 'D'].forEach((name, i) => parts.push(vtx(V[i], name, O, 12)));
-  for (const [v, a, b, label] of marks) {
-    // A narrow angle pushes its label further out, where the wedge is wide enough to hold it.
-    const half = Math.acos(Math.max(-1, Math.min(1, dot2(dir(V[v], V[a]), dir(V[v], V[b]))))) / 2;
-    parts.push(angleMark(V[v], V[a], V[b], label, 15, Math.min(46, Math.max(31, 12 / Math.sin(half)))));
+  const room = new Clearance(F.height).circle(O, F.k).loop(V).line(V[0], V[2]).line(V[1], V[3]);
+  ['A', 'B', 'C', 'D'].forEach((name, i) => {
+    parts.push(vtx(V[i], name, O, 12));
+    room.box(vtxAt(V[i], O, 12), name);
+  });
+  const X = crossing(V[0], V[2], V[1], V[3]);
+  const angles: [Pt, Pt, Pt, string, number][] = marks.map(([v, a, b, label]) => [V[v], V[a], V[b], label, 15]);
+  if (crossMark !== undefined) angles.push([X, V[0], V[1], crossMark, 13]);
+  for (const [v, a, b, , r] of angles) {
+    parts.push(angleMark(v, a, b, '', r));
+    room.arc(v, a, b, r);
   }
-  if (crossMark !== undefined) {
-    const X = crossing(V[0], V[2], V[1], V[3]);
-    parts.push(angleMark(X, V[0], V[1], crossMark, 13, 26), txt(add(X, mul(dir([0, 0], add(dir(X, V[2]), dir(X, V[3]))), 14)), 'X', 'middle', 12));
+  if (crossMark !== undefined) parts.push(room.put(ringSpots(X, sub(X, add(dir(X, V[2]), dir(X, V[3]))), [12, 15, 18]), 'X', 12));
+  // Each value out along its angle's bisector, as far as it needs to go to clear both arms.
+  for (const [v, a, b, label, r] of angles) {
+    const u1 = dir(v, a);
+    const u2 = dir(v, b);
+    const spread = Math.acos(Math.max(-1, Math.min(1, dot2(u1, u2))));
+    const spots: Pt[] = [];
+    for (let R = r + 11; R <= 84; R += 3) {
+      for (const f of [0.5, 0.42, 0.58, 0.34, 0.66]) {
+        const t = Math.atan2(u1[1], u1[0]);
+        const cross = u1[0] * u2[1] - u1[1] * u2[0];
+        const along = t + (cross > 0 ? 1 : -1) * spread * f;
+        spots.push(add(v, [R * Math.cos(along), R * Math.sin(along)]));
+      }
+    }
+    parts.push(room.put(spots, label, 12));
   }
-  return svg(F.height, 'A quadrilateral ABCD with its corners on a circle, and both diagonals', parts);
+  return { svg: svg(F.height, 'A quadrilateral ABCD with its corners on a circle, and both diagonals', parts), worst: room.worst };
 }
 
 const deg = (v: number) => `${v}°`;
@@ -2508,6 +2703,12 @@ interface CyclicAnglesParams {
   cross: boolean;
 }
 
+/** The arcs and marks to draw: crossing, α = q (arc AB), β = free, γ = p (arc CD); otherwise γ = p, δ = q, α = free. */
+function cyclicAnglesFigure({ p, q, free, cross }: CyclicAnglesParams): [number, number, number, Mark[], string?] {
+  if (cross) return [q, free, p, [[0, 2, 3, deg(p)], [2, 0, 1, deg(q)]], '?'];
+  return [free, 180 - p - q - free, p, [[0, 2, 3, deg(p)], [1, 0, 3, deg(q)], [3, 0, 2, '?']]];
+}
+
 const cmSgCyclicAngles: Generator<CyclicAnglesParams> = {
   id: 'cm-sg-cyclic-angles',
   sample(rng, difficulty) {
@@ -2518,7 +2719,9 @@ const cmSgCyclicAngles: Generator<CyclicAnglesParams> = {
       if (rest < 50) continue;
       if (difficulty >= 2 && p + q === 90) continue;
       const free = rng.int(25, rest - 25);
-      return { p, q, free, cross: difficulty >= 2 };
+      const s = { p, q, free, cross: difficulty >= 2 };
+      if (!cyclicFits(...cyclicAnglesFigure(s))) continue;
+      return s;
     }
   },
   render(s) {
@@ -2529,7 +2732,7 @@ const cmSgCyclicAngles: Generator<CyclicAnglesParams> = {
       return typed(
         [
           say(`$ABCD$ is a cyclic quadrilateral whose diagonals cross at $X$, with $\\angle CAD = ${p}^\\circ$ and $\\angle ACB = ${q}^\\circ$.`),
-          { kind: 'diagram', svg: cyclicSvg(q, s.free, p, [[0, 2, 3, deg(p)], [2, 0, 1, deg(q)]], '?') },
+          { kind: 'diagram', svg: cyclicSvg(...cyclicAnglesFigure(s)) },
           say('How many degrees is $\\angle AXB$?'),
         ],
         p + q,
@@ -2540,7 +2743,7 @@ const cmSgCyclicAngles: Generator<CyclicAnglesParams> = {
     return typed(
       [
         say(`$ABCD$ is a cyclic quadrilateral with $\\angle CAD = ${p}^\\circ$ and $\\angle ABD = ${q}^\\circ$.`),
-        { kind: 'diagram', svg: cyclicSvg(s.free, rest - s.free, p, [[0, 2, 3, deg(p)], [1, 0, 3, deg(q)], [3, 0, 2, '?']]) },
+        { kind: 'diagram', svg: cyclicSvg(...cyclicAnglesFigure(s)) },
         say('How many degrees is $\\angle ADC$?'),
       ],
       rest,
@@ -2589,6 +2792,12 @@ function tableArcs({ a1, a2, a3, alt }: CyclicTableParams): [number, number, num
   return alt ? [a3, a1, a2, 180 - a1 - a2 - a3] : [180 - a1 - a2 - a3, a3, a2, a1];
 }
 
+function tableMarks(p: CyclicTableParams): Mark[] {
+  return p.alt
+    ? [[0, 1, 2, deg(p.a1)], [0, 2, 3, deg(p.a2)], [3, 0, 1, deg(p.a3)]]
+    : [[1, 0, 3, deg(p.a1)], [1, 3, 2, deg(p.a2)], [0, 1, 2, deg(p.a3)]];
+}
+
 function cyclicTableValues(p: CyclicTableParams): number[] {
   const [al, be, ga, de] = tableArcs(p);
   return p.alt ? [be, ga, al, de + ga] : [de, ga, be, al + be];
@@ -2599,7 +2808,8 @@ const cmSgCyclicTable: Generator<CyclicTableParams> = {
   sample(rng, difficulty) {
     for (;;) {
       const p = { a1: rng.int(25, 60), a2: rng.int(25, 60), a3: rng.int(25, 60), alt: difficulty >= 2 };
-      if (tableArcs(p).some((v) => v < 25)) continue;
+      const arcs = tableArcs(p);
+      if (arcs.some((v) => v < 25) || !cyclicFits(arcs[0], arcs[1], arcs[2], tableMarks(p))) continue;
       const values = cyclicTableValues(p);
       if (new Set(values).size < values.length) continue;
       return p;
@@ -2611,14 +2821,11 @@ const cmSgCyclicTable: Generator<CyclicTableParams> = {
     const given = p.alt
       ? `$\\angle BAC = ${p.a1}^\\circ$, $\\angle CAD = ${p.a2}^\\circ$ and $\\angle ADB = ${p.a3}^\\circ$`
       : `$\\angle ABD = ${p.a1}^\\circ$, $\\angle DBC = ${p.a2}^\\circ$ and $\\angle BAC = ${p.a3}^\\circ$`;
-    const marks: Mark[] = p.alt
-      ? [[0, 1, 2, deg(p.a1)], [0, 2, 3, deg(p.a2)], [3, 0, 1, deg(p.a3)]]
-      : [[1, 0, 3, deg(p.a1)], [1, 3, 2, deg(p.a2)], [0, 1, 2, deg(p.a3)]];
     const labels = p.alt ? ['\\angle BDC', '\\angle DBC', '\\angle ACB', '\\angle ABC'] : ['\\angle ACD', '\\angle CAD', '\\angle BDC', '\\angle ADC'];
     const bank = numberBank(values, [180 - p.a1, 180 - p.a3, p.a1 + p.a3, 180 - p.a2 - p.a3], 3, 1, 1);
     return {
       kind: 'table',
-      prompt: [say(`$ABCD$ is a cyclic quadrilateral with ${given}. Fill in the angles.`), { kind: 'diagram', svg: cyclicSvg(al, be, ga, marks) }],
+      prompt: [say(`$ABCD$ is a cyclic quadrilateral with ${given}. Fill in the angles.`), { kind: 'diagram', svg: cyclicSvg(al, be, ga, tableMarks(p)) }],
       columns: ['\\text{angle}', '\\text{size}'],
       rows: labels.map((label) => [label, null]),
       bank: bank.map((t) => `${t}^\\circ`),
@@ -2633,8 +2840,9 @@ const cmSgCyclicTable: Generator<CyclicTableParams> = {
         { tex: `\\angle BDC = \\angle BAC = ${values[0]}^\\circ` },
         { tex: `\\angle DBC = \\angle DAC = ${values[1]}^\\circ` },
         { tex: `\\angle ACB = \\angle ADB = ${values[2]}^\\circ` },
-        { text: 'Opposite angles add to $180^\\circ$, and $\\angle ADC = \\angle ADB + \\angle BDC$:' },
-        { tex: `\\angle ABC = 180^\\circ - (${p.a3}^\\circ + ${p.a1}^\\circ) = ${values[3]}^\\circ` },
+        { text: 'Opposite angles add to $180^\\circ$, and $\\angle ADC$ is made of $\\angle ADB$ and $\\angle BDC$:' },
+        { tex: `\\angle ABC = 180^\\circ - (${p.a3}^\\circ + ${p.a1}^\\circ)` },
+        { tex: `= ${values[3]}^\\circ` },
       ];
     }
     return [
@@ -2642,8 +2850,9 @@ const cmSgCyclicTable: Generator<CyclicTableParams> = {
       { tex: `\\angle ACD = \\angle ABD = ${values[0]}^\\circ` },
       { tex: `\\angle CAD = \\angle CBD = ${values[1]}^\\circ` },
       { tex: `\\angle BDC = \\angle BAC = ${values[2]}^\\circ` },
-      { text: 'Opposite angles add to $180^\\circ$, and $\\angle ABC = \\angle ABD + \\angle DBC$:' },
-      { tex: `\\angle ADC = 180^\\circ - (${p.a1}^\\circ + ${p.a2}^\\circ) = ${values[3]}^\\circ` },
+      { text: 'Opposite angles add to $180^\\circ$, and $\\angle ABC$ is made of $\\angle ABD$ and $\\angle DBC$:' },
+      { tex: `\\angle ADC = 180^\\circ - (${p.a1}^\\circ + ${p.a2}^\\circ)` },
+      { tex: `= ${values[3]}^\\circ` },
     ];
   },
 };
@@ -2921,11 +3130,11 @@ const cmSgBrahmagupta: Generator<BrahmaParams> = {
     }
     const s = (a + b + c + d) / 2;
     return [
-      { text: 'Brahmagupta’s formula for a cyclic quadrilateral, with $s$ half the perimeter:' },
-      { tex: '\\text{area} = \\sqrt{(s - a)(s - b)(s - c)(s - d)}' },
+      { text: 'Brahmagupta’s formula gives the area $K$ of a cyclic quadrilateral, with $s$ half the perimeter:' },
+      { tex: 'K = \\sqrt{(s - a)(s - b)(s - c)(s - d)}' },
       { tex: `s = (${a} + ${b} + ${c} + ${d}) \\div 2 = ${s}` },
-      { tex: `\\text{area} = \\sqrt{${s - a} \\times ${s - b} \\times ${s - c} \\times ${s - d}}` },
-      { tex: `\\text{area} = \\sqrt{${(s - a) * (s - b) * (s - c) * (s - d)}} = ${area}` },
+      { tex: `K = \\sqrt{${s - a} \\times ${s - b} \\times ${s - c} \\times ${s - d}}` },
+      { tex: `K = \\sqrt{${(s - a) * (s - b) * (s - c) * (s - d)}} = ${area}` },
       { text: `Averaging opposite sides and multiplying, $${num(((a + c) * (b + d)) / 4)}$, is the trap: that is only right for a rectangle.` },
     ];
   },
@@ -3160,11 +3369,11 @@ const cmSgTangentTable: Generator<TangentTableParams> = {
       return {
         kind: 'table',
         prompt: [
-          say(`Triangle $ABC$ has $BC = ${a}$, $CA = ${b}$ and $AB = ${c}$, and a circle inside it touches all three sides. $t_A$ is the length of the tangent from $A$ to the circle, and so on. Fill them in.`),
+          say(`Triangle $ABC$ has $BC = ${a}$, $CA = ${b}$ and $AB = ${c}$, and a circle inside it touches all three sides. $t_{A}$ is the length of the tangent from $A$ to the circle, and so on. Fill them in.`),
           { kind: 'diagram', svg: tangentTriangleSvg(a, b, c) },
         ],
         columns: ['\\text{tangent}', '\\text{length}'],
-        rows: [['t_A', null], ['t_B', null], ['t_C', null]],
+        rows: [['t_{A}', null], ['t_{B}', null], ['t_{C}', null]],
         bank: numberBank(values, [s, a / 2, b / 2, c / 2, s - values[0]], 3, 1, 1),
         answer: values.map(num),
       };
@@ -3173,11 +3382,11 @@ const cmSgTangentTable: Generator<TangentTableParams> = {
     return {
       kind: 'table',
       prompt: [
-        say(`Quadrilateral $ABCD$ has a circle inside it touching all four sides, with $AB = ${ab}$, $BC = ${bc}$ and $CD = ${cd}$. The tangent from $A$ to the circle is $t_A = ${p.t[0]}$. Fill in the other tangents and $DA$.`),
+        say(`Quadrilateral $ABCD$ has a circle inside it touching all four sides, with $AB = ${ab}$, $BC = ${bc}$ and $CD = ${cd}$. The tangent from $A$ to the circle is $t_{A} = ${p.t[0]}$. Fill in the other tangents and $DA$.`),
         { kind: 'diagram', svg: tangentialSvg(p.t, [`${ab}`, `${bc}`, `${cd}`, '']) },
       ],
       columns: ['\\text{length}', '\\text{value}'],
-      rows: [['t_B', null], ['t_C', null], ['t_D', null], ['DA', null]],
+      rows: [['t_{B}', null], ['t_{C}', null], ['t_{D}', null], ['DA', null]],
       bank: numberBank(values, [ab - bc + cd, ab + p.t[0], bc - p.t[0], cd - p.t[0]], 3, 1, 1),
       answer: values.map(num),
     };
@@ -3189,21 +3398,22 @@ const cmSgTangentTable: Generator<TangentTableParams> = {
       const s = (a + b + c) / 2;
       return [
         { text: 'The two tangents from a corner are equal, so each side is made of two tangents:' },
-        { tex: `t_A + t_B = ${c}, \\qquad t_B + t_C = ${a}, \\qquad t_C + t_A = ${b}` },
+        { tex: `t_{A} + t_{B} = ${c}, \\qquad t_{B} + t_{C} = ${a}, \\qquad t_{C} + t_{A} = ${b}` },
         { text: 'Adding all three counts every tangent twice:' },
-        { tex: `t_A + t_B + t_C = (${a} + ${b} + ${c}) \\div 2 = ${s}` },
+        { tex: `t_{A} + t_{B} + t_{C} = (${a} + ${b} + ${c}) \\div 2` },
+        { tex: `= ${s}` },
         { text: 'Take off the side made of the other two:' },
-        { tex: `t_A = ${s} - ${a} = ${values[0]}` },
-        { tex: `t_B = ${s} - ${b} = ${values[1]}` },
-        { tex: `t_C = ${s} - ${c} = ${values[2]}` },
+        { tex: `t_{A} = ${s} - ${a} = ${values[0]}` },
+        { tex: `t_{B} = ${s} - ${b} = ${values[1]}` },
+        { tex: `t_{C} = ${s} - ${c} = ${values[2]}` },
       ];
     }
     const [ab, bc, cd] = pitotSides(p.t);
     return [
       { text: 'Walk round the corners: each side is two tangents, so take off the one you know.' },
-      { tex: `t_B = ${ab} - ${p.t[0]} = ${values[0]}` },
-      { tex: `t_C = ${bc} - ${values[0]} = ${values[1]}` },
-      { tex: `t_D = ${cd} - ${values[1]} = ${values[2]}` },
+      { tex: `t_{B} = ${ab} - ${p.t[0]} = ${values[0]}` },
+      { tex: `t_{C} = ${bc} - ${values[0]} = ${values[1]}` },
+      { tex: `t_{D} = ${cd} - ${values[1]} = ${values[2]}` },
       { tex: `DA = ${values[2]} + ${p.t[0]} = ${values[3]}` },
     ];
   },
@@ -3323,32 +3533,27 @@ function tangentAngleSvg(p: TangentAngleParams): string {
   const dP = 1 / Math.sin(rad(half));
   const Am = polar(1, 90 - half);
   const Bm = polar(1, -(90 - half));
-  const Cm = polar(1, p.minor ? 0 : 196);
-  const F = frame([[-1, -1], [1, 1], [dP, 0]], 205, 28);
+  // On the shorter arc C sits off the line OP, leaving the gap in front of P for the angle there.
+  const Cm = polar(1, p.minor ? 0.4 * (90 - half) : 196);
+  const F = frame([[-1, -1], [1, 1], [dP, 0]], p.minor ? 240 : 205, 28);
   const [O, A, B, C, P] = [[0, 0] as Pt, Am, Bm, Cm, [dP, 0] as Pt].map(F.at);
-  return svg(F.height, 'Two tangents from P touching a circle at A and B, and a point C on the circle', [
-    ring(O, F.k),
-    seg(P, A),
-    seg(P, B),
-    seg(C, A, false, 1.5),
-    seg(C, B, false, 1.5),
-    dot(O, 2),
-    vtx(A, 'A', O, 12),
-    vtx(B, 'B', O, 12),
-    // On the shorter arc C sits in the narrow gap before P: its letter goes there, and the
-    // angle at P keeps its mark but not its value, which the question states.
-    p.minor ? txt(add(C, [8, 0]), 'C', 'start', 13) : vtx(C, 'C', O, 12),
-    txt(add(P, [9, 0]), 'P', 'start'),
-    angleMark(P, A, B, p.minor ? '' : deg(p.x), p.minor ? 12 : 16, 33),
-    angleMark(C, A, B, '?', 15, 30),
-  ]);
+  const room = new Clearance(F.height).circle(O, F.k).line(A, P, B).line(A, C, B).arc(P, A, B, 10).arc(C, A, B, 13);
+  room.box(add(P, [13, 0]), 'P');
+  const parts = [ring(O, F.k), seg(P, A), seg(P, B), seg(C, A, false, 1.5), seg(C, B, false, 1.5), dot(O, 2), txt(add(P, [9, 0]), 'P', 'start')];
+  parts.push(angleMark(P, A, B, '', 10), angleMark(C, A, B, '', 13));
+  // Each angle's value out along its bisector, as close in as it fits; the value at P before C's letter, which has more choice.
+  const along = (v: Pt, toward: Pt, from: number) => Array.from({ length: 16 }, (_, i) => add(v, mul(dir(v, toward), from + 2 * i)));
+  parts.push(room.put(ringSpots(A, O), 'A'), room.put(ringSpots(B, O), 'B'), room.put(along(P, O, 20), deg(p.x), 12));
+  parts.push(room.put(ringSpots(C, O, [12, 15, 19]), 'C', 13, 7), room.put(along(C, p.minor ? O : P, 25), '?', 12));
+  return svg(F.height, 'Two tangents from P touching a circle at A and B, and a point C on the circle', parts);
 }
 
 const cmSgTangentAngle: Generator<TangentAngleParams> = {
   id: 'cm-sg-tangent-angle',
   sample(rng, difficulty) {
     const minor = difficulty >= 2;
-    return { x: 2 * rng.int(20, minor ? 50 : 60), minor };
+    // Past 80 degrees the gap in front of P, on the shorter arc's side, is too narrow to carry the angle's value and C.
+    return { x: minor ? 2 * rng.int(16, 40) : 2 * rng.int(20, 60), minor };
   },
   render(p) {
     return typed(
@@ -3370,7 +3575,8 @@ const cmSgTangentAngle: Generator<TangentAngleParams> = {
     const { x } = p;
     const steps: SolutionStep[] = [
       { text: 'A tangent is at right angles to the radius to its point of contact, so with $O$ the centre, $OAPB$ has two right angles:' },
-      { tex: `\\angle AOB = 360^\\circ - 90^\\circ - 90^\\circ - ${x}^\\circ = ${180 - x}^\\circ` },
+      { tex: `\\angle AOB = 360^\\circ - 90^\\circ - 90^\\circ - ${x}^\\circ` },
+      { tex: `= ${180 - x}^\\circ` },
       { text: 'An angle at the circle is half the angle at the centre standing on the same arc. From the longer arc:' },
       { tex: `${180 - x}^\\circ \\div 2 = ${90 - x / 2}^\\circ` },
     ];

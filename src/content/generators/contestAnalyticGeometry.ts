@@ -14,6 +14,7 @@
 import type { ChoiceOption, Generator, SolutionStep } from '../types';
 import { options } from '../choiceVariant';
 import { FRACTION_KEYS, fracAnswer, fracTex, gcd, num, numberBank, numberOptions, say, show, typed } from './contestMath';
+import { Clearance, ringSpots, sideSpots } from './contestSyntheticGeometry';
 
 /* ================================================================
  * Shared pieces
@@ -25,8 +26,8 @@ type Frac = [number, number];
 /** A point in TeX: `(3, -2)`. */
 const pt = (x: number, y: number) => `(${x}, ${y})`;
 
-/** A number squared in TeX, a negative one bracketed: `(-3)^2`. */
-const sq = (v: number) => (v < 0 ? `(${v})^2` : `${v}^2`);
+/** A number squared in TeX, a negative one bracketed: `(-3)^{2}`. */
+const sq = (v: number) => (v < 0 ? `(${v})^{2}` : `${v}^{2}`);
 
 /** A number bracketed when negative, for the middle of a sum: `(-4)`. */
 const br = (v: number) => (v < 0 ? `(${v})` : `${v}`);
@@ -85,10 +86,10 @@ function lowest(a: number, b: number): Frac {
   return [a / g, b / g];
 }
 
-/** The factor a mass is scaled by, in TeX: `\\tfrac{2}{3}`, or `2` when it is whole. */
+/** The factor a mass is scaled by, in TeX: `\\frac{2}{3}`, or `2` when it is whole. */
 function massFrac(top: number, bottom: number): string {
   const [p, q] = lowest(top, bottom);
-  return q === 1 ? `${p}` : `\\tfrac{${p}}{${q}}`;
+  return q === 1 ? `${p}` : `\\frac{${p}}{${q}}`;
 }
 
 /** `a : b`, and then `= c : d` when it simplifies. */
@@ -146,35 +147,6 @@ function meet(a: P2, b: P2, c: P2, d: P2): P2 {
   const den = (a[0] - b[0]) * (c[1] - d[1]) - (a[1] - b[1]) * (c[0] - d[0]);
   const t = ((a[0] - c[0]) * (c[1] - d[1]) - (a[1] - c[1]) * (c[0] - d[0])) / den;
   return lerp(a, b, t);
-}
-
-/** A label beside the middle of a segment, on the side away from `away`. */
-function sideLabel(from: P2, to: P2, text: string, away: P2, gap = 13): string {
-  const mid = lerp(from, to, 0.5);
-  const len = Math.hypot(to[0] - from[0], to[1] - from[1]) || 1;
-  let nx = -(to[1] - from[1]) / len;
-  let ny = (to[0] - from[0]) / len;
-  if ((mid[0] + nx - away[0]) ** 2 + (mid[1] + ny - away[1]) ** 2 < (mid[0] - nx - away[0]) ** 2 + (mid[1] - ny - away[1]) ** 2) {
-    nx = -nx;
-    ny = -ny;
-  }
-  return txt(mid[0] + nx * gap, mid[1] + ny * gap, text);
-}
-
-/** A point's letter, set in the widest gap between the lines leaving it. */
-function pointLabel(at: P2, rays: P2[], text: string, gap = 13): string {
-  const angles = rays.map((q) => Math.atan2(q[1] - at[1], q[0] - at[0]));
-  let best = -Math.PI / 2;
-  let bestGap = -1;
-  for (let k = 0; k < 36; k += 1) {
-    const a = (k / 36) * 2 * Math.PI;
-    const clear = Math.min(...angles.map((b) => Math.abs(((a - b + 3 * Math.PI) % (2 * Math.PI)) - Math.PI)));
-    if (clear > bestGap) {
-      bestGap = clear;
-      best = a;
-    }
-  }
-  return txt(at[0] + Math.cos(best) * gap, at[1] + Math.sin(best) * gap, text);
 }
 
 /** A first-quadrant grid, `xMax` by `yMax`, with points marked and the walls drawn heavy. */
@@ -266,7 +238,7 @@ const cmAgRiver: Generator<RiverParams> = {
           { text: `Reflect $B$ in the $x$-axis to $B' = ${pt(p.b[0], -p.b[1])}$. From any point $P$ on the axis, $PB = PB'$, so the walk is as long as $A$ to $P$ to $B'$, shortest when straight.` },
           { text: `From $A$ to $B'$ is ${u} across and ${p.a[1]} + ${p.b[1]} = ${v} down:` },
         ];
-    steps.push({ tex: `${u}^2 + ${v}^2 = ${p.h * p.h}` }, { tex: `\\sqrt{${p.h * p.h}} = ${p.h}` });
+    steps.push({ tex: `${u}^{2} + ${v}^{2} = ${p.h * p.h}` }, { tex: `\\sqrt{${p.h * p.h}} = ${p.h}` });
     if (!p.two) steps.push({ text: `Walking straight down, along the axis and up again is ${p.a[1]} + ${u} + ${p.b[1]} = ${u + v}, which is longer.` });
     return steps;
   },
@@ -368,8 +340,12 @@ function pickSvg({ a, c, d }: PickParams): string {
     dot(Q),
     txt(O[0] - 6, O[1] + 14, '(0, 0)', 'end'),
     txt(P[0], P[1] + 16, `(${a}, 0)`),
-    c === 0 ? txt(Q[0] - 8, Q[1], `(0, ${d})`, 'end') : txt(Q[0], Q[1] - 14, `(${c}, ${d})`),
   ];
+  // The top corner's label above it, or beside it where the upright axis would run through that.
+  const room = new Clearance(top + d * cell + 34).line([X(0), Y(0)], [X(0), Y(d) - 14]).loop([O, P, Q]).box([O[0] - 24, O[1] + 14], '(0, 0)').box([P[0], P[1] + 16], `(${a}, 0)`);
+  const name = `(${c}, ${d})`;
+  const w = 3.8 * name.length;
+  parts.push(room.put([[Q[0], Q[1] - 14], [Q[0] + w + 4, Q[1] - 12], [Q[0] + w + 6, Q[1]], [Q[0] - w - 6, Q[1]], [Q[0] - w - 4, Q[1] - 12]], name));
   return svg(top + d * cell + 34, 'A triangle with its corners marked by their coordinates', parts);
 }
 
@@ -424,10 +400,12 @@ const cmAgPick: Generator<PickParams> = {
     const g2 = gcd(Math.abs(p.a - p.c), p.d);
     const steps: SolutionStep[] = [
       { text: `The base is ${p.a} and the height ${p.d}:` },
-      { tex: `\\text{area} = \\tfrac{1}{2} \\times ${p.a} \\times ${p.d} = ${num(area)}` },
+      { tex: `\\text{area} = \\frac{1}{2} \\times ${p.a} \\times ${p.d} = ${num(area)}` },
       { text: 'A side going $m$ across and $n$ up is made of $\\gcd(m, n)$ equal whole steps, so it has that many lattice points, counting one end only. Round the three sides:' },
       { tex: `B = ${p.a} + ${g1} + ${g2} = ${B}` },
-      { text: 'Pick’s theorem says $\\text{area} = I + \\tfrac{B}{2} - 1$, so' },
+      { text: 'Pick’s theorem says' },
+      { tex: '\\text{area} = I + \\frac{B}{2} - 1' },
+      { text: 'so' },
       { tex: `I = ${num(area)} - ${num(B / 2)} + 1 = ${num(pickI(p))}` },
     ];
     return steps;
@@ -472,7 +450,7 @@ const cmAgLineDistance: Generator<LineDistParams> = {
   render(p) {
     if (p.c2 !== null) {
       return typed(
-        [say('How far apart are these two parallel lines?'), show(`${lineEq(p.u, p.v, p.c1)}, \\qquad ${lineEq(p.u, p.v, p.c2)}`)],
+        [say('How far apart are these two parallel lines?'), show(lineEq(p.u, p.v, p.c1)), show(lineEq(p.u, p.v, p.c2))],
         Math.abs(p.c1 - p.c2) / p.h,
         '\\text{distance} =',
       );
@@ -507,8 +485,10 @@ const cmAgLineDistance: Generator<LineDistParams> = {
     if (p.c2 !== null) {
       const diff = Math.abs(p.c1 - p.c2);
       return [
-        { text: `The origin is $\\frac{|c|}{\\sqrt{a^2 + b^2}}$ from the line $ax + by = c$, and the two lines share $a = ${p.v}$ and $b = ${p.u}$:` },
-        { tex: `\\sqrt{${p.v}^2 + ${p.u}^2} = ${p.h}` },
+        { text: 'The distance from the origin to the line $ax + by = c$ is' },
+        { tex: 'd = \\frac{|c|}{\\sqrt{a^{2} + b^{2}}}' },
+        { text: `The two lines share $a = ${p.v}$ and $b = ${p.u}$:` },
+        { tex: `\\sqrt{${p.v}^{2} + ${p.u}^{2}} = ${p.h}` },
         { text: 'Moving from one line to the other changes the right-hand side by' },
         { tex: `|${p.c1} - ${br(p.c2)}| = ${diff}` },
         { tex: `\\text{distance} = \\frac{${diff}}{${p.h}} = ${diff / p.h}` },
@@ -520,9 +500,9 @@ const cmAgLineDistance: Generator<LineDistParams> = {
     const Y = k * p.v;
     return [
       { text: `The line meets the axes at $(${X}, 0)$ and $(0, ${Y})$. With the origin they make a right triangle of area` },
-      { tex: `\\tfrac{1}{2} \\times ${X} \\times ${Y} = ${num((X * Y) / 2)}` },
+      { tex: `\\frac{1}{2} \\times ${X} \\times ${Y} = ${num((X * Y) / 2)}` },
       { text: 'Its long side is' },
-      { tex: `\\sqrt{${X}^2 + ${Y}^2} = ${k * p.h}` },
+      { tex: `\\sqrt{${X}^{2} + ${Y}^{2}} = ${k * p.h}` },
       { text: 'The distance $d$ from the origin is the height onto that side, so the area is also $\\tfrac{1}{2} \\times$ that side $\\times\\, d$:' },
       { tex: `d = \\frac{${X * Y}}{${k * p.h}} = ${fracTex(k * p.u * p.v, p.h)}` },
     ];
@@ -561,7 +541,7 @@ const ELLIPSE_TRIPLES: [number, number, number][] = [
 
 function ellipseEq({ a, b, tall }: EllipseParams): string {
   const [under, over] = tall ? [b * b, a * a] : [a * a, b * b];
-  return `\\frac{x^2}{${under}} + \\frac{y^2}{${over}} = 1`;
+  return `\\frac{x^{2}}{${under}} + \\frac{y^{2}}{${over}} = 1`;
 }
 
 function ellipseSvg(p: EllipseParams): string {
@@ -582,15 +562,20 @@ function ellipseSvg(p: EllipseParams): string {
     `<ellipse cx="${f1(cx)}" cy="${f1(cy)}" rx="${f1(rx)}" ry="${f1(ry)}" fill="none" stroke="currentColor" stroke-width="2" />`,
     tall ? thin([cx, cy - ry - 8], [cx, cy + ry + 8]) : thin([cx - rx - 8, cy], [cx + rx + 8, cy]),
   ];
+  const height = cy + ry + 26;
+  const room = new Clearance(height).loop(Array.from({ length: 72 }, (_, i): P2 => [cx + rx * Math.cos((i * Math.PI) / 36), cy + ry * Math.sin((i * Math.PI) / 36)]));
+  room.line(...(tall ? [[cx, cy - ry - 8], [cx, cy + ry + 8]] : [[cx - rx - 8, cy], [cx + rx + 8, cy]]) as P2[]).loop([P, F1, F2]);
   if (p.d === null) parts.push(shade([P, F1, F2]), outline([P, F1, F2]));
-  else parts.push(seg(P, F1), seg(P, F2), sideLabel(P, F1, `${p.d}`, F2), sideLabel(P, F2, '?', F1));
+  else parts.push(seg(P, F1), seg(P, F2));
   parts.push(dot(F1), dot(F2), dot(P));
   if (tall) parts.push(txt(F1[0] - 10, F1[1], 'F₁', 'end'), txt(F2[0] - 10, F2[1], 'F₂', 'end'));
   else parts.push(txt(F1[0], F1[1] + 15, 'F₁'), txt(F2[0], F2[1] + 15, 'F₂'));
-  const out = at(t * 1.12, w * 1.12 + 2);
-  const len = Math.hypot(out[0] - P[0], out[1] - P[1]) || 1;
-  parts.push(txt(P[0] + ((out[0] - P[0]) / len) * 13, P[1] + ((out[1] - P[1]) / len) * 13, 'P'));
-  return svg(cy + ry + 26, 'An ellipse with its foci F1 and F2 and a point P on it', parts);
+  if (tall) room.box([F1[0] - 17, F1[1]], 'F₁').box([F2[0] - 17, F2[1]], 'F₂');
+  else room.box([F1[0], F1[1] + 15], 'F₁').box([F2[0], F2[1] + 15], 'F₂');
+  parts.push(room.put(ringSpots(P, [cx, cy], [13, 16, 20]), 'P'));
+  // Each length inside the ellipse, beside its own line and clear of the curve.
+  if (p.d !== null) parts.push(room.put(sideSpots(P, F1, `${p.d}`, F2), `${p.d}`), room.put(sideSpots(P, F2, '?', F1), '?'));
+  return svg(height, 'An ellipse with its foci F1 and F2 and a point P on it', parts);
 }
 
 const cmAgEllipse: Generator<EllipseParams> = {
@@ -610,15 +595,15 @@ const cmAgEllipse: Generator<EllipseParams> = {
     const figure = { kind: 'diagram' as const, svg: ellipseSvg(p) };
     if (p.d === null) {
       return typed(
-        [say('$F_1$ and $F_2$ are the foci of this ellipse, and $P$ is a point on it, off the line through the foci.'), show(ellipseEq(p)), figure, say('What is the perimeter of triangle $PF_1F_2$?')],
+        [say('$F_{1}$ and $F_{2}$ are the foci of this ellipse, and $P$ is a point on it, off the line through the foci.'), show(ellipseEq(p)), figure, say('What is the perimeter of triangle $PF_{1}F_{2}$?')],
         2 * p.a + 2 * p.c,
         '\\text{perimeter} =',
       );
     }
     return typed(
-      [say(`$F_1$ and $F_2$ are the foci of this ellipse. A point $P$ on it is ${p.d} from $F_1$.`), show(ellipseEq(p)), figure, say('How far is $P$ from $F_2$?')],
+      [say(`$F_{1}$ and $F_{2}$ are the foci of this ellipse. A point $P$ on it is ${p.d} from $F_{1}$.`), show(ellipseEq(p)), figure, say('How far is $P$ from $F_{2}$?')],
       2 * p.a - p.d,
-      'PF_2 =',
+      'PF_{2} =',
     );
   },
   choices(p) {
@@ -628,19 +613,20 @@ const cmAgEllipse: Generator<EllipseParams> = {
   solution(p) {
     const axis = p.tall ? 'y' : 'x';
     const steps: SolutionStep[] = [
-      { text: `The larger denominator, ${p.a * p.a}, is under $${axis}^2$, so the long axis and the foci are on the $${axis}$-axis, and` },
+      { text: `The larger denominator, ${p.a * p.a}, is under $${axis}^{2}$, so the long axis and the foci are on the $${axis}$-axis, and` },
       { tex: `a = \\sqrt{${p.a * p.a}} = ${p.a}` },
       { text: 'From any point on an ellipse, the distances to the two foci add to the length of the long axis, $2a$:' },
-      { tex: `PF_1 + PF_2 = ${2 * p.a}` },
+      { tex: `PF_{1} + PF_{2} = ${2 * p.a}` },
     ];
     if (p.d !== null) {
-      steps.push({ tex: `PF_2 = ${2 * p.a} - ${p.d} = ${2 * p.a - p.d}` });
+      steps.push({ tex: `PF_{2} = ${2 * p.a} - ${p.d} = ${2 * p.a - p.d}` });
       return steps;
     }
     steps.push(
-      { text: 'Each focus is $c$ from the centre, where $c^2 = a^2 - b^2$:' },
+      { text: 'Each focus is $c$ from the centre, where' },
+      { tex: 'c^{2} = a^{2} - b^{2}' },
       { tex: `c = \\sqrt{${p.a * p.a} - ${p.b * p.b}} = ${p.c}` },
-      { tex: `F_1F_2 = 2 \\times ${p.c} = ${2 * p.c}` },
+      { tex: `F_{1}F_{2} = 2 \\times ${p.c} = ${2 * p.c}` },
       { tex: `\\text{perimeter} = ${2 * p.a} + ${2 * p.c} = ${2 * p.a + 2 * p.c}` },
       { text: 'Wherever $P$ is on the ellipse, the perimeter is the same.' },
     );
@@ -660,11 +646,11 @@ interface CircleParams {
 
 function circleEq({ h, k, r, m }: CircleParams): string {
   const lead = m === 1 ? '' : `${m}`;
-  return `${lead}x^2 + ${lead}y^2${term(-2 * h * m, 'x')}${term(-2 * k * m, 'y')}${term(m * (h * h + k * k - r * r))} = 0`;
+  return `${lead}x^{2} + ${lead}y^{2}${term(-2 * h * m, 'x')}${term(-2 * k * m, 'y')}${term(m * (h * h + k * k - r * r))} = 0`;
 }
 
-/** `(x - 3)^2`, `(y + 2)^2`. */
-const shifted = (v: string, c: number) => `(${v}${term(-c)})^2`;
+/** `(x - 3)^{2}`, `(y + 2)^{2}`. */
+const shifted = (v: string, c: number) => `(${v}${term(-c)})^{2}`;
 
 const cmAgCircleCentre: Generator<CircleParams> = {
   id: 'cm-ag-circle-centre',
@@ -682,7 +668,7 @@ const cmAgCircleCentre: Generator<CircleParams> = {
     return {
       kind: 'tiles',
       prompt: [say('Find the centre and the radius of this circle.'), show(circleEq(p))],
-      template: '\\text{centre} = ({0}, {1}), \\quad r = {2}',
+      template: '\\text{centre} = ({0}, {1}) \\quad r = {2}',
       bank: numberBank([p.h, p.k, p.r], [-p.h, -p.k, p.r * p.r, 2 * p.h, 2 * p.k], 3, 1, -Infinity),
       answer: [num(p.h), num(p.k), num(p.r)],
     };
@@ -691,10 +677,10 @@ const cmAgCircleCentre: Generator<CircleParams> = {
     const { h, k, r, m } = p;
     const F = h * h + k * k - r * r;
     const steps: SolutionStep[] = [];
-    if (m > 1) steps.push({ text: `Divide through by ${m} first, so $x^2$ and $y^2$ each have a coefficient of 1:` }, { tex: circleEq({ ...p, m: 1 }) });
+    if (m > 1) steps.push({ text: `Divide through by ${m} first, so $x^{2}$ and $y^{2}$ each have a coefficient of 1:` }, { tex: circleEq({ ...p, m: 1 }) });
     steps.push(
       { text: 'Group the $x$ terms and the $y$ terms, with the number on the right:' },
-      { tex: `(x^2${term(-2 * h, 'x')}) + (y^2${term(-2 * k, 'y')}) = ${-F}` },
+      { tex: `(x^{2}${term(-2 * h, 'x')}) + (y^{2}${term(-2 * k, 'y')}) = ${-F}` },
       { text: `Complete each square, adding ${h * h} and ${k * k} to both sides:` },
       { tex: `${shifted('x', h)} + ${shifted('y', k)} = ${-F} + ${h * h} + ${k * k}` },
       { tex: `${shifted('x', h)} + ${shifted('y', k)} = ${r * r}` },
@@ -724,7 +710,7 @@ function chordCoefs({ h, k, s, axis }: ChordParams): { D: number; E: number; F: 
 
 const chordEq = (p: ChordParams) => {
   const { D, E, F } = chordCoefs(p);
-  return `x^2 + y^2${term(D, 'x')}${term(E, 'y')}${term(F)} = 0`;
+  return `x^{2} + y^{2}${term(D, 'x')}${term(E, 'y')}${term(F)} = 0`;
 };
 
 const cmAgCircleChord: Generator<ChordParams> = {
@@ -751,11 +737,12 @@ const cmAgCircleChord: Generator<ChordParams> = {
     const lin = p.axis === 'x' ? D : E;
     return [
       { text: `On the $${v}$-axis, $${other} = 0$, which leaves` },
-      { tex: `${v}^2${term(lin, v)}${term(F)} = 0` },
-      { text: `Its two roots are where the circle crosses. They add to ${-lin} and multiply to ${F}, so` },
-      { tex: `(${v}_1 - ${v}_2)^2 = (${v}_1 + ${v}_2)^2 - 4${v}_1${v}_2` },
-      { tex: `(${v}_1 - ${v}_2)^2 = ${sq(-lin)} - 4 \\times ${br(F)} = ${4 * p.s * p.s}` },
-      { tex: `${v}_1 - ${v}_2 = ${2 * p.s}` },
+      { tex: `${v}^{2}${term(lin, v)}${term(F)} = 0` },
+      { text: `Its two roots are where the circle crosses. They add to $${-lin}$ and multiply to $${F}$, so` },
+      { tex: `(${v}_{1} - ${v}_{2})^{2} = (${v}_{1} + ${v}_{2})^{2} - 4${v}_{1}${v}_{2}` },
+      { tex: `(${v}_{1} - ${v}_{2})^{2} = ${sq(-lin)} - 4 \\times ${br(F)}` },
+      { tex: `= ${4 * p.s * p.s}` },
+      { tex: `${v}_{1} - ${v}_{2} = ${2 * p.s}` },
       { text: `There is no need to find the centre or the radius: the crossings are $${p.h - p.s}$ and $${p.h + p.s}$, and the diameter ${2 * p.r} is the trap.` },
     ];
   },
@@ -765,14 +752,14 @@ const cmAgCircleChord: Generator<ChordParams> = {
 
 interface ParabolaParams {
   p: number;
-  /** Difficulty 1: the coordinate along the axis. Difficulty 2: t, with the point at (p t^2, 2 p t). */
+  /** Difficulty 1: the coordinate along the axis. Difficulty 2: t, with the point at (p t^{2}, 2 p t). */
   n: number;
-  /** x^2 = 4py rather than y^2 = 4px. */
+  /** x^{2} = 4py rather than y^{2} = 4px. */
   up: boolean;
   findCross: boolean;
 }
 
-const parabolaEq = ({ p, up }: ParabolaParams) => (up ? `x^2 = ${4 * p}y` : `y^2 = ${4 * p}x`);
+const parabolaEq = ({ p, up }: ParabolaParams) => (up ? `x^{2} = ${4 * p}y` : `y^{2} = ${4 * p}x`);
 
 const cmAgParabola: Generator<ParabolaParams> = {
   id: 'cm-ag-parabola',
@@ -810,7 +797,7 @@ const cmAgParabola: Generator<ParabolaParams> = {
   solution(q) {
     const [along, across] = q.up ? ['y', 'x'] : ['x', 'y'];
     const steps: SolutionStep[] = [
-      { text: `Compare with $${across}^2 = 4p${along}$:` },
+      { text: `Compare with $${across}^{2} = 4p${along}$:` },
       { tex: `4p = ${4 * q.p}` },
       { tex: `p = ${q.p}` },
       { text: `So the focus is ${q.p} along the $${along}$-axis from the origin, and the directrix is the line $${along} = -${q.p}$. Every point of a parabola is as far from the focus as from the directrix, and that distance is $${along} + ${q.p}$.` },
@@ -825,7 +812,7 @@ const cmAgParabola: Generator<ParabolaParams> = {
       { tex: `${along} + ${q.p} = ${d}` },
       { tex: `${along} = ${x}` },
       { text: 'Put that into the equation of the parabola:' },
-      { tex: `${across}^2 = ${4 * q.p} \\times ${x} = ${4 * q.p * x}` },
+      { tex: `${across}^{2} = ${4 * q.p} \\times ${x} = ${4 * q.p * x}` },
       { tex: `${across} = ${2 * q.p * q.n}` },
     );
     return steps;
@@ -876,22 +863,30 @@ function cevianSvg({ m, n, p, q }: CevianParams): string {
   const D = lerp(TB, TC, m / (m + n));
   const E = lerp(TA, TC, p / (p + q));
   const P = meet(TA, D, TB, E);
-  return svg(222, 'Triangle ABC with D on BC, E on AC, and AD crossing BE at P', [
-    outline([TA, TB, TC]),
-    seg(TA, D),
-    seg(TB, E),
-    dot(D),
-    dot(E),
-    dot(P),
-    ...cornerLabels(),
-    txt(D[0], D[1] + 15, 'D'),
-    pointLabel(E, [TA, TC, TB], 'E'),
-    pointLabel(P, [TA, D, TB, E], 'P'),
-    sideLabel(TB, D, `${m}`, TA, 15),
-    sideLabel(D, TC, `${n}`, TA, 15),
-    sideLabel(TA, E, `${p}`, TB),
-    sideLabel(E, TC, `${q}`, TB),
-  ]);
+  return massSvg(
+    'Triangle ABC with D on BC, E on AC, and AD crossing BE at P',
+    [[TA, D], [TB, E]],
+    [[D, 'D'], [E, 'E']],
+    [[TB, D, `${m}`, TA], [D, TC, `${n}`, TA], [TA, E, `${p}`, TB], [E, TC, `${q}`, TB]],
+    P,
+  );
+}
+
+/**
+ * Triangle ABC with its cevians. The letters of the points on the sides go
+ * first, just outside the triangle; then each length beside its own stretch,
+ * and P, where the cevians cross, wherever is left clearest.
+ */
+function massSvg(label: string, cevians: [P2, P2][], points: [P2, string][], lengths: [P2, P2, string, P2][], P?: P2): string {
+  const G: P2 = [(TA[0] + TB[0] + TC[0]) / 3, (TA[1] + TB[1] + TC[1]) / 3];
+  const room = new Clearance(222).loop([TA, TB, TC]);
+  for (const [a, b] of cevians) room.line(a, b);
+  room.box([TA[0], TA[1] - 13], 'A').box([TB[0] - 13, TB[1] + 6], 'B').box([TC[0] + 13, TC[1] + 6], 'C');
+  const out = [outline([TA, TB, TC]), ...cevians.map(([a, b]) => seg(a, b)), ...points.map(([q]) => dot(q)), ...cornerLabels()];
+  for (const [q, name] of points) out.push(room.put(ringSpots(q, G, [13, 16, 20]), name));
+  for (const [a, b, text, away] of lengths) out.push(room.put(sideSpots(a, b, text, away), text));
+  if (P) out.push(dot(P), room.put(ringSpots(P, G, [12, 15, 19]), 'P'));
+  return svg(222, label, out);
 }
 
 const cevianGiven = ({ m, n, p, q }: CevianParams) =>
@@ -944,21 +939,21 @@ const cmAgMassCevians: Generator<CevianParams> = {
     const steps: SolutionStep[] = [
       { text: `Hang masses on the corners so each cevian's foot is a balance point: mass times distance is the same on both sides. Start with $C$ at ${w.C}.` },
       { text: `$BD : DC = ${c.m} : ${c.n}$, so $B$ needs mass $${w.C} \\times ${massFrac(c.n, c.m)}$:` },
-      { tex: `m_B = ${w.B}` },
+      { tex: `m_{B} = ${w.B}` },
       { text: `$AE : EC = ${c.p} : ${c.q}$, so $A$ needs mass $${w.C} \\times ${massFrac(c.q, c.p)}$:` },
-      { tex: `m_A = ${w.A}` },
+      { tex: `m_{A} = ${w.A}` },
     ];
     if (c.askB) {
       steps.push(
         { text: '$E$ carries the masses at $A$ and $C$:' },
-        { tex: `m_E = ${w.A} + ${w.C} = ${w.E}` },
+        { tex: `m_{E} = ${w.A} + ${w.C} = ${w.E}` },
         { text: '$P$ balances $B$ against $E$, so the lengths go the other way round from the masses:' },
         { tex: `BP : PE = ${w.E} : ${w.B}` },
       );
     } else {
       steps.push(
         { text: '$D$ carries the masses at $B$ and $C$:' },
-        { tex: `m_D = ${w.B} + ${w.C} = ${w.D}` },
+        { tex: `m_{D} = ${w.B} + ${w.C} = ${w.D}` },
         { text: '$P$ balances $A$ against $D$, so the lengths go the other way round from the masses:' },
         { tex: `AP : PD = ${w.D} : ${w.A}` },
       );
@@ -1008,12 +1003,12 @@ const cmAgMassTable: Generator<CevianParams> = {
     const w = cevMasses(c);
     return [
       { text: `Mass times distance balances on each side, so the heavier mass sits at the nearer end. $BD : DC = ${c.m} : ${c.n}$:` },
-      { tex: `m_B = ${w.C} \\times ${massFrac(c.n, c.m)} = ${w.B}` },
+      { tex: `m_{B} = ${w.C} \\times ${massFrac(c.n, c.m)} = ${w.B}` },
       { text: `$AE : EC = ${c.p} : ${c.q}$:` },
-      { tex: `m_A = ${w.C} \\times ${massFrac(c.q, c.p)} = ${w.A}` },
+      { tex: `m_{A} = ${w.C} \\times ${massFrac(c.q, c.p)} = ${w.A}` },
       { text: 'A balance point carries the masses at both ends:' },
-      { tex: `m_D = ${w.B} + ${w.C} = ${w.D}` },
-      { tex: `m_E = ${w.A} + ${w.C} = ${w.E}` },
+      { tex: `m_{D} = ${w.B} + ${w.C} = ${w.D}` },
+      { tex: `m_{E} = ${w.A} + ${w.C} = ${w.E}` },
       { text: `So $AP : PD = ${ratioTex(w.D, w.A)}$ and $BP : PE = ${ratioTex(w.E, w.B)}$.` },
     ];
   },
@@ -1043,22 +1038,13 @@ function reverseSvg({ m, n, r, s }: ReverseParams): string {
   const D = lerp(TB, TC, m / (m + n));
   const P = lerp(TA, D, r / (r + s));
   const E = meet(TB, P, TA, TC);
-  return svg(222, 'Triangle ABC with D on BC, P on AD, and BP extended to E on AC', [
-    outline([TA, TB, TC]),
-    seg(TA, D),
-    seg(TB, E),
-    dot(D),
-    dot(E),
-    dot(P),
-    ...cornerLabels(),
-    txt(D[0], D[1] + 15, 'D'),
-    pointLabel(E, [TA, TC, TB], 'E'),
-    pointLabel(P, [TA, D, TB, E], 'P'),
-    sideLabel(TB, D, `${m}`, TA, 15),
-    sideLabel(D, TC, `${n}`, TA, 15),
-    sideLabel(TA, P, `${r}`, TC, 11),
-    sideLabel(P, D, `${s}`, TB, 11),
-  ]);
+  return massSvg(
+    'Triangle ABC with D on BC, P on AD, and BP extended to E on AC',
+    [[TA, D], [TB, E]],
+    [[D, 'D'], [E, 'E']],
+    [[TB, D, `${m}`, TA], [D, TC, `${n}`, TA], [TA, P, `${r}`, TC], [P, D, `${s}`, TB]],
+    P,
+  );
 }
 
 const cmAgMassReverse: Generator<ReverseParams> = {
@@ -1111,14 +1097,14 @@ const cmAgMassReverse: Generator<ReverseParams> = {
     const [x, y] = revRatio(c);
     const steps: SolutionStep[] = [
       { text: `Balance $BC$ at $D$ first. $BD : DC = ${c.m} : ${c.n}$, so masses of ${w.B} at $B$ and ${w.C} at $C$ will do, and` },
-      { tex: `m_D = ${w.B} + ${w.C} = ${w.D}` },
+      { tex: `m_{D} = ${w.B} + ${w.C} = ${w.D}` },
       { text: `$P$ balances $A$ against $D$ with $AP : PD = ${c.r} : ${c.s}$, so $A$ needs mass $${w.D} \\times ${massFrac(c.s, c.r)}$:` },
-      { tex: `m_A = ${w.A}` },
+      { tex: `m_{A} = ${w.A}` },
     ];
     if (c.askB) {
       steps.push(
         { text: '$E$ is the balance point of $A$ and $C$, so it carries both:' },
-        { tex: `m_E = ${w.A} + ${w.C} = ${w.E}` },
+        { tex: `m_{E} = ${w.A} + ${w.C} = ${w.E}` },
         { tex: `BP : PE = ${w.E} : ${w.B}` },
         { tex: `\\frac{BP}{PE} = ${fracTex(x, y)}` },
       );
@@ -1158,23 +1144,13 @@ function cevaSvg(c: CevaParams): string {
   const [af, fb] = c.askE ? [c.p, c.q] : [x, y];
   const E = lerp(TA, TC, ae / (ae + ec));
   const F = lerp(TA, TB, af / (af + fb));
-  const labels = c.askE ? [sideLabel(TA, F, `${c.p}`, TC), sideLabel(F, TB, `${c.q}`, TC)] : [sideLabel(TA, E, `${c.p}`, TB), sideLabel(E, TC, `${c.q}`, TB)];
-  return svg(222, 'Triangle ABC with cevians AD, BE and CF meeting at one point', [
-    outline([TA, TB, TC]),
-    seg(TA, D),
-    seg(TB, E),
-    seg(TC, F),
-    dot(D),
-    dot(E),
-    dot(F),
-    ...cornerLabels(),
-    txt(D[0], D[1] + 15, 'D'),
-    pointLabel(E, [TA, TC, TB], 'E'),
-    pointLabel(F, [TA, TB, TC], 'F'),
-    sideLabel(TB, D, `${c.m}`, TA, 15),
-    sideLabel(D, TC, `${c.n}`, TA, 15),
-    ...labels,
-  ]);
+  const given: [P2, P2, string, P2][] = c.askE ? [[TA, F, `${c.p}`, TC], [F, TB, `${c.q}`, TC]] : [[TA, E, `${c.p}`, TB], [E, TC, `${c.q}`, TB]];
+  return massSvg(
+    'Triangle ABC with cevians AD, BE and CF meeting at one point',
+    [[TA, D], [TB, E], [TC, F]],
+    [[D, 'D'], [E, 'E'], [F, 'F']],
+    [[TB, D, `${c.m}`, TA], [D, TC, `${c.n}`, TA], ...given],
+  );
 }
 
 const cmAgMassCeva: Generator<CevaParams> = {
@@ -1213,7 +1189,7 @@ const cmAgMassCeva: Generator<CevaParams> = {
       return [
         { text: `$BD : DC = ${c.m} : ${c.n}$, so masses of ${B} at $B$ and ${C} at $C$ balance at $D$.` },
         { text: `$AF : FB = ${c.p} : ${c.q}$, so $A$ needs mass $${B} \\times ${massFrac(c.q, c.p)}$:` },
-        { tex: `m_A = ${A}` },
+        { tex: `m_{A} = ${A}` },
         { text: 'All three cevians pass through the balance point of the whole triangle, so $E$ balances $A$ against $C$:' },
         { tex: `AE : EC = ${ratioTex(C, A)}` },
       ];
@@ -1224,7 +1200,7 @@ const cmAgMassCeva: Generator<CevaParams> = {
     return [
       { text: `$BD : DC = ${c.m} : ${c.n}$, so masses of ${B} at $B$ and ${C} at $C$ balance at $D$.` },
       { text: `$AE : EC = ${c.p} : ${c.q}$, so $A$ needs mass $${C} \\times ${massFrac(c.q, c.p)}$:` },
-      { tex: `m_A = ${A}` },
+      { tex: `m_{A} = ${A}` },
       { text: 'All three cevians pass through the balance point of the whole triangle, so $F$ balances $A$ against $B$:' },
       { tex: `AF : FB = ${ratioTex(B, A)}` },
     ];
@@ -1287,11 +1263,13 @@ const cmAgRotate: Generator<RotateParams> = {
     const answer = rotated(p);
     const prompt = p.square
       ? [
-          say(`$ABCD$ is a square, its corners in that order anticlockwise, with $A = ${cTex(p.z[0], p.z[1])}$ and $B = ${cTex(p.w[0], p.w[1])}$.`),
+          say('$ABCD$ is a square, its corners in that order anticlockwise, with'),
+          show(`A = ${cTex(p.z[0], p.z[1])}, \\qquad B = ${cTex(p.w[0], p.w[1])}`),
           say(`Tap $${p.square}$.`),
         ]
       : [
-          say(`Turn $z = ${cTex(p.z[0], p.z[1])}$ through $90^\\circ$ ${p.dir > 0 ? 'anticlockwise' : 'clockwise'} about $w = ${cTex(p.w[0], p.w[1])}$.`),
+          say(`Turn $z$ through $90^\\circ$ ${p.dir > 0 ? 'anticlockwise' : 'clockwise'} about $w$, where`),
+          show(`z = ${cTex(p.z[0], p.z[1])}, \\qquad w = ${cTex(p.w[0], p.w[1])}`),
           say('Tap where it lands.'),
         ];
     return { kind: 'plot', prompt, range: 5, answer: { re: answer[0], im: answer[1] } };
@@ -1328,7 +1306,7 @@ const cmAgRotate: Generator<RotateParams> = {
 interface ModNum {
   re: number;
   im: number;
-  /** |z|^2. */
+  /** |z|^{2}. */
   r2: number;
 }
 
@@ -1414,7 +1392,7 @@ const cmAgModulus: Generator<ModulusParams> = {
     if (p.quotient) {
       const bottom = p.z2.r2 ** (p.m / 2);
       steps.push(
-        { tex: `|${cTex(p.z2.re, p.z2.im)}|^2 = ${sq(p.z2.re)} + ${sq(p.z2.im)} = ${p.z2.r2}` },
+        { tex: `|${cTex(p.z2.re, p.z2.im)}|^{2} = ${sq(p.z2.re)} + ${sq(p.z2.im)} = ${p.z2.r2}` },
         { text: `The power ${p.m} is even, so the square root never needs working out:` },
         { tex: `|${cTex(p.z2.re, p.z2.im)}|^{${p.m}} = ${p.z2.r2}^{${p.m / 2}} = ${bottom}` },
         { tex: `\\frac{${r1}^{${p.n}}}{${bottom}} = \\frac{${r1 ** p.n}}{${bottom}} = ${modValue(p)}` },
@@ -1509,7 +1487,7 @@ const cmAgTurnArea: Generator<TurnAreaParams> = {
   },
   render(p) {
     const shape = p.square ? 'the square with corners at $z$, $iz$, $-z$ and $-iz$' : 'the triangle with corners at $0$, $z$ and $iz$';
-    return typed([say(`Let $z = ${cTex(p.a, p.b)}$. What is the area of ${shape}?`)], turnArea(p), '\\text{area} =');
+    return typed([show(`z = ${cTex(p.a, p.b)}`), say(`What is the area of ${shape}?`)], turnArea(p), '\\text{area} =');
   },
   choices(p) {
     const s = p.a * p.a + p.b * p.b;
@@ -1521,19 +1499,19 @@ const cmAgTurnArea: Generator<TurnAreaParams> = {
     const s = p.a * p.a + p.b * p.b;
     const steps: SolutionStep[] = [
       { text: 'Multiplying by $i$ turns a point $90^\\circ$ about the origin and keeps its distance, so $iz$ is as far from $0$ as $z$ is:' },
-      { tex: `|z|^2 = ${sq(p.a)} + ${sq(p.b)} = ${s}` },
+      { tex: `|z|^{2} = ${sq(p.a)} + ${sq(p.b)} = ${s}` },
     ];
     if (p.square) {
       steps.push(
         { text: 'The four corners are $z$ turned by $90^\\circ$ again and again, so they make a square centred on $0$. Its diagonal runs from $z$ to $-z$, so it is $2|z|$ long, and a square’s area is half its diagonal squared:' },
-        { tex: `\\text{area} = \\tfrac{1}{2}(2|z|)^2 = 2|z|^2` },
+        { tex: `\\text{area} = \\frac{1}{2}(2|z|)^{2} = 2|z|^{2}` },
         { tex: `2 \\times ${s} = ${2 * s}` },
       );
     } else {
       steps.push(
         { text: 'The triangle has a right angle at $0$ and two sides of length $|z|$:' },
-        { tex: `\\text{area} = \\tfrac{1}{2}|z|^2` },
-        { tex: `\\tfrac{1}{2} \\times ${s} = ${num(s / 2)}` },
+        { tex: `\\text{area} = \\frac{1}{2}|z|^{2}` },
+        { tex: `\\frac{1}{2} \\times ${s} = ${num(s / 2)}` },
       );
     }
     return steps;

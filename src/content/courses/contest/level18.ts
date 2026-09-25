@@ -18,9 +18,9 @@ export const syntheticGeometry: Level = {
       title: 'Pythagorean Theorem',
       slides: [
         teach(
-          prose('**The British flag rule.** Join a point $P$ inside rectangle $ABCD$ to the four corners. Drop perpendiculars from $P$ to the sides: they cut the width into $w_1$ and $w_2$ and the height into $h_1$ and $h_2$, and each line to a corner is a hypotenuse.'),
-          maths('PA^{2} = w_1^{2} + h_1^{2}, \\qquad PC^{2} = w_2^{2} + h_2^{2}'),
-          maths('PB^{2} = w_2^{2} + h_1^{2}, \\qquad PD^{2} = w_1^{2} + h_2^{2}'),
+          prose('**The British flag rule.** Join a point $P$ inside rectangle $ABCD$ to the four corners. Drop perpendiculars from $P$ to the sides: they cut the width into $w_{1}$ and $w_{2}$ and the height into $h_{1}$ and $h_{2}$, and each line to a corner is a hypotenuse.'),
+          maths('PA^{2} = w_{1}^{2} + h_{1}^{2}, \\qquad PC^{2} = w_{2}^{2} + h_{2}^{2}'),
+          maths('PB^{2} = w_{2}^{2} + h_{1}^{2}, \\qquad PD^{2} = w_{1}^{2} + h_{2}^{2}'),
           prose('Each pair of opposite corners uses all four pieces once, so'),
           maths('PA^{2} + PC^{2} = PB^{2} + PD^{2}'),
           prose('With $PA = 4$, $PB = 5$ and $PC = 6$:'),
@@ -97,7 +97,7 @@ export const syntheticGeometry: Level = {
           'cm-sg-inradius',
           1,
           prose('**The inradius.** Join the centre of the circle inside a triangle to its corners. That makes three triangles, each with a side as its base and the radius $r$ as its height, so'),
-          maths('\\text{area} = \\tfrac{1}{2}ar + \\tfrac{1}{2}br + \\tfrac{1}{2}cr = rs'),
+          maths('\\text{area} = \\frac{1}{2}ar + \\frac{1}{2}br + \\frac{1}{2}cr = rs'),
           prose('Sides $13$, $14$ and $15$ give $s = 21$ and, by Heron, area $84$:'),
           maths('r = 84 \\div 21 = 4'),
         ),
@@ -122,7 +122,7 @@ export const syntheticGeometry: Level = {
           'cm-sg-inradius+choice',
           2,
           prose('Any point inside works the same way. In the $13$, $14$, $15$ triangle, area $84$, a point is $6$ from the side $13$ and $3$ from the side $14$. The three triangles it makes add up to the whole:'),
-          maths('\\tfrac{1}{2}(13 \\times 6 + 14 \\times 3 + 15d) = 84'),
+          maths('\\frac{1}{2}(13 \\times 6 + 14 \\times 3 + 15d) = 84'),
           maths('78 + 42 + 15d = 168'),
           maths('15d = 48'),
           maths('d = 3.2'),
@@ -272,7 +272,7 @@ export const syntheticGeometry: Level = {
       title: 'Power of a Point',
       slides: [
         teach(
-          prose('**Crossing chords.** Chords $AB$ and $CD$ cross at $P$. Triangles $APC$ and $DPB$ have equal angles at $P$, and $\\angle CAB = \\angle CDB$ stand on the same arc, so they are similar, and'),
+          prose('**Crossing chords.** Chords $AB$ and $CD$ cross at $P$. Triangles $APC$ and $DPB$ have equal angles at $P$, and $\\angle CAB$ and $\\angle CDB$ are equal because they stand on the same arc, so the triangles are similar, and'),
           maths('AP \\times PB = CP \\times PD'),
           prose('With $AP = 3$, $PB = 8$ and $CP = 4$:'),
           maths('3 \\times 8 = 4 \\times PD'),
@@ -394,10 +394,10 @@ export const syntheticGeometry: Level = {
       title: 'Circles',
       slides: [
         teach(
-          prose('**Two tangents from a point are equal.** A circle inside triangle $ABC$ touches each side, and each side is made of two tangents. Call the tangent from $A$ $t_A$, and so on. With $BC = 8$, $CA = 7$ and $AB = 5$:'),
-          maths('t_A + t_B = 5, \\qquad t_B + t_C = 8, \\qquad t_C + t_A = 7'),
-          maths('t_A + t_B + t_C = 20 \\div 2 = 10'),
-          maths('t_A = 10 - 8 = 2, \\qquad t_B = 10 - 7 = 3, \\qquad t_C = 10 - 5 = 5'),
+          prose('**Two tangents from a point are equal.** A circle inside triangle $ABC$ touches each side, and each side is made of two tangents. Call the tangent from $A$ $t_{A}$, and so on. With $BC = 8$, $CA = 7$ and $AB = 5$:'),
+          maths('t_{A} + t_{B} = 5, \\qquad t_{B} + t_{C} = 8, \\qquad t_{C} + t_{A} = 7'),
+          maths('t_{A} + t_{B} + t_{C} = 20 \\div 2 = 10'),
+          maths('t_{A} = 10 - 8 = 2, \\qquad t_{B} = 10 - 7 = 3, \\qquad t_{C} = 10 - 5 = 5'),
           prose('In a quadrilateral with a circle inside, the same tangents make opposite sides add to the same total. With $AB = 7$, $BC = 9$ and $CD = 8$:'),
           maths('AB + CD = BC + DA'),
           maths('DA = 7 + 8 - 9 = 6'),
@@ -452,9 +452,9 @@ export const syntheticGeometry: Level = {
         askAfter(
           'cm-sg-tangent-table',
           2,
-          prose('Round a quadrilateral with a circle inside, walk from corner to corner: each side is two tangents, so take off the one you know. With $t_A = 3$, $AB = 7$, $BC = 9$ and $CD = 8$:'),
-          maths('t_B = 7 - 3 = 4, \\qquad t_C = 9 - 4 = 5'),
-          maths('t_D = 8 - 5 = 3, \\qquad DA = 3 + 3 = 6'),
+          prose('Round a quadrilateral with a circle inside, walk from corner to corner: each side is two tangents, so take off the one you know. With $t_{A} = 3$, $AB = 7$, $BC = 9$ and $CD = 8$:'),
+          maths('t_{B} = 7 - 3 = 4, \\qquad t_{C} = 9 - 4 = 5'),
+          maths('t_{D} = 8 - 5 = 3, \\qquad DA = 3 + 3 = 6'),
         ),
       ],
       skillCheck: [ask('cm-sg-pitot', 2), ask('cm-sg-parallel-chords', 2), ask('cm-sg-tangent-angle', 2)],

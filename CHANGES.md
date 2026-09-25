@@ -5,6 +5,10 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-25
 
+- **Going back onto a slide finished with Show me no longer asks for it again
+  (this PR).** It comes back showing the answer it showed, and Continue moves
+  on. A slide solved (first try or after a wrong answer) still comes back idle
+  with Continue beside Check. `canPassSolved` is now `canPassFinished`.
 - **Two grading bugs fixed (this PR).** `vec-parallel` could offer two
   parallel options, marking a correct pick wrong (~10% of draws). A negative
   base was shown unbracketed (`-1^{4}`) while the answer meant `(-1)^{4}`, in

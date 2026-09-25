@@ -5,6 +5,11 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-25
 
+- **Home-screen colours: the seams were an old copy (this PR).** The current
+  build already runs one unbroken purple from Algebra Fundamentals to Advanced
+  Maths and orange from the Statistics heading down (#180); the iPad was still
+  showing an older version. The app now checks for a new version every time it
+  is brought back to the front, so one close and reopen picks it up.
 - **Two grading bugs fixed (this PR).** `vec-parallel` could offer two
   parallel options, marking a correct pick wrong (~10% of draws). A negative
   base was shown unbracketed (`-1^{4}`) while the answer meant `(-1)^{4}`, in

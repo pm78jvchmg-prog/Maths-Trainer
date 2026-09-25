@@ -5,6 +5,12 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-25
 
+- **Top bars hide on scroll, and lists remember where you were (#197).** Less space
+  above "All courses" (the home screen matches). The top bar on the home
+  screen, a course page and a lesson slides away while scrolling down and
+  comes back on scrolling up. Leaving a lesson returns to that lesson on the
+  course page, and going back to the home screen returns to where it was
+  scrolled. Positions are kept in session storage, never the progress store.
 - **Complex square roots are taught before they are asked.** The Square Roots
   lesson now works an example of squaring, then finds a root step by step with
   no guessing, then practises gently: square a number, pick which candidate is

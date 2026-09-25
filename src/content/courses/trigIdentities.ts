@@ -130,7 +130,8 @@ export const trigIdentities: Course = {
               prose(
                 'Take $\\cot^2 x$ from both sides of $1 + \\cot^2 x = \\operatorname{cosec}^2 x$ instead, and the difference of the squares is $1$:',
               ),
-              maths('\\begin{aligned} 1 &= \\operatorname{cosec}^2 x - \\cot^2 x \\\\ 3(\\operatorname{cosec}^2 x - \\cot^2 x) &= 3 \\times 1 = 3 \\end{aligned}'),
+              maths('\\operatorname{cosec}^2 x - \\cot^2 x = 1'),
+              prose('So $3(\\operatorname{cosec}^2 x - \\cot^2 x) = 3 \\times 1 = 3$.'),
               prose('In the same way $\\sec^2 x - \\tan^2 x = 1$.'),
             ),
             teach(

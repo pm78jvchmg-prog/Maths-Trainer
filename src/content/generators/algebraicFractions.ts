@@ -4288,7 +4288,7 @@ const fracIneqTestTree: Generator<TestParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `Test $x = ${t}$, where the bottom is negative. Top row: the top and the bottom there. Below: $${k}$ times the bottom, which multiplying through compares the top with, and the value of the fraction itself.`,
+          `Test $x = ${t}$, where the bottom is negative. Top row: the top and the bottom there. Below: $${k}$ times the bottom, and the fraction's value.`,
         ),
       ],
       expression: againstTex(params),
@@ -4590,7 +4590,7 @@ const fracIneqSquareSteps: Generator<AgainstParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `Multiply both sides of $${againstTex(params)}$ by $${squareTex(b)}$, which is never negative, and bring everything to the left: the line below is $${OP_TEX[op]} 0$. Factorise it. Tap the part you would work out **next**, then choose what it becomes.`,
+          `Multiplying $${againstTex(params)}$ by $${squareTex(b)}$ and bringing everything left gives the line below, $${OP_TEX[op]} 0$. Factorise it. Tap the part you would work out **next**, then choose what it becomes.`,
         ),
       ],
       start: squaredLine(params),
@@ -4866,7 +4866,7 @@ const fracIneqTwoTopTree: Generator<TwoParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `Over $${productTex(b, d)}$ the top is $${productTex(a, d)} - ${productTex(c, b)}$, and its $x^{2}$ terms cancel. Top row: the number from each product, then the $x$ coefficient left over. Below: the number in the top. Last: where the top is zero.`,
+          `Over $${productTex(b, d)}$ the top is $${productTex(a, d)} - ${productTex(c, b)}$, and its $x^{2}$ terms cancel. Top row: each product's number, then the $x$ coefficient left. Below: the top's number. Last: where the top is zero.`,
         ),
       ],
       expression: twoTex(params),
@@ -5229,7 +5229,7 @@ const fracIneqGraphSlider: Generator<GraphParams> = {
       kind: 'slider',
       prompt: [
         say(
-          `The curve is $y = ${againstFracTex(params)}$ and the dashed line is $y = ${k}$. The answer to $${againstTex(params)}$ can only change where the curve meets the line, or where it shoots off. ${
+          `For $${againstTex(params)}$: the curve is $y = ${againstFracTex(params)}$ and the dashed line $y = ${k}$. ${
             which === 'pole' ? 'Slide the marker to where it shoots off.' : 'Slide the marker to where it meets the line.'
           }`,
         ),

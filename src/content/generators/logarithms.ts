@@ -5670,7 +5670,7 @@ const linConstantSteps: Generator<LineParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `On the graph of $${lg(kind, 'y')}$ against $${across(model, kind)}$ for $${formTex(model)}$, the line has gradient $${m}$ and passes through $(${x1}, ${y1})$. Find $${name}$ one step at a time: tap the step to do next, then choose what it gives.`,
+          text: `For $${formTex(model)}$, the graph of $${lg(kind, 'y')}$ against $${across(model, kind)}$ is a line of gradient $${m}$ through $(${x1}, ${y1})$. Find $${name}$: tap the step to do next, then choose what it gives.`,
         },
       ],
       start: [lg(kind, name), '=', `${y1}`, '-', `${m}`, '\\times', `${x1}`],
@@ -6742,7 +6742,7 @@ const cmpQuotientTree: Generator<DifferenceParams> = {
         { kind: 'display', tex: quotientEquationTex(params) },
         {
           kind: 'prose',
-          text: `The quotient law and dropping the logarithms leave the equation below. Expand it, gather the $x$ terms on the right, and solve. Fill in $${K} \\times ${factorOf(q)}$, then the coefficient of $x$, then the number it equals, then $x$.`,
+          text: `The quotient law leaves the equation below. With the $x$ terms gathered on the right, fill in $${K} \\times ${factorOf(q)}$, then the coefficient of $x$, then the number it equals, then $x$.`,
         },
       ],
       expression: `${shifted(p)} = ${K}(${shifted(q)})`,

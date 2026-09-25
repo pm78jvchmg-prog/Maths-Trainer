@@ -2829,7 +2829,7 @@ const scaleTree: Generator<Sys> = {
       prompt: [
         {
           kind: 'prose',
-          text: `Eliminate $x$: multiply (1) by $${s.a2}$ and (2) by $${s.a1}$, then subtract. Fill the tree: the two new $y$ coefficients, the two new right-hand sides, what subtracting leaves of each, and then $y$.`,
+          text: `Eliminate $x$: multiply (1) by $${s.a2}$ and (2) by $${s.a1}$, then subtract. Fill the tree: the new $y$ coefficients, the new right-hand sides, each after subtracting, then $y$.`,
         },
         { kind: 'display', tex: sysTex(s) },
       ],
@@ -3285,7 +3285,7 @@ function sampleWordsPair(rng: Rng, difficulty: number): WordsPairParams {
 
 function wordsPairIntro(p: WordsPairParams): string {
   const items = ITEMS[p.item];
-  return `Let $x$ be the price of ${items.first} and $y$ the price of ${items.second}, in ${items.unit}.`;
+  return `$x$ and $y$ are the prices of ${items.first} and ${items.second}, in ${items.unit}.`;
 }
 
 function wordsPairSolution(p: WordsPairParams): SolutionStep[] {
@@ -3324,7 +3324,7 @@ const wordsSetup: Generator<WordsPairParams> = {
       prompt: [
         { kind: 'prose', text: wordsPairIntro(p) },
         { kind: 'prose', text: `${purchase(items, p.p1, p.q1, t1, false)} That gives $${eqTex(p.p1, p.q1, t1)}$.` },
-        { kind: 'prose', text: `${purchase(items, p.p2, p.q2, t2, p.flipped)} Write this second equation.` },
+        { kind: 'prose', text: `${purchase(items, p.p2, p.q2, t2, p.flipped)} Write its equation.` },
       ],
       template: '{0}x + {1}y = {2}',
       bank: bankOf(answer, [`${p.p1}`, `${p.q1}`, `${t1}`, `${p.p2 + p.q2}`]),
@@ -3413,7 +3413,7 @@ const sumDiff: Generator<SumDiffParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${text[story]} ${ask === 'larger' ? 'Adding' : 'Subtracting'} the equations $x + y = ${s}$ and $x - y = ${d}$ gives the ${ask} one as the expression below. ${HOW_TO_REDUCE}`,
+          text: `${text[story]} ${ask === 'larger' ? 'Adding' : 'Subtracting'} $x + y = ${s}$ and $x - y = ${d}$ gives the ${ask} one below. ${HOW_TO_REDUCE}`,
         },
       ],
       expr,
@@ -7626,7 +7626,7 @@ const triDropSteps: Generator<DropPairParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `Remove $${TRI_LETTERS[p.k]}$ from (1) and (${p.with + 1}) with ${comboTex(c)}: settle the $x$, $y$ and $z$ terms in turn, then the right-hand side. ${HOW_TO_STEP}`,
+          text: `Remove $${TRI_LETTERS[p.k]}$ from (1) and (${p.with + 1}) with ${comboTex(c)}. ${HOW_TO_STEP}`,
         },
         { kind: 'display', tex: triTex(p) },
       ],
@@ -7673,7 +7673,7 @@ const triDropCheck: Generator<DropPairParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `This system's solution is $${tripleTex(p.sol)}$. Removing $${TRI_LETTERS[p.k]}$ with ${comboTex(c)} gave $${rowEqTex(c.row, c.d)}$. Work out its left-hand side at the solution. ${HOW_TO_REDUCE}`,
+          text: `The solution is $${tripleTex(p.sol)}$, and ${comboTex(c)} gave $${rowEqTex(c.row, c.d)}$. Work out its left-hand side there. ${HOW_TO_REDUCE}`,
         },
         { kind: 'display', tex: triTex(p) },
       ],
@@ -7761,7 +7761,7 @@ const triFinishTree: Generator<FinishParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `(4) and (5) came from removing $${L}$. Now ${comboTex(c)} removes $${M}$ and leaves $\\square\\, ${N} = \\square$. Fill the tree: that coefficient and right-hand side, then $${N}$, then $${M}$ from (4), then $${L}$ from (1).`,
+          text: `${comboTex(c)} removes $${M}$, leaving $\\square\\, ${N} = \\square$. Fill the tree: those two numbers, then $${N}$, then $${M}$ from (4), then $${L}$ from (1).`,
         },
         { kind: 'display', tex: triTex(p) },
         { kind: 'display', tex: reducedTex(p) },
@@ -8261,8 +8261,8 @@ interface SumStory {
   names: [string, string, string];
   /** One fact: the pair's total, as a sentence. */
   pair: (a: string, b: string, n: number) => string;
-  /** What a letter stands for. */
-  letter: (name: string) => string;
+  /** What the three letters stand for, as a plural: "the ages". */
+  what: string;
   ask: (name: string) => string;
 }
 
@@ -8270,31 +8270,31 @@ const SUM_STORIES: readonly SumStory[] = [
   {
     names: ['a pen', 'a ruler', 'a rubber'],
     pair: (a, b, n) => `${capital(a)} and ${b} cost $${n}$p.`,
-    letter: (a) => `the price of ${a} in pence`,
+    what: 'the prices in pence',
     ask: (a) => `How much is ${a}, in pence?`,
   },
   {
     names: ['an apple', 'a pear', 'a lemon'],
     pair: (a, b, n) => `${capital(a)} and ${b} cost $${n}$p together.`,
-    letter: (a) => `the price of ${a} in pence`,
+    what: 'the prices in pence',
     ask: (a) => `How much is ${a}, in pence?`,
   },
   {
     names: ['Amy', 'Ben', 'Cara'],
     pair: (a, b, n) => `${a} and ${b} are $${n}$ years old altogether.`,
-    letter: (a) => `${a}'s age`,
+    what: 'the ages',
     ask: (a) => `How old is ${a}?`,
   },
   {
     names: ['Dev', 'Eli', 'Fay'],
     pair: (a, b, n) => `The ages of ${a} and ${b} add up to $${n}$.`,
-    letter: (a) => `${a}'s age`,
+    what: 'the ages',
     ask: (a) => `How old is ${a}?`,
   },
   {
     names: ['the red box', 'the blue box', 'the green box'],
     pair: (a, b, n) => `${capital(a)} and ${b} weigh $${n}$ kg together.`,
-    letter: (a) => `the mass of ${a} in kg`,
+    what: 'the masses in kg',
     ask: (a) => `How heavy is ${a}, in kg?`,
   },
 ];
@@ -8405,7 +8405,7 @@ function sumText(p: SumParams): string {
 
 function sumLetters(p: SumParams): string {
   const s = SUM_STORIES[p.story];
-  return `Let $x$ be ${s.letter(s.names[0])}, $y$ ${s.letter(s.names[1])} and $z$ ${s.letter(s.names[2])}.`;
+  return `$x$, $y$ and $z$ are ${s.what} of ${s.names[0]}, ${s.names[1]} and ${s.names[2]}.`;
 }
 
 function shareValues(p: ShareParams): Row {
@@ -8422,8 +8422,8 @@ function shareText(p: ShareParams): string {
 }
 
 function shareLetters(p: ShareParams): string {
-  const { names, things } = SHARE_STORIES[p.story];
-  return `Let $x$, $y$ and $z$ be the numbers of ${things} ${names[0]}, ${names[1]} and ${names[2]} get.`;
+  const { names } = SHARE_STORIES[p.story];
+  return `$x$, $y$ and $z$ are ${names[0]}'s, ${names[1]}'s and ${names[2]}'s shares.`;
 }
 
 function wordsValues(p: WordsTriParams): Row {
@@ -8590,7 +8590,7 @@ const triWordsTiles: Generator<BasketParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${basketText(p)} Let $x$ be the price of one ${b.items[0]}, $y$ of one ${b.items[1]} and $z$ of one ${b.items[2]}, in ${b.unit}. Write the purchase as an equation.`,
+          text: `${basketText(p)} $x$, $y$ and $z$ are the prices of one ${b.items[0]}, one ${b.items[1]} and one ${b.items[2]}, in ${b.unit}. Write the equation.`,
         },
       ],
       template: '{0} {1} {2} = {3}',
@@ -8683,7 +8683,7 @@ const triSumAllSteps: Generator<SumAllParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${sumText(p)} ${sumLetters(p)} Add all three equations, halve, then take away (${p.drop + 1}) to find $${letter}$. ${HOW_TO_STEP}`,
+          text: `${sumText(p)} ${sumLetters(p)} Find $${letter}$. ${HOW_TO_STEP}`,
         },
         { kind: 'display', tex: triTex(t) },
       ],
@@ -10079,7 +10079,7 @@ interface StoryTilesParams {
 }
 
 function storyLetters(story: RegionStory, swap: boolean): string {
-  return `Let $x$ be the number of ${swap ? story.y : story.x} and $y$ the number of ${swap ? story.x : story.y}.`;
+  return `$x$ is the number of ${swap ? story.y : story.x}, $y$ of ${swap ? story.x : story.y}.`;
 }
 
 /** The coefficients of $x$ and $y$, whichever item each letter counts. */
@@ -10306,7 +10306,7 @@ const storyMost: Generator<StoryMostParams> = {
     const story = REGION_STORIES[p.story];
     const corners = storyCorners(p);
     const { c } = storyLine(p);
-    const ask = `The most ${story.x} and ${story.y} altogether, $x + y$, is at a corner of the region. What is it?`;
+    const ask = `What is the most ${story.x} and ${story.y} altogether, $x + y$?`;
     return {
       kind: 'expression',
       prompt: [
@@ -10386,7 +10386,7 @@ const storyMeetSteps: Generator<StoryRegionParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${storyRegionText(p)} One corner of the region is where $${totalTex(p)} = ${c}$ meets $${p.on} = ${p.k}$. Put $${p.on} = ${p.k}$ in and find $${unknown}$. ${HOW_TO_STEP}`,
+          text: `${storyRegionText(p)} Find the corner where $${totalTex(p)} = ${c}$ meets $${p.on} = ${p.k}$. ${HOW_TO_STEP}`,
         },
       ],
       start:
@@ -10614,7 +10614,7 @@ const nameLetter: Generator<NameParams> = {
       [
         {
           kind: 'prose',
-          text: `${nameStory(p)} Which number is best called $x$, so that every other count can be written from it?`,
+          text: `${nameStory(p)} Which count should be $x$, so the others can be written from it?`,
         },
       ],
       labelChoices(count(names[0]), count(names[1]), count(names[2]), `\\text{the total number of ${NAME_THINGS[p.thing]}}`),
@@ -10701,7 +10701,7 @@ const nameTotal: Generator<NameParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${nameStory(p)} Together they have $${T}$ ${NAME_THINGS[p.thing]}. Let $x$ be the number ${names[0]} has. Write the equation for the total, with like terms collected.`,
+          text: `${nameStory(p)} Together they have $${T}$ ${NAME_THINGS[p.thing]}. Let $x$ be the number ${names[0]} has. Write the total as an equation, like terms collected.`,
         },
       ],
       template: '{0} {1} = {2}',
@@ -10757,13 +10757,13 @@ const nameTree: Generator<NameParams> = {
     const { K, C, T } = nameCollected(p);
     const counts = nameCounts(p);
     const answer = [`${T - C}`, `${p.x}`, `${counts[1]}`, `${counts[2]}`];
-    const move = C > 0 ? `take $${C}$ off the total` : `put $${-C}$ back on the total`;
+    const move = C > 0 ? `take $${C}$ off` : `add $${-C}$ back`;
     return {
       kind: 'tree',
       prompt: [
         {
           kind: 'prose',
-          text: `${nameStory(p)} Together they have $${T}$ ${NAME_THINGS[p.thing]}. With $x$ for ${names[0]}'s, the equation collects to $${linTex(K, C)} = ${T}$. Fill the tree: ${move}, divide by $${K}$ for $x$, then find ${names[1]}'s and ${names[2]}'s.`,
+          text: `${nameStory(p)} Together they have $${T}$ ${NAME_THINGS[p.thing]}. With $x$ for ${names[0]}'s, that is $${linTex(K, C)} = ${T}$. Fill the tree: ${move}, then $x$, then find ${names[1]}'s and ${names[2]}'s.`,
         },
       ],
       expression: `x = (${T} ${C > 0 ? '-' : '+'} ${Math.abs(C)}) \\div ${K}`,
@@ -10897,7 +10897,7 @@ const evenTiles: Generator<EvenParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${evenText(p)} Let $n$ be the number sold. Write the equation that says the income equals the costs.`,
+          text: `${evenText(p)} With $n$ sold, write the equation for income = costs.`,
         },
       ],
       template: '{0}n = {1} + {2}n',
@@ -10925,7 +10925,7 @@ const evenSlider: Generator<EvenParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${evenText(p)} The solid line is the income and the dashed line the costs. Slide to the number of ${items} where they cross.`,
+          text: `${evenText(p)} Slide to the number of ${items} where income (solid) meets costs (dashed).`,
         },
       ],
       min: 0,
@@ -10997,7 +10997,7 @@ const evenTable: Generator<EvenTableParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${evenText(p)} Fill in the costs and the income, in pounds, for each number sold. The row where they are equal is the break-even point.`,
+          text: `${evenText(p)} Fill in the costs and the income, in pounds.`,
         },
       ],
       columns: ['n', '\\text{costs}', '\\text{income}'],
@@ -11158,7 +11158,7 @@ function meetText(p: ApproachParams): string {
   const [a, b] = TRAVELLERS[p.pair];
   const { how } = TRAVEL[p.mode];
   return p.h === 0
-    ? `${a} and ${b} are $${meetGap(p)}$ km apart. They set off at the same time, ${how} towards each other: ${a} at $${p.u}$ km/h and ${b} at $${p.v}$ km/h.`
+    ? `${a} and ${b}, $${meetGap(p)}$ km apart, set off together ${how} towards each other: ${a} at $${p.u}$ km/h and ${b} at $${p.v}$ km/h.`
     : `${a} and ${b} are $${meetGap(p)}$ km apart, ${how} towards each other. ${a} sets off first at $${p.u}$ km/h, and ${b} follows $${p.h}$ ${plural(p.h, 'hour', 'hours')} later at $${p.v}$ km/h.`;
 }
 
@@ -11250,7 +11250,7 @@ const rateWhereTree: Generator<ApproachParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${meetText(p)} Fill the tree: how fast the gap closes, the hours until they meet, then how far ${a} and ${b} have each gone.`,
+          text: `${meetText(p)} Fill the tree: the closing speed, the hours to meet, then how far ${a} and ${b} each go.`,
         },
       ],
       expression: `t = ${D} \\div (${p.u} + ${p.v})`,
@@ -11292,7 +11292,7 @@ function catchText(p: CatchParams): string {
   const [a, b] = TRAVELLERS[p.pair];
   const { how } = TRAVEL[p.mode];
   return p.late === 0
-    ? `${a} and ${b} set off at the same time along the same road, ${how}. ${a} starts $${catchAhead(p)}$ km ahead at $${p.u}$ km/h, and ${b} follows at $${p.v}$ km/h.`
+    ? `${a} and ${b} set off together along a road, ${how}. ${a} starts $${catchAhead(p)}$ km ahead at $${p.u}$ km/h, and ${b} follows at $${p.v}$ km/h.`
     : `${a} sets off along a road, ${how} at $${p.u}$ km/h. ${b} leaves the same place $${p.late}$ ${plural(p.late, 'hour', 'hours')} later at $${p.v}$ km/h.`;
 }
 
@@ -11365,7 +11365,7 @@ const rateCatch: Generator<CatchParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${catchText(p)} ${catchAsk(p)} The solid line is ${a} and the dashed line ${b}: distance against time in hours.`,
+          text: `${catchText(p)} ${catchAsk(p)} The graph is distance against hours: ${a} solid, ${b} dashed.`,
         },
       ],
       min: 0,
@@ -11507,7 +11507,7 @@ const rateTiles: Generator<RateTilesParams> = {
         prompt: [
           {
             kind: 'prose',
-            text: `${meetText(p)} Let $t$ be the hours until they meet. Write the equation that says their two distances make up the gap.`,
+            text: `${meetText(p)} Write the equation for $t$, the hours until they meet.`,
           },
         ],
         template: '{0}t + {1}t = {2}',
@@ -11523,7 +11523,7 @@ const rateTiles: Generator<RateTilesParams> = {
         prompt: [
           {
             kind: 'prose',
-            text: `${catchText(p)} Let $t$ be the hours until ${b} catches up. Write the equation that says they are then the same distance from ${b}'s start.`,
+            text: `${catchText(p)} Write the equation for $t$, the hours until ${b} catches up.`,
           },
         ],
         template: '{0}t = {1} + {2}t',
@@ -11611,7 +11611,7 @@ function mixNames(p: MixParams): [string, string] {
 
 function mixLetters(p: MixParams): string {
   const [first, second] = mixNames(p);
-  return `Let $x$ ${mixUnit(p)} be ${first} and $y$ ${mixUnit(p)} be ${second}.`;
+  return `Use $x$ ${mixUnit(p)} of ${first} and $y$ of ${second}.`;
 }
 
 /** A lead or readout naming how much of one ingredient: `\text{kg of cashews}`. */
@@ -11695,7 +11695,7 @@ const mixPair: Generator<MixPairParams> = {
       [
         {
           kind: 'prose',
-          text: `${mixText(p)} ${mixLetters(p)} Which pair of equations describes the ${p.kind === 'price' ? 'blend' : 'mixture'}?`,
+          text: `${mixText(p)} ${mixLetters(p)} Which pair of equations fits?`,
         },
       ],
       labelChoices(pair(), ...p.wrong.map(pair)),
@@ -11734,7 +11734,7 @@ const mixTiles: Generator<MixParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${mixText(p)} ${mixLetters(p)} Along with $x + y = ${M}$, write the equation for the ${p.kind === 'price' ? 'cost' : MIX_STRENGTH[p.story].stuff}.`,
+          text: `${mixText(p)} ${mixLetters(p)} Besides $x + y = ${M}$, write the ${p.kind === 'price' ? 'cost' : MIX_STRENGTH[p.story].stuff} equation.`,
         },
       ],
       template: '{0}x + {1}y = {2}',
@@ -11787,13 +11787,13 @@ const mixSubstituteSteps: Generator<MixParams> = {
     const G = p.a - p.b;
     const bM = p.b * M;
     const term = leadTerm(G, 'x');
-    const [first, second] = mixNames(p);
+    const [first] = mixNames(p);
     return {
       kind: 'steps',
       prompt: [
         {
           kind: 'prose',
-          text: `${mixText(p)} With $x$ ${mixUnit(p)} of ${first}, there are $${M} - x$ of ${second}, which gives the equation below. Solve it. ${HOW_TO_STEP}`,
+          text: `${mixText(p)} With $x$ ${mixUnit(p)} of ${first}, solve the equation below. ${HOW_TO_STEP}`,
         },
       ],
       start: [`${p.a}x`, `+ ${p.b}(${M} - x)`, '=', `${total}`],
@@ -11841,7 +11841,7 @@ const mixSlider: Generator<MixParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${mixText(p)} The line shows the ${p.kind === 'price' ? 'price per kg' : 'strength'} of the $${M}$ ${mixUnit(p)} for each amount of ${first} in it, and the dashed line is the target. Slide to the amount of ${first}.`,
+          text: `${mixText(p)} The line is the mix's ${p.kind === 'price' ? 'price per kg' : 'strength'} for each amount of ${first}; dashed is the target. Slide to the amount of ${first}.`,
         },
       ],
       min: 0,
@@ -12011,7 +12011,7 @@ function whichModel(p: BackWhichParams): { text: string; right: string; wrong: s
     const m = p.meet;
     const D = meetGap(m);
     return {
-      text: `${meetText(m)} Let $t$ be the hours until they meet.`,
+      text: `${meetText(m)} They meet after $t$ hours.`,
       right: `(${m.u} + ${m.v})t = ${D}`,
       wrong: [
         `(${Math.max(m.u, m.v)} - ${Math.min(m.u, m.v)})t = ${D}`,
@@ -12069,7 +12069,7 @@ const backWhich: Generator<BackWhichParams> = {
   render: (p): Slide => {
     const model = whichModel(p);
     return sortedChoice(
-      [{ kind: 'prose', text: `${model.text} Which equation fits the story?` }],
+      [{ kind: 'prose', text: `${model.text} Which equation fits?` }],
       labelChoices(model.right, ...p.wrong.map((i) => model.wrong[i])),
     );
   },
@@ -12223,12 +12223,12 @@ function changed(p: ChangeParams): { F: number; g: number } {
 }
 
 function changeSentence(p: ChangeParams): string {
-  const { item, setup } = EVEN_STORIES[p.story];
+  const { item } = EVEN_STORIES[p.story];
   const price = p.c + p.g;
   if (p.change === 'price') return `Next time each ${item} sells for ${pounds(price + p.j)} instead.`;
   if (p.change === 'cheaper') return `Next time each ${item} sells for ${pounds(price - p.j)} instead.`;
   if (p.change === 'cost') return `Next time each ${item} costs ${pounds(p.c - p.j)} to make instead.`;
-  return `Next time it pays ${pounds(changed(p).F)} ${setup} instead.`;
+  return `Next time it pays ${pounds(changed(p).F)} instead.`;
 }
 
 /**

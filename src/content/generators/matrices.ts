@@ -2617,7 +2617,7 @@ const areaSteps: Generator<AreaStepsParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `A $${p}$ by $${q}$ rectangle is transformed by this matrix, whose determinant is positive. Its new area is its old area times the determinant. Tap the part you would work out **next**, then choose what it comes to.`,
+          text: `A $${p}$ by $${q}$ rectangle is transformed by this matrix, whose determinant is positive. Find its new area. Tap the part you would work out **next**, then choose what it comes to.`,
         },
         { kind: 'display', tex: `\\mathbf{M} = ${texOf(m)}` },
       ],
@@ -3157,7 +3157,7 @@ const composeSlide: Generator<ComposeSlideParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `The shaded shape is the unit square after a first transformation, and the arrows show where $\\mathbf{i}$ and $\\mathbf{j}$ are now. Next comes ${STANDARD[second].phrases[phrase]}${mirror ? ', whose mirror line is dashed' : ''}. Slide to the $${axis}$-coordinate of where $\\mathbf{${basis}}$ finally lands.`,
+          text: `The shaded shape is the unit square after one transformation, with arrows at $\\mathbf{i}$ and $\\mathbf{j}$. Next comes ${STANDARD[second].phrases[phrase]}${mirror ? ' (dashed)' : ''}. Slide to the $${axis}$-coordinate where $\\mathbf{${basis}}$ finally lands.`,
         },
       ],
       min: -(span - 1),
@@ -3576,7 +3576,7 @@ const composeName: Generator<ComposeNameParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${upperFirst(STANDARD[first].phrases[pf])}, followed by ${STANDARD[second].phrases[ps]}, is a single transformation. The figure shows the dashed unit square and its image after both. Which transformation is it?`,
+          text: `${upperFirst(STANDARD[first].phrases[pf])}, followed by ${STANDARD[second].phrases[ps]}, is a single transformation, shown on the dashed unit square. Which is it?`,
         },
         {
           kind: 'diagram',
@@ -3698,7 +3698,7 @@ const reflectPair: Generator<ReflectPairParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${sentence} Together they make a single rotation about $O$. Through what angle, anticlockwise? Give it in degrees, between $0$ and $360$.`,
+          text: `${sentence} Together they make a rotation about $O$. Through what angle anticlockwise, in degrees between $0$ and $360$?`,
         },
       ],
       lead: '\\text{angle} =',
@@ -4280,7 +4280,7 @@ const composeArea: Generator<ComposeAreaParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `A shape of area $${area}$ is transformed by $\\mathbf{A}$ and then by $\\mathbf{B}$, both with positive determinants. Its final area is $\\det\\mathbf{A} \\times \\det\\mathbf{B} \\times ${area}$. Tap the part you would work out **next**, then choose what it comes to.`,
+          text: `A shape of area $${area}$ is transformed by $\\mathbf{A}$ then $\\mathbf{B}$, both with positive determinants. Find its final area. Tap the part you would work out **next**, then choose what it comes to.`,
         },
         ...namedDisplays([
           ['A', a],

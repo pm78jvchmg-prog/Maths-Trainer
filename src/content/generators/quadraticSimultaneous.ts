@@ -1157,7 +1157,7 @@ const discriminantTree: Generator<DiscTreeParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `Put the line into the curve and collect terms, keeping $${a === 1 ? 'x^{2}' : `${a}x^{2}`}$ at the front. Then fill the tree: the coefficient of $x$ and the constant on top, $b^{2}$ and $4ac$ below them, and the discriminant at the bottom.`,
+          text: `Put the line into the curve, keeping $${a === 1 ? 'x^{2}' : `${a}x^{2}`}$ at the front. Fill the tree: $b$ and $c$, then $b^{2}$ and $4ac$, then the discriminant.`,
         },
         { kind: 'display', tex: systemTex(quadTex(a, p + m, q + k), linearTex(m, k)) },
       ],

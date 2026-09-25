@@ -1124,13 +1124,14 @@ interface PriceStory {
  */
 function priceStory(slide: Slide): PriceStory {
   const text = proseOf(slide);
-  const p = Number(text.match(/is £?\$(\d+)\$ before two changes/)![1]);
+  const stated = text.match(/is (?:£(\d+)|\$(\d+)\$) before two changes/)!;
+  const p = Number(stated[1] ?? stated[2]);
   const pair = displaysOf(slide)[0].match(/f\(x\) &= (.*?) \\\\ g\(x\) &= (.*?) \\end/)!;
   const fns = { f: priceFn(pair[1]), g: priceFn(pair[2]) };
   const scaleLetter = /^[\d.]+x$/.test(pair[1]) ? 'f' : 'g';
   expect(/^[\d.]+x$/.test(scaleLetter === 'f' ? pair[1] : pair[2]), `no multiplier in ${pair[0]}`).toBe(true);
   const shiftLetter = scaleLetter === 'f' ? 'g' : 'f';
-  const order = text.match(/(?:made|order:) (.*?) first, then/);
+  const order = text.match(/([^.:]*) first, then/);
   if (!order) {
     // No order in words: the question names the composite, and that is the order.
     // Or it asks both orders, and neither is first.

@@ -8204,7 +8204,7 @@ const familyNext: Generator<FamilyNextParams> = {
     const last = f(xs[xs.length - 1]);
     return {
       kind: 'table',
-      prompt: [{ kind: 'prose', text: `${story} In the table, ${where}. Fill in the missing values.` }],
+      prompt: [{ kind: 'prose', text: `${story} In the table, ${where}. Fill in the gaps.` }],
       columns: [xl, yl],
       rows: xs.map((x, i) => [`${x}`, i === 0 ? `${f(x)}` : null]),
       bank: treeBank(answer, slips.filter((v) => v > 0), last),
@@ -8560,7 +8560,7 @@ const ruleMachine: Generator<RuleMachineParams> = {
     const setting = SETTINGS[s];
     const values = machineSteps(params);
     const answer = values.map(String);
-    const order = model.kind === 'area' ? 'the bracket first, then multiply' : 'multiply first, then the fixed amount';
+    const order = model.kind === 'area' ? 'bracket first, then multiply' : 'multiply first, then the fixed amount';
     const slips =
       model.kind === 'area'
         ? [model.k + x, x * model.k, 2 * model.k - x]
@@ -8574,7 +8574,7 @@ const ruleMachine: Generator<RuleMachineParams> = {
       prompt: [
         { kind: 'prose', text: `${setting.story(storyNumbers(model))} The model is` },
         { kind: 'display', tex: ruleLine(setting, model) },
-        { kind: 'prose', text: `Put $${x}$ through the rule — ${order} — to find ${lower(setting.parts[0])}, ${setting.at(x)}.` },
+        { kind: 'prose', text: `Put $${x}$ through the rule (${order}) to find ${lower(setting.parts[0])}, ${setting.at(x)}.` },
       ],
       expression: `${setting.out}(${x})`,
       nodes: [
@@ -9345,7 +9345,7 @@ function pricePrompt(params: PriceParams): Block[] {
   return [
     {
       kind: 'prose',
-      text: `${start} is ${setting.pounds ? '£' : ''}$${params.p}$ before two changes: ${setting.amount(params.v)}, and ${setting.multiply}. As functions of the ${setting.noun} $x$:`,
+      text: `${start} is ${setting.pounds ? `£${params.p}` : `$${params.p}$`} before two changes, as functions of the ${setting.noun} $x$:`,
     },
     { kind: 'display', tex: pairTex(fTex, gTex) },
   ];
@@ -9355,6 +9355,12 @@ function pricePrompt(params: PriceParams): Block[] {
 function priceName(params: PriceParams, amountFirst = params.amountFirst): string {
   const { shiftName, scaleName } = priceParts(params);
   return amountFirst ? `${scaleName}${shiftName}` : `${shiftName}${scaleName}`;
+}
+
+/** The order the changes are made in, as a sentence: "The sale takes $20$% off first, then …". */
+function priceOrderSentence(params: PriceParams): string {
+  const words = priceOrderWords(params);
+  return `${words[0].toUpperCase()}${words.slice(1)}.`;
 }
 
 function priceOrderWords(params: PriceParams, amountFirst = params.amountFirst): string {
@@ -9398,7 +9404,7 @@ const priceTree: Generator<PriceParams> = {
     if (!hard) {
       const [first, second] = priceAfter(params);
       const answer = [`${first}`, `${second}`];
-      prompt.push({ kind: 'prose', text: `The changes are made in this order: ${priceOrderWords(params)}. Fill in the ${PRICES[params.c].noun} after each change.` });
+      prompt.push({ kind: 'prose', text: `${priceOrderSentence(params)} Fill in the ${PRICES[params.c].noun} after each change.` });
       return {
         kind: 'tree',
         prompt,
@@ -9482,7 +9488,7 @@ const orderChoice: Generator<PriceParams> = {
     const other = compositeRuleTex(params, !params.amountFirst);
     return {
       kind: 'choice',
-      prompt: [...pricePrompt(params), { kind: 'prose', text: `The changes are made in this order: ${priceOrderWords(params)}. Which function gives the final ${PRICES[params.c].noun}?` }],
+      prompt: [...pricePrompt(params), { kind: 'prose', text: `${priceOrderSentence(params)} Which function gives the final ${PRICES[params.c].noun}?` }],
       ...fixedChoice(
         [`${right}(x) = ${rule}`, `${right}(x) = ${other}`, `${wrong}(x) = ${rule}`, `${wrong}(x) = ${other}`].map((label) => ({ label, tex: true })),
       ),
@@ -9519,7 +9525,7 @@ const priceValue: Generator<PriceParams> = {
     const name = priceName(params);
     const { noun, pounds } = PRICES[params.c];
     const ask = params.hard
-      ? `The changes are made in this order: ${priceOrderWords(params)}. What is the final ${noun}${pounds ? ', in pounds' : ''}?`
+      ? `${priceOrderSentence(params)} What is the final ${noun}${pounds ? ', in pounds' : ''}?`
       : `Find $${name}(${params.p})$, the final ${noun}${pounds ? ' in pounds' : ''}.`;
     return {
       kind: 'expression',
@@ -9557,7 +9563,7 @@ const compositeTiles: Generator<PriceParams> = {
     const answer = [name[0], name[1], compositeRuleTex(params, params.amountFirst)];
     return {
       kind: 'tiles',
-      prompt: [...pricePrompt(params), { kind: 'prose', text: `The changes are made in this order: ${priceOrderWords(params)}. Build the function that gives the final ${PRICES[params.c].noun}.` }],
+      prompt: [...pricePrompt(params), { kind: 'prose', text: `${priceOrderSentence(params)} Build the function for the final ${PRICES[params.c].noun}.` }],
       template: '{0}{1}(x) = {2}',
       // Never the expanded form of the right rule: it is equal, so marking it
       // wrong would be unfair. The other order, and the fixed amount's sign

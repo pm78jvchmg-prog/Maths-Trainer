@@ -527,7 +527,7 @@ const coordGradientSlider: Generator<SlopeSliderParams> = {
       kind: 'slider',
       prompt: [
         say(
-          `The line runs through $${named('P', px, py)}$ and $${named('Q', qx, qy)}$. Its gradient is how far it rises for each $1$ across. Slide the marker from $P$'s height to where the line meets the dashed line, one to the right of $P$.`,
+          `The line runs through $${named('P', px, py)}$ and $${named('Q', qx, qy)}$. Slide the marker from $P$'s height to where the line meets the dashed line, one right of $P$.`,
         ),
       ],
       min: -4,
@@ -1530,7 +1530,7 @@ const coordMeetTree: Generator<MeetParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `Where do $${firstLine(p)}$ and $${secondLine(p)}$ meet? Set them equal and gather the $x$ terms on the left: on top, the coefficient of $x$ and the number on the right. Then $x$, then $y$.`,
+          `Where do $${firstLine(p)}$ and $${secondLine(p)}$ meet? Set them equal, $x$ terms on the left. Top row: the coefficient of $x$ and the number on the right. Then $x$, then $y$.`,
         ),
       ],
       expression: `${rhsTex(q(p.m1), q(c1Of(p)))} = ${rhsTex(q(p.m2), q(c2Of(p)))}`,
@@ -1968,7 +1968,7 @@ const coordBisectorGradientSteps: Generator<BisectorParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `$AB$ joins $${named('A', ends.x1, ends.y1)}$ to $${named('B', ends.x2, ends.y2)}$. Its perpendicular bisector meets it at a right angle, so its gradient is $-1$ divided by the gradient of $AB$. Tap the part you would work out **next**, then choose its value.`,
+          `Find the gradient of the perpendicular bisector of $${named('A', ends.x1, ends.y1)}$ and $${named('B', ends.x2, ends.y2)}$. Tap the part you would work out **next**, then choose its value.`,
         ),
       ],
       start: ['-1 \\div', gradientFormula(ends)],
@@ -3132,7 +3132,7 @@ const coordSubstituteSteps: Generator<CutParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `The line $${meetLine(p)}$ meets the circle $${meetCircle(p)}$. Putting $${rhsTex(q(m), q(p.c))}$ in place of $y$ gives the equation below. Tidy it into a quadratic in $x$ and divide through by the number in front of $x^2$: tap the part you would do **next**, then choose what it becomes.`,
+          `Putting $${meetLine(p)}$ into $${meetCircle(p)}$ gives the equation below. Tidy it into a quadratic and divide by the number in front of $x^2$: tap the part you would do **next**, then choose what it becomes.`,
         ),
       ],
       start: [a === 0 ? 'x^2' : `(${lin('x', a)})^2`, '+', `(${yBracket})^2`, '=', String(r2)],
@@ -3735,7 +3735,7 @@ const coordTouchConditionSteps: Generator<ConditionParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `The line $y = ${termOf(q(m))} + c$ touches the circle $${circleTex(0, b, r2)}$ when the quadratic that substituting gives has discriminant zero, which is the equation below. Solve it for $c$: tap the part you would do **next**, then choose what it becomes.`,
+          `The line $y = ${termOf(q(m))} + c$ touches the circle $${circleTex(0, b, r2)}$ when the equation below holds. Solve it for $c$: tap the part you would do **next**, then choose what it becomes.`,
         ),
       ],
       start: [`(${2 * m}${U})^2`, '-', `${4 * A}(${U}^2 - ${r2})`, '=', '0'],
@@ -4046,8 +4046,8 @@ function fromPointPrompt(p: FromPointParams): string {
   const py = p.b + p.Y;
   const circle = circleTex(p.a, p.b, p.r2);
   return p.a === 0 && p.b === 0
-    ? `Every line through $${named('P', px, py)}$ is $y = mx + c$ with $c = ${sumTex([String(py), termOf(q(-px), 'm')])}$. It touches $${circle}$ when $c^2 = r^2(1 + m^2)$, which is the equation below.`
-    : `Measured from the centre of $${circle}$, the point $${named('P', px, py)}$ is $${p.X}$ across and $${p.Y}$ up, so a line through $P$ with gradient $m$ is $k = ${sumTex([String(p.Y), termOf(q(-p.X), 'm')])}$ above the centre, and it touches when $k^2 = r^2(1 + m^2)$, the equation below.`;
+    ? `A line through $${named('P', px, py)}$ with gradient $m$ has $c = ${sumTex([String(py), termOf(q(-px), 'm')])}$, and touches $${circle}$ when $c^2 = r^2(1 + m^2)$: the equation below.`
+    : `From the centre of $${circle}$, $${named('P', px, py)}$ is $${p.X}$ across and $${p.Y}$ up, so a line through $P$ with gradient $m$ is $k = ${sumTex([String(p.Y), termOf(q(-p.X), 'm')])}$ above the centre. It touches when $k^2 = r^2(1 + m^2)$: the equation below.`;
 }
 
 function fromPointSolution(p: FromPointParams): SolutionStep[] {
@@ -4078,7 +4078,7 @@ const coordOutsideGradientSteps: Generator<FromPointParams> = {
     const roots = eitherTex('m', m1, m2);
     return {
       kind: 'steps',
-      prompt: [say(`${fromPointPrompt(p)} Solve it for the gradients of the two tangents: tap the part you would do **next**, then choose what it becomes.`)],
+      prompt: [say(`${fromPointPrompt(p)} Solve it for the two tangent gradients: tap the part you would do **next**, then choose what it becomes.`)],
       start: [`(${sumTex([String(Y), termOf(q(-X), 'm')])})^2`, '=', `${r2}(1 + m^2)`],
       reductions: [
         {
@@ -4281,7 +4281,7 @@ const coordChordMidpointSteps: Generator<CutParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `The line $${meetLine(p)}$ cuts the circle $${meetCircle(p)}$ at $A$ and $B$. Putting the line into the circle and dividing through gives the quadratic below. Its roots are the $x$-coordinates of $A$ and $B$, and they add to minus its $x$ coefficient. Find the midpoint $M$ of $AB$: tap the part you would do **next**, then choose what it becomes.`,
+          `The line $${meetLine(p)}$ cuts the circle $${meetCircle(p)}$ at $A$ and $B$, where the quadratic below is zero. Find the midpoint $M$ of $AB$: tap the part you would do **next**, then choose what it becomes.`,
         ),
         show(monicTex(p)),
       ],
@@ -4979,7 +4979,7 @@ const coordThreeBisectorSteps: Generator<ThreeParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `${threeNamed([P, Q2, R])} lie on a circle, so its centre is on the perpendicular bisector of $PQ$. Find that bisector: tap the part you would work out **next**, then choose its value.`,
+          `${threeNamed([P, Q2, R])} lie on a circle. Find the perpendicular bisector of $PQ$: tap the part you would work out **next**, then choose its value.`,
         ),
       ],
       start: [
@@ -5041,7 +5041,7 @@ const coordCircumcentreTree: Generator<ThreeParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `${threeNamed([P, Q2, R])} lie on a circle. The perpendicular bisectors of $PQ$ and $QR$ are shown; both pass through its centre $C$. Top row: the $x$-coordinate of $C$, where they meet. Then its $y$-coordinate. Then $r^2 = CP^2$.`,
+          `${threeNamed([P, Q2, R])} lie on a circle with centre $C$; the bisectors of $PQ$ and $QR$ are shown. Top row: the $x$-coordinate of $C$. Then its $y$-coordinate. Then $r^2 = CP^2$.`,
         ),
       ],
       expression: `\\begin{gathered} ${bisectorLine(p.a, p.b, P, Q2)} \\\\ ${bisectorLine(p.a, p.b, Q2, R)} \\end{gathered}`,
@@ -5573,7 +5573,7 @@ const coordOtherEndSteps: Generator<OtherEndParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `$${namedAt('A', A)}$ is one end of a diameter $AB$ of the circle below. Its centre $C(a, b)$ is the midpoint of $AB$. Find $B$: tap the part you would work out **next**, then choose its value.`,
+          `$${namedAt('A', A)}$ is one end of a diameter $AB$ of the circle below, centre $C(a, b)$. Find $B$: tap the part you would work out **next**, then choose its value.`,
         ),
         p.expanded ? wrapped(expandedTex(p.a, p.b, p.r2)) : show(circleTex(p.a, p.b, p.r2)),
       ],
@@ -8025,7 +8025,7 @@ const coordLocusBisectorSteps: Generator<TwoPointParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `$P(x, y)$ moves so that it is always as far from $${namedAt('A', A)}$ as from $${namedAt('B', B)}$. Square the distances and simplify to find its locus: tap the part you would work out **next**, then choose its value.`,
+          `$P(x, y)$ is always as far from $${namedAt('A', A)}$ as from $${namedAt('B', B)}$. Find its locus: tap the part you would work out **next**, then choose its value.`,
         ),
       ],
       start: [squaresTex(A), '=', squaresTex(B)],

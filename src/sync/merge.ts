@@ -11,8 +11,8 @@
  * and nothing more; it never interprets a snapshot.
  */
 import type { LessonRecord } from '../store/progress';
-import { MAX_CHARGES, playOn } from '../store/streak';
-import type { StreakState } from '../store/streak';
+import { MAX_CHARGES, mergeDays, playOn } from '../store/streak';
+import type { DayMark, StreakState } from '../store/streak';
 
 export interface Snapshot {
   lessons: Record<string, LessonRecord>;
@@ -23,7 +23,7 @@ export interface Snapshot {
 export const emptySnapshot: Snapshot = {
   lessons: {},
   abandoned: {},
-  streak: { streak: 0, lastPlayedDay: null, charges: 0, lastPlayedAt: null },
+  streak: { streak: 0, lastPlayedDay: null, charges: 0, lastPlayedAt: null, best: 0, days: {} },
 };
 
 const whole = (value: unknown): value is number =>
@@ -68,7 +68,16 @@ export function sanitizeSnapshot(input: unknown): Snapshot {
       lastPlayedDay: day,
       charges: whole(raw.charges) ? Math.min(raw.charges, MAX_CHARGES) : 0,
       lastPlayedAt: whole(raw.lastPlayedAt) && day ? raw.lastPlayedAt : null,
+      best: whole(raw.best) ? raw.best : 0,
+      days: {},
     };
+    if (isRecord(raw.days)) {
+      const days: Record<string, DayMark> = {};
+      for (const [key, mark] of Object.entries(raw.days)) {
+        if (DAY.test(key) && (mark === 'played' || mark === 'charge')) days[key] = mark;
+      }
+      streak.days = mergeDays(days);
+    }
   }
 
   return { lessons, abandoned, streak };
@@ -115,8 +124,21 @@ export function mergeLesson(a: LessonRecord, b: LessonRecord): LessonRecord {
  * belongs to: the later of the two on the same day, the later day's otherwise.
  * `replaced`, a wrong clock this device is waiting to see put right, is about
  * one device's clock and is never shared; the device's own copy is kept.
+ * `best` is the larger of the two and `days` their union, a played day
+ * winning over a charge.
  */
 export function mergeStreak(a: StreakState, b: StreakState): StreakState {
+  const run = mergeRun(a, b);
+  // The longest run and the recent days are records of what happened on
+  // either device, so they are simply the larger and the union.
+  return {
+    ...run,
+    best: Math.max(a.best ?? 0, b.best ?? 0, run.streak),
+    days: mergeDays(a.days, b.days, run.days),
+  };
+}
+
+function mergeRun(a: StreakState, b: StreakState): StreakState {
   if (!a.lastPlayedDay || !b.lastPlayedDay) {
     const played = a.lastPlayedDay ? a : b.lastPlayedDay ? b : a;
     return { ...played, charges: Math.max(a.charges, b.charges), lastPlayedAt: played.lastPlayedAt ?? null };
@@ -140,6 +162,8 @@ export function mergeStreak(a: StreakState, b: StreakState): StreakState {
     lastPlayedDay: later.lastPlayedDay,
     charges: Math.max(carried.charges, later.charges),
     lastPlayedAt: later.lastPlayedAt ?? null,
+    // Charges the earlier run spent reaching the later day.
+    days: mergeDays(carried.days, later.days),
   };
 }
 

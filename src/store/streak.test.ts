@@ -6,6 +6,9 @@ import {
   localDay,
   playOn,
   playOnAt,
+  RECENT_DAYS,
+  bestStreak,
+  recentDays,
   resolveStreak,
   useStreak,
   type StreakState,
@@ -291,6 +294,62 @@ describe('localDay', () => {
   });
 });
 
+describe('the streak view', () => {
+  const kinds = (state: StreakState, today: string, alsoPlayed: string[] = []) =>
+    recentDays(state, today, undefined, alsoPlayed).map((entry) => entry.kind);
+
+  it('marks the days played and the day a charge covered', () => {
+    // Played 20th and 21st, missed the 22nd, back on the 23rd: one charge spent.
+    const state = run(['2026-09-20', '2026-09-21', '2026-09-23']);
+    expect(state.days).toEqual({ '2026-09-20': 'played', '2026-09-21': 'played', '2026-09-22': 'charge', '2026-09-23': 'played' });
+    expect(kinds(state, '2026-09-23')).toEqual(['missed', 'played', 'played', 'charge', 'played']);
+  });
+
+  it('leaves a missed day grey when no charge was left to cover it', () => {
+    const state = run(['2026-09-20', '2026-09-22', '2026-09-24']);
+    // The 21st took the only charge; nothing covered the 23rd, so the run restarted.
+    expect(state.streak).toBe(1);
+    expect(kinds(state, '2026-09-24')).toEqual(['played', 'charge', 'played', 'missed', 'played']);
+  });
+
+  it('shows today open until it is played', () => {
+    const state = run(['2026-09-22', '2026-09-23']);
+    expect(kinds(state, '2026-09-24')).toEqual(['missed', 'missed', 'played', 'played', 'today']);
+  });
+
+  it('shows a missed day the next play will cover as covered, as the charge count does', () => {
+    const state = run(['2026-09-22', '2026-09-23']);
+    expect(resolveStreak(state, '2026-09-25').charges).toBe(0);
+    expect(kinds(state, '2026-09-25')).toEqual(['missed', 'played', 'played', 'charge', 'today']);
+  });
+
+  it('shows the gap grey once the run has lapsed', () => {
+    const state = run(['2026-09-22']);
+    expect(kinds(state, '2026-09-26')).toEqual(['played', 'missed', 'missed', 'missed', 'today']);
+  });
+
+  it('counts days lessons were finished on from before the log was kept', () => {
+    const old: StreakState = { streak: 2, lastPlayedDay: '2026-09-23', charges: 1 };
+    expect(kinds(old, '2026-09-23', ['2026-09-22'])).toEqual(['missed', 'missed', 'missed', 'played', 'played']);
+  });
+
+  it('keeps only the latest days', () => {
+    const days = Array.from({ length: 20 }, (_, index) => `2026-09-${String(index + 1).padStart(2, '0')}`);
+    const state = run(days);
+    expect(Object.keys(state.days ?? {})).toHaveLength(RECENT_DAYS);
+    expect(Object.keys(state.days ?? {}).sort()[0]).toBe('2026-09-07');
+  });
+
+  it('remembers the longest run after it lapses', () => {
+    const state = run(['2026-09-01', '2026-09-02', '2026-09-03', '2026-09-10']);
+    expect(state.streak).toBe(1);
+    expect(state.best).toBe(3);
+    expect(bestStreak(state, '2026-09-10')).toBe(3);
+    // A streak saved before `best` was kept counts its own run.
+    expect(bestStreak({ streak: 7, lastPlayedDay: '2026-09-10', charges: 1 }, '2026-09-10')).toBe(7);
+  });
+});
+
 describe('streak store', () => {
   beforeEach(() => {
     useStreak.getState().reset();
@@ -309,8 +368,8 @@ describe('streak store', () => {
     useStreak.getState().recordPlay(new Date(2026, 8, 22, 9, 0));
     useStreak.getState().reset();
 
-    const { streak, lastPlayedDay, charges, lastPlayedAt, replaced } = useStreak.getState();
-    expect({ streak, lastPlayedDay, charges, lastPlayedAt, replaced }).toEqual(emptyStreak);
+    const { streak, lastPlayedDay, charges, lastPlayedAt, replaced, best, days } = useStreak.getState();
+    expect({ streak, lastPlayedDay, charges, lastPlayedAt, replaced, best, days }).toEqual(emptyStreak);
   });
 
   it('defaults to now', () => {

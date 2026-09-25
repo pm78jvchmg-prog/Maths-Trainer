@@ -2565,16 +2565,175 @@ button {
   gap: 5px;
 }
 
-.charge {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
+.charge-icon .charge-case {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1.6;
 }
 
-.charge.banked {
+.charge-icon .charge-cap {
+  fill: var(--border);
+}
+
+.charge-icon.full .charge-case {
+  fill: var(--accent-dim);
+  stroke: var(--accent);
+}
+
+.charge-icon.full .charge-cap,
+.charge-icon .charge-bolt {
+  fill: var(--accent);
+}
+
+/* The bar is the button that opens the streak view, so it drops a button's
+   own font, colour and alignment and keeps the card look above. */
+button.streak-bar {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.streak-bar:active {
+  background: var(--surface-raised);
+}
+
+/* ---------- Streak view ---------- */
+
+.streak-sheet {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.streak-hero {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.streak-hero-flame {
+  font-size: 40px;
+  line-height: 1;
+}
+
+.streak-hero-count {
+  margin: 0;
+  font-size: 44px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--accent);
+}
+
+.streak-hero-label {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.streak-charge-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.streak-charge-note {
+  margin: 6px 0 18px;
+  max-width: 34ch;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+
+.streak-days {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 340px;
+  margin: 0 0 20px;
+  padding: 0;
+  list-style: none;
+}
+
+.streak-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.streak-day-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 2px solid var(--border);
+  background: var(--surface);
+}
+
+.streak-day.played .streak-day-mark {
   border-color: var(--accent);
-  background: var(--accent);
+  background: var(--accent-dim);
+}
+
+.streak-day.charge .streak-day-mark {
+  border-color: var(--accent);
+  border-style: dashed;
+}
+
+/* Today, not yet played: an open ring rather than the grey of a day missed. */
+.streak-day.today .streak-day-mark {
+  border-color: var(--text-dim);
+  border-style: dashed;
+  background: none;
+}
+
+.streak-day-flame {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.streak-day-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.streak-day.played .streak-day-name,
+.streak-day.charge .streak-day-name {
+  color: var(--text);
+}
+
+.streak-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+  margin-bottom: 18px;
+}
+
+.streak-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.streak-stat-value {
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.streak-stat-label {
+  font-size: 14px;
+  color: var(--text-dim);
 }
 
 /*

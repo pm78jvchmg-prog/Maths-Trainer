@@ -23,6 +23,14 @@ const streak = (
   lastPlayedAt,
 });
 
+/** The run itself, leaving out the longest-run and recent-days records. */
+const runOf = ({ streak: count, lastPlayedDay, charges, lastPlayedAt }: StreakState): StreakState => ({
+  streak: count,
+  lastPlayedDay,
+  charges,
+  lastPlayedAt,
+});
+
 const snap = (partial: Partial<Snapshot>): Snapshot => ({ ...emptySnapshot, ...partial });
 
 describe('merging a lesson played on two devices', () => {
@@ -45,14 +53,14 @@ describe('merging a lesson played on two devices', () => {
 
 describe('merging two streaks', () => {
   it('takes the longer run on the same day, and the higher charges', () => {
-    expect(mergeStreak(streak(4, '2026-09-25', 1), streak(6, '2026-09-25', 2))).toEqual(
+    expect(runOf(mergeStreak(streak(4, '2026-09-25', 1), streak(6, '2026-09-25', 2)))).toEqual(
       streak(6, '2026-09-25', 2),
     );
   });
 
   it('carries a stale device forward rather than keeping it or dropping it', () => {
     // Both saw Monday; the iPad played Tuesday offline.
-    expect(mergeStreak(streak(5, '2026-09-21', 1), streak(6, '2026-09-22', 1))).toEqual(
+    expect(runOf(mergeStreak(streak(5, '2026-09-21', 1), streak(6, '2026-09-22', 1)))).toEqual(
       streak(6, '2026-09-22', 1),
     );
   });
@@ -60,7 +68,7 @@ describe('merging two streaks', () => {
   it('joins a long run to a fresh play on the next day', () => {
     // The phone has ten days to Tuesday; a new, never-synced tablet played on
     // Wednesday. Together that is eleven days, not one.
-    expect(mergeStreak(streak(10, '2026-09-22', 2), streak(1, '2026-09-23', 1))).toEqual(
+    expect(runOf(mergeStreak(streak(10, '2026-09-22', 2), streak(1, '2026-09-23', 1)))).toEqual(
       streak(11, '2026-09-23', 2),
     );
   });
@@ -69,7 +77,7 @@ describe('merging two streaks', () => {
     // Ten days to the 10th, nothing again until the 20th: the old run is
     // over. Its unspent charge carries into the new run, as it would have on
     // one device.
-    expect(mergeStreak(streak(10, '2026-09-10', 1), streak(1, '2026-09-20', 1))).toEqual(
+    expect(runOf(mergeStreak(streak(10, '2026-09-10', 1), streak(1, '2026-09-20', 1)))).toEqual(
       streak(1, '2026-09-20', 2),
     );
   });
@@ -83,8 +91,41 @@ describe('merging two streaks', () => {
   });
 
   it('keeps whichever device has played when the other never has', () => {
-    expect(mergeStreak(streak(0, null, 0), streak(3, '2026-09-25', 1))).toEqual(streak(3, '2026-09-25', 1));
-    expect(mergeStreak(streak(3, '2026-09-25', 1), streak(0, null, 0))).toEqual(streak(3, '2026-09-25', 1));
+    expect(runOf(mergeStreak(streak(0, null, 0), streak(3, '2026-09-25', 1)))).toEqual(streak(3, '2026-09-25', 1));
+    expect(runOf(mergeStreak(streak(3, '2026-09-25', 1), streak(0, null, 0)))).toEqual(streak(3, '2026-09-25', 1));
+  });
+});
+
+describe('merging the streak view records', () => {
+  it('keeps the longer longest run and every recent day either device saw', () => {
+    const phone: StreakState = { ...streak(2, '2026-09-24', 1), best: 9, days: { '2026-09-23': 'played', '2026-09-24': 'played' } };
+    const tablet: StreakState = { ...streak(3, '2026-09-24', 1), best: 4, days: { '2026-09-22': 'charge', '2026-09-24': 'played' } };
+    const merged = mergeStreak(phone, tablet);
+    expect(merged.best).toBe(9);
+    expect(merged.days).toEqual({ '2026-09-22': 'charge', '2026-09-23': 'played', '2026-09-24': 'played' });
+    expect(mergeStreak(tablet, phone)).toEqual(merged);
+  });
+
+  it('never lets a charge overwrite a day played on the other device', () => {
+    const a: StreakState = { ...streak(1, '2026-09-24', 1), days: { '2026-09-23': 'charge' } };
+    const b: StreakState = { ...streak(1, '2026-09-24', 1), days: { '2026-09-23': 'played' } };
+    expect(mergeStreak(a, b).days?.['2026-09-23']).toBe('played');
+    expect(mergeStreak(b, a).days?.['2026-09-23']).toBe('played');
+  });
+
+  it('reads the records back from the network, dropping what is malformed', () => {
+    const read = sanitizeSnapshot({
+      streak: {
+        streak: 2,
+        lastPlayedDay: '2026-09-24',
+        charges: 1,
+        best: 5,
+        days: { '2026-09-24': 'played', '2026-09-23': 'charge', yesterday: 'played', '2026-09-22': 'maybe' },
+      },
+    });
+    expect(read.streak.best).toBe(5);
+    expect(read.streak.days).toEqual({ '2026-09-23': 'charge', '2026-09-24': 'played' });
+    expect(sanitizeSnapshot({ streak: { streak: 1, lastPlayedDay: '2026-09-24', charges: 0, best: -3 } }).streak.best).toBe(0);
   });
 });
 
@@ -105,7 +146,7 @@ describe('merging whole snapshots', () => {
     expect(Object.keys(merged.lessons).sort()).toEqual(['a', 'b', 'c']);
     expect(merged.lessons.b).toEqual(lesson(300, 3, 3, 3));
     expect(merged.abandoned).toEqual({ a: 2, c: 1 });
-    expect(merged.streak).toEqual(streak(4, '2026-09-25', 1));
+    expect(runOf(merged.streak)).toEqual(streak(4, '2026-09-25', 1));
   });
 
   it('is the same in either order, and merging again changes nothing', () => {
@@ -131,7 +172,7 @@ describe('reading a snapshot from the network', () => {
     });
     expect(read.lessons).toEqual({ good: lesson(1, 2, 3, 1) });
     expect(read.abandoned).toEqual({ a: 2 });
-    expect(read.streak).toEqual(streak(0, null, 2));
+    expect(runOf(read.streak)).toEqual(streak(0, null, 2));
   });
 
   it('treats nothing at all as an empty snapshot', () => {

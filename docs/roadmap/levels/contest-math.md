@@ -263,4 +263,14 @@ Generators in `src/content/generators/contestSequencesSeries.ts`.
 | Geometric Sequences | `cm-ss-geo-middle`, `cm-ss-geo-table`, `cm-ss-geo-shift-sum`, `cm-ss-geo-shift-tiles`, `cm-ss-geo-infinite`, `cm-ss-bounce` | the middle term is the geometric mean, not the average; a gap of k steps is r to the k; multiply by r and subtract, and only the ends survive; a series that goes on for ever holds a copy of itself; the first fall once, every bounce twice |
 | Telescoping Series | `cm-ss-tele-unit`, `cm-ss-tele-table`, `cm-ss-tele-gap`, `cm-ss-tele-roots`, `cm-ss-tele-factorial` | 1/(k(k + 1)) = 1/k − 1/(k + 1), even when the bottoms are multiplied out; a gap of g puts 1/g in front, and k(k + 2) leaves two at each end; multiply by the conjugate; k × k! = (k + 1)! − k! and k/(k + 1)! = 1/k! − 1/(k + 1)! |
 
+## Level 16: Finding and Counting Factors (`cm-l16`)
+
+Generators in `src/content/generators/contestFactors.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Prime Factorization | `cm-fc-perfect-power`, `cm-fc-digit-product`, `cm-fc-exponent-match`, `cm-fc-exponent-match-tiles`, `cm-fc-root-table` | the largest k is the HCF of the powers, after factorising the bases; pack the primes into the largest digits, 9s first; the powers of each prime must match on both sides; halve (or third) the powers, never multiply out |
+| GCD/LCM | `cm-fc-euclid`, `cm-fc-remainder-lcm`, `cm-fc-lcm-pairs`, `cm-fc-lcm-pairs-table`, `cm-fc-gcd-sum` | a common divisor divides the difference, and 2^m − 1 runs Euclid on its exponents; take the remainder away (or add one) for a multiple of the LCM; 2e + 1 pairs of powers for each prime, one pair with a = b; divide out the gcd and split the sum into coprime parts |
+| Counting Factors | `cm-fc-few-divisors`, `cm-fc-divisor-product`, `cm-fc-square-pairs`, `cm-fc-multiple-divisors`, `cm-fc-multiple-divisors-table` | divisors pair d with n/d, so only squares have an odd count and three divisors means a prime squared; the pairs multiply to N^{t/2}; the divisors of N² pair around N; a multiple of m is m times a divisor of N/m |
+
 Level check: 12 questions across all three lessons.

@@ -28,6 +28,7 @@ import { advancedAlgebra } from './contest/level12';
 import { inequalities } from './contest/level13';
 import { polynomialsLevel } from './contest/level14';
 import { sequencesSeriesLevel } from './contest/level15';
+import { countingFactors } from './contest/level16';
 
 export const contestMath: Course = {
   id: 'contest-math',
@@ -35,5 +36,5 @@ export const contestMath: Course = {
   position: 10,
   title: 'Contest Math',
   blurb: 'Competition problems: short to state, hard to crack, and each one opened by a single good idea.',
-  levels: [problemSolving, equationsRatios, basicStatistics, geometryFundamentals, similarityScaling, compositeFigures, combinatorics, probability, fastProblemSolving, factorization, reframingProblems, advancedAlgebra, inequalities, polynomialsLevel, sequencesSeriesLevel],
+  levels: [problemSolving, equationsRatios, basicStatistics, geometryFundamentals, similarityScaling, compositeFigures, combinatorics, probability, fastProblemSolving, factorization, reframingProblems, advancedAlgebra, inequalities, polynomialsLevel, sequencesSeriesLevel, countingFactors],
 };

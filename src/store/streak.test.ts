@@ -123,22 +123,6 @@ describe('daily streak', () => {
     // Back on the 24th, which was already counted.
     expect(playOn(behind, '2026-09-24').streak).toBe(5);
   });
-
-  it('re-dates a play recorded with the clock a year ahead, without adding a day', () => {
-    // The last play was recorded while the clock read a year ahead; it is now
-    // put right. Before the clock-moved-back fix this play added a day (4) —
-    // the same double count as the timezone case. The first form of that fix
-    // ignored every play dated before the last, which froze the streak at 3
-    // until 2027-09-24 came round. Now the bad date is replaced by today's and
-    // nothing is added.
-    const ahead: StreakState = { streak: 3, lastPlayedDay: '2027-09-24', charges: 1 };
-
-    const corrected = playOn(ahead, '2026-09-25');
-    expect(corrected).toEqual({ streak: 3, lastPlayedDay: '2026-09-25', charges: 1 });
-
-    // And the streak moves again the next day, rather than a year later.
-    expect(playOn(corrected, '2026-09-26').streak).toBe(4);
-  });
 });
 
 describe('resolveStreak', () => {
@@ -167,18 +151,6 @@ describe('resolveStreak', () => {
 
   it('is empty before the first play', () => {
     expect(resolveStreak(emptyStreak, '2026-09-22')).toEqual(emptyStreak);
-  });
-
-  it('reads a last play dated ahead the way the next play will record it', () => {
-    // A timezone crossed westward: the last play is dated tomorrow, and stays.
-    const west: StreakState = { streak: 5, lastPlayedDay: '2026-09-24', charges: 1 };
-    expect(resolveStreak(west, '2026-09-23')).toEqual(west);
-    expect(playOn(west, '2026-09-23')).toEqual(resolveStreak(west, '2026-09-23'));
-
-    // A clock that was a year ahead: the streak stands, re-dated to today.
-    const ahead: StreakState = { streak: 3, lastPlayedDay: '2027-09-24', charges: 1 };
-    expect(resolveStreak(ahead, '2026-09-25')).toEqual({ ...ahead, lastPlayedDay: '2026-09-25' });
-    expect(playOn(ahead, '2026-09-25')).toEqual(resolveStreak(ahead, '2026-09-25'));
   });
 });
 

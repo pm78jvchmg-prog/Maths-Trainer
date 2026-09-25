@@ -23,6 +23,7 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { Tex, Blocks } from './Math';
 import { frameClass, isLocked, type SlideProps } from './slides';
 import type { Slide } from '../content/types';
+import { parseMove } from '../engine/session';
 import {
   bankFor,
   coveredBy,
@@ -40,17 +41,19 @@ import {
   type Path,
 } from '../content/expr';
 
-function parseMove(token: string): Move | undefined {
-  const at = token.lastIndexOf('=');
-  if (at < 1) return undefined;
-  const value = Number(token.slice(at + 1));
-  if (!Number.isFinite(value)) return undefined;
-  return { path: token.slice(0, at), value };
-}
+/** The draft's moves, read by the parser the grade uses; unreadable tokens are skipped. */
+const movesOf = (tokens: readonly string[]): Move[] =>
+  tokens.map(parseMove).filter((move): move is Move => move !== undefined);
 
 const moveToken = (path: Path, value: number) => `${path}=${value}`;
 
-/** Every line of working the moves produce, with the node each one collapsed. */
+/**
+ * Every line of working the moves produce, with the node each one collapsed.
+ *
+ * Unlike the grader's `replay`, a wrong value does not stop the walk: the line
+ * settles on the number the learner gave, so the picture shows their working
+ * and *Check* stays reachable. The learner finds out by checking.
+ */
 function lines(expr: Expr, moves: Move[]): { expr: Expr; filled?: Path }[] {
   const out: { expr: Expr; filled?: Path }[] = [{ expr }];
   let current = expr;
@@ -162,7 +165,7 @@ function ReduceBody({
 }: SlideProps & { slide: ReduceSlideType }) {
   const locked = isLocked(feedback, canEdit);
   const tokens = Array.isArray(answer) ? answer : [];
-  const moves = tokens.map(parseMove).filter((move): move is Move => move !== undefined);
+  const moves = movesOf(tokens);
 
   /** Which piece is chosen and waiting for a value. */
   const [armed, setArmed] = useState<Path | null>(null);
@@ -280,16 +283,8 @@ function ReduceBody({
 /** True once the expression is a single number, so *Check* may go live. */
 export function reduceComplete(expr: Expr, answer: unknown): boolean {
   if (!Array.isArray(answer)) return false;
-  const moves = answer.map(parseMove).filter((move): move is Move => move !== undefined);
-  let current = expr;
-  for (const move of moves) {
-    const node = targetAt(current, move.path);
-    // A move that no longer applies stops the walk; a wrong value does not, so
-    // Check stays reachable and the learner finds out by checking.
-    if (!node || node.kind === 'num') break;
-    current = reduceAt(current, move.path, move.value);
-  }
-  return current.kind === 'num';
+  const worked = lines(expr, movesOf(answer));
+  return worked[worked.length - 1].expr.kind === 'num';
 }
 
 /**

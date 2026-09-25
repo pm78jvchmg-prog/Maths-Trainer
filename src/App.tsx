@@ -18,7 +18,7 @@ import { registry } from './content/registry';
 import { LessonPlayer } from './ui/LessonPlayer';
 import { SyncDevices } from './ui/SyncDevices';
 import { useProgress } from './store/progress';
-import { MAX_CHARGES, localDay, resolveStreak, useStreak } from './store/streak';
+import { MAX_CHARGES, countedOn, localDay, resolveStreak, useStreak } from './store/streak';
 import { MASTERED_AT, courseMastery, libraryProgress, masteryPercent, playables } from './store/mastery';
 import { levelCheckLesson } from './content/types';
 import type { Course, Lesson } from './content/types';
@@ -34,9 +34,12 @@ import type { Course, Lesson } from './content/types';
  */
 function StreakBar() {
   const streakState = useStreak((state) => state);
-  const today = localDay(new Date());
-  const { streak, charges } = resolveStreak(streakState, today);
-  const playedToday = streakState.lastPlayedDay === today;
+  const now = new Date();
+  const today = localDay(now);
+  const { streak, charges } = resolveStreak(streakState, today, now.getTime());
+  // Not `lastPlayedDay === today`: after travelling west, today is a day
+  // before the last play and already counted.
+  const playedToday = countedOn(streakState, today, now.getTime());
 
   // Kept short enough to stay on one line at 390px with a three-digit streak
   // beside it; the bar growing to two lines pushes the tab strip down the

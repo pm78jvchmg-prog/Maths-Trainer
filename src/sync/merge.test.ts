@@ -11,10 +11,16 @@ const lesson = (completedAt: number, bestCorrect: number, total: number, timesPl
   timesPlayed,
 });
 
-const streak = (count: number, lastPlayedDay: string | null, charges: number): StreakState => ({
+const streak = (
+  count: number,
+  lastPlayedDay: string | null,
+  charges: number,
+  lastPlayedAt: number | null = null,
+): StreakState => ({
   streak: count,
   lastPlayedDay,
   charges,
+  lastPlayedAt,
 });
 
 const snap = (partial: Partial<Snapshot>): Snapshot => ({ ...emptySnapshot, ...partial });
@@ -66,6 +72,14 @@ describe('merging two streaks', () => {
     expect(mergeStreak(streak(10, '2026-09-10', 1), streak(1, '2026-09-20', 1))).toEqual(
       streak(1, '2026-09-20', 2),
     );
+  });
+
+  it('keeps the moment of the last play with the day it belongs to', () => {
+    // Same day: the later moment. Different days: the later day's moment,
+    // which is what east-travel forgiveness in streak.ts measures from.
+    expect(mergeStreak(streak(3, '2026-09-25', 1, 500), streak(3, '2026-09-25', 1, 900)).lastPlayedAt).toBe(900);
+    expect(mergeStreak(streak(9, '2026-09-24', 1, 900), streak(1, '2026-09-25', 1, 100)).lastPlayedAt).toBe(100);
+    expect(mergeStreak(streak(9, '2026-09-24', 1, 900), streak(1, '2026-09-25', 1)).lastPlayedAt).toBeNull();
   });
 
   it('keeps whichever device has played when the other never has', () => {

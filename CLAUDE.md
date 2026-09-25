@@ -145,7 +145,14 @@ windows, so two plays in one afternoon count once and 23:50 then 00:10 counts
 twice. `resolveStreak` is pure and is the only place a gap is interpreted, so
 what the home screen shows and what the next play builds on cannot drift; a
 charge is deducted only when the play that needed it is recorded, never by
-looking at the screen. That the streak is forgiving is the point — it should
+looking at the screen. The clock can move either way between plays, and
+`resolveStreak` reads each so a day is neither counted twice nor lost:
+`lastPlayedDay` never moves back for a day or two west (that is what used to
+count a day twice), a day skipped going east is excused by the real time
+elapsed (`lastPlayedAt`), and a clock set far wrong is re-dated while
+`replaced` remembers the day it displaced, so putting it right is not a year
+missed. Two earlier fixes each broke the opposite direction; the tests in
+`streak.test.ts` cover both. That the streak is forgiving is the point — it should
 not become a reason to feel bad about missing a morning.
 
 **Topic mastery** replaces the XP the reference app runs on, and is the reason

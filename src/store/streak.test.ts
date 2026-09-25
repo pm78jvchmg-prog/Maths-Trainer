@@ -2,8 +2,10 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   MAX_CHARGES,
   emptyStreak,
+  countedOn,
   localDay,
   playOn,
+  playOnAt,
   resolveStreak,
   useStreak,
   type StreakState,
@@ -141,6 +143,143 @@ describe('resolveStreak', () => {
   });
 });
 
+describe('the clock moving between plays', () => {
+  const HOUR = 60 * 60 * 1000;
+  /** An instant, in epoch milliseconds, `hours` after 2026-09-20 00:00 UTC. */
+  const at = (hours: number) => Date.UTC(2026, 8, 20) + hours * HOUR;
+
+  const fiveDays = run(['2026-09-20', '2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24']);
+
+  it('does not count a day twice when travelling west', () => {
+    // Played on the 24th in Sydney, then flew to London, where it is the 23rd.
+    expect(fiveDays.streak).toBe(5);
+    const west = playOn(fiveDays, '2026-09-23');
+    expect(west).toEqual(fiveDays);
+
+    // The 24th comes round again in London: it was counted in Sydney.
+    const again = playOn(west, '2026-09-24');
+    expect(again.streak).toBe(5);
+
+    // And the day after carries on as normal.
+    expect(playOn(again, '2026-09-25').streak).toBe(6);
+  });
+
+  it('does not count a day twice across midnight going west', () => {
+    // 00:10 on the 24th, then a flight lands at 23:50 on the 23rd.
+    const east = playOnAt(fiveDays, '2026-09-24', at(96 + 0.2));
+    const west = playOnAt(east, '2026-09-23', at(96 + 3));
+
+    expect(west.streak).toBe(5);
+    expect(west.lastPlayedDay).toBe('2026-09-24');
+    expect(playOnAt(west, '2026-09-24', at(96 + 13)).streak).toBe(5);
+  });
+
+  it('treats two days back, the whole width of the timezones, as travel', () => {
+    const west = playOn(fiveDays, '2026-09-22');
+    expect(west).toEqual(fiveDays);
+    expect(playOn(west, '2026-09-25').streak).toBe(6);
+  });
+
+  it('shows the day as done on the home screen after travelling west', () => {
+    expect(countedOn(fiveDays, '2026-09-23')).toBe(true);
+    expect(countedOn(fiveDays, '2026-09-24')).toBe(true);
+    expect(countedOn(fiveDays, '2026-09-25')).toBe(false);
+    expect(countedOn(emptyStreak, '2026-09-25')).toBe(false);
+  });
+
+  it('does not spend a charge on a day the clock skipped travelling east', () => {
+    // 22:00 on the 23rd in Los Angeles, landing in Sydney at 06:00 on the 25th:
+    // fifteen hours later, and the 24th never happened here.
+    const la = playOnAt(run(['2026-09-22']), '2026-09-23', at(77));
+    expect(la.charges).toBe(1);
+
+    expect(resolveStreak(la, '2026-09-25', at(92))).toEqual(la);
+    const sydney = playOnAt(la, '2026-09-25', at(92));
+    expect(sydney.streak).toBe(3);
+    expect(sydney.charges).toBe(1);
+  });
+
+  it('does not end a streak with no charges over a day the clock skipped', () => {
+    const bare: StreakState = { streak: 4, lastPlayedDay: '2026-09-23', charges: 0, lastPlayedAt: at(77) };
+    expect(playOnAt(bare, '2026-09-25', at(92)).streak).toBe(5);
+  });
+
+  it('still spends a charge on a day genuinely missed, even one minute past', () => {
+    // 23:59 on the 23rd, then 00:00 on the 25th: the 24th went by unplayed.
+    const late = playOnAt(run(['2026-09-22']), '2026-09-23', at(72 + 23.98));
+    const after = playOnAt(late, '2026-09-25', at(96 + 24));
+    expect(after.streak).toBe(3);
+    expect(after.charges).toBe(0);
+  });
+
+  it('still spends a charge on a missed day that the clocks shortened to 23 hours', () => {
+    // 23:50 on the 23rd; the 24th is 23 hours long; 00:10 on the 25th is
+    // 23 hours 20 minutes of real time later.
+    const late = playOnAt(run(['2026-09-22']), '2026-09-23', at(72 + 23 + 5 / 6));
+    const after = playOnAt(late, '2026-09-25', at(72 + 23 + 5 / 6 + 23 + 1 / 3));
+    expect(after.charges).toBe(0);
+  });
+
+  it('re-dates a play recorded with the clock a year ahead, without adding a day', () => {
+    // Fixed in the first reverted attempt by ignoring every play dated before
+    // the last, which froze the streak at 3 until 2027-09-24 came round.
+    const ahead: StreakState = { streak: 3, lastPlayedDay: '2027-09-24', charges: 1 };
+
+    const corrected = playOn(ahead, '2026-09-25');
+    expect(corrected.streak).toBe(3);
+    expect(corrected.lastPlayedDay).toBe('2026-09-25');
+    expect(corrected.charges).toBe(1);
+
+    expect(playOn(corrected, '2026-09-26').streak).toBe(4);
+  });
+
+  it('keeps the streak when a clock set a year back is put right', () => {
+    // The second reverted attempt re-dated the last play to the wrong year and
+    // forgot the real one, so putting the clock right read as a year missed.
+    const wrong = playOn(fiveDays, '2025-09-25');
+    expect(wrong.streak).toBe(5);
+    const stillWrong = playOn(wrong, '2025-09-26');
+    expect(stillWrong.streak).toBe(6);
+
+    // Put right on the third day: the 25th and 26th were played, if misdated.
+    const right = playOn(stillWrong, '2026-09-27');
+    expect(right.streak).toBe(7);
+    expect(right.charges).toBe(fiveDays.charges);
+    expect(playOn(right, '2026-09-28').streak).toBe(8);
+  });
+
+  it('counts a day once when the clock goes wrong and is put right the same day', () => {
+    const wrong = playOn(fiveDays, '2025-09-25');
+
+    // Put right on the 25th: one day, played twice.
+    expect(playOn(wrong, '2026-09-25').streak).toBe(6);
+
+    // Put right straight back to the 24th, already counted.
+    const back = playOn(wrong, '2026-09-24');
+    expect(back.streak).toBe(5);
+    expect(back.lastPlayedDay).toBe('2026-09-24');
+    expect(back.replaced).toBeNull();
+    expect(playOn(back, '2026-09-25').streak).toBe(6);
+  });
+
+  it('still ends the streak for a real break after the clock went wrong', () => {
+    const wrong = playOn(fiveDays, '2025-09-25');
+
+    // Put right a week later with nothing played in between.
+    expect(playOn(wrong, '2026-10-01').streak).toBe(1);
+  });
+
+  it('forgets the replaced day once the new dates have run two weeks', () => {
+    const corrected = playOn({ streak: 3, lastPlayedDay: '2027-09-24', charges: 1 }, '2026-09-25');
+    expect(corrected.replaced?.day).toBe('2027-09-24');
+
+    const days = Array.from({ length: 16 }, (_, i) => localDay(new Date(2026, 8, 26 + i)));
+    const later = run(days, corrected);
+    expect(later.streak).toBe(19);
+    expect(later.replaced).toBeNull();
+  });
+});
+
 describe('localDay', () => {
   it('pads month and day', () => {
     expect(localDay(new Date(2026, 0, 5, 13, 30))).toBe('2026-01-05');
@@ -164,6 +303,14 @@ describe('streak store', () => {
 
     expect(useStreak.getState().streak).toBe(2);
     expect(useStreak.getState().charges).toBe(1);
+  });
+
+  it('clears everything on reset', () => {
+    useStreak.getState().recordPlay(new Date(2026, 8, 22, 9, 0));
+    useStreak.getState().reset();
+
+    const { streak, lastPlayedDay, charges, lastPlayedAt, replaced } = useStreak.getState();
+    expect({ streak, lastPlayedDay, charges, lastPlayedAt, replaced }).toEqual(emptyStreak);
   });
 
   it('defaults to now', () => {

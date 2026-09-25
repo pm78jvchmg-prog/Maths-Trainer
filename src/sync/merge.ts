@@ -23,7 +23,7 @@ export interface Snapshot {
 export const emptySnapshot: Snapshot = {
   lessons: {},
   abandoned: {},
-  streak: { streak: 0, lastPlayedDay: null, charges: 0 },
+  streak: { streak: 0, lastPlayedDay: null, charges: 0, lastPlayedAt: null },
 };
 
 const whole = (value: unknown): value is number =>
@@ -67,6 +67,7 @@ export function sanitizeSnapshot(input: unknown): Snapshot {
       streak: whole(raw.streak) && day ? raw.streak : 0,
       lastPlayedDay: day,
       charges: whole(raw.charges) ? Math.min(raw.charges, MAX_CHARGES) : 0,
+      lastPlayedAt: whole(raw.lastPlayedAt) && day ? raw.lastPlayedAt : null,
     };
   }
 
@@ -109,11 +110,16 @@ export function mergeLesson(a: LessonRecord, b: LessonRecord): LessonRecord {
  * if that play had happened on the same device, charges and gaps included,
  * and the better of that and the later device's own run is kept. The day
  * logic itself stays in `streak.ts`.
+ *
+ * `lastPlayedAt`, the moment of the last counted play, goes with the day it
+ * belongs to: the later of the two on the same day, the later day's otherwise.
+ * `replaced`, a wrong clock this device is waiting to see put right, is about
+ * one device's clock and is never shared; the device's own copy is kept.
  */
 export function mergeStreak(a: StreakState, b: StreakState): StreakState {
   if (!a.lastPlayedDay || !b.lastPlayedDay) {
     const played = a.lastPlayedDay ? a : b.lastPlayedDay ? b : a;
-    return { ...played, charges: Math.max(a.charges, b.charges) };
+    return { ...played, charges: Math.max(a.charges, b.charges), lastPlayedAt: played.lastPlayedAt ?? null };
   }
 
   if (a.lastPlayedDay === b.lastPlayedDay) {
@@ -122,6 +128,7 @@ export function mergeStreak(a: StreakState, b: StreakState): StreakState {
       streak: Math.max(a.streak, b.streak),
       lastPlayedDay: a.lastPlayedDay,
       charges: Math.max(a.charges, b.charges),
+      lastPlayedAt: latest(a.lastPlayedAt, b.lastPlayedAt),
     };
   }
 
@@ -132,7 +139,14 @@ export function mergeStreak(a: StreakState, b: StreakState): StreakState {
     streak: Math.max(carried.streak, later.streak),
     lastPlayedDay: later.lastPlayedDay,
     charges: Math.max(carried.charges, later.charges),
+    lastPlayedAt: later.lastPlayedAt ?? null,
   };
+}
+
+function latest(a: number | null | undefined, b: number | null | undefined): number | null {
+  if (a == null) return b ?? null;
+  if (b == null) return a;
+  return Math.max(a, b);
 }
 
 export function mergeSnapshots(a: Snapshot, b: Snapshot): Snapshot {

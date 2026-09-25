@@ -4,7 +4,7 @@ import {
   reduce,
   currentSlide,
   canGoBack,
-  canPassSolved,
+  canPassFinished,
   canReveal,
   canRetry,
   scorePercent,
@@ -240,12 +240,11 @@ describe('advancing', () => {
     // Back on the solved slide, idle: reviewing it must not mean solving it again.
     expect(s.index).toBe(1);
     expect(s.feedback.kind).toBe('idle');
-    expect(canPassSolved(s)).toBe(true);
+    expect(canPassFinished(s)).toBe(true);
     expect(reduce(s, { type: 'continue' }).index).toBe(2);
   });
 
-  it('still asks for an answer on a slide stepped back onto but never solved', () => {
-    // Revealed, not solved: stepping back onto it gives no free pass.
+  it('brings a slide finished by Show me back as it was left, and lets it be passed', () => {
     let s = pastTeach(start());
     s = run(s, [
       { type: 'submit', answer: '999i' },
@@ -253,8 +252,61 @@ describe('advancing', () => {
       { type: 'continue' },
       { type: 'back' },
     ]);
+    // Back on it: the shown answer is still showing, and the way on is open.
     expect(s.index).toBe(1);
-    expect(canPassSolved(s)).toBe(false);
+    expect(s.feedback.kind).toBe('revealed');
+    expect(reduce(s, { type: 'continue' }).index).toBe(2);
+  });
+
+  it('brings a shown answer back when stepped forward onto it as well', () => {
+    let s = pastTeach(start());
+    s = run(s, [
+      { type: 'submit', answer: '999i' },
+      { type: 'reveal' },
+      { type: 'back' },
+      { type: 'continue' },
+    ]);
+    expect(s.index).toBe(1);
+    expect(s.feedback.kind).toBe('revealed');
+  });
+
+  it('still lets a shown-answer slide be passed after choosing Try again on it', () => {
+    let s = pastTeach(start());
+    s = run(s, [
+      { type: 'submit', answer: '999i' },
+      { type: 'reveal' },
+      { type: 'continue' },
+      { type: 'back' },
+      { type: 'tryAgain' },
+    ]);
+    expect(s.feedback.kind).toBe('idle');
+    expect(canPassFinished(s)).toBe(true);
+    expect(reduce(s, { type: 'continue' }).index).toBe(2);
+  });
+
+  it('treats a slide answered wrongly then solved like one solved first time', () => {
+    let s = pastTeach(start());
+    const answer = (currentSlide(s)!.slide as { answer: string }).answer;
+    s = run(s, [
+      { type: 'submit', answer: '999i' },
+      { type: 'tryAgain' },
+      { type: 'submit', answer },
+      { type: 'continue' },
+      { type: 'back' },
+    ]);
+    expect(s.index).toBe(1);
+    expect(s.feedback.kind).toBe('idle');
+    expect(canPassFinished(s)).toBe(true);
+    expect(reduce(s, { type: 'continue' }).index).toBe(2);
+  });
+
+  it('still asks for an answer on a slide stepped back onto but never finished', () => {
+    // Reached, then left backwards without an answer: no free pass.
+    let s = pastTeach(start());
+    s = run(s, [{ type: 'back' }, { type: 'continue' }]);
+    expect(s.index).toBe(1);
+    expect(s.feedback.kind).toBe('idle');
+    expect(canPassFinished(s)).toBe(false);
     expect(reduce(s, { type: 'continue' })).toBe(s);
   });
 
@@ -275,7 +327,7 @@ describe('advancing', () => {
     ]);
     expect(s.states[currentSlide(s)!.id].solved).toBe(true);
     expect(s.feedback.kind).toBe('idle');
-    expect(canPassSolved(s)).toBe(false);
+    expect(canPassFinished(s)).toBe(false);
     expect(reduce(s, { type: 'continue' })).toBe(s);
   });
 });

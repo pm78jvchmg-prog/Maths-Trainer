@@ -187,7 +187,7 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
   };
 
   // Every answer change is also an edit, which is what lets a second attempt
-  // start by simply changing the answer instead of pressing Try again.
+  // start by simply changing the answer instead of tapping to retry first.
   const changeAnswer = (next: Answer) => {
     dispatch({ type: 'edit' });
     setAnswer(next);

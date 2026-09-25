@@ -312,18 +312,12 @@ export function skillCheckScore(session: Session): { correct: number; total: num
 }
 
 /**
- * Exact, ordered comparison of one chosen token per position.
- *
- * Shared by the slide kinds whose answer is a sequence of picks from a bank.
- * A short answer is wrong rather than incomplete: the widget refuses to submit
- * until every position is filled, so a gap reaching here is not a valid answer.
- */
-/**
  * One reduction, as the widget stores it: `<node path>=<value>`.
  *
  * A single string because `Answer` already carries `string[]`, so recording
- * both halves of a move this way needs no new shape in the session — and the
- * value and the ordering are then graded together rather than separately.
+ * both halves of a move this way needs no new shape in the session. Only the
+ * value is graded; the path says which piece it was (see the `reduce` case in
+ * `grade`).
  *
  * Exported so the widget reads its own draft back through the same parser the
  * grade uses, rather than a copy that could drift from it.
@@ -336,6 +330,13 @@ export function parseMove(token: string): Move | undefined {
   return { path: token.slice(0, at), value };
 }
 
+/**
+ * Exact, ordered comparison of one chosen token per position.
+ *
+ * Shared by the slide kinds whose answer is a sequence of picks from a bank.
+ * A short answer is wrong rather than incomplete: the widget refuses to submit
+ * until every position is filled, so a gap reaching here is not a valid answer.
+ */
 function gradeSequence(answer: Answer, expected: string[]): Feedback {
   if (!Array.isArray(answer)) return { kind: 'incorrect' };
   if (answer.length !== expected.length) return { kind: 'incorrect' };
@@ -560,10 +561,11 @@ export function reduce(session: Session, action: Action): Session {
 
     case 'edit': {
       // Touching the answer after a wrong verdict clears it, so a second
-      // attempt costs no extra tap. Deliberately narrow: it cannot clear
-      // `correct` (already passed) or `revealed` (the worked steps stay on
-      // screen while you redo it), and it can never disclose anything, since
-      // the only thing it does is return to `idle`.
+      // attempt costs no extra tap. Deliberately narrow: besides `invalid`
+      // (below) it clears only `incorrect` — never `correct` (already passed)
+      // or `revealed` (the widgets are locked while the worked steps show; the
+      // bar's Try again leaves that state) — and it can never disclose
+      // anything, since the only thing it does is return to `idle`.
       if (!slide) return session;
       const { kind } = session.feedback;
       // Unreadable input is always editable: nothing was graded, so refusing

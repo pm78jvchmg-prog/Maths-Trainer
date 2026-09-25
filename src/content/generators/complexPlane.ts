@@ -46,7 +46,7 @@ const ANGLE_KEYS: KeypadKey[] = [
  * serialises to `sqrt(24^(2)+10^(2))`, which grades correct.
  *
  * `)` is gone. `sqrt(` is a template that closes itself (`applyKey`,
- * `src/ui/slides.tsx`), and no key on this pad opens a bracket, so the only
+ * `src/ui/mathInput.ts`), and no key on this pad opens a bracket, so the only
  * thing `)` could ever add was a stray one — `sqrt(13))`, which grades
  * `invalid`. It mattered little while every modulus answered a whole number
  * and the root was decorative; it matters now that most answers are surds.

@@ -1,8 +1,10 @@
 /**
  * The bar along the bottom of a lesson.
  *
- * The rule that matters: a wrong answer shows "Not quite." and offers *Show me*
- * beside *Try again*. It never prints the answer. The reveal is a deliberate
+ * The rule that matters: a wrong answer shows "Not quite." and offers only
+ * *Show me*; retrying is a tap on the question (`tapOnQuestion`), and
+ * *Try again* appears only once the worked steps are showing. It never prints
+ * the answer. The reveal is a deliberate
  * second tap, and the worked steps only appear once the reducer has moved to
  * the `revealed` state.
  */

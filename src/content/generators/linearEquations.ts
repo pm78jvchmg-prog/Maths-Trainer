@@ -3487,7 +3487,7 @@ const fr = (top: string, bottom: string): string => `\\frac{${top}}{${bottom}}`;
  * A key for one letter of a formula.
  *
  * It inserts the letter bracketed, `(a)`, which the answer box shows as the
- * bare letter (see `applyKey` in `src/ui/mathInput.tsx`). mathjs reads `at` as
+ * bare letter (see `applyKey` in `src/ui/mathInput.ts`). mathjs reads `at` as
  * one symbol named "at" and `b(l + w)` as a call to a function named b, so a
  * learner typing $u + at$ or $b(l + w)$ the way it is printed would otherwise
  * be marked wrong for a right answer.

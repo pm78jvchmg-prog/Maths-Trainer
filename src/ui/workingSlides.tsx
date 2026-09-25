@@ -1,5 +1,6 @@
 /**
- * The two slide kinds that show working rather than just a final answer.
+ * The slide kinds that show working or a path through a decision rather than
+ * just a final answer: steps, tree and flow.
  *
  * Both are controlled components in the same sense as the widgets in
  * `SlideView.tsx`: they hold the in-progress picks and nothing else. No
@@ -16,13 +17,6 @@ import { walkFlow } from './flow';
 
 type StepsSlide = Extract<Slide, { kind: 'steps' }>;
 
-/**
- * Replays the chosen values to get every line of working so far.
- *
- * Returns one more line than there are picks: the last entry is the line
- * currently being worked on. Spans index the line they act on, so this has to
- * be applied in order rather than computed per step.
- */
 /**
  * One answered stage: which sub-expression was collapsed, and into what.
  *
@@ -44,7 +38,10 @@ export function stepToken(span: [number, number] | undefined, value: string): st
 }
 
 /**
- * The working so far, one line per stage.
+ * The working so far, one line per stage, replayed from the chosen values.
+ * Normally one more line than there are picks: the last entry is the line
+ * currently being worked on. Spans index the line they act on, so this has to
+ * be applied in order rather than computed per step.
  *
  * The span that collapses is the one the *learner* chose, not the one the
  * author expected. That matters the moment ordering is being graded: a learner

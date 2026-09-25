@@ -132,7 +132,7 @@ const NAME_BEFORE_BRACKET = /[A-Za-z_][A-Za-z0-9_]*(?=\s*\()/g;
  * tighter than `^`: `x(x+1)^2` parses as `(x(x+1))^2`, and turning that call
  * into a product would square the x as well. `(x)(x+1)^2` is the implicit
  * product the formula keypads already produce (`BRACKETED_LETTER` in
- * `mathInput.tsx`), with the power on the bracket alone.
+ * `mathInput.ts`), with the power on the bracket alone.
  *
  * Longer names are left as they are, so a misspelt `sinn(x)` is still reported
  * as a function that does not exist.

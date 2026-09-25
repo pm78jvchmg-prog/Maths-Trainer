@@ -1,5 +1,8 @@
 /**
- * The four slide types from the reference screenshots.
+ * The widgets for teach, choice, expression, tiles, plot, slider and table
+ * slides, and `SlideView`, which picks the widget for each of the nineteen
+ * slide kinds; the rest live in their own files (`workingSlides.tsx`,
+ * `reduceSlide.tsx`, `transformSlide.tsx`, …).
  *
  * Each is a controlled component: it owns no verdict of its own, only the
  * in-progress answer. Grading lives entirely in the session reducer, so a slide
@@ -140,8 +143,10 @@ export function ExpressionSlide({
   };
 
   // Moving the caret changes nothing that gets graded, so it does not go
-  // through onAnswer — which would clear an `incorrect` verdict merely because
-  // the learner looked at the middle of their own answer.
+  // through onAnswer and the answer the session holds is unchanged. It does
+  // still clear a wrong verdict: the tap bubbles up to the question area, and
+  // `tapOnQuestion` treats it as a retry like any other tap there — a learner
+  // moving the caret after a wrong answer is starting to change it.
   const move = (next: Doc) => {
     if (locked) return;
     setDoc(next);

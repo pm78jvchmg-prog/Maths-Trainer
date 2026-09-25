@@ -3734,7 +3734,9 @@ export function rigSvg(t1: Angle, t2: Angle, opts: { gap?: boolean } = {}): stri
   const parts = [
     `<svg viewBox="0 0 ${W} 172" width="100%" role="img" aria-label="${
       hangs(t2)
-        ? 'Particle A on a slope, joined by a string over a pulley at the top to particle B hanging down the far side'
+        ? level(t1)
+          ? 'Particle A on a horizontal table, joined by a string over a pulley at its edge to particle B hanging down the side'
+          : 'Particle A on a slope, joined by a string over a pulley at the top to particle B hanging down the far side'
         : level(t1)
           ? 'Particle A on a table, joined by a string over a peg at its edge to particle B on a slope falling away from the edge'
           : 'Two slopes back to back with a peg at the top, particle A on the left slope and particle B on the right, joined by a string over the peg'

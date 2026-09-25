@@ -23,7 +23,7 @@ const SQUARE_SVG = [
   '<text x="76" y="29" font-size="13" fill="currentColor" text-anchor="middle">6</text>',
   '<text x="270" y="189" font-size="13" fill="currentColor" text-anchor="middle" font-style="italic">x</text>',
   '<text x="90" y="14" font-size="13" fill="currentColor" text-anchor="middle" font-style="italic">y</text>',
-  '<text x="118" y="160" font-size="12" fill="currentColor" text-anchor="middle">sum &lt; 4</text>',
+  '<text x="126" y="171" font-size="13" fill="currentColor" text-anchor="middle"><tspan font-style="italic">x</tspan> + <tspan font-style="italic">y</tspan> &lt; 4</text>',
   '</svg>',
 ].join('');
 
@@ -192,7 +192,9 @@ export const advancedProbability: Level = {
         askAfter(
           'cm-ap-ev-max+choice',
           2,
-          prose('**Tail chances.** A whole-number score has expected value $P(\\ge 1) + P(\\ge 2) + P(\\ge 3) + \\cdots$, since a score of 3 is counted in exactly three of them. The smaller of two dice is at least $j$ when both are:'),
+          prose('**Tail chances.** A whole-number score has expected value'),
+          maths('P(\\ge 1) + P(\\ge 2) + P(\\ge 3) + \\cdots'),
+          prose('since a score of 3 is counted in exactly three of them. The smaller of two dice is at least $j$ when both are:'),
           maths('E(\\text{smaller}) = \\frac{36 + 25 + 16 + 9 + 4 + 1}{36} = \\frac{91}{36}'),
           prose('Turn both dice over, $a$ to $7 - a$, and the smaller becomes the larger:'),
           maths('E(\\text{larger}) = 7 - \\frac{91}{36} = \\frac{161}{36}'),
@@ -285,7 +287,8 @@ export const advancedProbability: Level = {
           1,
           prose('**How many different numbers** on three dice? Score each of the 6 numbers 1 if it comes up. A number is missed by all three dice with probability'),
           maths('\\left(\\frac{5}{6}\\right)^3 = \\frac{125}{216}'),
-          maths('E = 6 \\times \\left(1 - \\frac{125}{216}\\right) = 6 \\times \\frac{91}{216} = \\frac{91}{36}'),
+          maths('E = 6 \\times \\left(1 - \\frac{125}{216}\\right)'),
+          maths('= 6 \\times \\frac{91}{216} = \\frac{91}{36}'),
         ),
         askAfter(
           'cm-ap-distinct+choice',

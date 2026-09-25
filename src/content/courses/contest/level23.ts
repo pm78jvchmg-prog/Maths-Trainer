@@ -27,7 +27,9 @@ export const problemStrategies: Level = {
         askAfter(
           'cm-st-abs-regions',
           1,
-          prose('Absolute values split the number line. For $|x - 1| + |x - 5| = 8$, cut at $1$ and $5$. Below $1$ both brackets turn round:'),
+          prose('Absolute values split the number line. Take'),
+          maths('|x - 1| + |x - 5| = 8'),
+          prose('Cut at $1$ and $5$. Below $1$ both brackets turn round:'),
           maths('(1 - x) + (5 - x) = 8, \\qquad x = -1'),
           prose('Between $1$ and $5$ the $x$ cancels:'),
           maths('(x - 1) + (5 - x) = 4'),
@@ -44,7 +46,9 @@ export const problemStrategies: Level = {
           prose('Split on the last digit. The last digit of $n^2$ depends only on the last digit of $n$, and $n^2$ ends in $9$ only when $n$ ends in $3$ or $7$.'),
           prose('From $1$ to $45$ those are $3, 13, 23, 33, 43$ and $7, 17, 27, 37$:'),
           maths('5 + 4 = 9'),
-          prose('Or split on one variable. For positive whole numbers with $x + 2y \\le 9$, take each $y$ in turn:'),
+          prose('Or split on one variable. For positive whole numbers with'),
+          maths('x + 2y \\le 9'),
+          prose('take each $y$ in turn:'),
           maths('y = 1: \\ x \\le 7, \\qquad y = 2: \\ x \\le 5, \\qquad y = 3: \\ x \\le 3, \\qquad y = 4: \\ x \\le 1'),
           maths('7 + 5 + 3 + 1 = 16'),
         ),
@@ -58,7 +62,7 @@ export const problemStrategies: Level = {
         askAfter(
           'cm-st-square-ends+choice',
           2,
-          prose('For $n^2 + n = n(n + 1)$, list the last digits the same way. For $n$ ending in $0$ to $9$, it ends in'),
+          prose('For $n^2 + n$, which is $n(n + 1)$, list the last digits the same way. For $n$ ending in $0$ to $9$, it ends in'),
           maths('0, 2, 6, 2, 0, 0, 2, 6, 2, 0'),
           prose('so it ends in $6$ only when $n$ ends in $2$ or $7$.'),
         ),
@@ -83,7 +87,7 @@ export const problemStrategies: Level = {
           'cm-st-pair-sum+choice',
           2,
           prose('To be sure of a pair, choose one more than the largest safe set.'),
-          prose('When the total is bigger than the top number plus one, the pairs start higher. From $1$ to $10$ with a total of $15$ they are $(5, 10), (6, 9), (7, 8)$, and $1$ to $4$ are all safe, so $3 + 4 = 7$ can avoid a pair and $8$ make sure.'),
+          prose('When the total is bigger than the top number plus one, the pairs start higher. From $1$ to $10$ with a total of $15$ they are $(5, 10), (6, 9), (7, 8)$, and $1$ to $4$ are all safe. So $7$ numbers, one from each pair and the four safe ones, can avoid a pair, and $8$ make sure.'),
         ),
         teach(
           prose('Invariants: when a process is too long to follow, find something it never changes.'),
@@ -159,7 +163,7 @@ export const problemStrategies: Level = {
       slides: [
         teach(
           prose('Symmetry can turn a bent path straight. To walk from $A$ to a straight river and on to $B$, reflect $B$ in the bank: each walk to $B$ is as long as the same walk to the reflection, and the shortest of those is a straight line.'),
-          prose('With $A$ $3$ m from the bank, $B$ $5$ m from it, and the nearest points of the bank $6$ m apart, the straight line is $6$ across and $3 + 5 = 8$ down:'),
+          prose('With $A$ $3$ m from the bank, $B$ $5$ m from it, and the nearest points of the bank $6$ m apart, the straight line is $6$ across and $8$ down, the $3$ m to the bank and the $5$ m beyond it:'),
           maths('\\sqrt{6^2 + 8^2} = \\sqrt{100} = 10'),
         ),
         ask('cm-st-river'),
@@ -177,7 +181,8 @@ export const problemStrategies: Level = {
           prose('Multiplying the top and bottom of $f(1 - x)$ by $4^x$ gives'),
           maths('f(1 - x) = \\frac{2}{2 + 4^x}'),
           maths('f(x) + f(1 - x) = 1'),
-          prose('So $f(\\tfrac{1}{5}) + f(\\tfrac{2}{5}) + f(\\tfrac{3}{5}) + f(\\tfrac{4}{5})$ is two pairs, $2$.'),
+          prose('So a sum of four such terms is two pairs:'),
+          maths('f(\\tfrac{1}{5}) + f(\\tfrac{2}{5}) + f(\\tfrac{3}{5}) + f(\\tfrac{4}{5}) = 2'),
           prose('Equal gaps: pick $2$ different numbers from $1$ to $8$ at random and put markers at $0$ and $9$. The picks cut the stretch into $3$ gaps adding to $9$, and swapping two gaps gives another pick just as likely, so each gap averages $3$. The smaller pick is $3$ on average.'),
         ),
         ask('cm-st-pair-function'),
@@ -197,7 +202,9 @@ export const problemStrategies: Level = {
       slides: [
         teach(
           prose('With options to pick from, you often need not work the answer out: rule out the ones that cannot be right.'),
-          prose('Last digits: $4827 \\times 356$ ends in the last digit of $7 \\times 6 = 42$, so any option not ending in $2$ is out.'),
+          prose('Last digits: $4827 \\times 356$ ends in the same digit as'),
+          maths('7 \\times 6 = 42'),
+          prose('so any option not ending in $2$ is out.'),
           prose('Squares only end in $0, 1, 4, 5, 6$ or $9$, so a number ending in $2, 3, 7$ or $8$ is never a square.'),
           prose('Size: two consecutive numbers that multiply to $3782$ sit either side of its square root.'),
           maths('61^2 = 3721, \\qquad 62^2 = 3844'),
@@ -210,7 +217,9 @@ export const problemStrategies: Level = {
           'cm-st-product-elim',
           2,
           prose('When every option ends in the same digit, use digit sums, taken down to one digit: a product’s matches the product of its factors’.'),
-          prose('$4827 \\to 21 \\to 3$ and $356 \\to 14 \\to 5$, and $3 \\times 5 = 15 \\to 6$, so the digit sum of $4827 \\times 356$ must come to $6$.'),
+          prose('$4827 \\to 21 \\to 3$ and $356 \\to 14 \\to 5$. Multiply those:'),
+          maths('3 \\times 5 = 15 \\to 6'),
+          prose('So the digit sum of $4827 \\times 356$ must come to $6$.'),
         ),
         teach(
           prose('Test the options when solving is slow. Which of $38, 41, 44, 47$ leaves a remainder of $2$ on division by $3$ and of $3$ on division by $5$? Their remainders:'),
@@ -265,8 +274,8 @@ export const problemStrategies: Level = {
           'cm-st-name-number+choice',
           2,
           prose('Pairs that are not centred still work when both pairs add to the same total. Call the smallest number $x = 2020$:'),
-          maths('2020 \\times 2027 = x(x + 7) = x^2 + 7x'),
-          maths('2022 \\times 2025 = (x + 2)(x + 5) = x^2 + 7x + 10'),
+          maths('2020 \\times 2027 = x(x + 7) = {x^2 + 7x}'),
+          maths('2022 \\times 2025 = (x + 2)(x + 5) = {x^2 + 7x + 10}'),
           prose('so the first product minus the second is $-10$.'),
         ),
         teach(

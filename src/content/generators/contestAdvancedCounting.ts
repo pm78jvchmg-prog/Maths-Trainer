@@ -376,7 +376,7 @@ const cmAcDiagonalCrossings: Generator<CrossingParams> = {
     const cut = context === 0 ? 'chord' : 'cut';
     return [
       { text: `Draw the ${cut}s one at a time. A ${cut} crossing $c$ of those already drawn is split into $c + 1$ pieces, and each piece divides one region in two. So each ${cut} adds one region, plus one for every crossing on it. Starting from one region:` },
-      { tex: `\\text{regions} = 1 + \\text{${cut}s} + \\text{crossings}` },
+      { tex: `\\text{regions} = {1 + \\text{${cut}s} + \\text{crossings}}` },
       { text: `Each pair of points makes a ${cut}, and each set of 4 points makes a crossing:` },
       { tex: `${binom(n, 2)} = ${choose(n, 2)}, \\qquad ${binom(n, 4)} = ${crossings(n)}` },
       { tex: `1 + ${choose(n, 2)} + ${crossings(n)} = ${regionCount(n)}` },
@@ -535,17 +535,22 @@ const f1 = (v: number) => v.toFixed(1);
 const line = (x1: number, y1: number, x2: number, y2: number, width = 2) =>
   `<line x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}" stroke="currentColor" stroke-width="${width}" />`;
 
+/** A point's name, italic like the $A$ and $B$ the prose sets in maths. */
 const label = (x: number, y: number, text: string) =>
-  `<text x="${f1(x)}" y="${f1(y)}" font-size="14" fill="currentColor" text-anchor="middle" dominant-baseline="middle">${text}</text>`;
+  `<text x="${f1(x)}" y="${f1(y)}" font-size="16" font-style="italic" fill="currentColor" text-anchor="middle" dominant-baseline="middle">${text}</text>`;
 
 const spot = (x: number, y: number) => `<circle cx="${f1(x)}" cy="${f1(y)}" r="4" fill="currentColor" />`;
 
-/** A closed corner: a ring with a cross through it, drawn over the street lines. */
+/**
+ * A closed corner: a disc in the page colour that cuts the street lines off
+ * short of the crossing, ringed, with a cross inside. Drawn straight over the
+ * lines, the old ring and cross read as a blurred asterisk at phone size.
+ */
 const closedMark = (x: number, y: number) =>
   [
-    `<circle cx="${f1(x)}" cy="${f1(y)}" r="7" fill="none" stroke="currentColor" stroke-width="2" />`,
-    line(x - 5, y - 5, x + 5, y + 5, 2.5),
-    line(x - 5, y + 5, x + 5, y - 5, 2.5),
+    `<circle cx="${f1(x)}" cy="${f1(y)}" r="9" fill="var(--bg)" stroke="currentColor" stroke-width="2" />`,
+    line(x - 4, y - 4, x + 4, y + 4, 2.5),
+    line(x - 4, y + 4, x + 4, y - 4, 2.5),
   ].join('');
 
 /**
@@ -665,7 +670,7 @@ const cmAcGridAvoid: Generator<AvoidParams> = {
 const TEAMS = [
   { pick: 'A team', of: 'boys', from: (x: number, y: number) => `${x} boys and ${y} girls`, oneA: 'boy', oneB: 'girl', noB: 'no girls', unit: 'teams' },
   { pick: 'A committee', of: 'students', from: (x: number, y: number) => `${x} students and ${y} teachers`, oneA: 'student', oneB: 'teacher', noB: 'no teachers', unit: 'committees' },
-  { pick: 'A selection', of: 'milk', from: (x: number, y: number) => `${x} different milk chocolates and ${y} different dark chocolates`, oneA: 'milk chocolate', oneB: 'dark chocolate', noB: 'no dark ones', unit: 'selections' },
+  { pick: 'A selection', of: 'milk', from: (x: number, y: number) => `${x} different milk chocolates and ${y} different dark chocolates`, oneA: 'milk chocolate', oneB: 'dark chocolate', noB: 'no dark ones', unit: 'selections', noBLabel: 'no dark' },
 ];
 
 interface TeamParams {
@@ -758,14 +763,14 @@ const cmAcCommitteeTiles: Generator<TeamParams> = {
     const { nA, nB, k } = p;
     const n = nA + nB;
     const { all, bad, want } = teamParts(p);
-    const badLabel = p.each ? '\\text{all one kind}' : `\\text{${c.noB}}`;
+    const badLabel = p.each ? '\\text{one kind}' : `\\text{${c.noBLabel ?? c.noB}}`;
     return {
       kind: 'tiles',
       prompt: [
         say(teamSetup(p)),
         say(`${teamAsk(p)} Count all the ${c.unit}, then the ones that break the rule, then the ones wanted.`),
       ],
-      template: `\\text{all} = {0}, \\quad ${badLabel} = {1}, \\quad \\text{wanted} = {2}`,
+      template: `\\text{all} = {0} \\quad ${badLabel} = {1} \\quad \\text{wanted} = {2}`,
       bank: numberBank([all, bad, want], [nB * choose(n - 1, k - 1), choose(nB, k), choose(n, k - 1), choose(nA, k - 1)], 3, 1, 1),
       answer: [num(all), num(bad), num(want)],
     };
@@ -1003,7 +1008,8 @@ function rowTex({ form, n }: RowParams): string {
   if (form === 'all') return `${binom(n, 0)} + ${binom(n, 1)} + ${binom(n, 2)} + \\cdots + ${binom(n, n)}`;
   if (form === 'even') return `${binom(n, 0)} + ${binom(n, 2)} + ${binom(n, 4)} + \\cdots + ${binom(n, n % 2 === 0 ? n : n - 1)}`;
   if (form === 'inner') return `${binom(n, 1)} + ${binom(n, 2)} + ${binom(n, 3)} + \\cdots + ${binom(n, n - 1)}`;
-  return `${binom(n, 1)} + 2${binom(n, 2)} + 3${binom(n, 3)} + \\cdots + ${n}${binom(n, n)}`;
+  // Braced in two halves so a line too long for a phone breaks in the middle.
+  return `{${binom(n, 1)} + 2${binom(n, 2)}} + {3${binom(n, 3)} + \\cdots + ${n}${binom(n, n)}}`;
 }
 
 const cmAcRowSum: Generator<RowParams> = {
@@ -1049,15 +1055,21 @@ const cmAcRowSum: Generator<RowParams> = {
       return [
         subsets,
         { tex: `2^{${n}} = ${2 ** n}` },
-        { text: `Expanding $(1 - 1)^{${n}} = 0$ gives the even terms minus the odd terms, so the even terms make exactly half of the row:` },
+        { text: 'Expanding this gives the even terms minus the odd terms:' },
+        { tex: `(1 - 1)^{${n}} = 0` },
+        { text: 'So the even terms make exactly half of the row:' },
         { tex: `${2 ** n} \\div 2 = ${rowValue(p)}` },
       ];
     }
-    const lead = p.form === 'chair'
-      ? `A committee of $k$ and then its chair can be chosen in $k${binom(n, 'k')}$ ways, so the answer is the sum $${binom(n, 1)} + 2${binom(n, 2)} + \\cdots + ${n}${binom(n, n)}$. Count it the other way round instead:`
-      : `$k${binom(n, 'k')}$ counts the committees of $k$ from ${n} people with one member picked as chair. Count those the other way round:`;
+    const lead: SolutionStep[] = p.form === 'chair'
+      ? [
+        { text: `A committee of $k$ and then its chair can be chosen in $k${binom(n, 'k')}$ ways, so the answer is the sum` },
+        { tex: rowTex({ form: 'weighted', n }) },
+        { text: 'Count it the other way round instead:' },
+      ]
+      : [{ text: `$k${binom(n, 'k')}$ counts the committees of $k$ from ${n} people with one member picked as chair. Count those the other way round:` }];
     return [
-      { text: lead },
+      ...lead,
       { text: `pick the chair first, in ${n} ways, then any group of the other ${n - 1} to join them:` },
       { tex: `${n} \\times 2^{${n - 1}} = ${n} \\times ${2 ** (n - 1)} = ${rowValue(p)}` },
     ];
@@ -1260,10 +1272,18 @@ interface DerangeParams {
 
 const derangeWays = ({ n, j }: DerangeParams) => choose(n, j) * DERANGED[n - j];
 
-/** n! − n!/1! + n!/2! − … as TeX, each term n!/k!, and its value. */
+/**
+ * n! − n!/1! + n!/2! − … as TeX, each term n!/k!, and its value. From seven
+ * terms on the line is wider than a phone, so the first four are braced into
+ * one group and the rest into another: the line can then break only between
+ * the groups or after the `=`, never after a lone minus sign.
+ */
 function derangeSeries(n: number): string {
   const terms = Array.from({ length: n + 1 }, (_, k) => fact(n) / fact(k));
-  return terms.map((t, k) => (k === 0 ? `${t}` : `${k % 2 ? '-' : '+'} ${t}`)).join(' ') + ` = ${DERANGED[n]}`;
+  const signed = terms.map((t, k) => (k === 0 ? `${t}` : `${k % 2 ? '-' : '+'} ${t}`));
+  if (signed.length < 7) return `${signed.join(' ')} = ${DERANGED[n]}`;
+  // The fifth term, k = 4, is always added, so its + can sit between the groups.
+  return `{${signed.slice(0, 4).join(' ')}} + {${signed.slice(4).join(' ').slice(2)}} = ${DERANGED[n]}`;
 }
 
 const cmAcDerangements: Generator<DerangeParams> = {
@@ -1498,7 +1518,7 @@ const cmAcUrnsTiles: Generator<MinParams> = {
         say(minSetup(p)),
         say(`Hand out the minimums first. Then fill in how many are still to share, how many places a row of those and the ${k - 1} dividers takes, and the number of ways.`),
       ],
-      template: '\\text{to share} = {0}, \\quad \\text{places} = {1}, \\quad \\text{ways} = {2}',
+      template: '\\text{to share} = {0} \\quad \\text{places} = {1} \\quad \\text{ways} = {2}',
       bank: numberBank(answer, [n, n + k - 1, p.r + k, choose(p.r + k - 1, k), choose(p.r + k, k - 1), choose(n + k - 1, k - 1)], 3, 1, 1),
       answer: answer.map(num),
     };
@@ -1658,7 +1678,9 @@ const cmAcTerms: Generator<TermsParams> = {
       ];
     }
     return [
-      { text: `Add a fourth unknown $w$ for what is left over, $w = ${n} - x - y - z$, which is $0$ or more. Each solution of the inequality is exactly one solution of` },
+      { text: 'Add a fourth unknown $w$ for what is left over:' },
+      { tex: `w = ${n} - x - y - z` },
+      { text: 'It is $0$ or more, so each solution of the inequality is exactly one solution of' },
       { tex: `x + y + z + w = ${n}` },
       { text: `so share ${n} among 4, a row of ${n} stars and 3 dividers:` },
       ...tail,

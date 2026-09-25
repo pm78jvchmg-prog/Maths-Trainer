@@ -465,7 +465,7 @@ const cmApDiceMaxTable: Generator<DiceMaxTableParams> = {
     ];
     for (const [j, a, e] of maxTableRows(p)) {
       const t = p.kind === 'max' ? j : p.m - j + 1;
-      steps.push({ tex: `j = ${j}: \\; ${t}^{${p.k}} = ${a}, \\quad ${a} - ${(t - 1) ** p.k} = ${e}` });
+      steps.push({ tex: `j = ${j}{:} \\; ${t}^{${p.k}} = ${a}, \\qquad ${a} - ${(t - 1) ** p.k} = ${e}` });
     }
     return steps;
   },
@@ -488,7 +488,8 @@ const SCREENS = [
     not: 'do not',
     pos: 'test positive',
     pos2: 'test positive twice',
-    table: { first: '\\text{people}', yes: '\\text{has it}', no: '\\text{does not}', flag: '\\text{positive}', pass: '\\text{negative}' },
+    table: { first: '\\text{people}', yes: '\\text{has it}', no: '\\text{does not}', flag: '\\text{positive}', pass: '\\text{negative}', flag2: '\\text{both positive}', pass2: '\\text{not both}' },
+    both: 'Everyone takes the test twice. Given whether a person has the condition, the two results are independent.',
   },
   {
     setup: (prev: number, sens: number, fp: number) =>
@@ -500,7 +501,8 @@ const SCREENS = [
     not: 'are good',
     pos: 'are flagged',
     pos2: 'are flagged by both',
-    table: { first: '\\text{items}', yes: '\\text{faulty}', no: '\\text{good}', flag: '\\text{flagged}', pass: '\\text{passed}' },
+    table: { first: '\\text{items}', yes: '\\text{faulty}', no: '\\text{good}', flag: '\\text{flagged}', pass: '\\text{passed}', flag2: '\\text{both flag}', pass2: '\\text{not both}' },
+    both: 'Every item goes through two scanners of this kind, which work independently given whether it is faulty.',
   },
   {
     setup: (prev: number, sens: number, fp: number) =>
@@ -512,7 +514,8 @@ const SCREENS = [
     not: 'are genuine',
     pos: 'are marked as junk',
     pos2: 'are marked by both',
-    table: { first: '\\text{emails}', yes: '\\text{spam}', no: '\\text{genuine}', flag: '\\text{junk}', pass: '\\text{kept}' },
+    table: { first: '\\text{emails}', yes: '\\text{spam}', no: '\\text{genuine}', flag: '\\text{junk}', pass: '\\text{kept}', flag2: '\\text{both junk}', pass2: '\\text{not both}' },
+    both: 'Every email is checked by two filters of this kind, which work independently given whether it is spam.',
   },
 ];
 
@@ -589,10 +592,15 @@ const cmApTestBayes: Generator<ScreenParams> = {
 
 /* ---------- the same crowd as a two-way table ---------- */
 
+/**
+ * Difficulty 2 is the two-test crowd the lesson teaches last: 10000 so the
+ * counts stay whole, and the columns are "both positive" and "not both", each
+ * row multiplied by its rate twice.
+ */
 const cmApTestTable: Generator<ScreenParams> = {
   id: 'cm-ap-test-table',
-  sample(rng) {
-    return sampleScreen(rng, false, rng.int(0, SCREENS.length - 1));
+  sample(rng, difficulty) {
+    return sampleScreen(rng, difficulty >= 2, rng.int(0, SCREENS.length - 1));
   },
   render(p): Slide {
     const s = SCREENS[p.story];
@@ -601,27 +609,39 @@ const cmApTestTable: Generator<ScreenParams> = {
     const fn = c.ill - c.tp;
     const tn = c.well - c.fpos;
     const answer = [c.tp, fn, c.fpos, tn];
+    // Twice, the one-test counts are the slip to offer: a rate applied once.
+    const once = [(c.ill * p.sens) / 100, (c.well * p.fp) / 100];
+    const slips = p.twice
+      ? [...once, c.ill - once[0], c.well - once[1], c.ill, c.tp + c.fpos]
+      : [c.ill, c.well, c.tp + c.fpos, p.sens, p.fp * 10, c.ill - c.fpos];
+    const setup = [say(s.setup(p.prev, p.sens, p.fp))];
+    if (p.twice) setup.push(say(s.both));
     return {
       kind: 'table',
-      prompt: [say(s.setup(p.prev, p.sens, p.fp)), say(`Fill in how many of ${c.N} ${s.nouns} fall in each part of the table.`)],
-      columns: [t.first, t.flag, t.pass],
+      prompt: [...setup, say(`Fill in how many of ${c.N} ${s.nouns} fall in each part of the table.`)],
+      columns: [t.first, p.twice ? t.flag2 : t.flag, p.twice ? t.pass2 : t.pass],
       rows: [
         [t.yes, null, null],
         [t.no, null, null],
       ],
-      bank: numberBank(answer, [c.ill, c.well, c.tp + c.fpos, p.sens, p.fp * 10, c.ill - c.fpos].filter((v) => v > 0), 3, 1, 1),
+      bank: numberBank(answer, slips.filter((v) => v > 0 && Number.isInteger(v)), 3, 1, 1),
       answer: answer.map(num),
     };
   },
   solution(p) {
     const s = SCREENS[p.story];
     const c = screenCounts(p);
+    const rate = (r: number) => (p.twice ? `${r}\\% \\times ${r}\\%` : `${r}\\%`);
     return [
       { text: `Of ${c.N}, ${p.prev}% ${s.have}:` },
       { tex: `${c.N} \\times ${p.prev}\\% = ${c.ill}, \\qquad ${c.N} - ${c.ill} = ${c.well}` },
-      { text: `Split each row by the ${p.sens}% and the ${p.fp}%:` },
-      { tex: `${c.ill} \\times ${p.sens}\\% = ${c.tp}, \\qquad ${c.ill} - ${c.tp} = ${c.ill - c.tp}` },
-      { tex: `${c.well} \\times ${p.fp}\\% = ${c.fpos}, \\qquad ${c.well} - ${c.fpos} = ${c.well - c.fpos}` },
+      {
+        text: p.twice
+          ? `Each positive result multiplies a row by its rate, so two of them multiply by it twice, the ${p.sens}% and the ${p.fp}%:`
+          : `Split each row by the ${p.sens}% and the ${p.fp}%:`,
+      },
+      { tex: `${c.ill} \\times ${rate(p.sens)} = ${c.tp}, \\qquad ${c.ill} - ${c.tp} = ${c.ill - c.tp}` },
+      { tex: `${c.well} \\times ${rate(p.fp)} = ${c.fpos}, \\qquad ${c.well} - ${c.fpos} = ${c.well - c.fpos}` },
     ];
   },
 };

@@ -79,8 +79,9 @@ const isSquare = (n: number) => Number.isInteger(Math.sqrt(n));
 
 const f1 = (v: number) => v.toFixed(1);
 
-function svg(height: number, label: string, body: string[]): string {
-  return [`<svg viewBox="0 0 300 ${height}" width="100%" role="img" aria-label="${label}">`, ...body, '</svg>'].join('');
+/** `top` crops empty sky off the figure, so a flat drawing does not sit under a band of blank space. */
+function svg(height: number, label: string, body: string[], top = 0): string {
+  return [`<svg viewBox="0 ${f1(top)} 300 ${f1(height - top)}" width="100%" role="img" aria-label="${label}">`, ...body, '</svg>'].join('');
 }
 
 const seg = (x1: number, y1: number, x2: number, y2: number, dashed = false) =>
@@ -91,6 +92,10 @@ const thin = (x1: number, y1: number, x2: number, y2: number) =>
 
 const txt = (x: number, y: number, text: string, anchor: 'start' | 'middle' | 'end' = 'middle', size = 13) =>
   `<text x="${f1(x)}" y="${f1(y)}" font-size="${size}" fill="currentColor" text-anchor="${anchor}" dominant-baseline="middle">${text}</text>`;
+
+/** A point's name, italic like the $A$ and $B$ the prose sets in maths. */
+const point = (x: number, y: number, name: string) =>
+  `<text x="${f1(x)}" y="${f1(y)}" font-size="16" font-style="italic" fill="currentColor" text-anchor="middle" dominant-baseline="middle">${name}</text>`;
 
 const dot = (x: number, y: number) => `<circle cx="${f1(x)}" cy="${f1(y)}" r="3.5" fill="currentColor" />`;
 
@@ -211,7 +216,9 @@ const cmStAbsRegions: Generator<AbsParams> = {
         show(`|${xMinus(a)}| + |${xMinus(b)}| = ${c}`),
         say('On the middle piece the total never changes: fill in what it is.'),
       ],
-      template: `x < ${a}: \\ x = {0}, \\quad ${a} \\le x \\le ${b}: \\ \\text{total} = {1}, \\quad x > ${b}: \\ x = {2}`,
+      // Each case is braced so it never breaks inside itself, and no comma is
+      // left to open a line when the row wraps between cases.
+      template: `{x < ${a}{:}} \\ x = {0} \\quad {${a} \\le x \\le ${b}{:}} \\ \\text{total} = {1} \\quad {x > ${b}{:}} \\ x = {2}`,
       bank: numberBank([low, mid, high], [c, a + b, a - c, b + c, c - mid, low - 1, high + 1], 3, 1, -100),
       answer: [num(low), num(mid), num(high)],
     };
@@ -266,7 +273,8 @@ const cmStCaseTable: Generator<CaseTableParams> = {
     return {
       kind: 'table',
       prompt: [
-        say(`How many pairs of positive whole numbers $(x, y)$ satisfy $${lhs(p)} \\le ${p.n}$?`),
+        say('How many pairs of positive whole numbers $(x, y)$ satisfy this?'),
+        show(`${lhs(p)} \\le ${p.n}`),
         say('Take one case for each value of $y$: fill in how many values of $x$ work, then the total.'),
       ],
       columns: ['y', '\\text{values of } x'],
@@ -339,7 +347,7 @@ const cmStSquareEnds: Generator<EndsParams> = {
     const steps: SolutionStep[] = [
       {
         text: p.pronic
-          ? 'Only the last digit of $n$ decides the last digit of $n^2 + n = n(n + 1)$. For $n$ ending in $0, 1, \\ldots, 9$ it ends in'
+          ? 'Only the last digit of $n$ decides the last digit of $n^2 + n$, which is $n(n + 1)$. For $n$ ending in $0, 1, \\ldots, 9$ it ends in'
           : 'Only the last digit of $n$ decides the last digit of $n^2$. For $n$ ending in $0, 1, \\ldots, 9$ it ends in',
       },
       { tex: lasts },
@@ -481,10 +489,10 @@ const cmStCups: Generator<CupsParams> = {
         steps.push({
           text: turns === n
             ? `$m = ${m}$: $${turns}$ turns, one for each cup.`
-            : `$m = ${m}$: $${turns}$ turns, $${turns} - ${n} = ${turns - n}$ extra, which is even, and the extra turns can be shared out in pairs so each cup is turned an odd number of times, no more than $${m}$. It works.`,
+            : `$m = ${m}$: $${turns}$ turns, $${turns - n}$ more than $${n}$, which is even, and the extra turns can be shared out in pairs so each cup is turned an odd number of times, no more than $${m}$. It works.`,
         });
       } else if ((turns - n) % 2 !== 0) {
-        steps.push({ text: `$m = ${m}$: $${turns}$ turns, and $${turns} - ${n} = ${turns - n}$ is odd. No.` });
+        steps.push({ text: `$m = ${m}$: $${turns}$ turns, $${turns - n}$ more than $${n}$, which is odd. No.` });
       } else {
         steps.push({ text: `$m = ${m}$: $${turns}$ turns, but in $${m}$ moves a cup can be turned at most $${oddCap(m)}$ time${oddCap(m) === 1 ? '' : 's'} (odd, and no more than $${m}$), which is only $${n * oddCap(m)}$ turns in all. No.` });
       }
@@ -635,7 +643,7 @@ const cmStPairSum: Generator<PairSumParams> = {
                 .map((a) => `(${a}, ${p.s - a})`)
                 .join(', \\ '),
       },
-      { text: `That is $${pairs}$ pairs. At most one of each pair can be chosen, and the other $${p.n} - ${2 * pairs} = ${free}$ numbers have no partner, so they are all safe:` },
+      { text: `That is $${pairs}$ pairs, using $${2 * pairs}$ of the $${p.n}$ numbers. At most one of each pair can be chosen, and the other $${free}$ numbers have no partner, so they are all safe:` },
       { tex: `${pairs} + ${free} = ${safeMost(p)}` },
     ];
     if (p.sure) {
@@ -661,7 +669,7 @@ const PATTERNS = [
     start: 1,
     f: (n: number) => (n * (n + 1)) / 2 + 1,
     why: 'The $n$-th line crosses the other $n - 1$ lines, so it passes through $n$ regions and splits each in two, adding $n$:',
-    formula: 'f(n) = 1 + (1 + 2 + \\cdots + n) = 1 + \\tfrac{1}{2}n(n + 1)',
+    formula: ['f(n) = 1 + (1 + 2 + \\cdots + n)', '= 1 + \\tfrac{1}{2}n(n + 1)'],
   },
   {
     what: 'regions a page is cut into by $n$ circles, every two crossing at two points and no three through one point (the outside counts)',
@@ -669,7 +677,7 @@ const PATTERNS = [
     start: 1,
     f: (n: number) => n * n - n + 2,
     why: 'The $n$-th circle crosses the others at $2(n - 1)$ points, which cut it into $2(n - 1)$ arcs, and each arc splits a region in two:',
-    formula: 'f(n) = 2 + 2(1 + 2 + \\cdots + (n - 1)) = n^2 - n + 2',
+    formula: ['f(n) = 2 + 2(1 + 2 + \\cdots + (n - 1))', '= n^2 - n + 2'],
   },
   {
     what: 'diagonals of a polygon with $n$ sides',
@@ -677,7 +685,7 @@ const PATTERNS = [
     start: 4,
     f: (n: number) => (n * (n - 3)) / 2,
     why: 'Each corner joins to every corner except itself and its two neighbours, and each diagonal is counted from both of its ends:',
-    formula: 'f(n) = \\tfrac{1}{2}n(n - 3)',
+    formula: ['f(n) = \\tfrac{1}{2}n(n - 3)'],
   },
   {
     what: 'matchsticks needed for an $n$ by $n$ grid of squares',
@@ -685,7 +693,7 @@ const PATTERNS = [
     start: 1,
     f: (n: number) => 2 * n * (n + 1),
     why: 'There are $n + 1$ rows of $n$ matches across and $n + 1$ columns of $n$ matches down:',
-    formula: 'f(n) = 2n(n + 1)',
+    formula: ['f(n) = 2n(n + 1)'],
   },
 ];
 
@@ -727,7 +735,7 @@ const cmStPatternTable: Generator<PatternParams> = {
     return [
       { text: `The table so far: ${[0, 1, 2, 3, 4].map((i) => `$${num(t.f(n0 + i))}$`).join(', ')}.` },
       { text: t.why },
-      { tex: t.formula },
+      ...t.formula.map((tex) => ({ tex })),
       { tex: `f(${N}) = ${num(t.f(N))}` },
     ];
   },
@@ -811,7 +819,8 @@ const cmStAltSquares: Generator<AltParams> = {
         { text: 'Pair the terms. Each pair is a difference of two squares:' },
         { tex: `(2k - 1)^2 - (2k)^2 = -(4k - 1)` },
         { text: `So each pair is minus the sum of its two numbers: $-3$ from $1$ and $2$, $-7$ from $3$ and $4$, and so on. The whole sum is minus every number from $1$ to $${n}$:` },
-        { tex: `-(1 + 2 + \\cdots + ${n}) = -\\frac{${n} \\times ${n + 1}}{2} = ${-t}` },
+        { tex: `-(1 + 2 + \\cdots + ${n})` },
+        { tex: `= -\\frac{${n} \\times ${n + 1}}{2} = ${-t}` },
       ];
     }
     return [
@@ -914,14 +923,14 @@ function riverSvg(p: RiverParams): string {
     dot(x0, yA),
     dot(xB, yB),
     dot(xP, g),
-    txt(x0, yA - 12, 'A'),
-    txt(xB, yB - 12, 'B'),
+    point(x0, yA - 13, 'A'),
+    point(xB, yB - 13, 'B'),
     txt(x0 - 7, (yA + g) / 2, `${p.a} m`, 'end', 12),
     txt(xB + 7, (yB + g) / 2, `${p.b} m`, 'start', 12),
     txt((x0 + xB) / 2, g + 24, `${p.d} m`, 'middle', 12),
     ...(p.touch ? [txt((x0 + xP) / 2, g + 10, '?', 'middle', 12)] : []),
     txt(286, g + 24, 'river', 'end', 11),
-  ]);
+  ], Math.max(0, Math.min(yA, yB) - 28));
 }
 
 function sampleRiver(rng: Rng, touch: boolean): RiverParams {
@@ -980,7 +989,7 @@ const cmStRiver: Generator<RiverParams> = {
     }
     return [
       { text: `Reflect $B$ in the bank to a point $${p.b}$ m on the far side. Any walk to the river and on to $B$ is as long as the walk to the river and on to the reflection, and that is shortest as a straight line.` },
-      { text: `The straight line is the hypotenuse of a right triangle $${p.d}$ across and $${p.a} + ${p.b} = ${s}$ down:` },
+      { text: `The straight line is the hypotenuse of a right triangle $${p.d}$ across and $${s}$ down, the $${p.a}$ m to the bank and the $${p.b}$ m beyond it:` },
       { tex: `\\sqrt{${p.d}^2 + ${s}^2} = \\sqrt{${p.d * p.d + s * s}} = ${p.h}` },
     ];
   },
@@ -1002,7 +1011,7 @@ const cmStRiverTiles: Generator<RiverParams> = {
         { kind: 'diagram', svg: riverSvg(p) },
         say(`Reflect $B$ in the bank. The shortest walk is then the hypotenuse of a right triangle ${p.d} m across: fill in its height, the walk squared, and the walk, in metres.`),
       ],
-      template: '\\text{height} = {0}, \\quad (\\text{walk})^2 = {1}, \\quad \\text{walk} = {2}',
+      template: '\\text{height} = {0} \\quad \\text{walk}^2 = {1} \\quad \\text{walk} = {2}',
       bank: numberBank([s, p.h * p.h, p.h], [Math.abs(p.a - p.b), p.d * p.d + (p.a - p.b) ** 2, p.a + p.b + p.d, p.h + 1, s * s], 3),
       answer: [num(s), num(p.h * p.h), num(p.h)],
     };
@@ -1010,7 +1019,8 @@ const cmStRiverTiles: Generator<RiverParams> = {
   solution(p) {
     const s = p.a + p.b;
     return [
-      { text: `The reflection of $B$ is $${p.b}$ m beyond the bank, so the triangle is $${p.a} + ${p.b} = ${s}$ high.` },
+      { text: `The reflection of $B$ is $${p.b}$ m beyond the bank, so the triangle's height is the $${p.a}$ m on this side and those $${p.b}$ m:` },
+      { tex: `${p.a} + ${p.b} = ${s}` },
       { tex: `${p.d}^2 + ${s}^2 = ${p.d * p.d} + ${s * s} = ${p.h * p.h}` },
       { tex: `\\sqrt{${p.h * p.h}} = ${p.h}` },
     ];
@@ -1037,7 +1047,8 @@ const cmStPairFunction: Generator<PairFnParams> = {
   render(p) {
     const a = p.c * p.c;
     const sum = p.toOne
-      ? `f(\\tfrac{1}{${p.n}}) + f(\\tfrac{2}{${p.n}}) + \\cdots + f(\\tfrac{${p.n - 1}}{${p.n}}) + f(1)`
+      ? // Braced in halves: a line too long for a phone breaks at the middle `+`.
+        `{f(\\tfrac{1}{${p.n}}) + f(\\tfrac{2}{${p.n}})} + {\\cdots + f(\\tfrac{${p.n - 1}}{${p.n}}) + f(1)}`
       : `f(\\tfrac{1}{${p.n}}) + f(\\tfrac{2}{${p.n}}) + \\cdots + f(\\tfrac{${p.n - 1}}{${p.n}})`;
     const [top, bottom] = pairFnAnswer(p);
     return typed(
@@ -1363,7 +1374,9 @@ const cmStConsecutiveProduct: Generator<ConsecutiveParams> = {
     }
     const m = n + 1;
     return [
-      { text: 'Three consecutive numbers multiply to just under the cube of the middle one, since $(m - 1)(m + 1) = m^2 - 1$:' },
+      { text: 'Three consecutive numbers multiply to just under the cube of the middle one, $m$:' },
+      { tex: '(m - 1)m(m + 1) = m^3 - m' },
+      { text: 'So try cubes:' },
       { tex: `${m}^3 = ${m ** 3}` },
       { text: `$${N}$ is just below it, so the middle number is $${m}$. Check:` },
       { tex: `${n} \\times ${n + 1} \\times ${n + 2} = ${N}` },
@@ -1584,8 +1597,8 @@ const cmStNameNumber: Generator<NameParams> = {
     if (p.centred) {
       return [
         { text: `Call the middle number $x = ${p.x}$. Each product is a difference of two squares:` },
-        { tex: `${p.x + a} \\times ${p.x + b} = (x - ${b})(x + ${b}) = x^2 - ${b * b}` },
-        { tex: `${p.x + c} \\times ${p.x + d} = (x - ${d})(x + ${d}) = x^2 - ${d * d}` },
+        { tex: `${p.x + a} \\times ${p.x + b} = (x - ${b})(x + ${b}) = {x^2 - ${b * b}}` },
+        { tex: `${p.x + c} \\times ${p.x + d} = (x - ${d})(x + ${d}) = {x^2 - ${d * d}}` },
         { text: 'The $x^2$ cancels:' },
         { tex: `(x^2 - ${b * b}) - (x^2 - ${d * d}) = ${nameValue(p)}` },
       ];
@@ -1600,8 +1613,8 @@ const cmStNameNumber: Generator<NameParams> = {
     };
     return [
       { text: `Both pairs add to the same total. Call the smallest number $x = ${x}$:` },
-      { tex: `${p.x + a} \\times ${p.x + b} = ${sh(a)}${sh(b)} = ${expand(a, b)}` },
-      { tex: `${p.x + c} \\times ${p.x + d} = ${sh(c)}${sh(d)} = ${expand(c, d)}` },
+      { tex: `${p.x + a} \\times ${p.x + b} = ${sh(a)}${sh(b)} = {${expand(a, b)}}` },
+      { tex: `${p.x + c} \\times ${p.x + d} = ${sh(c)}${sh(d)} = {${expand(c, d)}}` },
       { text: 'The $x^2$ and $x$ terms cancel:' },
       { tex: `(${expand(a, b)}) - (${expand(c, d)}) = ${nameValue(p)}` },
     ];
@@ -1660,7 +1673,8 @@ const cmStSymSum: Generator<SymParams> = {
     return [
       { text: 'Over a common denominator the top is $a^2 + b^2$, which comes from squaring $a + b$:' },
       { tex: `\\frac{a}{b} + \\frac{b}{a} = \\frac{a^2 + b^2}{ab}` },
-      { tex: `a^2 + b^2 = (a + b)^2 - 2ab = ${s * s} - ${2 * p} = ${s * s - 2 * p}` },
+      { tex: 'a^2 + b^2 = (a + b)^2 - 2ab' },
+      { tex: `= ${s * s} - ${2 * p} = ${s * s - 2 * p}` },
       { tex: `\\frac{a^2 + b^2}{ab} = \\frac{${s * s - 2 * p}}{${p}}${gcd(s * s - 2 * p, p) > 1 || p === 1 ? ` = ${fracTex(s * s - 2 * p, p)}` : ''}` },
     ];
   },
@@ -1696,7 +1710,9 @@ const cmStSymSumTiles: Generator<SymParams> = {
     const { s, p } = q;
     if (q.ask === 'cubes') {
       return [
-        { text: 'Cubing $a + b$ gives $a^3 + b^3$ plus the extra terms $3a^2b + 3ab^2 = 3ab(a + b)$:' },
+        { text: 'Cubing $a + b$ gives $a^3 + b^3$ plus the extra terms' },
+        { tex: '3a^2b + 3ab^2 = 3ab(a + b)' },
+        { text: 'so' },
         { tex: `a^3 + b^3 = (a + b)^3 - 3ab(a + b)` },
         { tex: `= ${s}^3 - 3 \\times ${p} \\times ${s}` },
         { tex: `= ${s ** 3} - ${3 * p * s} = ${s ** 3 - 3 * p * s}` },

@@ -1,10 +1,16 @@
 {
-  // Cloudflare Workers static-assets deployment. There is no Worker script:
-  // this serves the built site straight from ./dist.
+  // Cloudflare Workers static-assets deployment. The built site is served
+  // straight from ./dist; the Worker script runs only for /api/*, which is the
+  // progress sync between devices (worker/index.ts).
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "maths-trainer",
+  "main": "worker/index.ts",
   "compatibility_date": "2026-09-09",
   "assets": {
+    // Only the sync API reaches the script. Every other request is a static
+    // file and is answered without running it, as before.
+    "run_worker_first": ["/api/*"],
+
     // Must match Vite's build output. The Cloudflare "Root directory" setting
     // stays at "/" — that is where the build runs; this is where it lands.
     "directory": "./dist",
@@ -14,5 +20,13 @@
     // but this also means a stale Home Screen icon pointing at an old path
     // still opens the app instead of breaking.
     "not_found_handling": "single-page-application"
-  }
+  },
+
+  // The sync store. A SQLite-backed Durable Object is declared here and
+  // nowhere else: the first deploy creates it, with nothing to set up in the
+  // Cloudflare dashboard, and it is available on the free plan.
+  "durable_objects": {
+    "bindings": [{ "name": "SYNC", "class_name": "SyncStore" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SyncStore"] }]
 }

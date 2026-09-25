@@ -539,6 +539,21 @@ only once the owner adds "Fast checks" to the auto-merge ruleset as a required
 check; until then auto-merge still waits on the Cloudflare build alone. Either
 way, run the full `npm test` before a change to a generator lands.
 
+**Progress sync** is the one server-side piece. `wrangler.jsonc` now names a
+Worker script, `worker/index.ts`, and routes only `/api/*` to it
+(`run_worker_first`); every other request is still a static file. Its storage
+is a SQLite-backed Durable Object declared in the same file, so a deploy
+creates it with nothing to set up in the dashboard. The store holds one opaque
+JSON document per sync group with a version, and refuses a write made against
+an old version; all merge rules live in the app, in `src/sync/merge.ts`
+(per lesson the better best and later finish, the streak played forward with
+`playOn`), and are order-independent and idempotent. Local storage stays the
+source the app reads, so a lesson never waits on the network. The worker has
+its own `tsconfig.worker.json`, referenced from `tsconfig.json` so `tsc -b`
+checks it in the build. Try it locally with `npm run build` then
+`npx wrangler dev --port 5199`; `npm run dev` has no `/api` and sync just
+reports offline.
+
 The app is installed to an iPhone Home Screen and must work offline — the
 service worker precaches everything including KaTeX fonts and mathjs. Do not add
 runtime network dependencies.

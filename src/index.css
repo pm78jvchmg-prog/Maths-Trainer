@@ -2262,6 +2262,110 @@ button {
   font-size: 13px;
 }
 
+/* ---------- Sync devices ---------- */
+
+/* One quiet line under the library line until tapped: pairing is done once
+   per device, so it should not compete with the course list. Pulled up into
+   the library line's bottom margin so the two read as one caption block. */
+.sync {
+  margin: -10px 0 16px;
+}
+
+.sync-toggle {
+  min-height: 32px;
+  padding: 4px 0;
+  color: var(--text-dim);
+  font-size: 13px;
+  text-align: left;
+}
+
+.sync-panel {
+  margin-top: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.sync-text,
+.sync-hint,
+.sync-message {
+  margin: 0 0 10px;
+  color: var(--text-soft);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.sync-hint {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.sync-message {
+  color: var(--text);
+}
+
+.sync-code {
+  margin: 4px 0 8px;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.sync-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+/* 16px or larger, or iOS Safari zooms the page in when the field is focused. */
+.sync-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font-size: 18px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sync-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sync-button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sync-button.primary:enabled {
+  border-color: transparent;
+  background: var(--accent-strong);
+  color: #fff;
+}
+
+.sync-button.quiet {
+  color: var(--text-dim);
+}
+
+.sync-button:disabled {
+  opacity: 0.5;
+}
+
 /* ---------- Daily streak ---------- */
 
 /* Sits above the course list on the home screen, and nowhere else: a

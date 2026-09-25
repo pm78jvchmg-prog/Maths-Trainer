@@ -16,6 +16,7 @@ import type { CSSProperties } from 'react';
 import { categories, lessonCount, checkCount } from './content/courses';
 import { registry } from './content/registry';
 import { LessonPlayer } from './ui/LessonPlayer';
+import { SyncDevices } from './ui/SyncDevices';
 import { useProgress } from './store/progress';
 import { MAX_CHARGES, localDay, resolveStreak, useStreak } from './store/streak';
 import { MASTERED_AT, courseMastery, libraryProgress, masteryPercent, playables } from './store/mastery';
@@ -134,6 +135,7 @@ function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
       >
         <StreakBar />
         <LibraryLine />
+        <SyncDevices />
 
         {/* Every category in one list, easiest first, each under its own
             heading. The owner asked for this in place of a tab strip, so the

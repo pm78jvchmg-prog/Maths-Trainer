@@ -8,8 +8,9 @@
  * for a screen reader to spell out.
  */
 import { describe, expect, it } from 'vitest';
-import { keyName, texToSpeech } from './texSpeech';
+import { blankName, inlineToSpeech, keyName, texToSpeech } from './texSpeech';
 import { registeredGenerators } from '../content/registry';
+import { renderExpr } from '../content/expr';
 import { makeRng } from '../engine/rng';
 import type { Generator, KeypadKey } from '../content/types';
 
@@ -46,6 +47,32 @@ describe('reading TeX aloud', () => {
   });
 });
 
+describe('reading inline markup aloud', () => {
+  it('reads the maths in a sentence rather than dropping it', () => {
+    expect(inlineToSpeech('The midpoints of $AC$ and $BD$ are one point.')).toBe(
+      'The midpoints of A C and B D are one point.',
+    );
+  });
+
+  it('reads a label that is maths alone', () => {
+    expect(inlineToSpeech('$x = 2$')).toBe('x = 2');
+  });
+
+  it('drops the bold and italic markers', () => {
+    expect(inlineToSpeech('**Yes**, it is *periodic*')).toBe('Yes, it is periodic');
+  });
+});
+
+describe('naming a blank', () => {
+  it('says the blank is empty until the learner fills it', () => {
+    expect(blankName('Blank 2 of 4', '')).toBe('Blank 2 of 4, empty');
+  });
+
+  it('reads what the learner put there', () => {
+    expect(blankName('Blank 2 of 4', '\\frac{3}{8}')).toBe('Blank 2 of 4, 3 over 8');
+  });
+});
+
 describe('naming keypad keys', () => {
   it('names each template key for what it opens', () => {
     expect(keyName({ insert: '/' })).toBe('fraction');
@@ -75,15 +102,59 @@ describe('every TeX-only button the content produces', () => {
   const SEEDS = 10;
   const options = new Set<string>();
   const keys = new Map<string, KeypadKey>();
+  // What a bank tile, a filled blank or a tappable piece of a line shows: TeX
+  // alone, named by `texToSpeech`.
+  const pieces = new Set<string>();
+  // Proof steps and decision-tree branches: `Inline` markup, named by
+  // `inlineToSpeech`.
+  const inline = new Set<string>();
+  const add = (into: Set<string>, values: Iterable<string>) => {
+    for (const value of values) into.add(value);
+  };
   for (const generator of registeredGenerators as Generator<unknown>[]) {
     for (const difficulty of [1, 2]) {
       for (let seed = 0; seed < SEEDS; seed++) {
         const slide = generator.render(generator.sample(makeRng(seed), difficulty));
-        if (slide.kind === 'choice') {
-          for (const option of slide.options) if (option.tex) options.add(option.label);
-        }
-        if (slide.kind === 'expression') {
-          for (const key of slide.keypad) keys.set(JSON.stringify(key), key);
+        switch (slide.kind) {
+          case 'choice':
+            for (const option of slide.options) if (option.tex) options.add(option.label);
+            break;
+          case 'expression':
+            for (const key of slide.keypad) keys.set(JSON.stringify(key), key);
+            break;
+          case 'tiles':
+          case 'table':
+          case 'iterate':
+          case 'tree':
+          case 'venn':
+            add(pieces, slide.bank);
+            break;
+          case 'forces':
+            if (slide.mode === 'fill') add(pieces, [...slide.bank, ...slide.arrows.map((a) => a.label)]);
+            break;
+          case 'probTree':
+            add(pieces, slide.mode === 'fill' ? slide.bank : []);
+            for (const branch of slide.branches) {
+              add(pieces, [branch.label, ...branch.next.map((under) => under.label)]);
+            }
+            break;
+          case 'steps':
+            add(pieces, slide.start);
+            for (const reduction of slide.reductions) add(pieces, [reduction.value, ...reduction.bank]);
+            break;
+          case 'reduce':
+            add(pieces, Object.values(slide.banks).flat());
+            add(pieces, renderExpr(slide.expr).map((fragment) => fragment.tex));
+            break;
+          case 'evaluate':
+            add(pieces, slide.options);
+            break;
+          case 'order':
+            add(inline, slide.steps.map((step) => step.text));
+            break;
+          case 'flow':
+            for (const step of slide.steps) add(inline, [step.ask, ...step.branches.map((b) => b.label)]);
+            break;
         }
       }
     }
@@ -98,6 +169,24 @@ describe('every TeX-only button the content produces', () => {
     const unnamed = [...options].filter((label) => {
       const name = texToSpeech(label);
       return label.trim() !== '' && (name === '' || leftoverTex.test(name));
+    });
+    expect(unnamed.slice(0, 10)).toEqual([]);
+  });
+
+  it('gives every tile, blank and tappable piece a name with no TeX in it', () => {
+    expect(pieces.size).toBeGreaterThan(1000);
+    const unnamed = [...pieces].filter((tex) => {
+      const name = texToSpeech(tex);
+      return tex.trim() !== '' && (name === '' || leftoverTex.test(name));
+    });
+    expect(unnamed.slice(0, 10)).toEqual([]);
+  });
+
+  it('gives every proof step and decision branch a name with its maths in it', () => {
+    expect(inline.size).toBeGreaterThan(100);
+    const unnamed = [...inline].filter((text) => {
+      const name = inlineToSpeech(text);
+      return text.trim() !== '' && (name === '' || leftoverTex.test(name) || name.includes('$'));
     });
     expect(unnamed.slice(0, 10)).toEqual([]);
   });

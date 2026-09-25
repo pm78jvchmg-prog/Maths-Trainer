@@ -17,6 +17,7 @@ import { Tex, Blocks } from './Math';
 import type { Slide } from '../content/types';
 import { frameClass, isLocked, type SlideProps } from './slides';
 import { useBankFill } from './bankFill';
+import { blankName, texToSpeech } from './texSpeech';
 
 type ProbTreeSlideData = Extract<Slide, { kind: 'probTree' }>;
 
@@ -118,7 +119,7 @@ function ProbTreeBody({
         }`}
         style={at(place)}
         disabled={locked}
-        aria-label={`Probability of ${name}${value ? `, ${value}` : ', empty'}`}
+        aria-label={blankName(`Probability of ${name}`, value)}
         onClick={() => bank.tapBlank(index)}
       >
         {value ? <Tex tex={value} /> : ' '}
@@ -126,8 +127,12 @@ function ProbTreeBody({
     );
   };
 
-  /** A branch's label: plain in fill mode, the thing to tap in path mode. */
-  const label = (text: string, place: Placed, chosen: boolean, onPick: () => void) =>
+  /**
+   * A branch's label: plain in fill mode, the thing to tap in path mode, where
+   * it is named in words (with its parent, on the second stage) since KaTeX
+   * hides what it draws from assistive tech.
+   */
+  const label = (text: string, place: Placed, chosen: boolean, onPick: () => void, name: string) =>
     fill ? (
       <span className="ptree-label" style={at(place)}>
         <Tex tex={text} />
@@ -139,6 +144,7 @@ function ProbTreeBody({
         style={at(place)}
         disabled={locked}
         aria-pressed={chosen}
+        aria-label={name}
         onClick={onPick}
       >
         <Tex tex={text} />
@@ -223,9 +229,9 @@ function ProbTreeBody({
                     top.p,
                     firstBlank[i],
                     along(root, { x: node.at.x - GAP, y: node.at.y }, 0.5),
-                    top.label,
+                    texToSpeech(top.label),
                   )}
-                  {label(top.label, node.at, chosenTop, () => chooseFirst(top.label))}
+                  {label(top.label, node.at, chosenTop, () => chooseFirst(top.label), texToSpeech(top.label))}
                   {node.leaves.map((leaf, j) => {
                     const under = top.next[j];
                     const from = { x: node.at.x + GAP, y: node.at.y };
@@ -235,10 +241,14 @@ function ProbTreeBody({
                           under.p,
                           secondBlank[i][j],
                           along(from, { x: leaf.x - GAP, y: leaf.y }, ALONG),
-                          `${under.label} after ${top.label}`,
+                          `${texToSpeech(under.label)} after ${texToSpeech(top.label)}`,
                         )}
-                        {label(under.label, leaf, chosenTop && path[1] === under.label, () =>
-                          chooseSecond(top.label, under.label),
+                        {label(
+                          under.label,
+                          leaf,
+                          chosenTop && path[1] === under.label,
+                          () => chooseSecond(top.label, under.label),
+                          `${texToSpeech(under.label)} after ${texToSpeech(top.label)}`,
                         )}
                       </div>
                     );
@@ -260,6 +270,7 @@ function ProbTreeBody({
                   key={idx}
                   type="button"
                   className={`tile${used ? ' used' : ''}`}
+                  aria-label={texToSpeech(value)}
                   disabled={locked || used || bank.target === -1}
                   onClick={() => bank.place(value)}
                 >

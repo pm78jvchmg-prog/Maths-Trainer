@@ -8,7 +8,7 @@
  * in-progress answer. Grading lives entirely in the session reducer, so a slide
  * cannot accidentally leak the answer by styling itself correct.
  */
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Tex, Blocks } from './Math';
 import { MathSlot } from './MathSlot';
 import {
@@ -22,7 +22,7 @@ import {
   toAnswer,
   type Doc,
 } from './mathInput';
-import { keyName, texToSpeech } from './texSpeech';
+import { blankName, keyName, texToSpeech } from './texSpeech';
 import { EvaluateSlide, ReduceSlide } from './reduceSlide';
 import type { Slide, KeypadKey } from '../content/types';
 import {
@@ -296,6 +296,10 @@ export function TilesSlide({
               key={idx}
               type="button"
               className={`answer-slot${token ? ' filled' : ''}`}
+              // KaTeX hides what it draws from assistive tech, so a blank or a
+              // tile holding maths alone is named in words. A blank names only
+              // what the learner put in it.
+              aria-label={blankName(`Blank ${slotIndex + 1} of ${blanks}`, token)}
               disabled={locked || !token}
               onClick={() => clearSlot(slotIndex)}
             >
@@ -318,6 +322,7 @@ export function TilesSlide({
               key={idx}
               type="button"
               className={`tile${used ? ' used' : ''}`}
+              aria-label={texToSpeech(token)}
               disabled={locked || used}
               onClick={() => place(token)}
             >
@@ -341,11 +346,65 @@ export function TilesSlide({
 
 /* ---------- Plot: tap a point on the complex plane ---------- */
 
-export function PlotSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideProps) {
-  if (slide.kind !== 'plot') return null;
+type PlotSlideData = Extract<Slide, { kind: 'plot' }>;
+type LatticePoint = { re: number; im: number };
+
+export function PlotSlide(props: SlideProps) {
+  // Narrowed here so the body's hooks never sit behind a conditional return.
+  if (props.slide.kind !== 'plot') return null;
+  return <PlotBody {...props} slide={props.slide} />;
+}
+
+function PlotBody({
+  slide,
+  feedback,
+  answer,
+  onAnswer,
+  canEdit,
+}: SlideProps & { slide: PlotSlideData }) {
   const locked = isLocked(feedback, canEdit);
   const { range } = slide;
   const chosen = isPlotAnswer(answer) ? answer : null;
+
+  // One tab stop for the whole plane rather than one per point, which was 81
+  // Tab presses to get past it: the point last moved to or chosen, else the
+  // chosen answer, else the origin. The arrow keys move it across the lattice.
+  const [cursor, setCursor] = useState<LatticePoint | null>(null);
+  const stop = cursor ?? chosen ?? { re: 0, im: 0 };
+  const targets = useRef(new Map<string, SVGCircleElement>());
+  const keyOf = (point: LatticePoint) => `${point.re},${point.im}`;
+
+  const choose = (point: LatticePoint) => {
+    if (locked) return;
+    setCursor(point);
+    onAnswer({ re: point.re, im: point.im });
+  };
+
+  const onKey = (event: React.KeyboardEvent, point: LatticePoint) => {
+    if (locked) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      // Space would otherwise scroll the question.
+      event.preventDefault();
+      choose(point);
+      return;
+    }
+    // Clamped at the edge rather than wrapping, as a grid is on paper.
+    const clamp = (value: number) => Math.max(-range, Math.min(range, value));
+    const moves: Record<string, LatticePoint> = {
+      ArrowRight: { re: clamp(point.re + 1), im: point.im },
+      ArrowLeft: { re: clamp(point.re - 1), im: point.im },
+      ArrowUp: { re: point.re, im: clamp(point.im + 1) },
+      ArrowDown: { re: point.re, im: clamp(point.im - 1) },
+      Home: { re: -range, im: point.im },
+      End: { re: range, im: point.im },
+    };
+    const next = moves[event.key];
+    if (!next) return;
+    // Arrows would otherwise scroll the question too.
+    event.preventDefault();
+    setCursor(next);
+    targets.current.get(keyOf(next))?.focus();
+  };
 
   return (
     <>
@@ -366,36 +425,36 @@ export function PlotSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideP
               way the force diagram's arrow heads are: named by the number it
               stands for (the readout below shows that same number once it is
               chosen), pressed when chosen, and chosen with Enter or Space.
-              Once the answer is locked they leave the tab order, so the way
-              to Continue is not through every point on the plane. */}
+              Only one is in the tab order at a time (`stop`, above), and once
+              the answer is locked none is, so the way to Continue is not
+              through the plane. */}
           <svg
             className={`plot-hits${locked ? ' locked' : ''}`}
             viewBox={PLANE_VIEWBOX}
             role="group"
-            aria-label="Points on the complex plane"
+            aria-label="Points on the complex plane. Arrow keys move between points."
           >
             {latticePoints(range).map((point) => {
               const { x, y } = pointPosition(point, range);
-              const choose = () => !locked && onAnswer({ re: point.re, im: point.im });
+              const key = keyOf(point);
               return (
                 <circle
-                  key={`${point.re},${point.im}`}
+                  key={key}
+                  ref={(el) => {
+                    if (el) targets.current.set(key, el);
+                    else targets.current.delete(key);
+                  }}
                   cx={x}
                   cy={y}
                   r={11}
                   fill="transparent"
                   role="button"
-                  tabIndex={locked ? -1 : 0}
+                  tabIndex={!locked && key === keyOf(stop) ? 0 : -1}
                   aria-label={`Point ${complexTex(point.re, point.im).replace(/-/g, '−')}`}
                   aria-pressed={chosen?.re === point.re && chosen?.im === point.im}
                   aria-disabled={locked || undefined}
-                  onClick={choose}
-                  onKeyDown={(event) => {
-                    if (event.key !== 'Enter' && event.key !== ' ') return;
-                    // Space would otherwise scroll the question.
-                    event.preventDefault();
-                    choose();
-                  }}
+                  onClick={() => choose(point)}
+                  onKeyDown={(event) => onKey(event, point)}
                 />
               );
             })}
@@ -609,7 +668,7 @@ function TableBody({
                       <button
                         type="button"
                         className={`answer-slot${token ? ' filled' : ''}${focus ? ' focus' : ''}`}
-                        aria-label={token ? `Clear ${token}` : 'Choose this blank'}
+                        aria-label={token ? `Clear ${texToSpeech(token)}` : 'Choose this blank'}
                         disabled={locked}
                         onClick={() => tapBlank(slot)}
                       >
@@ -634,6 +693,7 @@ function TableBody({
               key={idx}
               type="button"
               className={`tile${used ? ' used' : ''}`}
+              aria-label={texToSpeech(value)}
               disabled={locked || used || target === -1}
               onClick={() => place(value)}
             >

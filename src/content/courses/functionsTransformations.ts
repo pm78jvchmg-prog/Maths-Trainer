@@ -234,7 +234,7 @@ export const functionsTransformations: Course = {
               prose(
                 'With $x$ taken away inside the root, the inside shrinks as $x$ grows, so the sign turns round:',
               ),
-              maths('\\sqrt{5 - x}: \\quad 5 - x \\geq 0 \\quad \\Rightarrow \\quad x \\leq 5'),
+              maths('\\begin{gathered} \\sqrt{5 - x}: \\quad 5 - x \\geq 0 \\\\ x \\leq 5 \\end{gathered}'),
               prose('To test one input, put it in: for $\\sqrt{x - 3}$ at $x = 1$, $1 - 3 = -2$ is negative, so $1$ is not in the domain.'),
             ),
             ask('fun-domain-flow'),
@@ -257,7 +257,7 @@ export const functionsTransformations: Course = {
                 'Multiplied out, complete the square first: halve the $x$ number, square that bracket, and take off what it adds.',
               ),
               maths(
-                '\\begin{aligned} x^2 - 6x + 11 &= (x - 3)^2 - 9 + 11 \\\\ &= (x - 3)^2 + 2 \\end{aligned}',
+                '\\begin{aligned} & x^2 - 6x + 11 \\\\ &= (x - 3)^2 - 9 + 11 \\\\ &= (x - 3)^2 + 2 \\end{aligned}',
               ),
               prose(
                 'So its range is $f(x) \\geq 2$. With $-x^2$, take the minus out first: $-x^2 + 6x - 7 = -\\big((x - 3)^2 - 2\\big) = 2 - (x - 3)^2$, so $f(x) \\leq 2$.',
@@ -462,10 +462,10 @@ export const functionsTransformations: Course = {
             ask('fun-translate-match'),
             teach(
               prose(
-                'A point moves with its curve. A number inside changes the $x$-coordinate, the opposite way to its sign; a number outside changes the $y$-coordinate. Take $(3, 5)$ on $y = f(x)$:',
+                'A point moves with its curve. A number inside changes the $x$-coordinate, the opposite way to its sign; a number outside changes the $y$-coordinate. Take $(3, 5)$ on $y = f(x)$; on each new curve it goes to',
               ),
               maths(
-                '\\begin{aligned} y = f(x + 2)&: \\quad (3 - 2, 5) = (1, 5) \\\\ y = f(x) - 4&: \\quad (3, 5 - 4) = (3, 1) \\end{aligned}',
+                '\\begin{aligned} f(x + 2)&: \; (3 - 2, 5) = (1, 5) \\\\ f(x) - 4&: \; (3, 5 - 4) = (3, 1) \\end{aligned}',
               ),
               prose('Both at once: the inside moves across, the outside moves up or down.'),
               maths('y = f(x - 1) + 4'),
@@ -508,7 +508,7 @@ export const functionsTransformations: Course = {
                 'For a point: outside, multiply the $y$-coordinate by the factor; inside, **divide** the $x$-coordinate by it. Take $(4, 3)$ on $y = f(x)$:',
               ),
               maths(
-                '\\begin{aligned} y = 3f(x)&: \\quad (4, 3 \\times 3) = (4, 9) \\\\ y = f(2x)&: \\quad (4 \\div 2, 3) = (2, 3) \\\\ y = f(\\tfrac{1}{2}x)&: \\quad (4 \\times 2, 3) = (8, 3) \\end{aligned}',
+                '\\begin{aligned} 3f(x)&: \; (4, 3 \\times 3) = (4, 9) \\\\ f(2x)&: \; (4 \\div 2, 3) = (2, 3) \\\\ f(\\tfrac{1}{2}x)&: \; (4 \\times 2, 3) = (8, 3) \\end{aligned}',
               ),
               prose('Both ways at once, do each: $y = 3f(2x)$ sends $(4, 3)$ to $(2, 9)$ — squeezed across by $\\tfrac{1}{2}$ and stretched up by $3$.'),
             ),
@@ -742,7 +742,7 @@ export const functionsTransformations: Course = {
             ask('fun-asymptote-flow'),
             teach(
               prose('Find $h$ from the bottom, not from the number on show: set the bottom to zero and solve.'),
-              maths('\\begin{gathered} \\frac{3}{2x - 6}: \\quad 2x - 6 = 0, \\quad x = 3 \\\\ \\frac{3}{4 - x}: \\quad 4 - x = 0, \\quad x = 4 \\end{gathered}'),
+              maths('\\begin{gathered} \\frac{3}{2x - 6}: \; 2x - 6 = 0, \; x = 3 \\\\ \\frac{3}{4 - x}: \; 4 - x = 0, \; x = 4 \\end{gathered}'),
               prose('The number added on is still the horizontal asymptote: $y = \\frac{1}{3x + 12} - 5$ has $x = -4$ and $y = -5$.'),
             ),
             ask('fun-asymptote-slider', 2),
@@ -982,7 +982,7 @@ export const functionsTransformations: Course = {
               prose('Term by term: in $f(-x)$ the even powers stay, the odd powers change sign, and a constant, being $x^0$, stays. So:'),
               maths('\\begin{gathered} x^4 - 3x^2 + 2 \\text{ is even} \\\\ x^3 + 2x \\text{ is odd} \\\\ x^3 + 1 \\text{ is neither} \\end{gathered}'),
               prose('Only even powers: even. Only odd powers: odd. Both: neither. To make a rule even, then, every odd power needs a coefficient of $0$; to make it odd, every even power and the constant do:'),
-              maths('\\begin{gathered} x^3 + (k - 5)x^2 + 4x \\text{ odd:} \\quad k - 5 = 0, \\; k = 5 \\\\ x^3 + x + k + 2 \\text{ odd:} \\quad k + 2 = 0, \\; k = -2 \\end{gathered}'),
+              maths('\\begin{gathered} x^3 + (k - 5)x^2 + 4x \\text{ odd:} \\\\ k - 5 = 0, \\; k = 5 \\\\ x^3 + x + k + 2 \\text{ odd:} \\\\ k + 2 = 0, \\; k = -2 \\end{gathered}'),
             ),
             ask('fun-negx-steps'),
             ask('fun-parity-choice'),

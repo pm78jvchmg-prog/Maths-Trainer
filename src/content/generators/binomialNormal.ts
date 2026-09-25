@@ -56,7 +56,7 @@ import type { Block, ChoiceOption, Generator, Slide, SolutionStep } from '../typ
 import type { Rng } from '../../engine/rng';
 import { hashSeed } from '../../engine/rng';
 import { options } from '../choiceVariant';
-import { markerWindow, plotSvg } from '../figures';
+import { markerWindow, plotSvg, plotFigure } from '../figures';
 import { nCr } from './binomialExpansion';
 import { fmt } from './numericalMethods';
 import { fracTex, say } from './format';
@@ -1544,17 +1544,13 @@ const ruleSlider: Generator<RuleSliderParams> = {
       step: sigma / 2,
       answer: mu + RULE_TARGETS[target].k * sigma,
       readout: 'x = {v}',
-      figure: {
-        svg: normalSvg(mu, sigma, {
+      figure: plotFigure(normalSvg(mu, sigma, {
           xMin: window.xMin,
           xMax: window.xMax,
           shade: [mu - sigma, mu + sigma],
           verticals: [mu - sigma, mu + sigma],
           label: 'A normal curve with the middle 68 percent, within one standard deviation of the mean, shaded',
-        }),
-        ...window,
-        axis: 'x',
-      },
+        })),
     };
   },
   solution: ({ mu, sigma, target }) => {
@@ -2356,16 +2352,12 @@ const inverseSlider: Generator<InverseParams> = {
       step: 1,
       answer: Math.round(inverseA(params)),
       readout: 'a \\approx {v}',
-      figure: {
-        svg: normalSvg(mu, sigma, {
+      figure: plotFigure(normalSvg(mu, sigma, {
           xMin: window.xMin,
           xMax: window.xMax,
           verticals: [mu - 2 * sigma, mu - sigma, mu + sigma, mu + 2 * sigma],
           label: 'A normal curve with dashed lines one and two standard deviations either side of the mean',
-        }),
-        ...window,
-        axis: 'x',
-      },
+        })),
     };
   },
   solution: (params) => [...inverseSolution(params), { text: `To the nearest whole number, $a \\approx ${Math.round(inverseA(params))}$.` }],
@@ -3110,8 +3102,7 @@ const bothMidpoint: Generator<MidpointParams> = {
       step: 1,
       answer: mu,
       readout: '\\mu = {v}',
-      figure: {
-        svg: plotSvg({
+      figure: plotFigure(plotSvg({
           xMin: window.xMin,
           xMax: window.xMax,
           yMin: 0,
@@ -3122,10 +3113,7 @@ const bothMidpoint: Generator<MidpointParams> = {
             { x: hi.x, dashed: true },
           ],
           label: 'An axis with dashed lines at the two values',
-        }),
-        ...window,
-        axis: 'x',
-      },
+        })),
     };
   },
   solution: (params) => symmetricSolution(params).slice(0, 2),

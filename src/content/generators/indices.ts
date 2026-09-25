@@ -19,7 +19,7 @@
 import type { ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
 import { bin, num, pow, root, valueOf, type Expr } from '../expr';
 import { options } from '../choiceVariant';
-import { markerWindow, plotSvg } from '../figures';
+import { markerWindow, plotSvg, plotFigure } from '../figures';
 // Where a slider's handle rests before it is touched. Imported rather than
 // restated so a question cannot be built against a rule the widget has moved.
 import { defaultSliderValue } from '../../ui/sliderValue';
@@ -2064,8 +2064,7 @@ const estimateSurd: Generator<{ n: number }> = {
       readout: `\\sqrt{${n}} \\approx {v}`,
       // The figure covers the slider's own span, so the marker under the handle
       // sits where that value is on the curve.
-      figure: {
-        svg: plotSvg({
+      figure: plotFigure(plotSvg({
           xMin: 0,
           xMax: span,
           yMin: 0,
@@ -2073,10 +2072,7 @@ const estimateSurd: Generator<{ n: number }> = {
           curves: [{ f: (x) => x * x }],
           horizontals: [n],
           label: `The curve y equals x squared, with a dashed line at y equals ${n}`,
-        }),
-        xMin: 0,
-        xMax: span,
-      },
+        })),
     };
   },
   solution: ({ n }) => {
@@ -5080,8 +5076,7 @@ const diagonalSlider: Generator<DiagonalParams> = {
       step: 1,
       answer: nearest,
       readout: `\\text{diagonal} \\approx {v}`,
-      figure: {
-        svg: plotSvg({
+      figure: plotFigure(plotSvg({
           xMin: 0,
           xMax: span,
           yMin: 0,
@@ -5089,10 +5084,7 @@ const diagonalSlider: Generator<DiagonalParams> = {
           curves: [{ f: (x) => x * x }],
           horizontals: [n],
           label: `The curve y equals x squared, with a dashed line at y equals ${n}`,
-        }),
-        xMin: 0,
-        xMax: span,
-      },
+        })),
     };
   },
   solution: ({ w, h }) => {

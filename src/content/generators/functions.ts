@@ -24,7 +24,7 @@
  */
 import type { Block, ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
-import { markerWindow, plotSvg } from '../figures';
+import { markerWindow, plotSvg, plotFigure } from '../figures';
 import { options } from '../choiceVariant';
 import { bankFor, bin, num, pow, type Expr } from '../expr';
 import { sumTex, termTex } from './calculus';
@@ -816,8 +816,7 @@ const rangeSlider: Generator<RangeSliderParams> = {
       step: 1,
       answer: k,
       readout: 'm = {v}',
-      figure: {
-        svg: plotSvg({
+      figure: plotFigure(plotSvg({
           xMin: h - 5,
           xMax: h + 5,
           yMin: window.xMin,
@@ -825,10 +824,7 @@ const rangeSlider: Generator<RangeSliderParams> = {
           curves: [{ f }],
           verticals: h - 5 < 0 && h + 5 > 0 ? [{ x: 0, dashed: false }] : [],
           label: `A parabola opening ${shape === 'min' ? 'upwards' : 'downwards'}`,
-        }),
-        ...window,
-        axis: 'y',
-      },
+        }), 'y'),
     };
   },
   solution: (params) => {

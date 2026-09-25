@@ -26,7 +26,7 @@ import type { Rng } from '../../engine/rng';
 import type { ChoiceOption, Generator, KeypadKey, Slide } from '../types';
 import { options } from '../choiceVariant';
 import { bin, log, num, pow, type Expr } from '../expr';
-import { markerWindow, plotSvg, type PlotOptions } from '../figures';
+import { markerWindow, plotSvg, type PlotOptions, plotFigure } from '../figures';
 import { EXP_KEYS, termTex } from './calculus';
 import { fracTex, gcd, plusMinus } from './format';
 
@@ -1820,7 +1820,7 @@ const decaySlider: Generator<DecayParams> = {
       step: 1,
       answer: steps,
       readout: '\\text{hours} = {v}',
-      figure: { svg, xMin: 0, xMax },
+      figure: plotFigure(svg),
     };
   },
   solution: ({ end, factor, steps, direction }) => {
@@ -2275,7 +2275,7 @@ const changeBaseSlider: Generator<ChangeParams> = {
       // division gives the same answer to far better than that.
       tolerance: 0.2,
       readout: `${logTex(base, `${argument}`)} \\approx {v}`,
-      figure: { svg, xMin: 0, xMax: top },
+      figure: plotFigure(svg),
     };
   },
   solution: ({ base, argument }) => {

@@ -1,15 +1,19 @@
 # Maths Trainer
 
 Single-player maths practice with Brilliant's lesson shape: short guided slides,
-one idea at a time, immediate feedback. No XP, no streaks, no leagues.
+one idea at a time, immediate feedback. No XP, no leagues, no points total. The
+one exception is a forgiving daily streak, shown on the home screen only: it
+grows by one for each calendar day in a row that you finish a lesson, and a
+banked charge covers a missed day.
 
 Three behaviours are deliberate and enforced in the session reducer rather than
 the UI, so no component can break them by accident:
 
-- **A wrong answer never reveals the answer.** The bar offers *Try again* and an
-  opt-in *Show me*. Nothing is disclosed unless you ask for it. Changing your
-  answer is itself a retry — the wrong verdict clears as you edit — but that
-  cannot undo a pass or bring back a solution you never asked to see.
+- **A wrong answer never reveals the answer.** The bar offers only an opt-in
+  *Show me*; to try again, tap anywhere on the question. Nothing is disclosed
+  unless you ask for it. Changing your answer is itself a retry — the wrong
+  verdict clears as you edit — but that cannot undo a pass or bring back a
+  solution you never asked to see.
 - **The skill check is sealed.** The last three questions run with no route back
   to the guided examples. The back control is absent from the DOM, not merely
   disabled.

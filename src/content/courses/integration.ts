@@ -21,12 +21,19 @@
  * an integral read off such a limit, which sums over- or under-estimate, and
  * the same area by the limit and by the antiderivative.
  *
+ * Levels 9 to 11 are written in files of their own under `integration/`:
+ * reduction formulae, arc length and surface area, and inverse trigonometric
+ * and hyperbolic integrals.
+ *
  * Each level closes with a level check: twelve questions, no teaching slides,
  * one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
 import { plotSvg } from '../figures';
 import { betweenSvg, solidSvg, stripsSvg } from '../generators/integration';
+import { reductionFormulae } from './integration/level9';
+import { arcLengthSurface } from './integration/level10';
+import { inverseIntegrals } from './integration/level11';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -77,7 +84,7 @@ export const integration: Course = {
   // Its A-level levels are shown in Integration under Advanced Algebra; see
   // placement.ts.
   title: 'Further Integration',
-  blurb: 'Volumes of revolution, improper integrals, and the integral as the limit of a sum.',
+  blurb: 'Volumes, improper integrals, reduction formulae, arc length, and inverse trig and hyperbolic integrals.',
   levels: [
     {
       id: 'in-l1',
@@ -2556,5 +2563,8 @@ export const integration: Course = {
         ask('int-lim-pieces-tree', 2),
       ],
     },
+    reductionFormulae,
+    arcLengthSurface,
+    inverseIntegrals,
   ],
 };

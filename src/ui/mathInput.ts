@@ -397,6 +397,8 @@ const ATOM_TEX: Record<string, string> = {
   'ln(': '\\ln(',
   'sin(': '\\sin(',
   'cos(': '\\cos(',
+  'sinh(': '\\sinh(',
+  'cosh(': '\\cosh(',
   'log(': '\\log(',
 };
 

@@ -1382,7 +1382,7 @@ export const algebraicFractions: Course = {
                 'Give the limit as one fraction: add the front pieces over a common bottom, then multiply by the number in front. With three factors, $\\frac{1}{r(r + 1)(r + 2)}$ is $\\frac{1}{2}$ of $\\frac{1}{r(r + 1)} - \\frac{1}{(r + 1)(r + 2)}$.',
               ),
               prose('The front piece is $\\frac{1}{1 \\times 2} = \\frac{1}{2}$, and the far piece tends to $0$:'),
-              maths('\\sum_{r=1}^{\\infty} \\frac{1}{r(r + 1)(r + 2)} = \\frac{1}{2} \\times \\frac{1}{2} = \\frac{1}{4}'),
+              maths('\\begin{aligned} &\\sum_{r=1}^{\\infty} \\frac{1}{r(r + 1)(r + 2)} \\\\ &= \\frac{1}{2} \\times \\frac{1}{2} = \\frac{1}{4} \\end{aligned}'),
             ),
             ask('frac-infinite-which'),
             teach(

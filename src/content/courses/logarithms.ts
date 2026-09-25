@@ -57,7 +57,7 @@ const modelLead: Block[] = [
   prose(
     'A sample of 800 grams divided by 2 every hour is $800 \\div 2^{t}$ after $t$ hours. To find when it is 100 grams, multiply both sides by $2^{t}$, then divide by 100:',
   ),
-  maths('800 \\div 2^{t} = 100 \\implies 2^{t} = \\frac{800}{100} = 8'),
+  maths('\\begin{aligned} 800 \\div 2^{t} &= 100 \\\\ 2^{t} &= \\frac{800}{100} = 8 \\end{aligned}'),
   prose(
     'And $8 = 2^{3}$, so $t = 3$. Growth goes the other way: $50 \\times 3^{t} = 450$ gives $3^{t} = \\frac{450}{50} = 9$, so $t = 2$.',
   ),
@@ -716,7 +716,7 @@ export const logarithms: Course = {
               prose(
                 'A sample of 800 grams divided by 2 every hour is $800 \\div 2^{t}$ after $t$ hours. To find when it is 100 grams, multiply both sides by $2^{t}$, then divide by 100:',
               ),
-              maths('800 \\div 2^{t} = 100 \\implies 2^{t} = \\frac{800}{100} = 8'),
+              maths('\\begin{aligned} 800 \\div 2^{t} &= 100 \\\\ 2^{t} &= \\frac{800}{100} = 8 \\end{aligned}'),
               prose('And $8 = 2^{3}$, so $t = 3$: halving three times gives 400, 200, 100.'),
             ),
             ask('log-decay-slider'),

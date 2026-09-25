@@ -653,7 +653,7 @@ export const complexNumbers: Course = {
               { kind: 'display', tex: '|{-2 + 2i}| = \\sqrt{4 + 4} = 2\\sqrt{2}' },
               { kind: 'prose', text: '$-2 + 2i$ is top left, with equal parts, so it makes $\\tfrac{\\pi}{4}$ with the negative real axis:' },
               { kind: 'display', tex: '\\arg(-2 + 2i) = \\pi - \\tfrac{\\pi}{4} = \\tfrac{3\\pi}{4}' },
-              { kind: 'display', tex: '-2 + 2i = 2\\sqrt{2}\\left(\\cos\\tfrac{3\\pi}{4} + i\\sin\\tfrac{3\\pi}{4}\\right)' },
+              { kind: 'display', tex: '\\begin{aligned} -2 + 2i &= 2\\sqrt{2}\\big(\\cos\\tfrac{3\\pi}{4} \\\\ &\\qquad + i\\sin\\tfrac{3\\pi}{4}\\big) \\end{aligned}' },
               { kind: 'prose', text: 'Keep the argument principal, between $-\\pi$ and $\\pi$. The two slips: adding the parts for the modulus ($4$, not $2\\sqrt{2}$), and taking the diagonal angle in the wrong quadrant.' },
             ),
             ask('polar-form+choice', 2),
@@ -702,7 +702,7 @@ export const complexNumbers: Course = {
             asking('power-argument', 1, 'The angle behaves the same way the modulus just did, with one extra step: multiplying by the power usually pushes it past a half turn, and it has to come back inside.'),
             teach(
               { kind: 'prose', text: 'Because arguments add, repeated powers walk around a circle at a constant angle. If the modulus is $1$ the walk stays on the unit circle for ever, stepping the same amount each time.' },
-              { kind: 'display', tex: 'i \\to i^2 = -1 \\to i^3 = -i \\to i^4 = 1' },
+              { kind: 'display', tex: 'i^2 = -1 \\qquad i^3 = -i \\qquad i^4 = 1' },
               { kind: 'prose', text: 'That is the cycle from Level 2, now with a reason attached: $i$ has argument $\\frac{\\pi}{2}$, so four steps make a full turn and land back at the start. The pattern was never a coincidence.' },
               { kind: 'prose', text: 'A modulus above $1$ spirals outwards and one below $1$ spirals inwards. Only on the circle itself do the powers repeat rather than drift.' },
             ),
@@ -736,7 +736,7 @@ export const complexNumbers: Course = {
             teach(
               { kind: 'prose', text: 'Check it against expansion once, then trust it.' },
               { kind: 'prose', text: '$(1 + i)^4$: expansion gives $(2i)^2 = -4$; De Moivre gives modulus $(\\sqrt{2})^4 = 4$ at angle $4 \\times \\tfrac{\\pi}{4} = \\pi$, which is $-4$.' },
-              { kind: 'display', tex: '(1 + i)^4 = \\left(\\sqrt{2}\\right)^4\\left(\\cos\\pi + i\\sin\\pi\\right)' },
+              { kind: 'display', tex: '\\begin{aligned} (1 + i)^4 &= (\\sqrt{2})^4 \\\\ &\\quad \\times (\\cos\\pi + i\\sin\\pi) \\end{aligned}' },
               { kind: 'display', tex: '= 4 \\times (-1) = -4' },
               { kind: 'prose', text: 'When the angle is standard, De Moivre wins; when the number is small and the power is $2$, expanding is fine.' },
               { kind: 'prose', text: 'The $i^n$ cycle from Level 2 is De Moivre with $r = 1$ and $\\theta = \\tfrac{\\pi}{2}$.' },

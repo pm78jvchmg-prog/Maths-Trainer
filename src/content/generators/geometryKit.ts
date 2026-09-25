@@ -223,7 +223,7 @@ export function triangleFromAngles(A: number, B: number): Pt[] {
  * answer is not always first yet one question always renders one way (the
  * same rule the derived `+choice` slides follow).
  */
-export function choiceSlide(prompt: Block[], opts: ChoiceOption[]): Slide {
+export function choiceSlide(prompt: Block[], opts: ChoiceOption[], tex = true): Slide {
   let hash = 0;
   for (const option of opts) {
     for (let i = 0; i < option.tex.length; i += 1) hash = (hash * 31 + option.tex.charCodeAt(i)) | 0;
@@ -233,7 +233,8 @@ export function choiceSlide(prompt: Block[], opts: ChoiceOption[]): Slide {
   return {
     kind: 'choice',
     prompt,
-    options: ordered.map((o, i) => ({ id: `opt${i}`, label: o.tex, tex: true })),
+    // A worded option longer than a word is plain text, so it wraps; one TeX text box cannot.
+    options: ordered.map((o, i) => ({ id: `opt${i}`, label: o.tex, tex })),
     correctId: `opt${ordered.findIndex((o) => o.correct)}`,
   };
 }

@@ -102,3 +102,17 @@ Generators in `src/content/generators/contestStatistics.ts`.
 | Multiple Possibilities | `cm-mean-median-cases`, `cm-mean-median-x`, `cm-count-sets`, `cm-extreme-value` | where x lands decides the median, so solve each case; count the lists by the one free number; make the rest as small as the facts allow |
 
 Level check: 14 questions across all four lessons.
+
+## Level 4: Geometry Fundamentals (`cm-l4`)
+
+Generators in `src/content/generators/contestGeometryFundamentals.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Measures | `cm-floor-tiles`, `cm-four-rectangles`, `cm-strip-square`, `cm-strip-square-tiles` | count along each side in one unit; diagonal products of a divided rectangle match; half a strip's perimeter is a length and a width |
+| Angle Hunting | `cm-parallel-bend`, `cm-isosceles-chain`, `cm-isosceles-chain-tiles`, `cm-isosceles-cases` | a parallel line through each bend; isosceles triangles pass the apex angle along; the given angle could be either kind |
+| Polygon Angle Hunting | `cm-star-tips`, `cm-missing-angle`, `cm-missing-angle-tiles`, `cm-polygon-seen-angle`, `cm-polygons-meet` | add up the turning; the full sum is the next multiple of 180; each side is seen at 180/n from any corner; angles round a point make 360 |
+| Special Right Triangles | `cm-square-diagonal`, `cm-thirty-sixty`, `cm-thirty-sixty-tiles`, `cm-equilateral-height`, `cm-triple-scale` | 1 : 1 : √2 and 1 : √3 : 2; a square's area is half its diagonal squared; a triple in disguise |
+| Creating Right Triangles | `cm-isosceles-area`, `cm-trapezium-area`, `cm-wide-angle`, `cm-glued-triangles`, `cm-glued-triangles-table` | drop a perpendicular; a rhombus's diagonals cross at right angles; a 150° angle leaves a 30° one outside; a shared height makes a difference of squares |
+
+Level check: 14 questions across all five lessons.

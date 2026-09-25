@@ -1124,7 +1124,7 @@ interface PriceStory {
  */
 function priceStory(slide: Slide): PriceStory {
   const text = proseOf(slide);
-  const p = Number(text.match(/is £\$(\d+)\$ before two changes/)![1]);
+  const p = Number(text.match(/is £?\$(\d+)\$ before two changes/)![1]);
   const pair = displaysOf(slide)[0].match(/f\(x\) &= (.*?) \\\\ g\(x\) &= (.*?) \\end/)!;
   const fns = { f: priceFn(pair[1]), g: priceFn(pair[2]) };
   const scaleLetter = /^[\d.]+x$/.test(pair[1]) ? 'f' : 'g';

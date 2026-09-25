@@ -6968,8 +6968,11 @@ const errorTex = (estimate: number, exact: number, error: number) =>
 /** The working for step i: the gradient, then the new y. */
 function stepLines({ rhs, h }: Ivp, run: EulerRun, i: number): SolutionStep[] {
   const { xs, ys, gs } = run;
+  // When substituting already gives the value (f(x) = -x at x = 1 is -1), it is written once.
+  const sub = substituted(rhsSubTex(rhs, xs[i], ys[i]));
+  const value = `&= ${fmt(gs[i])}`;
   return [
-    { tex: aligned(`&${gradName(rhs, fmt(xs[i]), fmt(ys[i]))}`, ...substituted(rhsSubTex(rhs, xs[i], ys[i])), `&= ${fmt(gs[i])}`) },
+    { tex: aligned(`&${gradName(rhs, fmt(xs[i]), fmt(ys[i]))}`, ...sub, ...(sub.length === 1 && sub[0] === value ? [] : [value])) },
     { tex: aligned(`y_{${i + 1}} &= ${fmt(ys[i])} + ${fmt(h)}${gs[i] < 0 ? paren(gs[i]) : ` \\times ${fmt(gs[i])}`}`, `&= ${fmt(ys[i + 1])}`) },
   ];
 }

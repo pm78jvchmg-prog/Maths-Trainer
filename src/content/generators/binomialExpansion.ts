@@ -33,6 +33,7 @@ import type { Rng } from '../../engine/rng';
 import type { ChoiceOption, Generator, Slide, SolutionStep } from '../types';
 import { bin, num, pow, valueOf, type Expr } from '../expr';
 import { ALGEBRA_KEYS, sumTex, termAnswer, termTex } from './calculus';
+import { coeffTex } from './format';
 import { markerWindow, plotSvg } from '../figures';
 import { defaultSliderValue } from '../../ui/sliderValue';
 
@@ -2754,7 +2755,7 @@ function equalWorking(params: EqualParams): SolutionStep[] {
     {
       text: `The $x^{${r}}$ term is $${ncrTex(n, r)}${a === 1 ? '' : ` \\times ${a}^{${n - r}}`}k^{${r}}x^{${r}}$, and the next is $${ncrTex(n, r + 1)}${a === 1 || n - r - 1 === 0 ? '' : ` \\times ${a}^{${n - r - 1}}`}k^{${r + 1}}x^{${r + 1}}$. Equal coefficients:`,
     },
-    { tex: `${left}${kPowTex(r)} = ${right}${kPowTex(r + 1)}` },
+    { tex: `${coeffTex(left, kPowTex(r))} = ${coeffTex(right, kPowTex(r + 1))}` },
     { text: `Divide by $${kPowTex(r)}$, which is allowed because $k \\neq 0$:` },
     { tex: `k = ${fracTex(left, right)}` },
     ...(k[1] === 1 ? [] : [{ text: 'A fraction is fine: nothing says $k$ is whole.' }]),
@@ -2845,8 +2846,8 @@ const equalFlow: Generator<EqualParams> = {
   render: (params): Slide => {
     const { n, r, a } = params;
     const [left, right] = equalSides(params);
-    const condition = `$${left}${kPowTex(r)} = ${right}${kPowTex(r + 1)}$`;
-    const swapped = `$${left}${kPowTex(r + 1)} = ${right}${kPowTex(r)}$`;
+    const condition = `$${coeffTex(left, kPowTex(r))} = ${coeffTex(right, kPowTex(r + 1))}$`;
+    const swapped = `$${coeffTex(left, kPowTex(r + 1))} = ${coeffTex(right, kPowTex(r))}$`;
     const solved = `$k = ${fracTex(left, right)}$`;
     const flipped = `$k = ${fracTex(right, left)}$`;
     return {
@@ -2878,8 +2879,15 @@ const equalFlow: Generator<EqualParams> = {
           ask: `Divide both sides by $${kPowTex(r)}$. What is $k$?`,
           branches: turned(
             [
-              { label: solved, outcome: `Right: $${right}k = ${left}$, so ${solved}.` },
-              { label: flipped, outcome: `Upside down: $${right}k = ${left}$, so $k$ is $${left}$ over $${right}$.` },
+              // With a 1 on the right, dividing leaves k itself: nothing more to divide by.
+              { label: solved, outcome: right === 1 ? `Right: ${solved}.` : `Right: $${right}k = ${left}$, so ${solved}.` },
+              {
+                label: flipped,
+                outcome:
+                  right === 1
+                    ? `Upside down: dividing leaves $k = ${left}$, not $k = ${fracTex(right, left)}$.`
+                    : `Upside down: $${right}k = ${left}$, so $k$ is $${left}$ over $${right}$.`,
+              },
             ],
             spread(a, n, r, 5),
           ),

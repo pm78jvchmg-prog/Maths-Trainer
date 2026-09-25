@@ -1345,15 +1345,20 @@ const squareLine: Generator<SquareParams> = {
     const steps: SolutionStep[] = [{ tex: squareDisplay(params) }];
     if (neg) steps.push({ text: 'Multiply through by $-1$ to make the $x^2$ term positive. The sign turns round.' });
     if (right) steps.push({ text: 'Bring the constant back to the left-hand side.' });
+    // At h = 0 there is no x term: the square is already there, and nothing is added to x.
+    const inside = h === 0 ? 'x' : `x ${signedTile(-h)}`;
     steps.push(
       {
-        text: `Complete the square: $x^2 ${signedTile(-2 * h, 'x')}$ is $${squareTex(h)} - ${h * h}$.`,
+        text:
+          h === 0
+            ? 'There is no $x$ term, so $x^2$ is already a square: move the number across.'
+            : `Complete the square: $x^2 ${signedTile(-2 * h, 'x')}$ is $${squareTex(h)} - ${h * h}$.`,
         tex: `${squareTex(h)} ${OP_TEX[op]} ${r * r}`,
       },
       {
         text: pointsRight(op)
-          ? `A square bigger than $${r * r}$ means $x ${signedTile(-h)}$ is further than $${r}$ from zero, on either side.`
-          : `A square below $${r * r}$ means $x ${signedTile(-h)}$ is within $${r}$ of zero.`,
+          ? `A square bigger than $${r * r}$ means $${inside}$ is further than $${r}$ from zero, on either side.`
+          : `A square below $${r * r}$ means $${inside}$ is within $${r}$ of zero.`,
         tex: setTex(pieces),
       },
     );

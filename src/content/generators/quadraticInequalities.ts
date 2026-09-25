@@ -1125,10 +1125,11 @@ interface ParamRangeParams {
   slot: number;
 }
 
+/** Worded to follow "does this curve", so the verb is in its base form. */
 const CURVE_TEXT: Record<RootCondition, string> = {
-  two: 'crosses the $x$-axis twice',
-  none: 'never meets the $x$-axis',
-  real: 'meets the $x$-axis at least once',
+  two: 'cross the $x$-axis twice',
+  none: 'never meet the $x$-axis',
+  real: 'meet the $x$-axis at least once',
 };
 
 /**

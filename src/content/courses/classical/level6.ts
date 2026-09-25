@@ -1,0 +1,212 @@
+/**
+ * Classical Mechanics, level 6: Frames of Reference.
+ *
+ * The outline's frames level: how motion looks from a moving train, boat or
+ * plane (OpenStax University Physics 4.5), from the frame of the centre of
+ * mass (9.6), from a turning frame (6.3), and from frames moving near the
+ * speed of light, where clocks slow, lengths shrink and speeds stop adding
+ * (Volume 3, 5.3 to 5.6).
+ */
+import type { Level } from '../../types';
+import { ask, display, prose, stacked, teach } from './blocks';
+
+export const level6: Level = {
+  id: 'clm-l6',
+  title: 'Frames of Reference',
+  lessons: [
+    {
+      id: 'clm-l6-relative',
+      title: 'Relative Velocity in a Plane',
+      slides: [
+        teach(
+          prose('A velocity is always measured from somewhere. Seen from the ground, a passenger walking along a train moves at the train’s velocity plus their own:'),
+          display('v_{\\text{ground}} = v_{\\text{train}} + v_{\\text{walk}}'),
+          prose('Train at $20\\text{ m s}^{-1}$, walking to the back at $1.5$, so $v_{\\text{walk}} = -1.5$:'),
+          stacked('v_{\\text{ground}} = 20 + (-1.5) = 18.5'),
+          prose('Backwards: over the ground at $21$ on a train at $20$, the walk is $21 - 20 = 1$ forwards.'),
+        ),
+        ask('clm-train-table'),
+        ask('clm-train-table', 2),
+        teach(
+          prose('A boat pointed straight across a river still crosses at its own speed; the current only carries it downstream as it goes. The two motions are independent.'),
+          prose('A boat at $4\\text{ m s}^{-1}$ through the water crosses a river $80\\text{ m}$ wide, with a current of $3\\text{ m s}^{-1}$:'),
+          stacked('t = \\frac{80}{4} = 20\\text{ s}', 'd = 3 \\times 20 = 60\\text{ m}', 'v = \\sqrt{4^{2} + 3^{2}} = 5\\text{ m s}^{-1}'),
+          prose('It lands $60\\text{ m}$ downstream, moving over the ground at $5\\text{ m s}^{-1}$.'),
+        ),
+        ask('clm-river-tree'),
+        ask('clm-drift-slider'),
+        teach(
+          prose('A plane pointed north at $120\\text{ m s}^{-1}$ in a $50\\text{ m s}^{-1}$ east wind moves over the ground at right angles to both:'),
+          stacked('v = \\sqrt{120^{2} + 50^{2}} = 130\\text{ m s}^{-1}'),
+          prose('To fly due north instead, the pilot points partly into the wind. Now the air speed $130$ is the hypotenuse: part of it cancels the wind and the rest carries the plane north.'),
+          stacked('v^{2} + 50^{2} = 130^{2}', 'v = \\sqrt{16900 - 2500}', 'v = 120\\text{ m s}^{-1}'),
+        ),
+        ask('clm-plane-wind'),
+        ask('clm-plane-wind+choice', 2),
+        ask('clm-river-tree', 2),
+        ask('clm-drift-slider', 2),
+      ],
+      skillCheck: [ask('clm-train-table', 2), ask('clm-river-tree', 2), ask('clm-plane-wind', 2)],
+    },
+    {
+      id: 'clm-l6-com',
+      title: 'The Centre-of-Mass Frame',
+      slides: [
+        teach(
+          prose('The centre of mass of two bodies moves at the total momentum over the total mass:'),
+          display('V = \\frac{m_{1}v_{1} + m_{2}v_{2}}{m_{1} + m_{2}}'),
+          prose('A $2\\text{ kg}$ cart at $6\\text{ m s}^{-1}$ and a $1\\text{ kg}$ cart at rest:'),
+          stacked('V = \\frac{2 \\times 6 + 1 \\times 0}{3} = 4\\text{ m s}^{-1}'),
+          prose('Nothing inside the pair can change $V$: however they collide, the centre of mass sails on at $4$.'),
+        ),
+        ask('clm-com-velocity'),
+        ask('clm-com-velocity+choice', 2),
+        teach(
+          prose('In the frame moving with the centre of mass, subtract $V$ from every velocity:'),
+          display("u' = u - V"),
+          prose('For the carts above:'),
+          stacked("u_{1}' = 6 - 4 = 2", "u_{2}' = 0 - 4 = -4"),
+          prose("Check: $2 \\times 2 + 1 \\times (-4) = 0$. In this frame the total momentum is always zero, so the two come in head on and leave head on."),
+          prose('That makes an elastic collision easy. In the centre-of-mass frame each body just bounces straight back at the same speed; then add $V$ to return to the ground.'),
+          stacked("u_{1}' = 2 \\;\\to\\; -2", 'v_{1} = -2 + 4 = 2\\text{ m s}^{-1}'),
+          prose('The $2\\text{ kg}$ cart carries on at $2\\text{ m s}^{-1}$ after the bounce.'),
+        ),
+        ask('clm-com-frame-tree'),
+        ask('clm-elastic-flow'),
+        ask('clm-com-frame-tree', 2),
+        teach(
+          prose('Kinetic energy splits the same way: the part $\\tfrac{1}{2}MV^{2}$ carried by the centre of mass, which no collision can touch, and the rest $K\'$, the motion about it, which is all a collision can use.'),
+          stacked('K = \\tfrac{1}{2} \\times 2 \\times 6^{2} = 36\\text{ J}', '\\tfrac{1}{2}MV^{2} = \\tfrac{1}{2} \\times 3 \\times 4^{2} = 24\\text{ J}', "K' = 36 - 24 = 12\\text{ J}"),
+          prose('So even if the carts stick, only $12\\text{ J}$ can be lost.'),
+        ),
+        ask('clm-com-energy-table'),
+        ask('clm-com-energy-table', 2),
+        ask('clm-elastic-flow', 2),
+      ],
+      skillCheck: [ask('clm-com-velocity', 2), ask('clm-com-frame-tree', 2), ask('clm-elastic-flow', 2)],
+    },
+    {
+      id: 'clm-l6-rotating',
+      title: 'Rotating Frames',
+      slides: [
+        teach(
+          prose('On a roundabout you feel flung outwards. From the ground, nothing pushes you out: you just keep going straight while the roundabout turns under you. In the turning frame you seem to be still, so an outward **centrifugal** force seems to balance the real inward one:'),
+          display('F = m\\omega^{2}r'),
+          prose('A $30\\text{ kg}$ child $2\\text{ m}$ from the centre, turning at $1.5\\text{ rad s}^{-1}$:'),
+          stacked('F = 30 \\times 1.5^{2} \\times 2 = 135\\text{ N}'),
+        ),
+        ask('clm-centrifugal'),
+        ask('clm-centrifugal+choice', 2),
+        teach(
+          prose('A spinning space station uses it as gravity. People on the rim feel ordinary gravity when the push of the floor is $mg$:'),
+          display('\\omega^{2}r = g'),
+          prose('At $0.2\\text{ rad s}^{-1}$, with $g = 9.8$:'),
+          stacked('r = \\frac{9.8}{0.2^{2}} = 245\\text{ m}'),
+          prose('For half of ordinary gravity use $0.5g = 4.9$ instead. Backwards, a station of radius $980\\text{ m}$ needs $\\omega^{2} = \\frac{9.8}{980} = 0.01$, so $\\omega = 0.1\\text{ rad s}^{-1}$, for ordinary gravity.'),
+        ),
+        ask('clm-space-station'),
+        ask('clm-space-station', 2),
+        teach(
+          prose('In a rotor ride the wall pushes you inwards with $N = m\\omega^{2}r$, and friction up the wall can be at most $\\mu N$. You stay up when that beats your weight.'),
+          prose('A $60\\text{ kg}$ rider, radius $3\\text{ m}$, $2\\text{ rad s}^{-1}$, $\\mu = 0.4$:'),
+          stacked('N = 60 \\times 2^{2} \\times 3 = 720\\text{ N}', 'F_{\\max} = 0.4 \\times 720 = 288\\text{ N}', 'mg = 60 \\times 9.8 = 588\\text{ N}'),
+          prose('$288 < 588$, so the rider slides down.'),
+          prose('The least spin sets $\\mu m\\omega^{2}r = mg$. The mass cancels, so it is the same for every rider:'),
+          display('\\omega^{2} = \\frac{g}{\\mu r}'),
+          prose('With $\\mu = 0.5$ and $r = 4.9\\text{ m}$:'),
+          stacked('\\omega^{2} = \\frac{9.8}{0.5 \\times 4.9} = 4', '\\omega = 2\\text{ rad s}^{-1}'),
+        ),
+        ask('clm-rotor-flow'),
+        ask('clm-rotor-slider'),
+        ask('clm-rotor-flow', 2),
+        ask('clm-rotor-slider', 2),
+      ],
+      skillCheck: [ask('clm-centrifugal', 2), ask('clm-space-station', 2), ask('clm-rotor-flow', 2)],
+    },
+    {
+      id: 'clm-l6-dilation',
+      title: 'Time Dilation',
+      slides: [
+        teach(
+          prose('Near the speed of light, a moving clock runs slow. If it ticks through $\\tau$ in its own frame, the time measured from the ground is longer by the **Lorentz factor** $\\gamma$:'),
+          display('t = \\gamma\\tau \\qquad \\gamma = \\frac{1}{\\sqrt{1 - v^{2}/c^{2}}}'),
+          prose('At $0.6c$:'),
+          stacked('\\gamma = \\frac{1}{\\sqrt{1 - 0.36}} = \\frac{1}{0.8} = 1.25'),
+          prose('At $0.8c$, $\\gamma = \\frac{1}{0.6} = \\tfrac{5}{3}$. A ship’s clock at $0.6c$ ticking $20\\text{ }\\mu\\text{s}$ takes $1.25 \\times 20 = 25\\text{ }\\mu\\text{s}$ on Earth.'),
+          prose('Backwards, $\\tau = t \\div \\gamma$: $30\\text{ }\\mu\\text{s}$ on Earth at $0.8c$ is $30 \\div \\tfrac{5}{3} = 18\\text{ }\\mu\\text{s}$ on the ship.'),
+          prose('Any one of $\\gamma$, $\\tau$ and $t$ follows from the other two: with $\\gamma = 4$ and $\\tau = 3$, $t = 12$, and $\\gamma = 12 \\div 3$ again.'),
+        ),
+        ask('clm-dilation'),
+        ask('clm-gamma-table'),
+        ask('clm-dilation+choice', 2),
+        ask('clm-gamma-table', 2),
+        teach(
+          prose('A particle that lasts $\\tau$ in its own frame lives $\\gamma\\tau$ in the lab, and goes $d = vt$. Light covers $300\\text{ m}$ per microsecond, so $0.6c$ is $180\\text{ m}$ per microsecond.'),
+          prose('A particle lasting $8\\text{ }\\mu\\text{s}$ at $0.6c$:'),
+          stacked('t = 1.25 \\times 8 = 10\\text{ }\\mu\\text{s}', 'd = 180 \\times 10 = 1800\\text{ m}'),
+          prose('Without the slowing it would get only $180 \\times 8 = 1440\\text{ m}$.'),
+        ),
+        ask('clm-muon-flow'),
+        ask('clm-muon-flow', 2),
+        teach(
+          prose('The twin who travels ages less. To a star $6$ light years away and back at $0.6c$:'),
+          stacked('t = \\frac{2 \\times 6}{0.6} = 20', '\\tau = \\frac{20}{1.25} = 16', '\\Delta = 20 - 16 = 4'),
+          prose('$20$ years pass on Earth and the traveller ages $16$, so comes home $4$ years younger than their twin.'),
+        ),
+        ask('clm-twin-tree'),
+        ask('clm-twin-tree', 2),
+      ],
+      skillCheck: [ask('clm-dilation', 2), ask('clm-gamma-table', 2), ask('clm-twin-tree', 2)],
+    },
+    {
+      id: 'clm-l6-length',
+      title: 'Length Contraction and Velocity Addition',
+      slides: [
+        teach(
+          prose('A moving object is shorter along its motion, by the same factor $\\gamma$. Its length at rest is $L_{0}$:'),
+          display('L = \\frac{L_{0}}{\\gamma}'),
+          prose('A $100\\text{ m}$ ship at $0.6c$:'),
+          stacked('L = \\frac{100}{1.25} = 80\\text{ m}'),
+          prose('At $0.8c$ it would be $100 \\div \\tfrac{5}{3} = 60\\text{ m}$.'),
+          prose('Passing a station, the ship takes its measured length over its speed. At $0.6c$, $180\\text{ m}$ per microsecond:'),
+          stacked('\\gamma = 1.25', 'L = \\frac{90}{1.25} = 72\\text{ m}', 't = \\frac{72}{180} = 0.4\\text{ }\\mu\\text{s}'),
+        ),
+        ask('clm-contraction'),
+        ask('clm-pass-tree'),
+        ask('clm-contraction+choice', 2),
+        ask('clm-pass-tree', 2),
+        teach(
+          prose('Speeds near $c$ do not simply add. In units of $c$, a probe fired forwards at $u_{2}$ from a ship moving at $u_{1}$ moves at:'),
+          display('u = \\frac{u_{1} + u_{2}}{1 + u_{1}u_{2}}'),
+          prose('At $0.5c$ from a ship at $0.5c$:'),
+          stacked('u = \\frac{0.5 + 0.5}{1 + 0.25} = \\frac{1}{1.25} = 0.8'),
+          prose('So $0.8c$, not $c$.'),
+        ),
+        ask('clm-velocity-add'),
+        ask('clm-velocity-add+choice', 2),
+        teach(
+          prose('Two ships flying apart at $0.6c$ and $0.8c$: added the everyday way that is $1.4c$, faster than light. Properly:'),
+          stacked('u = \\frac{1.4}{1 + 0.6 \\times 0.8} = \\frac{1.4}{1.48}', 'u = \\frac{140}{148} = \\frac{35}{37}'),
+          prose('About $0.95c$: however close to $c$ two speeds are, they combine to less than $c$.'),
+        ),
+        ask('clm-add-flow'),
+        ask('clm-add-flow', 2),
+      ],
+      skillCheck: [ask('clm-contraction', 2), ask('clm-pass-tree', 2), ask('clm-velocity-add', 2)],
+    },
+  ],
+  levelCheck: [
+    ask('clm-train-table', 2),
+    ask('clm-river-tree', 2),
+    ask('clm-plane-wind', 2),
+    ask('clm-com-frame-tree', 2),
+    ask('clm-elastic-flow', 2),
+    ask('clm-com-energy-table', 2),
+    ask('clm-space-station', 2),
+    ask('clm-rotor-flow', 2),
+    ask('clm-dilation', 2),
+    ask('clm-twin-tree', 2),
+    ask('clm-contraction', 2),
+    ask('clm-velocity-add', 2),
+  ],
+};

@@ -105,11 +105,11 @@ Einstein's Theory of Relativity.
 
 | Lesson | Source | Leans on |
 | --- | --- | --- |
-| Relative Velocity in a Plane | UP1 4.5 (river and wind) | tree, slider |
-| The Centre-of-Mass Frame | UP1 9.6 Centre of mass | tree, table |
-| Rotating Frames | UP1 6.3 (inertial and non-inertial frames) | expr, flow |
-| Time Dilation | UP3 5.3 | expr, table |
-| Length Contraction and Velocity Addition | UP3 5.4, 5.6 | tree, choice |
+| Relative Velocity in a Plane | UP1 4.5 (river and wind) | table, tree, slider, expr |
+| The Centre-of-Mass Frame | UP1 9.6 Centre of mass | expr, tree, flow, table |
+| Rotating Frames | UP1 6.3 (inertial and non-inertial frames) | expr, flow, slider |
+| Time Dilation | UP3 5.3 | expr, table, flow, tree |
+| Length Contraction and Velocity Addition | UP3 5.4, 5.6 | expr, tree, flow |
 
 ### Level 7: Statics (`clm-l7`)
 Outline: Tower of Cards, Irregular Towers, Static Equilibrium, Rope Statics,

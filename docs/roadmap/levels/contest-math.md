@@ -130,3 +130,17 @@ Generators in `src/content/generators/contestSimilarity.ts`.
 | Coordinate Geometry | `cm-coord-distance`, `cm-parallelogram-vertex`, `cm-collinear`, `cm-coord-area` | Pythagoras; A + C = B + D; equal steps across, equal steps up; the shoelace |
 
 Level check: 12 questions across all five lessons.
+
+## Level 6: Composite Figures (`cm-l6`)
+
+Generators in `src/content/generators/contestComposite.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Composites | `cm-garden-path`, `cm-overlap-squares`, `cm-arch-area`, `cm-arch-tiles` | outer rectangle less the lawn, or paths less their crossing; a square turned about the centre always covers a quarter; a semicircle is half a circle, and two cut-out halves make one |
+| Lunes and Leaves | `cm-leaf`, `cm-arbelos`, `cm-lune`, `cm-lune-table` | two quarter circles less the square; the arbelos is π/4 × AC × CB, and CD² = AC × CB; the semicircles cancel, so the lunes are the triangle |
+| Inscribed Figures | `cm-incircle-right`, `cm-semicircle-square`, `cm-equilateral-circles`, `cm-ring-chord` | equal tangents give r = (a + b − c)/2; the centre is the middle of the square's base; the centre is a third of the way up, so R = 2r; the ring needs only half the chord |
+| Ratios Meet Geometry | `cm-point-in-rectangle`, `cm-triangle-bands`, `cm-hexagon-table`, `cm-square-cevian` | opposite triangles make half; equal strips go 1 : 3 : 5 : 7; a hexagon is six equal triangles; the hourglass puts P a third of the way up |
+| Working in 3D | `cm-painted-cube`, `cm-painted-table`, `cm-stacked-cubes`, `cm-drilled-cube` | corners, edges, face middles and core; from above the tops make the bottom face; the tunnel takes two openings and adds four walls |
+
+Level check: 13 questions across all five lessons.

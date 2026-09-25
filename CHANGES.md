@@ -9,7 +9,8 @@ its pull request; the PR description holds the evidence.
   build already runs one unbroken purple from Algebra Fundamentals to Advanced
   Maths and orange from the Statistics heading down (#180); the iPad was still
   showing an older version. The app now checks for a new version every time it
-  is brought back to the front, so one close and reopen picks it up.
+  is brought back to the front, so one close and reopen picks it up. The purple now melts through rose into
+  the orange above Statistics instead of meeting it in a hard line.
 - **Two grading bugs fixed (this PR).** `vec-parallel` could offer two
   parallel options, marking a correct pick wrong (~10% of draws). A negative
   base was shown unbracketed (`-1^{4}`) while the answer meant `(-1)^{4}`, in

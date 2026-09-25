@@ -5,6 +5,12 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-25
 
+- **Quadratics teaches before it asks.** Every question now follows a worked
+  example of its method earlier in the same lesson: examples moved ahead of
+  the questions that need them, and missing ones written with real numbers
+  (negative signs, a number in front of x², the discriminant, taking out −5
+  from a height model, and more). All 69 audit flags for the course.
+
 - **Checker: `+ C` and `2e-1`.** An integral answer's `C` was probed as 0, so
   `x^2/2 + C*x` passed as the integral of x; `C` now takes a fixed non-zero
   value, so only an added constant is forgiven (`2C` and `ln(C)` still pass).

@@ -118,11 +118,11 @@ level 4.
 
 | Lesson | Source | Leans on |
 | --- | --- | --- |
-| Centre of Mass | UP1 9.6 | expr, slider |
-| Stacking Blocks | Paterson and Zwick; UP1 12.2 | table, slider |
-| Sliding or Toppling | UP1 12.2 | flow, tree |
-| Rope Statics | UP1 12.2 (a load hung from a rope's middle) | tree, forces |
-| Body Statics | UP1 12.2 (forearm and biceps) | tree, expr |
+| Centre of Mass | UP1 9.6 | expr, table, slider, tree |
+| Stacking Blocks | Paterson and Zwick; UP1 12.2 | table, slider, tree, flow |
+| Sliding or Toppling | UP1 12.2 | expr, tree, flow, slider |
+| Rope Statics | UP1 12.2 (a load hung from a rope's middle) | expr, tree, slider, flow |
+| Body Statics | UP1 12.2 (forearm and biceps) | expr, tree, table |
 
 ### Level 8: Springs (`clm-l8`)
 | Lesson | Source | Leans on |

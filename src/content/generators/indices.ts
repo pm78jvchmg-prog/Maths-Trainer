@@ -414,15 +414,16 @@ const multiplySurds: Generator<{ a: number; b: number }> = {
   solution: ({ a, b }) => {
     const { k, m } = surdParts(a * b);
     // The product can hold a square factor, and the question says simplify.
+    // When it is a perfect square outright, the root is a whole number.
     const simplify: SolutionStep[] =
       k === 1
         ? []
-        : [
-            { text: `$${a * b}$ has the square factor $${k * k}$, which comes out as its root:` },
-            {
-              tex: `\\sqrt{${a * b}} = ${m === 1 ? surdTex(a * b) : `\\sqrt{${k * k}} \\times \\sqrt{${m}} = ${surdTex(a * b)}`}`,
-            },
-          ];
+        : m === 1
+          ? [{ text: `$${a * b}$ is a perfect square:` }, { tex: `\\sqrt{${a * b}} = ${k}` }]
+          : [
+              { text: `$${a * b}$ has the square factor $${k * k}$, which comes out as its root:` },
+              { tex: `\\sqrt{${a * b}} = \\sqrt{${k * k}} \\times \\sqrt{${m}} = ${surdTex(a * b)}` },
+            ];
     return [
       { text: 'Roots multiply straight across: the product of the roots is the root of the product.' },
       { tex: `\\sqrt{${a}} \\times \\sqrt{${b}} = \\sqrt{${a} \\times ${b}} = \\sqrt{${a * b}}` },

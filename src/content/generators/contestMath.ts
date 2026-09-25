@@ -76,16 +76,16 @@ export function numberOptions(correct: number, slips: number[], step = 1, min = 
 
 /**
  * A tiles or table bank: every answer value, then `spare` distinct slips,
- * sorted by value so the order gives nothing away.
+ * sorted by value so the order gives nothing away. Slips below `min` are skipped.
  */
-export function numberBank(answer: number[], slips: number[], spare = 3, step = 1): string[] {
+export function numberBank(answer: number[], slips: number[], spare = 3, step = 1, min = 0): string[] {
   const out = answer.map(num);
   const taken = new Set(out);
   const extras: string[] = [];
   const pool = [...slips, ...answer.flatMap((value) => around(value, step))];
   for (const value of pool) {
     if (extras.length === spare) break;
-    if (!Number.isFinite(value) || value < 0 || taken.has(num(value))) continue;
+    if (!Number.isFinite(value) || value < min || taken.has(num(value))) continue;
     taken.add(num(value));
     extras.push(num(value));
   }
@@ -130,18 +130,20 @@ export function factorTex(n: number): string {
     .join(' \\times ');
 }
 
-/** `\\frac{a}{b}` in lowest terms, or a whole number left whole. */
+/** `\\frac{a}{b}` in lowest terms, the sign in front, or a whole number left whole. */
 export function fracTex(top: number, bottom: number): string {
   const g = gcd(top, bottom) || 1;
-  const p = top / g;
-  const q = bottom / g;
-  return q === 1 ? `${p}` : `\\frac{${p}}{${q}}`;
+  const sign = top * bottom < 0 ? '-' : '';
+  const p = Math.abs(top / g);
+  const q = Math.abs(bottom / g);
+  return q === 1 ? `${sign}${p}` : `${sign}\\frac{${p}}{${q}}`;
 }
 
 /** The same fraction in mathjs syntax, for grading. */
 export function fracAnswer(top: number, bottom: number): string {
   const g = gcd(top, bottom) || 1;
-  const p = top / g;
-  const q = bottom / g;
-  return q === 1 ? `${p}` : `${p}/${q}`;
+  const sign = top * bottom < 0 ? '-' : '';
+  const p = Math.abs(top / g);
+  const q = Math.abs(bottom / g);
+  return q === 1 ? `${sign}${p}` : `${sign}${p}/${q}`;
 }

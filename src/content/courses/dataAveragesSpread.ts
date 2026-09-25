@@ -15,6 +15,12 @@
  * Level 4 is cumulative frequency: running totals, the curve through the
  * upper class boundaries, the median, quartiles and percentiles read off it,
  * and the same readings by interpolating inside a class.
+ * Level 5 is coding data: what adding a constant and multiplying by one do
+ * to every average and every spread (the variance by the square), the coding
+ * `y = (x - a)/b` and decoding back with `\bar{x} = a + b\bar{y}` and
+ * `\sigma_x = b\sigma_y`, the mean and variance of x from coded sums, and
+ * coding in context: converting units, choosing a and b, and comparing two
+ * sets coded different ways.
  *
  * Sigma notation belongs to Sequences & Series (`sq-l2-sigma`) and
  * rearranging a formula to Linear Equations (`le-l3-subject`); both are
@@ -123,7 +129,7 @@ export const dataAveragesSpread: Course = {
   // After Probability (10), which opens the tab.
   position: 10,
   title: 'Data, Averages and Spread',
-  blurb: 'Summing up a set of data: its averages, frequency tables and scatter diagrams, then its range, quartiles, outliers and standard deviation, and cumulative frequency curves.',
+  blurb: 'Summing up a set of data: its averages, frequency tables and scatter diagrams, then its range, quartiles, outliers and standard deviation, cumulative frequency curves, and coding.',
   levels: [
     {
       id: 'da-l1',
@@ -981,6 +987,209 @@ export const dataAveragesSpread: Course = {
         ask('dat-interp-class', 2),
         ask('dat-interp-tiles', 2),
         ask('dat-interp-value', 2),
+      ],
+    },
+    {
+      id: 'da-l5',
+      title: 'Coding Data',
+      lessons: [
+        {
+          id: 'da-l5-add',
+          title: 'Adding a Constant',
+          slides: [
+            teach(
+              prose('Adding the same number to every value slides the whole set of data along without changing its shape. Add $5$ to each of $3, 5, 6, 10$:'),
+              working('3, 5, 6, 10 &\\to 8, 10, 11, 15', '\\bar{x} &= 6 \\to 11', '\\text{range} &= 7 \\to 7'),
+              prose(
+                'The mean went up by $5$, like every value. The range stayed at $7$: each gap between two values is as wide as before. Adding $c$ to every value:',
+              ),
+              working('\\text{new mean} &= \\bar{x} + c', '\\text{new } \\sigma &= \\sigma'),
+              prose(
+                'Every **average** (the mean, median and mode) goes up by $c$. Every **spread** (the range, IQR, standard deviation and variance) measures gaps, so it stays the same.',
+              ),
+            ),
+            ask('dat-code-shift'),
+            ask('dat-code-effect-flow'),
+            ask('dat-code-shift-table'),
+            teach(
+              prose('Taking $c$ off every value works the same way: the averages go down by $c$, and the spreads still do not move.'),
+              prose('A thermometer read $2$ degrees too high all week. The readings had a mean of $14.5$, a mode of $15$, an IQR of $4$ and a variance of $9.6$. Corrected:'),
+              working('\\text{mean} &= 14.5 - 2 = 12.5', '\\text{mode} &= 15 - 2 = 13', '\\text{IQR} &= 4', '\\text{variance} &= 9.6'),
+            ),
+            ask('dat-code-shift+choice', 2),
+            ask('dat-code-shift-table', 2),
+            ask('dat-code-effect-flow'),
+            teach(
+              prose('Knowing the statistics **after** a change, undo it to find them before. Every value was increased by $4$, and now the mean is $20.5$ and the standard deviation is $3$:'),
+              working('\\bar{x} &= 20.5 - 4 = 16.5', '\\sigma &= 3'),
+              prose('Undo the change for the mean. The spread was never changed, so it stays. After a decrease, add the amount back. Every value was decreased by $3$, and the mean is now $40.2$:'),
+              display('\\bar{x} = 40.2 + 3 = 43.2'),
+            ),
+            ask('dat-code-shift-back'),
+            ask('dat-code-shift-back', 2),
+          ],
+          skillCheck: [ask('dat-code-shift', 2), ask('dat-code-shift-table', 2), ask('dat-code-shift-back', 2)],
+        },
+        {
+          id: 'da-l5-multiply',
+          title: 'Multiplying by a Constant',
+          slides: [
+            teach(
+              prose('Multiplying every value by the same number stretches the data. Multiply each of $3, 5, 6, 10$ by $2$:'),
+              working('3, 5, 6, 10 &\\to 6, 10, 12, 20', '\\bar{x} &= 6 \\to 12', '\\text{range} &= 7 \\to 14'),
+              prose(
+                'Every statistic doubles: the averages, and the spreads too, since every gap doubles. The variance is in squared units, so it goes up by $2^2 = 4$. Multiplying every value by $b$:',
+              ),
+              working('\\text{new mean} &= b\\bar{x}', '\\text{new } \\sigma &= b\\sigma', '\\text{new } \\sigma^2 &= b^2\\sigma^2'),
+            ),
+            ask('dat-code-scale'),
+            ask('dat-code-scale-table'),
+            ask('dat-code-scale+choice', 2),
+            teach(
+              prose('Multiplying and then adding, the multiplying acts on everything and the adding only on the averages. Values of $x$ with $\\bar{x} = 12$ and $\\sigma_x = 4$ are each changed to'),
+              display('y = 3x + 5'),
+              working('\\bar{y} &= 3 \\times 12 + 5 = 41', '\\sigma_y &= 3 \\times 4 = 12', '\\sigma_y^2 &= 12^2 = 144'),
+              prose('The same holds for any $b$ and $c$:'),
+              display('\\bar{y} = b\\bar{x} + c \\qquad \\sigma_y = b\\sigma_x'),
+            ),
+            ask('dat-code-bxc-tree'),
+            ask('dat-code-effect-flow', 2),
+            ask('dat-code-linear'),
+            teach(
+              prose('The number added can be taken off instead, and $b$ can be a decimal. With $\\bar{x} = 20$ and $\\sigma_x = 6$, each value is changed to'),
+              display('y = 0.5x - 3'),
+              working('\\bar{y} &= 0.5 \\times 20 - 3 = 7', '\\sigma_y &= 0.5 \\times 6 = 3', '\\sigma_y^2 &= 3^2 = 9'),
+              prose('The $-3$ never touches the spread.'),
+            ),
+            ask('dat-code-linear+choice', 2),
+            ask('dat-code-bxc-tree', 2),
+          ],
+          skillCheck: [ask('dat-code-scale', 2), ask('dat-code-linear', 2), ask('dat-code-bxc-tree', 2)],
+        },
+        {
+          id: 'da-l5-coding',
+          title: 'Coding and Decoding',
+          slides: [
+            teach(
+              prose('**Coding** swaps awkward values for easy ones: take $a$ off every value, then divide by $b$.'),
+              display('y = \\frac{x - a}{b}'),
+              prose('With $a = 200$ and $b = 5$:'),
+              working('205, 210, 220, 225 &\\to 1, 2, 4, 5', '\\bar{y} &= 12 \\div 4 = 3'),
+              prose('**Decoding** goes back, and the mean follows the same rule:'),
+              working('\\bar{x} &= a + b\\bar{y}', '&= 200 + 5 \\times 3 = 215'),
+              prose('A value below $a$ codes to a negative: $195$ codes to $-1$.'),
+            ),
+            ask('dat-code-coded-table'),
+            ask('dat-code-decode'),
+            ask('dat-code-coded-table', 2),
+            teach(
+              prose('The $a$ only slides the data, so it leaves a spread alone; the $b$ stretches it. So only $b$ decodes a standard deviation, and $b^2$ a variance:'),
+              working('\\sigma_x &= b\\sigma_y', '\\sigma_x^2 &= b^2\\sigma_y^2'),
+              prose('With $b = 5$, a coded standard deviation of $1.5$ and a coded variance of $2.25$ decode to'),
+              display('\\sigma_x = 5 \\times 1.5 = 7.5 \\qquad \\sigma_x^2 = 5^2 \\times 2.25 = 56.25'),
+              prose('A negative coded mean decodes the same way:'),
+              display('\\bar{x} = 200 + 5 \\times (-2) = 190'),
+            ),
+            ask('dat-code-decode-tiles'),
+            ask('dat-code-decode+choice', 2),
+            ask('dat-code-decode-tiles', 2),
+            teach(
+              prose('Going forwards, code the mean just as you would code one value, and divide a standard deviation by $b$. With $\\bar{x} = 215$, $\\sigma_x = 7.5$ and $a = 200$, $b = 5$:'),
+              working('\\bar{y} &= \\frac{215 - 200}{5} = 3', '\\sigma_y &= \\frac{7.5}{5} = 1.5'),
+              prose('A variance is divided by $b^2$:'),
+              display('\\sigma_y^2 = 56.25 \\div 5^2 = 2.25'),
+            ),
+            ask('dat-code-encode'),
+            ask('dat-code-encode+choice', 2),
+          ],
+          skillCheck: [ask('dat-code-decode', 2), ask('dat-code-decode-tiles', 2), ask('dat-code-encode', 2)],
+        },
+        {
+          id: 'da-l5-sums',
+          title: 'Variance from Coded Sums',
+          slides: [
+            teach(
+              prose('Coding makes the sums for a variance small. Code $102, 104, 105, 109$ by taking $100$ off each, then square:'),
+              display(
+                '\\begin{array}{c|c|c} x & y & y^2 \\\\ \\hline 102 & 2 & 4 \\\\ 104 & 4 & 16 \\\\ 105 & 5 & 25 \\\\ 109 & 9 & 81 \\\\ \\hline \\sum & 20 & 126 \\end{array}',
+              ),
+              prose('Use the variance formula from Measures of Spread on $y$. Taking off $100$ only slides the data, so decoding adds $100$ to the mean and leaves the variance:'),
+              working('\\bar{y} &= 20 \\div 4 = 5', '\\sigma_y^2 &= 126 \\div 4 - 5^2 = 6.5', '\\bar{x} &= 100 + 5 = 105', '\\sigma_x^2 &= 6.5'),
+            ),
+            ask('dat-code-sums-table'),
+            ask('dat-code-sums-mean'),
+            ask('dat-code-sums'),
+            teach(
+              prose('With a $b$ as well, decode at the end. $10$ values are coded with $y = \\frac{x - 50}{10}$, giving'),
+              display('\\textstyle\\sum y = 20 \\qquad \\sum y^2 = 130'),
+              working('\\bar{y} &= 20 \\div 10 = 2', '\\sigma_y^2 &= 130 \\div 10 - 2^2', '&= 13 - 4 = 9', '\\sigma_y &= \\sqrt{9} = 3'),
+              working('\\bar{x} &= 50 + 10 \\times 2 = 70', '\\sigma_x &= 10 \\times 3 = 30', '\\sigma_x^2 &= 10^2 \\times 9 = 900'),
+            ),
+            ask('dat-code-var-tree'),
+            ask('dat-code-sums-mean', 2),
+            ask('dat-code-var-tree', 2),
+            teach(
+              prose('Three slips to watch for, using that example:'),
+              prose(
+                'The variance decodes by $b^2$, so it is $900$, not $90$. The $a$ is never added to a spread, so it is not $950$. And $\\sum y^2$ squares first and then adds: it is $130$, not the square of $\\sum y$, which is $400$.',
+              ),
+              prose('A negative coded value or coded mean still squares to a positive: $-3$ squares to $9$.'),
+            ),
+            ask('dat-code-sums+choice', 2),
+            ask('dat-code-sums-table', 2),
+          ],
+          skillCheck: [ask('dat-code-var-tree', 2), ask('dat-code-sums-mean', 2), ask('dat-code-sums', 2)],
+        },
+        {
+          id: 'da-l5-context',
+          title: 'Coding in Context',
+          slides: [
+            teach(
+              prose('Changing units is a coding in all but name. Temperatures with a mean of $15^\\circ\\text{C}$ and a standard deviation of $4^\\circ\\text{C}$ are converted to Fahrenheit with'),
+              display('F = 1.8C + 32'),
+              working('\\text{mean} &= 1.8 \\times 15 + 32 = 59', '\\text{SD} &= 1.8 \\times 4 = 7.2', '\\text{variance} &= 1.8^2 \\times 16 = 51.84'),
+              prose('Marks out of $40$ turned into percentages are multiplied by $2.5$, with nothing added, so the mean and standard deviation are simply multiplied by $2.5$.'),
+            ),
+            ask('dat-code-convert'),
+            ask('dat-code-effect-flow', 2),
+            ask('dat-code-convert+choice', 2),
+            teach(
+              prose('A good coding makes the values small and whole. For equally spaced values, take $a$ as the middle value and $b$ as the gap. The values $1030, 1045, 1060, 1075, 1090$ are $15$ apart:'),
+              display('y = \\frac{x - 1060}{15}'),
+              prose('This codes them to $-2, -1, 0, 1, 2$. For $0, 1, 2, 3, 4$ instead, take $a$ as the smallest, $1030$. For $-4, -2, 0, 2, 4$, neighbours are $2$ apart once coded, so $b$ is half the gap, $7.5$.'),
+            ),
+            ask('dat-code-choose-tiles'),
+            ask('dat-code-choose-tiles', 2),
+            teach(
+              prose('Two sets coded different ways cannot be compared by their coded numbers. Decode each first. Two farms coded the masses of their eggs:'),
+              display('\\text{Farm A:} \\; y = x - 100 \\qquad \\text{Farm B:} \\; y = \\frac{x - 100}{2}'),
+              display('\\begin{array}{l|c|c} & \\bar{y} & \\sigma_y \\\\ \\hline \\text{Farm A} & 4 & 3 \\\\ \\text{Farm B} & 3 & 2.5 \\end{array}'),
+              working('\\bar{x}_A &= 100 + 4 = 104', '\\sigma_A &= 3', '\\bar{x}_B &= 100 + 2 \\times 3 = 106', '\\sigma_B &= 2 \\times 2.5 = 5'),
+              prose('Farm B has the heavier eggs on average, and Farm A the more consistent ones: the coded numbers said the opposite on both.'),
+            ),
+            ask('dat-code-compare-table'),
+            ask('dat-code-compare-flow'),
+            ask('dat-code-compare-flow', 2),
+          ],
+          skillCheck: [ask('dat-code-convert', 2), ask('dat-code-choose-tiles', 2), ask('dat-code-compare-flow', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('dat-code-shift', 2),
+        ask('dat-code-shift-table', 2),
+        ask('dat-code-effect-flow', 2),
+        ask('dat-code-scale', 2),
+        ask('dat-code-linear', 2),
+        ask('dat-code-bxc-tree', 2),
+        ask('dat-code-coded-table', 2),
+        ask('dat-code-decode', 2),
+        ask('dat-code-encode', 2),
+        ask('dat-code-sums-table', 2),
+        ask('dat-code-var-tree', 2),
+        ask('dat-code-sums', 2),
+        ask('dat-code-convert', 2),
+        ask('dat-code-choose-tiles', 2),
+        ask('dat-code-compare-flow', 2),
       ],
     },
   ],

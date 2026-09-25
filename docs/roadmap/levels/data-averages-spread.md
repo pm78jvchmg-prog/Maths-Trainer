@@ -20,7 +20,14 @@ back, the curve through the upper class boundaries from zero at the lowest,
 readings below, above and between values, the median and quartiles at n/4,
 n/2 and 3n/4 rather than the list rule, percentiles at pn/100 and the 10th
 to 90th range, and the same readings by interpolating inside a class;
-C17-l4).
+C17-l4); Coding Data (adding a constant moves every average and leaves
+every spread, multiplying moves both and the variance by the square,
+y = bx + c, the coding y = (x - a)/b decoded back by x-bar = a + b y-bar
+and sigma_x = b sigma_y and coded forwards, the mean and variance of x
+from n, the sum of y and the sum of y squared, and coding in context:
+converting units such as Celsius to Fahrenheit, choosing a and b for
+equally spaced values, and comparing two sets coded different ways;
+C17-l5).
 
 Representing Data draws its box plots and histograms as fixed pictures.
 Once a box plot widget exists, the Box Plots and Comparing Box Plots
@@ -39,8 +46,7 @@ Frequency Curve (`dat-cf-check` would become plotting the points,
 `dat-cf-below-slider` a read-off), Median and Quartiles from the Curve
 (`dat-cf-quartile-slider`) and Percentiles (`dat-pct-slider`).
 
-Needs: Coding Data (how adding and multiplying every value moves the mean
-and the standard deviation, and the variance from coded sums); Correlation and Regression
+Needs: Correlation and Regression
 (the product moment correlation coefficient, the least-squares line of y on
 x, and which variable to predict from); Grouped Variance and Skew (the
 standard deviation from a frequency or grouped table, and skew read from

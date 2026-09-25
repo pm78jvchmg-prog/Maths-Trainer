@@ -125,7 +125,10 @@ export const differentiation: Course = {
                 kind: 'prose',
                 text: 'The rule does not care whether the power is large, or negative. A negative power still comes down as a multiplier and still decreases by one — which makes it more negative.',
               },
-              { kind: 'display', tex: '\\frac{d}{dx}\\left(3x^{-2}\\right) = 3 \\times (-2)x^{-3} = -6x^{-3}' },
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} \\frac{d}{dx}\\left(3x^{-2}\\right) &= 3 \\times (-2)x^{-3} \\\\ &= -6x^{-3} \\end{aligned}',
+              },
               {
                 kind: 'prose',
                 text: 'Watch the sign: differentiating $x^{-2}$ gives a negative result, because increasing $x$ makes $x^{-2}$ smaller. And the power goes from $-2$ to $-3$, never to $-1$.',
@@ -254,7 +257,7 @@ export const differentiation: Course = {
               },
               {
                 kind: 'display',
-                tex: "\\begin{aligned} f'(-2) &= 6 \\times (-2)^{2} + (-14) \\times (-2) \\\\ &= 24 + 28 = 52 \\end{aligned}",
+                tex: "\\begin{aligned} &f'(-2) \\\\ &= 6 \\times (-2)^{2} \\\\ &\\quad + (-14) \\times (-2) \\\\ &= 24 + 28 = 52 \\end{aligned}",
               },
             ),
             ask('df-evaluate-steps'),
@@ -495,7 +498,7 @@ export const differentiation: Course = {
               },
               {
                 kind: 'display',
-                tex: "u = 9, \\quad v = 4, \\quad u' = 2, \\quad v' = 2",
+                tex: "\\begin{aligned} u &= 9, & u' &= 2 \\\\ v &= 4, & v' &= 2 \\end{aligned}",
               },
               {
                 kind: 'display',
@@ -916,11 +919,11 @@ export const differentiation: Course = {
               },
               {
                 kind: 'display',
-                tex: '\\begin{aligned} \\frac{d}{dx}(10x - 1)^{5} &= 5(10x - 1)^{4} \\times 10 \\\\ &= 50(10x - 1)^{4} \\end{aligned}',
+                tex: '\\begin{aligned} &\\frac{d}{dx}(10x - 1)^{5} \\\\ &= 5(10x - 1)^{4} \\times 10 \\\\ &= 50(10x - 1)^{4} \\end{aligned}',
               },
               {
                 kind: 'display',
-                tex: '\\begin{aligned} \\frac{d}{dx}\\left(x^{2} + 1\\right)^{3} &= 3\\left(x^{2} + 1\\right)^{2} \\times 2x \\\\ &= 6x\\left(x^{2} + 1\\right)^{2} \\end{aligned}',
+                tex: '\\begin{aligned} &\\frac{d}{dx}\\left(x^{2} + 1\\right)^{3} \\\\ &= 3\\left(x^{2} + 1\\right)^{2} \\times 2x \\\\ &= 6x\\left(x^{2} + 1\\right)^{2} \\end{aligned}',
               },
             ),
             ask('df-chain-tiles', 2),
@@ -1006,7 +1009,10 @@ export const differentiation: Course = {
                 kind: 'prose',
                 text: 'The natural logarithm is the inverse of $e^{x}$, and differentiates to something with no logarithm in it at all. A number in front carries through:',
               },
-              { kind: 'display', tex: '\\frac{d}{dx}\\ln x = \\frac{1}{x} \\qquad \\frac{d}{dx}13\\ln x = \\frac{13}{x}' },
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} \\frac{d}{dx}\\ln x &= \\frac{1}{x} \\\\ \\frac{d}{dx}13\\ln x &= \\frac{13}{x} \\end{aligned}',
+              },
             ),
             ask('exp-log-derivative'),
             ask('exp-log-derivative+choice'),
@@ -1271,7 +1277,7 @@ export const differentiation: Course = {
               ),
               {
                 kind: 'display',
-                tex: '\\begin{aligned} 7e^{2x} &\\to 14e^{2x} \\to 28e^{2x} \\\\ 7\\sin(2x) &\\to 14\\cos(2x) \\to -28\\sin(2x) \\\\ 6\\cos(3x) &\\to -18\\sin(3x) \\to -54\\cos(3x) \\end{aligned}',
+                tex: '\\begin{aligned} 7e^{2x} &\\to 14e^{2x} \\\\ &\\to 28e^{2x} \\\\ 7\\sin(2x) &\\to 14\\cos(2x) \\\\ &\\to -28\\sin(2x) \\\\ 6\\cos(3x) &\\to -18\\sin(3x) \\\\ &\\to -54\\cos(3x) \\end{aligned}',
               },
             ),
             ask('df-second-derivative'),
@@ -1395,7 +1401,10 @@ export const differentiation: Course = {
               prose(
                 'A function is **increasing** where its gradient is positive and **decreasing** where it is negative. One substitution into $f\'(x)$ settles it at any point.',
               ),
-              { kind: 'display', tex: "f(x) = x^{3} - 75x \\implies f'(x) = 3x^{2} - 75" },
+              {
+                kind: 'display',
+                tex: "\\begin{aligned} f(x) &= x^{3} - 75x \\\\ f'(x) &= 3x^{2} - 75 \\end{aligned}",
+              },
               {
                 kind: 'display',
                 tex: "\\begin{aligned} f'(1) &= 3 - 75 = -72 \\\\ f'(6) &= 108 - 75 = 33 \\\\ f'(5) &= 75 - 75 = 0 \\end{aligned}",
@@ -1745,7 +1754,10 @@ export const differentiation: Course = {
               prose(
                 'Factorised, the leading term is hiding in the brackets. Multiplying out would start with the number in front times one $x$ from every bracket, so the powers add:',
               ),
-              { kind: 'display', tex: 'y = -2x(x - 1)^{2} \\approx -2x \\times x^{2} = -2x^{3}' },
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} y &= -2x(x - 1)^{2} \\\\ &\\approx -2x \\times x^{2} \\\\ &= -2x^{3} \\end{aligned}',
+              },
               prose(
                 'Power $1 + 2 = 3$, odd, with $-2$ in front: up on the left, down on the right. $y = 3(x + 1)^{2}(x - 2)^{2}$ has power $4$, even, with $3$ in front: both ends up.',
               ),
@@ -2260,7 +2272,7 @@ export const differentiation: Course = {
               prose('A bracket that is squared is multiplied out first. For the box, square the bracket, then multiply by $x$:'),
               {
                 kind: 'display',
-                tex: '\\begin{aligned} (30 - 2x)^{2} &= 900 - 120x + 4x^{2} \\\\ V &= 4x^{3} - 120x^{2} + 900x \\end{aligned}',
+                tex: '\\begin{aligned} &(30 - 2x)^{2} \\\\ &= 900 - 120x + 4x^{2} \\\\ &V = 4x^{3} - 120x^{2} + 900x \\end{aligned}',
               },
               {
                 kind: 'display',

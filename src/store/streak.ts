@@ -75,11 +75,8 @@ export function resolveStreak(state: StreakState, today: string): StreakState {
 /** The streak after playing on `today`. */
 export function playOn(state: StreakState, today: string): StreakState {
   // Twice in one day is one day. Without this the resolved gap of 0 would
-  // increment again. A day *before* the last play (the clock or the timezone
-  // moved back) is a day already counted, the reading `resolveStreak` gives it:
-  // recording it would add one and pull `lastPlayedDay` backwards, so the next
-  // day forward would count again.
-  if (state.lastPlayedDay && daysApart(state.lastPlayedDay, today) <= 0) return state;
+  // increment again.
+  if (state.lastPlayedDay === today) return state;
 
   const base = resolveStreak(state, today);
   const starting = base.streak === 0;

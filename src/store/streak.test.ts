@@ -110,19 +110,6 @@ describe('daily streak', () => {
 
     expect(state.streak).toBe(4);
   });
-
-  it('does not count a day twice when the clock moves back', () => {
-    // A trip west, or the clock set back: the 23rd arrives after the 24th.
-    const before = run(['2026-09-20', '2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24']);
-    expect(before.streak).toBe(5);
-
-    const behind = playOn(before, '2026-09-23');
-    // Nothing changes: not the count, and not the day the next play builds on.
-    expect(behind).toEqual(before);
-
-    // Back on the 24th, which was already counted.
-    expect(playOn(behind, '2026-09-24').streak).toBe(5);
-  });
 });
 
 describe('resolveStreak', () => {

@@ -1252,7 +1252,7 @@ export const vectors: Course = {
               ),
               prose('For $\\mathbf{a} = \\left(1, 2, 3\\right)$ and $\\mathbf{b} = \\left(4, 0, -1\\right)$, one component at a time:'),
               maths(
-                '\\begin{aligned} x&: \\ 2(-1) - 3(0) = -2 - 0 = -2 \\\\ y&: \\ 3(4) - 1(-1) = 12 + 1 = 13 \\\\ z&: \\ 1(0) - 2(4) = 0 - 8 = -8 \\end{aligned}',
+                '\\begin{aligned} x&: \\ 2(-1) - 3(0) = -2 \\\\ y&: \\ 3(4) - 1(-1) = 13 \\\\ z&: \\ 1(0) - 2(4) = -8 \\end{aligned}',
               ),
               maths(
                 '\\begin{pmatrix} 1 \\\\ 2 \\\\ 3 \\end{pmatrix} \\times \\begin{pmatrix} 4 \\\\ 0 \\\\ -1 \\end{pmatrix} = \\begin{pmatrix} -2 \\\\ 13 \\\\ -8 \\end{pmatrix}',
@@ -1504,7 +1504,7 @@ export const vectors: Course = {
                 'Direction $\\mathbf{b} = \\left(1, -1, 0\\right)$ against the plane ${y + z = 3}$, whose normal is $\\mathbf{n} = \\left(0, 1, 1\\right)$:',
               ),
               maths('\\begin{aligned} \\mathbf{b} \\cdot \\mathbf{n} &= 0 - 1 + 0 = -1 \\\\ |\\mathbf{b}| &= \\sqrt{2} \\\\ |\\mathbf{n}| &= \\sqrt{2} \\end{aligned}'),
-              maths('\\sin\\theta = \\frac{|-1|}{\\sqrt{2}\\sqrt{2}} = \\frac{1}{2} \\implies \\theta = 30^\\circ'),
+              maths('\\sin\\theta = \\frac{|-1|}{\\sqrt{2}\\sqrt{2}} = \\frac{1}{2}'), prose('So $\\theta = 30^\\circ$.'),
             ),
             ask('angle-line-plane'),
             ask('angle-line-plane-tree'),
@@ -1756,7 +1756,7 @@ export const vectors: Course = {
                   'Given the acceleration, work back: $m\\mathbf{a}$ is the resultant, and a missing force is what is left once the known one is taken away. For $2$ kg, $\\mathbf{a} = 4\\mathbf{i} - \\mathbf{j}$ and $\\mathbf{F}_1 = 3\\mathbf{i} + 2\\mathbf{j}$:',
                 ),
                 maths('m\\mathbf{a} = 2(4\\mathbf{i} - \\mathbf{j}) = 8\\mathbf{i} - 2\\mathbf{j}'),
-                maths('\\mathbf{F}_2 = (8\\mathbf{i} - 2\\mathbf{j}) - (3\\mathbf{i} + 2\\mathbf{j}) = 5\\mathbf{i} - 4\\mathbf{j}'),
+                maths('\\begin{aligned} \\mathbf{F}_2 &= (8\\mathbf{i} - 2\\mathbf{j}) - (3\\mathbf{i} + 2\\mathbf{j}) \\\\ &= 5\\mathbf{i} - 4\\mathbf{j} \\end{aligned}'),
               ],
               'mech-fma',
               2,

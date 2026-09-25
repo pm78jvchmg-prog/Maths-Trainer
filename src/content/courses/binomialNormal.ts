@@ -399,7 +399,7 @@ export const binomialNormal: Course = {
               'dist-tail-flow',
               1,
               prose('Above is what is left: $P(Z > z) = 1 - \\Phi(z)$. Below a negative $z$, use symmetry: the tail below $-z$ matches the tail above $z$. With $\\Phi(1.5) = 0.9332$:'),
-              working('P(Z > 1.5) &= 1 - 0.9332 = 0.0668', 'P(Z < -1.5) &= 1 - \\Phi(1.5) = 0.0668', 'P(Z > -1.5) &= 1 - 0.0668 = 0.9332'),
+              working('P(Z > 1.5) &= 1 - 0.9332', '&= 0.0668', 'P(Z < -1.5) &= P(Z > 1.5)', '&= 0.0668', 'P(Z > -1.5) &= 1 - 0.0668', '&= 0.9332'),
             ),
             ask('dist-normal-prob'),
             ask('dist-normal-table'),

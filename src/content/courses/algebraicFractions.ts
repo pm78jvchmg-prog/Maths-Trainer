@@ -43,6 +43,14 @@ const ask = (generatorId: string, difficulty = 1): SlideRef => ({
 const prose = (text: string) => ({ kind: 'prose' as const, text });
 const maths = (tex: string) => ({ kind: 'display' as const, tex });
 
+/** A question with a worked example above it, on the same slide. */
+const askAfter = (generatorId: string, difficulty: number, ...leadIn: Block[]): SlideRef => ({
+  type: 'generated',
+  generatorId,
+  difficulty,
+  leadIn,
+});
+
 /**
  * Lines of working stacked in one display and aligned on their `&`. A chain
  * of equals signs on one line runs off a phone screen after about three terms.
@@ -200,7 +208,13 @@ export const algebraicFractions: Course = {
                 '=\\;&\\frac{3x + 10}{(x + 1)(x + 4)}',
               ),
             ),
-            ask('frac-lcd', 2),
+            askAfter(
+              'frac-lcd',
+              2,
+              prose('When the bottoms share one bracket but not the other, take each bracket once. Factorise both first:'),
+              working('&x^{2} + x - 2 = (x + 2)(x - 1)', '&x^{2} + 5x + 6 = (x + 2)(x + 3)'),
+              prose('$(x + 2)$ is in both, so it is needed once: the simplest common bottom is $(x + 2)(x - 1)(x + 3)$.'),
+            ),
             ask('frac-sum-tiles', 2),
           ],
           skillCheck: [ask('frac-add-tree', 2), ask('frac-sum-tiles', 2), ask('frac-sum-coefficient', 2)],
@@ -217,7 +231,18 @@ export const algebraicFractions: Course = {
             ),
             ask('frac-clear-tiles'),
             ask('frac-equation-steps'),
-            ask('frac-equation-solve'),
+            askAfter(
+              'frac-equation-solve',
+              1,
+              prose('When a number sits beside the fraction, get the fraction on its own first:'),
+              working(
+                '\\frac{12}{x - 1} + 5 &= 2',
+                '\\frac{12}{x - 1} &= -3',
+                '12 &= -3(x - 1)',
+                'x - 1 &= -4',
+                'x &= -3',
+              ),
+            ),
             teach(
               prose(
                 'Clearing multiplies by something that can be zero. A solution that makes a bottom of the original equation zero is not a solution at all, so check each one and reject any that does.',
@@ -226,19 +251,31 @@ export const algebraicFractions: Course = {
               prose('At $x = 2$ both bottoms are zero, so only $x = -2$ stands.'),
             ),
             ask('frac-reject-flow'),
-            ask('frac-equation-steps', 2),
-            ask('frac-clear-tiles', 2),
             teach(
               prose('With $x$ on both tops, the $x^{2}$ terms usually cancel once each side is multiplied out, and the equation is linear again:'),
               working(
                 '\\frac{x + 1}{x - 3} &= \\frac{x + 4}{x + 2}',
+                '(x + 1)(x + 2) &= (x + 4)(x - 3)',
                 'x^{2} + 3x + 2 &= x^{2} + x - 12',
                 '2x &= -14',
                 'x &= -7',
               ),
             ),
+            ask('frac-equation-steps', 2),
+            ask('frac-clear-tiles', 2),
             ask('frac-reject-flow', 2),
-            ask('frac-equation-solve', 2),
+            askAfter(
+              'frac-equation-solve',
+              2,
+              prose('Two fractions adding to $0$: multiply every term by both bottoms. Each fraction keeps the bracket it is missing:'),
+              working(
+                '-\\frac{4}{x + 2} + \\frac{3}{x + 1} &= 0',
+                '-4(x + 1) + 3(x + 2) &= 0',
+                '-4x - 4 + 3x + 6 &= 0',
+                '-x + 2 &= 0',
+                'x &= 2',
+              ),
+            ),
           ],
           skillCheck: [ask('frac-equation-steps', 2), ask('frac-reject-flow', 2), ask('frac-equation-solve', 2)],
         },
@@ -261,7 +298,8 @@ export const algebraicFractions: Course = {
               prose(
                 'Where the top and the bottom share a factor, both are zero at once. The fraction is undefined there, but only at a single point, a hole, and everywhere else it equals its simplified form:',
               ),
-              maths('\\frac{x^{2} - 4}{x - 2} = x + 2 \\text{ for } x \\neq 2'),
+              working('&\\frac{x^{2} - 4}{x - 2}', '=\\;&\\frac{(x - 2)(x + 2)}{x - 2}', '=\\;&x + 2 \\quad (x \\neq 2)'),
+              prose('At the hole itself, put $x = 2$ into the simplified form: $2 + 2 = 4$. That is the height of the missing point, the value the curve heads for.'),
             ),
             ask('frac-zero-slider'),
             ask('frac-undefined-which', 2),
@@ -360,7 +398,13 @@ export const algebraicFractions: Course = {
               ),
             ),
             ask('frac-three-steps'),
-            ask('frac-three-tiles', 2),
+            askAfter(
+              'frac-three-tiles',
+              2,
+              prose('Factorising $x^{3} - 2x^{2} - 5x + 6$: try $x = 1$, a divisor of $6$. It gives $1 - 2 - 5 + 6 = 0$, so $(x - 1)$ is a factor.'),
+              prose('The rest is $x^{2} + bx - 6$, since $(-1) \\times (-6) = 6$. The $x^{2}$ terms give $b - 1 = -2$, so $b = -1$:'),
+              working('&x^{3} - 2x^{2} - 5x + 6', '=\\;&(x - 1)(x^{2} - x - 6)', '=\\;&(x - 1)(x - 3)(x + 2)'),
+            ),
             ask('frac-three-cover-tree', 2),
             teach(
               prose(
@@ -434,13 +478,23 @@ export const algebraicFractions: Course = {
               ),
             ),
             ask('frac-improper-steps'),
-            ask('frac-improper-flow', 2),
-            ask('frac-improper-quotient+choice', 2),
             teach(
               prose(
-                'A cubic over a quadratic leaves a linear whole part, $x + m$. Read $m$ with care: it is not the top’s next coefficient, because $x$ times the bottom has an $x^{2}$ term of its own, which has to be taken off first.',
+                'A cubic over a quadratic leaves a linear whole part, $x + m$. Take $x$ lots of the bottom off first, then a number of lots. For $x^{3} + 4x^{2} + x - 5$ over $x^{2} + 3x + 2$:',
+              ),
+              working(
+                '&x^{3} + 4x^{2} + x - 5',
+                '&- x(x^{2} + 3x + 2)',
+                '=\\;&x^{2} - x - 5',
+                '&- 1(x^{2} + 3x + 2)',
+                '=\\;&-4x - 7',
+              ),
+              prose(
+                'So the whole part is $x + 1$, and $-4x - 7$ is left over. $m$ is $1$, not the top’s next coefficient $4$: $x$ times the bottom brought $3x^{2}$ of its own, and $4 - 3 = 1$.',
               ),
             ),
+            ask('frac-improper-flow', 2),
+            ask('frac-improper-quotient+choice', 2),
             ask('frac-improper-tiles', 2),
             ask('frac-improper-steps', 2),
           ],
@@ -480,6 +534,12 @@ export const algebraicFractions: Course = {
             teach(
               prose(
                 'Adding the parts’ series power by power gives the whole fraction’s. For $\\frac{A}{1 - px} + \\frac{B}{1 - qx}$ the coefficient of $x^{k}$ is $Ap^{k} + Bq^{k}$, which no amount of dividing the original fraction would find as quickly.',
+              ),
+              prose('A part over $1 + px$ is the same series with $u = -px$, so the signs alternate:'),
+              working(
+                '&\\frac{1}{1 + 3x}',
+                '=\\;&1 + (-3x) + (-3x)^{2} + \\dots',
+                '=\\;&1 - 3x + 9x^{2} - \\dots',
               ),
             ),
             ask('frac-series-tiles', 2),
@@ -626,15 +686,15 @@ export const algebraicFractions: Course = {
                 'Multiply up: $3x^{2} - x + 10 = (Ax + B)x + C(x^{2} + 5)$. At $x = 0$ only $C$ survives, $10 = 5C$, so $C = 2$. Then the $x^{2}$ terms give $A + C = 3$, so $A = 1$.',
               ),
             ),
-            ask('frac-x-quad-tree'),
-            ask('frac-x-quad-order-flow'),
             teach(
               prose(
-                'The rest is quicker than over $(x + a)$: $(Ax + B)x = Ax^{2} + Bx$ has no number in it, so the $x$ terms give $B$ straight away. Here $B = -1$:',
+                'The rest is quicker than over $(x + a)$: $(Ax + B)x = Ax^{2} + Bx$ has no number in it, and $C(x^{2} + 5)$ has no $x$ term, so the $x$ terms give $B$ straight away: $-x = Bx$, so $B = -1$.',
               ),
               working('&\\frac{3x^{2} - x + 10}{x(x^{2} + 5)}', '=\\;&\\frac{x - 1}{x^{2} + 5} + \\frac{2}{x}'),
               prose('A bottom given as $x^{3} + 5x$ factorises by taking out the $x$: $x(x^{2} + 5)$.'),
             ),
+            ask('frac-x-quad-tree'),
+            ask('frac-x-quad-order-flow'),
             ask('frac-x-quad-tiles'),
             ask('frac-x-quad-cover-steps'),
             ask('frac-x-quad-tree', 2),
@@ -938,7 +998,6 @@ export const algebraicFractions: Course = {
               ),
             ),
             ask('frac-va-which'),
-            ask('frac-va-slider'),
             teach(
               prose('Which way does each arm go? Near $x = 2$ only the bracket $(x - 2)$ changes sign. Put $x = 2$ into everything else:'),
               working('&\\frac{x + 1}{x + 3} \\text{ at } x = 2', '=\\;&\\tfrac{3}{5}, \\text{ positive}'),
@@ -946,6 +1005,7 @@ export const algebraicFractions: Course = {
                 'Just right of $2$, $(x - 2)$ is a tiny positive number, so $y$ is positive and huge. We write $y \\to +\\infty$ as $x \\to 2^{+}$, the $^{+}$ meaning from above. Just left, $(x - 2)$ is a tiny negative number, so $y \\to -\\infty$ as $x \\to 2^{-}$.',
               ),
             ),
+            ask('frac-va-slider'),
             ask('frac-va-side-flow'),
             ask('frac-va-arms-tiles'),
             ask('frac-va-which', 2),
@@ -977,14 +1037,15 @@ export const algebraicFractions: Course = {
               ),
               prose('In $\\frac{2x - 2}{x + 1}$ the top is about $2x$ and the bottom about $x$ when $x$ is huge, so $y$ settles towards $2$.'),
             ),
-            ask('frac-ha-value'),
-            ask('frac-ha-slider'),
             teach(
               prose(
                 'Compare the highest powers. Bottom higher: the fraction shrinks, so $y = 0$. The same: the ratio of the leading coefficients. Top higher: the curve keeps climbing, so there is none.',
               ),
               working('\\frac{3x + 1}{x^2 - 4} &\\to 0', '\\frac{6x^2 + x}{2x^2 - 8} &\\to 3', '\\frac{x^2 + 1}{x - 2} &\\text{ has none}'),
+              prose('In the first, far out it behaves like $\\frac{3x}{x^2} = \\frac{3}{x}$, which shrinks to $0$ as $x$ grows.'),
             ),
+            ask('frac-ha-value'),
+            ask('frac-ha-slider'),
             ask('frac-ha-flow'),
             ask('frac-ha-which'),
             ask('frac-ha-value', 2),
@@ -1051,12 +1112,12 @@ export const algebraicFractions: Course = {
               prose('This one crosses the $x$-axis only at $x = -2$. At $x = 1$ it has a hole.'),
             ),
             ask('frac-x-int-which'),
-            ask('frac-y-int-tree'),
             teach(
               prose('It meets the $y$-axis at $x = 0$, so put $0$ in. Multiplied out, that leaves just each line’s number:'),
               working('&\\frac{x^2 + x - 6}{x^2 - 4x + 3} \\text{ at } x = 0', '=\\;&\\frac{-6}{3} = -2'),
-              prose('If the bottom is zero at $x = 0$, the $y$-axis is an asymptote and there is no $y$-intercept.'),
+              prose('In brackets, put $0$ into each one: $\\frac{2(x + 3)}{x - 1}$ at $x = 0$ is $\\frac{2 \\times 3}{-1} = -6$. If the bottom is zero at $x = 0$, the $y$-axis is an asymptote and there is no $y$-intercept.'),
             ),
+            ask('frac-y-int-tree'),
             ask('frac-intercepts-flow'),
             ask('frac-y-int-slider'),
             ask('frac-x-int-which', 2),
@@ -1096,7 +1157,14 @@ export const algebraicFractions: Course = {
               ),
             ),
             ask('frac-features-table'),
-            ask('frac-sketch-which'),
+            askAfter(
+              'frac-sketch-which',
+              1,
+              prose('Now the other way: from a sketch back to its rule. Say the dashed lines are $x = 3$ and $y = 2$, and the curve crosses the $x$-axis at $x = -1$.'),
+              prose('The vertical asymptote gives the bottom, $x - 3$. The crossing gives a factor of the top, $x + 1$. The level $y = 2$ is the number in front, since $\\frac{2x}{x}$ settles on $2$:'),
+              maths('y = \\frac{2(x + 1)}{x - 3}'),
+              prose('Check the $y$-intercept against the grid: at $x = 0$, $y = \\frac{2}{-3} = -\\frac{2}{3}$.'),
+            ),
             teach(
               prose(
                 'A curve can cross its horizontal asymptote nearer in, just never far out. To check, set the fraction equal to that level. With equal degrees the $x^2$ terms cancel, leaving a linear equation.',
@@ -1106,13 +1174,16 @@ export const algebraicFractions: Course = {
               prose('So it crosses $y = 1$ at $x = 2$. If the $x$ terms cancel too, nothing is left to solve, and it never crosses.'),
             ),
             ask('frac-cross-ha'),
-            ask('frac-sketch-flow'),
-            ask('frac-features-table', 2),
             teach(
               prose(
                 'When the bottom has the higher degree, the level is $y = 0$, the $x$-axis itself. So the curve crosses it exactly at its $x$-intercepts, and a fraction with a plain number on top never does.',
               ),
+              prose(
+                'For $y = \\frac{-3}{(x + 3)(x + 4)}$: far out it behaves like $\\frac{-3}{x^2}$, so the level is $y = 0$. The top, $-3$, is never zero, so the curve never meets that level: it stays below it on both sides far out.',
+              ),
             ),
+            ask('frac-sketch-flow'),
+            ask('frac-features-table', 2),
             ask('frac-sketch-which', 2),
             ask('frac-cross-ha', 2),
             ask('frac-sketch-flow', 2),
@@ -1155,7 +1226,6 @@ export const algebraicFractions: Course = {
             ),
             ask('frac-diff-cover'),
             ask('frac-diff-split-tiles'),
-            ask('frac-diff-which'),
             teach(
               prose('The numerators are equal and opposite, so each term takes away the fraction the next term adds on. Written out, the middle cancels:'),
               working(
@@ -1165,14 +1235,19 @@ export const algebraicFractions: Course = {
               ),
               prose('Only the ends survive, so the work is in finding the split.'),
             ),
+            ask('frac-diff-which'),
+            teach(
+              prose('The brackets need not start at $r$. Cover-up splits $\\frac{1}{(r + 2)(r + 3)}$ into $\\frac{1}{r + 2} - \\frac{1}{r + 3}$. From $r = 1$ the first piece is $\\frac{1}{3}$:'),
+              working(
+                '&\\left(\\tfrac{1}{3} - \\tfrac{1}{4}\\right) + \\left(\\tfrac{1}{4} - \\tfrac{1}{5}\\right)',
+                '&+ \\dots + \\left(\\tfrac{1}{n + 2} - \\tfrac{1}{n + 3}\\right)',
+                '=\\;&\\frac{1}{3} - \\frac{1}{n + 3}',
+              ),
+              prose('When the bottom comes multiplied out, factorise it first: $r^2 + 5r + 6 = (r + 2)(r + 3)$, two numbers that add to $5$ and multiply to $6$.'),
+            ),
             ask('frac-diff-partial-table'),
             ask('frac-diff-split-tiles', 2),
             ask('frac-diff-cover', 2),
-            teach(
-              prose('The brackets need not start at $r$. Cover-up splits $\\frac{1}{(r + 2)(r + 3)}$ into $\\frac{1}{r + 2} - \\frac{1}{r + 3}$, and from $r = 1$ the fraction that survives at the front is $\\frac{1}{3}$:'),
-              working('&\\sum_{r=1}^{n} \\frac{1}{(r + 2)(r + 3)}', '=\\;&\\frac{1}{3} - \\frac{1}{n + 3}'),
-              prose('When the bottom comes multiplied out, factorise it first: $r^2 + 5r + 6 = (r + 2)(r + 3)$.'),
-            ),
             ask('frac-diff-partial-table', 2),
             ask('frac-diff-which', 2),
           ],
@@ -1239,14 +1314,22 @@ export const algebraicFractions: Course = {
               prose('So $\\frac{1}{r(r + 1)(r + 2)}$ is $\\frac{1}{2}$ of that difference, and it cancels like a pair one apart.'),
             ),
             ask('frac-triple-regroup-tiles'),
-            ask('frac-triple-sum-which'),
-            ask('frac-triple-tiles', 2),
             teach(
-              prose('Summed from $r = 1$, one piece survives at each end:'),
+              prose(
+                'Summed from $r = 1$, the pairs run $\\frac{1}{1 \\times 2} - \\frac{1}{2 \\times 3}$, then $\\frac{1}{2 \\times 3} - \\frac{1}{3 \\times 4}$, and so on to $\\frac{1}{n(n + 1)} - \\frac{1}{(n + 1)(n + 2)}$. One piece survives at each end:',
+              ),
               working(
                 '&\\sum_{r=1}^{n} \\frac{1}{r(r + 1)(r + 2)}',
                 '=\\;&\\frac{1}{2}\\left(\\frac{1}{2} - \\frac{1}{(n + 1)(n + 2)}\\right)',
               ),
+            ),
+            ask('frac-triple-sum-which'),
+            askAfter(
+              'frac-triple-tiles',
+              2,
+              prose('A multiplied-out cubic bottom factorises into three brackets in a row. For $r^{3} + 6r^{2} + 11r + 6$, try $r = -1$: $-1 + 6 - 11 + 6 = 0$, so $(r + 1)$ is a factor.'),
+              prose('The rest is $r^{2} + br + 6$, and the $r^{2}$ terms give $b + 1 = 6$, so $b = 5$:'),
+              working('&(r + 1)(r^{2} + 5r + 6)', '=\\;&(r + 1)(r + 2)(r + 3)'),
             ),
             ask('frac-triple-regroup-tiles', 2),
             ask('frac-triple-cover-tree', 2),
@@ -1294,20 +1377,24 @@ export const algebraicFractions: Course = {
             ),
             ask('frac-infinite-flow'),
             ask('frac-infinite-tree'),
+            teach(
+              prose(
+                'Give the limit as one fraction: add the front pieces over a common bottom, then multiply by the number in front. With three factors, $\\frac{1}{r(r + 1)(r + 2)}$ is $\\frac{1}{2}$ of $\\frac{1}{r(r + 1)} - \\frac{1}{(r + 1)(r + 2)}$.',
+              ),
+              prose('The front piece is $\\frac{1}{1 \\times 2} = \\frac{1}{2}$, and the far piece tends to $0$:'),
+              maths('\\sum_{r=1}^{\\infty} \\frac{1}{r(r + 1)(r + 2)} = \\frac{1}{2} \\times \\frac{1}{2} = \\frac{1}{4}'),
+            ),
             ask('frac-infinite-which'),
             teach(
               prose(
-                'Give the limit as one fraction: add the front pieces over a common bottom, then multiply by the number in front. With three factors, $\\sum_{r=1}^{\\infty} \\frac{1}{r(r + 1)(r + 2)} = \\frac{1}{2} \\times \\frac{1}{2} = \\frac{1}{4}$.',
+                'The partial sum falls short of the limit by exactly the pieces at the far end. For $\\sum \\frac{1}{r(r + 1)}$, $S_n = 1 - \\frac{1}{n + 1}$ and $S_\\infty = 1$, so the gap is $\\frac{1}{n + 1}$.',
               ),
+              working('\\frac{1}{n + 1} &< 0.01', 'n + 1 &> 100'),
+              prose('At $n = 99$ the gap is exactly $0.01$, not less; at $n = 100$ it is $\\frac{1}{101}$. So $n = 100$.'),
             ),
             ask('frac-within'),
             ask('frac-infinite-tree', 2),
             ask('frac-infinite-which', 2),
-            teach(
-              prose(
-                'The partial sum falls short of the limit by exactly the pieces at the far end. For $\\sum \\frac{1}{r(r + 1)}$ that gap is $\\frac{1}{n + 1}$, so being within $0.01$ needs $n + 1 > 100$: $n = 100$.',
-              ),
-            ),
             ask('frac-within', 2),
             ask('frac-infinite-flow', 2),
           ],

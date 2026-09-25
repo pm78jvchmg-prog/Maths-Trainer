@@ -55,6 +55,14 @@ const prose = (text: string): Block => ({ kind: 'prose', text });
 
 const maths = (tex: string): Block => ({ kind: 'display', tex });
 
+/** A question with a worked example above it, on the same slide. */
+const askAfter = (generatorId: string, difficulty: number, ...leadIn: Block[]): SlideRef => ({
+  type: 'generated',
+  generatorId,
+  difficulty,
+  leadIn,
+});
+
 /** The partial sums of 8 + 4 + 2 + … as dots, closing in on 16. */
 const partialSums: Block = {
   kind: 'diagram',
@@ -97,6 +105,15 @@ export const sequencesSeries: Course = {
               ),
             ),
             ask('seq-rule-table'),
+            teach(
+              prose(
+                'Look at the **right-hand side** to tell the two apart, not the subscript on the left. If an earlier term such as $u_n$ appears there, the rule is term-to-term.',
+              ),
+              maths('u_{n+1} = 3n + 1'),
+              prose('This is position-to-term: only $n$ is on the right.'),
+              maths('u_n = u_{n-1} + 4'),
+              prose('This is term-to-term: it needs $u_{n-1}$, the term before.'),
+            ),
             ask('seq-rule-kind'),
             ask('seq-term'),
             teach(
@@ -112,15 +129,6 @@ export const sequencesSeries: Course = {
             ask('seq-method-flow'),
             ask('seq-rule-table', 2),
             ask('seq-term+choice'),
-            teach(
-              prose(
-                'Look at the **right-hand side** to tell the two apart, not the subscript on the left. If an earlier term such as $u_n$ appears there, the rule is term-to-term.',
-              ),
-              maths('u_{n+1} = 3n + 1'),
-              prose('This is position-to-term: only $n$ is on the right.'),
-              maths('u_n = u_{n-1} + 4'),
-              prose('This is term-to-term: it needs $u_{n-1}$, the term before.'),
-            ),
             ask('seq-rule-kind', 2),
             ask('seq-method-flow', 2),
           ],
@@ -356,15 +364,17 @@ export const sequencesSeries: Course = {
             ),
             ask('seq-ap-series-steps'),
             ask('seq-ap-sum-table'),
-            ask('seq-ap-total-tree'),
             teach(
               prose(
                 'The second form comes from $l = a + (n - 1)d$. Use it when the last term is not given. The usual slip is $nd$ in place of $(n - 1)d$.',
               ),
-              prose('For $3 + 7 + 11 + \\dots$ to $20$ terms, $a = 3$ and $d = 4$:'),
-              maths('\\begin{aligned} S_{20} &= 10(6 + 19 \\times 4) \\\\ &= 820 \\end{aligned}'),
+              prose('For $3 + 7 + 11 + \\dots$ to $20$ terms, $a = 3$, $d = 4$ and $n = 20$:'),
+              maths(
+                '\\begin{aligned} S_{20} &= \\tfrac{20}{2}(2 \\times 3 + 19 \\times 4) \\\\ &= 10(6 + 76) \\\\ &= 10 \\times 82 \\\\ &= 820 \\end{aligned}',
+              ),
               prose('The running total $S_n$ also gives terms back: $u_n = S_n - S_{n-1}$.'),
             ),
+            ask('seq-ap-total-tree'),
             ask('seq-ap-sum'),
             ask('seq-ap-series-steps', 2),
             ask('seq-ap-sum-table', 2),
@@ -387,7 +397,15 @@ export const sequencesSeries: Course = {
               maths('\\begin{aligned} S &= a + \\dots + ar^{n-1} \\\\ rS &= ar + \\dots + ar^n \\\\ rS - S &= ar^n - a \\end{aligned}'),
               maths('S_n = \\frac{a(r^n - 1)}{r - 1}'),
             ),
-            ask('seq-gp-formula-tiles'),
+            askAfter(
+              'seq-gp-formula-tiles',
+              1,
+              prose('For $3 + 6 + 12 + \\dots$ to $5$ terms, $a = 3$ and $r = 2$:'),
+              maths(
+                '\\begin{aligned} S_5 &= \\frac{3(2^5 - 1)}{2 - 1} \\\\ &= \\frac{3 \\times 31}{1} = 93 \\end{aligned}',
+              ),
+              prose('Check: $3 + 6 + 12 + 24 + 48 = 93$.'),
+            ),
             ask('seq-gp-total-tree'),
             ask('seq-gp-series-steps'),
             teach(
@@ -461,15 +479,36 @@ export const sequencesSeries: Course = {
               maths('\\text{one value: } u_n \\qquad \\text{a total: } S_n'),
             ),
             ask('seq-context-flow'),
-            ask('seq-context-ap-tree'),
-            ask('seq-context'),
+            askAfter(
+              'seq-context-ap-tree',
+              1,
+              prose(
+                'Tom saves £$10$ in month $1$ and £$3$ more each month. It adds the same amount, so it is arithmetic: $a = 10$, $d = 3$, and $6$ months is $n = 6$.',
+              ),
+              maths('\\begin{aligned} l &= 10 + 5 \\times 3 = 25 \\\\ S_6 &= \\tfrac{6}{2}(10 + 25) \\\\ &= 3 \\times 35 = 105 \\end{aligned}'),
+            ),
             teach(
               prose(
-                'Some questions ask when a total first passes a target. Work the running total along until it does: $S_n$ for one $n$, then the next.',
+                'A ball dropped from $80$ m rises to $\\frac{1}{2}$ of its height each bounce. The drop is not a bounce, so bounce $1$ already has one $\\frac{1}{2}$ in it:',
               ),
-              prose('The answer is the first whole step past the target, not the one before it.'),
+              maths(
+                '\\begin{aligned} \\text{bounce } 1 &: 80 \\times \\tfrac{1}{2} = 40 \\\\ \\text{bounce } 2 &: 80 \\times \\left(\\tfrac{1}{2}\\right)^2 = 20 \\\\ \\text{bounce } 3 &: 80 \\times \\left(\\tfrac{1}{2}\\right)^3 = 10 \\end{aligned}',
+              ),
+              prose(
+                'After bounce $k$ the power is $k$, not $k - 1$. A total that multiplies is a geometric sum. One person tells $2$ people on day $1$, and each day everyone who heard it the day before tells $2$ new people. By the end of day $4$:',
+              ),
+              maths('\\begin{aligned} S_4 &= 2 + 4 + 8 + 16 \\\\ &= \\frac{2(2^4 - 1)}{2 - 1} = 30 \\end{aligned}'),
             ),
-            ask('seq-first-exceed'),
+            ask('seq-context'),
+            askAfter(
+              'seq-first-exceed',
+              1,
+              prose(
+                'To find when a total first passes a target, work the running total along until it does. Save £$5$ in week $1$ and £$4$ more each week. When does the total pass £$60$?',
+              ),
+              maths('\\begin{aligned} S_4 &= 5 + 9 + 13 + 17 = 44 \\\\ S_5 &= 44 + 21 = 65 \\end{aligned}'),
+              prose('$44$ is short and $65$ is past, so week $5$: the first whole step past the target, not the one before it.'),
+            ),
             ask('seq-context-flow', 2),
             ask('seq-context-ap-tree', 2),
             teach(
@@ -531,7 +570,15 @@ export const sequencesSeries: Course = {
             ),
             ask('seq-period-table'),
             ask('seq-period'),
-            ask('seq-monotone-flow', 2),
+            askAfter(
+              'seq-monotone-flow',
+              2,
+              prose('With a fraction over $n$, subtract over a common denominator. For $u_n = 5 - \\frac{3}{n}$ the $5$ cancels:'),
+              maths(
+                '\\begin{aligned} u_{n+1} - u_n &= \\frac{3}{n} - \\frac{3}{n + 1} \\\\ &= \\frac{3(n + 1) - 3n}{n(n + 1)} \\\\ &= \\frac{3}{n(n + 1)} \\end{aligned}',
+              ),
+              prose('That is positive for every $n \\geq 1$, so the sequence is increasing.'),
+            ),
             teach(
               prose('Some rules use the two terms before. $u_{n+2} = u_{n+1} - u_n$ with $u_1 = 2$ and $u_2 = 5$ gives:'),
               maths('\\begin{gathered} 2, \\; 5, \\; 3, \\; -2, \\\\ -5, \\; -3, \\; 2, \\; 5, \\; \\dots \\end{gathered}'),
@@ -590,14 +637,19 @@ export const sequencesSeries: Course = {
               ),
             ),
             ask('seq-fate-table'),
-            ask('seq-fate-flow'),
-            ask('seq-fate-slider'),
             teach(
               prose('$L = pL + q$ has a solution for every $p$ except $1$, so finding $L$ proves nothing. Look at $p$ first:'),
               maths(
                 '\\begin{aligned} |p| < 1 &: \\text{converges} \\\\ p = -1 &: \\text{period } 2 \\\\ p = 1 &: \\text{diverges} \\\\ |p| > 1 &: \\text{diverges} \\end{aligned}',
               ),
               prose('With $p = -1$ the terms flip between two values for ever. With $p = 1$ each step adds the same $q$, so they never settle.'),
+            ),
+            ask('seq-fate-flow'),
+            askAfter(
+              'seq-fate-slider',
+              1,
+              prose('Once the terms settle, $u_{n+1}$ and $u_n$ are both $L$. For $u_{n+1} = \\frac{1}{2}u_n + 4$:'),
+              maths('\\begin{aligned} L &= \\tfrac{1}{2}L + 4 \\\\ \\tfrac{1}{2}L &= 4 \\\\ L &= 8 \\end{aligned}'),
             ),
             ask('seq-fate'),
             ask('seq-fate-table', 2),
@@ -635,14 +687,14 @@ export const sequencesSeries: Course = {
               ),
             ),
             ask('seq-power-flow'),
-            ask('seq-pos-converge'),
-            ask('seq-power-flow', 2),
             teach(
               prose(
                 '$(-1)^n$ flips sign every step, so $3 + (-1)^n$ jumps between $2$ and $4$ and never settles: it diverges.',
               ),
               prose('But $\\frac{(-1)^n}{n}$ shrinks towards $0$ while it flips, so it converges, to $0$.'),
             ),
+            ask('seq-pos-converge'),
+            ask('seq-power-flow', 2),
             ask('seq-pos-converge', 2),
             ask('seq-pos-limit', 2),
           ],
@@ -673,10 +725,14 @@ export const sequencesSeries: Course = {
             ),
             ask('seq-gap-first'),
             ask('seq-rate-flow', 2),
-            ask('seq-gap-table', 2),
             teach(
-              prose('With $p = -\\frac{1}{2}$ the gap is divided by $-2$ each step, so after $4$ steps it has been divided by $(-2)^4 = 16$, and after $5$ by $(-2)^5 = -32$: it lands on the other side of $L$.'),
+              prose('With $p = -\\frac{1}{2}$ each gap is $-\\frac{1}{2}$ times the one before. From a gap of $32$:'),
+              maths('32, \\; -16, \\; 8, \\; -4, \\; 2'),
+              prose(
+                'The sign flips every step, so the terms land on alternate sides of $L$. The gap is divided by $-2$ each step: after $4$ steps by $(-2)^4 = 16$, and after $5$ by $(-2)^5 = -32$.',
+              ),
             ),
+            ask('seq-gap-table', 2),
             ask('seq-gap-tree', 2),
             ask('seq-gap-first+choice', 2),
           ],
@@ -715,22 +771,25 @@ export const sequencesSeries: Course = {
               prose('Two more are worth knowing by heart:'),
               maths('\\begin{aligned} \\sum_{r=1}^{n} r^2 &= \\frac{1}{6}n(n + 1)(2n + 1) \\\\ \\sum_{r=1}^{n} r^3 &= \\frac{1}{4}n^2(n + 1)^2 \\end{aligned}'),
             ),
+            teach(
+              prose('Put the top of the sum in for $n$. For $\\sum_{r=1}^{10} r^2$, $n = 10$, so $n + 1 = 11$ and $2n + 1 = 21$:'),
+              maths('\\frac{1}{6} \\times 10 \\times 11 \\times 21 = 385'),
+              prose('For $\\sum_{r=1}^{5} r^3$, $n = 5$ and $n + 1 = 6$:'),
+              maths('\\begin{aligned} \\tfrac{1}{4} \\times 5^2 \\times 6^2 &= \\tfrac{1}{4} \\times 25 \\times 36 \\\\ &= 225 \\end{aligned}'),
+              prose('The sum of cubes is the square of the sum: $1 + 2 + 3 + 4 + 5 = 15$, and $15^2 = 225$.'),
+            ),
             ask('seq-power-sum-tiles'),
             ask('seq-power-sum'),
             ask('seq-power-sum-table'),
-            teach(
-              prose('Put the top of the sum in for $n$. For $\\sum_{r=1}^{10} r^2$, $n = 10$:'),
-              maths('\\frac{1}{6} \\times 10 \\times 11 \\times 21 = 385'),
-              prose('The sum of cubes is the square of the sum: $\\sum r^3 = \\left(\\sum r\\right)^2$. Up to $4$: $1 + 8 + 27 + 64 = 100 = 10^2$.'),
-            ),
             ask('seq-formula-reduce'),
-            ask('seq-power-sum-tiles', 2),
-            ask('seq-power-sum-table', 2),
             teach(
               prose('The top of a sum can be an expression, and every $n$ in the result becomes it. For a sum to $2n$:'),
               maths('\\begin{aligned} \\sum_{r=1}^{2n} r &= \\frac{1}{2}(2n)(2n + 1) \\\\ &= n(2n + 1) \\end{aligned}'),
-              prose('Check with $n = 2$: $1 + 2 + 3 + 4 = 10$, and $2 \\times 5 = 10$.'),
+              prose('Check with $n = 2$: $1 + 2 + 3 + 4 = 10$, and $2 \\times 5 = 10$. With $\\sum r^2$ every bracket changes: $n + 1$ becomes $2n + 1$, and $2n + 1$ becomes $2(2n) + 1 = 4n + 1$:'),
+              maths('\\sum_{r=1}^{2n} r^2 = \\frac{1}{6}(2n)(2n + 1)(4n + 1)'),
             ),
+            ask('seq-power-sum-tiles', 2),
+            ask('seq-power-sum-table', 2),
             ask('seq-formula-reduce', 2),
             ask('seq-power-sum', 2),
           ],
@@ -755,7 +814,15 @@ export const sequencesSeries: Course = {
             ),
             ask('seq-split-tree', 2),
             ask('seq-split-tiles', 2),
-            ask('seq-built-sum', 2),
+            askAfter(
+              'seq-built-sum',
+              2,
+              prose('A term with $r^3$ in it needs $\\sum r^3$. Up to $4$, $r^2(r + 1) = r^3 + r^2$:'),
+              maths(
+                '\\begin{aligned} \\sum_{r=1}^{4} r^3 &= \\tfrac{1}{4} \\times 16 \\times 25 = 100 \\\\ \\sum_{r=1}^{4} r^2 &= \\tfrac{1}{6} \\times 4 \\times 5 \\times 9 = 30 \\end{aligned}',
+              ),
+              prose('So the sum is $100 + 30 = 130$. Check: $2 + 12 + 36 + 80 = 130$.'),
+            ),
             teach(
               prose('To write the answer as one expression in $n$, take out what the parts share. Both $\\sum r^2$ and $\\sum r$ carry $\\frac{1}{6}n(n + 1)$, since $\\sum r = \\frac{1}{6}n(n + 1) \\times 3$:'),
               maths('\\begin{aligned} &\\sum_{r=1}^{n} (r^2 + r) \\\\ &= \\frac{1}{6}n(n + 1)\\big((2n + 1) + 3\\big) \\\\ &= \\frac{1}{6}n(n + 1)(2n + 4) \\end{aligned}'),
@@ -833,7 +900,16 @@ export const sequencesSeries: Course = {
             ),
             ask('seq-ind-next-sum'),
             ask('seq-ind-order-sum'),
-            ask('seq-ind-added-term', 2),
+            askAfter(
+              'seq-ind-added-term',
+              2,
+              prose(
+                'The next term of a geometric sum comes the same way: put $r = k + 1$ into the term. For $\\sum_{r=1}^{n} 5 \\times 2^{r-1} = 5(2^n - 1)$:',
+              ),
+              maths(
+                '\\begin{aligned} u_{k+1} &= 5 \\times 2^{(k + 1) - 1} = 5 \\times 2^k \\\\ \\sum_{r=1}^{k+1} u_r &= 5(2^k - 1) + 5 \\times 2^k \\end{aligned}',
+              ),
+            ),
             teach(
               prose('A proof is written in four parts: the **base case**, the **assumption** at $n = k$, the **step** to $n = k + 1$, and a **conclusion**.'),
               prose('The conclusion ties them together: it holds at $n = 1$, and whenever it holds at $n = k$ it holds at $n = k + 1$, so it holds at $2$, then $3$, and so on for every $n \\ge 1$.'),
@@ -853,21 +929,21 @@ export const sequencesSeries: Course = {
               prose('Both parts have a factor $(k + 1)$. Take out $\\frac16(k + 1)$: the first part leaves $k(2k + 1)$ and the second $6(k + 1)$, which add to $2k^2 + 7k + 6$.'),
               maths('\\frac16(k + 1)(2k^2 + 7k + 6)'),
             ),
+            teach(
+              prose('Know where the step is going. The claim at $n = k + 1$ puts $k + 1$ in place of every $n$: $n$ becomes $k + 1$, $n + 1$ becomes $k + 2$, and $2n + 1$ becomes $2(k + 1) + 1 = 2k + 3$:'),
+              maths('\\frac16(k + 1)(k + 2)(2k + 3)'),
+              prose('So $2k^2 + 7k + 6$ should factorise as $(k + 2)(2k + 3)$, and it does. The target tells you which factors to look for.'),
+            ),
             ask('seq-ind-target'),
             ask('seq-ind-factor-out'),
             ask('seq-ind-standard-step'),
             teach(
-              prose('Know where the step is going. The claim at $n = k + 1$ puts $k + 1$ in place of every $n$:'),
-              maths('\\frac16(k + 1)(k + 2)(2k + 3)'),
-              prose('So $2k^2 + 7k + 6$ should factorise as $(k + 2)(2k + 3)$, and it does. The target tells you which factors to look for.'),
+              prose('For $\\sum_{r=1}^{n} r^3 = \\frac14 n^2(n + 1)^2$ the common factor is $(k + 1)^2$:'),
+              maths('\\begin{aligned} &\\frac14 k^2(k + 1)^2 + (k + 1)^3 \\\\ &= \\frac14(k + 1)^2\\big(k^2 + 4(k + 1)\\big) \\\\ &= \\frac14(k + 1)^2(k^2 + 4k + 4) \\\\ &= \\frac14(k + 1)^2(k + 2)^2 \\end{aligned}'),
             ),
             ask('seq-ind-order-standard'),
             ask('seq-ind-target', 2),
             ask('seq-ind-factor-out', 2),
-            teach(
-              prose('For $\\sum_{r=1}^{n} r^3 = \\frac14 n^2(n + 1)^2$ the common factor is $(k + 1)^2$:'),
-              maths('\\begin{aligned} &\\frac14 k^2(k + 1)^2 + (k + 1)^3 \\\\ &= \\frac14(k + 1)^2\\big(k^2 + 4(k + 1)\\big) \\\\ &= \\frac14(k + 1)^2(k + 2)^2 \\end{aligned}'),
-            ),
             ask('seq-ind-standard-step', 2),
             ask('seq-ind-order-standard', 2),
           ],
@@ -911,12 +987,13 @@ export const sequencesSeries: Course = {
               maths('\\begin{aligned} u_{k+1} &= 2(2^k - 1) + 1 \\\\ &= 2^{k+1} - 1 \\end{aligned}'),
             ),
             ask('seq-ind-rec-table'),
+            teach(
+              prose('To find the form for $u_{n+1} = pu_n + q$, try $u_n = c \\times p^n + d$. The constant $d$ is the value the rule leaves alone, $d = pd + q$; then $c$ comes from $u_1$. For $u_{n+1} = 3u_n - 4$, $u_1 = 5$:'),
+              maths('\\begin{aligned} d &= 3d - 4 \\\\ 2d &= 4, \\; d = 2 \\\\ u_1 &= 3c + 2 = 5 \\\\ 3c &= 3, \\; c = 1 \\end{aligned}'),
+              prose('So $u_n = 3^n + 2$. Check: $u_2 = 3 \\times 5 - 4 = 11$, and $3^2 + 2 = 11$.'),
+            ),
             ask('seq-ind-rec-closed'),
             ask('seq-ind-rec-step'),
-            teach(
-              prose('To find the form for $u_{n+1} = pu_n + q$, try $u_n = c \\times p^n + d$. The constant $d$ is the value the rule leaves alone, $d = pd + q$; then $c$ comes from $u_1$.'),
-              prose('For $u_{n+1} = 3u_n - 4$, $u_1 = 5$: $d = 3d - 4$ gives $d = 2$, and $3c + 2 = 5$ gives $c = 1$. So $u_n = 3^n + 2$.'),
-            ),
             ask('seq-ind-order-rec'),
             ask('seq-ind-rec-term'),
             ask('seq-ind-rec-table', 2),
@@ -938,20 +1015,20 @@ export const sequencesSeries: Course = {
               prose('At $n = 1$: $1$ and $1$. At $n = 2$: $3$ and $3$. At $n = 3$: $6$, but the claim gives $7$. A formula can fit the first few totals and still be wrong, so fitting is evidence, never proof.'),
             ),
             ask('seq-ind-test-table'),
-            ask('seq-ind-verdict'),
-            ask('seq-ind-flaw'),
             teach(
               prose('Both halves are needed. For $\\sum_{r=1}^{n} r = \\frac12 n(n + 1) + 2$ the step works: adding $k + 1$ to $\\frac12 k(k + 1) + 2$ gives $\\frac12(k + 1)(k + 2) + 2$.'),
               prose('But at $n = 1$ the sum is $1$ and the claim gives $3$. With no base case the step carries nothing forward, and the claim is false.'),
             ),
+            ask('seq-ind-verdict'),
+            teach(
+              prose('Three slips to look for when reading a proof:'),
+              prose('An assumption at $n = k + 1$, which assumes what the step has to show. The assumption is always at $n = k$. And adding $u_k$ in the step, when the term added is $u_{k+1}$.'),
+              prose('A base case in the wrong place. It goes where the claim starts. For $\\sum_{r=2}^{n} 2r = n^2 + n - 2$, $n \\ge 2$, the base case is $n = 2$: the sum is the single term $u_2 = 4$, and the right side is $4 + 2 - 2 = 4$.'),
+            ),
+            ask('seq-ind-flaw'),
             ask('seq-ind-start'),
             ask('seq-ind-test-table', 2),
             ask('seq-ind-verdict', 2),
-            teach(
-              prose('Three slips to look for when reading a proof:'),
-              prose('A base case in the wrong place. It goes where the claim starts: a sum from $r = 4$ starts at $n = 4$, where the sum is the single term $u_4$.'),
-              prose('An assumption at $n = k + 1$, which assumes what the step has to show. And adding $u_k$ in the step, when the term added is $u_{k+1}$.'),
-            ),
             ask('seq-ind-flaw', 2),
             ask('seq-ind-start', 2),
           ],
@@ -989,13 +1066,15 @@ export const sequencesSeries: Course = {
               prose('Year 1 ends with $1000 \\times 1.1 = 1100$. Year 2 starts with $1100 + 1000 = 2100$ and ends with $2100 \\times 1.1 = 2310$.'),
             ),
             ask('seq-save-table'),
-            ask('seq-save-series-tiles'),
-            ask('seq-save-sum-steps'),
             teach(
               prose('Follow each payment on its own instead. The last one grows for one year, the one before it for two, and the first for all $n$:'),
               maths('\\begin{aligned} B_n = \\; &1000 \\times 1.1 \\\\ &+ 1000 \\times 1.1^2 \\\\ &+ \\dots + 1000 \\times 1.1^n \\end{aligned}'),
-              prose('That is a geometric series, with first term $1000 \\times 1.1$ and common ratio $1.1$.'),
+              prose('That is a geometric series, with first term $1000 \\times 1.1$ and common ratio $1.1$. After two years, work each term out, then add:'),
+              maths('\\begin{aligned} B_2 &= 1000 \\times 1.1 + 1000 \\times 1.1^2 \\\\ &= 1100 + 1210 \\\\ &= 2310 \\end{aligned}'),
+              prose('The same $2310$ as running it year by year.'),
             ),
+            ask('seq-save-series-tiles'),
+            ask('seq-save-sum-steps'),
             ask('seq-save-balance'),
             ask('seq-save-table', 2),
             ask('seq-save-series-tiles', 2),
@@ -1016,24 +1095,29 @@ export const sequencesSeries: Course = {
             teach(
               prose('Borrow £1000 at $20\\%$ a year and repay £300 at the end of each year. Each year the debt is multiplied by $1.2$, then the payment comes off:'),
               maths('\\begin{gathered} u_{n+1} = 1.2u_n - 300 \\\\ u_0 = 1000 \\end{gathered}'),
-              prose('Here $u_n$ is what is still owed after $n$ payments.'),
+              prose('Here $u_n$ is what is still owed after $n$ payments. Run it a year at a time:'),
+              maths('\\begin{aligned} u_1 &= 1200 - 300 = 900 \\\\ u_2 &= 1080 - 300 = 780 \\\\ u_3 &= 936 - 300 = 636 \\end{aligned}'),
+              prose('The debt falls, but slowly: at first most of each payment goes on interest.'),
+            ),
+            teach(
+              prose(
+                'The loan clears in the first year that what is owed, once the interest is on, is no more than the payment. That last payment is smaller: it is just what is owed. Repay £600 a year on £1000 at $20\\%$:',
+              ),
+              maths(
+                '\\begin{aligned} \\text{year } 1 &: 1200 - 600 = 600 \\\\ \\text{year } 2 &: 720 - 600 = 120 \\\\ \\text{year } 3 &: 120 \\times 1.2 = 144 \\end{aligned}',
+              ),
+              prose('$144$ is less than $600$, so a last payment of $144$ clears it, in year $3$.'),
             ),
             ask('seq-loan-table'),
             ask('seq-loan-rule-tiles'),
             ask('seq-loan-clear'),
             teach(
-              prose('Run it a year at a time:'),
-              maths('\\begin{aligned} u_1 &= 1200 - 300 = 900 \\\\ u_2 &= 1080 - 300 = 780 \\\\ u_3 &= 936 - 300 = 636 \\end{aligned}'),
-              prose('The debt falls, but slowly: at first most of each payment goes on interest.'),
+              prose('The interest is everything repaid less the amount borrowed. Count the full payments, then add the smaller last one. For the £1000 loan:'),
+              maths('\\begin{aligned} \\text{repaid} &= 600 + 600 + 144 \\\\ &= 1344 \\\\ \\text{interest} &= 1344 - 1000 \\\\ &= 344 \\end{aligned}'),
             ),
             ask('seq-loan-interest-tree'),
             ask('seq-loan-table', 2),
             ask('seq-loan-rule-tiles', 2),
-            teach(
-              prose('The loan clears in the first year that what is owed, once the interest is on, is no more than the payment. That last payment is smaller.'),
-              prose('Repay £600 a year on £1000 at $20\\%$: $1200 - 600 = 600$, then $720 - 600 = 120$, then a last payment of $144$ clears it.'),
-              prose('The interest is everything repaid less the amount borrowed: $600 + 600 + 144 - 1000 = 344$.'),
-            ),
             ask('seq-loan-clear', 2),
             ask('seq-loan-interest-tree', 2),
           ],
@@ -1046,20 +1130,21 @@ export const sequencesSeries: Course = {
             teach(
               prose('How many years until savings pass a target? Run the balance a year at a time and stop at the first one over it.'),
               prose('£10 a year, doubled at the end of each year, ends the years on $20, 60, 140, 300$. A target of £200 is first passed in year $4$.'),
+              prose('Beside each balance, write how far it is above the target: $-180, -140, -60, 100$. The gap is negative until the target is passed, and the first positive gap marks the year.'),
             ),
             ask('seq-target-table'),
             ask('seq-target-year'),
-            ask('seq-target-payment'),
             teach(
-              prose('Beside each balance, write how far it is above the target. The gap is negative until the target is passed, and the first positive gap marks the year.'),
+              prose('To reach a target in a set number of years, use the fact that every balance is in proportion to the payment. Try £40 a year at $50\\%$:'),
+              maths(
+                '\\begin{aligned} B_1 &= 40 \\times 1.5 = 60 \\\\ B_2 &= (60 + 40) \\times 1.5 = 150 \\\\ B_3 &= (150 + 40) \\times 1.5 = 285 \\end{aligned}',
+              ),
+              prose('To have £1425 after three years, pay $1425 \\div 285 = 5$ times as much: $40 \\times 5 = 200$, so £200 a year.'),
             ),
+            ask('seq-target-payment'),
             ask('seq-target-scale-tree'),
             ask('seq-target-table', 2),
             ask('seq-target-year', 2),
-            teach(
-              prose('To reach a target in a set number of years, use the fact that every balance is in proportion to the payment.'),
-              prose('At $50\\%$, £40 a year ends the years on $60, 150, 285$. To have £1425 after three years, pay $1425 \\div 285 = 5$ times as much: £200 a year.'),
-            ),
             ask('seq-target-payment+choice', 2),
             ask('seq-target-scale-tree', 2),
           ],
@@ -1103,11 +1188,11 @@ export const sequencesSeries: Course = {
             ),
             ask('seq-plans-table'),
             ask('seq-plans-overtake'),
-            ask('seq-plans-which'),
             teach(
               prose('Paying more in one year is not paying more overall. Over the first three years A pays $500 + 600 + 700 = 1800$ and B pays $320 + 480 + 720 = 1520$.'),
-              prose('B pays more in year 3, and A is still ahead in total.'),
+              prose('B pays more in year 3, and A is still ahead in total, by $1800 - 1520 = 280$.'),
             ),
+            ask('seq-plans-which'),
             ask('seq-plans-total-tree'),
             ask('seq-plans-table', 2),
             ask('seq-plans-overtake', 2),

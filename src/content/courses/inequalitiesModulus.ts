@@ -140,7 +140,20 @@ export const inequalitiesModulus: Course = {
                 'A **hollow** dot means the end is left out, as in $x > 2$. A **filled** dot means it is included, as in $x \\ge 2$. The shading runs off the edge of the line in the direction the sign points.',
               ),
               prose(
-                'Solving works like an equation: $2x + 3 > 7$ becomes $2x > 4$, then $x > 2$.',
+                'Solving works like an equation: $2x + 3 > 7$ becomes $2x > 4$ (take $3$), then $x > 2$ (divide by $2$).',
+              ),
+            ),
+            ask('ineq-read-line'),
+            teach(
+              prose(
+                'One move is different. $-2 < 3$ is true, but multiply both sides by $-1$ and you get $2$ and $-3$, where $2$ is the **bigger**. Multiplying or dividing by a negative number reverses the order of the line, so the sign turns round.',
+              ),
+              maths('\\begin{gathered} -3x - 4 \\ge 11 \\\\ -3x \\ge 15 \\\\ x \\le -5 \\end{gathered}'),
+              prose(
+                'Add $4$ to both sides: the sign stays. Divide by $-3$: the sign turns round, $\\ge$ becomes $\\le$. Check with a number: $x = -6$ is in $x \\le -5$, and $-3 \\times (-6) - 4 = 14 \\ge 11$ is true.',
+              ),
+              prose(
+                'Swapping the two sides over also turns the sign, because it reads the same fact from the other end: $3 < x$ is $x > 3$. Adding or subtracting never turns it.',
               ),
             ),
             ask('ineq-linear-line'),
@@ -148,25 +161,18 @@ export const inequalitiesModulus: Course = {
             ask('ineq-flip-flow'),
             teach(
               prose(
-                'One move is different. $-2 < 3$ is true, but multiply both sides by $-1$ and you get $2$ and $-3$, where $2$ is the **bigger**. Multiplying or dividing by a negative number reverses the order of the line, so the sign turns round.',
-              ),
-              maths('\\begin{gathered} -3x \\le 12 \\\\ x \\ge -4 \\end{gathered}'),
-              prose(
-                'Check with a number: $x = 0$ is in $x \\ge -4$, and $-3 \\times 0 = 0 \\le 12$ is true. $x = -5$ is not, and $15 \\le 12$ is false. A quick check catches a missed flip every time.',
-              ),
-            ),
-            ask('ineq-read-line'),
-            ask('ineq-greatest-integer'),
-            ask('ineq-linear-line', 2),
-            teach(
-              prose(
                 'With $x$ on both sides, collect the $x$ terms first. It is the coefficient **left after collecting** whose sign decides the flip.',
               ),
-              maths('\\begin{gathered} 2x + 5 < 5x - 7 \\\\ -3x < -12 \\\\ x > 4 \\end{gathered}'),
+              maths('\\begin{gathered} 2x + 5 < 5x - 7 \\\\ -3x + 5 < -7 \\\\ -3x < -12 \\\\ x > 4 \\end{gathered}'),
               prose(
-                'The greatest whole number below a bound is found from the solved form. $x < \\frac{13}{3}$ allows $4$ but not $5$; $x < 5$ also allows $4$, while $x \\le 5$ allows $5$ itself.',
+                'The **greatest** whole number: $3x + 7 < 2$ gives $3x < -5$, so $x < -\\frac{5}{3}$, about $-1.67$. $-1$ is too big, so the greatest is $-2$.',
+              ),
+              prose(
+                'The **smallest** whole number: $2x - 1 > -6$ gives $2x > -5$, so $x > -2.5$. $-3$ is too small, so the smallest is $-2$. When the bound is whole, only $\\le$ or $\\ge$ lets the bound itself in: $x < 5$ allows $4$, $x \\le 5$ allows $5$.',
               ),
             ),
+            ask('ineq-greatest-integer'),
+            ask('ineq-linear-line', 2),
             ask('ineq-linear-steps', 2),
             askWith('ineq-greatest-integer+choice', 'Watch which way the sign points once it is solved.', 2),
           ],
@@ -181,12 +187,14 @@ export const inequalitiesModulus: Course = {
                 'Two inequalities can be joined. **And** keeps only the numbers that pass both: the overlap. **Or** keeps every number that passes either one.',
               ),
               line(-4, 6, [piece(-1, 3, false, true)], 'x greater than -1 and x at most 3: one interval'),
-              prose('$x > -1$ and $x \\le 3$ overlap between $-1$ and $3$, so the answer is one interval.'),
+              prose(
+                'Solve each part on its own first: $2x + 1 > -1$ gives $2x > -2$, so $x > -1$; and $x - 2 \\le 1$ gives $x \\le 3$. Then $x > -1$ and $x \\le 3$ overlap between $-1$ and $3$, so the answer is one interval.',
+              ),
               line(-4, 6, [piece(-Infinity, -1, false, false), piece(3, Infinity, false, true)], 'x less than -1 or x at least 3: two rays'),
               prose('$x < -1$ or $x \\ge 3$ is two rays pointing apart, with the gap between them left unshaded.'),
             ),
             ask('ineq-andor-line'),
-            ask('ineq-double-tiles'),
+            ask('ineq-or-tiles'),
             ask('ineq-combine-flow'),
             teach(
               prose(
@@ -197,9 +205,8 @@ export const inequalitiesModulus: Course = {
                 'Divide by a negative and **both** signs turn round, so rewrite it with the smaller number on the left: $-6 \\le -2x < 4$ gives $3 \\ge x > -2$, which is $-2 < x \\le 3$.',
               ),
             ),
-            ask('ineq-or-tiles'),
+            ask('ineq-double-tiles'),
             ask('ineq-double-line'),
-            ask('ineq-combine-flow', 2),
             teach(
               prose(
                 'Two rays pointing the **same** way behave differently. $x > 1$ and $x > 4$ is just $x > 4$, the stricter one. $x > 1$ or $x > 4$ is just $x > 1$, the wider one.',
@@ -208,6 +215,7 @@ export const inequalitiesModulus: Course = {
                 'And two rays can fail to meet at all: $x < 1$ and $x > 4$ has no solution, while $x > 1$ or $x < 4$ is every real number.',
               ),
             ),
+            ask('ineq-combine-flow', 2),
             ask('ineq-andor-line', 2),
             ask('ineq-or-tiles', 2),
           ],
@@ -226,28 +234,38 @@ export const inequalitiesModulus: Course = {
                 'A U-shaped curve is below the axis **between** its critical values and above it **outside** them. That does not change when the critical values are not whole numbers; only finding them does.',
               ),
               prose(
-                'Completing the square finds them either way. $x^2 - 4x - 5 < 0$ is $(x - 2)^2 < 9$, so $x - 2$ is within $3$ of zero: $-1 < x < 5$.',
+                'Completing the square finds them either way. For $x^2 - 4x - 5 < 0$: half of $-4$ is $-2$, and $(x - 2)^2 = x^2 - 4x + 4$, which is $4$ too many. So $x^2 - 4x - 5 = (x - 2)^2 - 4 - 5 = (x - 2)^2 - 9$.',
+              ),
+              maths('\\begin{gathered} (x - 2)^2 - 9 < 0 \\\\ (x - 2)^2 < 9 \\\\ -3 < x - 2 < 3 \\\\ -1 < x < 5 \\end{gathered}'),
+              prose(
+                'A square below $9$ means $x - 2$ is within $3$ of zero. With $>$ it would be further than $3$ away, the two rays outside: $x < -1$ or $x > 5$.',
               ),
             ),
             ask('ineq-square-line'),
-            ask('ineq-surd-set'),
-            ask('ineq-method-flow'),
             teach(
-              prose('When $b^2 - 4ac$ is positive but not a square number, the quadratic does not factorise and the critical values are surds.'),
-              maths('\\begin{gathered} x^2 - 4x + 1 < 0 \\\\ (x - 2)^2 < 3 \\\\ 2 - \\sqrt{3} < x < 2 + \\sqrt{3} \\end{gathered}'),
               prose(
-                'The two critical values are always the same distance either side of the line of symmetry $x = -\\frac{b}{2a}$, here $x = 2$. If $b^2 - 4ac$ is negative there are none: the curve is wholly above or below the axis.',
+                'Before solving, work out $b^2 - 4ac$. A **square number** means it factorises. **Positive but not a square** means the critical values are surds. **Zero** means one critical value, where the curve touches the axis. **Negative** means none: the curve is wholly above the axis, or wholly below if the $x^2$ term is negative.',
+              ),
+              prose('$x^2 - 4x + 1 < 0$ has $b^2 - 4ac = 16 - 4 = 12$, not a square. Complete the square: half of $-4$ is $-2$, so $x^2 - 4x + 1 = (x - 2)^2 - 4 + 1$.'),
+              maths('\\begin{gathered} (x - 2)^2 - 3 < 0 \\\\ (x - 2)^2 < 3 \\\\ -\\sqrt{3} < x - 2 < \\sqrt{3} \\\\ 2 - \\sqrt{3} < x < 2 + \\sqrt{3} \\end{gathered}'),
+              prose(
+                'The two critical values sit the same distance either side of the line of symmetry $x = -\\frac{b}{2a}$, here $x = -\\frac{-4}{2} = 2$. For $x^2 - 4x + 1 \\ge 0$ the answer is outside them: $x \\le 2 - \\sqrt{3}$ or $x \\ge 2 + \\sqrt{3}$.',
               ),
             ),
+            ask('ineq-method-flow'),
             ask('ineq-centre-slider'),
+            ask('ineq-surd-set'),
             ask('ineq-critical-tiles'),
-            ask('ineq-square-line', 2),
             teach(
               prose(
                 'Rearrange first when the inequality is not against $0$, and make the $x^2$ term positive, turning the sign round if you multiply by $-1$.',
               ),
-              maths('\\begin{gathered} 3 - x^2 + 2x \\ge 0 \\\\ x^2 - 2x - 3 \\le 0 \\\\ -1 \\le x \\le 3 \\end{gathered}'),
+              maths('\\begin{gathered} 3 - x^2 + 2x \\ge 0 \\\\ -x^2 + 2x + 3 \\ge 0 \\\\ x^2 - 2x - 3 \\le 0 \\\\ (x - 1)^2 \\le 4 \\\\ -1 \\le x \\le 3 \\end{gathered}'),
+              prose(
+                'Multiplying by $-1$ turned $\\ge$ into $\\le$. An upside-down U with a negative $b^2 - 4ac$ never reaches the axis, so it is below it everywhere.',
+              ),
             ),
+            ask('ineq-square-line', 2),
             ask('ineq-surd-set', 2),
             ask('ineq-method-flow', 2),
           ],
@@ -267,10 +285,12 @@ export const inequalitiesModulus: Course = {
               prose(
                 'Instead, find the **critical values**: where the top is zero, and where the bottom is zero. They split the line into regions, and the fraction keeps one sign across each region.',
               ),
+              prose(
+                'Test one value by signs alone. For $\\frac{x - 1}{x - 4} > 0$ at $x = 2$: the top is $2 - 1 = 1$, positive; the bottom is $2 - 4 = -2$, negative. Positive over negative is negative, and the inequality asks for a positive value, so $x = 2$ is not in the set.',
+              ),
             ),
             ask('ineq-sign-flow'),
             ask('ineq-test-tree'),
-            ask('ineq-excluded-pole'),
             teach(
               prose(
                 'A **sign table** tests one value in each region. For $f(x) = \\frac{x - 1}{x - 4}$, the critical values are $1$ and $4$.',
@@ -278,19 +298,28 @@ export const inequalitiesModulus: Course = {
               maths(
                 '\\begin{array}{c|cc|c} & x{-}1 & x{-}4 & f \\\\ \\hline x{<}1 & - & - & + \\\\ 1{<}x{<}4 & + & - & - \\\\ x{>}4 & + & + & + \\end{array}',
               ),
-              prose('So $\\frac{x - 1}{x - 4} > 0$ for $x < 1$ or $x > 4$.'),
-              line(-2, 7, [piece(-Infinity, 1, false, false), piece(4, Infinity, false, false)], 'x less than 1 or x greater than 4'),
+              prose('So $\\frac{x - 1}{x - 4} > 0$ for $x < 1$ or $x > 4$, with both dots hollow.'),
+              prose(
+                'With $\\ge$ the dots differ. The top being zero makes the fraction $0$, which $\\ge 0$ includes, so $1$ gets a **filled** dot. At $x = 4$ the bottom is zero and the fraction has **no value**, so $4$ is never in the set: its dot is always **hollow**.',
+              ),
+              maths('\\begin{gathered} \\frac{x - 1}{x - 4} \\ge 0 \\\\ x \\le 1 \\text{ or } x > 4 \\end{gathered}'),
+              line(-2, 7, [piece(-Infinity, 1, false, true), piece(4, Infinity, false, false)], 'x at most 1, filled dot, or x greater than 4, hollow dot'),
             ),
             ask('ineq-rational-line'),
-            ask('ineq-sign-flow', 2),
+            ask('ineq-excluded-pole'),
             ask('ineq-test-tree', 2),
             teach(
               prose(
-                'The bottom being zero is different from the top being zero. At $x = 4$ the fraction has **no value**, so $4$ is never in the set, even with $\\ge$: its dot is always hollow.',
+                'More brackets make more regions, and the table works the same. For $\\frac{(x + 2)(x - 3)}{x - 1} \\ge 0$ the critical values are $-2$, $1$ and $3$.',
               ),
-              maths('\\begin{gathered} \\frac{x - 1}{x - 4} \\ge 0 \\\\ \\iff x \\le 1 \\text{ or } x > 4 \\end{gathered}'),
-              prose('The top being zero makes the fraction $0$, which $\\ge 0$ includes, so $1$ gets a filled dot.'),
+              prose(
+                'Test one value in each region. $x = -3$: $\\frac{(-)(-)}{(-)}$, negative. $x = 0$: $\\frac{(+)(-)}{(-)}$, positive. $x = 2$: $\\frac{(+)(-)}{(+)}$, negative. $x = 4$: every bracket positive, so positive.',
+              ),
+              prose(
+                'So $-2 \\le x < 1$ or $x \\ge 3$: the top\'s zeros filled, the pole at $1$ hollow. A bottom written backwards, like $3 - x$, is zero at $3$ but **positive** to its left: test a value rather than guess its sign.',
+              ),
             ),
+            ask('ineq-sign-flow', 2),
             ask('ineq-rational-line', 2),
             ask('ineq-excluded-pole', 2),
           ],
@@ -323,14 +352,17 @@ export const inequalitiesModulus: Course = {
               ),
             ),
             ask('ineq-interval-line'),
-            ask('ineq-integers-count'),
             ask('ineq-interval-tiles', 2),
             teach(
               prose(
-                'Counting whole-number solutions needs the ends exactly. $-3 < 2x + 1 \\le 8$ gives $-2 < x \\le 3.5$, so the whole numbers are $-1, 0, 1, 2, 3$: five of them.',
+                'Counting whole-number solutions needs the ends exactly. $-3 < 2x + 1 \\le 8$: take $1$ from every part, $-4 < 2x \\le 7$, then divide every part by $2$, $-2 < x \\le 3.5$. The whole numbers are $-1, 0, 1, 2, 3$: five of them.',
               ),
               prose('A bound that is not whole is never itself a solution, so the strictness only matters when the bound is whole.'),
+              prose(
+                'Dividing every part by a negative turns **both** signs round. $-5 < -2x + 1 \\le 7$: take $1$, $-6 < -2x \\le 6$; divide by $-2$, $3 > x \\ge -3$, which is $-3 \\le x < 3$. The whole numbers are $-3$ to $2$: six of them.',
+              ),
             ),
+            ask('ineq-integers-count'),
             ask('ineq-read-region', 2),
             askWith('ineq-integers-count+choice', 'Solve first, then count.', 2),
           ],
@@ -373,27 +405,31 @@ export const inequalitiesModulus: Course = {
               ),
             ),
             ask('mod-evaluate'),
-            ask('mod-as-distance'),
-            ask('mod-distance-line'),
+            ask('mod-evaluate-tree'),
             teach(
               prose(
-                '$\\lvert x - a \\rvert$ is the distance between $x$ and $a$. So $\\lvert x - 2 \\rvert = 3$ asks for the numbers exactly $3$ away from $2$: $x = 5$ or $x = -1$.',
+                '$\\lvert x - a \\rvert$ is the distance between $x$ and $a$. So $\\lvert x - 2 \\rvert = 3$ asks for the numbers exactly $3$ away from $2$: $x = 2 + 3 = 5$ or $x = 2 - 3 = -1$.',
               ),
               line(-3, 6, [piece(-1, -1, true, true), piece(5, 5, true, true)], 'The two points -1 and 5, each 3 away from 2'),
               prose(
-                'Watch the sign: $\\lvert x + 4 \\rvert$ is $\\lvert x - (-4) \\rvert$, the distance from $-4$.',
+                'Watch the sign: $\\lvert x + 4 \\rvert$ is $\\lvert x - (-4) \\rvert$, the distance from $-4$. So "$x$ is at least $1$ away from $-4$" is $\\lvert x + 4 \\rvert \\ge 1$, and $\\lvert x + 4 \\rvert = 2$ gives $x = -4 + 2 = -2$ or $x = -4 - 2 = -6$.',
               ),
             ),
             ask('mod-points-tiles'),
-            ask('mod-evaluate-tree'),
-            ask('mod-distance-line', 2),
+            ask('mod-as-distance'),
             teach(
               prose(
-                '$\\lvert x - 2 \\rvert < 3$ is every $x$ **within** $3$ of $2$: one interval. $\\lvert x - 2 \\rvert > 3$ is every $x$ **further** than $3$ away: two rays pointing apart.',
+                '$\\lvert x - a \\rvert \\le c$ is every $x$ **within** $c$ of $a$: one interval. $\\lvert x + 2 \\rvert \\le 3$ is within $3$ of $-2$, from $-2 - 3 = -5$ to $-2 + 3 = 1$, both ends filled.',
               ),
-              line(-3, 7, [piece(-1, 5, false, false)], 'Within 3 of 2: between -1 and 5'),
+              line(-7, 3, [piece(-5, 1, true, true)], 'Within 3 of -2: from -5 to 1, both ends included'),
+              prose(
+                '$\\lvert x - a \\rvert \\ge c$ is every $x$ **at least** $c$ away: two rays pointing apart. $\\lvert x - 1 \\rvert \\ge 2$ is $x \\le -1$ or $x \\ge 3$, both dots filled; with $>$ they would be hollow.',
+              ),
+              line(-4, 6, [piece(-Infinity, -1, false, true), piece(3, Infinity, true, false)], 'At least 2 away from 1: x at most -1 or x at least 3'),
               prose('$\\lvert 2 - x \\rvert$ is the same distance as $\\lvert x - 2 \\rvert$.'),
             ),
+            ask('mod-distance-line'),
+            ask('mod-distance-line', 2),
             ask('mod-as-distance', 2),
             ask('mod-points-tiles', 2),
           ],
@@ -419,20 +455,20 @@ export const inequalitiesModulus: Course = {
               prose('The result is a V. It turns where the inside is zero: $2x - 4 = 0$, at $x = 2$.'),
             ),
             ask('mod-vertex-slider'),
-            ask('mod-match-graph'),
-            ask('mod-intercepts-tiles'),
             teach(
               prose(
                 'Where it meets the axes: the $x$-axis only at the vertex, $\\left(-\\frac{b}{a}, 0\\right)$, and the $y$-axis at $\\lvert b \\rvert$, since at $x = 0$ the inside is $b$.',
               ),
               prose(
-                'The two arms are straight lines. The right arm has the line\'s steepness, gradient $\\lvert a \\rvert$; the left arm is its reflection, gradient $-\\lvert a \\rvert$.',
+                'The two arms are straight lines. The right arm has the line\'s steepness, gradient $\\lvert a \\rvert$; the left arm is its reflection, gradient $-\\lvert a \\rvert$. For $y = \\lvert 2x - 4 \\rvert$ the right arm has gradient $2$ and the left arm $-2$.',
               ),
-              prose('For $y = \\lvert 2x - 4 \\rvert$ the right arm has gradient $2$ and the left arm $-2$.'),
+              prose(
+                'Going back from a graph: a V with its vertex at $(-3, 0)$ has an inside that is zero at $x = -3$, so it is a multiple of $x + 3$, say $k(x + 3)$. If it crosses the $y$-axis at $(0, 6)$, then at $x = 0$ the inside is $3k = 6$, so $k = 2$: $y = \\lvert 2x + 6 \\rvert$.',
+              ),
             ),
+            ask('mod-match-graph'),
+            ask('mod-intercepts-tiles'),
             ask('mod-arm-gradient'),
-            ask('mod-vertex-slider', 2),
-            ask('mod-match-graph', 2),
             teach(
               prose(
                 'A number outside the bars moves the whole V: $y = \\lvert 2x - 4 \\rvert + 1$ has its vertex at $(2, 1)$. A minus in front turns it upside down: $y = -\\lvert 2x - 4 \\rvert$ is an upside-down V with its vertex still at $(2, 0)$.',
@@ -440,7 +476,12 @@ export const inequalitiesModulus: Course = {
               prose(
                 'And a number in front scales both arms: $y = 3\\lvert x - 1 \\rvert$ has arms of gradient $3$ and $-3$.',
               ),
+              prose(
+                'Matching a moved V: vertex $(2, -1)$ and $y$-intercept $(0, 5)$. The inside is $k(x - 2)$ and $-1$ goes outside. At $x = 0$ the inside is $-2k$, whose modulus is $2k$, so $2k - 1 = 5$, giving $k = 3$ and $y = \\lvert 3x - 6 \\rvert - 1$. If the $y$-intercept were **below** the vertex, the V would be upside down, with a minus in front of the bars.',
+              ),
             ),
+            ask('mod-vertex-slider', 2),
+            ask('mod-match-graph', 2),
             ask('mod-intercepts-tiles', 2),
             askWith('mod-arm-gradient+choice', 'Which arm, and is there anything in front of the bars?', 2),
           ],
@@ -458,20 +499,21 @@ export const inequalitiesModulus: Course = {
               prose('Get the modulus alone first: $\\lvert 2x - 3 \\rvert + 4 = 11$ is $\\lvert 2x - 3 \\rvert = 7$.'),
             ),
             ask('mod-linear-roots'),
-            ask('mod-cases-steps'),
-            ask('mod-reject-flow'),
             teach(
               prose(
                 'When the right-hand side has $x$ in it too, the cases still work: $\\lvert x - 1 \\rvert = 2x + 5$ gives $x - 1 = 2x + 5$ or $x - 1 = -(2x + 5)$. The bracket matters: the minus goes on **every** term.',
               ),
+              maths('\\begin{gathered} x - 1 = -(2x + 5) \\\\ x - 1 = -2x - 5 \\\\ 3x = -4 \\\\ x = -\\tfrac{4}{3} \\end{gathered}'),
               prose(
-                'But a case can produce a root that does not solve the original equation. The first case gives $x = -6$, where the right-hand side is $2(-6) + 5 = -7$, and a modulus can never be negative.',
+                'But a case can produce a root that does not solve the original equation. The other case, $x - 1 = 2x + 5$, gives $x = -6$, where the right-hand side is $2(-6) + 5 = -7$. A modulus can never be negative, so $x = -6$ is rejected.',
               ),
-              prose('The second case gives $x = -\\frac{4}{3}$, where both sides are $\\frac{7}{3}$. **Always check each root.**'),
+              prose(
+                'At $x = -\\frac{4}{3}$ the right-hand side is $-\\frac{8}{3} + 5 = \\frac{7}{3}$, positive, and the left is $\\lvert -\\frac{7}{3} \\rvert = \\frac{7}{3}$: it stands. **Always check each root**: right-hand side first, then both sides.',
+              ),
             ),
+            ask('mod-cases-steps'),
+            ask('mod-reject-flow'),
             ask('mod-equation-root'),
-            ask('mod-linear-roots', 2),
-            ask('mod-reject-flow', 2),
             teach(
               prose(
                 'On a graph the check is visible. The solutions are where the line $y = dx + e$ meets the V, and the V is never below the axis. A root found where the line is below the axis is a meeting with the part of $y = ax + b$ that was reflected away.',
@@ -486,6 +528,8 @@ export const inequalitiesModulus: Course = {
                 [{ x: -4 / 3, y: 7 / 3 }],
               ),
             ),
+            ask('mod-linear-roots', 2),
+            ask('mod-reject-flow', 2),
             ask('mod-cases-steps', 2),
             askWith('mod-equation-root+choice', 'Two cases, two roots: which one survives the check?', 2),
           ],
@@ -554,10 +598,13 @@ export const inequalitiesModulus: Course = {
               prose(
                 'Inside the bars works the opposite way to how it reads: $x - 2$ moves the graph **right** by $2$. Outside works the way it reads: $+ 1$ moves it **up** by $1$.',
               ),
+              prose(
+                'A minus in front of the bars reflects the V in the $x$-axis, so it opens downwards. The vertex stays where the shifts put it: $y = -\\lvert x - 2 \\rvert + 1$ is an upside-down V with its vertex at $(2, 1)$.',
+              ),
             ),
             ask('mod-shift-slider'),
-            ask('mod-transform-match'),
             ask('mod-transform-flow'),
+            ask('mod-transform-tiles'),
             teach(
               prose(
                 'A number in front of the bars stretches the graph vertically: $y = 2\\lvert x \\rvert$ is twice as steep. A negative one reflects it in the $x$-axis, so $y = -\\lvert x \\rvert$ is an upside-down V.',
@@ -574,8 +621,11 @@ export const inequalitiesModulus: Course = {
               prose(
                 '$y = -2\\lvert x + 1 \\rvert + 3$: stretch by $2$, reflect, move left $1$ and up $3$. The vertex is at $(-1, 3)$, and the stretch never moves it.',
               ),
+              prose(
+                'Reading it back from the picture: the vertex $(-1, 3)$ gives $y = a\\lvert x + 1 \\rvert + 3$. The graph crosses the $y$-axis at $(0, 1)$, so $a \\times 1 + 3 = 1$ and $a = -2$. A negative $a$ means the upside-down V.',
+              ),
             ),
-            ask('mod-transform-tiles'),
+            ask('mod-transform-match'),
             ask('mod-shift-slider', 2),
             ask('mod-transform-match', 2),
             teach(
@@ -664,13 +714,13 @@ export const inequalitiesModulus: Course = {
             ),
             ask('mod-square-factor'),
             ask('mod-square-tree'),
-            ask('mod-expand-steps'),
+            ask('mod-square-root'),
             teach(
               prose('Multiplying the squares out works too, and lands on the same roots with more arithmetic. $(2x + 1)^2 = (x - 4)^2$ becomes'),
-              maths('\\begin{aligned} & 4x^2 + 4x + 1 \\\\ & \\quad = x^2 - 8x + 16 \\\\ & 3x^2 + 12x - 15 = 0 \\\\ & (x + 5)(x - 1) = 0 \\end{aligned}'),
+              maths('\\begin{aligned} & 4x^2 + 4x + 1 \\\\ & \\quad = x^2 - 8x + 16 \\\\ & 3x^2 + 12x - 15 = 0 \\\\ & 3(x^2 + 4x - 5) = 0 \\\\ & 3(x + 5)(x - 1) = 0 \\end{aligned}'),
               prose('Watch the middle terms: $(x - 4)^2$ has $-8x$ in it. Forgetting it is the usual slip.'),
             ),
-            ask('mod-square-root'),
+            ask('mod-expand-steps'),
             ask('mod-square-factor', 2),
             ask('mod-square-tree', 2),
             teach(
@@ -704,11 +754,12 @@ export const inequalitiesModulus: Course = {
                   { x: 1, y: 3 },
                 ],
               ),
-              prose('They cross at $(-5, 9)$ and $(1, 3)$. Arms of different steepness always cross twice.'),
+              prose(
+                'Find the crossings by the two cases. Equal: $2x + 1 = x - 4$ gives $x = -5$. Opposite: $2x + 1 = -x + 4$ gives $x = 1$. Their heights are $\\lvert 2(-5) + 1 \\rvert = 9$ and $\\lvert 2(1) + 1 \\rvert = 3$, so they cross at $(-5, 9)$ and $(1, 3)$. Arms of different steepness always cross twice.',
+              ),
             ),
             ask('mod-cross-slider'),
             ask('mod-cross-points'),
-            ask('mod-cross-count'),
             teach(
               prose(
                 'Equally steep arms are different. In $\\lvert x - 1 \\rvert = \\lvert x + 3 \\rvert$ the equal case, $x - 1 = x + 3$, loses its $x$ and says $-1 = 3$, which is false.',
@@ -724,9 +775,9 @@ export const inequalitiesModulus: Course = {
               ),
               prose('Only the opposite case gives a root, $x - 1 = -x - 3$, so $x = -1$: the parallel arms meet once.'),
             ),
+            ask('mod-cross-count'),
             ask('mod-cross-flow'),
             ask('mod-cross-slider', 2),
-            ask('mod-cross-points', 2),
             teach(
               prose(
                 'One more way to meet once: a shared vertex. $\\lvert 2x - 4 \\rvert$ and $\\lvert x - 2 \\rvert$ are both zero at $x = 2$, and either side of it the steeper V is above, so they only touch there.',
@@ -741,6 +792,7 @@ export const inequalitiesModulus: Course = {
                 [{ x: 2, y: 0 }],
               ),
             ),
+            ask('mod-cross-points', 2),
             ask('mod-cross-count', 2),
             ask('mod-cross-flow', 2),
           ],
@@ -756,10 +808,11 @@ export const inequalitiesModulus: Course = {
               ),
               maths('\\begin{gathered} \\lvert 2x + 1 \\rvert < \\lvert x - 4 \\rvert \\\\ (x + 5)(3x - 3) < 0 \\\\ -5 < x < 1 \\end{gathered}'),
               line(-7, 3, [piece(-5, 1, false, false)], 'Between -5 and 1, both ends left out'),
+              prose(
+                'To test a point, work out both insides, then their difference and sum. At $x = 0$: $2x + 1 = 1$ and $x - 4 = -4$; difference $5$, sum $-3$, product $-15$. Negative, so $\\lvert 1 \\rvert < \\lvert -4 \\rvert$ and $0$ is in the set.',
+              ),
             ),
-            ask('mod-both-ineq-line'),
             ask('mod-test-tree'),
-            ask('mod-ends-tiles'),
             teach(
               prose(
                 'Whether the set is between the roots or outside them can be read off the graph. The steeper V is below the flatter one between the crossings, and above it outside them.',
@@ -779,18 +832,23 @@ export const inequalitiesModulus: Course = {
               prose(
                 'So less than with the steeper V on the left is between; with it on the right, outside. Greater than turns both round: $\\lvert 2x + 1 \\rvert > \\lvert x - 4 \\rvert$ is $x < -5$ or $x > 1$.',
               ),
+              prose(
+                'The same with the steeper V on the right: $\\lvert x + 1 \\rvert > \\lvert 2x - 4 \\rvert$. Difference $-x + 5$, sum $3x - 3$, so $(-x + 5)(3x - 3) > 0$, critical values $1$ and $5$. The $x^2$ term is $-3x^2$, an n shape, positive between: $1 < x < 5$. With $\\ge$ the ends are filled, since both sides are equal there.',
+              ),
             ),
+            ask('mod-both-ineq-line'),
+            ask('mod-ends-tiles'),
             ask('mod-region-flow'),
-            ask('mod-both-ineq-line', 2),
-            ask('mod-test-tree', 2),
             teach(
               prose(
-                'With $\\le$ or $\\ge$ the critical values are solutions too, since both sides are equal there: filled dots.',
+                'One start to finish, with $\\le$: $\\lvert x + 3 \\rvert \\le \\lvert 3x + 1 \\rvert$. The difference is $-2x + 2$ and the sum $4x + 4$, so $(-2x + 2)(4x + 4) \\le 0$, with critical values $-1$ and $1$.',
               ),
               prose(
-                'If in doubt, test a point. At $x = 0$, $\\lvert 1 \\rvert < \\lvert -4 \\rvert$, so $0$ is in the set of $\\lvert 2x + 1 \\rvert < \\lvert x - 4 \\rvert$, and so is the whole stretch between the roots.',
+                'The steeper V is on the right, and less than with it on the right is outside: $x \\le -1$ or $x \\ge 1$, both dots filled. Check $x = 0$: $\\lvert 3 \\rvert \\le \\lvert 1 \\rvert$ is false, so the middle is out.',
               ),
             ),
+            ask('mod-both-ineq-line', 2),
+            ask('mod-test-tree', 2),
             ask('mod-ends-tiles', 2),
             ask('mod-region-flow', 2),
           ],
@@ -944,27 +1002,32 @@ export const inequalitiesModulus: Course = {
                 ],
               ),
               prose('The left half of the original is thrown away, and the graph is always symmetric about the $y$-axis.'),
+              prose(
+                'To write the left arm, put $-x$ for $\\lvert x \\rvert$, since $\\lvert x \\rvert = -x$ when $x < 0$. For $x^2 - 4\\lvert x \\rvert + 3$: $x^2 - 4(-x) + 3 = x^2 + 4x + 3$. Only the $x$ term changes sign; $x^2$ and the number stay.',
+              ),
             ),
             ask('mod-fabs-match'),
             ask('mod-fabs-arm-tiles'),
-            ask('mod-inside-out-tree'),
             teach(
               prose(
-                'Written out, $\\lvert x \\rvert$ goes where $x$ was, and since $\\lvert x \\rvert^2 = x^2$ only the $x$ term changes: $f(\\lvert x \\rvert) = x^2 - 4\\lvert x \\rvert + 3$. On the left that is $x^2 + 4x + 3$.',
+                'Compare $\\lvert f(x) \\rvert$, which works on the output. Take $f(x) = x^2 - 4x + 3$ at $x = -2$.',
               ),
               prose(
-                'Compare $\\lvert f(x) \\rvert$, which works on the output. At $x = -2$, $f(\\lvert -2 \\rvert) = f(2) = -1$, but $\\lvert f(-2) \\rvert = \\lvert 15 \\rvert = 15$.',
+                '$f(\\lvert x \\rvert)$: inside first, $\\lvert -2 \\rvert = 2$, then $f(2) = 4 - 8 + 3 = -1$. $\\lvert f(x) \\rvert$: $f(-2) = 4 + 8 + 3 = 15$ first, then $\\lvert 15 \\rvert = 15$. Different curves.',
               ),
             ),
-            ask('mod-fabs-count-flow'),
+            ask('mod-inside-out-tree'),
             ask('mod-fabs-match', 2),
-            ask('mod-fabs-arm-tiles', 2),
             teach(
               prose(
                 'The roots of $f(\\lvert x \\rvert) = 0$ are the numbers whose modulus is a root of $f$. A positive root $r$ gives two, $x = \\pm r$; a root at $0$ gives $x = 0$; a negative root gives nothing, since $\\lvert x \\rvert$ is never negative.',
               ),
-              maths('\\begin{gathered} (\\lvert x \\rvert - 3)(\\lvert x \\rvert + 2) = 0 \\\\ x = \\pm 3 \\end{gathered}'),
+              prose('For $f(x) = (x - 3)(x + 2)$ the roots of $f$ are $3$ and $-2$:'),
+              maths('\\begin{gathered} (\\lvert x \\rvert - 3)(\\lvert x \\rvert + 2) = 0 \\\\ \\lvert x \\rvert = 3 \\text{ or } \\lvert x \\rvert = -2 \\\\ x = \\pm 3 \\end{gathered}'),
+              prose('$\\lvert x \\rvert = -2$ gives nothing, so there are two roots in all.'),
             ),
+            ask('mod-fabs-count-flow'),
+            ask('mod-fabs-arm-tiles', 2),
             ask('mod-inside-out-tree', 2),
             ask('mod-fabs-count-flow', 2),
           ],
@@ -992,10 +1055,13 @@ export const inequalitiesModulus: Course = {
                   { x: 3, y: 4 },
                 ],
               ),
-              maths('\\begin{gathered} \\lvert x^2 - 5 \\rvert = 4 \\\\ x^2 = 9 \\quad \\text{or} \\quad x^2 = 1 \\\\ x = \\pm 3 \\text{ or } x = \\pm 1 \\end{gathered}'),
+              maths('\\begin{gathered} \\lvert x^2 - 5 \\rvert = 4 \\\\ x^2 - 5 = 4 \\text{ or } {-4} \\\\ x^2 = 9 \\quad \\text{or} \\quad x^2 = 1 \\\\ x = \\pm 3 \\text{ or } x = \\pm 1 \\end{gathered}'),
+              prose(
+                'A case can give a square equal to a negative number, and then it has no roots. $\\lvert (x - 1)^2 - 3 \\rvert = 6$ gives $(x - 1)^2 = 9$, so $x - 1 = \\pm 3$ and $x = -2$ or $4$; or $(x - 1)^2 = -3$, which no square can be. Two roots: the line passes above the hump.',
+              ),
             ),
-            ask('mod-crossing-slider'),
             ask('mod-two-cases-tree'),
+            ask('mod-crossing-slider'),
             ask('mod-quad-eq-root'),
             teach(
               prose(
@@ -1016,12 +1082,14 @@ export const inequalitiesModulus: Course = {
             ),
             ask('mod-quad-count'),
             ask('mod-crossing-slider', 2),
-            ask('mod-two-cases-tree', 2),
             teach(
-              prose('Written out in full, complete the square first to see the hump.'),
-              maths('\\begin{gathered} x^2 - 4x - 1 = (x - 2)^2 - 5 \\\\ \\lvert x^2 - 4x - 1 \\rvert = 4 \\\\ (x - 2)^2 = 9 \\quad \\text{or} \\quad (x - 2)^2 = 1 \\end{gathered}'),
-              prose('So $x = -1$ or $5$ from the first case, and $x = 1$ or $3$ from the second: four roots.'),
+              prose(
+                'Written out in full, complete the square first to see the hump. For $x^2 - 4x - 1$: half of $-4$ is $-2$, and $(x - 2)^2 = x^2 - 4x + 4$, which is $5$ too many. So $x^2 - 4x - 1 = (x - 2)^2 - 5$.',
+              ),
+              maths('\\begin{gathered} \\lvert (x - 2)^2 - 5 \\rvert = 4 \\\\ (x - 2)^2 - 5 = 4 \\text{ or } {-4} \\\\ (x - 2)^2 = 9 \\text{ or } 1 \\end{gathered}'),
+              prose('So $x - 2 = \\pm 3$, giving $x = -1$ or $5$, and $x - 2 = \\pm 1$, giving $x = 1$ or $3$: four roots.'),
             ),
+            ask('mod-two-cases-tree', 2),
             askWith('mod-quad-eq-root+choice', 'Two cases, up to four roots: pick the one asked for.', 2),
             ask('mod-quad-count', 2),
           ],
@@ -1051,19 +1119,20 @@ export const inequalitiesModulus: Course = {
               prose('Every stretch where the cubic is below the axis is flipped: here $x < -2$ and $1 < x < 3$.'),
             ),
             ask('mod-cubic-match'),
-            ask('mod-cubic-sign-flow'),
-            ask('mod-cubic-reflect-line'),
             teach(
               prose(
-                'To tell whether a point is on a flipped stretch, count the negative brackets. At $x = 2$ the brackets are $4$, $1$ and $-1$: one negative, so $f(2) = -4$ and the graph is flipped there.',
+                'To tell whether a point is on a flipped stretch, count the negative brackets. At $x = 2$ the brackets of $(x + 2)(x - 1)(x - 3)$ are $4$, $1$ and $-1$: one negative, so $f(2) = -4$ and the graph is flipped there.',
               ),
               prose(
                 'An even number of negative brackets makes the product positive, an odd number negative. A minus sign in front of the whole product turns every stretch over.',
               ),
+              prose(
+                'To find every stretch where $f(x) < 0$, start on the right, where every bracket is positive, and move left. Right of $3$: none negative, $+$. From $1$ to $3$: one, $-$. From $-2$ to $1$: two, $+$. Left of $-2$: three, $-$. So $f(x) < 0$ for $x < -2$ or $1 < x < 3$.',
+              ),
             ),
-            ask('mod-cubic-count'),
+            ask('mod-cubic-sign-flow'),
+            ask('mod-cubic-reflect-line'),
             ask('mod-cubic-match', 2),
-            ask('mod-cubic-sign-flow', 2),
             teach(
               prose(
                 'For $\\lvert f(x) \\rvert = c$, compare the line with the humps. The outer arms rise for ever, so each meets the line once; a hump meets it twice if the line is below its top, and not at all above it.',
@@ -1078,9 +1147,14 @@ export const inequalitiesModulus: Course = {
                 [{ x: 3, y: 4 }],
               ),
               prose(
-                'A double root, as in $(x - 1)^2(x - 4)$, is where the curve touches the axis and turns back, so there is only one hump, here $4$ high. The line $y = 2$ meets this graph four times.',
+                'A double root, as in $(x - 1)^2(x - 4)$, is where the curve touches the axis and turns back, so there is only one hump, here $4$ high. The line $y = 2$ is below its top, so it meets the hump twice, and each arm once: four times.',
+              ),
+              prose(
+                'You do not need a hump\'s exact height: read it off the graph. A hump that rises past the dashed line gives two crossings; one that stays under it gives none.',
               ),
             ),
+            ask('mod-cubic-count'),
+            ask('mod-cubic-sign-flow', 2),
             ask('mod-cubic-reflect-line', 2),
             ask('mod-cubic-count', 2),
           ],
@@ -1096,28 +1170,36 @@ export const inequalitiesModulus: Course = {
               ),
               maths('\\begin{gathered} \\lvert x^2 - 5 \\rvert < 4 \\\\ -3 < x < -1 \\text{ or } 1 < x < 3 \\end{gathered}'),
               line(-5, 5, [piece(-3, -1, false, false), piece(1, 3, false, false)], 'Two stretches: -3 to -1 and 1 to 3, all four ends left out'),
-              prose('Between $-1$ and $1$ the reflected hump rises above the line, which is why the set has a gap in it.'),
+              prose(
+                'The critical values: $x^2 - 5 = 4$ gives $x^2 = 9$, $x = \\pm 3$; $x^2 - 5 = -4$ gives $x^2 = 1$, $x = \\pm 1$. Between $-1$ and $1$ the reflected hump rises above the line, which is why the set has a gap in it.',
+              ),
             ),
-            ask('mod-quad-ineq-line'),
-            ask('mod-quad-ineq-flow'),
             ask('mod-critical-tree'),
             teach(
               prose(
-                'The hump decides the shape. With the line below its top, less than is two stretches and greater than three pieces. With the line above it, less than is one stretch and greater than two rays.',
+                'The hump decides the shape. The dip of $x^2 - 5$ goes down to $-5$, so the hump is $5$ high. With the line below its top, less than is two stretches and greater than **three pieces**: $\\lvert x^2 - 5 \\rvert > 4$ is $x < -3$ or $-1 < x < 1$ or $x > 3$.',
+              ),
+              prose(
+                'With the line above the top, the second case has no roots and less than is **one stretch**, greater than two rays:',
               ),
               maths('\\begin{gathered} \\lvert x^2 - 1 \\rvert < 3 \\\\ x^2 = 4 \\text{ or } x^2 = -2 \\\\ -2 < x < 2 \\end{gathered}'),
               line(-4, 4, [piece(-2, 2, false, false)], 'One stretch from -2 to 2, both ends left out'),
             ),
+            ask('mod-quad-ineq-line'),
+            ask('mod-quad-ineq-flow'),
             ask('mod-quad-ineq-tiles'),
-            ask('mod-quad-ineq-line', 2),
-            ask('mod-quad-ineq-flow', 2),
             teach(
               prose(
-                'With $\\le$ or $\\ge$ the critical values are included: filled dots. Written out in full, complete the square first: $x^2 + 2x - 4 = (x + 1)^2 - 5$, a hump $5$ high.',
+                'With $\\le$ or $\\ge$ the critical values are included: filled dots. Written out in full, complete the square first: half of $2$ is $1$, and $(x + 1)^2 = x^2 + 2x + 1$, so $x^2 + 2x - 4 = (x + 1)^2 - 5$, a hump $5$ high.',
               ),
-              maths('\\begin{gathered} \\lvert x^2 + 2x - 4 \\rvert \\ge 4 \\\\ x \\le -4 \\text{ or } -2 \\le x \\le 0 \\\\ \\text{or } x \\ge 2 \\end{gathered}'),
+              prose(
+                'For $\\lvert x^2 + 2x - 4 \\rvert \\ge 4$: $(x + 1)^2 - 5 = 4$ gives $(x + 1)^2 = 9$, $x = -4$ or $2$; $(x + 1)^2 - 5 = -4$ gives $(x + 1)^2 = 1$, $x = -2$ or $0$. The line $4$ is below the hump, so greater than is three pieces:',
+              ),
+              maths('\\begin{gathered} x \\le -4 \\text{ or } -2 \\le x \\le 0 \\\\ \\text{or } x \\ge 2 \\end{gathered}'),
             ),
             ask('mod-critical-tree', 2),
+            ask('mod-quad-ineq-line', 2),
+            ask('mod-quad-ineq-flow', 2),
             ask('mod-quad-ineq-tiles', 2),
           ],
           skillCheck: [ask('mod-quad-ineq-line', 2), ask('mod-critical-tree', 2), ask('mod-quad-ineq-tiles', 2)],
@@ -1246,6 +1328,9 @@ export const inequalitiesModulus: Course = {
               prose(
                 'Its corners are the two vertices and the two places the graphs cross, found as the crossings of two Vs were: where the heights are equal. Every arm has gradient $1$ or $-1$, so the sides meet at right angles: a **rectangle**, and a **square** like this one when the vertices are one above the other. A top vertex too low to reach over the V gives no region at all.',
               ),
+              prose(
+                'Where two Vs cross, their insides are equal or opposite. For $y = \\lvert x + 1 \\rvert$ and $y = \\lvert 2x - 4 \\rvert$: equal, $x + 1 = 2x - 4$, gives $x = 5$; opposite, $x + 1 = -2x + 4$, gives $x = 1$. The heights on $y = \\lvert x + 1 \\rvert$ are $6$ and $2$, so they cross at $(1, 2)$ and $(5, 6)$.',
+              ),
             ),
             ask('mod-cross-points'),
             ask('mod-cross-slider'),
@@ -1324,20 +1409,22 @@ export const inequalitiesModulus: Course = {
                 'A point is in a region when it makes **every** inequality true. For $y \\ge \\lvert x \\rvert - 2$ and $y < 2 - \\lvert x \\rvert$: $(1, 0)$ gives $0 \\ge -1$ and $0 < 1$, both true, so it is in. $(2, 0)$ is on the dashed upside-down V, so it is out.',
               ),
               region([vee(0, -2, '>='), cap(0, 2, '<')], 'A solid V with its vertex at (0, -2) and a dashed upside-down V with its vertex at (0, 2), the square between them shaded, and a dot at (1, 0)', [1, 0]),
+              prose(
+                'The highest point is at the top vertex, $(0, 2)$. That is on a dashed line, so it is out, and the highest point with whole-number coordinates is $(0, 1)$. A solid vertex would be the highest point itself.',
+              ),
             ),
             ask('mod-pair-point-choice'),
-            ask('mod-region-count'),
             ask('mod-region-highest-tiles'),
             teach(
               prose(
-                'Count the points with whole-number coordinates column by column. In that square, $x = -1$ allows $y = -1$ and $0$; $x = 0$ allows $-2$ to $1$; $x = 1$ allows $-1$ and $0$.',
+                'Count the points with whole-number coordinates column by column. In each column the V sets the lowest $y$ and the upside-down V the highest. In that square:',
+              ),
+              prose(
+                '$x = -1$: $y \\ge 1 - 2 = -1$ and $y < 2 - 1 = 1$, so $y = -1, 0$: two. $x = 0$: $y \\ge -2$ and $y < 2$, so $y = -2, -1, 0, 1$: four. $x = 1$: two, as for $x = -1$. At $x = \\pm 2$ only $y = 0$ would do, and it is on the dashed line: none.',
               ),
               maths('2 + 4 + 2 = 8'),
-              prose(
-                'The top vertex $(0, 2)$ is on a dashed line, so the highest point in the region is $(0, 1)$. A solid vertex would be the highest point itself.',
-              ),
             ),
-            ask('mod-region-width'),
+            ask('mod-region-count'),
             ask('mod-region-count+choice'),
             ask('mod-region-highest-tiles', 2),
             teach(
@@ -1347,6 +1434,7 @@ export const inequalitiesModulus: Course = {
               maths('\\begin{gathered} \\lvert x - 1 \\rvert \\le 2: \\; -1 \\le x \\le 3 \\\\ \\lvert x + 1 \\rvert \\le 4: \\; -5 \\le x \\le 3 \\end{gathered}'),
               prose('Both hold from $-1$ to $3$, a width of $4$.'),
             ),
+            ask('mod-region-width'),
             ask('mod-pair-point-choice', 2),
             ask('mod-region-width', 2),
           ],
@@ -1481,6 +1569,9 @@ export const inequalitiesModulus: Course = {
               prose(
                 'The left piece falls with gradient $-1$ and the right rises with gradient $2$. Both give $-1$ at $x = 2$, so they meet at $(2, -1)$: a V like that of $y = \\lvert x - 2 \\rvert - 1$, but with arms of different steepness.',
               ),
+              prose(
+                'Going back from a graph to a rule: a line with gradient $m$ through $(p, q)$ is $y = q + m(x - p)$. The left piece has gradient $-1$ and reaches $(2, -1)$, so it is $-1 - (x - 2) = 1 - x$. The right has gradient $2$: $-1 + 2(x - 2) = 2x - 5$.',
+              ),
             ),
             ask('mod-piece-sketch-flow'),
             ask('mod-piece-gradients-tiles'),
@@ -1532,7 +1623,10 @@ export const inequalitiesModulus: Course = {
                 { pieces: [{ m: 2, q: 1 }, { m: -1, q: 5 }], cuts: [1], leftOwns: [false] },
                 'A rising piece up to a hollow dot at (1, 3), and a falling piece from a filled dot at (1, 4)',
               ),
-              prose('At $x = 1$ the left rule gives $3$ and the right gives $4$. They differ, so the graph jumps up by $1$.'),
+              prose('At $x = 1$ the left rule gives $2 \\times 1 + 1 = 3$ and the right gives $5 - 1 = 4$. They differ, so the graph jumps up by $1$.'),
+              prose(
+                'Which end is filled is decided only by which row **owns** the join. $x \\ge 1$ includes $1$, so the right piece owns it: a filled dot at $(1, 4)$. The left piece stops just short, with a hollow dot at $(1, 3)$.',
+              ),
             ),
             ask('mod-join-meet-flow'),
             ask('mod-jump'),
@@ -1547,7 +1641,7 @@ export const inequalitiesModulus: Course = {
             ask('mod-join-meet-flow', 2),
             teach(
               prose(
-                'The size of a jump is the gap between the two values at the join, whichever is higher. Which end is filled has nothing to do with which is higher: it is decided only by which row owns the join.',
+                'The size of a jump is the gap between the two values at the join, whichever is higher: $4 - 3 = 1$ above. Which end is filled still has nothing to do with which is higher, only with which row owns the join.',
               ),
             ),
             ask('mod-jump+choice', 2),

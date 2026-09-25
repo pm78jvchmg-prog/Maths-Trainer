@@ -11,6 +11,12 @@ its pull request; the PR description holds the evidence.
   comes back on scrolling up. Leaving a lesson returns to that lesson on the
   course page, and going back to the home screen returns to where it was
   scrolled. Positions are kept in session storage, never the progress store.
+- **Complex square roots are taught before they are asked.** The Square Roots
+  lesson now works an example of squaring, then finds a root step by step with
+  no guessing, then practises gently: square a number, pick which candidate is
+  a root, fill in the method as a table (new `sqrt-check`, `sqrt-method`),
+  before typing a root alone. `complex-sqrt`'s worked solution is split into
+  short lines so it no longer scrolls sideways (#201).
 - **Streak no longer counts a day twice after travelling west (#196).** A play dated
   a day or two before the last one is a day already counted and changes
   nothing, and the home screen reads it as done. A day the calendar skipped

@@ -110,7 +110,7 @@ export function choiceVariant<P>(generator: Generator<P>): Generator<P> | undefi
       if (base.kind === 'reduce') {
         return {
           kind: 'evaluate',
-          prompt: [{ kind: 'prose', text: 'Evaluate the expression.' }],
+          prompt: generator.evaluatePrompt?.(params) ?? [{ kind: 'prose', text: 'Evaluate the expression.' }],
           expr: base.expr,
           options: rotate(options).map((option) => option.tex),
         };

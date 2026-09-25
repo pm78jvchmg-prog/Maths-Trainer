@@ -591,6 +591,14 @@ export interface Generator<P = unknown> {
    * A test renders each one and checks every distractor is genuinely wrong.
    */
   choices?(params: P): ChoiceOption[];
+  /**
+   * The prompt of the derived `evaluate` slide, for a `reduce` generator with
+   * `choices`. Without it that slide reads only "Evaluate the expression.",
+   * which is right for bare arithmetic and wrong for a line that came out of a
+   * model: the owner found `16 + 32 \div 2^{4}` in a lesson on cooling tea and
+   * could not see what it had to do with it.
+   */
+  evaluatePrompt?(params: P): Block[];
 }
 
 /** One option of a generator's multiple-choice form. */

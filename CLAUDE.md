@@ -274,6 +274,11 @@ Both answer as `string[]` and are graded by `gradeSequence` in the reducer.
 
 Four more came later. `slider` is a drag-to-a-value widget with an optional
 figure the marker tracks; `flow` walks a decision tree one branch at a time.
+A slider figure drawn by `plotSvg` takes its marker window from
+`plotFigure(svg, axis)`, which reads the window the drawing used back out of
+the SVG. Passing `markerWindow` to `plotSvg` as well pads twice and the line
+drifts off the curve; 37 sliders did that, and `sliderValue.test.ts` now fails
+any whose marker window disagrees with its drawing.
 The other two share `src/content/expr.ts`, an arithmetic expression held as a
 tree, and both live in `src/ui/reduceSlide.tsx`:
 

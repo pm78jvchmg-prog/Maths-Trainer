@@ -21,7 +21,7 @@
 import type { Block, ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
 import { bin, num, pow, type Expr } from '../expr';
 import { options } from '../choiceVariant';
-import { markerWindow, plotSvg } from '../figures';
+import { markerWindow, plotSvg, plotFigure } from '../figures';
 import { canonicalSet } from '../numberLine';
 import { EXP_KEYS } from './calculus';
 import { aOrAn, gcd } from './format';
@@ -1241,8 +1241,7 @@ const expmMultiplierSlider: Generator<MultiplierParams> = {
       step: 1,
       answer: target,
       readout: 'e^{k} = {v}',
-      figure: {
-        svg: plotSvg({
+      figure: plotFigure(plotSvg({
           xMin: 0,
           xMax: 1.4,
           yMin: window.xMin,
@@ -1251,10 +1250,7 @@ const expmMultiplierSlider: Generator<MultiplierParams> = {
           marks: [{ x: 0, y: 1 }],
           verticals: [{ x: 1, dashed: true }],
           label: 'A rising curve starting at 1, with a dashed line at t = 1',
-        }),
-        ...window,
-        axis: 'y',
-      },
+        }), 'y'),
     };
   },
   solution: (params) => {

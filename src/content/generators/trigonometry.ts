@@ -16,7 +16,7 @@
 import type { ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
 import { options } from '../choiceVariant';
-import { markerWindow, plotSvg, wave } from '../figures';
+import { markerWindow, plotSvg, wave, plotFigure } from '../figures';
 import { bin, num, trig, valueOf, type Expr } from '../expr';
 import { gcd } from './format';
 
@@ -765,8 +765,6 @@ const waveSlider: Generator<WaveSliderParams> = {
     // Where the marker measures from, so that dragging to the answer lands it
     // on the feature rather than at an arbitrary point on the axis.
     const firstPeak = shift + period / 4;
-    const yLow = bottom - 1.5;
-    const yHigh = top + 1.5;
     const prompt =
       asks === 'period'
         ? 'The two ringed points are consecutive peaks. Slide to the **period** of this wave.'
@@ -791,12 +789,12 @@ const waveSlider: Generator<WaveSliderParams> = {
         asks === 'period'
           ? // Measured from the first ringed peak: drag until the line reaches
             // the second one, and the gap you have spanned is the period.
-            { svg, xMin: 0, xMax, origin: firstPeak }
+            { ...plotFigure(svg), origin: firstPeak }
           : asks === 'amplitude'
             ? // Measured up from the midline, so the line meets the peak.
-              { svg, xMin: yLow, xMax: yHigh, axis: 'y', origin: midline }
+              { ...plotFigure(svg, 'y'), origin: midline }
             : // A height, read straight off the vertical scale.
-              { svg, xMin: yLow, xMax: yHigh, axis: 'y' },
+              plotFigure(svg, 'y'),
     };
   },
   solution: ({ midline, amplitude, period, asks }) => {

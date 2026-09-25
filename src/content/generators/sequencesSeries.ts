@@ -26,7 +26,7 @@
 import type { Rng } from '../../engine/rng';
 import type { Block, ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
 import { bin, num, pow, valueOf, type Expr } from '../expr';
-import { markerWindow, plotSvg } from '../figures';
+import { markerWindow, plotSvg, plotFigure } from '../figures';
 import { sumTex, termTex } from './calculus';
 import { coeffTex, fracTex, gcdOrOne } from './format';
 import { lin, orderSlide, orderSolution, pickDistractors, polyTex as kPoly, type Distractor, type Proof } from './numberProof';
@@ -2611,8 +2611,7 @@ const partialSlider: Generator<PartialParams> = {
       step: 1,
       answer: S,
       readout: 'S_\\infty = {v}',
-      figure: {
-        svg: plotSvg({
+      figure: plotFigure(plotSvg({
           xMin: 0,
           xMax: 9,
           yMin: window.xMin,
@@ -2620,10 +2619,7 @@ const partialSlider: Generator<PartialParams> = {
           curves: [],
           marks: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ x: n, y: partial(n) })),
           label: `Partial sums settling towards a height, first at ${a}`,
-        }),
-        ...window,
-        axis: 'y',
-      },
+        }), 'y'),
     };
   },
   solution: ({ S, p, q }) => [
@@ -3826,8 +3822,7 @@ const fateSlider: Generator<FateSliderParams> = {
       step: 1,
       answer: L,
       readout: 'L = {v}',
-      figure: {
-        svg: plotSvg({
+      figure: plotFigure(plotSvg({
           xMin: 0,
           xMax: 9,
           yMin: window.xMin,
@@ -3835,10 +3830,7 @@ const fateSlider: Generator<FateSliderParams> = {
           curves: [],
           marks: terms.map((y, i) => ({ x: i + 1, y })),
           label: `Terms of a sequence settling towards a height, the first at ${L + g}`,
-        }),
-        ...window,
-        axis: 'y',
-      },
+        }), 'y'),
     };
   },
   solution: ({ a, b, m, g }) => {
@@ -5967,8 +5959,7 @@ const telescopeSlider: Generator<SliderLimitParams> = {
       step: 1,
       answer: K,
       readout: 'S_\\infty = {v}',
-      figure: {
-        svg: plotSvg({
+      figure: plotFigure(plotSvg({
           xMin: 0,
           xMax: 9,
           yMin: window.xMin,
@@ -5976,10 +5967,7 @@ const telescopeSlider: Generator<SliderLimitParams> = {
           curves: [],
           marks: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ x: n, y: partial(n) })),
           label: `Partial sums rising towards a height, the first at ${partial(1).toFixed(1)}`,
-        }),
-        ...window,
-        axis: 'y',
-      },
+        }), 'y'),
     };
   },
   solution: ({ K, p }) => {

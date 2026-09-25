@@ -25,7 +25,7 @@ import type { Rng } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import { ALGEBRA_KEYS, EXP_KEYS, TRIG_KEYS, ROOT_KEYS, termTex, termAnswer, sumTex, sumAnswer } from './calculus';
 import { bin, num, pow, valueOf, type Expr } from '../expr';
-import { markerWindow, plotSvg } from '../figures';
+import { markerWindow, plotSvg, plotFigure } from '../figures';
 import { coeffTex, gcd } from './format';
 
 /** The algebra keys plus the constant of integration. */
@@ -3851,8 +3851,7 @@ const volumeSlice: Generator<SliceParams> = {
       step: 1,
       answer: profileAt(profile, t),
       readout: 'r = {v}',
-      figure: {
-        svg: plotSvg({
+      figure: plotFigure(plotSvg({
           xMin: a - 1,
           xMax: b + 1,
           yMin: window.xMin,
@@ -3861,10 +3860,7 @@ const volumeSlice: Generator<SliceParams> = {
           shade: { f, from: a, to: b },
           verticals: [{ x: t, dashed: false }],
           label: `The region under the curve, with the slice at x = ${t} marked`,
-        }),
-        ...window,
-        axis: 'y',
-      },
+        }), 'y'),
     };
   },
   solution: ({ profile, t }) => [
@@ -5210,18 +5206,14 @@ const poleSlider: Generator<PoleParams> = {
       step: 1,
       answer: -own,
       readout: 'x = {v}',
-      figure: {
-        svg: plotSvg({
+      figure: plotFigure(plotSvg({
           xMin: window.xMin,
           xMax: window.xMax,
           yMin: -high,
           yMax: high,
           curves: [{ f, breaks: true }],
           label: 'The graph of the fraction, which shoots off where its bottom is zero',
-        }),
-        ...window,
-        axis: 'x',
-      },
+        })),
     };
   },
   solution: (params) => {
@@ -5624,18 +5616,14 @@ const findLimit: Generator<FindLimitParams> = {
       step: 1,
       answer: h,
       readout: 'h = {v}',
-      figure: {
-        svg: plotSvg({
+      figure: plotFigure(plotSvg({
           xMin: window.xMin,
           xMax: window.xMax,
           yMin: -0.15 * top,
           yMax: 1.2 * top,
           curves: [{ f: (x) => k / (x + a) }],
           label: `The curve y = ${k}/(x + ${a}) for x from 0`,
-        }),
-        ...window,
-        axis: 'x',
-      },
+        })),
     };
   },
   solution: ({ k, a, h }) => {
@@ -6367,18 +6355,14 @@ const problemPoint: Generator<PointParams> = {
       step: 1,
       answer: c,
       readout: 'x = {v}',
-      figure: {
-        svg: plotSvg({
+      figure: plotFigure(plotSvg({
           xMin: window.xMin,
           xMax: window.xMax,
           yMin: signed ? -high : -0.25 * high,
           yMax: high,
           curves: [{ f, breaks: true }],
           label: 'The graph of the integrand between the limits',
-        }),
-        ...window,
-        axis: 'x',
-      },
+        })),
     };
   },
   solution: ({ power, c, lower, upper }) => [
@@ -6779,9 +6763,103 @@ export interface TailSliderParams {
 
 function tailSliderParts({ form, L, a }: TailSliderParams) {
   if (form === 'power') {
-    return { integrand: `\\frac{${L * a}}{x^{2}}`, lower: a, area: (t: number) => (t < a ? NaN : L - (L * a) / t), span: 12 * a };
+    return {
+      integrand: `\\frac{${L * a}}{x^{2}}`,
+      lower: a,
+      f: (x: number) => (L * a) / (x * x),
+      area: (t: number) => (t < a ? NaN : L - (L * a) / t),
+      span: 12 * a,
+      // Where half the area has built up, so the shaded piece is a fair share.
+      sample: 2 * a,
+    };
   }
-  return { integrand: expTex(L * a, a), lower: 0, area: (t: number) => (t < 0 ? NaN : L * (1 - Math.exp(-a * t))), span: 6 / a };
+  return {
+    integrand: expTex(L * a, a),
+    lower: 0,
+    f: (x: number) => L * a * Math.exp(-a * x),
+    area: (t: number) => (t < 0 ? NaN : L * (1 - Math.exp(-a * t))),
+    span: 6 / a,
+    sample: 1 / a,
+  };
+}
+
+/*
+ * The tail slider's figure: two graphs stacked on one x scale.
+ *
+ * The top one is the curve itself with the area from the lower limit to one
+ * value of t shaded, which is what "the area" means; the bottom one plots that
+ * area against t, so the shaded piece is one point on it, joined to it by a
+ * dashed line through both. Only the bottom graph carries the marker. Both are
+ * drawn here rather than by `plotSvg`, which draws one graph with no axis
+ * names, and the marker window is worked out from the same numbers.
+ */
+const TAIL = {
+  width: 280,
+  left: 26,
+  right: 12,
+  /** The top graph: its highest point and its x-axis. */
+  curveTop: 16,
+  curveAxis: 92,
+  /** The bottom graph: the height of `top` on the slider, and its t-axis. */
+  areaTop: 134,
+  areaAxis: 250,
+  height: 268,
+};
+
+/** Tick spacing along the shared axis: at most six gaps. */
+function tailTick(end: number): number {
+  return [0.5, 1, 2, 5, 10, 20].find((step) => end / step <= 6) ?? 50;
+}
+
+export function tailSliderFigure(params: TailSliderParams): { svg: string; xMin: number; xMax: number; axis: 'y' } {
+  const { top } = params;
+  const { f, area, lower, span, sample } = tailSliderParts(params);
+  const end = lower + span;
+  const { width, left, right, curveTop, curveAxis, areaTop, areaAxis, height } = TAIL;
+  const px = (x: number) => left + (x / end) * (width - left - right);
+  const peak = 1.1 * f(lower);
+  const cy = (y: number) => curveAxis - (Math.min(y, peak) / peak) * (curveAxis - curveTop);
+  const ay = (v: number) => areaAxis - (v / top) * (areaAxis - areaTop);
+  const n = 160;
+  const pathOf = (g: (x: number) => number, y: (v: number) => number, from: number, to: number) =>
+    Array.from({ length: n + 1 }, (_, i) => {
+      const x = from + ((to - from) * i) / n;
+      return `${i === 0 ? 'M' : 'L'} ${px(x).toFixed(1)},${y(g(x)).toFixed(1)}`;
+    }).join(' ');
+  const text = (x: number, y: number, anchor: string, words: string, italic = true) =>
+    `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" font-size="11"${italic ? ' font-style="italic"' : ''} fill="currentColor" text-anchor="${anchor}">${words}</text>`;
+  const axisLine = (x1: number, y1: number, x2: number, y2: number) =>
+    `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="currentColor" stroke-width="1" opacity="0.55" />`;
+  const tick = tailTick(end);
+  const ticks = Array.from({ length: Math.floor(end / tick + 1e-9) + 1 }, (_, i) => i * tick);
+  const shaded = `M ${px(lower).toFixed(1)},${curveAxis} ${pathOf(f, cy, lower, sample).replace(/^M/, 'L')} L ${px(sample).toFixed(1)},${curveAxis} Z`;
+  const svg = [
+    `<svg viewBox="0 0 ${width} ${height}" width="100%" role="img" aria-label="Above, the curve with the area under it from the lower limit to t shaded. Below, that area against t, rising and levelling off">`,
+    // The curve, with the area up to t shaded.
+    `<path class="plot-shade" d="${shaded}" />`,
+    axisLine(left, curveAxis, width - right, curveAxis),
+    axisLine(left, curveTop - 6, left, curveAxis),
+    `<path fill="none" stroke="currentColor" stroke-width="2" d="${pathOf(f, cy, lower, end)}" />`,
+    text(left - 6, curveTop + 2, 'end', 'y'),
+    text(width - right, curveAxis - 5, 'end', 'x'),
+    text(px(sample), curveAxis + 12, 'middle', 't'),
+    text(left - 6, curveAxis + 4, 'end', '0', false),
+    // The same t joins the shaded piece to its point on the graph below.
+    `<line x1="${px(sample).toFixed(1)}" y1="${curveAxis}" x2="${px(sample).toFixed(1)}" y2="${ay(area(sample)).toFixed(1)}" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3" opacity="0.6" />`,
+    // The area so far, against t.
+    axisLine(left, areaAxis, width - right, areaAxis),
+    axisLine(left, areaTop - 14, left, areaAxis),
+    `<path fill="none" stroke="currentColor" stroke-width="2" d="${pathOf(area, ay, lower, end)}" />`,
+    `<circle cx="${px(sample).toFixed(1)}" cy="${ay(area(sample)).toFixed(1)}" r="3.5" fill="currentColor" />`,
+    text(left + 4, areaTop - 8, 'start', 'area', false),
+    text(width - right, areaAxis - 5, 'end', 't'),
+    ...ticks.map((x) => text(px(x), areaAxis + 13, 'middle', `${x}`, false)),
+    '</svg>',
+  ].join('');
+  // The marker is placed as a share of the whole box: the value at the top
+  // and bottom edges, read off the bottom graph's own scale.
+  const valueAt = (y: number) => ((areaAxis - y) / (areaAxis - areaTop)) * top;
+  return { svg, xMin: valueAt(height), xMax: valueAt(0), axis: 'y' };
 }
 
 export function tailSliderSpec(params: TailSliderParams): ImproperSpec {
@@ -6808,14 +6886,13 @@ const tailSlider: Generator<TailSliderParams> = {
     ),
   render: (params): Slide => {
     const { L, top } = params;
-    const { integrand, lower, area, span } = tailSliderParts(params);
-    const window = markerWindow(0, top, 'y');
+    const { integrand, lower } = tailSliderParts(params);
     return {
       kind: 'slider',
       prompt: [
         {
           kind: 'prose',
-          text: `The graph shows the area under $y = ${integrand}$ from $x = ${lower}$ to $x = t$, against $t$. It levels off at $${improperTex(integrand, lower, Infinity)}$. Work that out and slide the line to it.`,
+          text: `The top graph is $y = ${integrand}$, shaded from $x = ${lower}$ to $x = t$. The bottom graph is that shaded area against $t$. It levels off towards $${improperTex(integrand, lower, Infinity)}$. Work that out and slide the line to it.`,
         },
       ],
       min: 0,
@@ -6823,18 +6900,7 @@ const tailSlider: Generator<TailSliderParams> = {
       step: 1,
       answer: L,
       readout: '\\text{area} = {v}',
-      figure: {
-        svg: plotSvg({
-          xMin: 0,
-          xMax: lower + span,
-          yMin: window.xMin,
-          yMax: window.xMax,
-          curves: [{ f: area, accent: true, breaks: true }],
-          label: 'The area so far, rising and levelling off as t grows',
-        }),
-        ...window,
-        axis: 'y',
-      },
+      figure: tailSliderFigure(params),
     };
   },
   solution: (params) => {
@@ -8333,8 +8399,7 @@ const approachSlider: Generator<ApproachParams> = {
       step: 1,
       answer: L,
       readout: '\\text{limit} = {v}',
-      figure: {
-        svg: plotSvg({
+      figure: plotFigure(plotSvg({
           xMin: 0,
           xMax: 11,
           yMin: window.xMin,
@@ -8342,10 +8407,7 @@ const approachSlider: Generator<ApproachParams> = {
           curves: [],
           marks: Array.from({ length: 10 }, (_, i) => ({ x: i + 1, y: approachAt(params, i + 1) })),
           label: `The ${side} sums plotted against the number of strips, closing in on a value`,
-        }),
-        ...window,
-        axis: 'y',
-      },
+        }), 'y'),
     };
   },
   solution: (params) => {
@@ -8834,8 +8896,7 @@ const turnSlider: Generator<TurnParams> = {
       step: 1,
       answer: params.p,
       readout: 'x = {v}',
-      figure: {
-        svg: stripsSvg({
+      figure: plotFigure(stripsSvg({
           xMin: window.xMin,
           xMax: window.xMax,
           ...stripWindow(at, window.xMin, window.xMax),
@@ -8845,10 +8906,7 @@ const turnSlider: Generator<TurnParams> = {
           n: b - a,
           side,
           label: `The curve with the ${side} sum's rectangles, turning inside the interval`,
-        }),
-        ...window,
-        axis: 'x',
-      },
+        })),
     };
   },
   solution: (params) => {

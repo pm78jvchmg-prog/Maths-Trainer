@@ -33,7 +33,7 @@ import type { Block, ChoiceOption, Generator, Slide, SolutionStep } from '../typ
 import type { Rng } from '../../engine/rng';
 import { hashSeed } from '../../engine/rng';
 import { options } from '../choiceVariant';
-import { markerWindow, plotSvg } from '../figures';
+import { markerWindow, plotSvg, plotFigure } from '../figures';
 import { canonicalPieces, formatSet, type Piece } from '../numberLine';
 import { termTex } from './calculus';
 import { coeffTex, gcd, say } from './format';
@@ -1478,18 +1478,14 @@ const fracPoleSlider: Generator<PoleParams> = {
       step: 1,
       answer: poleAsked(params),
       readout: 'x = {v}',
-      figure: {
-        svg: plotSvg({
+      figure: plotFigure(plotSvg({
           xMin: window.xMin,
           xMax: window.xMax,
           yMin: -POLE_HEIGHT,
           yMax: POLE_HEIGHT,
           curves: [{ f, breaks: true }],
           label: 'The graph of the fraction, which shoots off where its bottom is zero',
-        }),
-        ...window,
-        axis: 'x',
-      },
+        })),
     };
   },
   solution: (params) => {
@@ -1563,8 +1559,7 @@ const fracZeroSlider: Generator<ZeroParams> = {
       step: 1,
       answer: -t,
       readout: 'x = {v}',
-      figure: {
-        svg: plotSvg({
+      figure: plotFigure(plotSvg({
           xMin: window.xMin,
           xMax: window.xMax,
           yMin: -POLE_HEIGHT,
@@ -1572,10 +1567,7 @@ const fracZeroSlider: Generator<ZeroParams> = {
           curves: [{ f: (x) => valueAt(top, x) / valueAt(bottom, x), breaks: true }],
           marks: hole.filter((mark) => Math.abs(mark.y) < POLE_HEIGHT),
           label: 'The graph of the fraction',
-        }),
-        ...window,
-        axis: 'x',
-      },
+        })),
     };
   },
   solution: (params) => {
@@ -5247,8 +5239,7 @@ const fracIneqGraphSlider: Generator<GraphParams> = {
       step: 1,
       answer: graphAsked(params),
       readout: 'x = {v}',
-      figure: {
-        svg: plotSvg({
+      figure: plotFigure(plotSvg({
           xMin: window.xMin,
           xMax: window.xMax,
           yMin: k - 6,
@@ -5256,10 +5247,7 @@ const fracIneqGraphSlider: Generator<GraphParams> = {
           curves: [{ f: (x: number) => againstAt(params, x), breaks: true }],
           horizontals: [k],
           label: 'The graph of the fraction, and a flat dashed line at the number it is compared with',
-        }),
-        ...window,
-        axis: 'x',
-      },
+        })),
     };
   },
   solution: (params) => {
@@ -5535,11 +5523,7 @@ const fracVaSlider: Generator<ArmParams> = {
       step: 1,
       answer: armAsked(params),
       readout: 'x = {v}',
-      figure: {
-        svg: ratSvg(params.r, { ...window, ...levelWindow(params.r), label: 'The curve, shooting off at two vertical asymptotes' }),
-        ...window,
-        axis: 'x',
-      },
+      figure: plotFigure(ratSvg(params.r, { ...window, ...levelWindow(params.r), label: 'The curve, shooting off at two vertical asymptotes' })),
     };
   },
   solution: (params) => {
@@ -5788,17 +5772,13 @@ const fracHaSlider: Generator<LevelParams> = {
       step: 1,
       answer: asymptoteOf(r)!,
       readout: 'y = {v}',
-      figure: {
-        svg: ratSvg(r, {
+      figure: plotFigure(ratSvg(r, {
           xMin: Math.min(...roots) - 6,
           xMax: Math.max(...roots) + 6,
           yMin: window.xMin,
           yMax: window.xMax,
           label: 'The curve, flattening out far to the left and the right',
-        }),
-        ...window,
-        axis: 'y',
-      },
+        }), 'y'),
     };
   },
   solution: ({ r }) => degreeSteps(r),
@@ -6004,11 +5984,7 @@ const fracHoleSlider: Generator<HoleSliderParams> = {
       step: 1,
       answer: holesOf(r)[0],
       readout: 'x = {v}',
-      figure: {
-        svg: ratSvg(r, { ...window, ...levelWindow(r), label: 'The curve, which shoots off at one place and looks unbroken elsewhere' }),
-        ...window,
-        axis: 'x',
-      },
+      figure: plotFigure(ratSvg(r, { ...window, ...levelWindow(r), label: 'The curve, which shoots off at one place and looks unbroken elsewhere' })),
     };
   },
   solution: ({ r }) => {
@@ -6165,18 +6141,14 @@ const fracYIntSlider: Generator<LevelParams> = {
       step: 1,
       answer: ratAt(r, 0),
       readout: 'y = {v}',
-      figure: {
-        svg: ratSvg(r, {
+      figure: plotFigure(ratSvg(r, {
           xMin: Math.min(...xs) - 2,
           xMax: Math.max(...xs) + 2,
           yMin: window.xMin,
           yMax: window.xMax,
           yAxis: true,
           label: 'The curve, and the y-axis it crosses',
-        }),
-        ...window,
-        axis: 'y',
-      },
+        }), 'y'),
     };
   },
   solution: (params) => fracYIntTree.solution(params.r),

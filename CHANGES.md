@@ -5,6 +5,11 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-25
 
+- **Streak no longer counts a day twice after travelling west.** A play dated
+  a day or two before the last one is a day already counted and changes
+  nothing, and the home screen reads it as done. A day the calendar skipped
+  going east costs no charge, and a clock set far wrong and put right keeps
+  the streak (the day it replaced is remembered). `src/store/streak.ts`.
 - **Two grading bugs fixed (this PR).** `vec-parallel` could offer two
   parallel options, marking a correct pick wrong (~10% of draws). A negative
   base was shown unbracketed (`-1^{4}`) while the answer meant `(-1)^{4}`, in

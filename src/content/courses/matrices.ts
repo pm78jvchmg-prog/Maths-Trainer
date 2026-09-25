@@ -138,7 +138,7 @@ export const matrices: Course = {
                 '\\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix} + \\mathbf{X} = \\begin{pmatrix} 5 & 1 \\\\ 3 & 6 \\end{pmatrix}',
               ),
               maths(
-                '\\mathbf{X} = \\begin{pmatrix} 5 - 1 & 1 - 2 \\\\ 3 - 3 & 6 - 4 \\end{pmatrix} = \\begin{pmatrix} 4 & -1 \\\\ 0 & 2 \\end{pmatrix}',
+                '\\begin{gathered} \\mathbf{X} = \\begin{pmatrix} 5 - 1 & 1 - 2 \\\\ 3 - 3 & 6 - 4 \\end{pmatrix} \\\\ = \\begin{pmatrix} 4 & -1 \\\\ 0 & 2 \\end{pmatrix} \\end{gathered}',
               ),
               prose(
                 'That is four small equations solved at once rather than anything new. Subtracting the other way round flips every sign, which answers a different question.',
@@ -941,7 +941,7 @@ export const matrices: Course = {
               prose(
                 'Moving a point is then one multiplication. A stretch parallel to the $x$-axis, factor $3$, sends $(2, 5)$ to $(3 \\times 2, \\; 5) = (6, 5)$; a quarter turn anticlockwise sends $(2, 3)$ to $(-3, 2)$:',
               ),
-              maths('\\begin{pmatrix} 0 & -1 \\\\ 1 & 0 \\end{pmatrix} \\begin{pmatrix} 2 \\\\ 3 \\end{pmatrix} = \\begin{pmatrix} 0 - 3 \\\\ 2 + 0 \\end{pmatrix} = \\begin{pmatrix} -3 \\\\ 2 \\end{pmatrix}'),
+              maths('\\begin{gathered} \\begin{pmatrix} 0 & -1 \\\\ 1 & 0 \\end{pmatrix} \\begin{pmatrix} 2 \\\\ 3 \\end{pmatrix} = \\begin{pmatrix} 0 - 3 \\\\ 2 + 0 \\end{pmatrix} \\\\ = \\begin{pmatrix} -3 \\\\ 2 \\end{pmatrix} \\end{gathered}'),
             ),
             ask('mat-standard-locate', 2),
             teach(

@@ -1131,12 +1131,17 @@ interface DetPropertyParams {
  */
 const detProperty: Generator<DetPropertyParams> = {
   id: 'mat-det-property',
-  sample: (rng, difficulty) => ({
-    det: nonZero(rng.int(difficulty > 1 ? -9 : 2, 9), 3),
-    other: nonZero(rng.int(difficulty > 1 ? -7 : 2, 7), -2),
-    k: rng.pick(difficulty > 1 ? [-4, -3, -2, 2, 3, 4] : [2, 3, 4]),
-    property: rng.pick(['scalar', 'product', 'inverse', 'transpose'] as const),
-  }),
+  sample: (rng, difficulty) => {
+    const det = nonZero(rng.int(difficulty > 1 ? -9 : 2, 9), 3);
+    return {
+      // A determinant of 1 or -1 is its own reciprocal, so 1/det and det would
+      // be two right answers to the inverse and transpose questions.
+      det: Math.abs(det) === 1 ? 5 * det : det,
+      other: nonZero(rng.int(difficulty > 1 ? -7 : 2, 7), -2),
+      k: rng.pick(difficulty > 1 ? [-4, -3, -2, 2, 3, 4] : [2, 3, 4]),
+      property: rng.pick(['scalar', 'product', 'inverse', 'transpose'] as const),
+    };
+  },
   render: ({ det, other, k, property }): Slide => {
     const asked =
       property === 'scalar'

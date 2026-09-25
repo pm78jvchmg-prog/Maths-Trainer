@@ -472,6 +472,12 @@ Per generator, across 200 seeds × 2 difficulties:
 - the checker accepts the answer the generator claims, and rejects a perturbed one
 - tile banks actually contain the tokens their answers need
 - choice options are unique and include the correct id
+- no two choice options are worth the same, read by value off their labels
+  (`sweep/optionValue.ts`): a distractor equal to the right option is a
+  second right answer marked wrong, and two equal distractors are a free
+  elimination. Labels that are words, sets or anything else it cannot read
+  plainly are skipped. A question about *form* (`2 \times 3` as a matrix
+  order) goes in `SAME_VALUE_BY_DESIGN` with its reason, never a blanket skip
 - solutions exist and vary with the parameters
 
 **The oracle test is the important one.** The above only prove a generator agrees

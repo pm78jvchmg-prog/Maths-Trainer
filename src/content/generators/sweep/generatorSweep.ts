@@ -58,6 +58,7 @@ import {
 } from '../../transform';
 import { docFromKeys, toAnswer } from '../../../ui/mathInput';
 import type { Generator } from '../../types';
+import { equalPairs, slideValues } from './optionValue';
 
 const FULL_SEEDS = 200;
 
@@ -79,6 +80,32 @@ function sweepSeeds(value: unknown): number {
   }
   return seeds;
 }
+
+/**
+ * Choice generators whose options are *meant* to share a value, for the
+ * same-value check. Narrow on purpose: each names the rule it is let off and
+ * why, and anything not listed is held to both.
+ *
+ * - `form`: the question is about how a value is written, not what it is, so
+ *   every option may be worth the same. The right option can match a
+ *   distractor, and so can two distractors.
+ * - `distractors`: the options are slips in the working, and two different
+ *   slips may land on one number. A distractor still may never equal the
+ *   right option.
+ */
+const SAME_VALUE_BY_DESIGN: Record<string, { rule: 'form' | 'distractors'; why: string }> = {
+  'mat-shape': { rule: 'form', why: '2 x 3 is an order, rows by columns, not a product' },
+  'divide-which-multiplier': { rule: 'form', why: 'every option is a fraction equal to 1; the question is which one to multiply by' },
+  'bin-out-first-which': { rule: 'form', why: 'every option rewrites the same number; the question is which one the expansion is valid for' },
+  'frac-cancel-which': { rule: 'form', why: 'the question is which fraction can be cancelled, and the cancelled one is worth the same' },
+  'prf-counter-pick': { rule: 'form', why: 'each option is a case of the claim, like 5 + 13, and its total is not what is asked' },
+  'bin-conjugate-which': { rule: 'distractors', why: 'the trap is that (root k - 1)^n is the other combination in disguise' },
+  'bin-series-stops-choice': { rule: 'distractors', why: 'the powers are disguised, 8/4 beside 2, and seeing through that is the question' },
+  'coord-half-base-choice': { rule: 'distractors', why: 'each option is a slip in the working, and two slips can give one area' },
+  'prob-cf-joint-which': { rule: 'distractors', why: 'each option is a slip in the working, and two slips can give one number' },
+  'numer-bound-ends': { rule: 'distractors', why: 'each option writes different ends into one calculation, and two can come to the same' },
+  'numer-closest-choice': { rule: 'distractors', why: '3.7 and 3.70 are two estimates to different places that happen to agree' },
+};
 
 /** Tiles a bank may repeat beyond what the answer needs; see the repeated-tile check. */
 const SIGN_TILES = new Set(['+', '-', '+\\infty', '-\\infty']);
@@ -966,6 +993,35 @@ function sweepGenerator(_id: string, generator: RegisteredGenerator): void {
           verdict.status,
           `seed ${seed}: distractor ${option.tex} (${option.answer}) is not wrong against ${right}`,
         ).toBe('incorrect');
+      }
+    }
+  });
+
+  it('offers choice options that differ in value, with no second right answer', () => {
+    // The test above needs a generator's own `choices()`, and every choice
+    // slide written directly as a `choice` skipped it: the sweep proved the
+    // right id was offered and nothing about the others. `vec-parallel`
+    // offered a second parallel vector that way. So every choice slide whose
+    // labels read as values (`optionValue.ts`) is compared by value: no
+    // distractor may equal the right option, which would mark a right pick
+    // wrong, and no two distractors may equal each other, which hands the
+    // learner a free elimination. Labels that are words, sets or anything
+    // else the reader declines are left alone.
+    const exempt = SAME_VALUE_BY_DESIGN[_id];
+    for (const { params, difficulty, seed } of cases()) {
+      const slide = (generator as Generator<unknown>).render(params);
+      if (slide.kind !== 'choice') continue;
+      const labels = slide.options.map((option) => option.label);
+      const values = slideValues(labels);
+      if (!values) continue;
+      const right = slide.options.findIndex((option) => option.id === slide.correctId);
+      for (const [a, b] of equalPairs(values, seed)) {
+        const secondRight = a === right || b === right;
+        if (exempt && (exempt.rule === 'form' || !secondRight)) continue;
+        expect.fail(
+          `seed ${seed} d${difficulty}: ${secondRight ? 'a distractor equals the right option' : 'two distractors are equal'}: ` +
+            `${labels[a]} and ${labels[b]} (right: ${labels[right]})`,
+        );
       }
     }
   });

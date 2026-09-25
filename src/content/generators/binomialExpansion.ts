@@ -3293,7 +3293,21 @@ const sumWhich: Generator<SumWhichParams> = {
   render: ({ a, k, n, alt }): Slide => {
     const power = (value: number) => `${baseTex(value)}^{${n}}`;
     const separate = `${a === 1 ? '1' : power(a)} ${alt ? '-' : '+'} ${power(Math.abs(k))}`;
-    const labels = alt ? [power(a - k), power(a + k), separate, `-${power(a + k)}`] : [power(a + k), `2^{${n}}`, separate, power(a - k)];
+    const separateValue = a ** n + (alt ? -1 : 1) * Math.abs(k) ** n;
+    // Each option with its value, the answer first: a slip that lands on the
+    // answer's value, or on another slip's, is dropped for the spares at the end.
+    const candidates: [string, number][] = alt
+      ? [[power(a - k), (a - k) ** n], [power(a + k), (a + k) ** n], [separate, separateValue], [`-${power(a + k)}`, -((a + k) ** n)]]
+      : [[power(a + k), (a + k) ** n], [`2^{${n}}`, 2 ** n], [separate, separateValue], [power(a - k), (a - k) ** n]];
+    candidates.push([`${n} \\times ${baseTex(alt ? a - k : a + k)}`, n * (alt ? a - k : a + k)]);
+    candidates.push([`${baseTex(alt ? a - k : a + k)}^{${n - 1}}`, (alt ? a - k : a + k) ** (n - 1)]);
+    const labels: string[] = [];
+    const seen = new Set<number>();
+    for (const [tex, value] of candidates) {
+      if (labels.length === 4 || seen.has(value)) continue;
+      seen.add(value);
+      labels.push(tex);
+    }
     return {
       kind: 'choice',
       prompt: [

@@ -23,50 +23,22 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { Tex, Blocks } from './Math';
 import { frameClass, isLocked, type SlideProps } from './slides';
 import type { Slide } from '../content/types';
-import { parseMove } from '../engine/session';
 import {
   bankFor,
   coveredBy,
   isPairPath,
-  landingOf,
   pairOwner,
-  reduceAt,
   renderExpr,
   targetAt,
   targets,
   toTex,
   type Expr,
   type Fragment,
-  type Move,
   type Path,
 } from '../content/expr';
-
-/** The draft's moves, read by the parser the grade uses; unreadable tokens are skipped. */
-const movesOf = (tokens: readonly string[]): Move[] =>
-  tokens.map(parseMove).filter((move): move is Move => move !== undefined);
+import { movesOf, workingLines } from './reduceWorking';
 
 const moveToken = (path: Path, value: number) => `${path}=${value}`;
-
-/**
- * Every line of working the moves produce, with the node each one collapsed.
- *
- * Unlike the grader's `replay`, a wrong value does not stop the walk: the line
- * settles on the number the learner gave, so the picture shows their working
- * and *Check* stays reachable. The learner finds out by checking.
- */
-function lines(expr: Expr, moves: Move[]): { expr: Expr; filled?: Path }[] {
-  const out: { expr: Expr; filled?: Path }[] = [{ expr }];
-  let current = expr;
-  for (const move of moves) {
-    const node = targetAt(current, move.path);
-    // A move that no longer applies — the content changed under a stored answer
-    // — stops the replay rather than throwing.
-    if (!node || node.kind === 'num') break;
-    current = reduceAt(current, move.path, move.value);
-    out.push({ expr: current, filled: landingOf(move.path) });
-  }
-  return out;
-}
 
 /**
  * One rendered line.
@@ -170,7 +142,7 @@ function ReduceBody({
   /** Which piece is chosen and waiting for a value. */
   const [armed, setArmed] = useState<Path | null>(null);
 
-  const worked = lines(slide.expr, moves);
+  const worked = workingLines(slide.expr, moves);
   const live = worked[worked.length - 1].expr;
   const done = live.kind === 'num';
   const offered = done || locked ? [] : targets(live);
@@ -278,13 +250,6 @@ function ReduceBody({
       </button>
     </>
   );
-}
-
-/** True once the expression is a single number, so *Check* may go live. */
-export function reduceComplete(expr: Expr, answer: unknown): boolean {
-  if (!Array.isArray(answer)) return false;
-  const worked = lines(expr, movesOf(answer));
-  return worked[worked.length - 1].expr.kind === 'num';
 }
 
 /**

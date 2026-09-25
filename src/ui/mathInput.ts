@@ -23,9 +23,7 @@
  * - `toAnswer` is what mathjs parses. It is never displayed, so it can be
  *   unambiguous rather than pretty: `(3)/(4)` for that same fraction.
  */
-import { useMemo } from 'react';
 import type { KeypadKey } from '../content/types';
-import { Tex } from './Math';
 
 /**
  * A node of the answer.
@@ -413,27 +411,4 @@ export function applyKey(doc: Doc, key: KeypadKey): Doc {
 /** The editor as a slide's `prefill` leaves it: those keys pressed in order. */
 export function docFromKeys(keys: readonly KeypadKey[] = []): Doc {
   return keys.reduce(applyKey, EMPTY_DOC);
-}
-
-/* ---------- the slot ---------- */
-
-export function MathSlot({
-  doc,
-  showCaret,
-  filled,
-}: {
-  doc: Doc;
-  showCaret: boolean;
-  filled: boolean;
-}) {
-  const tex = useMemo(
-    () => toTex(doc.nodes, showCaret ? doc.caret : undefined),
-    [doc, showCaret],
-  );
-
-  return (
-    <span className={`answer-slot${filled ? ' filled' : ''}${showCaret ? ' focus' : ''}`}>
-      {tex ? <Tex tex={tex} trust /> : ' '}
-    </span>
-  );
 }

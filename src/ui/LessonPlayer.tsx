@@ -21,7 +21,8 @@ import {
 } from '../engine/session';
 import type { Answer } from '../engine/session';
 import type { Lesson, GeneratorRegistry } from '../content/types';
-import { SlideView, hasAnswer } from './slides';
+import { SlideView } from './SlideView';
+import { hasAnswer } from './slides';
 import { FeedbackBar, VerdictAnnouncer } from './FeedbackBar';
 import { tapOnQuestion } from './questionTap';
 

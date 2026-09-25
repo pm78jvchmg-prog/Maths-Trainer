@@ -357,3 +357,18 @@ Generators in `src/content/generators/contestAdvancedProbability.ts`.
 | Events with States | `cm-ap-streak`, `cm-ap-streak-table`, `cm-ap-pattern`, `cm-ap-ruin` | a run of j costs r(T + 1) from a run of j − 1; nothing is lost after the first half of a two-different pattern, and after a miss TH beats HH; the gambler's steps are equal, or in the ratio q : p |
 
 Level check: 14 questions across all six lessons.
+
+## Level 23: Contest Problem Strategies (`cm-l23`)
+
+Generators in `src/content/generators/contestStrategies.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Casework | `cm-st-triangles`, `cm-st-abs-regions`, `cm-st-case-table`, `cm-st-square-ends` | fix the longest side first; cut the number line where each bracket turns, and the middle piece is constant; one case per value of y; only the last digit of n decides the last digit of n² or n(n + 1) |
+| Extreme Cases and Invariants | `cm-st-socks-table`, `cm-st-pair-sum`, `cm-st-board`, `cm-st-cups` | the unluckiest draw, capped by what the drawer holds, plus one; one from each pair, every unpartnered number free; the total moves by a fixed step, or the product of (number + s) never changes; odd turns per cup, extra turns in pairs, no more turns than moves |
+| Generalization | `cm-st-pattern-table`, `cm-st-alt-squares`, `cm-st-nth-term`, `cm-st-josephus` | small cases, then why the step grows; pairs of squares make minus triangular numbers; the last copy of k sits at a sum you can add up; 2L + 1 past the power of 2 |
+| Using Symmetry | `cm-st-river`, `cm-st-river-tiles`, `cm-st-pair-function`, `cm-st-gap-min` | reflect B in the bank and walk straight; the touch point splits the gap in the ratio of the heights; f(x) + f(1 − x) = 1; k picks make k + 1 gaps of equal average size |
+| Eliminating Choices | `cm-st-product-elim`, `cm-st-square-elim`, `cm-st-consecutive-product`, `cm-st-remainder-elim`, `cm-st-root-table` | last digits, then digit sums; squares never end in 2, 3, 7, 8 and their digit sums come to 1, 4, 7, 9; the squares or cube either side; test each option against every condition; the tens, then the square halfway |
+| Simplifications | `cm-st-power-fraction`, `cm-st-name-number`, `cm-st-sym-sum-tiles`, `cm-st-sym-sum` | take out the smallest power, after writing 4ⁿ as 2²ⁿ; call the middle (or smallest) number x and the x terms cancel; a² + b² and a³ + b³ from a + b and ab; 1/a + 1/b and a/b + b/a without finding a and b |
+
+Level check: 13 questions across all six lessons.

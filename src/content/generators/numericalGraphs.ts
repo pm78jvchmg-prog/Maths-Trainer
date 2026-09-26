@@ -288,6 +288,15 @@ function curveTex({ kind, a }: MeetParams): string {
   return `\\frac{${a}}{x}`;
 }
 
+/** The curve in words, for a figure's label: SVG text cannot hold TeX. */
+function curvePlain({ kind, a }: MeetParams): string {
+  const coef = a === 1 ? '' : String(a);
+  if (kind === 'cube') return `${coef}x cubed`;
+  if (kind === 'square') return `${coef}x squared`;
+  return `${a} over x`;
+}
+
+/** Plain enough for a label as well: a line is never more than `-2x + 3`. */
 const lineTex = ({ m, c }: MeetParams): string => polyTex([m, c]);
 
 function curveFn({ kind, a }: MeetParams): (x: number) => number {
@@ -353,7 +362,7 @@ function meetSvg(params: MeetParams): string {
       yMax: 8,
       grid: true,
       curves: [{ f: clamped(curveFn(params), 12), breaks: params.kind === 'recip' }, { f: (x) => params.m * x + params.c, accent: true }],
-      label: `The graphs of y = ${curveTex(params)} and the straight line y = ${lineTex(params)}`,
+      label: `The graphs of y = ${curvePlain(params)} and the straight line y = ${lineTex(params)}`,
     }),
   );
 }
@@ -368,7 +377,8 @@ const meetCount: Generator<MeetParams> = {
     return choiceSlide(
       [
         { kind: 'diagram', svg: meetSvg(params) },
-        say(`The graphs of $y = ${curveTex(params)}$ and $y = ${lineTex(params)}$. How many solutions has $${equationTex(params)}$?`),
+        say(`The graphs of $y = ${curveTex(params)}$ and $y = ${lineTex(params)}$. How many solutions has this equation?`),
+        show(equationTex(params)),
       ],
       [0, 1, 2, 3].map((n) => ({ tex: String(n), correct: n === count })),
     );

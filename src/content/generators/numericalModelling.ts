@@ -75,6 +75,8 @@ interface Model {
   volume: (x: number, k: number) => number;
   /** The volume written from its dimensions, `x^{2}(x + 2)`. */
   build: (k: number) => string;
+  /** The same in words, for a figure's label: SVG text cannot hold TeX. */
+  plain: (k: number) => string;
   /** The volume at a number, written for substitution. */
   buildAt: (x: string, k: number) => string;
   /** x^3 + b x^2 - V, with its leading coefficient. */
@@ -87,6 +89,7 @@ const MODELS: Model[] = [
     story: (k, V) => `A box has a square base of side $x$ cm. It is $${k}$ cm taller than it is wide, and its volume is $${V}$ cm³.`,
     volume: (x, k) => x * x * (x + k),
     build: (k) => `x^{2}(x + ${k})`,
+    plain: (k) => `x squared times (x + ${k})`,
     buildAt: (x, k) => `${x}^{2} \\times (${x} + ${k})`,
     lead: 1,
     square: (k) => k,
@@ -95,6 +98,7 @@ const MODELS: Model[] = [
     story: (k, V) => `A box has a square base of side $x$ cm. It is $${k}$ cm less tall than it is wide, and its volume is $${V}$ cm³.`,
     volume: (x, k) => x * x * (x - k),
     build: (k) => `x^{2}(x - ${k})`,
+    plain: (k) => `x squared times (x - ${k})`,
     buildAt: (x, k) => `${x}^{2} \\times (${x} - ${k})`,
     lead: 1,
     square: (k) => -k,
@@ -103,6 +107,7 @@ const MODELS: Model[] = [
     story: (k, V) => `A block measures $x$ cm by $2x$ cm by $x + ${k}$ cm. Its volume is $${V}$ cm³.`,
     volume: (x, k) => 2 * x * x * (x + k),
     build: (k) => `2x^{2}(x + ${k})`,
+    plain: (k) => `2x squared times (x + ${k})`,
     buildAt: (x, k) => `2 \\times ${x}^{2} \\times (${x} + ${k})`,
     lead: 2,
     square: (k) => 2 * k,
@@ -142,7 +147,6 @@ function sampleModel(rng: Rng, kinds: number[]): ModelParams {
   }
 }
 
-const modelEquation = (params: ModelParams): string => `${MODELS[params.kind].build(params.k)} = ${params.V}`;
 const fTex = (params: ModelParams): string => `f(x) = ${polyTex(modelPoly(params))}`;
 
 /** `f(3) = 3^3 + 2 x 3^2 - 50 = -5`, one power at a time. */
@@ -158,7 +162,7 @@ function expandSolution(params: ModelParams): SolutionStep[] {
   const p = modelPoly(params);
   return [
     { text: 'Multiply out the volume, then take the volume away from both sides:' },
-    { tex: aligned(`${modelEquation(params)}`, `${polyTex([p[0], p[1], 0, 0])} = ${params.V}`, `${polyTex(p)} = 0`) },
+    { tex: aligned(`${MODELS[params.kind].build(params.k)} &= ${params.V}`, `${polyTex([p[0], p[1], 0, 0])} &= ${params.V}`, `${polyTex(p)} &= 0`) },
   ];
 }
 
@@ -229,10 +233,19 @@ const modelValue: Generator<ValueParams> = {
   },
 };
 
+/**
+ * Five values of f. Values of two or three digits with their signs make five
+ * columns too wide for a phone, so a wide table is split three over two, as
+ * the readings tables are.
+ */
 function valuesTable(params: ModelParams, from: number): string {
   const p = modelPoly(params);
   const xs = Array.from({ length: 5 }, (_, i) => from + i);
-  return `\\begin{array}{c|ccccc} x & ${xs.join(' & ')} \\\\ \\hline f(x) & ${xs.map((x) => fmt(valueAt(p, x))).join(' & ')} \\end{array}`;
+  const ys = xs.map((x) => fmt(valueAt(p, x)));
+  const part = (a: number, b: number) =>
+    `\\begin{array}{c|${'c'.repeat(b - a)}} x & ${xs.slice(a, b).join(' & ')} \\\\ \\hline f(x) & ${ys.slice(a, b).join(' & ')} \\end{array}`;
+  if (ys.join('').length <= 10) return part(0, 5);
+  return `\\begin{gathered} ${part(0, 3)} \\\\[6pt] ${part(3, 5)} \\end{gathered}`;
 }
 
 const tableStart = (params: ModelParams): number => Math.max(params.kind === 1 ? params.k : 1, Math.floor(sideOf(params)) - 2);
@@ -279,7 +292,7 @@ function meetFigure(params: ModelParams): string {
       yMin: -top * 0.15,
       yMax: top,
       curves: [{ f: clamped((x) => m.volume(x, params.k), top * 2) }, { f: () => params.V, accent: true }],
-      label: `The graph of the volume y = ${m.build(params.k)} against x, and the line y = ${params.V}`,
+      label: `The graph of the volume y = ${m.plain(params.k)} against x, and the line y = ${params.V}`,
     }),
   );
 }

@@ -1682,7 +1682,7 @@ export const numericalMethods: Course = {
             ask('numer-fd-formula-tiles'),
             teach(
               prose('A cubic works the same way. For $f(x) = x^{3} - 2x$ at $a = 1$ with $h = 0.2$:'),
-              working('f(1.2) &= 1.728 - 2.4 = -0.672', 'f(1) &= 1 - 2 = -1'),
+              working('f(1.2) &= 1.728 - 2.4', '&= -0.672', 'f(1) &= 1 - 2 = -1'),
               working("f'(1) &\\approx \\frac{-0.672 - (-1)}{0.2}", '&= \\frac{0.328}{0.2} = 1.64'),
               prose("Here $f'(x) = 3x^{2} - 2$, so $f'(1) = 1$: a bigger step leaves a bigger gap."),
             ),
@@ -1743,7 +1743,7 @@ export const numericalMethods: Course = {
               prose('The **error** of an estimate is the estimate minus the exact value. For $f(x) = x^{2}$ at $a = 3$ with $h = 0.1$, where $f\'(3) = 6$:'),
               working('\\text{forward error} &= 6.1 - 6 = 0.1', '\\text{central error} &= 6 - 6 = 0'),
               prose("For $f(x) = x^{3} - 2x$ at $a = 1$ with $h = 0.2$, where $f'(1) = 1$:"),
-              working('\\text{forward error} &= 1.64 - 1 = 0.64', '\\text{central error} &= 1.04 - 1 = 0.04'),
+              working('\\text{forward error} &= 1.64 - 1', '&= 0.64', '\\text{central error} &= 1.04 - 1', '&= 0.04'),
             ),
             ask('numer-fd-error'),
             ask('numer-diff-errors-tree'),
@@ -1946,9 +1946,9 @@ export const numericalMethods: Course = {
           slides: [
             teach(
               prose('A table of values shows roots without a graph. For $f(x) = x^{3} - 3x + 1$:'),
-              maths('\\begin{array}{c|ccccc} x & -2 & -1 & 0 & 1 & 2 \\\\ \\hline f(x) & -1 & 3 & 1 & -1 & 3 \\end{array}'),
+              maths('\\begin{array}{r|r} x & f(x) \\\\ \\hline -2 & -1 \\\\ -1 & 3 \\\\ 0 & 1 \\\\ 1 & -1 \\\\ 2 & 3 \\end{array}'),
               prose('Each value is a substitution:'),
-              working('f(-2) &= (-2)^{3} - 3 \\times (-2) + 1', '&= -8 + 6 + 1 = -1'),
+              working('f(-2) &= (-2)^{3} - 3(-2) + 1', '&= -8 + 6 + 1 = -1'),
               prose('The sign changes on $[-2, -1]$, $[0, 1]$ and $[1, 2]$. Each change proves a root, so there are at least three.'),
             ),
             ask('numer-table-fill'),
@@ -1956,16 +1956,16 @@ export const numericalMethods: Course = {
             ask('numer-table-count'),
             teach(
               prose('To narrow a root down, test the middle of its interval. For the root in $[0, 1]$:'),
-              working('f(0) &= 1', 'f(0.5) &= 0.125 - 1.5 + 1 = -0.375', 'f(1) &= -1'),
+              working('f(0) &= 1', 'f(0.5) &= 0.125 - 1.5 + 1', '&= -0.375', 'f(1) &= -1'),
               prose('$f(0.5)$ has the other sign to $f(0)$, so the change, and the root, is in $[0, 0.5]$.'),
             ),
             ask('numer-table-next-flow'),
             ask('numer-table-fill', 2),
             ask('numer-table-count+choice', 2),
             teach(
-              prose(
-                'Keep halving: $f(0.25) = 0.015625 - 0.75 + 1 = 0.265625$, the same sign as $f(0)$, so the root is in $[0.25, 0.5]$.',
-              ),
+              prose('Keep halving:'),
+              working('&f(0.25)', '&= 0.015625 - 0.75 + 1', '&= 0.265625'),
+              prose('The same sign as $f(0)$, so the root is in $[0.25, 0.5]$.'),
               prose(
                 'A table only shows its own points. Two roots between neighbouring points leave the sign unchanged, so the sign changes give the number of roots there must be, at least.',
               ),
@@ -2075,7 +2075,7 @@ export const numericalMethods: Course = {
               prose("A river's depth $d$ m is measured every $2$ m from bank to bank:"),
               maths('\\begin{array}{c|ccccc} x & 0 & 2 & 4 & 6 & 8 \\\\ \\hline d & 0 & 3 & 5 & 4 & 0 \\end{array}'),
               prose('Five readings make four strips of width $h = 2$. The ends count once, the middle readings twice:'),
-              working('y_0 + y_4 &= 0 + 0 = 0', 'y_1 + y_2 + y_3 &= 3 + 5 + 4 = 12', 'A &\\approx \\tfrac{2}{2}(0 + 2 \\times 12) = 24'),
+              working('y_0 + y_4 &= 0 + 0 = 0', 'y_1 + y_2 + y_3 &= 3 + 5 + 4 = 12', 'A &\\approx \\frac{2}{2}(0 + 2 \\times 12)', '&= 24'),
               prose('The cross-section is about $24$ square metres.'),
             ),
             ask('numer-ctx-trap-value'),
@@ -2093,7 +2093,7 @@ export const numericalMethods: Course = {
             ask('numer-ctx-strips-choice', 2),
             teach(
               prose(
-                'A quick check: the answer should lie between the smallest and the largest reading times the whole width. $24$ is between $0 \\times 8$ and $5 \\times 8 = 40$.',
+                'A quick check: the answer should lie between the smallest and the largest reading times the whole width. Here that is $0 \\times 8$ up to $5 \\times 8$, so $0$ to $40$, and $24$ is inside it.',
               ),
             ),
             ask('numer-ctx-sums-tree', 2),
@@ -2111,8 +2111,10 @@ export const numericalMethods: Course = {
               ),
               prose("A car's speed $v$ m/s is read every $2$ s:"),
               maths('\\begin{array}{c|ccccc} t & 0 & 2 & 4 & 6 & 8 \\\\ \\hline v & 4 & 10 & 14 & 16 & 17 \\end{array}'),
-              working('y_0 + y_4 &= 4 + 17 = 21', 'y_1 + y_2 + y_3 &= 10 + 14 + 16 = 40', '\\text{distance} &\\approx \\tfrac{2}{2}(21 + 2 \\times 40) = 101'),
-              prose('About $101$ m. Over the $8$ s that is an average speed of $101 \\div 8 = 12.625$ m/s.'),
+              working('y_0 + y_4 &= 4 + 17 = 21', 'y_1 + y_2 + y_3 &= 10 + 14 + 16', '&= 40'),
+              working('\\text{distance} &\\approx \\frac{2}{2}(21 + 2 \\times 40)', '&= 101'),
+              prose('About $101$ m. Over the $8$ s that is an average speed, in m/s, of'),
+              maths('101 \\div 8 = 12.625'),
             ),
             ask('numer-speed-distance'),
             ask('numer-ctx-meaning-choice'),
@@ -2179,7 +2181,7 @@ export const numericalMethods: Course = {
               prose(
                 'More strips give shorter chords that hug the curve, so a better estimate. For $\\int_0^6 (x^{2} + 1)\\,dx$, whose exact value is $78$:',
               ),
-              maths('\\begin{array}{c|cccc} n & 1 & 2 & 3 & 6 \\\\ \\hline \\text{estimate} & 114 & 87 & 82 & 79 \\end{array}'),
+              maths('\\begin{array}{c|c} n & \\text{estimate} \\\\ \\hline 1 & 114 \\\\ 2 & 87 \\\\ 3 & 82 \\\\ 6 & 79 \\end{array}'),
               prose('The curve bends up, so every estimate is too big, and they fall towards $78$ as the strips increase.'),
             ),
             ask('numer-trapezium-estimate'),
@@ -2187,7 +2189,7 @@ export const numericalMethods: Course = {
             ask('numer-ordinates-tree'),
             teach(
               prose('Each row is the rule again. With $3$ strips, $h = 2$ and the heights at $x = 0, 2, 4, 6$ are $1, 5, 17, 37$:'),
-              maths('\\tfrac{2}{2}\\big[1 + 37 + 2(5 + 17)\\big] = 82'),
+              maths('\\frac{2}{2}\\big[1 + 37 + 2(5 + 17)\\big] = 82'),
               prose('The estimates close in from one side, so the exact value lies beyond the best of them: below $79$ here.'),
             ),
             ask('numer-more-closer-choice'),
@@ -2195,7 +2197,7 @@ export const numericalMethods: Course = {
             ask('numer-more-strips-table', 2),
             teach(
               prose(
-                'The error falls fast. Going from $2$ strips to $6$, three times as many, it falls from $87 - 78 = 9$ to $79 - 78 = 1$, a ninth.',
+                'The error falls fast. With $2$ strips it is $87 - 78$, which is $9$. With $6$, three times as many, it is $79 - 78$, just $1$: a ninth.',
               ),
             ),
             ask('numer-ordinates-tree', 2),
@@ -2212,22 +2214,25 @@ export const numericalMethods: Course = {
                 "Sometimes a formula gives the heights. A tunnel's entrance is the region under $y = 9 - x^{2}$ from $x = -3$ to $x = 3$, in metres. With $6$ strips, $h = 1$ and the heights at $x = -3, -2, \\ldots, 3$ are",
               ),
               maths('0,\\ 5,\\ 8,\\ 9,\\ 8,\\ 5,\\ 0'),
-              working('A &\\approx \\tfrac{1}{2}\\big[0 + 0 + 2(5 + 8 + 9 + 8 + 5)\\big]', '&= 35'),
+              prose('The ends are $0$, and the middle heights add to'),
+              maths('5 + 8 + 9 + 8 + 5 = 35'),
+              working('A &\\approx \\frac{1}{2}(0 + 0 + 2 \\times 35)', '&= 35'),
               prose('About $35$ square metres; the exact area is $36$.'),
             ),
             ask('numer-profile-area'),
             teach(
               prose('When both ends are $0$, the rule shortens:'),
-              maths('A \\approx \\tfrac{h}{2} \\times 2(y_1 + \\cdots) = h(y_1 + \\cdots)'),
-              prose('With $4$ strips on the same tunnel, $h = 1.5$ and the heights at $x = -1.5, 0, 1.5$ are $6.75, 9, 6.75$:'),
+              maths('A \\approx \\frac{h}{2} \\times 2(y_1 + \\cdots) = h(y_1 + \\cdots)'),
+              prose('With $4$ strips on the same tunnel, $h = 1.5$. The heights at $x = -1.5$, $0$ and $1.5$ are $6.75$, $9$ and $6.75$:'),
               maths('A \\approx 1.5 \\times 22.5 = 33.75'),
             ),
             ask('numer-profile-heights-tree'),
             ask('numer-profile-area+choice', 2),
             teach(
               prose(
-                'A canal or a tunnel with the same cross-section all along is a prism, so its volume is the cross-section times the length. A canal $50$ m long with a cross-section of about $24$ square metres holds about $24 \\times 50 = 1200$ cubic metres.',
+                'A canal or a tunnel with the same cross-section all along is a prism, so its volume is the cross-section times the length. A canal $50$ m long with a cross-section of about $24$ square metres holds about $1200$ cubic metres:',
               ),
+              maths('24 \\times 50 = 1200'),
               prose(
                 'Keep track of what the number means: widths over a width give square metres, times a length gives cubic metres, and a rate over time gives an amount.',
               ),
@@ -2272,7 +2277,7 @@ export const numericalMethods: Course = {
               ),
               working('x^{2}(x + 2) &= 50', 'x^{3} + 2x^{2} &= 50', 'x^{3} + 2x^{2} - 50 &= 0'),
               prose('Call the left side $f(x)$ and try whole numbers:'),
-              working('f(3) &= 3^{3} + 2 \\times 3^{2} - 50 = -5', 'f(4) &= 4^{3} + 2 \\times 4^{2} - 50 = 46'),
+              working('f(3) &= 3^{3} + 2 \\times 3^{2} - 50', '&= -5', 'f(4) &= 4^{3} + 2 \\times 4^{2} - 50', '&= 46'),
               prose('The sign changes, so the side is between $3$ and $4$: $3 < x < 4$.'),
             ),
             ask('numer-model-equation-tiles'),
@@ -2316,8 +2321,9 @@ export const numericalMethods: Course = {
             ask('numer-report-error-bound-choice'),
             teach(
               prose(
-                'Significant figures count from the first digit that is not nought. To $2$ significant figures, $348.27 \\approx 350$ and $0.0034517 \\approx 0.0035$.',
+                'Significant figures count from the first digit that is not nought. To $2$ significant figures:',
               ),
+              maths('348.27 \\approx 350 \\qquad 0.0034517 \\approx 0.0035'),
               prose('A length of $350$ m to $2$ significant figures is from $345$ up to $355$: an error of at most $5$.'),
               prose(
                 'A search gives better and better estimates. When two in a row round to the same value, report it: $3.1234$ and $3.1229$ are both $3.12$ to $2$ decimal places.',
@@ -2359,7 +2365,7 @@ export const numericalMethods: Course = {
                 'To judge an answer: is it positive, does it fit any limit the story sets, and does it come within $10\\%$ of the target when put back in? $10\\%$ of $50$ is $5$, and $49.011$ is within $5$ of $50$.',
               ),
               prose('For a block $x$ by $2x$ by $x + 1$, putting back $x = 2.5$:'),
-              working('2 \\times 2.5^{2} \\times (2.5 + 1) &= 2 \\times 6.25 \\times 3.5', '&= 43.75'),
+              working('&2 \\times 2.5^{2} \\times (2.5 + 1)', '&= 2 \\times 6.25 \\times 3.5', '&= 43.75'),
             ),
             ask('numer-sense-flow'),
             ask('numer-sense-check-value+choice', 2),
@@ -2418,8 +2424,9 @@ export const numericalMethods: Course = {
                 'A quadratic has a formula that gives its roots exactly. Most other equations need a change of sign, then a decimal search. Readings with no formula need the trapezium rule. A polynomial can be integrated exactly.',
               ),
               prose(
-                'For the box $x^{3} + 2x^{2} - 50 = 0$ there is no formula to use here, so start with a change of sign: $f(3) = 27 + 18 - 50 = -5$ and $f(4) = 46$.',
+                'For the box $x^{3} + 2x^{2} - 50 = 0$ there is no formula to use here, so start with a change of sign:',
               ),
+              working('f(3) &= 27 + 18 - 50 = -5', 'f(4) &= 46'),
             ),
             ask('numer-method-choice'),
             ask('numer-method-flow'),
@@ -2427,7 +2434,7 @@ export const numericalMethods: Course = {
             teach(
               prose("For readings, use the trapezium rule. A river's depth $d$ m every $2$ m from bank to bank:"),
               maths('\\begin{array}{c|ccccc} x & 0 & 2 & 4 & 6 & 8 \\\\ \\hline d & 0 & 3 & 5 & 4 & 0 \\end{array}'),
-              working('y_0 + y_4 &= 0 + 0 = 0', 'y_1 + y_2 + y_3 &= 3 + 5 + 4 = 12', 'A &\\approx \\tfrac{2}{2}(0 + 2 \\times 12) = 24'),
+              working('y_0 + y_4 &= 0 + 0 = 0', 'y_1 + y_2 + y_3 &= 3 + 5 + 4 = 12', 'A &\\approx \\frac{2}{2}(0 + 2 \\times 12)', '&= 24'),
             ),
             ask('numer-ctx-trap-value'),
             ask('numer-method-choice', 2),

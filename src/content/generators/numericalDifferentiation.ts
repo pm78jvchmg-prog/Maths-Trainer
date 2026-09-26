@@ -106,7 +106,7 @@ function centralLine(params: DiffParams): string {
 function secondLine(params: DiffParams): string {
   const e = estimates(params);
   return aligned(
-    `&\\frac{${fmt(e.up)} - 2 \\times ${paren(e.at)} + ${paren(e.down)}}{${fmt(params.h)}^{2}}`,
+    `&\\frac{${fmt(e.up)} - 2(${fmt(e.at)}) + ${paren(e.down)}}{${fmt(params.h)}^{2}}`,
     `&= \\frac{${fmt(clean(e.up - 2 * e.at + e.down))}}{${fmt(clean(params.h * params.h))}} = ${fmt(e.second)}`,
   );
 }
@@ -225,7 +225,7 @@ const fdFormulaTiles: Generator<FormulaParams> = {
     };
   },
   solution: ({ a, h }) => [
-    { text: `The forward difference is the chord from $x = ${fmt(a)}$ forward to $x = ${fmt(a)} + ${fmt(h)} = ${fmt(a + h)}$.` },
+    { text: `The forward difference is the chord from $x = ${fmt(a)}$ forward by $h = ${fmt(h)}$, to $x = ${fmt(a + h)}$.` },
     { tex: `f'(${fmt(a)}) \\approx \\frac{f(${fmt(a + h)}) - f(${fmt(a)})}{${fmt(h)}}` },
   ],
 };
@@ -373,7 +373,7 @@ const cdFormulaTiles: Generator<FormulaParams> = {
   },
   solution: ({ a, h }) => [
     {
-      text: `The central difference is the chord from $x = ${fmt(a)} - ${fmt(h)} = ${fmt(a - h)}$ to $x = ${fmt(a)} + ${fmt(h)} = ${fmt(a + h)}$, which is $2h = ${fmt(2 * h)}$ wide.`,
+      text: `The central difference is the chord from $x = ${fmt(a - h)}$ to $x = ${fmt(a + h)}$, $h = ${fmt(h)}$ either side of $${fmt(a)}$, so it is $2h = ${fmt(2 * h)}$ wide.`,
     },
     { tex: `f'(${fmt(a)}) \\approx \\frac{f(${fmt(a + h)}) - f(${fmt(a - h)})}{${fmt(2 * h)}}` },
   ],
@@ -969,7 +969,7 @@ const secondFormulaTiles: Generator<FormulaParams> = {
     };
   },
   solution: ({ a, h }) => [
-    { text: `The heights at $x = ${fmt(a)} + ${fmt(h)}$, at $x = ${fmt(a)}$ itself, and at $x = ${fmt(a)} - ${fmt(h)}$, over $h^{2} = ${fmt(clean(h * h))}$:` },
+    { text: `The heights at $x = ${fmt(a + h)}$, at $x = ${fmt(a)}$ itself and at $x = ${fmt(a - h)}$, over $h^{2} = ${fmt(clean(h * h))}$:` },
     { tex: `f''(${fmt(a)}) \\approx \\frac{f(${fmt(a + h)}) - 2f(${fmt(a)}) + f(${fmt(a - h)})}{${fmt(clean(h * h))}}` },
   ],
 };

@@ -155,12 +155,22 @@ const xsOf = ({ h, ys }: Readings): number[] => ys.map((_, i) => clean(i * h));
 /** Readings as a two-row table, split in two above five columns so it fits a phone. */
 function readingsTex(params: Readings): string {
   const s = STORIES[params.story];
-  const xs = xsOf(params);
+  return twoRowTable(s.x, s.y, xsOf(params), params.ys);
+}
+
+/**
+ * Any two-row table of values. Above five columns it is split into pieces of
+ * equal length stacked one above the other, so it fits a phone: an `array`
+ * cannot break, and a wider one scrolls.
+ */
+function twoRowTable(x: string, y: string, xs: number[], ys: number[]): string {
   const part = (from: number, to: number) =>
-    `\\begin{array}{c|${'c'.repeat(to - from)}} ${s.x} & ${xs.slice(from, to).map(fmt).join(' & ')} \\\\ \\hline ${s.y} & ${params.ys.slice(from, to).map(fmt).join(' & ')} \\end{array}`;
-  if (params.ys.length <= 5) return part(0, params.ys.length);
-  const half = Math.ceil(params.ys.length / 2);
-  return `\\begin{gathered} ${part(0, half)} \\\\[6pt] ${part(half, params.ys.length)} \\end{gathered}`;
+    `\\begin{array}{c|${'c'.repeat(to - from)}} ${x} & ${xs.slice(from, to).map(fmt).join(' & ')} \\\\ \\hline ${y} & ${ys.slice(from, to).map(fmt).join(' & ')} \\end{array}`;
+  if (ys.length <= 5) return part(0, ys.length);
+  const size = Math.ceil(ys.length / Math.ceil(ys.length / 5));
+  const parts: string[] = [];
+  for (let from = 0; from < ys.length; from += size) parts.push(part(from, Math.min(from + size, ys.length)));
+  return `\\begin{gathered} ${parts.join(' \\\\[6pt] ')} \\end{gathered}`;
 }
 
 function sums(ys: number[], h: number) {
@@ -431,7 +441,7 @@ const speedMeanSlider: Generator<Readings> = {
     const { area } = sums(ys, h);
     return [
       ...ruleSolution(ys, h).slice(1),
-      { text: `That is the distance. The time is $${n} \\times ${fmt(h)} = ${fmt(clean(n * h))}$ s, so the average speed is` },
+      { text: `That is the distance. The time is $${n}$ strips of $${fmt(h)}$ s, which is $${fmt(clean(n * h))}$ s, so the average speed is` },
       { tex: `\\frac{${fmt(area)}}{${fmt(clean(n * h))}} = ${fmt(averageOf(params))}` },
     ];
   },
@@ -472,7 +482,7 @@ const speedAverage: Generator<Readings> = {
     const { area } = sums(ys, h);
     return [
       ...ruleSolution(ys, h),
-      { text: `The whole time is $${n} \\times ${fmt(h)} = ${fmt(clean(n * h))}$ s.` },
+      { text: `The whole time is $${n}$ strips of $${fmt(h)}$ s, which is $${fmt(clean(n * h))}$ s.` },
       { tex: `\\frac{${fmt(area)}}{${fmt(clean(n * h))}} = ${fmt(averageOf(params))}` },
     ];
   },
@@ -856,8 +866,8 @@ function sampleProfile(rng: Rng, counts: (params: ProfileParams) => number[]): P
 function profileSolution(params: ProfileParams): SolutionStep[] {
   const { h, xs, ys } = profileHeights(params);
   return [
-    { text: `${params.n} strips across make $h = ${fmt(h)}$. The heights at $x = ${xs.map(fmt).join(', ')}$ are` },
-    { tex: `${ys.map(fmt).join(',\\ ')}` },
+    { text: `${params.n} strips across make $h = ${fmt(h)}$. The heights are` },
+    { tex: twoRowTable('x', params.kind === 'tunnel' ? 'y' : 'd', xs, ys) },
     ...ruleSolution(ys, h).slice(1),
   ];
 }

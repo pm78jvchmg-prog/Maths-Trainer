@@ -127,15 +127,35 @@ export function ExpressionSlide({
   // part of the answer the question has already written in for them.
   const start = docFromKeys(slide.kind === 'expression' ? slide.prefill : undefined);
   const [doc, setDoc] = useState<Doc>(start);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const keypadRef = useRef<HTMLDivElement>(null);
 
   if (slide.kind !== 'expression') return null;
 
   // Topic-specific keys come last, so `i` sits where the screenshots put it.
   const keys = [...BASE_KEYS, ...slide.keypad];
 
+  // The keypad is pinned to the foot of the slide (`.keypad.pinned`), so on a
+  // question long enough to scroll it can sit over the answer box. Pressing a
+  // key brings the box up to just above it, so nobody types blind. Not done
+  // when the slide opens: that would scroll the question's opening lines away.
+  // Measured rather than `scrollIntoView` with a scroll margin, which Chrome
+  // treated as already in view with the box sitting behind the pad. Measured
+  // on the next frame, once the key's character is drawn: a fraction grows
+  // the box, and the old height would leave its lower half hidden.
+  const reveal = () => requestAnimationFrame(() => {
+    const frame = frameRef.current;
+    const keypad = keypadRef.current;
+    const scroller = frame?.closest('.slide');
+    if (!frame || !keypad || !scroller) return;
+    const hidden = frame.getBoundingClientRect().bottom + 12 - keypad.getBoundingClientRect().top;
+    if (hidden > 0) scroller.scrollBy({ top: hidden, behavior: 'smooth' });
+  });
+
   const apply = (next: Doc) => {
     if (locked) return;
     setDoc(next);
+    reveal();
     // Only what was already written in is no answer yet, so Check stays off
     // rather than grading the question's own half of the expression.
     const typed = toAnswer(next.nodes);
@@ -150,6 +170,7 @@ export function ExpressionSlide({
   const move = (next: Doc) => {
     if (locked) return;
     setDoc(next);
+    reveal();
   };
 
   const filled = isFilled(doc.nodes);
@@ -174,12 +195,12 @@ export function ExpressionSlide({
         <Blocks blocks={slide.prompt} />
       </div>
 
-      <div className={frameClass(feedback)}>
+      <div className={frameClass(feedback)} ref={frameRef}>
         {slide.lead && <Tex tex={slide.lead} />}
         <MathSlot doc={doc} showCaret={!locked} filled={filled} />
       </div>
 
-      <div className="keypad">
+      <div className={locked ? 'keypad' : 'keypad pinned'} ref={keypadRef}>
         <div className="keypad-keys">
           {keys.map((key, idx) => (
             <button

@@ -1041,10 +1041,11 @@ function sweepGenerator(_id: string, generator: RegisteredGenerator): void {
     }
   });
 
-  it('never shows a bare single-letter display in a derived choice prompt', () => {
+  it('never shows a bare single-letter or word-only display in a derived choice prompt', () => {
     // promptFrom lifts an expression slide's lead, minus its trailing "=",
     // into a display block. A lead like "x =" strips down to a bare "x" —
-    // meaningless above four options that already read "x = ...".
+    // meaningless above four options that already read "x = ...". A lead like
+    // "\text{value} =" strips down to the word "value" floating above them.
     if (!_id.endsWith(CHOICE_SUFFIX)) return;
     const g = generator as Generator<unknown>;
     const slide = g.render(g.sample(makeRng(1), 1));
@@ -1052,6 +1053,7 @@ function sweepGenerator(_id: string, generator: RegisteredGenerator): void {
     for (const block of slide.prompt) {
       if (block.kind === 'display') {
         expect(block.tex.trim(), `${_id}: bare single-letter display`).not.toMatch(/^[A-Za-z]$/);
+        expect(block.tex.trim(), `${_id}: word-only display`).not.toMatch(/^\\text\{[^{}]*\}$/);
       }
     }
   });

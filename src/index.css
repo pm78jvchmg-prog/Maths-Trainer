@@ -999,6 +999,18 @@ body:has(.band-maths) #root {
   gap: 8px;
 }
 
+/* A keypad with topic keys runs past the foot of a phone once the question
+   above it has a figure, and its last rows sat under the Check button until
+   the slide was scrolled. Pinned to the bottom of the scrolling slide, every
+   key is on screen from the start and the question scrolls behind it, as a
+   pinned tile bank does. Only while typing is possible: once graded, a pinned
+   pad would sit over the verdict's working. */
+.keypad.pinned {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+}
+
 /* A function key is two columns wide, so sin⁻¹ fits at the size the digits
    are read at, and the six of them sit in two rows of three. */
 .key.fn {
@@ -3057,6 +3069,26 @@ button.streak-bar:active {
   color: var(--text-dim);
   font-size: 11px;
   letter-spacing: 0.02em;
+}
+
+/* Below 360px wide (a zoomed display, a small phone, an iPad side panel) two
+   steppers side by side leave their readout about 40px between the buttons:
+   "3 right" and "Up or down" ran under the + button. Narrower buttons and a
+   readout that may wrap keep every value readable at 320px. */
+@media (max-width: 359px) {
+  .stepper {
+    gap: 2px;
+    padding: 3px;
+  }
+
+  .stepper-button {
+    width: 36px;
+  }
+
+  .stepper-value {
+    white-space: normal;
+    text-align: center;
+  }
 }
 
 .transform-flips {

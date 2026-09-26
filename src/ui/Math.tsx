@@ -9,7 +9,7 @@ import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import type { Block } from '../content/types';
 import { Traversal } from './figures';
-import { alignedRows, displayLines, displayPieces } from './displayPieces';
+import { alignedRows, displayPieces, displayRows } from './displayPieces';
 import { liftBlocks } from './liftAlgebra';
 import { inlineParts } from './inlineParts';
 
@@ -113,10 +113,10 @@ export function Prose({ text }: { text: string }) {
 export function DisplayMath({ tex, lifted = false }: { tex: string; lifted?: boolean }) {
   return (
     <div className={lifted ? 'display-math display-row lifted' : 'display-math display-row'}>
-      {displayLines(tex).map((line, row) => (
+      {displayRows(tex).map((line, row) => (
         <Fragment key={row}>
-          {row > 0 && <span className="display-break" />}
-          {displayPieces(line).map((piece, at) => (
+          {row > 0 && <span className={line.spaced ? 'display-break spaced' : 'display-break'} />}
+          {displayPieces(line.tex).map((piece, at) => (
             <DisplayPiece key={at} tex={piece} />
           ))}
         </Fragment>
@@ -142,10 +142,12 @@ function DisplayPiece({ tex }: { tex: string }) {
   }
   return (
     <span className="display-piece display-aligned">
-      {rows.map(([left, right], row) => (
+      {rows.map(([left, right, spaced], row) => (
         <Fragment key={row}>
-          <span className="aligned-left">{left && <Tex tex={`\\displaystyle ${left}`} />}</span>
-          <span className="aligned-right">{right && <Tex tex={`\\displaystyle {}${right}`} />}</span>
+          <span className={spaced ? 'aligned-left spaced' : 'aligned-left'}>{left && <Tex tex={`\\displaystyle ${left}`} />}</span>
+          <span className={spaced ? 'aligned-right spaced' : 'aligned-right'}>
+            {right && <Tex tex={`\\displaystyle {}${right}`} />}
+          </span>
         </Fragment>
       ))}
     </span>

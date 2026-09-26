@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alignedRows, displayLines, displayPieces } from './displayPieces';
+import { alignedRows, displayLines, displayPieces, displayRows } from './displayPieces';
 
 describe('displayPieces', () => {
   it('splits a display at each top-level \\qquad', () => {
@@ -50,12 +50,22 @@ describe('displayLines', () => {
   });
 });
 
+describe('displayRows', () => {
+  it('marks a line whose separator asked for extra room', () => {
+    expect(displayRows('\\begin{gathered} a \\\\ b \\\\[6pt] c \\end{gathered}')).toEqual([
+      { tex: 'a', spaced: false },
+      { tex: 'b', spaced: false },
+      { tex: 'c', spaced: true },
+    ]);
+  });
+});
+
 describe('alignedRows', () => {
   it('splits a whole aligned block into rows at the &', () => {
     expect(alignedRows('\\begin{aligned} x^2 &= \\frac{a}{b} \\\\ &\\quad + \\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix} \\\\[4pt] t &= 3 \\end{aligned}')).toEqual([
       ['x^2', '= \\frac{a}{b}'],
       ['', '\\quad + \\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix}'],
-      ['t', '= 3'],
+      ['t', '= 3', true],
     ]);
   });
 

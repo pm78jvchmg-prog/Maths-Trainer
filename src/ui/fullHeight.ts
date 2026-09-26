@@ -30,7 +30,32 @@ export function dropsTopInset(view: {
   return short >= 80 && short <= 150;
 }
 
-/** Keeps `--top-inset` on the root element in step with the window. */
+/**
+ * Whether the strip iOS paints below a short installed window keeps one
+ * colour whatever the page does.
+ *
+ * The owner's phone opens the installed app two ways. One window stops a
+ * status bar short (873 of 932pt) and iOS fills the strip below it with the
+ * body's colour, live, so the home list can colour it as it scrolls. The
+ * other stops about 69pt short and fills the strip with the manifest's
+ * `background_color` (#1e2154) whatever the body is, so there the lists fade
+ * into that colour instead. A window no more than a status bar short (64pt)
+ * is taken as the first kind.
+ */
+export function stripIsFixed(view: {
+  innerHeight: number;
+  screenWidth: number;
+  screenHeight: number;
+  standalone: boolean;
+  landscape: boolean;
+}): boolean {
+  const { innerHeight, screenWidth, screenHeight, standalone, landscape } = view;
+  if (!standalone || landscape) return false;
+  return Math.max(screenWidth, screenHeight) - innerHeight > 64;
+}
+
+/** Keeps `--top-inset` on the root element in step with the window, and
+ *  marks a window whose strip keeps one colour (`strip-fixed`). */
 export function installTopInset(): void {
   const apply = () => {
     const standalone =
@@ -47,6 +72,7 @@ export function installTopInset(): void {
     const root = document.documentElement.style;
     if (drop) root.setProperty('--top-inset', '0px');
     else root.removeProperty('--top-inset');
+    document.documentElement.classList.toggle('strip-fixed', stripIsFixed(view));
   };
   apply();
   window.addEventListener('resize', apply);

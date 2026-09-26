@@ -55,11 +55,31 @@ import { fracTex, say } from './format';
 
 const GREEK = ['\\alpha', '\\beta', '\\gamma'];
 
-/** "$α$ and $β$" or "$α$, $β$ and $γ$", each root passed through `f`. */
-function rootNames(n: number, f: (g: string) => string = (g) => g): string {
-  const names = GREEK.slice(0, n).map((g) => `$${f(g)}$`);
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+/**
+ * "$a$ and $b$" or "$a,$ $b,$ $c$ and $d$". Each comma sits inside its maths,
+ * so a line never breaks between a value and the comma after it.
+ */
+function mathList(items: (string | number)[]): string {
+  if (items.length === 1) return `$${items[0]}$`;
+  const head = items.slice(0, -1).map((t, i, all) => (i < all.length - 1 ? `$${t},$` : `$${t}$`));
+  return `${head.join(' ')} and $${items[items.length - 1]}$`;
 }
+
+/** "$α$ and $β$" or "$α,$ $β$ and $γ$", each root passed through `f`. */
+function rootNames(n: number, f: (g: string) => string = (g) => g): string {
+  return mathList(GREEK.slice(0, n).map(f));
+}
+
+/** A substitution as inline TeX, braced so a line cannot break at the arrow. */
+const to = (label: string): string => `{x \\to ${label}}`;
+
+/** The multipliers 1, k, k², (k³) as a list, powers written as powers. */
+function multipliers(k: number, n: number): string {
+  return mathList([1, k, ...Array.from({ length: n - 1 }, (_, j) => powerOf(k, j + 2))]);
+}
+
+/** Twice a product, each factor bracketed: 2(-3)(-1). Shorter than a row of times signs. */
+const twice = (...factors: number[]): string => `2${factors.map((v) => `(${v})`).join('')}`;
 
 /** Small whole coefficients below a given lead, none of them zero. */
 function samplePoly(rng: Rng, n: number, lead: number, max: number): Poly {
@@ -165,9 +185,11 @@ const blanks = (n: number, from = 0): string =>
 
 /** label = (minus) top/bottom = the value in lowest terms, the middle left out when it adds nothing. */
 function ratioLine(label: string, top: number, bottom: number, minus: boolean): string {
-  const raw = overLead(top, bottom, minus);
+  // Over 1 there is nothing to divide, and -(12) = -12 only adds a line.
+  const raw = bottom === 1 ? fracTex(minus ? -top : top, 1) : overLead(top, bottom, minus);
   const value = fracTex(minus ? -top : top, bottom);
-  return raw === value ? `${label} = ${value}` : `${label} = ${raw} = ${value}`;
+  // The value on a line of its own: a long label with both on one line is wider than a phone.
+  return raw === value ? `${label} = ${value}` : chain(`&${label}`, `=\\;&${raw}`, `=\\;&${value}`);
 }
 
 /** Polynomial options for a choice: the right one and the slips that are really wrong. */
@@ -187,10 +209,14 @@ function shiftWorking(p: Poly, k: number): SolutionStep[] {
     const e = n - i;
     if (e === 0) return;
     const bracket = `(${linTex(k)})${e > 1 ? `^{${e}}` : ''}`;
-    lines.push(`${coefMark(c)}${bracket} &= ${polyTex(scalePoly(bracketPower(k, e), c))}`);
+    const s = scalePoly(bracketPower(k, e), c);
+    if (e === 3) {
+      // Four terms after a bracket and its coefficient are wider than a phone: break after the x² term.
+      lines.push(`${coefMark(c)}${bracket} &= ${polyTex([s[0], s[1], 0, 0])}`, `&\\quad ${signedPolyTex([s[2], s[3]])}`);
+    } else lines.push(`${coefMark(c)}${bracket} &= ${polyTex(s)}`);
   });
   return [
-    { text: `Substitute $x \\to ${linTex(k)}$ and multiply out each bracket:` },
+    { text: `Substitute $${to(linTex(k))}$ and multiply out each bracket:` },
     { tex: chain(...lines) },
     { text: `Adding, with the constant $${p[n]}$:` },
     { tex: `${polyTex(shiftRoots(p, k))} = 0` },
@@ -204,7 +230,7 @@ function scaleWorking(p: Poly, k: number): SolutionStep[] {
   const lines = p.slice(1).map((c, j) => `${factor(String(c))} \\times ${j === 0 ? factor(String(k)) : powerOf(k, j + 1)} &= ${q[j + 1]}`);
   return [
     {
-      text: `An old root is the new one divided by $${k}$, so substitute $x \\to ${xOver(k)}$ and multiply through by $${powerOf(k, n)}$. The coefficients, highest first, are multiplied by $1$, $${k}$, $${powerOf(k, 2)}$${n === 3 ? `, $${powerOf(k, 3)}$` : ''}:`,
+      text: `An old root is the new one divided by $${k}$, so substitute $${to(xOver(k))}$ and multiply through by $${powerOf(k, n)}$. The coefficients, highest first, are multiplied by ${multipliers(k, n)}:`,
     },
     { tex: chain(...lines) },
     { tex: `${polyTex(q)} = 0` },
@@ -357,13 +383,13 @@ const polyTrScaleValue: Generator<ScaleValueParams> = {
     const c = p[3 - power];
     if (shrink) {
       return [
-        { text: `An old root is $${k}$ times a new one, so substitute $x \\to ${k}x$. The term in $${power === 1 ? 'x' : `x^{${power}}`}$ picks up $${power === 1 ? k : `${k}^{${power}}`}$:` },
+        { text: `An old root is $${k}$ times a new one, so substitute $${to(`${k}x`)}$. The term in $${power === 1 ? 'x' : `x^{${power}}`}$ picks up $${power === 1 ? k : `${k}^{${power}}`}$:` },
         { tex: `${factor(String(c))} \\times ${power === 1 ? k : `${k}^{${power}}`} = ${q[3 - power]}` },
       ];
     }
     const e = 3 - power;
     return [
-      { text: `Substitute $x \\to ${xOver(k)}$ and multiply through by $${powerOf(k, 3)}$. The coefficients, highest first, are multiplied by $1$, $${k}$, $${powerOf(k, 2)}$, $${powerOf(k, 3)}$, so the ${coefWords(power)} is multiplied by $${e === 1 ? k : powerOf(k, e)}$:` },
+      { text: `Substitute $${to(xOver(k))}$ and multiply through by $${powerOf(k, 3)}$. The coefficients, highest first, are multiplied by ${multipliers(k, 3)}, so the ${coefWords(power)} is multiplied by $${e === 1 ? k : powerOf(k, e)}$:` },
       { tex: `${factor(String(c))} \\times ${e === 1 ? factor(String(k)) : powerOf(k, e)} = ${q[3 - power]}` },
     ];
   },
@@ -430,7 +456,7 @@ const polyTrShiftSteps: Generator<ShiftParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `$${polyTex(p)} = 0$ has roots ${rootNames(n)}. Substituting $x \\to ${lin}$ gives the equation below, with roots ${rootNames(n, plusK(k))}. Tap the part you would work out **next**, then choose what it comes to.`,
+          `$${polyTex(p)} = 0$ has roots ${rootNames(n)}. Substituting $${to(lin)}$ gives the equation below, with roots ${rootNames(n, plusK(k))}. Tap the part you would work out **next**, then choose what it comes to.`,
         ),
       ],
       start,
@@ -592,7 +618,7 @@ const polyTrRecipTiles: Generator<RecipParams> = {
     const reversed = recipRoots(p, 1);
     return [
       {
-        text: `An old root is $${over(k, 'x')}$ of a new one, so substitute $x \\to ${over(k, 'x')}$ and multiply through by $x^{${n}}$. The coefficients come out in reverse order${k === 1 ? '' : `, then multiplied by $1$, $${k}$, $${powerOf(k, 2)}$${n === 3 ? `, $${powerOf(k, 3)}$` : ''}`}:`,
+        text: `A new root $y = ${over(k, '\\alpha')}$ means $\\alpha = ${over(k, 'y')}$, so substitute $${to(over(k, 'x'))}$ and multiply through by $x^{${n}}$. The coefficients come out in reverse order${k === 1 ? '' : `, then multiplied by ${multipliers(k, n)}`}:`,
       },
       ...(k === 1 ? [] : [{ tex: `${polyTex(reversed)}` }]),
       { tex: `${polyTex(q)} = 0` },
@@ -619,7 +645,7 @@ const polyTrRecipTree: Generator<RecipParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `$p(x) = ${polyTex(p)}$ has roots ${rootNames(3)}. For roots ${rootNames(3, kOver(k))}, substitute $x \\to ${over(k, 'x')}$ and multiply by $x^{3}$: the coefficients reverse, then are multiplied by $1$, $${k}$, $${powerOf(k, 2)}$ and $${powerOf(k, 3)}$.`,
+          `$p(x) = ${polyTex(p)}$ has roots ${rootNames(3)}. For roots ${rootNames(3, kOver(k))}, substitute $${to(over(k, 'x'))}$ and multiply by $x^{3}$: the coefficients reverse, then are multiplied by ${multipliers(k, 3)}.`,
         ),
         say(`Top row: the new coefficients of $x^{3}$ and $x^{2}$, and $${powerOf(k, 2)}$. Then the new coefficient of $x$, and $${powerOf(k, 3)}$. Last, the new constant.`),
       ],
@@ -642,7 +668,7 @@ const polyTrRecipTree: Generator<RecipParams> = {
     return [
       { text: 'Reversed, the coefficients are:' },
       { tex: reversed.join(',\\;\\; ') },
-      { text: `Times $1$, $${k}$, $${powerOf(k, 2)}$ and $${powerOf(k, 3)}$ in turn:` },
+      { text: `Times ${multipliers(k, 3)} in turn:` },
       {
         tex: chain(
           `&${reversed[1]} \\times ${factor(String(k))} = ${q[1]}`,
@@ -707,7 +733,7 @@ const polyTrRecipValue: Generator<RecipValueParams> = {
     const which = ['sum of its roots', n === 2 ? 'product of its roots' : 'sum of its roots in pairs', 'product of its roots'][ask];
     const rule = ['-\\frac{b}{a}', '\\frac{c}{a}', '-\\frac{d}{a}'][ask];
     return [
-      { text: 'Substituting $x \\to \\frac{1}{x}$ reverses the coefficients:' },
+      { text: 'Substituting ${x \\to \\frac{1}{x}}$ reverses the coefficients:' },
       { tex: `${polyTex(q)} = 0` },
       { text: `Its roots are the reciprocals, so the value asked for is the ${which}, $${rule}$:` },
       { tex: ratioLine(RECIP_LABELS[n][ask], q[ask + 1], q[0], ask % 2 === 0) },
@@ -790,7 +816,7 @@ const polyTrSquareSumsTree: Generator<MonicParams> = {
       const s = -b;
       return [
         { tex: chain(`\\alpha + \\beta &= ${s}`, `\\alpha\\beta &= ${c}`) },
-        { tex: chain(`\\alpha^{2} + \\beta^{2} &= ${factor(String(s))}^{2} - 2 \\times ${factor(String(c))} = ${s * s - 2 * c}`, `\\alpha^{2}\\beta^{2} &= ${factor(String(c))}^{2} = ${c * c}`) },
+        { tex: chain(`\\alpha^{2} + \\beta^{2} &= ${factor(String(s))}^{2} - ${twice(c)}`, `&= ${s * s - 2 * c}`, `\\alpha^{2}\\beta^{2} &= ${factor(String(c))}^{2} = ${c * c}`) },
         { text: 'Minus the sum, then the product:' },
         { tex: `${polyTex(q)} = 0` },
       ];
@@ -802,8 +828,8 @@ const polyTrSquareSumsTree: Generator<MonicParams> = {
       { tex: chain(`\\Sigma\\alpha &= ${s1}`, `\\Sigma\\alpha\\beta &= ${s2}`, `\\alpha\\beta\\gamma &= ${s3}`) },
       {
         tex: chain(
-          `\\Sigma\\alpha^{2} &= ${f(s1)}^{2} - 2 \\times ${f(s2)} = ${s1 * s1 - 2 * s2}`,
-          `\\Sigma\\alpha^{2}\\beta^{2} &= ${f(s2)}^{2} - 2 \\times ${f(s3)} \\times ${f(s1)}`,
+          `\\Sigma\\alpha^{2} &= ${f(s1)}^{2} - ${twice(s2)} = ${s1 * s1 - 2 * s2}`,
+          `\\Sigma\\alpha^{2}\\beta^{2} &= ${f(s2)}^{2} - ${twice(s3, s1)}`,
           `&= ${s2 * s2 - 2 * s1 * s3}`,
           `(\\alpha\\beta\\gamma)^{2} &= ${f(s3)}^{2} = ${s3 * s3}`,
         ),
@@ -957,7 +983,7 @@ const polyTrSquareValue: Generator<SquareValueParams> = {
       return power === 1
         ? [
             { tex: chain(`\\alpha + \\beta &= ${-b}`, `\\alpha\\beta &= ${c}`) },
-            { tex: `\\alpha^{2} + \\beta^{2} = ${f(-b)}^{2} - 2 \\times ${f(c)} = ${b * b - 2 * c}` },
+            { tex: `\\alpha^{2} + \\beta^{2} = ${f(-b)}^{2} - ${twice(c)} = ${b * b - 2 * c}` },
             { text: `The coefficient of $x$ is minus the sum of the new roots: $${value}$.` },
           ]
         : [
@@ -970,12 +996,12 @@ const polyTrSquareValue: Generator<SquareValueParams> = {
     return power === 2
       ? [
           { tex: chain(`\\Sigma\\alpha &= ${s1}`, `\\Sigma\\alpha\\beta &= ${s2}`) },
-          { tex: `\\Sigma\\alpha^{2} = ${f(s1)}^{2} - 2 \\times ${f(s2)} = ${s1 * s1 - 2 * s2}` },
+          { tex: `\\Sigma\\alpha^{2} = ${f(s1)}^{2} - ${twice(s2)} = ${s1 * s1 - 2 * s2}` },
           { text: `The coefficient of $x^{2}$ is minus the sum of the new roots: $${value}$.` },
         ]
       : [
           { tex: chain(`\\Sigma\\alpha &= ${s1}`, `\\Sigma\\alpha\\beta &= ${s2}`, `\\alpha\\beta\\gamma &= ${s3}`) },
-          { tex: chain(`\\Sigma\\alpha^{2}\\beta^{2} &= ${f(s2)}^{2} - 2 \\times ${f(s3)} \\times ${f(s1)}`, `&= ${value}`) },
+          { tex: chain(`\\Sigma\\alpha^{2}\\beta^{2} &= ${f(s2)}^{2} - ${twice(s3, s1)}`, `&= ${value}`) },
           { text: `The coefficient of $x$ is the sum of the new roots in pairs: $${value}$.` },
         ];
   },
@@ -1132,7 +1158,7 @@ const polyTrSubFlow: Generator<SubFlowParams> = {
     const { q } = subEquations(params);
     const n = p.length - 1;
     const first: SolutionStep = {
-      text: `A new root $y = ${right.root}$ means $\\alpha = ${right.label.replace(/x/g, 'y')}$, so substitute $x \\to ${right.label}$.`,
+      text: `A new root $y = ${right.root}$ means $\\alpha = ${right.label.replace(/x/g, 'y')}$, so substitute $${to(right.label)}$.`,
     };
     switch (type) {
       case 'scale':
@@ -1222,7 +1248,7 @@ const polyTrUsingValue: Generator<UsingParams> = {
     const tail: SolutionStep[] =
       ask === 0
         ? [
-            { text: `Its roots are ${rootNames(n, plusK(k))}. The sum of their reciprocals is the sum of the roots in pairs over their product, which comes to minus the coefficient of $x$ over the constant:` },
+            { text: `Its roots are ${rootNames(n, plusK(k))}. The sum of their reciprocals is the sum of the roots${n === 2 ? '' : ' in pairs'} over their product, which comes to minus the coefficient of $x$ over the constant:` },
             { tex: ratioLine(usingLabel(params), q[n - 1], q[n], true) },
           ]
         : ask === 1

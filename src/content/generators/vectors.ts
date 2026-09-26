@@ -8889,7 +8889,12 @@ const angleGiven: Generator<GivenParams> = {
         { text: 'Rearranged, the cosine is the scalar product over the two lengths:' },
         { tex: `\\cos\\theta = \\frac{${dot}}{${ma} \\times ${mb}} = ${halfTex(theta)}` },
         {
-          text: `The cosine of $60^\\circ$ is $\\tfrac{1}{2}$, and a negative cosine means the obtuse angle, $180^\\circ - 60^\\circ$. So $\\theta = ${theta}^\\circ$.`,
+          // Only the obtuse case talks about a negative cosine: said of a
+          // positive one, it reads as the working disagreeing with itself.
+          text:
+            theta === 60
+              ? 'The cosine of $60^\\circ$ is $\\tfrac{1}{2}$. So $\\theta = 60^\\circ$.'
+              : 'The cosine of $60^\\circ$ is $\\tfrac{1}{2}$, and a negative cosine means the obtuse angle, $180^\\circ - 60^\\circ$. So $\\theta = 120^\\circ$.',
         },
       ];
     }

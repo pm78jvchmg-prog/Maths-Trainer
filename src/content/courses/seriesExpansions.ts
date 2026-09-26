@@ -652,7 +652,7 @@ export const seriesExpansions: Course = {
           slides: [
             teach(
               prose(
-                'Level 2 estimated the error by the first term left out; call its size $D$. The Lagrange bound $B$ is a guarantee. When the terms **alternate** and shrink, the two agree.',
+                'Taylor Series and Approximations estimated the error by the first term left out; call its size $D$. The Lagrange bound $B$ is a guarantee. When the terms **alternate** and shrink, the two agree.',
               ),
               prose('For $e^{-x}$ at $x = \\frac{1}{2}$ after $P_{2}$, with $M = 1$:'),
               display('D = \\frac{(\\frac{1}{2})^{3}}{3!} = \\frac{1}{48}, \\quad B = \\frac{1}{48}'),

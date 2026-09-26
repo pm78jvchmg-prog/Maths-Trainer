@@ -18,5 +18,19 @@
  */
 export function defaultSliderValue(min: number, max: number, step: number): number {
   if (!(step > 0)) return (min + max) / 2;
-  return min + Math.round((max - min) / 2 / step) * step;
+  // Rounded to the places the step and the start are written to, or a step
+  // of 0.14 lands on 10.780000000000001 and the readout prints every digit.
+  return roundTo(min + Math.round((max - min) / 2 / step) * step, Math.max(places(step), places(min)));
+}
+
+/** How many decimal places a number is written to: 0.14 is 2, 5 is 0. */
+function places(n: number): number {
+  const written = String(n);
+  if (written.includes('e')) return 10;
+  const dot = written.indexOf('.');
+  return dot === -1 ? 0 : written.length - dot - 1;
+}
+
+function roundTo(n: number, dp: number): number {
+  return Number(n.toFixed(Math.min(dp, 10)));
 }

@@ -331,7 +331,7 @@ export const kinematics: Course = {
               ),
               display('v = u + at'),
               prose(
-                'This is the straight velocity-time graph from level 1. Rearranged (Linear Equations, "Changing the Subject"), it gives $a = \\frac{v - u}{t}$ and $t = \\frac{v - u}{a}$.',
+                'This is the straight velocity-time graph from Motion Graphs. Rearranged (Linear Equations, "Changing the Subject"), it gives $a = \\frac{v - u}{t}$ and $t = \\frac{v - u}{a}$.',
               ),
               prose('With $u = 5$, $a = 3$, $t = 4$:'),
               display('v = 5 + 3 \\times 4 = 17'),
@@ -623,7 +623,7 @@ export const kinematics: Course = {
             ask('kin-a-at+choice', 2),
             teach(
               prose(
-                'The signs say whether it is **speeding up**. When $v$ and $a$ have the same sign the acceleration acts the way it is moving, so its speed grows; opposite signs, it slows down (level 1, "Velocity-Time Graphs", read the same from a graph).',
+                'The signs say whether it is **speeding up**. When $v$ and $a$ have the same sign the acceleration acts the way it is moving, so its speed grows; opposite signs, it slows down (Motion Graphs, "Velocity-Time Graphs", read the same from a graph).',
               ),
               prose('For $v = 10 - t^{2}$ at $t = 2$: $v = 6$ and $a = -2t = -4$. Opposite signs, so it is slowing down.'),
             ),

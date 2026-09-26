@@ -9420,8 +9420,8 @@ const expmLevelFlow: Generator<DataParams> = {
     ...leaveSolution(params),
     {
       text: params.down
-        ? 'A fall that settles at a level is a bounded model, $L + Be^{-kt}$, from level 2.'
-        : 'Growth that speeds up and then levels off is logistic, $\\frac{L}{1 + Ae^{-kt}}$, from level 5.',
+        ? 'A fall that settles at a level is a bounded model, $L + Be^{-kt}$, from Fitting and Using Models.'
+        : 'Growth that speeds up and then levels off is logistic, $\\frac{L}{1 + Ae^{-kt}}$, from Logistic Growth.',
     },
   ],
 };

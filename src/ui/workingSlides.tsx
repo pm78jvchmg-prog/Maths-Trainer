@@ -12,6 +12,7 @@ import { Tex, Blocks, DisplayMath, Inline } from './Math';
 import type { Slide } from '../content/types';
 import { frameClass, isLocked, type SlideProps } from './slides';
 import { walkFlow } from './flow';
+import { showsLine } from './liftAlgebra';
 import { blankName, inlineToSpeech, texToSpeech } from './texSpeech';
 
 /* ---------- Steps: reduce an expression one operation at a time ---------- */
@@ -510,17 +511,24 @@ export function FlowSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideP
     onAnswer(taken.slice(0, depth));
   };
 
+  const subjectShown = showsLine(slide.prompt, slide.subject);
+
   return (
     <>
       <div className="prompt">
         <Blocks blocks={slide.prompt} />
       </div>
 
-      <div className={frameClass(feedback)}>
-        {/* Display style, like every other formula set on its own: inline
-            style shrank a fraction here to the height of the text. */}
-        <Tex tex={`\\displaystyle ${slide.subject}`} />
-      </div>
+      {/* The prompt may already show the subject on its own line; a second
+          copy directly under it reads as the model shown twice. The outcome
+          then carries the right-or-wrong frame instead. */}
+      {!subjectShown && (
+        <div className={frameClass(feedback)}>
+          {/* Display style, like every other formula set on its own: inline
+              style shrank a fraction here to the height of the text. */}
+          <Tex tex={`\\displaystyle ${slide.subject}`} />
+        </div>
+      )}
 
       {trail.length > 0 && (
         <ol className="flow-trail">
@@ -548,7 +556,7 @@ export function FlowSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideP
       )}
 
       {outcome !== undefined ? (
-        <p className="flow-outcome">
+        <p className={subjectShown ? `flow-outcome ${frameClass(feedback)}` : 'flow-outcome'}>
           <Inline text={outcome} />
         </p>
       ) : step ? (

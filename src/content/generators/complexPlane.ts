@@ -1063,9 +1063,11 @@ export const complexPower: Generator<PowerParams> = {
   sample: (rng, difficulty) => {
     // Bases whose powers stay small enough to type comfortably.
     const base = rng.pick([
+      // Never a real base: 3^5 asked in a complex-numbers lesson is not a
+      // question about complex numbers at all.
       { re: 1, im: 1 }, { re: 1, im: -1 }, { re: -1, im: 1 }, { re: -1, im: -1 },
-      { re: 2, im: 0 }, { re: 0, im: 2 }, { re: 1, im: 0 }, { re: 0, im: 1 },
-      { re: -2, im: 0 }, { re: 0, im: -2 }, { re: -1, im: 0 }, { re: 3, im: 0 },
+      { re: 0, im: 2 }, { re: 0, im: 1 }, { re: 0, im: -2 }, { re: 0, im: -1 },
+      { re: 2, im: 2 }, { re: 2, im: -2 },
     ]);
     return { ...base, n: rng.int(2, difficulty >= 2 ? 7 : 5) };
   },

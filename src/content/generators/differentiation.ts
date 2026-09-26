@@ -496,6 +496,10 @@ export const quotientRule: Generator<QuotientParams> = {
 
 interface ChainParams { a: number; b: number; power: number; innerPower: number }
 
+/** A bracket raised to a power, with a power of 1 left unwritten. */
+const bracketPower = (inner: string, p: number) =>
+  p === 1 ? `\\left(${inner}\\right)` : `\\left(${inner}\\right)^{${p}}`;
+
 export const chainRule: Generator<ChainParams> = {
   id: 'chain-rule',
   // Forgetting the inner derivative is the whole point of the rule, so the
@@ -503,7 +507,7 @@ export const chainRule: Generator<ChainParams> = {
   choices: ({ a, b, power, innerPower }) => {
     const inner = sumTex([termTex(a, innerPower), termTex(b, 0)]);
     const innerAnswer = sumAnswer([termAnswer(a, innerPower), termAnswer(b, 0)]);
-    const bracket = `\\left(${inner}\\right)^{${power - 1}}`;
+    const bracket = bracketPower(inner, power - 1);
     const bracketAnswer = `((${innerAnswer})^(${power - 1}))`;
     return options(
       { tex: `${power}${bracket}\\left(${termTex(a * innerPower, innerPower - 1)}\\right)`, answer: `(${power}) * ${bracketAnswer} * (${termAnswer(a * innerPower, innerPower - 1)})` },
@@ -557,11 +561,11 @@ export const chainRule: Generator<ChainParams> = {
       },
       {
         text: `Differentiating the outside brings the power ${power} down and reduces it to ${power - 1}.`,
-        tex: `${power}\\left(${inner}\\right)^{${power - 1}}`,
+        tex: `${power}${bracketPower(inner, power - 1)}`,
       },
       {
         text: 'Now multiply by the derivative of the inside — the step that is easiest to forget.',
-        tex: `\\frac{dy}{dx} = ${power}\\left(${inner}\\right)^{${power - 1}} \\times ${innerDerivative}`,
+        tex: `\\frac{dy}{dx} = ${power}${bracketPower(inner, power - 1)} \\times ${innerDerivative}`,
       },
     ];
   },

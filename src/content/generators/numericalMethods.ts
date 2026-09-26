@@ -3773,7 +3773,11 @@ interface ClosestParams {
 /** Estimates of a value to one, two and three places: rounded, cut off, and rounded the wrong way. */
 function estimatesOf(value: number): string[] {
   const out = [1, 2, 3].flatMap((dp) => [value.toFixed(dp), truncated(value, dp), roundedWrongWay(value, dp)]);
-  return [...new Set(out)].filter((token) => Math.abs(Number(token) - value) > 1e-9);
+  // One estimate per value: 3.7 and 3.70 are the same number, so offering
+  // both is two identical answers with only a trailing zero between them.
+  const byValue = new Map<number, string>();
+  for (const token of out) if (!byValue.has(Number(token))) byValue.set(Number(token), token);
+  return [...byValue.values()].filter((token) => Math.abs(Number(token) - value) > 1e-9);
 }
 
 /**

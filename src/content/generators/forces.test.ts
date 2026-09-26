@@ -1147,7 +1147,7 @@ describe('moments', TIME, () => {
     for (const { params: p, slide } of draws(g.ladder)) {
       if (p.find === 's') {
         const th = ladderAngle(slide);
-        const mu = Number(/coefficient of friction between the ladder and the ground is \$([\d.]+)\$/.exec(promptText(slide))![1]);
+        const mu = Number(/\$\\mu = ([\d.]+)\$ at the ground/.exec(promptText(slide))![1]);
         const S = mu * (p.W + p.P);
         const s = (S * p.L * Math.sin(th) - p.W * (p.L / 2) * Math.cos(th)) / (p.P * Math.cos(th));
         expectClose(answerOf(slide), [s], 'ladder s');

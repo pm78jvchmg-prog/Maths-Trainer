@@ -104,7 +104,6 @@ const SAME_VALUE_BY_DESIGN: Record<string, { rule: 'form' | 'distractors'; why: 
   'coord-half-base-choice': { rule: 'distractors', why: 'each option is a slip in the working, and two slips can give one area' },
   'prob-cf-joint-which': { rule: 'distractors', why: 'each option is a slip in the working, and two slips can give one number' },
   'numer-bound-ends': { rule: 'distractors', why: 'each option writes different ends into one calculation, and two can come to the same' },
-  'numer-closest-choice': { rule: 'distractors', why: '3.7 and 3.70 are two estimates to different places that happen to agree' },
 };
 
 /** Tiles a bank may repeat beyond what the answer needs; see the repeated-tile check. */

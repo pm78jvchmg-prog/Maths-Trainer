@@ -574,7 +574,7 @@ export const numericalMethods: Course = {
           slides: [
             teach(
               prose(
-                'Newton-Raphson finds a root with tangents. At $x_n$, draw the tangent to $y = f(x)$ (its equation is in Differentiation, level 1) and follow it down to the axis. Where it lands is $x_{n+1}$.',
+                'Newton-Raphson finds a root with tangents. At $x_n$, draw the tangent to $y = f(x)$ (its equation is in Differentiation, The Power Rule, "The Equation of a Tangent") and follow it down to the axis. Where it lands is $x_{n+1}$.',
               ),
               tangentStep,
               prose('The tangent drops $f(x_n)$ at a gradient of $f\'(x_n)$, so it meets the axis $\\frac{f(x_n)}{f\'(x_n)}$ along:'),
@@ -1127,7 +1127,7 @@ export const numericalMethods: Course = {
               prose(
                 "A parabola matches a quadratic exactly, so Simpson's rule is exact for quadratics. It is exact for **cubics** too: an $x^{3}$ term's error on one strip of a pair cancels on the other. From $x^{4}$ on, it is only an estimate.",
               ),
-              prose('The exact value comes from integrating, as in Integration level 2, Definite Integrals.'),
+              prose('The exact value comes from integrating, as in Integration, Definite Integrals and Area.'),
             ),
             ask('numer-cubic-steps'),
             ask('numer-simpson-error'),

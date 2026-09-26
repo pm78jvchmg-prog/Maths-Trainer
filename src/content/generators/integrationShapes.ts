@@ -610,7 +610,7 @@ const whichRule: Generator<RuleParams> = {
                 ask: 'Is it one of the three standard results — $e^{kx}$, $\\sin(kx)$ or $\\cos(kx)$?',
                 branches: [
                   { label: 'Yes', outcome: 'Use the standard result, and divide by the coefficient of $x$ inside the function.' },
-                  { label: 'No', outcome: 'None of the level 1 results reaches it; it needs one of the techniques in level 3.' },
+                  { label: 'No', outcome: 'None of these results reaches it; it needs one of the techniques in Techniques of Integration.' },
                 ],
               },
             ]

@@ -838,7 +838,7 @@ export const binomialExpansion: Course = {
           title: 'How Big the Error Is',
           slides: [
             teach(
-              prose('Level 2 estimated $(1.02)^5$ from the first three terms of $(1 + x)^5$ with $x = 0.02$: $1 + 0.1 + 0.004 = 1.104$. The first term it leaves out is ${}^{5}C_{3}x^3$:'),
+              prose('nCr and the General Term estimated $(1.02)^5$ from the first three terms of $(1 + x)^5$ with $x = 0.02$: $1 + 0.1 + 0.004 = 1.104$. The first term it leaves out is ${}^{5}C_{3}x^3$:'),
               maths('10 \\times 0.02^{3} = 0.00008'),
               prose('Every later term carries a higher power of $0.02$ and is smaller still, so the estimate is out by about $0.00008$. With $x = -0.02$ it would be $10 \\times (-0.02)^3 = -0.00008$: an odd power keeps the minus.'),
             ),
@@ -1185,7 +1185,7 @@ export const binomialExpansion: Course = {
           title: 'A Root from the Series',
           slides: [
             teach(
-              prose('A root is a fractional power, so the series of level 6 gives its value. $\\sqrt{1.02} = (1.02)^{1/2}$, which is $(1 + x)^{1/2}$ with $x = 0.02$:'),
+              prose('A root is a fractional power, so the series from The Binomial Series for Rational n gives its value. $\\sqrt{1.02} = (1.02)^{1/2}$, which is $(1 + x)^{1/2}$ with $x = 0.02$:'),
               maths('\\begin{aligned} & (1 + x)^{1/2} \\\\ &= 1 + \\tfrac{1}{2}x - \\tfrac{1}{8}x^{2} + \\dots \\end{aligned}'),
               prose('$x = 0.02$ is well inside $|x| < 1$, so the series holds, and its terms shrink fast. A cube root is the power $\\frac{1}{3}$, and one over a root is a negative power: $\\frac{1}{\\sqrt{1.02}} = (1.02)^{-1/2}$.'),
             ),
@@ -1218,7 +1218,7 @@ export const binomialExpansion: Course = {
             teach(
               prose('One over a power is a negative power, as in Exponents & Radicals:'),
               maths('\\frac{1}{(1 - x)^{2}} = (1 - x)^{-2}'),
-              prose('Its series is level 6\'s, $1 + 2x + 3x^2 + \\dots$, so $\\frac{1}{0.98^2}$ comes from $x = 0.02$:'),
+              prose('Its series, from The Binomial Series for Rational n, is $1 + 2x + 3x^2 + \\dots$, so $\\frac{1}{0.98^2}$ comes from $x = 0.02$:'),
               maths('1 + 0.04 + 0.0012 = 1.0412'),
             ),
             ask('bin-reciprocal-rewrite'),
@@ -1247,7 +1247,7 @@ export const binomialExpansion: Course = {
           title: 'Taking the Number Out First',
           slides: [
             teach(
-              prose('The series needs a bracket that starts with $1$. $4.08$ is not near $1$, so take the $4$ out first, as in level 6:'),
+              prose('The series needs a bracket that starts with $1$. $4.08$ is not near $1$, so take the $4$ out first, as in The Binomial Series for Rational n:'),
               maths('\\begin{aligned} \\sqrt{4.08} &= \\sqrt{4} \\times \\sqrt{1.02} \\\\ &= 2(1 + 0.02)^{1/2} \\end{aligned}'),
             ),
             ask('bin-out-first-tiles'),
@@ -1265,7 +1265,7 @@ export const binomialExpansion: Course = {
             ask('bin-out-first-estimate+choice', 2),
             ask('bin-out-first-tiles', 2),
             teach(
-              prose('This is level 6\'s range at work: $(a + bx)^n$ holds for $|x| < \\frac{a}{|b|}$. Writing $\\sqrt{4.08}$ as $(1 + 3.08)^{1/2}$ is equal, but $3.08$ is far outside $|x| < 1$ and that series does not hold.'),
+              prose('This is the range from The Binomial Series for Rational n at work: $(a + bx)^n$ holds for $|x| < \\frac{a}{|b|}$. Writing $\\sqrt{4.08}$ as $(1 + 3.08)^{1/2}$ is equal, but $3.08$ is far outside $|x| < 1$ and that series does not hold.'),
               prose('Taking the $4$ out leaves $x = 0.02$, deep inside the range, where three terms are plenty.'),
             ),
             ask('bin-out-first-which', 2),
@@ -1278,7 +1278,7 @@ export const binomialExpansion: Course = {
           title: 'How Good, and Which x',
           slides: [
             teach(
-              prose('$\\frac{1}{1.02} = (1 + x)^{-1}$ at $x = 0.02$, and three terms give $1 - 0.02 + 0.0004 = 0.9804$. As in level 5, the first term left out is about the size of the error:'),
+              prose('$\\frac{1}{1.02} = (1 + x)^{-1}$ at $x = 0.02$, and three terms give $1 - 0.02 + 0.0004 = 0.9804$. As in Estimates and Surds, the first term left out is about the size of the error:'),
               maths('-x^{3} = -0.000008'),
               prose('An estimate is good to $k$ places when its error is under half a unit in place $k$. $0.000008$ is under $0.00005$ but not under $0.000005$, so $0.9804$ is good to $4$ places.'),
             ),

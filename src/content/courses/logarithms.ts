@@ -816,7 +816,7 @@ export const logarithms: Course = {
           title: 'The Change of Base Formula',
           slides: [
             teach(
-              prose('Level 3 solved $2^{x} = 30$ by taking natural logarithms of both sides.'),
+              prose('Solving with Logarithms solved $2^{x} = 30$ by taking natural logarithms of both sides.'),
               maths('2^{x} = 30 \\implies x = \\frac{\\ln\\left(30\\right)}{\\ln\\left(2\\right)}'),
               prose(
                 'But by definition $2^{x} = 30$ also says $x = \\log_{2}\\left(30\\right)$. So those are the same number, and nothing about 2 or 30 was special. That is the **change of base** formula.',

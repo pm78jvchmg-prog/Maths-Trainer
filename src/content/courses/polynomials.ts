@@ -975,7 +975,7 @@ export const polynomials: Course = {
           title: 'Dividing by a Quadratic',
           slides: [
             teach(
-              prose('Level 2 divided by $(x - a)$ one term at a time. Dividing by a quadratic works the same way: take away the multiple of the divisor that clears the first term, and repeat. Each step now changes the two terms after the first.'),
+              prose('Polynomial Arithmetic, "Dividing by a Linear Factor", divided by $(x - a)$ one term at a time. Dividing by a quadratic works the same way: take away the multiple of the divisor that clears the first term, and repeat. Each step now changes the two terms after the first.'),
               working('&x^{3} - 7x^{2} + 5x + 15', '&\\quad - x(x^{2} - 3x - 3)', '=\\;&-4x^{2} + 8x + 15'),
               prose('Then take away $-4(x^{2} - 3x - 3)$ to clear the $-4x^{2}$, which leaves $-4x + 3$. That has no $x^{2}$ term, so it is the remainder.'),
             ),
@@ -1045,7 +1045,7 @@ export const polynomials: Course = {
           title: 'Repeated Factors',
           slides: [
             teach(
-              prose('Level 3 showed a curve touching the axis at a repeated root. To test for one, divide by $(x - a)$, then check whether the quotient is still zero at $a$.'),
+              prose('Polynomial Graphs showed a curve touching the axis at a repeated root. To test for one, divide by $(x - a)$, then check whether the quotient is still zero at $a$.'),
               prose('$p(x) = x^{3} + 5x^{2} + 3x - 9$ has $p(-3) = 0$. Dividing by $(x + 3)$ leaves $q(x) = x^{2} + 2x - 3$, and $q(-3) = 0$ too, so $(x + 3)^{2}$ is a factor.'),
               prose('The number of times $(x - a)$ divides $p(x)$ is how often the root $a$ is repeated.'),
             ),
@@ -1100,7 +1100,7 @@ export const polynomials: Course = {
           title: 'Solving a Quartic',
           slides: [
             teach(
-              prose('A quartic with whole-number roots falls to the level 2 method used twice. Find a root by trying divisors of the constant, divide, then do the same to the cubic that is left.'),
+              prose('A quartic with whole-number roots falls to the method of The Factor and Remainder Theorems used twice. Find a root by trying divisors of the constant, divide, then do the same to the cubic that is left.'),
               prose('$p(x) = x^{4} - x^{3} - 11x^{2} + 9x + 18$ has $p(3) = 0$, and the cubic left is zero at $x = 2$:'),
               working('&(x - 3)(x^{3} + 2x^{2} - 5x - 6)', '=\\;&(x - 3)(x - 2)(x^{2} + 4x + 3)'),
               prose('The quadratic factorises too, $x^{2} + 4x + 3 = (x + 1)(x + 3)$, so the solutions are $x = -3,\\ -1,\\ 2,\\ 3$.'),
@@ -1109,7 +1109,7 @@ export const polynomials: Course = {
             ask('poly-quartic-divide-steps'),
             ask('poly-quartic-tiles'),
             teach(
-              prose('The division is the level 2 layout with one more column. A missing power gets a $0$, so every column lines up:'),
+              prose('The division is the layout of Polynomial Arithmetic, "Dividing by a Linear Factor", with one more column. A missing power gets a $0$, so every column lines up:'),
               working('&x^{4} - 10x^{2} + 9', '=\\;&x^{4} + 0x^{3} - 10x^{2} + 0x + 9'),
             ),
             ask('poly-quartic-root'),
@@ -1259,7 +1259,7 @@ export const polynomials: Course = {
             teach(
               prose('A sign diagram needs $0$ on one side. Subtracting from both sides never turns an inequality round:'),
               working('x^{3} + 2x^{2} &> 5x + 6', 'x^{3} + 2x^{2} - 5x - 6 &> 0'),
-              prose('Then factorise as level 2 did. Call the cubic $f(x)$: $f(2) = 8 + 8 - 10 - 6 = 0$, so $(x - 2)$ is a factor, and dividing leaves $x^{2} + 4x + 3 = (x + 1)(x + 3)$.'),
+              prose('Then factorise as The Factor and Remainder Theorems did. Call the cubic $f(x)$: $f(2) = 8 + 8 - 10 - 6 = 0$, so $(x - 2)$ is a factor, and dividing leaves $x^{2} + 4x + 3 = (x + 1)(x + 3)$.'),
             ),
             ask('poly-one-side-steps'),
             ask('poly-rearrange-flow'),

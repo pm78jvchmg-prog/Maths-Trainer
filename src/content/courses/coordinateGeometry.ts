@@ -736,7 +736,7 @@ export const coordinateGeometry: Course = {
               prose(
                 'With the centre at $C(a, b)$, measure $P$ from the centre as well: if $P$ is $X$ across and $Y$ up from $C$, a line through it is $k = Y - mX$ above the centre, and the condition is $k^2 = r^2(1 + m^2)$ as before.',
               ),
-              prose('If the circle comes multiplied out, complete the square first, as in level 2, to find $C$ and $r^2$. For $x^2 + y^2 - 2x - 4y - 4 = 0$, move the number across first:'),
+              prose('If the circle comes multiplied out, complete the square first, as in Midpoints, Distances and Circles, to find $C$ and $r^2$. For $x^2 + y^2 - 2x - 4y - 4 = 0$, move the number across first:'),
               maths(
                 '\\begin{aligned} x^2 - 2x + y^2 - 4y &= 4 \\\\ (x - 1)^2 - 1 + (y - 2)^2 - 4 &= 4 \\\\ (x - 1)^2 + (y - 2)^2 &= 9 \\end{aligned}',
               ),
@@ -754,7 +754,7 @@ export const coordinateGeometry: Course = {
           slides: [
             teach(
               prose(
-                'The perpendicular from the centre to a chord meets it at its midpoint $M$, as in level 2. So the radius, half the chord and $CM$ make a right-angled triangle:',
+                'The perpendicular from the centre to a chord meets it at its midpoint $M$, as in Midpoints, Distances and Circles. So the radius, half the chord and $CM$ make a right-angled triangle:',
               ),
               maths('\\left(\\tfrac{1}{2}AB\\right)^2 = r^2 - CM^2'),
               grid(6, [segment(-4, 3, 4, 3)], [{ x: -4, y: 3 }, { x: 4, y: 3 }, { x: 0, y: 3 }, { x: 0, y: 0, hollow: true }], 'The circle x^2 + y^2 = 25 with a chord from (-4, 3) to (4, 3) and its midpoint (0, 3)', [{ h: 0, k: 0, r2: 25 }]),
@@ -789,7 +789,7 @@ export const coordinateGeometry: Course = {
               prose(
                 'A check on a midpoint: the line from the centre to $M$ is perpendicular to the chord, so its gradient is $-\\frac{1}{m}$. From $(0, 0)$ to $(2, 2)$ is gradient $1$, and the chord\'s is $-1$.',
               ),
-              prose('It is also a second way in: $M$ is where that perpendicular meets the chord, two lines meeting as in level 1.'),
+              prose('It is also a second way in: $M$ is where that perpendicular meets the chord, two lines meeting as in Straight Lines.'),
             ),
             ask('coord-chord-half-tree', 2),
             ask('coord-chord-midpoint-steps', 2),
@@ -835,7 +835,7 @@ export const coordinateGeometry: Course = {
                 'The circle x^2 + y^2 = 25 with the diameter from (-5, 0) to (5, 0) and lines from both ends to P(3, 4)',
                 [{ h: 0, k: 0, r2: 25 }],
               ),
-              prose('On axes a right angle is two gradients that multiply to $-1$, as in level 1. With $A(-5, 0)$, $B(5, 0)$ and $P(3, 4)$:'),
+              prose('On axes a right angle is two gradients that multiply to $-1$, as in Straight Lines. With $A(-5, 0)$, $B(5, 0)$ and $P(3, 4)$:'),
               maths('\\begin{aligned} m_{AP} &= \\frac{4}{8} = \\frac{1}{2} \\\\ m_{BP} &= \\frac{4}{-2} = -2 \\end{aligned}'),
               prose('and $\\frac{1}{2} \\times (-2) = -1$.'),
             ),
@@ -1041,7 +1041,7 @@ export const coordinateGeometry: Course = {
             ask('coord-parallel-tangent'),
             teach(
               prose(
-                'When the circle comes multiplied out, complete the square first, as in level 2, to find the centre and $r^2$. After that every fact works as before. For $x^2 + y^2 - 2x - 2y - 8 = 0$, move the number across first:',
+                'When the circle comes multiplied out, complete the square first, as in Midpoints, Distances and Circles, to find the centre and $r^2$. After that every fact works as before. For $x^2 + y^2 - 2x - 2y - 8 = 0$, move the number across first:',
               ),
               maths(
                 '\\begin{aligned} x^2 - 2x + y^2 - 2y &= 8 \\\\ (x - 1)^2 - 1 + (y - 1)^2 - 1 &= 8 \\\\ (x - 1)^2 + (y - 1)^2 &= 10 \\end{aligned}',
@@ -1561,7 +1561,7 @@ export const coordinateGeometry: Course = {
             ask('coord-locus-ratio-steps'),
             teach(
               prose(
-                'An expanded circle gives up its centre and radius by completing the square, as in level 2: halve each coefficient for its bracket, and take its square away again. For $x^2 + y^2 - 10x + 9 = 0$:',
+                'An expanded circle gives up its centre and radius by completing the square, as in Midpoints, Distances and Circles: halve each coefficient for its bracket, and take its square away again. For $x^2 + y^2 - 10x + 9 = 0$:',
               ),
               maths('\\begin{aligned} (x - 5)^2 - 25 + y^2 + 9 &= 0 \\\\ (x - 5)^2 + y^2 &= 16 \\end{aligned}'),
               prose(

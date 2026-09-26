@@ -1395,7 +1395,7 @@ export const functionsTransformations: Course = {
           title: 'The Domain That Makes Sense',
           slides: [
             teach(
-              prose('A rule will take any number. A story will not. Level 1 gave a rule a domain because of the algebra; here the story decides.'),
+              prose('A rule will take any number. A story will not. Functions, "Domain and Range", gave a rule a domain because of the algebra; here the story decides.'),
               prose('An input that **counts** things is a whole number: $n$ T-shirts means $n = 0, 1, 2, \\ldots$. An input that **measures** can be any value in its stretch: $m$ miles means $m \\geq 0$.'),
               prose('Then find the ends. A $40$ litre tank draining $5$ litres a minute has $V = 40 - 5t$. It is empty when $40 - 5t = 0$, at $t = 8$, and both ends are real moments:'),
               maths('0 \\leq t \\leq 8'),

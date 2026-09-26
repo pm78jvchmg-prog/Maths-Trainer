@@ -14,6 +14,7 @@
  */
 import type { Generator, SolutionStep } from '../types';
 import {
+  dots,
   G_NOTE,
   askPrecision,
   exact,
@@ -558,8 +559,6 @@ const PEND_THINGS = ['simple pendulum', 'pendulum in a clock', 'weight on a stri
 const W_DP: Precision = { dp: 2 };
 const pendOmegaOf = (L: number): number => Math.sqrt(9.8 / L);
 
-/** An unrounded value on a working line: 2.2135..., or the value itself when it ends. */
-const dots = (value: number, places = 4): string => (exact(value, places) ? fmt(value) : `${value.toFixed(places)}\\ldots`);
 
 /**
  * Expression: a pendulum's angular frequency sqrt(g/L) from a length a
@@ -593,7 +592,7 @@ const pendOmega: Generator<PendParams> = {
   choices: (p) => {
     if (p.find === 'L') return numChoices(pendLength(p.w), [n3(9.8 / p.w), n3(9.8 * p.w * p.w), n3((p.w * p.w) / 9.8)], salted(p.w * 10, p.what.length + 100));
     const r = (v: number) => roundTo(v, W_DP);
-    return numChoices(r(pendOmegaOf(p.L)), [r(9.8 / p.L), r(Math.sqrt(p.L / 9.8)), r(Math.sqrt(9.8 * p.L))], salted(p.L * 10, p.what.length));
+    return numChoices(r(pendOmegaOf(p.L)), [r(9.8 / p.L), r(Math.sqrt(p.L / 9.8)), r(Math.sqrt(9.8 * p.L))], salted(p.L * 10, p.what.length), W_DP);
   },
 };
 
@@ -645,7 +644,10 @@ const pendTable: Generator<{ rows: PendRow[] }> = {
         }),
       }),
       ({ rows }) =>
-        new Set(rows.map((r) => `${r.w} ${r.L}`)).size === 3 && rows.every((r) => r.blank === 'L' || roundedWell(pendOmegaOf(r.L), W_DP)),
+        new Set(rows.map((r) => `${r.w} ${r.L}`)).size === 3 &&
+        rows.every((r) => r.blank === 'L' || roundedWell(pendOmegaOf(r.L), W_DP)) &&
+        // No two gaps worth the same: a length of 3.5 beside an omega of 3.50 would be one value spelt two ways.
+        new Set(rows.map((r) => (r.blank === 'w' ? roundTo(pendOmegaOf(r.L), W_DP) : pendLength(r.w)))).size === 3,
     ),
   render: ({ rows }) => {
     const answer = rows.map((r) => (r.blank === 'w' ? fixed(pendOmegaOf(r.L), W_DP) : fmt(pendLength(r.w))));
@@ -653,7 +655,8 @@ const pendTable: Generator<{ rows: PendRow[] }> = {
       r.blank === 'w' ? [fixed(9.8 / r.L, W_DP), fixed(Math.sqrt(r.L / 9.8), W_DP)] : [n3(r.w * r.w), n3(9.8 / r.w)].filter((v) => exact(v, 3)).map(fmt),
     );
     const bank = [...answer];
-    for (const token of extras) if (bank.length < answer.length + 3 && !bank.includes(token) && Number(token) > 0) bank.push(token);
+    // Compared by value, not spelling, so 3.5 never sits beside 3.50.
+    for (const token of extras) if (bank.length < answer.length + 3 && !bank.some((t) => Number(t) === Number(token)) && Number(token) > 0) bank.push(token);
     return {
       kind: 'table',
       prompt: [say(`Each row is a simple pendulum: its length $L$ in metres and its angular frequency $\\omega$ in $\\text{rad s}^{-1}$. ${G_NOTE} Fill in the gaps, giving $\\omega$ to 2 decimal places.`)],
@@ -661,6 +664,7 @@ const pendTable: Generator<{ rows: PendRow[] }> = {
       rows: rows.map((r) => [r.blank === 'L' ? null : fmt(r.L), r.blank === 'w' ? null : fmt(r.w)]),
       bank: bank.sort((x, y) => Number(x) - Number(y)),
       answer,
+      calculator: true,
     };
   },
   solution: ({ rows }) =>

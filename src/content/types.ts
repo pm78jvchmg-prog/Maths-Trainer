@@ -57,6 +57,13 @@ export interface KeypadKey {
 interface Prompted {
   /** The question, shown above the answer area. */
   prompt: Block[];
+  /**
+   * Show the folded-away calculator under the answer area. For a slide with
+   * no keypad of its own (a tree, flow, table or slider) whose values were
+   * rounded from a square root or a long division nobody does in their head.
+   * It grades nothing, so it gives nothing away.
+   */
+  calculator?: boolean;
 }
 
 export type Slide =

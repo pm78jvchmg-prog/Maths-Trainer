@@ -23,6 +23,7 @@ import { options } from '../choiceVariant';
 import { steered } from './parametricImplicit';
 import { WORKING_KEYS } from './workingKeys';
 import {
+  dots,
   G_NOTE,
   askPrecision,
   exact,
@@ -312,8 +313,6 @@ interface RestParams {
   fromHeights: boolean;
 }
 
-/** An unrounded value on a working line: 0.8062..., or the value itself when it ends. */
-const dots = (value: number, places = 4): string => (exact(value, places) ? fmt(value) : `${value.toFixed(places)}\\ldots`);
 
 /** e from heights is asked to 2 decimal places. */
 const E_DP: Precision = { dp: 2 };
@@ -357,7 +356,7 @@ const restitution: Generator<RestParams> = {
   choices: (p) => {
     if (!p.fromHeights) return numChoices(p.e, [n3(p.e * p.e), n3(1 - p.e), n3(1 / p.e)], salted(p.e, p.u));
     const r = (v: number) => roundTo(v, E_DP);
-    return numChoices(r(p.e), [r(p.h2 / p.h1), r(1 - p.e), r(1 / p.e)], salted(p.h1, p.h2 * 10));
+    return numChoices(r(p.e), [r(p.h2 / p.h1), r(1 - p.e), r(1 / p.e)], salted(p.h1, p.h2 * 10), E_DP);
   },
 };
 
@@ -871,6 +870,7 @@ const gasTree: Generator<GasParams> = {
       const T = gasT(p);
       return {
         kind: 'tree',
+        calculator: true,
         prompt: [
           say(`${fmt(p.n)} moles of gas fill ${fmt(p.L)} litre${p.L === 1 ? '' : 's'} at a pressure of $${fmt(p.kPa)}\\text{ kPa}$. Take $R = ${R_GAS}\\text{ J mol}^{-1}\\text{ K}^{-1}$.`),
           say(`Find the volume in $\\text{m}^{3}$, $pV$ in joules, then the temperature in kelvin ${precisionWords(T_SF)}.`),
@@ -889,6 +889,7 @@ const gasTree: Generator<GasParams> = {
     const kPa = n3(nRT / V / 1000);
     return {
       kind: 'tree',
+      calculator: true,
       prompt: [say(`${fmt(p.n)} moles of gas at ${p.T} K fill ${fmt(p.L)} litre${p.L === 1 ? '' : 's'}. Take $R = ${R_GAS}\\text{ J mol}^{-1}\\text{ K}^{-1}$.`), say('Find $nRT$ in joules, the volume in $\\text{m}^{3}$, then the pressure in kPa.')],
       expression: 'pV = nRT',
       nodes: [

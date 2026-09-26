@@ -13,7 +13,7 @@
  * to 3 significant figures. Lagrangian systems use g = 9.8.
  */
 import type { Generator, SolutionStep } from '../types';
-import { G_NOTE, exact, fixed, fmt, forks, kg, metres, ms, numChoices, roundTo, roundedWell, salted, say, secs, track, typed, until, valueBank, type Precision } from './classicalKit';
+import { dots, G_NOTE, exact, fixed, fmt, forks, kg, metres, ms, numChoices, roundTo, roundedWell, salted, say, secs, track, typed, until, valueBank, type Precision } from './classicalKit';
 
 const n3 = (v: number): number => Number(v.toFixed(6));
 const Nm = (v: number): string => `$${fmt(v)}\\text{ N m}^{-1}$`;
@@ -520,8 +520,6 @@ interface GravityUnitParams {
 /** Natural-unit conversions are asked to 3 significant figures. */
 const S3: Precision = { sf: 3 };
 
-/** An unrounded value on a working line: 0.4517..., or the value itself when it ends. */
-const dots = (value: number, places = 4): string => (exact(value, places) ? fmt(value) : `${value.toFixed(places)}\\ldots`);
 
 /** The pendulum units: tau = sqrt(L0 / g), u = L0 / tau = sqrt(g L0), and the speed counted in u. */
 const gravityUnits = ({ L0, v }: GravityUnitParams) => {
@@ -569,7 +567,8 @@ const naturalTree: Generator<GravityUnitParams> = {
     until(
       () => ({ L0: difficulty > 1 ? rng.int(2, 99) / 10 : rng.int(1, 20), v: rng.int(2, difficulty > 1 ? 40 : 20) }),
       // A length of 9.8 m makes both units 1 or 9.8, which is no question at all.
-      (p) => p.L0 !== 9.8 && gravityRoundsWell(p),
+      // Nor a speed equal to the length: v/u would then equal tau, one token twice.
+      (p) => p.L0 !== 9.8 && p.v !== p.L0 && gravityRoundsWell(p),
     ),
   render: (p) => {
     const { tau, u, count } = gravityUnits(p);
@@ -588,6 +587,7 @@ const naturalTree: Generator<GravityUnitParams> = {
       ],
       bank: roundedTokens(answer, [1 / tau, p.L0 / 9.8, 9.8 * tau, p.v * u, p.L0 * tau, p.v / p.L0, 2 * tau, u / 2, p.v * tau], 3, S3),
       answer,
+      calculator: true,
     };
   },
   solution: (p) => {
@@ -596,9 +596,13 @@ const naturalTree: Generator<GravityUnitParams> = {
       { tex: `\\tau = \\sqrt{\\frac{${fmt(p.L0)}}{9.8}} = ${dots(tau)}` },
       { text: 'To 3 significant figures:' },
       { tex: `\\tau = ${fixed(tau, S3)}` },
-      { tex: `u = \\frac{${fmt(p.L0)}}{${fixed(tau, S3)}} = ${fixed(u, S3)}` },
-      { tex: `\\frac{${p.v}}{${fixed(u, S3)}} = ${fixed(count, S3)}` },
-      { text: 'Each to 3 significant figures, the same whether you carry the rounded values or the exact ones.' },
+      { text: 'Carry the unrounded value on, and round only what is written in the tree.' },
+      { tex: `u = \\frac{${fmt(p.L0)}}{${dots(tau)}} = ${dots(u)}` },
+      { text: 'To 3 significant figures:' },
+      { tex: `u = ${fixed(u, S3)}` },
+      { tex: `\\frac{${p.v}}{${dots(u)}} = ${dots(count)}` },
+      { text: 'To 3 significant figures:' },
+      { tex: `\\frac{v}{u} = ${fixed(count, S3)}` },
     ];
   },
 };
@@ -632,6 +636,7 @@ const naturalFlow: Generator<SpringEnergyParams> = {
     const count = p.E / E0;
     return {
       kind: 'flow',
+      calculator: true,
       prompt: [
         say(`A ${kg(p.m)} mass sits on a spring of ${Nm(k)}. Units are chosen so the mass, the spring and a length of ${metres(p.L0)} each count as $1$. How much is an energy of $${fmt(p.E)}\\text{ J}$ in them? Give your answer to 3 significant figures.`),
       ],

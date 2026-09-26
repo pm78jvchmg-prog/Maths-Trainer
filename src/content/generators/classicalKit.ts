@@ -109,11 +109,36 @@ export function typedRounded(prompt: Block[], lead: string, value: number, preci
 }
 
 /**
+ * An unrounded value on a working line: `2.0203\\ldots`, or the value itself
+ * when it ends. Truncated, never rounded, so the digits shown are the value's
+ * own: 1.99996 reads 1.9999..., not 2.0000...
+ */
+export function dots(value: number, places = 4): string {
+  if (exact(value, places)) return fmt(value);
+  const scale = 10 ** places;
+  // A hair towards the value's own sign, so 2.03 held as 2.0299999... still truncates to 2.03.
+  const cut = Math.trunc(value * scale + Math.sign(value) * 1e-7) / scale;
+  return `${cut.toFixed(places)}\\ldots`;
+}
+
+/** One unit in the last place a precision keeps: 0.01 for 2 dp, 0.1 for 48.5 to 3 sf. */
+export function lastPlace(value: number, precision: Precision): number {
+  if ('dp' in precision) return 10 ** -precision.dp;
+  const r = roundTo(value, precision);
+  return 10 ** (Math.floor(Math.log10(Math.abs(r) || 1)) - precision.sf + 1);
+}
+
+/**
  * Options for a numeric answer: the slips given, then near misses. A slip
  * that is not an exact decimal is dropped, and a negative near miss is never
  * offered for a quantity that cannot be negative.
+ *
+ * With a `precision`, the answer is one asked to it: every option is rounded
+ * to that precision and labelled with its trailing zeros (3.50, as the
+ * question asks for it), and near misses step by its last place.
  */
-export function numChoices(correct: number, wrong: number[], salt: number): ChoiceOption[] {
+export function numChoices(correct: number, wrong: number[], salt: number, precision?: Precision): ChoiceOption[] {
+  if (precision) return roundedChoices(correct, wrong, salt, precision);
   const seen = new Set([fmt(correct)]);
   // An answer with four places would never meet a near miss of three, so they step finer for it.
   const places = [0, 1, 2, 3, 4].find((dp) => exact(correct, dp)) ?? 4;
@@ -136,6 +161,33 @@ export function numChoices(correct: number, wrong: number[], salt: number): Choi
   }
   const as = (v: number) => ({ tex: fmt(v), answer: fmt(v) });
   return steered(options(as(correct), ...picked.map(as)), salt, spare.map(as));
+}
+
+function roundedChoices(correct: number, wrong: number[], salt: number, precision: Precision): ChoiceOption[] {
+  const label = (v: number) => fixed(v, precision);
+  const right = roundTo(correct, precision);
+  const seen = new Set([label(right)]);
+  const ok = (v: number) => Number.isFinite(v) && v !== 0 && !seen.has(label(v)) && (correct <= 0 || v > 0);
+  const picked: number[] = [];
+  for (const raw of wrong) {
+    const v = roundTo(raw, precision);
+    if (picked.length === 3 || !ok(v)) continue;
+    seen.add(label(v));
+    picked.push(v);
+  }
+  const unit = lastPlace(correct, precision);
+  const spare: number[] = [];
+  for (let step = 1; picked.length + spare.length < 7 && step < 1000; step += 1) {
+    for (const raw of [right + step * unit, right - step * unit]) {
+      const v = roundTo(raw, precision);
+      if (!ok(v)) continue;
+      seen.add(label(v));
+      if (picked.length < 3) picked.push(v);
+      else spare.push(v);
+    }
+  }
+  const as = (v: number) => ({ tex: label(v), answer: fmt(v) });
+  return steered(options(as(right), ...picked.map(as)), salt, spare.map(as));
 }
 
 /**

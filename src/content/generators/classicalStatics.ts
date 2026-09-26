@@ -12,7 +12,7 @@
  * centimetres, so moments come out in newton centimetres.
  */
 import type { Generator, SolutionStep } from '../types';
-import { exact, fmt, forks, metres, numChoices, picture, salted, say, track, typed, until, valueBank } from './classicalKit';
+import { dots, exact, fmt, forks, metres, numChoices, picture, salted, say, track, typed, until, valueBank } from './classicalKit';
 
 const n3 = (v: number): number => Number(v.toFixed(6));
 const cm = (v: number): string => `$${fmt(v)}\\text{ cm}$`;
@@ -595,8 +595,6 @@ interface RopeSliderParams {
 /** The sag, in centimetres, at which a load W pulls each half of the rope with tension T. */
 const sliderSag = ({ a, W, T }: RopeSliderParams, sin = W / (2 * T)): number => (a * sin) / Math.sqrt(1 - sin * sin);
 
-/** An unrounded value on a working line: 0.7857..., or the value itself when it ends. */
-const dots = (value: number, places = 4): string => (exact(value, places) ? fmt(value) : `${value.toFixed(places)}\\ldots`);
 
 /** Slider: how far a load must pull a rope's middle down for the tension to be a stated value, to the nearest centimetre. */
 const ropeSlider: Generator<RopeSliderParams> = {
@@ -625,6 +623,7 @@ const ropeSlider: Generator<RopeSliderParams> = {
     const figure = track(0, 100, [{ at: 0, name: 'level' }], 'A scale in centimetres below the level of the hooks');
     return {
       kind: 'slider',
+      calculator: true,
       prompt: [
         say(
           `A rope is stretched between two hooks ${cm(2 * p.a)} apart. A load weighing ${N(p.W)} hangs from its middle, and the rope is let out until the tension is ${N(p.T)}. Slide to how far the middle hangs below the hooks, to the nearest centimetre.`,

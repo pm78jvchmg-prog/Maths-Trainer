@@ -19,6 +19,7 @@ import type { Rng } from '../../engine/rng';
 import { turned } from './parametricImplicit';
 import { gcd } from './format';
 import {
+  dots,
   askPrecision,
   exact,
   fixed,
@@ -111,8 +112,21 @@ const LAP_DP: Precision = { dp: 1 };
 // Seconds are 3600 L over the speed in km h^-1; km h^-1 are 3600 L over the seconds. The same quotient, either way round.
 const lapAnswer = ({ L, given }: LapParams): number => (3600 * L) / given;
 
-/** An unrounded value on a working line: 58.3333..., or the value itself when it ends. */
-const dots = (value: number, places = 4): string => (exact(value, places) ? fmt(value) : `${value.toFixed(places)}\\ldots`);
+/**
+ * Whether the answer comes out the same when the learner carries the speed in
+ * m s^-1 rounded to 2 or 3 decimal places into the next line, rather than
+ * the exact value: easy divides the metres by given / 3.6, hard multiplies
+ * metres / given by 3.6.
+ */
+function lapCarriesWell(p: LapParams): boolean {
+  const m = Math.round(p.L * 1000);
+  const want = roundTo(lapAnswer(p), LAP_DP);
+  return [2, 3].every((dp) => {
+    const carried = p.find === 't' ? m / roundTo(p.given / 3.6, { dp }) : roundTo(m / p.given, { dp }) * 3.6;
+    return roundTo(carried, LAP_DP) === want;
+  });
+}
+
 
 /** Expression: lap time from lap length and average speed in km h^-1, or (hard) the average speed, each to 1 decimal place. */
 const lapTime: Generator<LapParams> = {
@@ -125,7 +139,7 @@ const lapTime: Generator<LapParams> = {
       },
       (p) => {
         const x = lapAnswer(p);
-        return roundedWell(x, LAP_DP) && (p.find === 't' ? x >= 50 && x <= 150 : x >= 120 && x <= 300);
+        return roundedWell(x, LAP_DP) && lapCarriesWell(p) && (p.find === 't' ? x >= 50 && x <= 150 : x >= 120 && x <= 300);
       },
     ),
   render: (p) => {
@@ -173,8 +187,8 @@ const lapTime: Generator<LapParams> = {
     const r = (v: number) => roundTo(v, LAP_DP);
     const m = p.L * 1000;
     return p.find === 't'
-      ? numChoices(r(x), [r(m / p.given), r(x * 3.6), r(x / 3.6), r(x + 10)], salted(p.L * 10, p.given))
-      : numChoices(r(x), [r(m / p.given), r(x / 3.6), r(x + 36)], salted(p.given, p.L * 10));
+      ? numChoices(r(x), [r(m / p.given), r(x * 3.6), r(x / 3.6), r(x + 10)], salted(p.L * 10, p.given), LAP_DP)
+      : numChoices(r(x), [r(m / p.given), r(x / 3.6), r(x + 36)], salted(p.given, p.L * 10), LAP_DP);
   },
 };
 

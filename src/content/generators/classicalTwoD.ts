@@ -24,6 +24,7 @@ import { options } from '../choiceVariant';
 import { steered, turned } from './parametricImplicit';
 import { WORKING_KEYS } from './workingKeys';
 import {
+  dots,
   G_NOTE,
   askPrecision,
   exact,
@@ -60,7 +61,17 @@ const n3 = (v: number): number => Number(v.toFixed(6));
  * Launched horizontally
  * ================================================================ */
 
-const LEDGES = ['a cliff top', 'a flat roof', 'a bridge', 'a table top', 'a wall', 'a balcony'];
+/** Places a throw is made from, each with the greatest height, in metres, it plausibly stands. */
+const LEDGES: [string, number][] = [
+  ['a wall', 6],
+  ['a balcony', 30],
+  ['a flat roof', 50],
+  ['a bridge', 80],
+  ['a cliff top', 200],
+];
+
+/** A place that stands h metres high: never a 44 m wall. */
+const ledgeFor = (rng: Rng, h: number): string => rng.pick(LEDGES.filter(([, top]) => h <= top).map(([where]) => where));
 const THROWN = ['ball', 'stone', 'marble', 'parcel', 'dart'];
 
 /** Times are asked to 2 decimal places, speeds and distances to 1. */
@@ -70,8 +81,6 @@ const D_DP: Precision = { dp: 1 };
 /** Seconds to fall h metres from rest. */
 const fallTime = (h: number): number => Math.sqrt(h / 4.9);
 
-/** An unrounded value on a working line: 3.4993..., or the value itself when it ends. */
-const dots = (value: number, places = 4): string => (exact(value, places) ? fmt(value) : `${value.toFixed(places)}\\ldots`);
 
 /**
  * A fall whose time, landing speed and distance out each round cleanly, and
@@ -122,13 +131,16 @@ const fallTimeGen: Generator<FallParams> = {
   id: 'clm-fall-time',
   sample: (rng, difficulty) =>
     until(
-      () => ({
-        where: rng.pick(LEDGES),
-        thing: rng.pick(THROWN),
-        h: difficulty > 1 ? rng.int(20, 800) / 10 : rng.int(2, 80),
-        u: rng.int(2, 25),
-        find: difficulty > 1 ? ('R' as const) : ('t' as const),
-      }),
+      () => {
+        const h = difficulty > 1 ? rng.int(20, 800) / 10 : rng.int(2, 80);
+        return {
+          where: ledgeFor(rng, h),
+          thing: rng.pick(THROWN),
+          h,
+          u: rng.int(2, 25),
+          find: difficulty > 1 ? ('R' as const) : ('t' as const),
+        };
+      },
       ({ h, u }) => fallRoundsWell(h, u),
     ),
   render: ({ where, thing, h, u, find }) => {
@@ -137,7 +149,7 @@ const fallTimeGen: Generator<FallParams> = {
     return find === 't'
       ? typedRounded([say(`${setup} How long does it take to land, in seconds? ${askPrecision(T_DP)}`)], 't =', t, T_DP)
       : typedRounded(
-          [say(`${setup} How far from the foot of ${where.replace(/^a /, 'the ')} does it land, in metres? ${askPrecision(D_DP)}`)],
+          [say(`${setup} How far from the foot of ${where.replace(/^a /, 'the ').replace(/ top$/, '')} does it land, in metres? ${askPrecision(D_DP)}`)],
           'R =',
           u * t,
           D_DP,
@@ -163,8 +175,8 @@ const fallTimeGen: Generator<FallParams> = {
     const t = fallTime(h);
     const r = (v: number, p: Precision) => roundTo(v, p);
     return find === 't'
-      ? numChoices(r(t, T_DP), [r(h / 4.9, T_DP), r(2 * t, T_DP), r(h / 9.8, T_DP)], salted(h * 10, u))
-      : numChoices(r(u * t, D_DP), [r((u * h) / 4.9, D_DP), r(2 * u * t, D_DP), r(u * Math.sqrt(h / 9.8), D_DP)], salted(u, h * 10));
+      ? numChoices(r(t, T_DP), [r(h / 4.9, T_DP), r(2 * t, T_DP), r(h / 9.8, T_DP)], salted(h * 10, u), T_DP)
+      : numChoices(r(u * t, D_DP), [r((u * h) / 4.9, D_DP), r(2 * u * t, D_DP), r(u * Math.sqrt(h / 9.8), D_DP)], salted(u, h * 10), D_DP);
   },
 };
 
@@ -173,13 +185,16 @@ const horizTree: Generator<FallParams> = {
   id: 'clm-horiz-tree',
   sample: (rng, difficulty) =>
     until(
-      () => ({
-        where: rng.pick(LEDGES),
-        thing: rng.pick(THROWN),
-        h: difficulty > 1 ? rng.int(10, 120) : rng.int(2, 60),
-        u: difficulty > 1 ? rng.int(8, 30) : rng.int(2, 15),
-        find: 'R' as const,
-      }),
+      () => {
+        const h = difficulty > 1 ? rng.int(10, 120) : rng.int(2, 60);
+        return {
+          where: ledgeFor(rng, h),
+          thing: rng.pick(THROWN),
+          h,
+          u: difficulty > 1 ? rng.int(8, 30) : rng.int(2, 15),
+          find: 'R' as const,
+        };
+      },
       ({ h, u }) => fallRoundsWell(h, u),
     ),
   render: ({ where, thing, h, u }) => {
@@ -187,6 +202,7 @@ const horizTree: Generator<FallParams> = {
     const answer = [fixed(t, T_DP), fixed(9.8 * t, D_DP), fixed(u * t, D_DP)];
     return {
       kind: 'tree',
+      calculator: true,
       prompt: [
         say(`A ${thing} is thrown horizontally at ${ms(u)} from ${where} ${metres(h)} up. ${G_NOTE}`),
         say('Find the time in the air to 2 decimal places, then the downward speed as it lands and how far out it lands, each to 1 decimal place.'),
@@ -212,9 +228,11 @@ const horizTree: Generator<FallParams> = {
     const t = fallTime(h);
     return [
       ...timeLines(h),
-      { tex: `v_{y} = 9.8 \\times ${fixed(t, T_DP)} = ${fixed(9.8 * t, D_DP)}` },
-      { tex: `R = ${u} \\times ${fixed(t, T_DP)} = ${fixed(u * t, D_DP)}` },
-      { text: 'Each to 1 decimal place, the same whether you carry the rounded time or the exact one.' },
+      { text: 'Carry the unrounded time on:' },
+      { tex: `v_{y} = 9.8 \\times ${dots(t)} = ${dots(9.8 * t, 3)}` },
+      { tex: `R = ${u} \\times ${dots(t)} = ${dots(u * t, 3)}` },
+      { text: 'Each to 1 decimal place:' },
+      { tex: `v_{y} = ${fixed(9.8 * t, D_DP)} \\qquad R = ${fixed(u * t, D_DP)}` },
     ];
   },
 };
@@ -257,6 +275,7 @@ const horizSlider: Generator<LandParams> = {
       const figure = track(0, 40, [], 'A scale of launch speeds in metres per second');
       return {
         kind: 'slider',
+        calculator: true,
         prompt: [say(`A ${thing} thrown horizontally from ${metres(h)} up must land ${metres(given)} out from the foot. ${G_NOTE} Slide to the launch speed needed, to the nearest $0.5\\text{ m s}^{-1}$.`)],
         min: 0,
         max: 40,
@@ -269,6 +288,7 @@ const horizSlider: Generator<LandParams> = {
     const figure = track(0, LAND_SPAN, [{ at: 0, name: 'foot' }], 'Level ground marked in metres out from the foot of the drop');
     return {
       kind: 'slider',
+      calculator: true,
       prompt: [say(`A ${thing} is thrown horizontally at ${ms(given)} from ${metres(h)} up. ${G_NOTE} Slide to where it lands, to the nearest $0.5\\text{ m}$ from the foot.`)],
       min: 0,
       max: LAND_SPAN,
@@ -305,7 +325,8 @@ const horizFlow: Generator<ClearParams> = {
   sample: (rng, difficulty) =>
     until(
       () => {
-        const h = rng.int(2, 45);
+        // A stunt ramp drops a few metres; a ball can roll off a roof.
+        const h = difficulty > 1 ? rng.int(2, 20) : rng.int(2, 45);
         const u = rng.int(4, 20);
         const R = u * fallTime(h);
         const D = rng.chance(0.5) ? Math.ceil(R) + rng.int(1, 5) : Math.floor(R) - rng.int(1, 5);
@@ -326,11 +347,12 @@ const horizFlow: Generator<ClearParams> = {
       [...new Set(tokens.filter((v) => Number(v) > 0))].slice(0, 3).sort((x, y) => Number(x) - Number(y)).map((v) => `$${v}$`);
     return {
       kind: 'flow',
+      calculator: true,
       prompt: [
         say(
           hard
             ? `A stunt rider leaves a level ramp at ${ms(u)} and drops ${metres(h)} to a landing platform. The platform starts ${metres(D)} out. ${G_NOTE} Does the rider reach it?`
-            : `A ball rolls off a ${metres(h)} high table at ${ms(u)}. A bucket stands with its near edge ${metres(D)} from the table's foot. ${G_NOTE} Does the ball get past the near edge?`,
+            : `A ball rolls off the edge of ${h <= 6 ? 'a wall' : h <= 30 ? 'a balcony' : 'a flat roof'} ${metres(h)} high at ${ms(u)}. A bucket on the ground stands with its near edge ${metres(D)} out from the point directly below. ${G_NOTE} Does the ball get past the near edge?`,
         ),
       ],
       subject: 'h = \\tfrac{1}{2}gt^{2} \\qquad R = ut',
@@ -354,7 +376,9 @@ const horizFlow: Generator<ClearParams> = {
     const R = roundTo(u * t, D_DP);
     return [
       ...timeLines(h),
-      { tex: `R = ${u} \\times ${fixed(t, T_DP)} = ${fixed(R, D_DP)}` },
+      { tex: `R = ${u} \\times ${dots(t)} = ${dots(u * t, 3)}` },
+      { text: 'To 1 decimal place:' },
+      { tex: `R = ${fixed(R, D_DP)}` },
       { text: R > D ? `More than ${D} m, so it gets there.` : `Less than ${D} m, so it falls short.` },
     ];
   },
@@ -528,6 +552,7 @@ const flightTree: Generator<FlightParams> = {
     const answer = p.launch ? [fmt(p.ux), fmt(p.uy), ...rounded] : rounded;
     return {
       kind: 'tree',
+      calculator: true,
       prompt: [
         say(`A ${p.thing} is launched from level ground ${launchPhrase(p)}. ${G_NOTE}`),
         say(
@@ -572,8 +597,9 @@ const flightTree: Generator<FlightParams> = {
       { tex: `H = \\frac{${p.uy}^{2}}{2 \\times 9.8} = ${dots(H, 3)}` },
       { text: 'To 1 decimal place:' },
       { tex: `H = ${fixed(H, D_DP)}` },
-      { tex: `R = ${p.ux} \\times ${fixed(T, T_DP)} = ${fixed(p.ux * T, D_DP)}` },
-      { text: 'To 1 decimal place, the same whether you carry the rounded time or the exact one.' },
+      { tex: `R = ${p.ux} \\times ${dots(T)} = ${dots(p.ux * T, 3)}` },
+      { text: 'To 1 decimal place, carrying the unrounded time:' },
+      { tex: `R = ${fixed(p.ux * T, D_DP)}` },
     ];
   },
 };
@@ -640,7 +666,7 @@ const maxHeight: Generator<HeightParams> = {
   choices: (p) => {
     const H = flightHeight(p.uy);
     const r = (v: number) => roundTo(v, D_DP);
-    return numChoices(r(H), [r(2 * H), r((p.uy * p.uy) / 9.8), r(p.uy / 9.8), r(H / 2)], salted(p.uy, p.launch ? p.launch.u : 0));
+    return numChoices(r(H), [r(2 * H), r((p.uy * p.uy) / 9.8), r(p.uy / 9.8), r(H / 2)], salted(p.uy, p.launch ? p.launch.u : 0), D_DP);
   },
 };
 
@@ -654,6 +680,7 @@ const rangeFlow: Generator<FlightParams> = {
     const R = p.ux * T;
     return {
       kind: 'flow',
+      calculator: true,
       prompt: [say(`A ${p.thing} is launched from level ground ${launchPhrase(p)}. ${G_NOTE} How far away does it land?`)],
       subject: 'R = u_{x}T',
       steps: [
@@ -684,9 +711,12 @@ const rangeFlow: Generator<FlightParams> = {
       { tex: `t_{\\text{top}} = \\frac{${p.uy}}{9.8} = ${dots(top)}` },
       { text: 'To 2 decimal places:' },
       { tex: `t_{\\text{top}} = ${fixed(top, T_DP)}` },
-      { tex: `T = 2 \\times ${fixed(top, T_DP)} = ${fixed(T, T_DP)}` },
-      { tex: `R = ${p.ux} \\times ${fixed(T, T_DP)} = ${fixed(p.ux * T, D_DP)}` },
-      { text: 'To 1 decimal place, the same whether you carry the rounded times or the exact ones.' },
+      { tex: `T = 2 \\times ${dots(top)} = ${dots(T)}` },
+      { text: 'To 2 decimal places:' },
+      { tex: `T = ${fixed(T, T_DP)}` },
+      { tex: `R = ${p.ux} \\times ${dots(T)} = ${dots(p.ux * T, 3)}` },
+      { text: 'To 1 decimal place:' },
+      { tex: `R = ${fixed(p.ux * T, D_DP)}` },
     ];
   },
 };
@@ -765,22 +795,40 @@ interface RimParams {
 /** Radii a textbook prints: 0.05 m to 0.95 m in fives, then 1 m to 1.5 m in tenths. */
 const RIM_CM = [...Array.from({ length: 19 }, (_, i) => 5 * (i + 1)), 100, 110, 120, 130, 140, 150];
 
+/** Things with a rim, each with the radii (in cm) it could really have. */
+const RIMS: { who: string; lo: number; hi: number; top?: number }[] = [
+  { who: 'A grinding wheel', lo: 5, hi: 15 },
+  { who: 'A record', lo: 10, hi: 15 },
+  { who: "A potter's wheel", lo: 15, hi: 30 },
+  { who: 'A washing machine drum', lo: 20, hi: 35 },
+  { who: 'A bicycle wheel', lo: 30, hi: 35 },
+  { who: 'A ceiling fan', lo: 40, hi: 70 },
+  { who: 'A playground roundabout', lo: 100, hi: 150, top: 3 },
+];
+
+/** A thing and a radius that fits it. */
+const rimFor = (rng: Rng): { who: string; cm: number; top: number } => {
+  const rim = rng.pick(RIMS);
+  return { who: rim.who, cm: rng.pick(RIM_CM.filter((cm) => cm >= rim.lo && cm <= rim.hi)), top: rim.top ?? 40 };
+};
+
 /** Expression: the speed of a point on a rim, v = r omega; hard, omega from the speed, to 1 decimal place. */
 const rimSpeed: Generator<RimParams> = {
   id: 'clm-rim-speed',
   sample: (rng, difficulty) => {
-    const who = rng.pick(SPINNERS);
-    if (difficulty > 1)
-      return until(
+    if (difficulty > 1) {
+      const drawn = until(
         () => {
-          const cm = rng.pick(RIM_CM);
+          const { who, cm, top } = rimFor(rng);
           const v = rng.int(10, 250) / 10;
-          return { who, cm, v, omega: v / (cm / 100), find: 'omega' as const };
+          return { who, cm, v, omega: v / (cm / 100), top };
         },
-        (p) => p.omega >= 2 && p.omega <= 200 && roundedWell(p.omega, D_DP),
+        (p) => p.omega >= 1 && p.omega <= p.top && roundedWell(p.omega, D_DP),
       );
-    const cm = rng.pick(RIM_CM);
-    const omega = rng.int(2, 40);
+      return { who: drawn.who, cm: drawn.cm, v: drawn.v, omega: drawn.omega, find: 'omega' };
+    }
+    const { who, cm, top } = rimFor(rng);
+    const omega = rng.int(Math.min(2, top), top);
     return { who, cm, omega, v: n3((cm / 100) * omega), find: 'v' };
   },
   render: ({ who, cm, omega, v, find }) => {
@@ -808,7 +856,7 @@ const rimSpeed: Generator<RimParams> = {
     const r1 = (x: number) => roundTo(x, D_DP);
     return find === 'v'
       ? numChoices(v, [cm * omega, v * 2, omega / r], salted(cm, omega))
-      : numChoices(r1(omega), [r1(v * r), r1(2 * omega), r1(omega / 2)], salted(v * 10, cm));
+      : numChoices(r1(omega), [r1(v * r), r1(2 * omega), r1(omega / 2)], salted(v * 10, cm), D_DP);
   },
 };
 
@@ -1002,7 +1050,7 @@ const spinUp: Generator<SpinUpParams> = {
     const r2 = (x: number) => roundTo(x, A_DP);
     return p.find === 'w'
       ? numChoices(p.w, [p.alpha * p.t, p.w0 + p.alpha, p.w + p.w0], salted(p.w0, p.alpha * 10, p.t))
-      : numChoices(r2(p.alpha), [r2(p.w / p.t), r2((p.w + p.w0) / p.t), p.w - p.w0], salted(p.t, p.w, p.w0));
+      : numChoices(r2(p.alpha), [r2(p.w / p.t), r2((p.w + p.w0) / p.t), p.w - p.w0], salted(p.t, p.w, p.w0), A_DP);
   },
 };
 
@@ -1071,6 +1119,7 @@ const spinStopSlider: Generator<StopTurnsParams> = {
     const figure = track(0, TURN_SPAN, [], 'A scale of turns from 0 to 100');
     return {
       kind: 'slider',
+      calculator: true,
       prompt: [say(`A potter's wheel turning at $${p.w0}\\text{ rev s}^{-1}$ slows steadily at $${fmt(p.alpha)}\\text{ rev s}^{-2}$ until it stops. Slide to how many turns it makes meanwhile, to the nearest half turn.`)],
       min: 0,
       max: TURN_SPAN,
@@ -1173,38 +1222,53 @@ const spinFlow: Generator<SpinFlowParams> = {
 
 interface CentripetalParams {
   who: string;
-  /** Easy: whole and given. Hard: the square root of a r, asked to 1 decimal place. */
+  /** Easy: whole or one decimal place, and given. Hard: the square root of a r, asked to 1 decimal place. */
   v: number;
-  /** Radius, whole metres. */
+  /** Radius, whole metres (a train's in tens). */
   r: number;
   /** Easy: v^2 / r, asked to 1 decimal place. Hard: one decimal place and given. */
   a: number;
   find: 'a' | 'v';
 }
 
-const CIRCLERS = ['A car on a roundabout', 'A runner on a bend', 'A cyclist on a curved track', 'A train on a curve', 'A child on a roundabout'];
+/**
+ * Who goes round, with the speeds and radii that fit them: a train's curve is
+ * hundreds of metres across, a playground roundabout a metre or two. Speeds
+ * are in tenths of a metre per second, radii in metres (a train's in tens),
+ * and accelerations (hard) in tenths of a metre per second squared.
+ */
+const CIRCLERS: Record<string, { v: [number, number]; r: [number, number]; rStep: number; a: [number, number] }> = {
+  'A car on a roundabout': { v: [50, 150], r: [10, 40], rStep: 1, a: [10, 80] },
+  'A runner on a bend': { v: [30, 90], r: [20, 40], rStep: 1, a: [5, 30] },
+  'A cyclist on a curved track': { v: [80, 200], r: [20, 60], rStep: 1, a: [10, 80] },
+  'A train on a curve': { v: [150, 400], r: [20, 80], rStep: 10, a: [5, 30] },
+  'A child on a roundabout': { v: [10, 40], r: [1, 3], rStep: 1, a: [10, 80] },
+};
 
 /** Expression: a = v^2 / r; hard, the speed from the acceleration and radius. Each to 1 decimal place. */
 const centripetal: Generator<CentripetalParams> = {
   id: 'clm-centripetal',
   sample: (rng, difficulty) => {
-    const who = rng.pick(CIRCLERS);
+    const who = rng.pick(Object.keys(CIRCLERS));
+    const fits = CIRCLERS[who];
+    const radius = () => rng.int(fits.r[0], fits.r[1]) * fits.rStep;
     if (difficulty > 1)
       return until(
         () => {
-          const r = rng.int(5, 100);
-          const a = rng.int(5, 200) / 10;
+          const r = radius();
+          const a = rng.int(fits.a[0], fits.a[1]) / 10;
           return { who, r, a, v: Math.sqrt(a * r), find: 'v' as const };
         },
-        (p) => p.v >= 2 && p.v <= 40 && roundedWell(p.v, D_DP),
+        // The speed that comes out still fits who is going round.
+        (p) => p.v * 10 >= fits.v[0] * 0.8 && p.v * 10 <= fits.v[1] * 1.2 && roundedWell(p.v, D_DP),
       );
     return until(
       () => {
-        const v = rng.int(2, 30);
-        const r = rng.int(2, 100);
+        const v = rng.int(fits.v[0], fits.v[1]) / 10;
+        const r = radius();
         return { who, v, r, a: (v * v) / r, find: 'a' as const };
       },
-      (p) => p.a >= 0.5 && p.a <= 150 && roundedWell(p.a, D_DP),
+      (p) => p.a >= 0.3 && p.a <= 20 && roundedWell(p.a, D_DP),
     );
   },
   render: ({ who, v, r, a, find }) =>
@@ -1223,7 +1287,7 @@ const centripetal: Generator<CentripetalParams> = {
         ),
   solution: ({ v, r, a, find }) =>
     find === 'a'
-      ? [{ tex: `a = \\frac{v^{2}}{r} = \\frac{${v}^{2}}{${r}} = ${dots(a, 3)}` }, { text: 'To 1 decimal place:' }, { tex: `a = ${fixed(a, D_DP)}` }]
+      ? [{ tex: `a = \\frac{v^{2}}{r} = \\frac{${fmt(v)}^{2}}{${r}} = ${dots(a, 3)}` }, { text: 'To 1 decimal place:' }, { tex: `a = ${fixed(a, D_DP)}` }]
       : [
           { tex: `v^{2} = ar = ${fmt(a)} \\times ${r} = ${fmt(n3(a * r))}` },
           { tex: `v = \\sqrt{${fmt(n3(a * r))}} = ${dots(v, 3)}` },
@@ -1233,8 +1297,8 @@ const centripetal: Generator<CentripetalParams> = {
   choices: ({ v, r, a, find }) => {
     const r1 = (x: number) => roundTo(x, D_DP);
     return find === 'a'
-      ? numChoices(r1(a), [r1(v / r), r1((v * v) / (2 * r)), v * r], salted(v, r))
-      : numChoices(r1(v), [r1(a * r), r1(Math.sqrt(2 * a * r)), r1(Math.sqrt(a * r) / 2)], salted(r, a * 10));
+      ? numChoices(r1(a), [r1(v / r), r1((v * v) / (2 * r)), v * r], salted(v, r), D_DP)
+      : numChoices(r1(v), [r1(a * r), r1(Math.sqrt(2 * a * r)), r1(Math.sqrt(a * r) / 2)], salted(r, a * 10), D_DP);
   },
 };
 
@@ -1313,6 +1377,7 @@ const gForceFlow: Generator<GForceParams> = {
     const { a, k } = gForceOf(p);
     return {
       kind: 'flow',
+      calculator: true,
       prompt: [say(`A fairground car swings round a loop of radius ${metres(p.r)} at ${ms(p.v)}. ${G_NOTE} How many $g$ does a rider feel from the turning alone?`)],
       subject: 'a = \\frac{v^{2}}{r}',
       steps: [
@@ -1336,8 +1401,8 @@ const gForceFlow: Generator<GForceParams> = {
       { tex: `a = \\frac{${p.v}^{2}}{${p.r}} = ${dots(a, 3)}` },
       { text: 'To 1 decimal place:' },
       { tex: `a = ${fixed(a, D_DP)}` },
-      { tex: `\\frac{${fixed(a, D_DP)}}{9.8} = ${dots(roundTo(a, D_DP) / 9.8, 3)}` },
-      { text: `To 1 decimal place, $${fixed(k, D_DP)}g$, the same whether you carry the rounded acceleration or the exact one.` },
+      { tex: `\\frac{${dots(a, 3)}}{9.8} = ${dots(k, 3)}` },
+      { text: `To 1 decimal place, carrying the unrounded acceleration, that is $${fixed(k, D_DP)}g$.` },
     ];
   },
 };

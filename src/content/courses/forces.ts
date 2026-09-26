@@ -518,6 +518,7 @@ export const forces: Course = {
               ),
               display('g(\\sin\\alpha + \\mu\\cos\\alpha)'),
               prose('Sliding down, the two pull opposite ways, so the acceleration is $g(\\sin\\alpha - \\mu\\cos\\alpha)$. The mass cancels in both.'),
+              prose('Sent up with $\\sin\\alpha = 0.6$, $\\cos\\alpha = 0.8$ and $\\mu = 0.35$, it decelerates at $9.8(0.6 + 0.35 \\times 0.8) = 8.624\\text{ m s}^{-2}$. To the nearest $0.1$ that is $8.6$, since $8.624$ is nearer $8.6$ than $8.7$.'),
               prose(
                 'A push $P$ up the slope changes the contest: the net push is the difference between $P$ and $mg\\sin\\alpha$, and that is what friction has to match. $10\\text{ kg}$, $\\sin\\alpha = 0.8$, $\\cos\\alpha = 0.6$, $\\mu = 0.25$ and $P = 60\\text{ N}$:',
               ),
@@ -1145,7 +1146,7 @@ export const forces: Course = {
               ),
               stacked('600 \\times 3.2 = 240 + 800 \\times 0.6s', '1920 - 240 = 480s', '1680 = 480s', 's = 3.5\\text{ m}'),
               prose('It rarely comes out exact, and the question says how to round. With $\\mu = 0.55$, $F = 550$:'),
-              stacked('550 \\times 3.2 = 240 + 480s', '1520 = 480s', 's = 3.1666\\ldots', 's = 3.2\\text{ m to 1 decimal place}'),
+              stacked('550 \\times 3.2 = 240 + 480s', '1760 - 240 = 480s', '1520 = 480s', 's = 3.1666\\ldots', 's = 3.2\\text{ m to 1 decimal place}'),
             ),
             ask('force-ladder-flow'),
             ask('force-ladder-limit-tree'),

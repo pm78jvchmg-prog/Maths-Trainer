@@ -55,8 +55,8 @@ import { OPERATOR_KEYS, spaced, stepBank, tokenBank } from './parametricImplicit
 import { gcdOrOne, say } from './format';
 import { WORKING_KEYS } from './workingKeys';
 import {
+  dots,
   askPrecision,
-  exact,
   fixed,
   numChoices as kitChoices,
   roundTo,
@@ -2507,8 +2507,6 @@ const heightAt = (u: number, t: number): number => u * t - 4.9 * t * t;
 /** Seconds to fall to a point h metres below, thrown up at u (the positive root). */
 const landTime = (u: number, h: number): number => (u + Math.sqrt(u * u + 19.6 * h)) / 9.8;
 
-/** An unrounded value on a working line: 2.4489..., or the value itself when it ends. */
-const dots = (value: number, places = 4): string => (exact(value, places) ? fmt(value) : `${value.toFixed(places)}\\ldots`);
 
 /** A bank of rounded tokens: the answer's, then distinct positive extras, sorted by value. */
 const fixedBank = (answer: string[], extras: string[], spare = 3): string[] => {
@@ -2567,7 +2565,7 @@ const gravHeight: Generator<GravParams> = {
       case 'time': {
         const r = (v: number) => roundTo(v, T_DP);
         const T = landTime(u, h);
-        return kitChoices(r(T), [r(u / 9.8), r(2 * u / 9.8), r(Math.sqrt(h / 4.9))], salted(u, h));
+        return kitChoices(r(T), [r(u / 9.8), r(2 * u / 9.8), r(Math.sqrt(h / 4.9))], salted(u, h), T_DP);
       }
       case 'impact':
         return numChoices(G * t - u, [u, G * t, u + G * t]);
@@ -2767,6 +2765,7 @@ const topTree: Generator<TopParams> = {
       const answer = [fixed(up, T_DP), fixed(rise, D_DP), fixed(top, D_DP)];
       return {
         kind: 'tree',
+        calculator: true,
         prompt: [say(`${base}. Give times to 2 decimal places and heights to 1 decimal place.`)],
         expression: 't = \\frac{u}{9.8}, \\quad s = \\tfrac{1}{2}ut',
         nodes: [
@@ -2781,6 +2780,7 @@ const topTree: Generator<TopParams> = {
     const answer = [fixed(up, T_DP), fixed(rise, D_DP), fixed(top, D_DP), fixed(down, T_DP), fixed(total, T_DP)];
     return {
       kind: 'tree',
+      calculator: true,
       prompt: [say(`${base}, the time to fall from there to the ground, and its whole time in the air. Give times to 2 decimal places and heights to 1 decimal place.`)],
       expression: 't = \\frac{u}{9.8}, \\; s = \\tfrac{1}{2}ut, \\; s = 4.9t^{2}',
       nodes: [
@@ -2800,15 +2800,15 @@ const topTree: Generator<TopParams> = {
     const steps: SolutionStep[] = [
       { text: 'At the top it stops for an instant, so $v = 0$ there.' },
       { tex: aligned(`0 &= ${u} - 9.8t`, `t &= ${u} \\div 9.8 = ${dots(up)}`, `&= ${fixed(up, T_DP)} \\text{ to 2 d.p.}`) },
-      { tex: `s = \\tfrac{1}{2}(${u} + 0) \\times ${fixed(up, T_DP)} = ${fixed(rise, D_DP)}` },
-      { tex: `\\text{height} = ${h} + ${fixed(rise, D_DP)} = ${fixed(top, D_DP)}` },
+      { text: 'Carry the unrounded time on, and round each value only where it is written down.' },
+      { tex: aligned(`s &= \\tfrac{1}{2}(${u} + 0) \\times ${dots(up)} = ${dots(rise, 3)}`, `&= ${fixed(rise, D_DP)} \\text{ to 1 d.p.}`) },
+      { tex: aligned(`\\text{height} &= ${h} + ${dots(rise, 3)} = ${dots(top, 3)}`, `&= ${fixed(top, D_DP)} \\text{ to 1 d.p.}`) },
     ];
     if (fall) {
       steps.push(
         { text: 'From the top it falls from rest, so $s = 4.9t^{2}$ down:' },
-        { tex: aligned(`4.9t^{2} &= ${fixed(top, D_DP)}`, `t &= \\sqrt{${fixed(top, D_DP)} \\div 4.9} = ${dots(down)}`, `&= ${fixed(down, T_DP)} \\text{ to 2 d.p.}`) },
-        { tex: `\\text{time in the air} = ${fixed(up, T_DP)} + ${fixed(down, T_DP)} = ${fixed(total, T_DP)}` },
-        { text: 'Each the same whether you carry the rounded values or the exact ones.' },
+        { tex: aligned(`4.9t^{2} &= ${dots(top, 3)}`, `t &= \\sqrt{${dots(top, 3)} \\div 4.9} = ${dots(down)}`, `&= ${fixed(down, T_DP)} \\text{ to 2 d.p.}`) },
+        { tex: aligned(`\\text{time in the air} &= ${dots(up)} + ${dots(down)} = ${dots(total)}`, `&= ${fixed(total, T_DP)} \\text{ to 2 d.p.}`) },
       );
     }
     return steps;
@@ -2862,6 +2862,7 @@ const gravSlider: Generator<GravSliderParams> = {
     const setting = h === 0 ? 'from the ground' : `from the top of a cliff ${h} m above the sea`;
     return {
       kind: 'slider',
+      calculator: true,
       prompt: [
         say(`A ${THROWN[thing]} is thrown straight up at ${u} m/s ${setting}. The graph shows its height against time, with $g = 9.8$ m/s². ${asked}, to the nearest 0.1 s.`),
       ],

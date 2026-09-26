@@ -15,6 +15,7 @@
  */
 import type { Generator, SolutionStep } from '../types';
 import {
+  dots,
   G_NOTE,
   askPrecision,
   exact,
@@ -61,8 +62,6 @@ const n3 = (v: number): number => Number(v.toFixed(6));
 /** Spins and radii of a space station to 3 significant figures. */
 const SF3: Precision = { sf: 3 };
 
-/** An unrounded value on a working line: 0.1565..., or the value itself when it ends. */
-const dots = (value: number, places = 4): string => (exact(value, places) ? fmt(value) : `${value.toFixed(places)}\\ldots`);
 
 /** The working line that ends a rounded answer: "To 3 significant figures:" then the value. */
 const roundLines = (name: string, value: number, precision: Precision): SolutionStep[] => [
@@ -488,8 +487,8 @@ const spaceStation: Generator<StationParams> = {
   choices: (p) => {
     const r = (x: number) => roundTo(x, SF3);
     return p.find === 'w'
-      ? numChoices(r(stationW(p)), [r((p.f * 9.8) / p.r), r(Math.sqrt(9.8 / p.r)), r(Math.sqrt((p.f * 9.8) / p.r / 2))].filter((x) => x > 0), salted(p.r, p.f * 10))
-      : numChoices(r(stationR(p)), [r((p.f * 9.8) / p.w), r(p.f * 9.8 * p.w * p.w), r(stationR(p) / 2)], salted(p.w * 100, p.f * 10 + 1));
+      ? numChoices(r(stationW(p)), [r((p.f * 9.8) / p.r), r(Math.sqrt(9.8 / p.r)), r(Math.sqrt((p.f * 9.8) / p.r / 2))].filter((x) => x > 0), salted(p.r, p.f * 10), SF3)
+      : numChoices(r(stationR(p)), [r((p.f * 9.8) / p.w), r(p.f * 9.8 * p.w * p.w), r(stationR(p) / 2)], salted(p.w * 100, p.f * 10 + 1), SF3);
   },
 };
 
@@ -567,6 +566,7 @@ const rotorSlider: Generator<RotorSpinParams> = {
     const figure = track(0, 5, [], 'A scale of angular speeds in radians per second');
     return {
       kind: 'slider',
+      calculator: true,
       prompt: [
         say(
           `A ${kg(p.m)} rider stands in a rotor ride of radius ${metres(p.r)}, with friction coefficient $\\mu = ${fmt(p.mu)}$ between rider and wall. ${G_NOTE} Slide to the least angular speed that keeps riders up when the floor drops, to the nearest $0.1\\text{ rad s}^{-1}$.`,

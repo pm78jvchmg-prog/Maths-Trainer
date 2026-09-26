@@ -253,7 +253,8 @@ function tileBank(answer: string[], extras: string[], spare = 4): string[] {
  * that does not terminate is dropped rather than printed to six places, and a
  * negative near miss is never offered for a quantity that cannot be negative.
  */
-function valueChoices(correct: number, wrong: number[], salt: number): ChoiceOption[] {
+function valueChoices(correct: number, wrong: number[], salt: number, precision?: Precision): ChoiceOption[] {
+  if (precision) return roundedChoices(correct, wrong, salt, precision);
   const seen = new Set([fmt(correct)]);
   const ok = (v: number) => Number.isFinite(v) && exact(v, 4) && !seen.has(fmt(v)) && (correct < 0 || v > 0);
   const picked: number[] = [];
@@ -274,6 +275,39 @@ function valueChoices(correct: number, wrong: number[], salt: number): ChoiceOpt
   }
   const as = (v: number) => ({ tex: fmt(v), answer: fmt(v) });
   return steered(options(as(correct), ...picked.map(as)), salt, spare.map(as));
+}
+
+/**
+ * Options for an answer asked to a stated precision: every option rounded to
+ * it and labelled with its trailing zeros (3.50, as the question asks for it),
+ * near misses stepping by its last place. Mirrors `numChoices` in
+ * `classicalKit.ts`, which cannot be imported here.
+ */
+function roundedChoices(correct: number, wrong: number[], salt: number, precision: Precision): ChoiceOption[] {
+  const label = (v: number) => fixed(v, precision);
+  const right = roundTo(correct, precision);
+  const seen = new Set([label(right)]);
+  const ok = (v: number) => Number.isFinite(v) && v !== 0 && !seen.has(label(v)) && (correct < 0 || v > 0);
+  const picked: number[] = [];
+  for (const raw of wrong) {
+    const v = roundTo(raw, precision);
+    if (picked.length === 3 || !ok(v)) continue;
+    seen.add(label(v));
+    picked.push(v);
+  }
+  const unit = 'dp' in precision ? 10 ** -precision.dp : 10 ** (Math.floor(Math.log10(Math.abs(right) || 1)) - precision.sf + 1);
+  const spare: number[] = [];
+  for (let step = 1; picked.length + spare.length < 7 && step < 1000; step += 1) {
+    for (const raw of [right + step * unit, right - step * unit]) {
+      const v = roundTo(raw, precision);
+      if (!ok(v)) continue;
+      seen.add(label(v));
+      if (picked.length < 3) picked.push(v);
+      else spare.push(v);
+    }
+  }
+  const as = (v: number) => ({ tex: label(v), answer: fmt(v) });
+  return steered(options(as(right), ...picked.map(as)), salt, spare.map(as));
 }
 
 /** The rotation `choiceVariant` gives a derived slide, reused for native ones (PITFALLS 3.10). */
@@ -338,7 +372,12 @@ function roundedWell(value: number, precision: Precision, margin = 0.15): boolea
 }
 
 /** An unrounded value on a working line: 0.4311..., or the value itself when it ends. */
-const dots = (value: number, places = 4): string => (exact(value, places) ? fmt(value) : `${value.toFixed(places)}\\ldots`);
+function dots(value: number, places = 4): string {
+  if (exact(value, places)) return fmt(value);
+  const scale = 10 ** places;
+  // Truncated, never rounded, so the digits shown are the value's own: 1.99996 reads 1.9999..., not 2.0000...
+  return `${(Math.trunc(value * scale + Math.sign(value) * 1e-7) / scale).toFixed(places)}\\ldots`;
+}
 
 /** A typed number asked to a stated precision: the checker accepts anything that rounds to the answer. */
 function typedRounded(prompt: Block[], lead: string, value: number, precision: Precision): Slide {
@@ -2936,6 +2975,15 @@ interface SlopeSliderParams {
 
 /** The slider steps in tenths, and the question asks to the nearest one. */
 const SLOPE_STEP = 0.1;
+
+/**
+ * The scale each way, eighty tenths wide so a notch stays a thumb's width:
+ * sliding down is at most g sin(alpha) = 7.84, and sent up it is at least
+ * g sin(alpha) = 5.88 and at most 9.8(0.8 + 0.75 x 0.6) = 12.25.
+ */
+const SLOPE_SCALE = { down: { min: 0, max: 8 }, up: { min: 5, max: 13 } } as const;
+/** The graph runs over the coefficients the questions use, 0 to 0.75. */
+const SLOPE_MU_MAX = 0.8;
 const SLOPE_MUS_2DP = [0, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75];
 
 /** The size of the acceleration: down the slope when released, the deceleration when sent up it. */
@@ -2964,6 +3012,7 @@ const slopeSlider: Generator<SlopeSliderParams> = {
     const c = cosOf(t);
     return {
       kind: 'slider',
+      calculator: true,
       prompt: [
         say(
           dir === 'down'
@@ -2972,21 +3021,21 @@ const slopeSlider: Generator<SlopeSliderParams> = {
         ),
         say(`The graph shows how it would change with $\\mu$.`),
       ],
-      min: 0,
-      max: 14,
+      min: SLOPE_SCALE[dir].min,
+      max: SLOPE_SCALE[dir].max,
       step: SLOPE_STEP,
       answer: slopeNotch(sliderAcceleration(params)),
       readout: dir === 'down' ? 'a = {v}' : '\\text{deceleration} = {v}',
       figure: {
         svg: plotSvg({
           xMin: 0,
-          xMax: 1.25,
-          yMin: 0,
-          yMax: 14,
+          xMax: SLOPE_MU_MAX,
+          yMin: SLOPE_SCALE[dir].min,
+          yMax: SLOPE_SCALE[dir].max,
           curves: [{ f: (x) => Math.max(0, G * (s + (dir === 'up' ? 1 : -1) * x * c)) }],
           label: `The ${dir === 'down' ? 'acceleration' : 'deceleration'} against the coefficient of friction, a straight line`,
         }),
-        ...markerWindow(0, 14, 'y'),
+        ...markerWindow(SLOPE_SCALE[dir].min, SLOPE_SCALE[dir].max, 'y'),
         axis: 'y',
       },
     };
@@ -4794,7 +4843,7 @@ const slackDistanceSteps: Generator<SlackStepsParams> = {
       ...(hard ? [{ op: 1, value: 2 * a, wrong: [a * a, 2 + a, a / 2] }] : []),
       { op: 1, value: v2, wrong: hard ? [2 * a + h, v2 * 2, v2 + 1] : [2 * v, v2 * 2, v2 + 1] },
       { op: 3, value: 2 * d, wrong: [d * d, 2 + d, d / 2] },
-      { op: 1, value: s, wrong: [v2 * 2 * d, s * 2, s + 1, s * 4] },
+      { op: 1, value: s, wrong: [s * 2, s + 1, s * 4] },
     ];
     const stage = table ? 'The string goes slack and $A$ slows' : 'The string goes slack and $A$ slows up the slope';
     return {
@@ -8074,8 +8123,7 @@ const ladder: Generator<LadderParams> = {
     if (p.find === 'R') return valueChoices(p.W + p.P, [p.W + S, S, p.W / 2, p.W * cosOf(p.t)], salt);
     if (p.find === 'mu') return valueChoices(leastMu(p), [S / p.W, (p.W + p.P) / S, flipped / (p.W + p.P), S / p.P], salt);
     if (p.find === 's') {
-      const r = (v: number) => roundTo(v, CLIMB_DP);
-      return valueChoices(r(p.s), [r(p.L - p.s), r(p.s * 2), p.L / 2, r(p.s + 1)], salt);
+      return valueChoices(p.s, [p.L - p.s, p.s * 2, p.L / 2, p.s + 1], salt, CLIMB_DP);
     }
     return valueChoices(S, [flipped, S * 2, p.W * (p.t.a / p.t.o), (p.W + p.P) / 2], salt);
   },

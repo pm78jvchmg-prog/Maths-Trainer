@@ -6,10 +6,11 @@
  * and the suvat equations) is used here, not taught again: a braking distance
  * is its v^2 = u^2 + 2as with v = 0.
  *
- * Every answer is an exact decimal of at most two places. Speeds given in
- * km h^-1 are 3.6 times a whole or half m s^-1, so a conversion never
- * rounds; everything else is drawn so the quotient it asks for terminates,
- * through `until`, never by rounding. Nothing here is calculus, so no slide
+ * Every given value is one a textbook prints, whole or one decimal place.
+ * Speeds given in km h^-1 are 3.6 times a whole or half m s^-1, so a
+ * conversion never rounds, and most quotients are drawn to terminate through
+ * `until`. A lap time, whose natural length and speed never divide out, is
+ * asked to 1 decimal place instead and rounded. Nothing here is calculus, so no slide
  * declares `source`; `classicalMotion.test.ts` recomputes every answer by a
  * route of its own.
  */
@@ -18,7 +19,10 @@ import type { Rng } from '../../engine/rng';
 import { turned } from './parametricImplicit';
 import { gcd } from './format';
 import {
+  dots,
+  askPrecision,
   exact,
+  fixed,
   fmt,
   forks,
   kmh,
@@ -26,14 +30,18 @@ import {
   ms,
   ms2,
   numChoices,
+  roundTo,
+  roundedWell,
   salted,
   say,
   secs,
   show,
   track,
   typed,
+  typedRounded,
   until,
   valueBank,
+  type Precision,
 } from './classicalKit';
 
 /** A bank of tidy values: distractors that are not short exact decimals are left out. */
@@ -90,49 +98,98 @@ const kmhConvert: Generator<ConvertParams> = {
 };
 
 interface LapParams {
-  v: number;
-  t: number;
+  /** Lap length in km, one decimal place. */
+  L: number;
+  /** Easy: the average speed, whole km h^-1. Hard: the lap time, whole seconds. */
+  given: number;
   find: 't' | 'v';
 }
 
-/** Expression: lap time from lap length and average speed in km h^-1, or (hard) the average speed. */
+/** Lap times and speeds are asked to 1 decimal place. */
+const LAP_DP: Precision = { dp: 1 };
+
+/** The lap time in seconds (easy) or the average speed in km h^-1 (hard), unrounded. */
+// Seconds are 3600 L over the speed in km h^-1; km h^-1 are 3600 L over the seconds. The same quotient, either way round.
+const lapAnswer = ({ L, given }: LapParams): number => (3600 * L) / given;
+
+/**
+ * Whether the answer comes out the same when the learner carries the speed in
+ * m s^-1 rounded to 2 or 3 decimal places into the next line, rather than
+ * the exact value: easy divides the metres by given / 3.6, hard multiplies
+ * metres / given by 3.6.
+ */
+function lapCarriesWell(p: LapParams): boolean {
+  const m = Math.round(p.L * 1000);
+  const want = roundTo(lapAnswer(p), LAP_DP);
+  return [2, 3].every((dp) => {
+    const carried = p.find === 't' ? m / roundTo(p.given / 3.6, { dp }) : roundTo(m / p.given, { dp }) * 3.6;
+    return roundTo(carried, LAP_DP) === want;
+  });
+}
+
+
+/** Expression: lap time from lap length and average speed in km h^-1, or (hard) the average speed, each to 1 decimal place. */
 const lapTime: Generator<LapParams> = {
   id: 'clm-lap-time',
-  sample: (rng, difficulty) => ({
-    v: rng.int(40, 90),
-    t: difficulty > 1 ? rng.int(60, 120) : rng.int(70, 110),
-    find: difficulty > 1 ? 'v' : 't',
-  }),
-  render: ({ v, t, find }) => {
-    const L = v * t;
+  sample: (rng, difficulty) =>
+    until(
+      () => {
+        const find = difficulty > 1 ? ('v' as const) : ('t' as const);
+        return { L: rng.int(30, 70) / 10, given: find === 't' ? rng.int(150, 260) : rng.int(70, 120), find };
+      },
+      (p) => {
+        const x = lapAnswer(p);
+        return roundedWell(x, LAP_DP) && lapCarriesWell(p) && (p.find === 't' ? x >= 50 && x <= 150 : x >= 120 && x <= 300);
+      },
+    ),
+  render: (p) => {
+    const { L, given, find } = p;
     return find === 't'
-      ? typed(
-          [say(`A lap of a circuit is $${fmt(L / 1000)}\\text{ km}$. A car laps it at an average of ${kmh(toKmh(v))}. How long does the lap take, in seconds?`)],
+      ? typedRounded(
+          [say(`A lap of a circuit is $${fmt(L)}\\text{ km}$. A car laps it at an average of ${kmh(given)}. How long does the lap take, in seconds? ${askPrecision(LAP_DP)}`)],
           't =',
-          t,
+          lapAnswer(p),
+          LAP_DP,
         )
-      : typed([say(`A car covers a $${fmt(L / 1000)}\\text{ km}$ lap in ${secs(t)}. Find its average speed in $\\text{km h}^{-1}$.`)], 'v =', toKmh(v));
+      : typedRounded(
+          [say(`A car covers a $${fmt(L)}\\text{ km}$ lap in ${secs(given)}. Find its average speed in $\\text{km h}^{-1}$. ${askPrecision(LAP_DP)}`)],
+          'v =',
+          lapAnswer(p),
+          LAP_DP,
+        );
   },
-  solution: ({ v, t, find }) => {
-    const L = v * t;
-    const metresLine = { tex: `${fmt(L / 1000)}\\text{ km} = ${fmt(L)}\\text{ m}` };
+  solution: (p) => {
+    const { L, given, find } = p;
+    const m = Math.round(L * 1000);
+    const metresLine = { tex: `${fmt(L)}\\text{ km} = ${m}\\text{ m}` };
     if (find === 't') {
+      const v = given / 3.6;
       return [
         { text: 'Work in metres and seconds.' },
         metresLine,
-        { tex: `${fmt(toKmh(v))} \\div 3.6 = ${fmt(v)}` },
-        { tex: `t = \\frac{${fmt(L)}}{${fmt(v)}} = ${fmt(t)}` },
+        { tex: `${given} \\div 3.6 = ${dots(v)}` },
+        { tex: `t = \\frac{${m}}{${dots(v)}} = ${dots(lapAnswer(p), 3)}` },
+        { text: 'To 1 decimal place:' },
+        { tex: `t = ${fixed(lapAnswer(p), LAP_DP)}` },
       ];
     }
     return [
       metresLine,
-      { tex: `v = \\frac{${fmt(L)}}{${fmt(t)}} = ${fmt(v)}\\text{ m s}^{-1}` },
+      { tex: `v = \\frac{${m}}{${given}} = ${dots(m / given)}\\text{ m s}^{-1}` },
       { text: 'Then to kilometres an hour:' },
-      { tex: `${fmt(v)} \\times 3.6 = ${fmt(toKmh(v))}` },
+      { tex: `${dots(m / given)} \\times 3.6 = ${dots(lapAnswer(p), 3)}` },
+      { text: 'To 1 decimal place:' },
+      { tex: `v = ${fixed(lapAnswer(p), LAP_DP)}` },
     ];
   },
-  choices: ({ v, t, find }) =>
-    find === 't' ? numChoices(t, [t * 3.6, t / 3.6, t + 10, t - 10], salted(v, t)) : numChoices(toKmh(v), [v, v / 3.6, toKmh(v) + 36], salted(t, v)),
+  choices: (p) => {
+    const x = lapAnswer(p);
+    const r = (v: number) => roundTo(v, LAP_DP);
+    const m = p.L * 1000;
+    return p.find === 't'
+      ? numChoices(r(x), [r(m / p.given), r(x * 3.6), r(x / 3.6), r(x + 10)], salted(p.L * 10, p.given), LAP_DP)
+      : numChoices(r(x), [r(m / p.given), r(x / 3.6), r(x + 36)], salted(p.given, p.L * 10), LAP_DP);
+  },
 };
 
 interface SpeedRow {
@@ -737,7 +794,12 @@ interface ThinkParams {
 /** Expression: thinking distance, speed times reaction time, from a speed in km h^-1; hard, the reaction time. */
 const thinking: Generator<ThinkParams> = {
   id: 'clm-thinking',
-  sample: (rng, difficulty) => ({ v: rng.pick(ROAD_SPEEDS), tr: rng.int(5, 15), find: difficulty > 1 ? 'tr' : 'd' }),
+  sample: (rng, difficulty) =>
+    until(
+      () => ({ v: rng.pick(ROAD_SPEEDS), tr: rng.int(5, 15), find: difficulty > 1 ? ('tr' as const) : ('d' as const) }),
+      // Backwards the distance is printed, so it is one a textbook would print: one decimal place.
+      (p) => p.find === 'd' || exact((p.v * p.tr) / 10, 1),
+    ),
   render: ({ v, tr, find }) => {
     const d = (v * tr) / 10;
     return find === 'd'
@@ -767,7 +829,8 @@ const thinking: Generator<ThinkParams> = {
   },
 };
 
-const DECELS = [4, 5, 6.25, 6.5, 7, 7.5, 8];
+/** Decelerations as a textbook prints them, whole or one decimal place. */
+const DECELS = [4, 5, 6, 6.5, 7, 7.5, 8];
 
 interface BrakeParams {
   v: number;
@@ -783,7 +846,8 @@ const braking: Generator<BrakeParams> = {
   sample: (rng, difficulty) =>
     until(
       () => ({ v: rng.int(8, 32), a: rng.pick(DECELS), find: difficulty > 1 ? ('a' as const) : ('d' as const) }),
-      (p) => exact(brakeDistance(p), 2),
+      // Backwards the distance is printed, so it has one decimal place at most.
+      (p) => exact(brakeDistance(p), p.find === 'a' ? 1 : 2),
     ),
   render: (p) => {
     const d = brakeDistance(p);

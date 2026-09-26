@@ -140,7 +140,8 @@ const springSlider: Generator<StretchParams> = {
   sample: (rng, difficulty) =>
     until(
       () => ({ what: rng.pick(SPRINGS), k: difficulty > 1 ? 5 * rng.int(4, 200) : 50 * rng.int(1, 20), steps: rng.int(3, 50) }),
-      (p) => exact(0.5 * p.k * (0.02 * p.steps) ** 2, 3),
+      // The energy is printed, so it must be one a textbook would: whole or one decimal place.
+      (p) => exact(0.5 * p.k * (0.02 * p.steps) ** 2, 1),
     ),
   render: (p) => {
     const x = n3(0.02 * p.steps);
@@ -236,7 +237,8 @@ const launchK = (p: LaunchParams): number => n3((2 * launchEnergy(p)) / (p.x * p
 const sampleLaunch = (rng: Rng, hard: boolean): LaunchParams =>
   until(
     () => ({ m: hard ? rng.pick([0.02, 0.05, 0.1, 0.2, 0.25, 0.4, 0.5]) : rng.pick([0.1, 0.2, 0.5, 1, 2]), j: rng.int(1, hard ? 4 : 3), x: rng.pick(COMPRESS) }),
-    (p) => exact(launchK(p), 1) && launchK(p) >= 20 && launchK(p) <= 20000,
+    // The stiffness is printed, so it must be a round one (a multiple of 50), never a 627.2 worked back from the speed.
+    (p) => Number.isInteger(n3(launchK(p) / 50)) && launchK(p) >= 50 && launchK(p) <= 20000,
   );
 
 /** Tree: a spring pops a ball straight up: the energy stored, the launch speed and the height reached. */
@@ -466,7 +468,8 @@ const loopTree: Generator<LoopParams> = {
     until(
       () => {
         const r = rng.pick(difficulty > 1 ? [2, 2.5, 4, 5, 8, 10] : [2, 4, 5, 10]);
-        return { m: rng.pick(difficulty > 1 ? [0.2, 0.5, 2, 50, 200, 500] : [1, 2, 5, 10]), r, h: n3(2.5 * r + 0.5 * rng.int(1, 16)) };
+        // A start height in half metres above the least 2.5r, so never 7.25 m.
+        return { m: rng.pick(difficulty > 1 ? [0.2, 0.5, 2, 50, 200, 500] : [1, 2, 5, 10]), r, h: n3(0.5 * (Math.floor(5 * r) + rng.int(1, 16))) };
       },
       (p) => exact(topPush(p), 2) && topPush(p) > 0,
     ),
@@ -736,7 +739,8 @@ const peSpeed: Generator<SpeedParams> = {
         const v = rng.int(1, 6);
         return { ...land, at, m: difficulty > 1 ? n3((2 * KE) / (v * v)) : 1, hard: difficulty > 1 };
       },
-      (p) => p.at >= 0 && p.E - p.U[p.at] > 0 && (!p.hard || (exact(p.m, 2) && p.m >= 0.1)),
+      // The mass is printed: whole or one decimal place, never a 0.56 kg worked back from the speed.
+      (p) => p.at >= 0 && p.E - p.U[p.at] > 0 && (!p.hard || (exact(p.m, 1) && p.m >= 0.1)),
     ),
   render: (p) => {
     const KE = p.E - p.U[p.at];

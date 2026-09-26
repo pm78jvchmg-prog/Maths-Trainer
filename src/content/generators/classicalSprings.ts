@@ -13,7 +13,29 @@
  * swing drops 2.5 j^2 metres so it arrives at 7j m/s.
  */
 import type { Generator, SolutionStep } from '../types';
-import { G_NOTE, exact, fmt, forks, kg, metres, ms, numChoices, salted, say, track, typed, until, valueBank } from './classicalKit';
+import {
+  dots,
+  G_NOTE,
+  askPrecision,
+  exact,
+  fixed,
+  fmt,
+  forks,
+  kg,
+  metres,
+  ms,
+  numChoices,
+  roundTo,
+  roundedWell,
+  salted,
+  say,
+  track,
+  typed,
+  typedRounded,
+  until,
+  valueBank,
+  type Precision,
+} from './classicalKit';
 import { TRIG_WORKING_KEYS, WORKING_KEYS } from './workingKeys';
 
 const n3 = (v: number): number => Number(v.toFixed(6));
@@ -89,7 +111,9 @@ const springTable: Generator<{ rows: ComboRow[] }> = {
   sample: (rng, difficulty) =>
     until(
       () => ({ rows: [0, 1, 2].map((): ComboRow => ({ k1: 5 * rng.int(1, 30), k2: 5 * rng.int(1, 30), blank: rng.pick(difficulty > 1 ? (['parallel', 'series', 'k2'] as const) : (['parallel', 'series'] as const)) })) }),
-      ({ rows }) => rows.every((r) => exact(series(r.k1, r.k2), 2) && r.k1 !== r.k2) && new Set(rows.map((r) => r.k1 * 1000 + r.k2)).size === 3,
+      // A series stiffness shown as a given (not the blank) is whole or one decimal place, never 18.75.
+      ({ rows }) =>
+        rows.every((r) => exact(series(r.k1, r.k2), r.blank === 'series' ? 2 : 1) && r.k1 !== r.k2) && new Set(rows.map((r) => r.k1 * 1000 + r.k2)).size === 3,
     ),
   render: ({ rows }) => {
     // A row blanking k2 shows the series stiffness, so the parallel one is shown only where k2 is.
@@ -202,7 +226,8 @@ const wellEnergy = ({ k, A }: WellParams): number => n3(0.5 * k * A * A);
 /** Slider: the turning point of a mass on a spring from its energy, where all of it is stored in the spring. */
 const springTurning: Generator<WellParams> = {
   id: 'clm-spring-turning',
-  sample: (rng, difficulty) => until(() => ({ k: 10 * rng.int(1, difficulty > 1 ? 80 : 30), A: 0.05 * rng.int(2, 40) }), (p) => exact(wellEnergy(p), 3) && exact(p.A, 2)),
+  // The energy is printed, so it is one a textbook would print: whole or one decimal place.
+  sample: (rng, difficulty) => until(() => ({ k: 10 * rng.int(1, difficulty > 1 ? 80 : 30), A: 0.05 * rng.int(2, 40) }), (p) => exact(wellEnergy(p), 1) && exact(p.A, 2)),
   render: (p) => {
     const A = n3(p.A);
     const figure = track(0, 2, [{ at: 0, name: 'rest' }], 'A scale of stretch from the rest position in metres');
@@ -284,7 +309,8 @@ interface WellRow {
 const springEnergyTable: Generator<{ k: number; A: number; rows: WellRow[] }> = {
   id: 'clm-spring-energy-table',
   sample: (rng, difficulty) => {
-    const k = 10 * rng.int(1, difficulty > 1 ? 50 : 20);
+    // A stiffness in twenties keeps every energy on the table to one decimal place.
+    const k = 20 * rng.int(1, difficulty > 1 ? 25 : 10);
     const A = 0.1 * rng.int(4, 10);
     const xs = [0, 1, 2]
       .map(() => n3(0.1 * rng.int(0, Math.round(A * 10))))
@@ -371,7 +397,12 @@ interface OmegaParams {
 /** Expression: the angular frequency sqrt(k/m) of a mass on a spring (easy), or the stiffness for a wanted one (hard). */
 const shmOmega: Generator<OmegaParams> = {
   id: 'clm-shm-omega',
-  sample: (rng, difficulty) => until(() => ({ m: rng.pick([0.1, 0.2, 0.25, 0.5, 1, 2, 4, 5]), w: rng.int(2, 20), find: difficulty > 1 ? ('k' as const) : ('w' as const) }), (p) => exact(p.m * p.w * p.w, 2)),
+  // Easy prints the stiffness, so it is whole or one decimal place, never 42.25; hard prints only m and omega.
+  sample: (rng, difficulty) =>
+    until(
+      () => ({ m: rng.pick([0.1, 0.2, 0.25, 0.5, 1, 2, 4, 5]), w: rng.int(2, 20), find: difficulty > 1 ? ('k' as const) : ('w' as const) }),
+      (p) => exact(p.m * p.w * p.w, p.find === 'w' ? 1 : 2),
+    ),
   render: (p) => {
     const k = n3(p.m * p.w * p.w);
     return p.find === 'w'
@@ -440,7 +471,10 @@ const shmTable: Generator<{ rows: ShmRow[] }> = {
   sample: (rng, difficulty) =>
     until(
       () => ({ rows: [0, 1, 2].map((): ShmRow => ({ A: rng.pick([0.02, 0.05, 0.1, 0.2, 0.25, 0.3, 0.4, 0.5, 2, 3]), w: rng.int(2, 12), blank: rng.pick(difficulty > 1 ? (['v', 'a', 'A', 'w'] as const) : (['v', 'a'] as const)) })) }),
-      ({ rows }) => rows.every((r) => exact(r.A * r.w * r.w, 3)) && new Set(rows.map((r) => r.A * r.w)).size === 3,
+      // Every greatest speed or acceleration shown as a given is whole or one decimal place; a blank may have more.
+      ({ rows }) =>
+        rows.every((r) => exact(r.A * r.w * r.w, 3) && (r.blank === 'v' || exact(r.A * r.w, 1)) && (r.blank === 'a' || exact(r.A * r.w * r.w, 1))) &&
+        new Set(rows.map((r) => r.A * r.w)).size === 3,
     ),
   render: ({ rows }) => {
     const v = (r: ShmRow) => n3(r.A * r.w);
@@ -484,7 +518,8 @@ const shmSlider: Generator<WhereParams> = {
         const A = rng.pick([0.4, 0.5, 0.6, 0.8, 1]);
         return { w: rng.int(2, difficulty > 1 ? 12 : 6), A, x: n3(0.05 * rng.int(1, Math.round(A * 20) - 1)) };
       },
-      (p) => exact(p.x * p.w * p.w, 3),
+      // The acceleration is printed: whole or one decimal place.
+      (p) => exact(p.x * p.w * p.w, 1),
     ),
   render: (p) => {
     const figure = track(0, 1, [{ at: 0, name: 'middle' }], 'A scale of displacement from the middle of the swing in metres');
@@ -511,26 +546,55 @@ const PEND_OMEGAS = [0.5, 0.7, 1, 1.4, 2, 2.5, 2.8, 3.5, 4, 5, 7, 10, 14];
 const pendLength = (w: number): number => n3(9.8 / (w * w));
 
 interface PendParams {
+  /** Hard: the wanted angular frequency, from PEND_OMEGAS. Easy: unused, 0. */
   w: number;
+  /** Easy: the length, whole or one decimal place. Hard: unused, 0. */
+  L: number;
   find: 'w' | 'L';
   what: string;
 }
 
 const PEND_THINGS = ['simple pendulum', 'pendulum in a clock', 'weight on a string', 'hanging lamp', 'plumb line set swinging', 'conker on a string', 'swinging sign'];
 
-/** Expression: a pendulum's angular frequency sqrt(g/L) from its length (easy), or the length for a wanted one (hard). */
+/** Angular frequencies from a length are asked to 2 decimal places. */
+const W_DP: Precision = { dp: 2 };
+const pendOmegaOf = (L: number): number => Math.sqrt(9.8 / L);
+
+
+/**
+ * Expression: a pendulum's angular frequency sqrt(g/L) from a length a
+ * textbook would print, to 2 decimal places (easy), or the length for a
+ * wanted one (hard), where the frequency is the given and the length comes
+ * out exact.
+ */
 const pendOmega: Generator<PendParams> = {
   id: 'clm-pend-omega',
-  sample: (rng, difficulty) => ({ w: rng.pick(PEND_OMEGAS), find: difficulty > 1 ? 'L' : 'w', what: rng.pick(PEND_THINGS) }),
+  sample: (rng, difficulty) =>
+    difficulty > 1
+      ? { w: rng.pick(PEND_OMEGAS), L: 0, find: 'L', what: rng.pick(PEND_THINGS) }
+      : until(() => ({ w: 0, L: rng.int(2, 60) / 10, find: 'w' as const, what: rng.pick(PEND_THINGS) }), (p) => roundedWell(pendOmegaOf(p.L), W_DP)),
   render: (p) =>
     p.find === 'w'
-      ? typed([say(`A ${p.what} is ${metres(pendLength(p.w))} long. ${G_NOTE} What is its angular frequency for small swings, in $\\text{rad s}^{-1}$?`)], '\\omega =', p.w)
+      ? typedRounded(
+          [say(`A ${p.what} is ${metres(p.L)} long. ${G_NOTE} What is its angular frequency for small swings, in $\\text{rad s}^{-1}$? ${askPrecision(W_DP)}`)],
+          '\\omega =',
+          pendOmegaOf(p.L),
+          W_DP,
+        )
       : typed([say(`A ${p.what} is to swing with angular frequency $${fmt(p.w)}\\text{ rad s}^{-1}$. ${G_NOTE} How long must it be, in metres?`)], 'L =', pendLength(p.w)),
   solution: (p) =>
     p.find === 'w'
-      ? [{ tex: `\\omega = \\sqrt{\\frac{g}{L}} = \\sqrt{\\frac{9.8}{${fmt(pendLength(p.w))}}} = \\sqrt{${fmt(n3(p.w * p.w))}} = ${fmt(p.w)}` }]
+      ? [
+          { tex: `\\omega = \\sqrt{\\frac{g}{L}} = \\sqrt{\\frac{9.8}{${fmt(p.L)}}} = ${dots(pendOmegaOf(p.L))}` },
+          { text: 'To 2 decimal places:' },
+          { tex: `\\omega = ${fixed(pendOmegaOf(p.L), W_DP)}` },
+        ]
       : [{ tex: `L = \\frac{g}{\\omega^{2}} = \\frac{9.8}{${fmt(p.w)}^{2}} = ${fmt(pendLength(p.w))}` }],
-  choices: (p) => (p.find === 'w' ? numChoices(p.w, [n3(p.w * p.w), n3(9.8 * pendLength(p.w)), n3(p.w / 2)], salted(p.w * 10, p.what.length)) : numChoices(pendLength(p.w), [n3(9.8 / p.w), n3(9.8 * p.w * p.w), n3(p.w * p.w / 9.8)], salted(p.w * 10, p.what.length + 100))),
+  choices: (p) => {
+    if (p.find === 'L') return numChoices(pendLength(p.w), [n3(9.8 / p.w), n3(9.8 * p.w * p.w), n3((p.w * p.w) / 9.8)], salted(p.w * 10, p.what.length + 100));
+    const r = (v: number) => roundTo(v, W_DP);
+    return numChoices(r(pendOmegaOf(p.L)), [r(9.8 / p.L), r(Math.sqrt(p.L / 9.8)), r(Math.sqrt(9.8 * p.L))], salted(p.L * 10, p.what.length), W_DP);
+  },
 };
 
 interface PendSliderParams {
@@ -559,30 +623,57 @@ const pendSlider: Generator<PendSliderParams> = {
 };
 
 interface PendRow {
+  /** A row blanking omega gives a length a textbook would print; one blanking L gives omega from PEND_OMEGAS. */
   w: number;
+  L: number;
   blank: 'w' | 'L';
 }
 
-/** Table: pendulum lengths and their angular frequencies, g = 9.8, either missing. */
+/**
+ * Table: pendulum lengths and their angular frequencies, g = 9.8, either
+ * missing. A missing omega comes from a whole or one-place length and is
+ * filled to 2 decimal places; a missing length comes out exact.
+ */
 const pendTable: Generator<{ rows: PendRow[] }> = {
   id: 'clm-pend-table',
   sample: (rng, difficulty) =>
     until(
-      () => ({ rows: [0, 1, 2].map((): PendRow => ({ w: rng.pick(PEND_OMEGAS), blank: difficulty > 1 ? (rng.chance(0.5) ? 'w' : 'L') : 'w' })) }),
-      ({ rows }) => new Set(rows.map((r) => r.w)).size === 3,
+      () => ({
+        rows: [0, 1, 2].map((): PendRow => {
+          const blank = difficulty > 1 && rng.chance(0.5) ? 'L' : 'w';
+          return blank === 'L' ? { w: rng.pick(PEND_OMEGAS), L: 0, blank } : { w: 0, L: rng.int(2, 60) / 10, blank };
+        }),
+      }),
+      ({ rows }) =>
+        new Set(rows.map((r) => `${r.w} ${r.L}`)).size === 3 &&
+        rows.every((r) => r.blank === 'L' || roundedWell(pendOmegaOf(r.L), W_DP)) &&
+        // No two gaps worth the same: a length of 3.5 beside an omega of 3.50 would be one value spelt two ways.
+        new Set(rows.map((r) => (r.blank === 'w' ? roundTo(pendOmegaOf(r.L), W_DP) : pendLength(r.w)))).size === 3,
     ),
   render: ({ rows }) => {
-    const answer = rows.map((r) => (r.blank === 'w' ? r.w : pendLength(r.w)));
+    const answer = rows.map((r) => (r.blank === 'w' ? fixed(pendOmegaOf(r.L), W_DP) : fmt(pendLength(r.w))));
+    const extras = rows.flatMap((r) =>
+      r.blank === 'w' ? [fixed(9.8 / r.L, W_DP), fixed(Math.sqrt(r.L / 9.8), W_DP)] : [n3(r.w * r.w), n3(9.8 / r.w)].filter((v) => exact(v, 3)).map(fmt),
+    );
+    const bank = [...answer];
+    // Compared by value, not spelling, so 3.5 never sits beside 3.50.
+    for (const token of extras) if (bank.length < answer.length + 3 && !bank.some((t) => Number(t) === Number(token)) && Number(token) > 0) bank.push(token);
     return {
       kind: 'table',
-      prompt: [say(`Each row is a simple pendulum: its length $L$ in metres and its angular frequency $\\omega$ in $\\text{rad s}^{-1}$. ${G_NOTE} Fill in the gaps.`)],
+      prompt: [say(`Each row is a simple pendulum: its length $L$ in metres and its angular frequency $\\omega$ in $\\text{rad s}^{-1}$. ${G_NOTE} Fill in the gaps, giving $\\omega$ to 2 decimal places.`)],
       columns: ['L', '\\omega'],
-      rows: rows.map((r) => [r.blank === 'L' ? null : fmt(pendLength(r.w)), r.blank === 'w' ? null : fmt(r.w)]),
-      bank: tidyBank(answer, rows.flatMap((r) => [n3(r.w * r.w), n3(9.8 / r.w)])),
-      answer: answer.map(fmt),
+      rows: rows.map((r) => [r.blank === 'L' ? null : fmt(r.L), r.blank === 'w' ? null : fmt(r.w)]),
+      bank: bank.sort((x, y) => Number(x) - Number(y)),
+      answer,
+      calculator: true,
     };
   },
-  solution: ({ rows }) => rows.map((r): SolutionStep => (r.blank === 'w' ? { tex: `\\omega = \\sqrt{\\frac{9.8}{${fmt(pendLength(r.w))}}} = ${fmt(r.w)}` } : { tex: `L = \\frac{9.8}{${fmt(r.w)}^{2}} = ${fmt(pendLength(r.w))}` })),
+  solution: ({ rows }) =>
+    rows.map((r): SolutionStep =>
+      r.blank === 'w'
+        ? { tex: `\\omega = \\sqrt{\\frac{9.8}{${fmt(r.L)}}} = ${dots(pendOmegaOf(r.L))} \\approx ${fixed(pendOmegaOf(r.L), W_DP)}` }
+        : { tex: `L = \\frac{9.8}{${fmt(r.w)}^{2}} = ${fmt(pendLength(r.w))}` },
+    ),
 };
 
 interface RatioParams {

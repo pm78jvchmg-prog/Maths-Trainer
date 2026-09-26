@@ -51,6 +51,8 @@ function filled(slide: Slide): number[][] {
 
 const near = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol * Math.max(1, Math.abs(b));
 const n = (v: unknown) => v as number;
+/** Absolute closeness, for an answer rounded to a stated precision. */
+const within = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol + 1e-6;
 const promptText = (slide: Slide): string => JSON.stringify('prompt' in slide ? slide.prompt : '');
 
 /** Steps x'' = -w^2 x from rest at A until x falls to x0, and returns the speed there. */
@@ -182,12 +184,20 @@ describe('classical mechanics level 8', () => {
   it('times pendulums by stepping a small swing', TIME, () => {
     for (const { p, slide } of draws('clm-pend-omega')) {
       const got = answerOf(slide)[0];
-      const [w, L] = p.find === 'w' ? [got, g / n(p.w) ** 2] : [n(p.w), got];
-      expect(near(pendulumOmega(L), w, 1e-4), JSON.stringify(p)).toBe(true);
+      if (p.find === 'w') {
+        // Asked to 2 decimal places: within half a last-place unit of the stepped swing.
+        expect(within(got, pendulumOmega(n(p.L)), 0.005), JSON.stringify(p)).toBe(true);
+      } else {
+        expect(near(pendulumOmega(got), n(p.w), 1e-4), JSON.stringify(p)).toBe(true);
+      }
     }
     for (const { p, slide } of draws('clm-pend-slider')) expect(near(pendulumOmega(answerOf(slide)[0]), n(p.w), 1e-4)).toBe(true);
-    for (const { slide } of draws('clm-pend-table')) {
-      for (const [L, w] of filled(slide)) expect(near(pendulumOmega(L), w, 1e-4)).toBe(true);
+    for (const { p, slide } of draws('clm-pend-table')) {
+      const rows = (p.rows as { blank: string }[]).map((r) => r.blank);
+      filled(slide).forEach(([L, w], i) => {
+        // A filled omega is to 2 decimal places; a filled length is exact.
+        expect(rows[i] === 'w' ? within(w, pendulumOmega(L), 0.005) : near(pendulumOmega(L), w, 1e-4), JSON.stringify(p)).toBe(true);
+      });
     }
     for (const { p, slide } of draws('clm-pend-ratio-flow')) {
       const [r, T2] = answerOf(slide);

@@ -386,6 +386,7 @@ function grade(slide: Slide, answer: Answer, seed: number): Feedback {
         domain: slide.domain,
         mode: slide.mode,
         seed,
+        precision: slide.precision,
       });
       // Both unreadable and unverifiable input are surfaced as `invalid`: in
       // each case we cannot say the learner was wrong, only that we could not

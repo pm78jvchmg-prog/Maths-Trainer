@@ -7,6 +7,7 @@
  * the worked examples.
  */
 import type { Rng } from '../engine/rng';
+import type { Precision } from '../engine/equivalence';
 import type { Expr } from './expr';
 import type { BaseCurve, Window } from './transform';
 import type { ForceArrow, ForceScene } from './forces';
@@ -56,6 +57,13 @@ export interface KeypadKey {
 interface Prompted {
   /** The question, shown above the answer area. */
   prompt: Block[];
+  /**
+   * Show the folded-away calculator under the answer area. For a slide with
+   * no keypad of its own (a tree, flow, table or slider) whose values were
+   * rounded from a square root or a long division nobody does in their head.
+   * It grades nothing, so it gives nothing away.
+   */
+  calculator?: boolean;
 }
 
 export type Slide =
@@ -116,6 +124,12 @@ export type Slide =
       alsoAccepts?: string[];
       domain: 'real' | 'complex' | 'positive';
       mode: 'exact' | 'upToConstant';
+      /**
+       * The precision the prompt asks for ("to 2 decimal places"), when the
+       * answer is a rounded number. `answer` is then that rounded value, and
+       * anything rounding to it is accepted, the unrounded working included.
+       */
+      precision?: Precision;
     })
   /** Tap a lattice point on the complex plane. */
   | ({ kind: 'plot' } & Prompted & {

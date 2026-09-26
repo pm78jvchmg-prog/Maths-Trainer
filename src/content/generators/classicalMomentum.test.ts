@@ -52,6 +52,8 @@ function filled(slide: Slide): number[][] {
 
 const near = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol * Math.max(1, Math.abs(b));
 const n = (v: unknown) => v as number;
+/** Absolute closeness, for an answer rounded to a stated precision. */
+const within = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol + 1e-6;
 
 /** The pulse's force at time t (ms from its start), and its impulse by adding 20 000 slices. */
 function sliced(F: number, rise: number, flat: number, fall: number): number {
@@ -110,7 +112,9 @@ describe('classical mechanics level 5', () => {
     }
     for (const { p, slide } of draws('clm-restitution')) {
       const e = answerOf(slide)[0];
-      if (p.fromHeights) expect(near(rise(e * Math.sqrt(2 * g * 2.5 * n(p.j) ** 2)), n(p.e) ** 2 * 2.5 * n(p.j) ** 2, 1e-6)).toBe(true);
+      // From heights, e is asked to 2 decimal places: within half a last-place unit of
+      // the speed that rises h2 over the speed that fell h1.
+      if (p.fromHeights) expect(within(e, Math.sqrt(2 * g * n(p.h2)) / Math.sqrt(2 * g * n(p.h1)), 0.005), JSON.stringify(p)).toBe(true);
       else expect(near(e * n(p.u), n(p.e) * n(p.u), 1e-9)).toBe(true);
     }
     for (const { p, slide } of draws('clm-collision-flow')) {
@@ -173,6 +177,22 @@ describe('classical mechanics level 5', () => {
     }
   });
 
+  it('prints the given values a textbook would', TIME, () => {
+    const places = (v: number, dp: number) => Math.abs(v * 10 ** dp - Math.round(v * 10 ** dp)) < 1e-6;
+    for (const { p } of draws('clm-peak-slider')) expect(places((50 * n(p.steps) * n(p.T)) / 2000, 1), JSON.stringify(p)).toBe(true);
+    for (const { p } of draws('clm-restitution')) {
+      if (p.fromHeights) expect(Number.isInteger(n(p.h1)) && places(n(p.h2), 1), JSON.stringify(p)).toBe(true);
+      else expect(places(n(p.e) * n(p.u), 1), JSON.stringify(p)).toBe(true);
+    }
+    for (const id of ['clm-merge-tree', 'clm-merge-angle']) {
+      for (const { p } of draws(id)) {
+        const tri = p.tri as number[];
+        expect(places((n(p.k) * tri[0]) / n(p.mA), 1) && places((n(p.k) * tri[1]) / n(p.mB), 1), `${id} ${JSON.stringify(p)}`).toBe(true);
+      }
+    }
+    for (const { p } of draws('clm-gas-tree')) if (p.find === 'T') expect(Number.isInteger(n(p.kPa)), JSON.stringify(p)).toBe(true);
+  });
+
   it('pushes with a stream of hits, a gas and light', TIME, () => {
     for (const { p, slide } of draws('clm-stream-force')) {
       // One second of hits, each an impulse.
@@ -182,9 +202,16 @@ describe('classical mechanics level 5', () => {
     }
     for (const { p, slide } of draws('clm-gas-tree')) {
       const got = answerOf(slide);
-      const [pV, V, pk, T] = p.find === 'T' ? [got[1], got[0], NaN, got[2]] : [got[0], got[1], got[2], n(p.T)];
-      expect(near(pV, n(p.n) * 8.3 * T, 1e-9) && near(V, n(p.L) / 1000, 1e-9)).toBe(true);
-      if (p.find === 'p') expect(near(pk * 1000 * V, n(p.n) * 8.3 * n(p.T), 1e-9)).toBe(true);
+      if (p.find === 'T') {
+        // Given the pressure: pV exactly, and T to 3 significant figures (a whole kelvin here).
+        const [V, pV, T] = got;
+        expect(near(V, n(p.L) / 1000, 1e-9) && near(pV, n(p.kPa) * 1000 * V, 1e-9), JSON.stringify(p)).toBe(true);
+        expect(within(T, pV / (n(p.n) * 8.3), 0.5), JSON.stringify(p)).toBe(true);
+        continue;
+      }
+      const [pV, V, pk] = got;
+      expect(near(pV, n(p.n) * 8.3 * n(p.T), 1e-9) && near(V, n(p.L) / 1000, 1e-9)).toBe(true);
+      expect(near(pk * 1000 * V, n(p.n) * 8.3 * n(p.T), 1e-9)).toBe(true);
     }
     for (const { p, slide } of draws('clm-light-force')) {
       const F = ((p.mirror ? 2 : 1) * n(p.P)) / 3e8;

@@ -393,8 +393,19 @@ do it mentally — a drop taught as `h = ½gt²` and asked for `t` needs the roo
 Trig keys in degrees come only with `TRIG_WORKING_KEYS`, on a question whose
 prompt states an angle in degrees; most give `tan α = ¾` instead, and a test
 in `generators.test.ts` holds each draw to the right set. It is graded by value like any typed answer, which is only safe
-because those answers are exact decimals; a generator whose answer is rounded
-must not take these keys.
+because those answers are exact decimals, or rounded ones carrying
+`precision`.
+
+**Given values are the kind a textbook prints**, never worked backwards from a
+tidy answer (the owner caught "a wall 60.025 m high" chosen so the fall took
+exactly 3.5 s). When natural values give an answer that does not terminate,
+the slide sets `precision` (`{ dp }` or `{ sf }`), its prompt says so ("Give
+your answer to 2 decimal places."), and `answer` is the rounded value;
+`checkAnswer` then accepts anything rounding to it, the unrounded working
+included, and the sweep fails a rounded answer whose prompt never states its
+precision. Draws whose value sits near a rounding edge, or whose next line
+rounds differently from a carried rounded intermediate, are redrawn:
+`roundedWell` and `typedRounded` in `generators/classicalKit.ts`.
 
 **`probTree`** (batch C16-widget) is a two-stage probability tree drawn root on
 the left: at most three first-stage branches and two under each. Branches carry

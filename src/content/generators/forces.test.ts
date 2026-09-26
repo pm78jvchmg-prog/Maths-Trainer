@@ -34,7 +34,20 @@ function draws<P>(generator: Generator<P>, seeds = SEEDS): { params: P; slide: S
   );
 }
 
+const exact2 = (v: number) => Math.abs(v * 100 - Math.round(v * 100)) < 1e-6;
+const exact1 = (v: number) => Math.abs(v * 10 - Math.round(v * 10)) < 1e-6;
 const close = (a: number, b: number) => Math.abs(a - b) < 1e-9 * Math.max(1, Math.abs(a), Math.abs(b));
+
+/**
+ * A rounded answer against the value worked out by hand: within half a unit
+ * of the stated last place, and the slide states that precision.
+ */
+function expectRounded(slide: Slide, want: number, dp: number, where: string): void {
+  if (slide.kind !== 'expression') throw new Error(`${where}: expected a typed answer`);
+  expect(slide.precision, where).toEqual({ dp });
+  const got = Number(math.evaluate(slide.answer));
+  expect(Math.abs(got - want), `${where}: ${got} against ${want}`).toBeLessThanOrEqual(0.5 * 10 ** -dp + 1e-9);
+}
 
 function expectClose(got: number[], want: number[], where: string): void {
   expect(got.length, where).toBe(want.length);
@@ -314,7 +327,8 @@ describe('equilibrium and friction', TIME, () => {
       const [s, c] = [Math.sin(rad(t)), Math.cos(rad(t))];
       if (mode === 'mu') {
         const P = quoted(slide, 'A force of');
-        expectClose(answerOf(slide), [(W * s - P) / (W * c)], 'mu');
+        expect(Number.isInteger(P), 'the pull is given in whole newtons').toBe(true);
+        expectRounded(slide, (W * s - P) / (W * c), 2, 'mu');
       } else {
         expectClose(answerOf(slide), [W * s + (mode === 'up' ? 1 : -1) * mu * W * c], 'limiting');
       }
@@ -449,12 +463,16 @@ describe('motion on a slope', TIME, () => {
     }
   });
 
-  it('the slope slider lands on g(sin a -/+ mu cos a)', () => {
+  it('the slope slider lands on g(sin a -/+ mu cos a), to the nearest tenth', () => {
     for (const { params, slide } of draws(g.slopeSlider)) {
-      const { t, dir, parts } = params;
-      const mu = parts / (t.o === 3 ? 8 : 6);
+      const { t, dir } = params;
+      const said = /\\mu = ([\d.]+)\$/.exec(promptText(slide));
+      const mu = said ? Number(said[1]) : 0;
+      expect(/smooth/.test(promptText(slide))).toBe(mu === 0);
       const want = GRAV * (Math.sin(rad(t)) + (dir === 'up' ? 1 : -1) * mu * Math.cos(rad(t)));
-      expectClose(answerOf(slide), [want], 'slope slider');
+      const [got] = answerOf(slide);
+      expect(Math.abs(got - want), `slope slider: ${got} against ${want}`).toBeLessThanOrEqual(0.05 + 1e-9);
+      expect(exact1(got)).toBe(true);
       if (slide.kind !== 'slider') throw new Error('expected a slider');
       expect(want).toBeGreaterThan(0);
       expect(want).toBeLessThanOrEqual(slide.max);
@@ -760,11 +778,16 @@ describe('connected particles on slopes', TIME, () => {
   });
 
   it('the extra distance, worked out on the line', () => {
-    for (const { params, slide } of draws(g.slackDistanceSteps)) {
+    for (const { slide } of draws(g.slackDistanceSteps)) {
       if (slide.kind !== 'steps') throw new Error('expected steps');
-      const k = slackByHand(params);
-      expectClose(answerOf(slide), [k.s], 'slack steps');
-      expect(close(lineValue(slide.start), k.s)).toBe(true);
+      // The numbers are stated in the prompt: A's speed, or the acceleration
+      // and the drop, then the deceleration. Each is a tenth at most.
+      const said = [...promptText(slide).matchAll(/\$([\d.]+)\\text/g)].map((m) => Number(m[1]));
+      said.forEach((v) => expect(exact1(v), `given ${v}`).toBe(true));
+      const d = said[said.length - 1];
+      const u2 = said.length === 3 ? 2 * said[0] * said[1] : said[0] ** 2;
+      expectClose(answerOf(slide), [u2 / (2 * d)], 'slack steps');
+      expect(close(lineValue(slide.start), u2 / (2 * d))).toBe(true);
     }
   });
 
@@ -1150,7 +1173,8 @@ describe('moments', TIME, () => {
         const mu = Number(/\$\\mu = ([\d.]+)\$ at the ground/.exec(promptText(slide))![1]);
         const S = mu * (p.W + p.P);
         const s = (S * p.L * Math.sin(th) - p.W * (p.L / 2) * Math.cos(th)) / (p.P * Math.cos(th));
-        expectClose(answerOf(slide), [s], 'ladder s');
+        expect(exact2(mu), `mu ${mu} is given to 2 places at most`).toBe(true);
+        expectRounded(slide, s, 1, 'ladder s');
         continue;
       }
       const h = ladderByHand(slide, p, 'ladder');

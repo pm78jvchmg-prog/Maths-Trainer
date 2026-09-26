@@ -49,6 +49,10 @@ function answerOf(slide: Slide): number[] {
 
 const near = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol * Math.max(1, Math.abs(b));
 const n = (v: unknown) => v as number;
+/** Absolute closeness, for an answer rounded to a stated precision: within half a last-place unit. */
+const within = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol + 1e-9;
+/** Half a last-place unit of a value given to 3 significant figures. */
+const halfSf3 = (v: number) => 0.5 * 10 ** (Math.floor(Math.log10(Math.abs(v))) - 2);
 
 /** Pressure below the surface of a liquid, in pascals, by adding the weight of 10 000 thin layers over each square metre. */
 function stacked(rho: number, h: number, top = 0): number {
@@ -85,17 +89,24 @@ describe('classical mechanics level 3', () => {
     for (const { p, slide } of draws('clm-heel-flow')) {
       if (slide.kind !== 'flow') throw new Error('not a flow');
       const heel = (n(p.m) * g) / (n(p.heel) * 1e-4) / 1000;
-      const foot = (n(p.M) * g) / 4 / n(p.foot) / 1000;
+      const footArea = p.footCm ? n(p.foot) * 1e-4 : n(p.foot);
+      const foot = (n(p.M) * g) / 4 / footArea / 1000;
       const [a, b] = answerOf(slide);
-      expect(near(a, heel, 1e-9) && near(b, foot, 1e-9)).toBe(true);
+      // Each pressure to 3 significant figures.
+      expect(within(a, heel, halfSf3(heel)) && within(b, foot, halfSf3(foot)), JSON.stringify(p)).toBe(true);
       expect(slide.answer[2].includes('heel')).toBe(heel > foot);
     }
     for (const { p, slide } of draws('clm-area-slider')) {
       const F = p.hard ? n(p.load) * g : n(p.load);
       const limit = n(p.limit) * 1000;
       const A = answerOf(slide)[0];
-      // Exactly at the limit on that area, and over it one step smaller.
-      expect(near(F / A, limit, 1e-9) && F / (A - 0.02) > limit).toBe(true);
+      if (p.hard) {
+        // The walker's area to the nearest 0.02: within 0.01 of the area that puts them exactly at the limit.
+        expect(within(A, F / limit, 0.01), JSON.stringify(p)).toBe(true);
+      } else {
+        // Exactly at the limit on that area, and over it one step smaller.
+        expect(near(F / A, limit, 1e-9) && F / (A - 0.02) > limit).toBe(true);
+      }
     }
   });
 
@@ -177,10 +188,10 @@ describe('classical mechanics level 3', () => {
     }
     for (const id of ['clm-terminal', 'clm-terminal-slider']) {
       for (const { p, slide } of draws(id)) {
-        const W = n(p.k) * n(p.v) ** 2;
-        const v = answerOf(slide)[0];
-        // No force left over at that speed, and a little slower there still is.
-        expect(near(n(p.k) * v * v, W, 1e-9) && n(p.k) * (v - 0.1) ** 2 < W).toBe(true);
+        const W = p.hard ? n(p.load) * g : n(p.load);
+        // The speed where drag kv^2 has grown to the weight, to 1 decimal place, or to the nearest whole on the slider.
+        const v = Math.sqrt(W / n(p.k));
+        expect(within(answerOf(slide)[0], v, id === 'clm-terminal' ? 0.05 : 0.5), `${id} ${JSON.stringify(p)}`).toBe(true);
       }
     }
     for (const { slide } of draws('clm-drag-table')) {
@@ -215,32 +226,40 @@ describe('classical mechanics level 3', () => {
     for (const id of ['clm-flat-bend', 'clm-bend-slider']) {
       for (const { p, slide } of draws(id)) {
         const got = answerOf(slide)[0];
-        const v = p.find === 'v' ? got : 7 * n(p.j);
-        const r = p.find === 'v' ? (5 * n(p.j) ** 2) / n(p.mu) : got;
-        // Per kilogram: the most friction can give equals what the turn needs.
-        expect(near(n(p.mu) * g, (v * v) / r, 1e-9), `${id} ${JSON.stringify(p)}`).toBe(true);
+        // Per kilogram: the most friction can give, mu g, equals what the turn needs, v^2 / r.
+        if (p.find === 'v') {
+          const v = Math.sqrt(n(p.mu) * g * n(p.r));
+          expect(within(got, v, id === 'clm-flat-bend' ? 0.05 : 0.25), `${id} ${JSON.stringify(p)}`).toBe(true);
+        } else {
+          const r = n(p.v) ** 2 / (n(p.mu) * g);
+          expect(within(got, r, halfSf3(r)), `${id} ${JSON.stringify(p)}`).toBe(true);
+        }
       }
     }
     for (const { p, slide } of draws('clm-bank-tree')) {
       const got = answerOf(slide);
-      const tan = p.find === 'tan' ? got[2] : n(p.tan);
-      const v = p.find === 'tan' ? 7 * n(p.j) : got[2];
-      const r = (5 * n(p.j) ** 2) / n(p.tan);
-      const theta = Math.atan(tan);
-      // Per kilogram: R cos(theta) holds the weight, R sin(theta) turns it.
-      const R = g / Math.cos(theta);
-      expect(near(R * Math.sin(theta), (v * v) / r, 1e-9), JSON.stringify(p)).toBe(true);
+      const r = n(p.r);
+      // Per kilogram: R cos(theta) holds the weight, R sin(theta) turns it, so tan(theta) = v^2 / (rg).
+      if (p.find === 'tan') {
+        const v = n(p.v);
+        const tan = (v * v) / (r * g);
+        expect(near(got[0], v * v) && near(got[1], r * g) && within(got[2], tan, halfSf3(tan)), JSON.stringify(p)).toBe(true);
+      } else {
+        const theta = Math.atan(n(p.tan));
+        const v = Math.sqrt(r * g * Math.tan(theta));
+        expect(near(got[0], r * g) && near(got[1], v * v, 1e-6) && within(got[2], v, 0.05), JSON.stringify(p)).toBe(true);
+      }
     }
     for (const { p, slide } of draws('clm-bank-flow')) {
       if (slide.kind !== 'flow') throw new Error('not a flow');
       const theta = Math.atan(n(p.tan));
-      const r = (5 * n(p.j) ** 2) / n(p.tan);
+      const r = n(p.r);
       const u = n(p.u);
       // Friction along the slope, per kilogram, positive down it: what the turn needs beyond the reaction's share.
       const along = ((u * u) / r) * Math.cos(theta) - g * Math.sin(theta);
       const want = Math.abs(along) < 1e-9 ? 'No friction is needed' : along > 0 ? 'Down the slope' : 'Up the slope';
       expect(slide.answer[1], JSON.stringify(p)).toBe(want);
-      expect(near(answerOf(slide)[0], Math.sqrt(r * g * n(p.tan)), 1e-9)).toBe(true);
+      expect(within(answerOf(slide)[0], Math.sqrt(r * g * n(p.tan)), 0.05)).toBe(true);
     }
   });
 });

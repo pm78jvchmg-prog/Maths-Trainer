@@ -78,11 +78,15 @@ describe('classical mechanics level 1', () => {
     expectAll('clm-kmh-convert', (p) => [p.to === 'ms' ? (n(p.v) * 3600) / 1000 / 3.6 : (n(p.v) * 3600) / 1000]);
   });
 
-  it('times a lap as metres over metres per second', TIME, () => {
-    expectAll('clm-lap-time', (p) => {
-      const L = n(p.v) * n(p.t);
-      return [p.find === 't' ? L / n(p.v) : (L / n(p.t)) * 3.6];
-    });
+  it('times a lap as metres over metres per second, to 1 decimal place', TIME, () => {
+    for (const { p, slide } of draws('clm-lap-time')) {
+      const metres = n(p.L) * 1000;
+      // Easy: seconds from km/h turned into m/s. Hard: m/s from the time, turned into km/h.
+      const want = p.find === 't' ? metres / (n(p.given) / 3.6) : (metres / n(p.given)) * 3.6;
+      expect(Math.abs(answerOf(slide)[0] - want), JSON.stringify(p)).toBeLessThanOrEqual(0.05 + 1e-6);
+      // The lap length is printed to one decimal place of a kilometre, the speed or time whole.
+      expect(Number.isInteger(n(p.L) * 10) && Number.isInteger(n(p.given)), JSON.stringify(p)).toBe(true);
+    }
   });
 
   it('turns a time gap into a distance', TIME, () => {
@@ -188,6 +192,17 @@ describe('classical mechanics level 1', () => {
       const got = answerOf(slide)[0];
       const a = ((n(p.v1) / 3.6) ** 2) / (2 * n(p.d1));
       expect(Math.abs(got - (n(p.v2) / 3.6) ** 2 / (2 * a))).toBeLessThan(1e-9);
+    }
+  });
+
+  it('prints distances and decelerations a textbook would, one decimal place at most', TIME, () => {
+    const oneDp = (v: number) => Math.abs(v * 10 - Math.round(v * 10)) < 1e-6;
+    for (const id of ['clm-thinking', 'clm-braking', 'clm-stopping-tree', 'clm-stop-flow']) {
+      for (const { p } of draws(id)) {
+        if (p.a !== undefined) expect(oneDp(n(p.a)), `${id} ${JSON.stringify(p)}`).toBe(true);
+        if (id === 'clm-thinking' && p.find === 'tr') expect(oneDp((n(p.v) * n(p.tr)) / 10), JSON.stringify(p)).toBe(true);
+        if (id === 'clm-braking' && p.find === 'a') expect(oneDp(n(p.v) ** 2 / (2 * n(p.a))), JSON.stringify(p)).toBe(true);
+      }
     }
   });
 

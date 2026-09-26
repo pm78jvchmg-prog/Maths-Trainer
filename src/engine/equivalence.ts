@@ -56,6 +56,25 @@ export interface CheckOptions {
   arbitraryConstants?: readonly string[];
   /** Fix the seed so a check is reproducible. Tests rely on this. */
   seed?: number | string;
+  /**
+   * The precision the question asks for, when its answer is a rounded number.
+   * A number is then correct when it rounds to the same value as the answer,
+   * so `3.50`, `3.5`, `3.499` and the unrounded working typed on the keypad
+   * all pass for "3.5 s to 2 decimal places", and a truncated `3.49` does not.
+   */
+  precision?: Precision;
+}
+
+/** A stated precision: decimal places or significant figures. */
+export type Precision = { dp: number } | { sf: number };
+
+/** A value rounded to a stated precision, free of float dust. */
+export function roundTo(value: number, precision: Precision): number {
+  if ('dp' in precision) {
+    const scale = 10 ** precision.dp;
+    return Number((Math.round(value * scale + (value >= 0 ? 1e-9 : -1e-9)) / scale).toFixed(precision.dp));
+  }
+  return Number(value.toPrecision(precision.sf));
 }
 
 /**
@@ -181,6 +200,11 @@ export function checkAnswer(
     const b = evaluateAt(targetFn, { ...zeroed });
     if (a === undefined || b === undefined) {
       return { status: 'indeterminate', message: 'That expression could not be evaluated.' };
+    }
+    if (options.precision && typeof a === 'number' && typeof b === 'number') {
+      return roundTo(a, options.precision) === roundTo(b, options.precision)
+        ? { status: 'correct' }
+        : { status: 'incorrect' };
     }
     return closeEnough(a, b, policy.relativeTolerance)
       ? { status: 'correct' }

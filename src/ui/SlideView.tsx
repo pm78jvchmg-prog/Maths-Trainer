@@ -45,6 +45,7 @@ import { NumberLineSlide } from './numberLineSlide';
 import { ForcesSlide } from './forcesSlide';
 import { swapSlots, useSlotDrag } from './slotDrag';
 import { frameClass, initialAnswer, isLocked, tableBlanks, type SlideProps } from './slides';
+import { Calculator } from './Calculator';
 
 /* ---------- Teach ---------- */
 
@@ -748,6 +749,18 @@ function TableBody({
 /* ---------- Dispatcher ---------- */
 
 export function SlideView(props: SlideProps) {
+  const { slide } = props;
+  const widget = <SlideWidget {...props} />;
+  if (slide.kind === 'teach' || !slide.calculator) return widget;
+  return (
+    <>
+      {widget}
+      <Calculator />
+    </>
+  );
+}
+
+function SlideWidget(props: SlideProps) {
   const { slide } = props;
 
   // Clear the draft answer whenever the slide changes.

@@ -10,23 +10,33 @@
  * Tidy cases: river and wind speeds come from Pythagorean triples, so every
  * resultant is whole; relativity uses a Lorentz factor gamma stated or from
  * v = 0.6c (gamma = 1.25) and v = 0.8c (gamma = 5/3, with times in threes).
+ * A rotating frame's radius or spin is given as a textbook would print it,
+ * and the square root it leads to is asked to a stated precision.
  */
 import type { Generator, SolutionStep } from '../types';
 import {
+  dots,
   G_NOTE,
+  askPrecision,
   exact,
+  fixed,
   fmt,
   forks,
   kg,
   metres,
   ms,
   numChoices,
+  precisionWords,
+  roundTo,
+  roundedWell,
   salted,
   say,
   track,
   typed,
+  typedRounded,
   until,
   valueBank,
+  type Precision,
 } from './classicalKit';
 
 const tidyBank = (answer: number[], wrong: number[], spare = 3): string[] =>
@@ -48,6 +58,16 @@ const signedBank = (answer: number[], wrong: number[]): string[] => {
 };
 
 const n3 = (v: number): number => Number(v.toFixed(6));
+
+/** Spins and radii of a space station to 3 significant figures. */
+const SF3: Precision = { sf: 3 };
+
+
+/** The working line that ends a rounded answer: "To 3 significant figures:" then the value. */
+const roundLines = (name: string, value: number, precision: Precision): SolutionStep[] => [
+  { text: `T${precisionWords(precision).slice(1)}:` },
+  { tex: `${name} = ${fixed(value, precision)}` },
+];
 const signedMs = (v: number): string => `$${fmt(v)}\\text{ m s}^{-1}$`;
 
 const TRIPLES = [
@@ -372,14 +392,19 @@ interface SpinParams {
   what: string;
 }
 
-const RIDERS = ['child on a roundabout', 'rider on a carousel', 'coin on a turntable', 'passenger on a spinning ride'];
+/** Who sits on the turning thing: a coin for a mass of grams, a person otherwise. */
+const RIDERS = ['child on a roundabout', 'rider on a carousel', 'passenger on a spinning ride'];
+const COIN = 'coin on a turntable';
 
 /** Expression: the outward force felt in a rotating frame, m omega^2 r. */
 const centrifugal: Generator<SpinParams> = {
   id: 'clm-centrifugal',
   sample: (rng, difficulty) =>
     until(
-      () => ({ m: rng.pick(difficulty > 1 ? [0.01, 0.02, 0.05, 25, 30, 40, 60] : [20, 25, 30, 40, 50]), w: rng.pick([0.5, 1, 1.5, 2, 2.5, 3, 4]), r: rng.pick([0.2, 0.5, 1, 1.5, 2, 2.5, 3, 4]), what: rng.pick(RIDERS) }),
+      () => {
+        const m = rng.pick(difficulty > 1 ? [0.01, 0.02, 0.05, 25, 30, 40, 60] : [20, 25, 30, 40, 50]);
+        return { m, w: rng.pick([0.5, 1, 1.5, 2, 2.5, 3, 4]), r: rng.pick(m < 1 ? [0.1, 0.15, 0.2] : [0.5, 1, 1.5, 2, 2.5, 3, 4]), what: m < 1 ? COIN : rng.pick(RIDERS) };
+      },
       (p) => exact(p.m * p.w * p.w * p.r, 3) && p.m * p.w * p.w * p.r >= 0.01,
     ),
   render: (p) =>
@@ -398,10 +423,13 @@ const centrifugal: Generator<SpinParams> = {
   },
 };
 
-const OMEGAS = [0.1, 0.14, 0.2, 0.25, 0.28, 0.35, 0.4, 0.5, 0.7, 1, 1.4];
+const OMEGAS = [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
 
 interface StationParams {
+  /** Hard: the spin in rad/s, given. Easy: 0, since it is asked. */
   w: number;
+  /** Easy: the radius in metres, given. Hard: 0, since it is asked. */
+  r: number;
   /** The share of ordinary gravity felt on the rim. */
   f: number;
   find: 'w' | 'r';
@@ -410,26 +438,58 @@ interface StationParams {
 const FEEL: Record<string, string> = { 1: 'ordinary gravity', 0.5: 'half of ordinary gravity', 0.25: 'a quarter of ordinary gravity', 0.2: 'a fifth of ordinary gravity', 0.1: 'a tenth of ordinary gravity' };
 const feel = (f: number): string => FEEL[String(f)];
 
-const stationR = ({ w, f }: StationParams): number => n3((f * 9.8) / (w * w));
+/** omega^2 r = fg, for the spin from a radius and the radius from a spin. */
+const stationW = ({ r, f }: StationParams): number => Math.sqrt((f * 9.8) / r);
+const stationR = ({ w, f }: StationParams): number => (f * 9.8) / (w * w);
 const gFelt = (f: number): string => (f === 1 ? 'g' : `${fmt(f)}g`);
 
-/** Expression: a spinning space station's artificial gravity, omega^2 r = fg: the spin for a radius (easy) or the radius for a spin (hard). */
+/** Expression: a spinning space station's artificial gravity, omega^2 r = fg: the spin for a radius (easy) or the radius for a spin (hard), each to 3 significant figures. */
 const spaceStation: Generator<StationParams> = {
   id: 'clm-space-station',
   sample: (rng, difficulty) =>
-    until(() => ({ w: rng.pick(OMEGAS), f: rng.pick([1, 0.5, 0.25, 0.2, 0.1]), find: difficulty > 1 ? ('r' as const) : ('w' as const) }), (p) => exact(stationR(p), 2) && stationR(p) >= 5),
+    difficulty > 1
+      ? until(
+          () => ({ w: rng.pick(OMEGAS), r: 0, f: rng.pick([1, 0.5, 0.25, 0.2, 0.1]), find: 'r' as const }),
+          (p) => stationR(p) >= 5 && roundedWell(stationR(p), SF3),
+        )
+      : until(
+          () => ({ w: 0, r: 10 * rng.int(2, 100), f: rng.pick([1, 0.5, 0.25, 0.2, 0.1]), find: 'w' as const }),
+          (p) => roundedWell(stationW(p), SF3),
+        ),
   render: (p) =>
     p.find === 'w'
-      ? typed([say(`A ring-shaped space station of radius ${metres(stationR(p))} spins so that people standing on its rim feel ${feel(p.f)}. ${G_NOTE} What angular speed does it need, in $\\text{rad s}^{-1}$?`)], '\\omega =', p.w)
-      : typed([say(`A ring-shaped space station spins at $${fmt(p.w)}\\text{ rad s}^{-1}$. ${G_NOTE} At what radius do people on the rim feel ${feel(p.f)}, in metres?`)], 'r =', stationR(p)),
+      ? typedRounded(
+          [say(`A ring-shaped space station of radius ${metres(p.r)} spins so that people standing on its rim feel ${feel(p.f)}. ${G_NOTE} What angular speed does it need, in $\\text{rad s}^{-1}$? ${askPrecision(SF3)}`)],
+          '\\omega =',
+          stationW(p),
+          SF3,
+        )
+      : typedRounded(
+          [say(`A ring-shaped space station spins at $${fmt(p.w)}\\text{ rad s}^{-1}$. ${G_NOTE} At what radius do people on the rim feel ${feel(p.f)}, in metres? ${askPrecision(SF3)}`)],
+          'r =',
+          stationR(p),
+          SF3,
+        ),
   solution: (p) =>
     p.find === 'w'
-      ? [{ text: `The floor must push people inwards with $m \\times ${gFelt(p.f)}$:` }, { tex: `\\omega^{2}r = ${gFelt(p.f)}` }, { tex: `\\omega^{2} = \\frac{${fmt(p.f * 9.8)}}{${fmt(stationR(p))}} = ${fmt(p.w * p.w)}` }, { tex: `\\omega = ${fmt(p.w)}` }]
-      : [{ tex: `\\omega^{2}r = ${gFelt(p.f)}` }, { tex: `r = \\frac{${fmt(p.f * 9.8)}}{${fmt(p.w)}^{2}} = ${fmt(stationR(p))}` }],
-  choices: (p) =>
-    p.find === 'w'
-      ? numChoices(p.w, [n3(p.w * p.w), n3(p.w * 2), n3((p.f * 9.8) / stationR(p) / 2)], salted(p.w * 100, p.f * 10))
-      : numChoices(stationR(p), [n3((p.f * 9.8) / p.w), n3(p.f * 9.8 * p.w * p.w), n3(stationR(p) / 2)], salted(p.w * 100, p.f * 10 + 1)),
+      ? [
+          { text: `The floor must push people inwards with $m \\times ${gFelt(p.f)}$:` },
+          { tex: `\\omega^{2}r = ${gFelt(p.f)}` },
+          { tex: `\\omega^{2} = \\frac{${fmt(n3(p.f * 9.8))}}{${fmt(p.r)}} = ${dots((p.f * 9.8) / p.r, 5)}` },
+          { tex: `\\omega = ${dots(stationW(p))}` },
+          ...roundLines('\\omega', stationW(p), SF3),
+        ]
+      : [
+          { tex: `\\omega^{2}r = ${gFelt(p.f)}` },
+          { tex: `r = \\frac{${fmt(n3(p.f * 9.8))}}{${fmt(p.w)}^{2}} = ${dots(stationR(p), 3)}` },
+          ...roundLines('r', stationR(p), SF3),
+        ],
+  choices: (p) => {
+    const r = (x: number) => roundTo(x, SF3);
+    return p.find === 'w'
+      ? numChoices(r(stationW(p)), [r((p.f * 9.8) / p.r), r(Math.sqrt(9.8 / p.r)), r(Math.sqrt((p.f * 9.8) / p.r / 2))].filter((x) => x > 0), salted(p.r, p.f * 10), SF3)
+      : numChoices(r(stationR(p)), [r((p.f * 9.8) / p.w), r(p.f * 9.8 * p.w * p.w), r(stationR(p) / 2)], salted(p.w * 100, p.f * 10 + 1), SF3);
+  },
 };
 
 interface RotorParams {
@@ -478,40 +538,53 @@ const rotorFlow: Generator<RotorParams> = {
 };
 
 interface RotorSpinParams {
-  /** The least spin, in tenths of a rad/s. */
-  tenths: number;
+  /** The drum's radius in metres, whole or a half. */
+  r: number;
   mu: number;
   /** The rider's mass, which cancels. */
   m: number;
 }
 
-const rotorR = ({ tenths, mu }: RotorSpinParams): number => n3(9.8 / (mu * (tenths / 10) ** 2));
+const ROTOR_STEP = 0.1;
 
-/** Slider: the least spin that holds a rider on a rotor wall, omega^2 = g / (mu r). */
+/** The least spin that holds a rider up: omega^2 = g / (mu r). */
+const rotorW = ({ r, mu }: RotorSpinParams): number => Math.sqrt(9.8 / (mu * r));
+
+/** Slider: the least spin that holds a rider on a rotor wall, omega^2 = g / (mu r), to the nearest 0.1 rad/s. */
 const rotorSlider: Generator<RotorSpinParams> = {
   id: 'clm-rotor-slider',
   sample: (rng, difficulty) =>
     until(
-      () => ({ tenths: rng.int(10, 50), mu: rng.pick(difficulty > 1 ? [0.1, 0.2, 0.25, 0.4, 0.5, 0.8] : [0.2, 0.25, 0.4, 0.5]), m: 10 * rng.int(4, 9) }),
-      (p) => exact(rotorR(p), 2) && rotorR(p) >= 1.5 && rotorR(p) <= 12,
+      () => ({
+        r: rng.pick([2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7, 8]),
+        mu: rng.pick(difficulty > 1 ? [0.15, 0.2, 0.25, 0.3, 0.35, 0.45, 0.6, 0.8] : [0.2, 0.25, 0.3, 0.4, 0.5]),
+        m: 10 * rng.int(4, 9),
+      }),
+      (p) => rotorW(p) >= 1 && rotorW(p) <= 4.8 && Math.abs(rotorW(p) / ROTOR_STEP - Math.round(rotorW(p) / ROTOR_STEP)) <= 0.35,
     ),
   render: (p) => {
     const figure = track(0, 5, [], 'A scale of angular speeds in radians per second');
     return {
       kind: 'slider',
-      prompt: [say(`A ${kg(p.m)} rider stands in a rotor ride of radius ${metres(rotorR(p))}, with friction coefficient $\\mu = ${fmt(p.mu)}$ between rider and wall. ${G_NOTE} Slide to the least angular speed that keeps riders up when the floor drops, in $\\text{rad s}^{-1}$.`)],
+      calculator: true,
+      prompt: [
+        say(
+          `A ${kg(p.m)} rider stands in a rotor ride of radius ${metres(p.r)}, with friction coefficient $\\mu = ${fmt(p.mu)}$ between rider and wall. ${G_NOTE} Slide to the least angular speed that keeps riders up when the floor drops, to the nearest $0.1\\text{ rad s}^{-1}$.`,
+        ),
+      ],
       min: 0,
       max: 5,
-      step: 0.1,
-      answer: p.tenths / 10,
+      step: ROTOR_STEP,
+      answer: n3(Math.round(rotorW(p) / ROTOR_STEP) * ROTOR_STEP),
       readout: '\\omega = {v}',
       figure: { svg: figure.svg, xMin: figure.xMin, xMax: figure.xMax, axis: 'x' },
     };
   },
   solution: (p) => [
     { text: 'Friction must at least hold the weight: $\\mu m\\omega^{2}r = mg$, and the mass cancels.' },
-    { tex: `\\omega^{2} = \\frac{9.8}{${fmt(p.mu)} \\times ${fmt(rotorR(p))}} = ${fmt((p.tenths / 10) ** 2)}` },
-    { tex: `\\omega = ${fmt(p.tenths / 10)}` },
+    { tex: `\\omega^{2} = \\frac{9.8}{${fmt(p.mu)} \\times ${fmt(p.r)}} = ${dots(9.8 / (p.mu * p.r))}` },
+    { tex: `\\omega = ${dots(rotorW(p))}` },
+    { text: `The nearest tenth is $${fmt(n3(Math.round(rotorW(p) / ROTOR_STEP) * ROTOR_STEP))}\\text{ rad s}^{-1}$.` },
   ],
 };
 
@@ -545,7 +618,8 @@ const sampleDilation = (rng: { int: (a: number, b: number) => number; pick: <T>(
       const speed = rng.chance(0.5) ? rng.pick(SPEEDS) : null;
       return { speed, gamma: speed ? 0 : rng.pick(GAMMAS), tau: rng.int(1, 30) * (speed ? speed.den : 1), find };
     },
-    (p) => exact(lab(p), 3) && lab(p) <= 300,
+    // Asked backwards, the Earth time is what the learner reads, so it is whole.
+    (p) => exact(lab(p), 3) && lab(p) <= 300 && (find === 't' || (Number.isInteger(lab(p)) && lab(p) >= 2)),
   );
 
 /** Expression: a moving clock runs slow: the time measured in the lab, gamma tau (easy), or the moving clock's own time (hard). */

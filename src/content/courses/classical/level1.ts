@@ -36,9 +36,9 @@ export const level1: Level = {
         ask('clm-speed-table'),
         ask('clm-kmh-convert+choice', 2),
         teach(
-          prose('A lap time is the lap length over the average speed, both in metres and seconds. A $5.4\\text{ km}$ lap at an average of $216\\text{ km h}^{-1}$:'),
-          stacked('5.4\\text{ km} = 5400\\text{ m}', '216 \\div 3.6 = 60\\text{ m s}^{-1}', 't = 5400 \\div 60 = 90\\text{ s}'),
-          prose('Backwards, the same lap in $90\\text{ s}$ averages $5400 \\div 90 = 60\\text{ m s}^{-1}$, which is $60 \\times 3.6 = 216\\text{ km h}^{-1}$.'),
+          prose('A lap time is the lap length over the average speed, both in metres and seconds. The division rarely comes out exactly, so round where the question says, carrying the unrounded value until the end. A $5.2\\text{ km}$ lap at an average of $210\\text{ km h}^{-1}$:'),
+          stacked('5.2\\text{ km} = 5200\\text{ m}', '210 \\div 3.6 = 58.3333\\ldots\\text{ m s}^{-1}', 't = 5200 \\div 58.3333\\ldots = 89.142\\ldots', 't = 89.1\\text{ s}'),
+          prose('Backwards, the same lap in $91\\text{ s}$ averages $5200 \\div 91 = 57.142\\ldots\\text{ m s}^{-1}$, which is $57.142\\ldots \\times 3.6 = 205.7\\text{ km h}^{-1}$ to 1 decimal place.'),
         ),
         ask('clm-lap-time'),
         ask('clm-lap-time', 2),

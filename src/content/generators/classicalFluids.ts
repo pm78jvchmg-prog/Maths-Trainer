@@ -7,29 +7,40 @@
  * after 6.3. Forces and Newton's Laws already has weight, reaction and
  * friction, so those are used, not taught again.
  *
- * With g = 9.8 the tidy cases are chosen, never rounded: fresh water gives
- * 9.8 kPa for every metre of depth and 9.8 N of buoyancy for every litre; a
- * speed 7j squared is 49j^2 = 9.8 x 5j^2, which is what keeps sqrt(mu g r)
- * and a banked bend's design speed whole.
+ * Given values are the kind a textbook prints: whole numbers or one decimal
+ * place, with small ratios such as mu = 0.35 or tan(theta) = 0.75. Fresh
+ * water gives 9.8 kPa for every metre of depth and 9.8 N of buoyancy for
+ * every litre, so those answers end by themselves. Where natural values give
+ * an answer that does not end, as a square root for a terminal speed or a
+ * bend nearly always does, the question states its precision and the answer
+ * is rounded to it, redrawn when it sits near a rounding edge.
  */
 import type { Generator, SolutionStep } from '../types';
 import { canonicalForces, type Direction, type ForceScene } from '../forces';
 import {
+  dots,
   G_NOTE,
   exact,
   fmt,
+  askPrecision,
+  fixed,
   forks,
   kg,
   metres,
   ms,
   newtons,
   numChoices,
+  precisionWords,
+  roundTo,
+  roundedWell,
   salted,
   say,
   track,
   typed,
+  typedRounded,
   until,
   valueBank,
+  type Precision,
 } from './classicalKit';
 
 const tidyBank = (answer: number[], wrong: number[], spare = 3): string[] =>
@@ -40,6 +51,48 @@ const tidyBank = (answer: number[], wrong: number[], spare = 3): string[] =>
   );
 
 const n3 = (v: number): number => Number(v.toFixed(6));
+
+/** Speeds to 1 decimal place, and pressures, radii and tangents to 3 significant figures. */
+const DP1: Precision = { dp: 1 };
+const SF3: Precision = { sf: 3 };
+
+
+/** The working line that ends a rounded answer: "To 1 decimal place:" then the value. */
+const roundLines = (name: string, value: number, precision: Precision): SolutionStep[] => [
+  { text: `T${precisionWords(precision).slice(1)}:` },
+  { tex: `${name} = ${fixed(value, precision)}` },
+];
+
+/** A value rounded to the nearest notch of a slider. */
+const notch = (value: number, step: number): number => n3(Math.round(value / step) * step);
+/** Whether a value sits well clear of the midpoint between two notches, so rounding it is not a coin toss. */
+const notchedWell = (value: number, step: number): boolean => Math.abs(value / step - Math.round(value / step)) <= 0.35;
+
+/** Three rounded values for a fork of a flow: the right one and slips, distinct and positive, sorted so the order says nothing. */
+function fixedForks(right: number, wrong: number[], precision: Precision, unit: number): string[] {
+  const out = [fixed(right, precision)];
+  const add = (v: number) => {
+    if (out.length >= 3 || !Number.isFinite(v) || v <= 0) return;
+    const token = fixed(v, precision);
+    if (!out.includes(token) && Number(token) > 0) out.push(token);
+  };
+  wrong.forEach(add);
+  for (let k = 1; out.length < 3 && k < 1000; k += 1) {
+    add(right + k * unit);
+    add(right - k * unit);
+  }
+  return out.sort((x, y) => Number(x) - Number(y)).map((v) => `$${v}$`);
+}
+
+/** A bank of tokens: the answer's, then distinct positive extras, sorted by value. */
+function tokenBank(answer: string[], extras: string[], spare = 3): string[] {
+  const out = [...answer];
+  for (const token of extras) {
+    if (out.length - answer.length >= spare) break;
+    if (!out.includes(token) && Number(token) > 0 && Number.isFinite(Number(token))) out.push(token);
+  }
+  return out.sort((x, y) => Number(x) - Number(y));
+}
 
 const kpa = (v: number): string => `$${fmt(v)}\\text{ kPa}$`;
 const sqm = (v: number): string => `$${fmt(v)}\\text{ m}^{2}$`;
@@ -55,7 +108,7 @@ const P0_NOTE = `Take atmospheric pressure as $${P0}\\text{ kPa}$.`;
  * Pressure
  * ================================================================ */
 
-const AREAS = [0.2, 0.25, 0.4, 0.5, 0.8, 1.25, 2, 2.5, 4];
+const AREAS = [0.2, 0.25, 0.4, 0.5, 0.8, 1.6, 2, 2.5, 4];
 const CM_AREAS = [2, 4, 5, 8, 10, 16, 20, 25, 40, 50, 80, 100, 125, 200, 250];
 const RESTING = ['crate', 'fridge', 'piano', 'statue', 'water tank', 'bookcase'];
 
@@ -152,20 +205,23 @@ interface HeelParams {
   /** A person of this mass on one heel of this many square centimetres. */
   m: number;
   heel: number;
-  /** An animal of this mass on four feet of this many square metres each. */
+  /** An animal of this mass on four feet, each of this area: square metres for an elephant, square centimetres for a hoof. */
   name: string;
   M: number;
   foot: number;
+  footCm: boolean;
 }
 
-const ANIMALS: { name: string; masses: number[]; feet: number[] }[] = [
-  { name: 'An elephant', masses: [2500, 3000, 3500, 4000, 4500, 5000, 6000], feet: [0.1, 0.125, 0.14, 0.16, 0.2, 0.25] },
-  { name: 'A horse', masses: [400, 450, 500, 550, 600, 700], feet: [0.01, 0.0125, 0.014, 0.02, 0.025] },
-  { name: 'A cow', masses: [500, 600, 700, 750, 800], feet: [0.01, 0.0125, 0.014, 0.02] },
+const ANIMALS: { name: string; masses: number[]; feet: number[]; footCm: boolean }[] = [
+  { name: 'An elephant', masses: [2500, 3000, 3500, 4000, 4500, 5000, 6000], feet: [0.1, 0.12, 0.15, 0.16, 0.18, 0.2, 0.25], footCm: false },
+  { name: 'A horse', masses: [400, 450, 500, 550, 600, 700], feet: [100, 120, 150, 180, 200, 250], footCm: true },
+  { name: 'A cow', masses: [500, 600, 700, 750, 800], feet: [100, 120, 150, 180, 200], footCm: true },
 ];
 
-const heelKpa = ({ m, heel }: HeelParams): number => n3((9.8 * m * 10) / heel);
-const footKpa = ({ M, foot }: HeelParams): number => n3((9.8 * M) / (4 * foot) / 1000);
+/** Pressures in kPa, asked to 3 significant figures. */
+const heelKpa = ({ m, heel }: HeelParams): number => (9.8 * m * 10) / heel;
+const footM2 = ({ foot, footCm }: HeelParams): number => (footCm ? foot / 10000 : foot);
+const footKpa = (p: HeelParams): number => (9.8 * p.M) / (4 * footM2(p)) / 1000;
 
 /** Flow: a person on one heel against a heavy animal on four feet: each pressure, then which is greater. */
 const heelFlow: Generator<HeelParams> = {
@@ -174,9 +230,16 @@ const heelFlow: Generator<HeelParams> = {
     until(
       () => {
         const animal = rng.pick(difficulty > 1 ? ANIMALS : [ANIMALS[0]]);
-        return { m: 5 * rng.int(9, 20), heel: rng.pick(difficulty > 1 ? [1, 2, 4, 5] : [1, 2]), name: animal.name, M: rng.pick(animal.masses), foot: rng.pick(animal.feet) };
+        return {
+          m: 5 * rng.int(9, 20),
+          heel: rng.pick(difficulty > 1 ? [1, 2, 4, 5] : [1, 2]),
+          name: animal.name,
+          M: rng.pick(animal.masses),
+          foot: rng.pick(animal.feet),
+          footCm: animal.footCm,
+        };
       },
-      (p) => exact(heelKpa(p), 2) && exact(footKpa(p), 2) && Math.abs(heelKpa(p) - footKpa(p)) > 5,
+      (p) => roundedWell(heelKpa(p), SF3) && roundedWell(footKpa(p), SF3) && Math.abs(heelKpa(p) - footKpa(p)) > 5,
     ),
   render: (p) => {
     const person = heelKpa(p);
@@ -185,16 +248,28 @@ const heelFlow: Generator<HeelParams> = {
     const PERSON = 'The person on the heel';
     const ANIMAL = `The ${who.replace(/^the /, '')}`;
     const why = 'Pressure is force per area: a small area can win even against a much bigger weight.';
+    const step = (v: number) => 10 ** (Math.floor(Math.log10(v)) - 1);
     return {
       kind: 'flow',
+      calculator: true,
       prompt: [
-        say(`A ${p.m} kg person stands on one heel of area ${sqcm(p.heel)}. ${p.name} of mass ${kg(p.M)} stands on four feet, each of area ${sqm(p.foot)}. ${G_NOTE}`),
-        say('Which presses harder on the floor?'),
+        say(
+          `${String(p.m).startsWith('8') ? 'An' : 'A'} ${p.m} kg person stands on one heel of area ${sqcm(p.heel)}. ${p.name} of mass ${kg(p.M)} stands on four feet, each of area ${p.footCm ? sqcm(p.foot) : sqm(p.foot)}. ${G_NOTE}`,
+        ),
+        say(`Which presses harder on the floor? Give each pressure in kPa ${precisionWords(SF3)}.`),
       ],
       subject: 'p = \\frac{F}{A}',
       steps: [
-        { id: 'heel', ask: 'Pressure under the heel, in kPa:', branches: forks(person, [person / 100, person / 10, person / 9.8], 1).map((label) => ({ label, to: 'feet' })) },
-        { id: 'feet', ask: `Pressure under each foot of ${who}, in kPa:`, branches: forks(animal, [animal * 4, animal / 9.8, animal * 10], 1).map((label) => ({ label, to: 'more' })) },
+        {
+          id: 'heel',
+          ask: 'Pressure under the heel, in kPa:',
+          branches: fixedForks(person, [person / 100, person / 10, person / 9.8], SF3, step(person)).map((label) => ({ label, to: 'feet' })),
+        },
+        {
+          id: 'feet',
+          ask: `Pressure under each foot of ${who}, in kPa:`,
+          branches: fixedForks(animal, [animal * 4, animal / 9.8, animal * 10], SF3, step(animal)).map((label) => ({ label, to: 'more' })),
+        },
         {
           id: 'more',
           ask: 'So the greater pressure is from:',
@@ -204,20 +279,22 @@ const heelFlow: Generator<HeelParams> = {
           ],
         },
       ],
-      answer: [`$${fmt(person)}$`, `$${fmt(animal)}$`, person > animal ? PERSON : ANIMAL],
+      answer: [`$${fixed(person, SF3)}$`, `$${fixed(animal, SF3)}$`, person > animal ? PERSON : ANIMAL],
     };
   },
   solution: (p) => [
     { tex: `p_{\\text{heel}} = \\frac{${p.m} \\times 9.8}{${fmt(p.heel / 10000)}} = ${fmt(heelKpa(p) * 1000)}\\text{ Pa}` },
-    { tex: `p_{\\text{heel}} = ${fmt(heelKpa(p))}\\text{ kPa}` },
+    { tex: `p_{\\text{heel}} = ${dots(heelKpa(p), 2)}\\text{ kPa}` },
+    ...(p.footCm ? [{ text: `Each hoof is $${p.foot} \\div 10\\,000 = ${fmt(footM2(p))}\\text{ m}^{2}$.` }] : []),
     { text: 'The animal stands on four feet, so each carries a quarter of its weight:' },
-    { tex: `p_{\\text{foot}} = \\frac{${p.M} \\times 9.8}{4 \\times ${fmt(p.foot)}} = ${fmt(footKpa(p) * 1000)}\\text{ Pa}` },
-    { tex: `p_{\\text{foot}} = ${fmt(footKpa(p))}\\text{ kPa}` },
+    { tex: `p_{\\text{foot}} = \\frac{${p.M} \\times 9.8}{4 \\times ${fmt(footM2(p))}} = ${dots(footKpa(p) * 1000, 1)}\\text{ Pa}` },
+    { tex: `p_{\\text{foot}} = ${dots(footKpa(p), 3)}\\text{ kPa}` },
+    { text: `To 3 significant figures, $${fixed(heelKpa(p), SF3)}\\text{ kPa}$ under the heel and $${fixed(footKpa(p), SF3)}\\text{ kPa}$ under each foot.` },
   ],
 };
 
 interface SnowParams {
-  /** The area needed, in steps of 0.02 square metres. */
+  /** Easy: the area needed exactly, in steps of 0.02 square metres. Hard: unused. */
   steps: number;
   /** Easy: the weight in newtons; hard: a mass in kilograms. */
   load: number;
@@ -227,51 +304,54 @@ interface SnowParams {
 }
 
 const SNOW_MAX = 1;
+const SNOW_STEP = 0.02;
+const SNOW_LIMITS = [1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7, 8, 10, 12];
 
-/** Slider: the least area that keeps the pressure under what the ground takes, A = F/p. */
+/** The area, in square metres, that puts the load exactly at the limit. */
+const snowArea = ({ load, hard, limit }: SnowParams): number => ((hard ? 9.8 * load : load) / (1000 * limit));
+
+/** Slider: the least area that keeps the pressure under what the ground takes, A = F/p; the walker's is to the nearest notch. */
 const areaSlider: Generator<SnowParams> = {
   id: 'clm-area-slider',
   sample: (rng, difficulty) =>
     difficulty > 1
       ? until(
-          () => {
-            const steps = rng.int(3, 50);
-            const m = rng.int(40, 110);
-            return { steps, load: m, hard: true, limit: n3((9.8 * m) / (1000 * 0.02 * steps)) };
-          },
-          (p) => exact(p.limit, 2) && p.limit >= 0.5 && p.limit <= 30,
+          () => ({ steps: 0, load: rng.int(40, 110), hard: true, limit: rng.pick(SNOW_LIMITS) }),
+          (p) => snowArea(p) >= 0.1 && snowArea(p) <= SNOW_MAX - 0.05 && notchedWell(snowArea(p), SNOW_STEP),
         )
       : until(
           () => {
             const steps = rng.int(3, 50);
             const limit = rng.pick([1, 2, 2.5, 4, 5, 8, 10, 12.5, 20]);
-            return { steps, load: n3(1000 * limit * 0.02 * steps), hard: false, limit };
+            return { steps, load: n3(1000 * limit * SNOW_STEP * steps), hard: false, limit };
           },
           (p) => p.load <= 5000 && Number.isInteger(p.load),
         ),
-  render: ({ steps, load, hard, limit }) => {
+  render: (p) => {
     const figure = track(0, SNOW_MAX, [], 'A scale of areas in square metres');
     return {
       kind: 'slider',
+      calculator: true,
       prompt: [
         say(
-          hard
-            ? `Soft snow gives way above ${kpa(limit)}. A walker of mass ${kg(load)} wants snowshoes that keep them on top. ${G_NOTE} Slide to the least total area of snowshoe, in $\\text{m}^{2}$.`
-            : `Soft ground gives way above ${kpa(limit)}. A shed pushes down with ${newtons(load)}. Slide to the least area of base that stops it sinking, in $\\text{m}^{2}$.`,
+          p.hard
+            ? `Soft snow gives way above ${kpa(p.limit)}. A walker of mass ${kg(p.load)} wants snowshoes that keep them on top. ${G_NOTE} Slide to the least total area of snowshoe, to the nearest $0.02\\text{ m}^{2}$.`
+            : `Soft ground gives way above ${kpa(p.limit)}. A shed pushes down with ${newtons(p.load)}. Slide to the least area of base that stops it sinking, in $\\text{m}^{2}$.`,
         ),
       ],
       min: 0,
       max: SNOW_MAX,
-      step: 0.02,
-      answer: n3(0.02 * steps),
+      step: SNOW_STEP,
+      answer: notch(snowArea(p), SNOW_STEP),
       readout: 'A = {v}',
       figure: { svg: figure.svg, xMin: figure.xMin, xMax: figure.xMax, axis: 'x' },
     };
   },
-  solution: ({ steps, load, hard, limit }) => [
-    ...(hard ? [{ tex: `F = ${load} \\times 9.8 = ${fmt(9.8 * load)}` }] : []),
-    { text: `Put the limit in pascals, $${fmt(limit * 1000)}\\text{ Pa}$, and rearrange $p = \\frac{F}{A}$:` },
-    { tex: `A = \\frac{${fmt(hard ? 9.8 * load : load)}}{${fmt(limit * 1000)}} = ${fmt(0.02 * steps)}` },
+  solution: (p) => [
+    ...(p.hard ? [{ tex: `F = ${p.load} \\times 9.8 = ${fmt(9.8 * p.load)}` }] : []),
+    { text: `Put the limit in pascals, $${fmt(p.limit * 1000)}\\text{ Pa}$, and rearrange $p = \\frac{F}{A}$:` },
+    { tex: `A = \\frac{${fmt(p.hard ? 9.8 * p.load : p.load)}}{${fmt(p.limit * 1000)}} = ${p.hard ? dots(snowArea(p)) : fmt(snowArea(p))}` },
+    ...(p.hard ? [{ text: `The nearest $0.02$ is $${fmt(notch(snowArea(p), SNOW_STEP))}\\text{ m}^{2}$.` }] : []),
   ],
 };
 
@@ -713,7 +793,14 @@ const sinkFlow: Generator<SinkParams> = {
  * ================================================================ */
 
 const K_LIST = [0.2, 0.25, 0.4, 0.5, 0.8, 1, 1.2];
-const FALLERS = ['skydiver', 'parachutist', 'hailstone model', 'test dummy', 'drop capsule'];
+/** What falls, with the masses in kilograms that fit it: never a 5 kg skydiver. */
+const FALLERS: Record<string, [number, number]> = {
+  skydiver: [55, 110],
+  parachutist: [55, 110],
+  'test dummy': [50, 100],
+  'drop capsule': [20, 200],
+  sandbag: [5, 40],
+};
 
 interface DragParams {
   /** Easy: F = kv^2 with k given. Hard: C, A and air density 1.2. */
@@ -754,81 +841,80 @@ const dragForce: Generator<DragParams> = {
 interface TerminalParams {
   thing: string;
   k: number;
-  /** Terminal speed: whole (easy), a multiple of 7 (hard, from a mass). */
-  v: number;
+  /** Easy: the weight in whole newtons. Hard: the mass in whole kilograms. */
+  load: number;
   hard: boolean;
 }
 
-const weightFor = ({ k, v }: TerminalParams): number => n3(k * v * v);
+const weightFor = ({ load, hard }: TerminalParams): number => (hard ? n3(9.8 * load) : load);
+/** Terminal speed, where kv^2 = W. */
+const terminalSpeed = (p: TerminalParams): number => Math.sqrt(weightFor(p) / p.k);
 
-/** Expression: terminal speed, where drag kv^2 equals the weight. */
+const sampleTerminal = (
+  rng: { int: (a: number, b: number) => number; pick: <T>(xs: readonly T[]) => T },
+  hard: boolean,
+  ok: (v: number) => boolean,
+): TerminalParams =>
+  until(
+    () => {
+      const thing = rng.pick(Object.keys(FALLERS));
+      const [lo, hi] = FALLERS[thing];
+      // Hard gives the mass; easy the weight, to the nearest ten newtons, of a mass that fits.
+      const load = hard ? rng.int(lo, hi) : 10 * rng.int(Math.ceil((9.8 * lo) / 10), Math.floor((9.8 * hi) / 10));
+      return { thing, k: rng.pick(K_LIST), load, hard };
+    },
+    (p) => {
+      const v = terminalSpeed(p);
+      return v >= 5 && v <= 78 && ok(v);
+    },
+  );
+
+const terminalWorking = (p: TerminalParams): SolutionStep[] => [
+  ...(p.hard ? [{ tex: `W = ${p.load} \\times 9.8 = ${fmt(weightFor(p))}` }] : []),
+  { text: 'At terminal speed the drag has grown to match the weight:' },
+  { tex: `${fmt(p.k)}v^{2} = ${fmt(weightFor(p))}` },
+  { tex: `v^{2} = ${fmt(weightFor(p))} \\div ${fmt(p.k)} = ${dots(weightFor(p) / p.k, 2)}` },
+  { tex: `v = ${dots(terminalSpeed(p))}` },
+];
+
+const fallerSays = (p: TerminalParams): string =>
+  p.hard
+    ? `A ${p.thing} of mass ${kg(p.load)} falls with drag $F = kv^{2}$, where $k = ${fmt(p.k)}$ in SI units. ${G_NOTE}`
+    : `A ${p.thing} weighs ${newtons(p.load)} and falls with drag $F = kv^{2}$, where $k = ${fmt(p.k)}$ in SI units.`;
+
+/** Expression: terminal speed, where drag kv^2 equals the weight, to 1 decimal place. */
 const terminal: Generator<TerminalParams> = {
   id: 'clm-terminal',
-  sample: (rng, difficulty) =>
-    difficulty > 1
-      ? until(
-          () => ({ thing: rng.pick(FALLERS), k: rng.pick(K_LIST), v: 7 * rng.int(1, 11), hard: true }),
-          (p) => exact(weightFor(p) / 9.8, 2) && weightFor(p) / 9.8 >= 5 && weightFor(p) / 9.8 <= 200,
-        )
-      : until(
-          () => ({ thing: rng.pick(FALLERS), k: rng.pick(K_LIST), v: rng.int(5, 70), hard: false }),
-          (p) => weightFor(p) <= 3000 && weightFor(p) >= 20,
-        ),
+  sample: (rng, difficulty) => sampleTerminal(rng, difficulty > 1, (v) => roundedWell(v, DP1)),
   render: (p) =>
-    p.hard
-      ? typed(
-          [say(`A ${p.thing} of mass ${kg(n3(weightFor(p) / 9.8))} falls with drag $F = kv^{2}$, where $k = ${fmt(p.k)}$ in SI units. ${G_NOTE} What is its terminal speed, in $\\text{m s}^{-1}$?`)],
-          'v =',
-          p.v,
-        )
-      : typed([say(`A ${p.thing} weighs ${newtons(weightFor(p))} and falls with drag $F = kv^{2}$, where $k = ${fmt(p.k)}$ in SI units. What is its terminal speed, in $\\text{m s}^{-1}$?`)], 'v =', p.v),
-  solution: (p) => [
-    ...(p.hard ? [{ tex: `W = ${fmt(weightFor(p) / 9.8)} \\times 9.8 = ${fmt(weightFor(p))}` }] : []),
-    { text: 'At terminal speed the drag has grown to match the weight:' },
-    { tex: `${fmt(p.k)}v^{2} = ${fmt(weightFor(p))}` },
-    { tex: `v^{2} = ${fmt(weightFor(p) / p.k)}` },
-    { tex: `v = ${p.v}` },
-  ],
-  choices: (p) => numChoices(p.v, [n3(weightFor(p) / p.k), n3(p.v / 2), 2 * p.v, n3(p.v * p.k)], salted(p.k, p.v)),
+    typedRounded([say(`${fallerSays(p)} What is its terminal speed, in $\\text{m s}^{-1}$? ${askPrecision(DP1)}`)], 'v =', terminalSpeed(p), DP1),
+  solution: (p) => [...terminalWorking(p), ...roundLines('v', terminalSpeed(p), DP1)],
+  choices: (p) => {
+    const v = terminalSpeed(p);
+    const r = (x: number) => roundTo(x, DP1);
+    return numChoices(r(v), [r(weightFor(p) / p.k), r(v / 2), r(2 * v), r(Math.sqrt(p.hard ? p.load / p.k : weightFor(p) * p.k))], salted(p.k * 100, p.load), DP1);
+  },
 };
 
-/** Slider: the terminal speed on a speed scale, from a weight (easy) or a mass (hard). */
+/** Slider: the terminal speed on a speed scale, from a weight (easy) or a mass (hard), to the nearest whole m/s. */
 const terminalSlider: Generator<TerminalParams> = {
   id: 'clm-terminal-slider',
-  sample: (rng, difficulty) =>
-    difficulty > 1
-      ? until(
-          () => ({ thing: rng.pick(FALLERS), k: rng.pick(K_LIST), v: 7 * rng.int(1, 11), hard: true }),
-          (p) => exact(weightFor(p) / 9.8, 2) && weightFor(p) / 9.8 >= 20 && weightFor(p) / 9.8 <= 200,
-        )
-      : until(
-          () => ({ thing: rng.pick(FALLERS), k: rng.pick(K_LIST), v: rng.int(5, 80), hard: false }),
-          (p) => weightFor(p) <= 3000 && weightFor(p) >= 20,
-        ),
+  sample: (rng, difficulty) => sampleTerminal(rng, difficulty > 1, (v) => notchedWell(v, 1)),
   render: (p) => {
     const figure = track(0, 80, [], 'A scale of speeds in metres per second');
     return {
       kind: 'slider',
-      prompt: [
-        say(
-          p.hard
-            ? `A ${p.thing} of mass ${kg(n3(weightFor(p) / 9.8))} falls with drag $F = kv^{2}$, where $k = ${fmt(p.k)}$ in SI units. ${G_NOTE} Slide to its terminal speed, in $\\text{m s}^{-1}$.`
-            : `A ${p.thing} weighs ${newtons(weightFor(p))}, with drag $F = kv^{2}$ and $k = ${fmt(p.k)}$ in SI units. Slide to its terminal speed, in $\\text{m s}^{-1}$.`,
-        ),
-      ],
+      calculator: true,
+      prompt: [say(`${fallerSays(p)} Slide to its terminal speed, to the nearest $1\\text{ m s}^{-1}$.`)],
       min: 0,
       max: 80,
       step: 1,
-      answer: p.v,
+      answer: notch(terminalSpeed(p), 1),
       readout: 'v = {v}',
       figure: { svg: figure.svg, xMin: figure.xMin, xMax: figure.xMax, axis: 'x' },
     };
   },
-  solution: (p) => [
-    ...(p.hard ? [{ tex: `W = ${fmt(weightFor(p) / 9.8)} \\times 9.8 = ${fmt(weightFor(p))}` }] : []),
-    { tex: `v^{2} = \\frac{${fmt(weightFor(p))}}{${fmt(p.k)}} = ${p.v * p.v}` },
-    { tex: `v = ${p.v}` },
-  ],
+  solution: (p) => [...terminalWorking(p), { text: `The nearest whole speed is $${fmt(notch(terminalSpeed(p), 1))}\\text{ m s}^{-1}$.` }],
 };
 
 interface DragRow {
@@ -1005,111 +1091,166 @@ const bendPick: Generator<BendPickParams> = {
   solution: ({ arrows }) => arrows.map((a) => ({ text: a.why })),
 };
 
-const MU = [0.25, 0.4, 0.5, 0.625, 0.8, 1];
+const MU = [0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
 
 interface FlatBendParams {
-  /** Speed 7j, so v^2 = 9.8 x 5j^2 and r = 5j^2/mu. */
-  j: number;
+  /** The bend's radius in metres: given when the speed is asked, 0 otherwise. */
+  r: number;
+  /** The speed in whole metres per second: given when the radius is asked, 0 otherwise. */
+  v: number;
   mu: number;
   find: 'v' | 'r';
 }
 
-const flatRadius = ({ j, mu }: FlatBendParams): number => n3((5 * j * j) / mu);
+/** v^2 = mu g r: the fastest speed round a flat bend, and the least radius for a speed. */
+const flatSpeed = ({ r, mu }: FlatBendParams): number => Math.sqrt(mu * 9.8 * r);
+const flatRadius = ({ v, mu }: FlatBendParams): number => (v * v) / (mu * 9.8);
 
-/** Expression: the fastest speed round a flat bend, v = sqrt(mu g r) (easy), or the least radius for a speed (hard). */
+/** Expression: the fastest speed round a flat bend, v = sqrt(mu g r), to 1 decimal place (easy), or the least radius for a speed, to 3 significant figures (hard). */
 const flatBend: Generator<FlatBendParams> = {
   id: 'clm-flat-bend',
   sample: (rng, difficulty) =>
-    until(
-      () => ({ j: rng.int(1, 6), mu: rng.pick(MU), find: difficulty > 1 ? ('r' as const) : ('v' as const) }),
-      (p) => exact(flatRadius(p), 2) && flatRadius(p) >= 4 && flatRadius(p) <= 400,
-    ),
+    difficulty > 1
+      ? until(
+          () => ({ r: 0, v: rng.int(8, 35), mu: rng.pick(MU), find: 'r' as const }),
+          (p) => flatRadius(p) >= 8 && flatRadius(p) <= 800 && roundedWell(flatRadius(p), SF3),
+        )
+      : until(
+          () => ({ r: 5 * rng.int(2, 80), v: 0, mu: rng.pick(MU), find: 'v' as const }),
+          (p) => roundedWell(flatSpeed(p), DP1),
+        ),
   render: (p) =>
     p.find === 'v'
-      ? typed(
-          [say(`A flat bend has radius ${metres(flatRadius(p))} and the tyres grip with friction coefficient $\\mu = ${fmt(p.mu)}$. ${G_NOTE} What is the fastest speed it can be taken at, in $\\text{m s}^{-1}$?`)],
+      ? typedRounded(
+          [say(`A flat bend has radius ${metres(p.r)} and the tyres grip with friction coefficient $\\mu = ${fmt(p.mu)}$. ${G_NOTE} What is the fastest speed it can be taken at, in $\\text{m s}^{-1}$? ${askPrecision(DP1)}`)],
           'v =',
-          7 * p.j,
+          flatSpeed(p),
+          DP1,
         )
-      : typed(
-          [say(`A car must take a flat bend at ${ms(7 * p.j)} with friction coefficient $\\mu = ${fmt(p.mu)}$. ${G_NOTE} What is the least radius the bend can have, in metres?`)],
+      : typedRounded(
+          [say(`A car must take a flat bend at ${ms(p.v)} with friction coefficient $\\mu = ${fmt(p.mu)}$. ${G_NOTE} What is the least radius the bend can have, in metres? ${askPrecision(SF3)}`)],
           'r =',
           flatRadius(p),
+          SF3,
         ),
   solution: (p) => [
     { text: 'Friction is all that turns it, and it can give at most $\\mu mg$:' },
     { tex: `\\mu m g = \\frac{mv^{2}}{r}` },
     { tex: 'v^{2} = \\mu g r' },
     ...(p.find === 'v'
-      ? [{ tex: `v^{2} = ${fmt(p.mu)} \\times 9.8 \\times ${fmt(flatRadius(p))} = ${49 * p.j * p.j}` }, { tex: `v = ${7 * p.j}` }]
-      : [{ tex: `r = \\frac{${7 * p.j}^{2}}{${fmt(p.mu)} \\times 9.8} = ${fmt(flatRadius(p))}` }]),
+      ? [
+          { tex: `v^{2} = ${fmt(p.mu)} \\times 9.8 \\times ${fmt(p.r)} = ${fmt(n3(p.mu * 9.8 * p.r))}` },
+          { tex: `v = \\sqrt{${fmt(n3(p.mu * 9.8 * p.r))}} = ${dots(flatSpeed(p))}` },
+          ...roundLines('v', flatSpeed(p), DP1),
+        ]
+      : [{ tex: `r = \\frac{${p.v}^{2}}{${fmt(p.mu)} \\times 9.8} = ${dots(flatRadius(p), 3)}` }, ...roundLines('r', flatRadius(p), SF3)]),
   ],
-  choices: (p) =>
-    p.find === 'v'
-      ? numChoices(7 * p.j, [49 * p.j * p.j, n3(p.mu * flatRadius(p)), 14 * p.j], salted(p.j, p.mu))
-      : numChoices(flatRadius(p), [n3(flatRadius(p) * p.mu * p.mu), n3(7 * p.j / p.mu), n3(49 * p.j * p.j * p.mu)], salted(p.j, p.mu, 2)),
+  choices: (p) => {
+    if (p.find === 'v') {
+      const r = (x: number) => roundTo(x, DP1);
+      return numChoices(r(flatSpeed(p)), [r(p.mu * 9.8 * p.r), r(Math.sqrt(9.8 * p.r)), r(Math.sqrt(p.mu * p.r))], salted(p.r, p.mu * 100), DP1);
+    }
+    const r = (x: number) => roundTo(x, SF3);
+    return numChoices(r(flatRadius(p)), [r(p.v / (p.mu * 9.8)), r((p.v * p.v * p.mu) / 9.8), r((p.v * p.v) / 9.8)], salted(p.v, p.mu * 100, 2), SF3);
+  },
 };
 
-const TANS = [0.2, 0.25, 0.4, 0.5, 0.625, 0.75, 0.8, 1];
+const TANS = [0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.75, 0.8, 1];
 
 interface BankParams {
-  j: number;
+  /** The radius in metres, a multiple of 10, so rg and v^2 = rg tan(theta) both end. */
+  r: number;
+  /** Easy: the banking, given. Hard: 0, since it is asked. */
   tan: number;
+  /** Hard: the speed in whole metres per second, given. Easy: 0, since it is asked. */
+  v: number;
   /** Easy: the speed from the radius and banking. Hard: the banking from the speed and radius. */
   find: 'v' | 'tan';
 }
 
-const bankRadius = ({ j, tan }: BankParams): number => n3((5 * j * j) / tan);
+/** The design speed, v^2 = rg tan(theta), and the banking for a speed. */
+const designSpeed = ({ r, tan }: { r: number; tan: number }): number => Math.sqrt(9.8 * r * tan);
+const bankTan = ({ r, v }: BankParams): number => (v * v) / (9.8 * r);
 
-/** Tree: a banked bend's design speed, v^2 = r g tan(theta) (easy), or the banking for a speed (hard). */
+/** Tree: a banked bend's design speed, v^2 = r g tan(theta), to 1 decimal place (easy), or the banking's tangent for a speed, to 3 significant figures (hard). */
 const bankTree: Generator<BankParams> = {
   id: 'clm-bank-tree',
   sample: (rng, difficulty) =>
-    until(
-      () => ({ j: rng.int(1, 7), tan: rng.pick(TANS), find: difficulty > 1 ? ('tan' as const) : ('v' as const) }),
-      (p) => exact(bankRadius(p), 2) && bankRadius(p) >= 10 && bankRadius(p) <= 500,
-    ),
+    difficulty > 1
+      ? until(
+          () => ({ r: 10 * rng.int(2, 50), tan: 0, v: rng.int(8, 35), find: 'tan' as const }),
+          (p) => bankTan(p) >= 0.1 && bankTan(p) <= 1.2 && roundedWell(bankTan(p), SF3),
+        )
+      : until(
+          // Not tan = 1: v^2 would equal rg, and the tree would hold one token twice.
+          () => ({ r: 10 * rng.int(2, 50), tan: rng.pick(TANS.filter((t) => t !== 1)), v: 0, find: 'v' as const }),
+          (p) => roundedWell(designSpeed(p), DP1) && designSpeed(p) >= 5,
+        ),
   render: (p) => {
-    const r = bankRadius(p);
-    const rg = n3(9.8 * r);
-    const v2 = 49 * p.j * p.j;
+    const rg = n3(9.8 * p.r);
     if (p.find === 'tan') {
+      const v2 = p.v * p.v;
+      const answer = [fmt(v2), fmt(rg), fixed(bankTan(p), SF3)];
       return {
         kind: 'tree',
-        prompt: [say(`A track bend of radius ${metres(r)} is to be taken at ${ms(7 * p.j)} with no sideways friction. ${G_NOTE}`), say('Find $v^{2}$, then $rg$, then the banking angle’s tangent.')],
+        prompt: [
+          say(`A track bend of radius ${metres(p.r)} is to be taken at ${ms(p.v)} with no sideways friction. ${G_NOTE}`),
+          say('Find $v^{2}$, then $rg$, then the banking angle’s tangent to 3 significant figures.'),
+        ],
         expression: '\\tan\\theta = \\frac{v^{2}}{rg}',
         nodes: [
           { id: 'v^{2}', from: [] },
           { id: 'rg', from: [] },
           { id: '\\tan\\theta', from: ['v^{2}', 'rg'] },
         ],
-        bank: tidyBank([v2, rg, p.tan], [14 * p.j, n3(rg / v2), n3(r * p.tan)]),
-        answer: [v2, rg, p.tan].map(fmt),
+        bank: tokenBank(answer, [fmt(2 * p.v), fixed(rg / v2, SF3), fixed(p.v / rg, SF3), fmt(p.r * p.v), fixed(bankTan(p) * 2, SF3)]),
+        answer,
+        calculator: true,
       };
     }
+    const v2 = n3(rg * p.tan);
+    const answer = [fmt(rg), fmt(v2), fixed(designSpeed(p), DP1)];
     return {
       kind: 'tree',
-      prompt: [say(`A bend of radius ${metres(r)} is banked with $\\tan\\theta = ${fmt(p.tan)}$. ${G_NOTE}`), say('Find $rg$, then $v^{2}$, then the speed that needs no sideways friction, in $\\text{m s}^{-1}$.')],
+      prompt: [
+        say(`A bend of radius ${metres(p.r)} is banked with $\\tan\\theta = ${fmt(p.tan)}$. ${G_NOTE}`),
+        say('Find $rg$, then $v^{2}$, then the speed that needs no sideways friction, in $\\text{m s}^{-1}$ to 1 decimal place.'),
+      ],
       expression: 'v^{2} = rg\\tan\\theta',
       nodes: [
         { id: 'rg', from: [] },
         { id: 'v^{2}', from: ['rg'] },
         { id: 'v', from: ['v^{2}'] },
       ],
-      bank: tidyBank([rg, v2, 7 * p.j], [n3(r * p.tan), 14 * p.j, n3(rg / p.tan)]),
-      answer: [rg, v2, 7 * p.j].map(fmt),
+      // Each slip written as its node is: rg and v^2 as they end, a speed to 1 decimal place.
+      bank: tokenBank(answer, [fmt(n3(p.r * p.tan)), fmt(n3(2 * v2)), fixed(Math.sqrt(rg), DP1), fixed(Math.sqrt(p.r * p.tan), DP1), fixed(designSpeed(p) + 1, DP1)]),
+      answer,
+      calculator: true,
     };
   },
   solution: (p) => {
-    const r = bankRadius(p);
+    const rg = n3(9.8 * p.r);
     return p.find === 'tan'
-      ? [{ tex: `v^{2} = ${7 * p.j}^{2} = ${49 * p.j * p.j}` }, { tex: `rg = ${fmt(r)} \\times 9.8 = ${fmt(9.8 * r)}` }, { tex: `\\tan\\theta = \\frac{${49 * p.j * p.j}}{${fmt(9.8 * r)}} = ${fmt(p.tan)}` }]
-      : [{ tex: `rg = ${fmt(r)} \\times 9.8 = ${fmt(9.8 * r)}` }, { tex: `v^{2} = ${fmt(9.8 * r)} \\times ${fmt(p.tan)} = ${49 * p.j * p.j}` }, { tex: `v = ${7 * p.j}` }];
+      ? [
+          { tex: `v^{2} = ${p.v}^{2} = ${p.v * p.v}` },
+          { tex: `rg = ${fmt(p.r)} \\times 9.8 = ${fmt(rg)}` },
+          { tex: `\\tan\\theta = \\frac{${p.v * p.v}}{${fmt(rg)}} = ${dots(bankTan(p))}` },
+          ...roundLines('\\tan\\theta', bankTan(p), SF3),
+        ]
+      : [
+          { tex: `rg = ${fmt(p.r)} \\times 9.8 = ${fmt(rg)}` },
+          { tex: `v^{2} = ${fmt(rg)} \\times ${fmt(p.tan)} = ${fmt(n3(rg * p.tan))}` },
+          { tex: `v = \\sqrt{${fmt(n3(rg * p.tan))}} = ${dots(designSpeed(p))}` },
+          ...roundLines('v', designSpeed(p), DP1),
+        ];
   },
 };
 
-interface BankFlowParams extends BankParams {
-  /** The speed actually driven, never the design speed. */
+interface BankFlowParams {
+  /** The radius in metres, a multiple of 10. */
+  r: number;
+  tan: number;
+  /** The speed actually driven, in whole metres per second, well clear of the design speed. */
   u: number;
 }
 
@@ -1117,69 +1258,83 @@ const UP = 'Up the slope';
 const DOWN = 'Down the slope';
 const NONE = 'No friction is needed';
 
-/** Flow: the design speed of a banked bend, then which way friction acts at the speed driven. */
+/** Flow: the design speed of a banked bend, to 1 decimal place, then which way friction acts at the speed driven. */
 const bankFlow: Generator<BankFlowParams> = {
   id: 'clm-bank-flow',
   sample: (rng, difficulty) =>
     until(
       () => {
-        const j = rng.int(1, 6);
-        const pace = rng.int(0, 2);
-        return { j, tan: rng.pick(difficulty > 1 ? TANS : [0.25, 0.5, 1]), find: 'v' as const, u: pace === 0 ? 7 * j : 7 * j + (pace === 1 ? -1 : 1) * rng.int(2, 8) };
+        const r = 10 * rng.int(2, 50);
+        const tan = rng.pick(difficulty > 1 ? TANS : [0.25, 0.5, 1]);
+        const v = Math.round(designSpeed({ r, tan }));
+        return { r, tan, u: v + (rng.chance(0.5) ? -1 : 1) * rng.int(2, 8) };
       },
-      (p) => exact(bankRadius(p), 2) && bankRadius(p) >= 10 && bankRadius(p) <= 500 && p.u > 0,
+      (p) => roundedWell(designSpeed(p), DP1) && designSpeed(p) >= 5 && p.u >= 3 && Math.abs(p.u - designSpeed(p)) >= 1.5,
     ),
   render: (p) => {
-    const v = 7 * p.j;
-    const answer = p.u === v ? NONE : p.u < v ? UP : DOWN;
+    const v = designSpeed(p);
+    const answer = p.u < v ? UP : DOWN;
     const why = 'Slower than the design speed it would slip down the banking; faster, it would slide up and out. Friction opposes the slip.';
     return {
       kind: 'flow',
-      prompt: [say(`A bend of radius ${metres(bankRadius(p))} is banked with $\\tan\\theta = ${fmt(p.tan)}$. A car takes it at ${ms(p.u)}. ${G_NOTE} Which way does friction on its tyres act?`)],
+      calculator: true,
+      prompt: [say(`A bend of radius ${metres(p.r)} is banked with $\\tan\\theta = ${fmt(p.tan)}$. A car takes it at ${ms(p.u)}. ${G_NOTE} Which way does friction on its tyres act?`)],
       subject: 'v^{2} = rg\\tan\\theta',
       steps: [
-        { id: 'v', ask: 'The design speed, needing no friction, in $\\text{m s}^{-1}$:', branches: forks(v, [49 * p.j * p.j, 14 * p.j, v + 3], 1).map((label) => ({ label, to: 'F' })) },
+        {
+          id: 'v',
+          ask: 'The design speed, needing no friction, in $\\text{m s}^{-1}$ to 1 decimal place:',
+          branches: fixedForks(v, [Math.sqrt(9.8 * p.r), Math.sqrt(p.r * p.tan), v + 3], DP1, 1).map((label) => ({ label, to: 'F' })),
+        },
         {
           id: 'F',
           ask: `At ${ms(p.u)}, friction acts:`,
           branches: [UP, DOWN, NONE].map((label) => ({ label, outcome: why })),
         },
       ],
-      answer: [`$${v}$`, answer],
+      answer: [`$${fixed(v, DP1)}$`, answer],
     };
   },
-  solution: (p) => [
-    { tex: `v^{2} = ${fmt(bankRadius(p))} \\times 9.8 \\times ${fmt(p.tan)} = ${49 * p.j * p.j}` },
-    { tex: `v = ${7 * p.j}` },
-    { text: p.u === 7 * p.j ? 'It is going at exactly the design speed, so no friction is needed.' : p.u < 7 * p.j ? `${p.u} is slower, so friction acts up the slope.` : `${p.u} is faster, so friction acts down the slope.` },
-  ],
+  solution: (p) => {
+    const v = designSpeed(p);
+    return [
+      { tex: `v^{2} = ${fmt(p.r)} \\times 9.8 \\times ${fmt(p.tan)} = ${fmt(n3(9.8 * p.r * p.tan))}` },
+      { tex: `v = ${dots(v)}` },
+      ...roundLines('v', v, DP1),
+      { text: p.u < v ? `${p.u} is slower, so friction acts up the slope.` : `${p.u} is faster, so friction acts down the slope.` },
+    ];
+  },
 };
 
-/** Slider: the fastest speed round a flat bend, on a speed scale. */
+const BEND_STEP = 0.5;
+
+/** Slider: the fastest speed round a flat bend, on a speed scale, to the nearest half metre per second. */
 const bendSlider: Generator<FlatBendParams> = {
   id: 'clm-bend-slider',
   sample: (rng, difficulty) =>
     until(
-      () => ({ j: rng.int(1, 5), mu: rng.pick(difficulty > 1 ? [0.25, 0.4, 0.5, 0.625, 0.8, 1, 0.1, 0.2] : MU), find: 'v' as const }),
-      (p) => exact(flatRadius(p), 2) && flatRadius(p) >= 4 && flatRadius(p) <= 400,
+      () => ({ r: 5 * rng.int(2, 80), v: 0, mu: rng.pick(difficulty > 1 ? [0.1, 0.15, 0.2, 0.25, 0.4, 0.5, 0.8, 1] : MU), find: 'v' as const }),
+      (p) => flatSpeed(p) >= 3 && flatSpeed(p) <= 39 && notchedWell(flatSpeed(p), BEND_STEP),
     ),
   render: (p) => {
     const figure = track(0, 40, [], 'A scale of speeds in metres per second');
     const road = p.mu <= 0.2 ? 'an icy road' : p.mu >= 0.8 ? 'a dry road' : 'a wet road';
     return {
       kind: 'slider',
-      prompt: [say(`A flat bend of radius ${metres(flatRadius(p))} on ${road}, friction coefficient $\\mu = ${fmt(p.mu)}$. ${G_NOTE} Slide to the fastest speed it can be taken at, in $\\text{m s}^{-1}$.`)],
+      calculator: true,
+      prompt: [say(`A flat bend of radius ${metres(p.r)} on ${road}, friction coefficient $\\mu = ${fmt(p.mu)}$. ${G_NOTE} Slide to the fastest speed it can be taken at, to the nearest $0.5\\text{ m s}^{-1}$.`)],
       min: 0,
       max: 40,
-      step: 0.5,
-      answer: 7 * p.j,
+      step: BEND_STEP,
+      answer: notch(flatSpeed(p), BEND_STEP),
       readout: 'v = {v}',
       figure: { svg: figure.svg, xMin: figure.xMin, xMax: figure.xMax, axis: 'x' },
     };
   },
   solution: (p) => [
-    { tex: `v^{2} = ${fmt(p.mu)} \\times 9.8 \\times ${fmt(flatRadius(p))} = ${49 * p.j * p.j}` },
-    { tex: `v = ${7 * p.j}` },
+    { tex: `v^{2} = ${fmt(p.mu)} \\times 9.8 \\times ${fmt(p.r)} = ${fmt(n3(p.mu * 9.8 * p.r))}` },
+    { tex: `v = ${dots(flatSpeed(p))}` },
+    { text: `The nearest half is $${fmt(notch(flatSpeed(p), BEND_STEP))}\\text{ m s}^{-1}$.` },
   ],
 };
 
@@ -1208,4 +1363,4 @@ export const classicalFluidsGenerators = [
   bendSlider,
 ];
 
-export const classicalFluidsInternals = { pressureOf, gaugeKpa, buoyancyOf, sunkDepth, flatRadius, bankRadius, weightFor };
+export const classicalFluidsInternals = { pressureOf, gaugeKpa, buoyancyOf, sunkDepth, flatSpeed, flatRadius, designSpeed, bankTan, weightFor, terminalSpeed };

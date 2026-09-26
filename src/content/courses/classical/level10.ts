@@ -84,8 +84,8 @@ export const level10: Level = {
         ask('clm-natural-table'),
         ask('clm-natural-table', 2),
         teach(
-          prose('For a pendulum, set a length $\\ell$ and $g$ to $1$. The unit of time is $\\tau = \\sqrt{\\ell/g}$ and the unit of speed is $u = \\ell/\\tau$. With a length of $2.45\\text{ m}$ as the unit:'),
-          stacked('\\tau = \\sqrt{\\frac{2.45}{9.8}} = 0.5', 'u = \\frac{2.45}{0.5} = 4.9'),
+          prose('For a pendulum, set a length $\\ell$ and $g$ to $1$. The unit of time is $\\tau = \\sqrt{\\ell/g}$ and the unit of speed is $u = \\ell/\\tau$. With a length of $2.5\\text{ m}$ as the unit, rounding each to 3 significant figures and carrying the unrounded $\\tau$ into $u$:'),
+          stacked('\\tau = \\sqrt{\\frac{2.5}{9.8}} = 0.5050\\ldots', '\\tau = 0.505\\text{ s}', 'u = \\frac{2.5}{0.5050\\ldots} = 4.9497\\ldots', 'u = 4.95\\text{ m s}^{-1}'),
           prose('For a spring with a length $\\ell$ as the unit, energy’s unit is $\\frac{m\\ell^{2}}{\\tau^{2}} = k\\ell^{2}$: $50\\text{ N m}^{-1}$ and $0.2\\text{ m}$ give $2\\text{ J}$.'),
         ),
         ask('clm-natural-tree'),

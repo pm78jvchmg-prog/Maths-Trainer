@@ -109,8 +109,8 @@ export const level8: Level = {
         teach(
           prose('For small swings a pendulum is simple harmonic too, with the pull of gravity along the arc doing the spring’s job. Its angular frequency depends only on its length:'),
           display('\\omega = \\sqrt{\\frac{g}{L}}'),
-          prose('With $g = 9.8$, a pendulum $2.45\\text{ m}$ long:'),
-          stacked('\\omega = \\sqrt{\\frac{9.8}{2.45}} = \\sqrt{4} = 2\\text{ rad s}^{-1}'),
+          prose('With $g = 9.8$, a pendulum $2\\text{ m}$ long. The root does not come out exactly, so round where the question says, here to 2 decimal places:'),
+          stacked('\\omega = \\sqrt{\\frac{9.8}{2}} = \\sqrt{4.9} = 2.2135\\ldots', '\\omega = 2.21\\text{ rad s}^{-1}'),
           prose('Backwards, $L = \\frac{g}{\\omega^{2}}$: for $\\omega = 1.4$, $L = \\frac{9.8}{1.96} = 5\\text{ m}$.'),
         ),
         ask('clm-pend-omega'),

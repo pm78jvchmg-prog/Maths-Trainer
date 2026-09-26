@@ -49,7 +49,7 @@ export const NEW_COURSES: NewCourse[] = [
     blurb: 'Splitting a fraction into simpler ones, and sketching the graphs of rational functions.',
     category: 'advanced-algebra',
     position: 21,
-    levels: ['af-l2', 'af-l3', 'af-l5'],
+    levels: ['af-l2', 'af-l3', 'af-l11', 'af-l5', 'af-l12'],
   },
   {
     id: 'integration-basics',

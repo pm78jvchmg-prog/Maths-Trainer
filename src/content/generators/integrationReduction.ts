@@ -37,6 +37,7 @@ import {
   placed,
   powTex,
   prose,
+  show,
   tokenBank,
   turned,
   type Frac,
@@ -51,6 +52,24 @@ function signedTok(f: Frac): string {
 }
 
 const factorial = (n: number): number => (n <= 1 ? 1 : n * factorial(n - 1));
+
+/**
+ * A bracket the terms inside can break across. `\left(...\right)` is one box
+ * KaTeX will not break, and a long antiderivative set in one ran off a 393px
+ * phone; fixed-size delimiters leave each `+` and `-` inside free to wrap.
+ * Sized as `\left` would size them: `\bigg` round a displayed fraction,
+ * `\big` otherwise (and always in a choice option, which is set inline).
+ */
+function brackets(inner: string, coefficients: Frac[], display: boolean): string {
+  const size = display && coefficients.some((c) => c.n !== 0 && c.d !== 1) ? 'bigg' : 'big';
+  return `\\${size}l(${inner}\\${size}r)`;
+}
+
+/** ` - \frac{m}{k}I_{m-1}` for the coefficient -m/k, written as the lessons write it. */
+function indexTerm(letter: string, over: number): string {
+  const size = Math.abs(over);
+  return ` ${over > 0 ? '-' : '+'} ${size === 1 ? letter : `\\frac{${letter}}{${size}}`}I_{${letter}-1}`;
+}
 
 /* ---------- x^n e^{kx} ---------- */
 
@@ -69,7 +88,8 @@ function expSolution({ n, k }: ExpParams): SolutionStep[] {
     {
       text: `By parts with $u = ${powTex(n)}$ and $\\frac{dv}{dx} = ${expTex(k)}$, so $\\frac{du}{dx} = ${leadTerm(frac(n), powTex(n - 1))}$ and $v = ${leadTerm(frac(1, k), expTex(k))}$.`,
     },
-    { tex: `I_{${n}} = ${leadTerm(frac(1, k), `${powTex(n)}${expTex(k)}`)} - \\int ${leadTerm(frac(n, k), `${powTex(n - 1)}${expTex(k)}`)} \\, dx` },
+    { tex: `I_{${n}} = ${leadTerm(frac(1, k), `${powTex(n)}${expTex(k)}`)}` },
+    { tex: `- \\int ${leadTerm(frac(n, k), `${powTex(n - 1)}${expTex(k)}`)} \\, dx` },
     { text: `The integral left is $I_{${n - 1}}$ with $${fracTex(frac(n, k))}$ in front.` },
     { tex: expRelation(n, k, frac(1, k), frac(-n, k)) },
   ];
@@ -84,7 +104,8 @@ const expRelationChoice: Generator<ExpParams> = {
   render: ({ n, k }): Slide => ({
     kind: 'choice',
     prompt: [
-      prose(`Here $I_{m} = \\int x^{m}${expTex(k)} \\, dx$. Which line is true?`),
+      prose('For this family of integrals, which line is true?'),
+      show(`I_{m} = \\int x^{m}${expTex(k)} \\, dx`),
     ],
     ...placed(
       [
@@ -113,7 +134,7 @@ const expTiles: Generator<ExpParams> = {
     const answer = [fracTex(frac(1, k)), signedTok(frac(-n, k))];
     return {
       kind: 'tiles',
-      prompt: [prose(`Here $I_{m} = \\int x^{m}${expTex(k)} \\, dx$. Complete the reduction formula.`)],
+      prompt: [prose('Complete the reduction formula for this family.'), show(`I_{m} = \\int x^{m}${expTex(k)} \\, dx`)],
       template: `I_${n} = {0} x^${n} ${expTex(k)} {1} I_${n - 1}`,
       bank: tokenBank(
         answer,
@@ -164,8 +185,10 @@ export interface ExpFullParams extends ExpParams {
 const expAnswerOf = (p: ExpFullParams, slip?: 'sign' | 'k' | 'fact') =>
   `e^((${p.k})*x)*(${polyInAns(expAntiCoefficients(p.c, p.n, p.k, slip), (q) => `x^(${q})`)})`;
 
-const expTexOf = (p: ExpFullParams, slip?: 'sign' | 'k' | 'fact') =>
-  `${expTex(p.k)}\\left(${polyInTex(expAntiCoefficients(p.c, p.n, p.k, slip), (q) => powTex(q))}\\right) + C`;
+const expTexOf = (p: ExpFullParams, slip?: 'sign' | 'k' | 'fact', display = false) => {
+  const coefficients = expAntiCoefficients(p.c, p.n, p.k, slip);
+  return `${expTex(p.k)}${brackets(polyInTex(coefficients, (q) => powTex(q)), coefficients, display)} + C`;
+};
 
 const expFull: Generator<ExpFullParams> = {
   id: 'int-red-exp-full',
@@ -198,13 +221,18 @@ const expFull: Generator<ExpFullParams> = {
   }),
   solution: ({ n, k, c }) => {
     const steps: SolutionStep[] = [
-      { text: `With $I_{m} = \\int x^{m}${expTex(k)} \\, dx$ the formula is $I_{m} = ${leadTerm(frac(1, k), `x^{m}${expTex(k)}`)}${joinTerm(frac(-1, k), 'mI_{m-1}')}$, and $I_{0} = ${leadTerm(frac(1, k), expTex(k))}$.` },
+      { text: 'Take the family', tex: `I_{m} = \\int x^{m}${expTex(k)} \\, dx` },
+      {
+        text: `Its reduction formula, which starts from $I_{0} = ${leadTerm(frac(1, k), expTex(k))}$:`,
+        tex: `I_{m} = ${leadTerm(frac(1, k), `x^{m}${expTex(k)}`)}${indexTerm('m', k)}`,
+      },
     ];
     for (let m = 1; m <= n; m += 1) {
-      steps.push({ tex: `I_{${m}} = ${expTex(k)}\\left(${polyInTex(expAntiCoefficients(1, m, k), (q) => powTex(q))}\\right)` });
+      const coefficients = expAntiCoefficients(1, m, k);
+      steps.push({ tex: `I_{${m}} = ${expTex(k)}${brackets(polyInTex(coefficients, (q) => powTex(q)), coefficients, true)}` });
     }
     if (c !== 1) steps.push({ text: `Multiply by $${c}$.` });
-    steps.push({ tex: expTexOf({ n, k, c }) });
+    steps.push({ tex: expTexOf({ n, k, c }, undefined, true) });
     return steps;
   },
 };
@@ -274,7 +302,7 @@ const gammaRelation: Generator<GammaParams> = {
     const right = gammaStep(p, n);
     return {
       kind: 'choice',
-      prompt: [prose(`Here $I_{m} = \\int_{0}^{\\infty} x^{m}${gammaExp(p)} \\, dx$. Which relation holds?`)],
+      prompt: [prose('For this family, which relation holds?'), show(`I_{m} = \\int_{0}^{\\infty} x^{m}${gammaExp(p)} \\, dx`)],
       ...placed(
         [
           rel(right),
@@ -312,9 +340,10 @@ const gammaTree: Generator<GammaParams> = {
     return {
       kind: 'tree',
       prompt: [
-        prose(
-          `Here $I_{m} = \\int_{0}^{\\infty} x^{m}${gammaExp(p)} \\, dx$, so $I_{m} = ${gammaRule(p)}I_{m-1}$. Start from $I_{0}$ and work up.`,
-        ),
+        prose('For this family, each $I$ is a multiple of the one before:'),
+        show(`I_{m} = \\int_{0}^{\\infty} x^{m}${gammaExp(p)} \\, dx`),
+        show(`I_{m} = ${gammaRule(p)}I_{m-1}`),
+        prose('Start from $I_{0}$ and work up.'),
       ],
       expression: `I_{${p.n}}`,
       nodes: values.map((_, m) => ({ id: `i${m}`, from: m === 0 ? [] : [`i${m - 1}`] })),
@@ -398,7 +427,7 @@ const wallisTiles: Generator<WallisTilesParams> = {
     const answer = [fracTex(right)];
     return {
       kind: 'tiles',
-      prompt: [prose(`Here $I_{m} = ${wallisIntegral(fn, 'm')}$. Complete the line.`)],
+      prompt: [prose('Complete the line for this family.'), show(`I_{m} = ${wallisIntegral(fn, 'm')}`)],
       template: back ? `I_${m} = {0} I_${n}` : `I_${n} = {0} I_${m}`,
       bank: tokenBank(answer, [fracTex(flip), fracTex(oneStep), fracTex(frac(n - 2, n)), fracTex(frac(n, n + 1)), fracTex(frac(n - 1, n - 2 || 1))]),
       answer,
@@ -489,7 +518,8 @@ const wallisTree: Generator<WallisValueParams> = {
     return {
       kind: 'tree',
       prompt: [
-        prose(`Here $I_{m} = ${wallisIntegral(p.fn, 'm')}$. Fill in each $I$ from $I_{${start}}$ up to $I_{${p.n}}$, then the integral.`),
+        show(`I_{m} = ${wallisIntegral(p.fn, 'm')}`),
+        prose(`Fill in each $I$ from $I_{${start}}$ up to $I_{${p.n}}$, then the integral.`),
       ],
       expression: wallisIntegral(p.fn, p.n, p.c),
       nodes: [
@@ -519,7 +549,8 @@ function logRelation(m: number, N: number, first: Frac, second: Frac, lnPower = 
 function logSolution({ m, n }: LogParams): SolutionStep[] {
   return [
     {
-      text: `By parts with $u = ${lnPow(n)}$ and $\\frac{dv}{dx} = ${powTex(m) || '1'}$, so $\\frac{du}{dx} = ${n === 1 ? '\\frac{1}{x}' : `\\frac{${n}${lnPow(n - 1)}}{x}`}$ and $v = ${leadTerm(frac(1, m + 1), powTex(m + 1))}$.`,
+      text: `By parts with $u = ${lnPow(n)}$ and $\\frac{dv}{dx} = ${powTex(m) || '1'}$:`,
+      tex: `\\frac{du}{dx} = ${n === 1 ? '\\frac{1}{x}' : `\\frac{${n}${lnPow(n - 1)}}{x}`} \\qquad v = ${leadTerm(frac(1, m + 1), powTex(m + 1))}`,
     },
     { text: `The $x^{${m + 1}}$ over $x$ leaves $${powTex(m) || '1'}$, so the integral left is $I_{${n - 1}}$ with $${fracTex(frac(n, m + 1))}$ in front.` },
     { tex: logRelation(m, n, frac(1, m + 1), frac(-n, m + 1)) },
@@ -531,7 +562,7 @@ const logRelationChoice: Generator<LogParams> = {
   sample: (rng, difficulty) => ({ m: rng.int(difficulty > 1 ? 1 : 0, difficulty > 1 ? 8 : 6), n: rng.int(2, difficulty > 1 ? 7 : 5) }),
   render: ({ m, n }): Slide => ({
     kind: 'choice',
-    prompt: [prose(`Here $I_{k} = \\int ${powTex(m)}(\\ln x)^{k} \\, dx$. Which line is true?`)],
+    prompt: [prose('For this family of integrals, which line is true?'), show(`I_{k} = \\int ${powTex(m)}(\\ln x)^{k} \\, dx`)],
     ...placed(
       [
         logRelation(m, n, frac(1, m + 1), frac(-n, m + 1)),
@@ -555,7 +586,7 @@ const logTiles: Generator<LogParams> = {
     const answer = [fracTex(frac(1, m + 1)), signedTok(frac(-n, m + 1))];
     return {
       kind: 'tiles',
-      prompt: [prose(`Here $I_{k} = \\int ${powTex(m)}(\\ln x)^{k} \\, dx$. Complete the reduction formula.`)],
+      prompt: [prose('Complete the reduction formula for this family.'), show(`I_{k} = \\int ${powTex(m)}(\\ln x)^{k} \\, dx`)],
       template: `I_${n} = {0} x^${m + 1} (\\ln x)^${n} {1} I_${n - 1}`,
       bank: tokenBank(answer, [fracTex(frac(1, m)), fracTex(frac(m + 1)), signedTok(frac(n, m + 1)), signedTok(frac(-n)), signedTok(frac(-n, m))], 4),
       answer,
@@ -578,8 +609,10 @@ export function logAntiCoefficients(c: number, m: number, n: number, slip?: 'sig
 const logAnswerOf = (p: LogFullParams, slip?: 'sign' | 'once') =>
   `x^(${p.m + 1})*(${polyInAns(logAntiCoefficients(p.c, p.m, p.n, slip), (q) => `log(x)^(${q})`)})`;
 
-const logTexOf = (p: LogFullParams, slip?: 'sign' | 'once') =>
-  `${powTex(p.m + 1)}\\left(${polyInTex(logAntiCoefficients(p.c, p.m, p.n, slip), lnPow)}\\right) + C`;
+const logTexOf = (p: LogFullParams, slip?: 'sign' | 'once', display = false) => {
+  const coefficients = logAntiCoefficients(p.c, p.m, p.n, slip);
+  return `${powTex(p.m + 1)}${brackets(polyInTex(coefficients, lnPow), coefficients, display)} + C`;
+};
 
 const logFull: Generator<LogFullParams> = {
   id: 'int-red-log-full',
@@ -609,15 +642,18 @@ const logFull: Generator<LogFullParams> = {
   }),
   solution: (p) => {
     const steps: SolutionStep[] = [
+      { text: 'Take the family', tex: `I_{k} = \\int ${powTex(p.m)}(\\ln x)^{k} \\, dx` },
       {
-        text: `With $I_{k} = \\int ${powTex(p.m)}(\\ln x)^{k} \\, dx$, $I_{k} = ${leadTerm(frac(1, p.m + 1), `${powTex(p.m + 1)}(\\ln x)^{k}`)} - \\frac{k}{${p.m + 1}}I_{k-1}$, and $I_{0} = ${leadTerm(frac(1, p.m + 1), powTex(p.m + 1))}$.`,
+        text: `Its reduction formula, which starts from $I_{0} = ${leadTerm(frac(1, p.m + 1), powTex(p.m + 1))}$:`,
+        tex: `I_{k} = ${leadTerm(frac(1, p.m + 1), `${powTex(p.m + 1)}(\\ln x)^{k}`)}${indexTerm('k', p.m + 1)}`,
       },
     ];
     for (let k = 1; k <= p.n; k += 1) {
-      steps.push({ tex: `I_{${k}} = ${powTex(p.m + 1)}\\left(${polyInTex(logAntiCoefficients(1, p.m, k), lnPow)}\\right)` });
+      const coefficients = logAntiCoefficients(1, p.m, k);
+      steps.push({ tex: `I_{${k}} = ${powTex(p.m + 1)}${brackets(polyInTex(coefficients, lnPow), coefficients, true)}` });
     }
     if (p.c !== 1) steps.push({ text: `Multiply by $${p.c}$.` });
-    steps.push({ tex: logTexOf(p) });
+    steps.push({ tex: logTexOf(p, undefined, true) });
     return steps;
   },
 };
@@ -710,8 +746,8 @@ const partsFlow: Generator<PartsFlowParams> = {
     const fn = k === 0 ? 'sin' : 'cos';
     return [
       { text: `Write $\\${fn}^{${n}} x = ${trigPow(fn, n - 1)} \\cdot \\${fn} x$ and take $u = ${trigPow(fn, n - 1)}$.` },
-      { text: `By parts, then $${fn === 'sin' ? '\\cos' : '\\sin'}^{2} x = 1 - \\${fn}^{2} x$, the $I_{${n}}$ terms collect:` },
-      { tex: `${n}I_{${n}} = ${n - 1}I_{${n - 2}}` },
+      { text: 'Integrate by parts, then write', tex: `${fn === 'sin' ? '\\cos' : '\\sin'}^{2} x = 1 - \\${fn}^{2} x` },
+      { text: `and collect the $I_{${n}}$ terms:`, tex: `${n}I_{${n}} = ${n - 1}I_{${n - 2}}` },
       { tex: `I_{${n}} = ${fracTex(frac(n - 1, n))}I_{${n - 2}}` },
     ];
   },

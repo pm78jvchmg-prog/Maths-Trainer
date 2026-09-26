@@ -60,9 +60,9 @@ export const arcLengthSurface: Level = {
         teach(
           prose('Another family has a root that comes out exactly. Take $y = \\frac{1}{6}x^{3} + \\frac{1}{2x}$:'),
           maths('\\frac{dy}{dx} = \\frac{1}{2}x^{2} - \\frac{1}{2x^{2}}'),
-          prose(
-            'Squared, the middle term is $2 \\times \\frac{1}{2}x^{2} \\times \\frac{1}{2x^{2}} = \\frac{1}{2}$, taken away. Adding $1$ turns that $-\\frac{1}{2}$ into $+\\frac{1}{2}$, which is the same square with a plus sign:',
-          ),
+          prose('Squaring this, the middle term takes away'),
+          maths('2 \\times \\frac{1}{2}x^{2} \\times \\frac{1}{2x^{2}} = \\frac{1}{2}'),
+          prose('Adding $1$ turns that $-\\frac{1}{2}$ into $+\\frac{1}{2}$, which is the same square with a plus sign:'),
           maths(`1 + ${DYDX} = \\left(\\frac{1}{2}x^{2} + \\frac{1}{2x^{2}}\\right)^{2}`),
         ),
         ask('int-arc-integrand-tiles', 2),
@@ -76,9 +76,10 @@ export const arcLengthSurface: Level = {
         ask('int-arc-square-steps'),
         ask('int-arc-square-value'),
         teach(
-          prose(
-            'The same works for $y = \\frac{1}{8}x^{4} + \\frac{1}{4x^{2}}$. Here $\\frac{dy}{dx} = \\frac{1}{2}x^{3} - \\frac{1}{2x^{3}}$, so the root is $\\frac{1}{2}x^{3} + \\frac{1}{2x^{3}}$.',
-          ),
+          prose('The same works for this curve:'),
+          maths('y = \\frac{1}{8}x^{4} + \\frac{1}{4x^{2}}'),
+          maths('\\frac{dy}{dx} = \\frac{1}{2}x^{3} - \\frac{1}{2x^{3}}'),
+          prose('so the root is $\\frac{1}{2}x^{3} + \\frac{1}{2x^{3}}$.'),
           prose('Watch the sign when integrating: $\\frac{1}{2x^{3}}$ integrates to $-\\frac{1}{4x^{2}}$.'),
         ),
         ask('int-arc-square-steps', 2),
@@ -101,17 +102,18 @@ export const arcLengthSurface: Level = {
         ),
         ask('int-arc-param-setup'),
         teach(
-          prose('The root in this formula is the **speed**. For $x = t^{2}$, $y = t - \\frac{1}{3}t^{3}$:'),
+          prose('The root in this formula is the **speed**. Take this curve:'),
+          maths('x = t^{2}, \\quad y = t - \\frac{1}{3}t^{3}'),
           maths('\\frac{dx}{dt} = 2t'),
           maths('\\frac{dy}{dt} = 1 - t^{2}'),
           maths('(2t)^{2} + (1 - t^{2})^{2} = (1 + t^{2})^{2}'),
-          prose(
-            'So the speed is $1 + t^{2}$. At $t = 2$: $\\frac{dx}{dt} = 4$, $\\frac{dy}{dt} = -3$, and $\\sqrt{16 + 9} = 5$. Likewise $x = t^{3} - 3t$, $y = 3t^{2}$ has speed $3(1 + t^{2})$.',
-          ),
+          prose('So the speed is $1 + t^{2}$. At $t = 2$, $\\frac{dx}{dt} = 4$ and $\\frac{dy}{dt} = -3$, so the speed is $\\sqrt{16 + 9} = 5$.'),
+          prose('Likewise, $3(1 + t^{2})$ is the speed along this curve:'),
+          maths('x = t^{3} - 3t, \\quad y = 3t^{2}'),
         ),
         ask('int-arc-param-speed-tree'),
         teach(
-          prose('Then the length is an ordinary integral. For $x = t^{2}$, $y = t - \\frac{1}{3}t^{3}$ from $t = 0$ to $t = 3$:'),
+          prose('Then the length is an ordinary integral. For the curve with speed $1 + t^{2}$, from $t = 0$ to $t = 3$:'),
           maths('s = \\int_{0}^{3} (1 + t^{2}) \\, dt'),
           maths('= \\left[t + \\frac{t^{3}}{3}\\right]_{0}^{3}'),
           maths('= 3 + 9 = 12'),
@@ -139,7 +141,7 @@ export const arcLengthSurface: Level = {
         ask('int-surf-setup'),
         teach(
           prose(
-            'Simplify $y\\sqrt{1 + (\\frac{dy}{dx})^{2}}$ before integrating. For the line $y = \\frac{3}{4}x$ the root is $\\sqrt{1 + \\frac{9}{16}} = \\frac{5}{4}$, so the product is $\\frac{15}{16}x$:',
+            `Simplify $y\\sqrt{1 + ${DYDX}}$ before integrating. For the line $y = \\frac{3}{4}x$ the root is $\\sqrt{1 + \\frac{9}{16}} = \\frac{5}{4}$, so the product is $\\frac{15}{16}x$:`,
           ),
           maths('S = 2\\pi \\int_{0}^{4} \\frac{15}{16}x \\, dx = 15\\pi'),
           prose('For $y = 2x$ the root is $\\sqrt{5}$, so the product is $2\\sqrt{5}x$.'),

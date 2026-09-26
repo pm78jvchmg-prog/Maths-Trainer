@@ -38,6 +38,7 @@ import {
   placed,
   powTex,
   prose,
+  show,
   tokenBank,
   turned,
   type Frac,
@@ -192,8 +193,11 @@ function sampleSquare(rng: { int(a: number, b: number): number; pick<T>(xs: T[])
 
 function squareSolution(p: SquareParams): SolutionStep[] {
   return [
-    { text: `Here $\\frac{dy}{dx} = ${squareDy(p)}$. Squaring, the middle term is $-\\frac{1}{2}$, so adding $1$ turns it to $+\\frac{1}{2}$:` },
-    { tex: `1 + ${DYDX} = \\left(${squareRoot(p)}\\right)^{2}` },
+    { text: 'Differentiate:', tex: `\\frac{dy}{dx} = ${squareDy(p)}` },
+    {
+      text: 'Squaring, the middle term is $-\\frac{1}{2}$, so adding $1$ turns it to $+\\frac{1}{2}$:',
+      tex: `1 + ${DYDX} = \\left(${squareRoot(p)}\\right)^{2}`,
+    },
     { tex: `s = \\int_{${p.a}}^{${p.b}} \\left(${squareRoot(p)}\\right) dx` },
     { tex: `= \\left[${squareF(p)}\\right]_{${p.a}}^{${p.b}}` },
     { tex: `= ${fracTex(squareLength(p))}` },
@@ -287,7 +291,7 @@ const insideTiles: Generator<InsideParams> = {
       const answer = [halvesInside(m)];
       return {
         kind: 'tiles',
-        prompt: [prose(`Here $${halvesY({ m, c })}$. Complete the line.`)],
+        prompt: [prose(`Complete the line for $${halvesY({ m, c })}$.`)],
         template: `1 + \\left(\\tfrac{dy}{dx}\\right)^2 = {0}`,
         bank: tokenBank(answer, [`1 + ${m}x`, `1 + ${m * m}x^{2}`, `${m * m}x`, `1 + ${2 * m}x`, `1 + ${m * m + 1}x`]),
         answer,
@@ -296,7 +300,7 @@ const insideTiles: Generator<InsideParams> = {
     const answer = [`\\left(${squareRoot(sq)}\\right)^{2}`];
     return {
       kind: 'tiles',
-      prompt: [prose(`Here $${squareY(sq)}$. Complete the line.`)],
+      prompt: [prose(`Complete the line for $${squareY(sq)}$.`)],
       template: `1 + \\left(\\tfrac{dy}{dx}\\right)^2 = {0}`,
       bank: tokenBank(answer, [`\\left(${squareDy(sq)}\\right)^{2}`, `1 + \\left(${squareRoot(sq)}\\right)^{2}`, `\\left(${squareRoot(sq)}\\right)`]),
       answer,
@@ -401,7 +405,7 @@ const paramSpeedTree: Generator<ParamParams> = {
     const answer = [dx, dy, dx * dx, dy * dy, dx * dx + dy * dy, speedScale(p) * (1 + p.t * p.t)].map(String);
     return {
       kind: 'tree',
-      prompt: [prose(`Here $x = ${x}$ and $y = ${y}$. Find the speed at $t = ${p.t}$.`)],
+      prompt: [prose(`Find the speed at $t = ${p.t}$ along this curve.`), show(`x = ${x}, \\quad y = ${y}`)],
       expression: SPEED,
       nodes: [
         { id: 'dx', from: [] },
@@ -424,8 +428,8 @@ const paramSpeedTree: Generator<ParamParams> = {
     const dx = paramDx(p, p.t);
     const dy = paramDy(p, p.t);
     return [
-      { text: `Differentiate: $\\frac{dx}{dt} = ${d.dx}$ and $\\frac{dy}{dt} = ${d.dy}$. At $t = ${p.t}$ they are $${dx}$ and $${dy}$.` },
-      { tex: `\\sqrt{${dx * dx} + ${dy * dy}} = \\sqrt{${dx * dx + dy * dy}}` },
+      { text: 'Differentiate:', tex: `\\frac{dx}{dt} = ${d.dx} \\qquad \\frac{dy}{dt} = ${d.dy}` },
+      { text: `At $t = ${p.t}$ they are $${dx}$ and $${dy}$, so the speed is`, tex: `\\sqrt{${dx * dx} + ${dy * dy}} = \\sqrt{${dx * dx + dy * dy}}` },
       { tex: `= ${speedScale(p) * (1 + p.t * p.t)}` },
     ];
   },
@@ -448,8 +452,8 @@ export function paramLength({ form, k, a, b }: ParamLengthParams): Frac {
 function paramLengthSolution(p: ParamLengthParams): SolutionStep[] {
   const d = paramDerivTex(p);
   return [
-    { text: `Here $\\frac{dx}{dt} = ${d.dx}$ and $\\frac{dy}{dt} = ${d.dy}$. Their squares add to a perfect square:` },
-    { tex: `${SPEED} = ${speedTex(p)}` },
+    { text: 'Differentiate:', tex: `\\frac{dx}{dt} = ${d.dx} \\qquad \\frac{dy}{dt} = ${d.dy}` },
+    { text: 'Their squares add to a perfect square, so the speed is', tex: `${SPEED} = ${speedTex(p)}` },
     { tex: `s = \\int_{${p.a}}^{${p.b}} ${speedTex(p)} \\, dt` },
     { tex: `= \\left[${speedScale(p) === 1 ? '' : speedScale(p)}\\left(t + \\frac{t^{3}}{3}\\right)\\right]_{${p.a}}^{${p.b}}` },
     { tex: `= ${fracTex(paramLength(p))}` },
@@ -478,7 +482,7 @@ const paramLengthTyped: Generator<ParamLengthParams> = {
     const dy = p.form === 'A' ? `${p.k} - ${p.k}*x^2` : `6*${p.k}*x`;
     return {
       kind: 'expression',
-      prompt: [prose(`Find the length of the curve $x = ${x}$, $y = ${y}$ from $t = ${p.a}$ to $t = ${p.b}$.`)],
+      prompt: [prose(`Find the length of this curve from $t = ${p.a}$ to $t = ${p.b}$.`), show(`x = ${x}, \\quad y = ${y}`)],
       lead: 's =',
       keypad: s.d === 1 ? [] : FRACTION_KEYS,
       answer: `${fval(s)}`,
@@ -522,8 +526,8 @@ const paramSetup: Generator<ParamSetupParams> = {
     };
   },
   solution: ({ a, b, T }) => [
-    { text: `Differentiate each: $\\frac{dx}{dt} = ${leadTerm(frac(2 * a), 't')}$ and $\\frac{dy}{dt} = ${leadTerm(frac(3 * b), 't^{2}')}$. Square and add under the root.` },
-    { tex: `s = \\int_{0}^{${T}} \\sqrt{${4 * a * a}t^{2} + ${9 * b * b}t^{4}} \\, dt` },
+    { text: 'Differentiate each:', tex: `\\frac{dx}{dt} = ${leadTerm(frac(2 * a), 't')} \\qquad \\frac{dy}{dt} = ${leadTerm(frac(3 * b), 't^{2}')}` },
+    { text: 'Square them and add under the root:', tex: `s = \\int_{0}^{${T}} \\sqrt{${4 * a * a}t^{2} + ${9 * b * b}t^{4}} \\, dt` },
   ],
 };
 
@@ -633,7 +637,7 @@ function sampleSurf(rng: { int(a: number, b: number): number; pick<T>(xs: T[]): 
 
 function surfSolution(p: SurfParams): SolutionStep[] {
   const steps: SolutionStep[] = [
-    { text: `Work out $y\\sqrt{1 + ${DYDX}}$ first; for $${surfY(p)}$ it simplifies to $${surfSimplified(p)}$.` },
+    { text: `Work out $y\\sqrt{1 + ${DYDX}}$ first. Here it simplifies to $${surfSimplified(p)}$.` },
     { tex: `S = 2\\pi \\int_{${p.a}}^{${p.b}} ${surfSimplified(p)} \\, dx` },
   ];
   if (p.form === 'root') {
@@ -705,7 +709,7 @@ const surfTiles: Generator<SurfTilesParams> = {
     const answer = [right];
     return {
       kind: 'tiles',
-      prompt: [prose(`Here $${y}$. Complete the line, simplified.`)],
+      prompt: [prose(`Complete the line for $${y}$, simplified.`)],
       template: 'y\\sqrt{1 + \\left(\\tfrac{dy}{dx}\\right)^2} = {0}',
       bank: tokenBank(answer, wrong),
       answer,
@@ -721,13 +725,19 @@ const surfTiles: Generator<SurfTilesParams> = {
     const p: SurfParams = { form, s, a: 0, b: 1 };
     if (form === 'sphere') {
       return [
-        { text: `Here $\\frac{dy}{dx} = -\\frac{x}{\\sqrt{${s * s} - x^{2}}}$, so $1 + ${DYDX} = \\frac{${s * s}}{${s * s} - x^{2}}$.` },
+        {
+          text: 'Differentiate, then add $1$ to the square:',
+          tex: `\\frac{dy}{dx} = -\\frac{x}{\\sqrt{${s * s} - x^{2}}} \\qquad 1 + ${DYDX} = \\frac{${s * s}}{${s * s} - x^{2}}`,
+        },
         { text: `Its root is $\\frac{${s}}{\\sqrt{${s * s} - x^{2}}}$, and times $y$ that leaves $${s}$.` },
       ];
     }
     if (form === 'root') {
       return [
-        { text: `Here $\\frac{dy}{dx} = \\frac{${s}}{2\\sqrt{x}}$, so $1 + ${DYDX} = \\frac{4x + ${s * s}}{4x}$.` },
+        {
+          text: 'Differentiate, then add $1$ to the square:',
+          tex: `\\frac{dy}{dx} = \\frac{${s}}{2\\sqrt{x}} \\qquad 1 + ${DYDX} = \\frac{4x + ${s * s}}{4x}`,
+        },
         { text: `Its root is $\\frac{\\sqrt{4x + ${s * s}}}{2\\sqrt{x}}$, and times $${s === 1 ? '' : s}\\sqrt{x}$ that leaves $${surfSimplified(p)}$.` },
       ];
     }
@@ -748,6 +758,14 @@ export interface WhichParams {
   hi: number;
 }
 
+/** The four integrals, written as the lesson teaches them. */
+const WHICH_FORMS: Record<WhichParams['want'], string> = {
+  length: `\\int \\sqrt{1 + ${DYDX}} \\, dx`,
+  param: `\\int \\sqrt{\\left(\\frac{dx}{dt}\\right)^{2} + \\left(\\frac{dy}{dt}\\right)^{2}} \\, dt`,
+  area: `2\\pi \\int y\\sqrt{1 + ${DYDX}} \\, dx`,
+  volume: '\\pi \\int y^{2} \\, dx',
+};
+
 const whichFlow: Generator<WhichParams> = {
   id: 'int-arc-which-flow',
   sample: (rng) => ({ want: rng.pick<WhichParams['want']>(['length', 'area', 'volume', 'param']), a: rng.int(1, 4), p: rng.int(2, 3), hi: rng.int(1, 3) }),
@@ -755,12 +773,7 @@ const whichFlow: Generator<WhichParams> = {
     const salt = mix(a, p, hi, want.length);
     const y = setupY({ a, p });
     const d = a * p;
-    const forms = {
-      length: `\\int \\sqrt{1 + ${DYDX}} \\, dx`,
-      param: `\\int \\sqrt{\\left(\\frac{dx}{dt}\\right)^{2} + \\left(\\frac{dy}{dt}\\right)^{2}} \\, dt`,
-      area: `2\\pi \\int y\\sqrt{1 + ${DYDX}} \\, dx`,
-      volume: '\\pi \\int y^{2} \\, dx',
-    };
+    const forms = WHICH_FORMS;
     const subject = want === 'param' ? `x = t^{2}, \\quad y = ${leadTerm(frac(a), powTex(p, 't'))}` : `y = ${y}, \\quad 0 \\le x \\le ${hi}`;
     const ask = {
       length: 'You want the length of this curve. Which formula?',
@@ -821,19 +834,19 @@ const whichFlow: Generator<WhichParams> = {
   },
   solution: ({ want, a, p }) => {
     const text = {
-      length: 'A length along $y = f(x)$ uses $\\int \\sqrt{1 + (dy/dx)^{2}} \\, dx$.',
-      param: 'A length along a curve given by $t$ uses $\\int \\sqrt{\\dot{x}^{2} + \\dot{y}^{2}} \\, dt$.',
-      area: 'A curved surface uses $2\\pi \\int y \\, ds$.',
-      volume: 'A volume uses $\\pi \\int y^{2} \\, dx$.',
+      length: 'A length along $y = f(x)$ uses',
+      param: 'A length along a curve given by $t$ uses',
+      area: 'A curved surface uses',
+      volume: 'A volume uses',
     }[want];
     const d = a * p;
     const inside =
       want === 'volume'
         ? `y^{2} = ${leadTerm(frac(a * a), powTex(2 * p))}`
         : want === 'param'
-          ? `\\dot{x}^{2} + \\dot{y}^{2} = 4t^{2} + ${d * d}${powTex(2 * (p - 1), 't')}`
+          ? `\\left(\\frac{dx}{dt}\\right)^{2} + \\left(\\frac{dy}{dt}\\right)^{2} = 4t^{2} + ${d * d}${powTex(2 * (p - 1), 't')}`
           : `1 + ${DYDX} = ${underRoot(d * d, 2 * (p - 1))}`;
-    return [{ text }, { tex: inside }];
+    return [{ text, tex: WHICH_FORMS[want] }, { tex: inside }];
   },
 };
 

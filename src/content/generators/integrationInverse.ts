@@ -570,7 +570,7 @@ const hypTree: Generator<HypValueParams> = {
   solution: (p) => {
     const e = expOf(p);
     return [
-      { text: `$e^{${p.k === 1 ? '' : p.k}\\ln m} = m^{${p.k}}$, so $e^{x} = ${fracTex(e)}$ and $e^{-x} = ${fracTex(frac(e.d, e.n))}$.` },
+      { text: `Since $${p.k === 1 ? 'e^{\\ln m} = m' : `e^{${p.k}\\ln m} = m^{${p.k}}`}$, here $e^{x} = ${fracTex(e)}$ and $e^{-x} = ${fracTex(frac(e.d, e.n))}$.` },
       { tex: `\\${p.fn}${hypArgTex(p)} = \\frac{1}{2}\\left(${fracTex(e)} ${p.fn === 'cosh' ? '+' : '-'} ${fracTex(frac(e.d, e.n))}\\right)` },
       { tex: `= ${fracTex(hypValue(p))}` },
     ];
@@ -625,7 +625,7 @@ const hypIntegral: Generator<HypIntParams> = {
   render: (p): Slide => ({
     kind: 'expression',
     prompt: [prose('Integrate.')],
-    lead: `\\int \\left(${hypIntegrand(p)}\\right) dx =`,
+    lead: `\\int (${hypIntegrand(p)}) \\, dx =`,
     keypad: HYP_KEYS,
     answer: hypAnswer(p),
     integrand: `(${p.a})*cosh(${p.k}*x) + (${p.b})*sinh(${p.k}*x)`,
@@ -633,8 +633,11 @@ const hypIntegral: Generator<HypIntParams> = {
     mode: 'upToConstant',
   }),
   solution: (p) => [
-    { text: `$\\frac{d}{dx}\\sinh ${hypArg(p.k)} = ${p.k === 1 ? '' : p.k}\\cosh ${hypArg(p.k)}$ and $\\frac{d}{dx}\\cosh ${hypArg(p.k)} = ${p.k === 1 ? '' : p.k}\\sinh ${hypArg(p.k)}$, with no minus sign.` },
-    { text: p.k === 1 ? 'So each integral swaps cosh and sinh.' : `So each integral swaps cosh and sinh and divides by $${p.k}$.` },
+    {
+      text: 'They differentiate into each other, with no minus sign:',
+      tex: `\\frac{d}{dx}\\sinh ${hypArg(p.k)} = ${p.k === 1 ? '' : p.k}\\cosh ${hypArg(p.k)} \\qquad \\frac{d}{dx}\\cosh ${hypArg(p.k)} = ${p.k === 1 ? '' : p.k}\\sinh ${hypArg(p.k)}`,
+    },
+    { text: p.k === 1 ? 'So each integral swaps $\\cosh$ and $\\sinh$.' : `So each integral swaps $\\cosh$ and $\\sinh$ and divides by $${p.k}$.` },
     { tex: hypAnswerTex(p) },
   ],
 };
@@ -673,9 +676,9 @@ const catenary: Generator<CatenaryParams> = {
     const end = catenaryEnd(p.c, p.m);
     const arg = p.c === 1 ? 'x' : `\\frac{x}{${p.c}}`;
     return [
-      { text: `Here $\\frac{dy}{dx} = \\sinh ${arg}$, and $1 + \\sinh^{2} = \\cosh^{2}$, so the root is $\\cosh ${arg}$.` },
+      { text: `Here $\\frac{dy}{dx} = \\sinh ${arg}$, and $1 + \\sinh^{2} u = \\cosh^{2} u$, so the root is $\\cosh ${arg}$.` },
       { tex: `s = ${p.both ? '2' : ''}\\int_{0}^{${end}} \\cosh ${arg} \\, dx = ${p.both ? '2' : ''}\\left[${p.c === 1 ? '' : p.c}\\sinh ${arg}\\right]_{0}^{${end}}` },
-      { text: `$\\sinh(\\ln ${p.m}) = \\frac{1}{2}\\left(${p.m} - \\frac{1}{${p.m}}\\right) = ${fracTex(frac(p.m * p.m - 1, 2 * p.m))}$.` },
+      { tex: `\\sinh(\\ln ${p.m}) = \\frac{1}{2}\\left(${p.m} - \\frac{1}{${p.m}}\\right) = ${fracTex(frac(p.m * p.m - 1, 2 * p.m))}` },
       { tex: `s = ${fracTex(catenaryLength(p))}` },
     ];
   },

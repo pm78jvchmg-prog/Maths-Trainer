@@ -5,6 +5,24 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-26
 
+- **Widget glitches (#285).** No stray label word above pick-the-answer options,
+  full-size fractions in which-way-next questions, the keypad stays on screen
+  above the Check button, and the graph transformer's readouts fit on narrow
+  screens.
+- **Graph paper theme (#284).** Every screen is on dark squared paper with
+  panels drawn in line; courses, skill-check dots and streak days are stations
+  on a coloured line.
+- **Seamless home list ends (#283).** The blue behind the streak bar now matches
+  the list below it, and pulling past either end of the home list shows the
+  list's own colour instead of navy.
+- **Bottom strip on every launch (#282).** When the iPhone opens the app in the
+  shorter window, where iOS keeps the bottom strip navy, the lists now fade into
+  that navy instead of stopping at a line.
+- **Soft fade into the bottom strip (#281).** Lists darken slightly into the
+  strip below the installed app, and the last course sits lower on the screen.
+- **Bottom strip follows the list (#280).** On the installed iPhone app the
+  strip below the window now takes the colour of the home list as you scroll,
+  and the list runs down to the bottom again.
 - **Six new Algebraic Fractions levels (#278).** Rational equations in context,
   factorising to simplify, rearranging formulae, fractions within fractions,
   partial fractions with higher powers, and turning points and ranges of

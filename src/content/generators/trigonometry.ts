@@ -1633,6 +1633,9 @@ const FLOW_SUBJECTS: Record<'periodic' | 'none' | 'uneven' | 'dying', string[]> 
  * through an hourglass" ran off a phone screen as one line.
  */
 function textLines(words: string, width = 24): string {
+  // Evened out: as few lines as `width` allows, each about as long as the
+  // others, so no word is left on a line of its own.
+  width = Math.max(...words.split(' ').map((word) => word.length), Math.ceil(words.length / Math.ceil(words.length / width)) + 2);
   const lines: string[] = [];
   for (const word of words.split(' ')) {
     const last = lines[lines.length - 1];

@@ -1339,3 +1339,316 @@ describe('interpolating inside a class', () => {
     expect(mixed.length).toBe(SEEDS);
   });
 });
+
+/* ---------- level 5: coding data ---------- */
+
+/*
+ * Every statistic here is checked on a list built to have it: the list is
+ * changed value by value, exactly as the question says, and the statistic
+ * taken again from the changed list by the definitions above. Nothing uses
+ * the rules the lessons teach (b times the mean, b squared times the
+ * variance), so a generator that had one of them wrong would fail.
+ */
+
+type CodeStat = 'mean' | 'median' | 'mode' | 'range' | 'iqr' | 'sd' | 'variance';
+
+/** A list whose statistic is v. */
+function listWith(stat: CodeStat, v: number): number[] {
+  switch (stat) {
+    case 'mean':
+      return [v - 1, v, v + 4, v - 3];
+    case 'median':
+      return [v - 3, v - 1, v, v + 2, v + 7];
+    case 'mode':
+      return [v - 2, v, v, v + 5];
+    case 'range':
+      return [10, 10 + v / 3, 10 + v];
+    case 'iqr':
+      return [-5, 0, 0.1, 0.2, v - 0.1, v, v + 9];
+    case 'sd':
+      return [10 - v, 10 + v];
+    case 'variance':
+      return [10 - Math.sqrt(v), 10 + Math.sqrt(v)];
+  }
+}
+
+function statOf(stat: CodeStat, xs: number[]): number {
+  const s = inOrder(xs);
+  switch (stat) {
+    case 'mean':
+      return add(xs) / xs.length;
+    case 'median':
+      return middle(xs);
+    case 'mode':
+      return modal(xs).value;
+    case 'range':
+      return s[s.length - 1] - s[0];
+    case 'iqr': {
+      const q = quartilesByHalves(xs);
+      return q.q3 - q.q1;
+    }
+    case 'sd':
+      return Math.sqrt(spread(xs));
+    case 'variance':
+      return spread(xs);
+  }
+}
+
+/** The statistic again after every value x has become bx + c. */
+function afterChange(stat: CodeStat, v: number, b: number, c: number): number {
+  const list = listWith(stat, v);
+  expect(statOf(stat, list)).toBeCloseTo(v, 9);
+  return statOf(stat, list.map((x) => b * x + c));
+}
+
+const AVERAGES = new Set<CodeStat>(['mean', 'median', 'mode']);
+
+const blockOf = (slide: Slide, i: number) => (slide as { prompt: { tex?: string; text?: string }[] }).prompt[i];
+
+describe('adding or multiplying every value', () => {
+  type P = { b: number; c: number; stats: [CodeStat, CodeStat]; values: [number, number]; ask: 0 | 1 };
+
+  it('moves the asked statistic as the changed list does, typed or picked', () => {
+    for (const id of ['dat-code-shift', 'dat-code-scale']) {
+      for (const form of [id, `${id}+choice`]) {
+        for (const { params, slide, difficulty, seed } of draws<P>(form)) {
+          const expected = afterChange(params.stats[params.ask], params.values[params.ask], params.b, params.c);
+          const given = slide.kind === 'expression' ? slide.answer : correctLabel(slide);
+          expect(num(given), `${form} seed ${seed}`).toBeCloseTo(expected, 9);
+          if (id === 'dat-code-shift') {
+            expect(params.b).toBe(1);
+            expect(params.c > 0).toBe(difficulty === 1);
+          } else expect(params.c).toBe(0);
+        }
+      }
+    }
+  });
+
+  it('fills every row of the after column from the changed list', () => {
+    type T = { b: number; c: number; stats: CodeStat[]; values: number[] };
+    for (const id of ['dat-code-shift-table', 'dat-code-scale-table']) {
+      for (const { params, slide, seed } of draws<T>(id)) {
+        if (slide.kind !== 'table') throw new Error('not a table slide');
+        params.stats.forEach((stat, i) => {
+          expect(num(slide.rows[i][1]!)).toBe(params.values[i]);
+          expect(num(slide.answer[i]), `${id} seed ${seed} ${stat}`).toBeCloseTo(afterChange(stat, params.values[i], params.b, params.c), 9);
+        });
+        expect(verdict(slide, slide.answer)).toBe('correct');
+      }
+    }
+  });
+
+  it('sends an average and a spread down different branches to the changed value', () => {
+    type E = { b: number; c: number; stat: CodeStat; v: number };
+    for (const { params, slide, difficulty, seed } of draws<E>('dat-code-effect-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      expect(slide.answer[0], `seed ${seed}`).toBe(AVERAGES.has(params.stat) ? 'An average' : 'A spread');
+      expect(num(slide.answer[1].replace(/\$/g, '')), `seed ${seed}`).toBeCloseTo(afterChange(params.stat, params.v, params.b, params.c), 9);
+      if (difficulty === 1) expect(params.b).toBe(1);
+      expect(verdict(slide, slide.answer)).toBe('correct');
+    }
+  });
+
+  it('undoes a shift: the mean before comes back to the mean after, and the spread is kept', () => {
+    type B = { c: number; after: number; spread: number; squared: boolean };
+    for (const { params, slide, seed } of draws<B>('dat-code-shift-back')) {
+      if (slide.kind !== 'tiles') throw new Error('not a tiles slide');
+      const before = num(slide.answer[2]);
+      expect(afterChange('mean', before, 1, params.c), `seed ${seed}`).toBeCloseTo(params.after, 9);
+      const stat: CodeStat = params.squared ? 'variance' : 'sd';
+      expect(afterChange(stat, num(slide.answer[3]), 1, params.c)).toBeCloseTo(params.spread, 9);
+      expect(verdict(slide, slide.answer)).toBe('correct');
+    }
+  });
+});
+
+/** Two values with mean m and standard deviation s. */
+const pairWith = (m: number, s: number) => [m - s, m + s];
+
+describe('y = bx + c', () => {
+  type L = { b: number; c: number; m: number; s: number; ask: 'mean' | 'sd' | 'variance' };
+  const changed = (p: L) => pairWith(p.m, p.s).map((x) => p.b * x + p.c);
+
+  it('types or picks the mean, standard deviation or variance of the changed list', () => {
+    for (const form of ['dat-code-linear', 'dat-code-linear+choice']) {
+      for (const { params, slide, seed } of draws<L>(form)) {
+        const given = slide.kind === 'expression' ? slide.answer : correctLabel(slide);
+        expect(num(given), `${form} seed ${seed}`).toBeCloseTo(statOf(params.ask, changed(params)), 9);
+      }
+    }
+  });
+
+  it('builds b times the mean and the standard deviation, then the mean and variance of y', () => {
+    for (const { params, slide, seed } of draws<L>('dat-code-bxc-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const scaled = pairWith(params.m, params.s).map((x) => params.b * x);
+      const y = changed(params);
+      const expected = [statOf('mean', scaled), statOf('sd', scaled), statOf('mean', y), statOf('variance', y)];
+      slide.answer.forEach((v, i) => expect(num(v), `seed ${seed} node ${i}`).toBeCloseTo(expected[i], 9));
+      expect(verdict(slide, slide.answer)).toBe('correct');
+    }
+  });
+});
+
+/** y = (x - a)/b and back, applied value by value. */
+const code = (a: number, b: number) => (x: number) => (x - a) / b;
+const decode = (a: number, b: number) => (y: number) => a + b * y;
+
+describe('coding and decoding', () => {
+  it('codes each printed value, and averages the coded values', () => {
+    type C = { a: number; b: number; ys: number[] };
+    for (const { params, slide, seed } of draws<C>('dat-code-coded-table')) {
+      if (slide.kind !== 'table') throw new Error('not a table slide');
+      const coded = slide.rows.slice(0, -1).map((row) => code(params.a, params.b)(num(row[0]!)));
+      slide.answer.slice(0, -1).forEach((v, i) => expect(num(v), `seed ${seed}`).toBeCloseTo(coded[i], 9));
+      expect(num(slide.answer[slide.answer.length - 1])).toBeCloseTo(add(coded) / coded.length, 9);
+      expect(verdict(slide, slide.answer)).toBe('correct');
+    }
+  });
+
+  type D = { a: number; b: number; my: number; sy: number; ask: 'mean' | 'sd' | 'variance' };
+  /** A coded list with the stated summary, decoded back into x. */
+  const decoded = (p: D) => pairWith(p.my, p.ask === 'variance' ? Math.sqrt(p.sy) : p.sy).map(decode(p.a, p.b));
+
+  it('decodes the stated coded summary, typed, picked or as tiles', () => {
+    for (const form of ['dat-code-decode', 'dat-code-decode+choice']) {
+      for (const { params, slide, difficulty, seed } of draws<D>(form)) {
+        const given = slide.kind === 'expression' ? slide.answer : correctLabel(slide);
+        expect(num(given), `${form} seed ${seed}`).toBeCloseTo(statOf(params.ask, decoded(params)), 9);
+        if (difficulty === 1) expect(params.ask).toBe('mean');
+      }
+    }
+    for (const { params, slide, seed } of draws<D>('dat-code-decode-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('not a tiles slide');
+      const xs = decoded(params);
+      expect(num(slide.answer[3]), `seed ${seed}`).toBeCloseTo(statOf('mean', xs), 9);
+      expect(num(slide.answer[4]), `seed ${seed}`).toBeCloseTo(statOf(params.ask, xs), 9);
+      expect(verdict(slide, slide.answer)).toBe('correct');
+    }
+  });
+
+  it('codes the printed summary of x forwards', () => {
+    type F = { a: number; b: number; ask: 'mean' | 'sd' | 'variance' };
+    for (const form of ['dat-code-encode', 'dat-code-encode+choice']) {
+      for (const { params, slide, seed } of draws<F>(form)) {
+        const [, mx, sq, s] = /\\bar\{x\} = (-?[\d.]+) \\qquad \\sigma_x(\^2)? = ([\d.]+)/.exec(blockOf(slide, 1).tex!)!;
+        const xs = pairWith(Number(mx), sq ? Math.sqrt(Number(s)) : Number(s));
+        const given = slide.kind === 'expression' ? slide.answer : correctLabel(slide);
+        expect(num(given), `${form} seed ${seed}`).toBeCloseTo(statOf(params.ask, xs.map(code(params.a, params.b))), 9);
+      }
+    }
+  });
+});
+
+describe('variance from coded sums', () => {
+  it('codes each value, squares it, and totals both columns', () => {
+    type T = { a: number; b: number; ys: number[] };
+    for (const { params, slide, difficulty, seed } of draws<T>('dat-code-sums-table')) {
+      if (slide.kind !== 'table') throw new Error('not a table slide');
+      const coded = slide.rows.slice(0, -1).map((row) => code(params.a, params.b)(num(row[0]!)));
+      const sq = (y: number) => Math.abs(y) * Math.abs(y);
+      const expected = [...coded.flatMap((y) => [y, sq(y)]), add(coded), add(coded.map(sq))];
+      expect(slide.answer.map(num), `seed ${seed}`).toEqual(expected);
+      if (difficulty === 1) expect(params.b).toBe(1);
+      else expect(coded.some((y) => y < 0)).toBe(true);
+      expect(verdict(slide, slide.answer)).toBe('correct');
+    }
+  });
+
+  type S = { a: number; b: number; n: number; ask: 'mean' | 'sd' | 'variance' };
+
+  /**
+   * n coded values with the printed sums: n - 2 of them at the coded mean and
+   * two either side of it, far enough out to make up the sum of squares. Then
+   * decoded into x.
+   */
+  function fromSums(params: S, slide: Slide) {
+    const printed = (slide as { prompt: { kind: string; tex?: string; text?: string }[] }).prompt
+      .map((b) => b.tex ?? b.text ?? '')
+      .join(' ');
+    const sy = Number(/\\sum y = (-?[\d.]+)/.exec(printed)![1]);
+    const found = /\\sum y\^2 = ([\d.]+)/.exec(printed);
+    const m = sy / params.n;
+    const syy = found ? Number(found[1]) : params.n * m * m + 2;
+    const d = Math.sqrt((syy - params.n * m * m) / 2);
+    const ys = [...Array(params.n - 2).fill(m), m - d, m + d];
+    expect(add(ys)).toBeCloseTo(sy, 9);
+    expect(add(ys.map((y) => y * y))).toBeCloseTo(syy, 6);
+    return { ys, xs: ys.map(decode(params.a, params.b)) };
+  }
+
+  it('builds the coded mean, the mean square, the coded variance and the variance of x', () => {
+    for (const { params, slide, seed } of draws<S>('dat-code-var-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const { ys, xs } = fromSums(params, slide);
+      const my = add(ys) / ys.length;
+      const expected = [my, add(ys.map((y) => y * y)) / ys.length, my * my, spread(ys), spread(xs)];
+      slide.answer.forEach((v, i) => expect(num(v), `seed ${seed} node ${i}`).toBeCloseTo(expected[i], 6));
+      expect(params.b).not.toBe(1);
+    }
+  });
+
+  it('ends the steps on the mean of the decoded values', () => {
+    for (const { params, slide, difficulty, seed } of draws<S>('dat-code-sums-mean')) {
+      if (slide.kind !== 'steps') throw new Error('not a steps slide');
+      const { xs } = fromSums(params, slide);
+      expect(num(slide.reductions[slide.reductions.length - 1].value), `seed ${seed}`).toBeCloseTo(add(xs) / xs.length, 9);
+      expect(slide.reductions.length).toBe(difficulty === 1 ? 2 : 3);
+      for (const r of slide.reductions) expect(r.bank).toContain(r.value);
+    }
+  });
+
+  it('types or picks the mean, standard deviation or variance of the decoded values', () => {
+    for (const form of ['dat-code-sums', 'dat-code-sums+choice']) {
+      for (const { params, slide, seed } of draws<S>(form)) {
+        const { xs } = fromSums(params, slide);
+        const given = slide.kind === 'expression' ? slide.answer : correctLabel(slide);
+        expect(num(given), `${form} seed ${seed}`).toBeCloseTo(statOf(params.ask, xs), 6);
+      }
+    }
+  });
+});
+
+describe('coding in context', () => {
+  it('converts a list with the stated summary by the printed rule', () => {
+    type V = { m: number; s: number; ask: 'mean' | 'sd' | 'variance' };
+    for (const form of ['dat-code-convert', 'dat-code-convert+choice']) {
+      for (const { params, slide, seed } of draws<V>(form)) {
+        const [, b, c] = /= ([\d.]+)[A-Z](?: \+ (\d+))?$/.exec(blockOf(slide, 1).tex!)!;
+        const xs = pairWith(params.m, params.ask === 'variance' ? Math.sqrt(params.s) : params.s);
+        const expected = statOf(params.ask, xs.map((x) => Number(b) * x + Number(c ?? 0)));
+        const given = slide.kind === 'expression' ? slide.answer : correctLabel(slide);
+        expect(num(given), `${form} seed ${seed}`).toBeCloseTo(expected, 9);
+      }
+    }
+  });
+
+  it('chooses a and b that turn the values into the coded values asked for', () => {
+    type C = { xs: number[]; targets: number[] };
+    for (const { params, slide, seed } of draws<C>('dat-code-choose-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('not a tiles slide');
+      const [a, b] = slide.answer.map(num);
+      expect(inOrder(params.xs).map(code(a, b)), `seed ${seed}`).toEqual(params.targets);
+    }
+  });
+
+  it('decodes both sets before comparing, where the coded numbers point the other way', () => {
+    type P = { a: [number, number]; b: [number, number]; my: [number, number]; sy: [number, number] };
+    const lists = (p: P) => [0, 1].map((i) => pairWith(p.my[i], p.sy[i]).map(decode(p.a[i], p.b[i])));
+    for (const { params, slide, seed } of draws<P>('dat-code-compare-table')) {
+      if (slide.kind !== 'table') throw new Error('not a table slide');
+      const expected = lists(params).flatMap((xs) => [statOf('mean', xs), statOf('sd', xs)]);
+      slide.answer.forEach((v, i) => expect(num(v), `seed ${seed}`).toBeCloseTo(expected[i], 9));
+    }
+    for (const { params, slide, difficulty, seed } of draws<P>('dat-code-compare-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const [nA, nB] = [...blockOf(slide, 2).tex!.matchAll(/\\text\{([^}]+)\}/g)].map((m) => m[1]);
+      const [mA, mB] = lists(params).map((xs) => statOf('mean', xs));
+      const [sA, sB] = lists(params).map((xs) => statOf('sd', xs));
+      expect(slide.answer, `seed ${seed}`).toEqual([mA > mB ? nA : nB, sA < sB ? nA : nB]);
+      // The trap is real: read straight off the coded table, the answer would be wrong.
+      if (difficulty === 1) expect(params.my[0] > params.my[1]).not.toBe(mA > mB);
+      else expect(params.sy[0] < params.sy[1]).not.toBe(sA < sB);
+    }
+  });
+});

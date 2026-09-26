@@ -15,6 +15,10 @@ import { numberProofOrders } from './numberProof';
 import { numberDivisibilityOrders } from './numberDivisibility';
 import { numberEuclidOrders } from './numberEuclid';
 import { numberModularOrders } from './numberModular';
+import { algebraicProofOrders } from './algebraicProof';
+import { numberCongruenceOrders } from './numberCongruence';
+import { numberDivisorsOrders } from './numberDivisors';
+import { numberFermatOrders } from './numberFermat';
 import { coordinateGeometryOrders } from './coordinateGeometry';
 import { sequenceOrders } from './sequencesSeries';
 
@@ -32,6 +36,10 @@ const orderGenerators = [
   ...numberDivisibilityOrders,
   ...numberEuclidOrders,
   ...numberModularOrders,
+  ...algebraicProofOrders,
+  ...numberCongruenceOrders,
+  ...numberDivisorsOrders,
+  ...numberFermatOrders,
   ...coordinateGeometryOrders,
   ...sequenceOrders,
 ] as Generator<unknown>[];

@@ -16,5 +16,15 @@ and which way it misses, step size against error); Choosing a Method (interval b
 halvings a width needs, bisection, iteration and Newton-Raphson side by side,
 speed of convergence, when each breaks on one f, and which to reach for).
 
-Needs: Numerical Differentiation (forward and central differences, and why
-the central one is better).
+Numerical Differentiation (forward, backward and central differences, the
+chord each one is, why the central one is better and how its error falls when
+h is halved, rates from tables of readings, the second difference); and, on
+the Numerical Methods Basics card, Locating Roots Graphically (roots and
+crossings read off graphs, tables of values, zooming in, confirming a root
+with its bounds), The Trapezium Rule in Context (areas, distances and volumes
+from readings, over or under in context, more strips, profiles from a
+formula) and Numerical Methods in Modelling (a story to an equation,
+reporting and rounding, whether an answer makes sense, percentage error,
+choosing a method).
+
+Needs: nothing planned beyond level 10.

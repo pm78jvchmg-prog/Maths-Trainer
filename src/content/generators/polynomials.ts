@@ -49,7 +49,7 @@ import { windowFor } from './numberLine';
 export type Poly = number[];
 
 /** Drops leading zeros, keeping at least the constant. */
-function trim(p: Poly): Poly {
+export function trim(p: Poly): Poly {
   let i = 0;
   while (i < p.length - 1 && p[i] === 0) i += 1;
   return p.slice(i);
@@ -146,30 +146,30 @@ export function polyTex(p: Poly): string {
 }
 
 /** The same with a leading sign always shown, for a piece that follows another. */
-function signedPolyTex(p: Poly): string {
+export function signedPolyTex(p: Poly): string {
   const tex = polyTex(p);
   return tex.startsWith('-') ? `- ${tex.slice(1)}` : `+ ${tex}`;
 }
 
 /** x - 3, x + 2, or x for a root of 0. */
-function linTex(root: number): string {
+export function linTex(root: number): string {
   if (root === 0) return 'x';
   return root > 0 ? `x - ${root}` : `x + ${-root}`;
 }
 
 /** A signed number as a tile or a trailing term: "+ 4", "- 3". */
-function signedNum(n: number): string {
+export function signedNum(n: number): string {
   return n < 0 ? `- ${-n}` : `+ ${n}`;
 }
 
 /** One term as a tile: the first unsigned, the rest with their sign in front. */
-function signedTerm(c: number, k: number, first = false): string {
+export function signedTerm(c: number, k: number, first = false): string {
   if (first) return termTex(c, k);
   return c < 0 ? `- ${termTex(-c, k)}` : `+ ${termTex(c, k)}`;
 }
 
 /** Every non-zero term of p as tiles, in descending order. */
-function termTiles(p: Poly): string[] {
+export function termTiles(p: Poly): string[] {
   const n = degreeOf(p);
   const out: string[] = [];
   p.forEach((c, i) => {
@@ -179,7 +179,7 @@ function termTiles(p: Poly): string[] {
 }
 
 /** A number as a factor in a product, bracketed when negative. */
-function factor(tex: string): string {
+export function factor(tex: string): string {
   return tex.startsWith('-') ? `(${tex})` : tex;
 }
 
@@ -201,7 +201,7 @@ function collect(terms: Term[]): Poly {
   return trim(p);
 }
 
-function chain(...lines: string[]): string {
+export function chain(...lines: string[]): string {
   return `\\begin{aligned} ${lines.join(' \\\\ ')} \\end{aligned}`;
 }
 
@@ -221,7 +221,7 @@ const NAMES = ['Constant', 'Linear', 'Quadratic', 'Cubic', 'Quartic', 'Quintic']
  * distractors that differ from all of them. Sorted, so one question renders
  * one way.
  */
-function fillBank(answer: string[], distractors: string[]): string[] {
+export function fillBank(answer: string[], distractors: string[]): string[] {
   // Compared without spaces, because "- x^{3}" and "-x^{3}" render as the same
   // tile, and one of them being wrong would be a trick rather than a question.
   const bare = (token: string) => token.replace(/\s+/g, '');
@@ -240,7 +240,7 @@ function fillBank(answer: string[], distractors: string[]): string[] {
  * numbers collide with its answers far more often than they look like they
  * will, and a tree needs two left over.
  */
-function numberBank(answer: number[], slips: number[], show: (n: number) => string = String, spare = 3): string[] {
+export function numberBank(answer: number[], slips: number[], show: (n: number) => string = String, spare = 3): string[] {
   const shown = answer.map(show);
   const needed = new Set(shown);
   const extras: string[] = [];
@@ -257,7 +257,7 @@ function numberBank(answer: number[], slips: number[], show: (n: number) => stri
 }
 
 /** Numbers near a value, for topping up a bank whose slips collided. */
-function near(value: number, count: number): number[] {
+export function near(value: number, count: number): number[] {
   const out: number[] = [];
   for (let gap = 1; out.length < count; gap += 1) out.push(value + gap, value - gap);
   return out.slice(0, count);
@@ -267,13 +267,13 @@ function near(value: number, count: number): number[] {
  * A steps bank: the value and its slips, de-duplicated and scattered by hash
  * rather than shuffled, so the same question renders one way.
  */
-function stepBank(value: string, ...slips: string[]): string[] {
+export function stepBank(value: string, ...slips: string[]): string[] {
   const out = [...new Set([value, ...slips])];
   return out.sort((a, b) => hashSeed(a) - hashSeed(b));
 }
 
 /** Six distinct whole values for a reduce node, the right one among them. */
-function numBank(correct: number, slips: number[]): string[] {
+export function numBank(correct: number, slips: number[]): string[] {
   const seen = new Set([correct]);
   const out = [correct];
   for (const value of [...slips, ...near(correct, 10)]) {
@@ -289,7 +289,7 @@ function numBank(correct: number, slips: number[]): string[] {
  * Four whole-number options: the answer and the first three slips that are
  * whole, allowed and distinct, topped up with near numbers.
  */
-function intOptions(correct: number, slips: number[], min = -Infinity): ChoiceOption[] {
+export function intOptions(correct: number, slips: number[], min = -Infinity): ChoiceOption[] {
   const seen = new Set([correct]);
   const picked: number[] = [];
   for (const value of [...slips, ...near(correct, 12)]) {
@@ -308,7 +308,7 @@ function intOptions(correct: number, slips: number[], min = -Infinity): ChoiceOp
  * A native choice slide, the options turned by a hash of their labels so the
  * answer is not always first yet one question renders one way.
  */
-function choiceSlide(prompt: Block[], opts: ChoiceOption[]): Slide {
+export function choiceSlide(prompt: Block[], opts: ChoiceOption[]): Slide {
   const turn = hashSeed(opts.map((o) => o.tex).join('|')) % opts.length;
   const ordered = [...opts.slice(turn), ...opts.slice(0, turn)];
   return {
@@ -320,19 +320,19 @@ function choiceSlide(prompt: Block[], opts: ChoiceOption[]): Slide {
 }
 
 /** Flow branches turned by a hash of `key`, so the right one is not always first. */
-function turned<T>(items: T[], key: string): T[] {
+export function turned<T>(items: T[], key: string): T[] {
   const turn = hashSeed(key) % items.length;
   return [...items.slice(turn), ...items.slice(0, turn)];
 }
 
 /* ---------- sampling ---------- */
 
-function nonZero(rng: Rng, max: number): number {
+export function nonZero(rng: Rng, max: number): number {
   return rng.int(1, max) * rng.sign();
 }
 
 /** `count` whole roots in [-max, max], none zero, distinct unless `repeats`. */
-function sampleRoots(rng: Rng, count: number, max: number, repeats = false): number[] {
+export function sampleRoots(rng: Rng, count: number, max: number, repeats = false): number[] {
   for (;;) {
     const roots = Array.from({ length: count }, () => nonZero(rng, max));
     if (repeats || new Set(roots).size === count) return roots;
@@ -760,7 +760,7 @@ const polyAddTiles: Generator<AddParams> = {
 };
 
 /** A polynomial for the grader. Never displayed. */
-function polyAnswer(p: Poly): string {
+export function polyAnswer(p: Poly): string {
   const n = degreeOf(p);
   const terms = p.map((c, i) => (c === 0 ? '' : `(${c})*x^(${n - i})`)).filter(Boolean);
   return terms.length === 0 ? '0' : terms.join(' + ');
@@ -3021,7 +3021,7 @@ function graphSvg(p: Poly, roots: number[], label: string): string {
 const diagram = (svg: string): Block => ({ kind: 'diagram', svg });
 
 /** A choice between descriptions in words, which are plain text rather than TeX. */
-function wordChoice(prompt: Block[], labels: string[], correct: number): Slide {
+export function wordChoice(prompt: Block[], labels: string[], correct: number): Slide {
   return {
     kind: 'choice',
     prompt,
@@ -3031,7 +3031,7 @@ function wordChoice(prompt: Block[], labels: string[], correct: number): Slide {
 }
 
 /** The same with its options turned by a hash of their labels, for a set that changes per question. */
-function turnedWordChoice(prompt: Block[], right: string, wrong: string[]): Slide {
+export function turnedWordChoice(prompt: Block[], right: string, wrong: string[]): Slide {
   const labels = [right, ...wrong.filter((label, i) => label !== right && wrong.indexOf(label) === i)].slice(0, 4);
   const ordered = turned(labels, labels.join('|'));
   return wordChoice(prompt, ordered, ordered.indexOf(right));
@@ -4349,7 +4349,7 @@ const polyDescribeGraph: Generator<DescribeParams> = {
  * ================================================================ */
 
 /** The sums of the roots taken one, two and three at a time: [Σα, Σαβ, αβγ]. */
-function rootSums(roots: number[]): number[] {
+export function rootSums(roots: number[]): number[] {
   let sums = [1];
   for (const r of roots) {
     sums = [...sums, 0].map((s, k) => s + (k > 0 ? r * sums[k - 1] : 0));
@@ -4358,31 +4358,31 @@ function rootSums(roots: number[]): number[] {
 }
 
 /** A leading coefficient: 1 at difficulty 1, and at difficulty 2 one that has to be divided by. */
-function sampleLead(rng: Rng, hard: boolean): number {
+export function sampleLead(rng: Rng, hard: boolean): number {
   return hard ? rng.pick([2, -2, 3, -3, -1]) : 1;
 }
 
 /** Every coefficient within `limit`, so the cubic reads comfortably. */
-const fits = (p: Poly, limit: number): boolean => p.every((c) => Math.abs(c) <= limit);
+export const fits = (p: Poly, limit: number): boolean => p.every((c) => Math.abs(c) <= limit);
 
 /** A coefficient in front of a letter or a bracket: 1 is left off and -1 is a bare minus. */
-function coefMark(k: number): string {
+export function coefMark(k: number): string {
   if (k === 1) return '';
   if (k === -1) return '-';
   return String(k);
 }
 
 /** The fraction `fracTex` shows, for the grader. Never displayed. */
-const fracAnswer = (n: number, d: number): string => `(${n})/(${d})`;
+export const fracAnswer = (n: number, d: number): string => `(${n})/(${d})`;
 
 /** c/a as a line of working: just c when a is 1, with a minus in front when asked. */
-function overLead(c: number, a: number, minus: boolean): string {
+export function overLead(c: number, a: number, minus: boolean): string {
   if (a === 1) return minus ? `-(${c})` : String(c);
   return `${minus ? '-' : ''}\\frac{${c}}{${a}}`;
 }
 
 /** Roots as a list the learner reads: "-2, 1 and 3". */
-function rootList(roots: number[]): string {
+export function rootList(roots: number[]): string {
   const sorted = [...roots].sort((x, y) => x - y);
   return `$${sorted.slice(0, -1).join(', ')}$ and $${sorted[sorted.length - 1]}$`;
 }

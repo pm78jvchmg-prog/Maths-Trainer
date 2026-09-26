@@ -25,6 +25,10 @@
  */
 import type { Block, Course, SlideRef } from '../types';
 import { plotSvg } from '../figures';
+import { rootsOfQuartics } from './polynomials/level8';
+import { transformingRoots } from './polynomials/level9';
+import { conjugateRoots } from './polynomials/level10';
+import { powerSums } from './polynomials/level11';
 
 const teach = (...body: Block[]): SlideRef => ({ type: 'literal', slide: { kind: 'teach', body } });
 
@@ -1499,5 +1503,9 @@ export const polynomials: Course = {
         ask('poly-model-which', 2),
       ],
     },
+    rootsOfQuartics,
+    transformingRoots,
+    conjugateRoots,
+    powerSums,
   ],
 };

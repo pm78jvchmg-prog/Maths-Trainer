@@ -23,6 +23,7 @@ import { MASTERED_AT, courseMastery, masteryPercent, playables } from './store/m
 import { levelCheckLesson } from './content/types';
 import { recallScroll, rememberScroll } from './store/scrollMemory';
 import { useHidingBar } from './ui/hidingBar';
+import { paintFoot } from './ui/footColour';
 import type { Course, Lesson } from './content/types';
 
 /**
@@ -109,6 +110,20 @@ function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
     if (list.current) list.current.scrollTop = recallScroll('home');
   }, []);
 
+  // The strip iOS paints below the window follows the colour at the foot of
+  // the list, so it reads as more of the list rather than a band under it.
+  useLayoutEffect(() => {
+    const el = list.current;
+    if (!el) return;
+    const paint = () => paintFoot(el);
+    paint();
+    window.addEventListener('resize', paint);
+    return () => {
+      window.removeEventListener('resize', paint);
+      document.body.style.backgroundColor = '';
+    };
+  }, []);
+
   return (
     <div className="app app-wide">
       <div
@@ -116,6 +131,7 @@ function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
         ref={list}
         onScroll={(event) => {
           rememberScroll('home', event.currentTarget.scrollTop);
+          paintFoot(event.currentTarget);
           bar.onScroll(event);
         }}
       >

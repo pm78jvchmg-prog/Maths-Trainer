@@ -70,10 +70,10 @@ export const NEW_COURSES: NewCourse[] = [
   {
     id: 'differential-equations-basics',
     title: 'Differential Equations Basics',
-    blurb: 'Separating the variables, then growth, decay, cooling and mixing.',
+    blurb: 'Separating the variables, families of solutions and direction fields, then models of growth, cooling, money and medicine.',
     category: 'advanced-algebra',
     position: 32,
-    levels: ['de-l1', 'de-l2'],
+    levels: ['de-l1', 'de-l2', 'de-l8', 'de-l9', 'de-l10'],
   },
   {
     id: 'numerical-methods-basics',

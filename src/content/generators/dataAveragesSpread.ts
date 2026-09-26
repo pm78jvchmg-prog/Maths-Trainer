@@ -14,7 +14,11 @@
  * running totals down a grouped table, the curve through the upper
  * boundaries (drawn by `cumulativeSvg`), readings off it, the median and
  * quartiles at n/4, n/2 and 3n/4, percentiles at pn/100, and the same
- * readings by interpolating inside a class.
+ * readings by interpolating inside a class. Level 5 is coding data: what
+ * x -> bx + c does to each average and spread (`movedStat`), coding with
+ * y = (x - a)/b and decoding back, the mean and variance of x from coded
+ * sums (`sampleSums` draws the coded mean and variance first, so every sum
+ * and answer is exact), and coding in context.
  *
  * Level 3 draws its own pictures: `boxPlotSvg` and `histogramSvg` below, since
  * `plotSvg` has curves and marks but no boxes or bars. No tappable box or
@@ -5466,6 +5470,1353 @@ const interpValue: Generator<InterpParams> = {
   solution: (params) => interpolationSolution(params, params.pct),
 };
 
+/* ================================================================
+ * Level 5: coding data
+ * ================================================================ */
+
+/**
+ * The statistics a change of every value can act on. An average (mean,
+ * median, mode) moves with the data; a spread (range, IQR, standard
+ * deviation, variance) is left alone by adding and stretched by multiplying,
+ * the variance by the square.
+ */
+export type CodeStat = 'mean' | 'median' | 'mode' | 'range' | 'iqr' | 'sd' | 'variance';
+
+const CODE_STATS: Record<CodeStat, { word: string; short: string; average: boolean }> = {
+  mean: { word: 'mean', short: 'Mean', average: true },
+  median: { word: 'median', short: 'Median', average: true },
+  mode: { word: 'mode', short: 'Mode', average: true },
+  range: { word: 'range', short: 'Range', average: false },
+  iqr: { word: 'interquartile range', short: 'IQR', average: false },
+  sd: { word: 'standard deviation', short: 'SD', average: false },
+  variance: { word: 'variance', short: 'Variance', average: false },
+};
+
+const ALL_STATS: CodeStat[] = ['mean', 'median', 'mode', 'range', 'iqr', 'sd', 'variance'];
+
+/** "a mean", "an interquartile range". */
+const article = (word: string): string => (/^[aeiou]/.test(word) ? `an ${word}` : `a ${word}`);
+
+/** A statistic once every value x has become bx + c, with b > 0. */
+export function movedStat(stat: CodeStat, v: number, b: number, c: number): number {
+  if (CODE_STATS[stat].average) return b * v + c;
+  return stat === 'variance' ? b * b * v : b * v;
+}
+
+/** The change in words, as one sentence. */
+function changeSentence(b: number, c: number, past = false): string {
+  const is = past ? 'was' : 'is';
+  if (b === 1) return `Every value ${is} ${c > 0 ? 'increased' : 'decreased'} by $${fmt(Math.abs(c))}$.`;
+  if (c === 0) return `Every value ${is} multiplied by $${fmt(b)}$.`;
+  return `Every value ${is} multiplied by $${fmt(b)}$, and then $${fmt(Math.abs(c))}$ ${c > 0 ? `${is} added` : `${is} taken off`}.`;
+}
+
+/** `3x + 5`, `x - 4`, `0.5x`: the change as the right-hand side of a rule. */
+function linTex(b: number, c: number, v = 'x'): string {
+  const bx = b === 1 ? v : `${fmt(b)}${v}`;
+  return c === 0 ? bx : `${bx} ${c > 0 ? '+' : '-'} ${fmt(Math.abs(c))}`;
+}
+
+/**
+ * A statistic after the change, as the left-hand side of a line of working:
+ * the same symbols the teaching uses, σ for the standard deviation and σ²
+ * for the variance, and words for the rest.
+ */
+function newStatTex(stat: CodeStat): string {
+  if (stat === 'sd') return '\\text{new } \\sigma';
+  if (stat === 'variance') return '\\text{new } \\sigma^2';
+  return `\\text{new ${stat === 'iqr' ? CODE_STATS[stat].short : CODE_STATS[stat].word}}`;
+}
+
+/** The working for one statistic after the change, with the reason. */
+function moveSolution(stat: CodeStat, v: number, b: number, c: number): SolutionStep[] {
+  const { word, average } = CODE_STATS[stat];
+  const after = fmt(movedStat(stat, v, b, c));
+  const sign = c > 0 ? '+' : '-';
+  const lhs = newStatTex(stat);
+  if (average) {
+    const scaled = b === 1 ? fmt(v) : `${fmt(b)} \\times ${fmt(v)}`;
+    return [
+      { text: `The ${word} is an average, so it goes wherever the values go.` },
+      { tex: c === 0 ? `${lhs} = ${scaled} = ${after}` : `${lhs} = ${scaled} ${sign} ${fmt(Math.abs(c))} = ${after}` },
+    ];
+  }
+  const steps: SolutionStep[] = [];
+  if (c !== 0) steps.push({ text: `The ${word} measures spread. ${b === 1 ? 'Adding or taking off' : 'The adding or taking off'} the same amount moves every value together, so no gap changes.` });
+  if (b === 1) {
+    steps.push({ tex: `${lhs} = ${fmt(v)}` });
+    return steps;
+  }
+  if (stat === 'variance') {
+    steps.push(
+      { text: `Multiplying by $${fmt(b)}$ stretches every gap, and the variance is in squared units, so it is multiplied by $${fmt(b)}^2$.` },
+      { tex: `${lhs} = ${fmt(b)}^2 \\times ${fmt(v)} = ${fmt(b * b)} \\times ${fmt(v)} = ${after}` },
+    );
+    return steps;
+  }
+  steps.push(
+    { text: `Multiplying by $${fmt(b)}$ stretches every gap by $${fmt(b)}$.` },
+    { tex: `${lhs} = ${fmt(b)} \\times ${fmt(v)} = ${after}` },
+  );
+  return steps;
+}
+
+/** The usual slips for one statistic under x -> bx + c, most tempting first. */
+function moveSlips(stat: CodeStat, v: number, b: number, c: number): number[] {
+  if (CODE_STATS[stat].average) return [v, b * v, v + c, b * v - c, v - c, b * (v + c)];
+  if (stat === 'variance') return [b * v, b * v + c, v + c, v, b * b * v + c];
+  return [b * v + c, v + c, b * b * v, v, v - c, v + b];
+}
+
+/** Things a set of data can be. Prose only, in the plural, so "have" follows. */
+const CODE_CONTEXTS = [
+  'The heights of some plants',
+  'The times some runners took',
+  'The masses of some parcels',
+  'The scores in a quiz',
+  'The lengths of some fish',
+  'The prices of some books',
+  'The daily sales at a café',
+  'The temperatures one week',
+];
+
+/** A whole number or one decimal place, from `lo` to `hi`. */
+const oneDp = (rng: Rng, lo: number, hi: number): number => rng.int(lo * 10, hi * 10) / 10;
+
+/** A value for a statistic that will read sensibly: averages larger than spreads. */
+function statValue(rng: Rng, stat: CodeStat, decimals: boolean): number {
+  switch (stat) {
+    case 'mean':
+    case 'median':
+      return decimals ? oneDp(rng, 20, 80) : rng.int(20, 80);
+    case 'mode':
+      return rng.int(20, 80);
+    case 'range':
+      return rng.int(8, 45);
+    case 'iqr':
+      return rng.int(4, 25);
+    case 'sd':
+      return decimals ? oneDp(rng, 1.2, 9.8) : rng.int(2, 12);
+    case 'variance':
+      return rng.int(4, 90);
+  }
+}
+
+interface MoveAskParams {
+  context: number;
+  b: number;
+  c: number;
+  /** Two statistics the prompt gives: an average and a spread. */
+  stats: [CodeStat, CodeStat];
+  values: [number, number];
+  /** Which of the two is asked for after the change. */
+  ask: 0 | 1;
+}
+
+/** Two given statistics, one asked for after the change, as a typed answer. */
+function moveAsk(id: string, sample: (rng: Rng, difficulty: number) => MoveAskParams): Generator<MoveAskParams> {
+  return {
+    id,
+    sample,
+    render: ({ context, b, c, stats, values, ask }): Slide => {
+      const [s0, s1] = stats;
+      const w = CODE_STATS[stats[ask]];
+      return {
+        kind: 'expression',
+        prompt: [
+          say(
+            `${CODE_CONTEXTS[context]} have ${article(CODE_STATS[s0].word)} of $${fmt(values[0])}$ and ${article(CODE_STATS[s1].word)} of $${fmt(values[1])}$. ${changeSentence(b, c)} Find the new ${w.word}.`,
+          ),
+        ],
+        lead: `${newStatTex(stats[ask])} =`,
+        keypad: NUMBER_KEYS,
+        answer: fmt(movedStat(stats[ask], values[ask], b, c)),
+        domain: 'real',
+        mode: 'exact',
+      };
+    },
+    solution: ({ b, c, stats, values, ask }) => moveSolution(stats[ask], values[ask], b, c),
+    choices: ({ b, c, stats, values, ask }) => {
+      const stat = stats[ask];
+      const v = values[ask];
+      const right = movedStat(stat, v, b, c);
+      const slips = moveSlips(stat, v, b, c).filter((x) => x > 0);
+      return valueChoices(right, slips, mix(b * 10, c, v * 10, ask), 1);
+    },
+  };
+}
+
+/** The pairs a prompt may give, an average with a spread. */
+const PAIRS: [CodeStat, CodeStat][] = [
+  ['mean', 'sd'],
+  ['median', 'iqr'],
+  ['mean', 'variance'],
+  ['mode', 'range'],
+  ['median', 'range'],
+];
+
+function sampleStatPair(rng: Rng, pairs: [CodeStat, CodeStat][], decimals: boolean) {
+  const stats = rng.pick(pairs);
+  const values: [number, number] = [statValue(rng, stats[0], decimals), statValue(rng, stats[1], decimals)];
+  return { stats, values, ask: rng.pick<0 | 1>([0, 1]) };
+}
+
+/**
+ * Every value shifted by a constant: a mean or standard deviation after an
+ * increase at difficulty 1; at 2 a decrease, over any average and spread.
+ */
+const codeShift = moveAsk('dat-code-shift', (rng, difficulty) => {
+  const hard = difficulty > 1;
+  const c = hard ? -rng.int(2, 15) : rng.int(2, 20);
+  const { stats, values, ask } = sampleStatPair(rng, hard ? PAIRS : [['mean', 'sd']], true);
+  return { context: rng.int(0, CODE_CONTEXTS.length - 1), b: 1, c, stats, values, ask };
+});
+
+/**
+ * Every value multiplied by a constant: a whole multiplier over a mean,
+ * median, range or standard deviation at difficulty 1; at 2 a multiplier
+ * that may be a half, over pairs that take in the variance and the IQR.
+ */
+const codeScale = moveAsk('dat-code-scale', (rng, difficulty) => {
+  const hard = difficulty > 1;
+  for (;;) {
+    const b = rng.pick(hard ? [0.5, 1.5, 2.5, 3, 4, 10] : [2, 3, 4, 5, 10]);
+    const { stats, values, ask } = sampleStatPair(
+      rng,
+      hard
+        ? [
+            ['mean', 'variance'],
+            ['median', 'iqr'],
+            ['mean', 'sd'],
+          ]
+        : [
+            ['mean', 'sd'],
+            ['median', 'range'],
+          ],
+      true,
+    );
+    if (!exact(movedStat(stats[ask], values[ask], b, 0), 2)) continue;
+    return { context: rng.int(0, CODE_CONTEXTS.length - 1), b, c: 0, stats, values, ask };
+  }
+});
+
+interface MoveTableParams {
+  b: number;
+  c: number;
+  stats: CodeStat[];
+  values: number[];
+}
+
+/** Four statistics before a change, and the learner fills in each after it. */
+function moveTable(id: string, sample: (rng: Rng, difficulty: number) => MoveTableParams): Generator<MoveTableParams> {
+  return {
+    id,
+    sample: (rng, difficulty) => {
+      for (;;) {
+        const p = sample(rng, difficulty);
+        const after = p.stats.map((s, i) => movedStat(s, p.values[i], p.b, p.c));
+        if (!after.every((a) => exact(a, 2))) continue;
+        if (new Set(after.map(fmt)).size !== after.length) continue;
+        return p;
+      }
+    },
+    render: ({ b, c, stats, values }): Slide => {
+      const after = stats.map((s, i) => movedStat(s, values[i], b, c));
+      const slips = tidy(stats.flatMap((s, i) => moveSlips(s, values[i], b, c).slice(0, 2)).filter((x) => x > 0));
+      return {
+        kind: 'table',
+        prompt: [say(`${changeSentence(b, c)} Fill in each statistic after the change.`)],
+        columns: ['', '\\text{Before}', '\\text{After}'],
+        rows: stats.map((s, i) => [`\\text{${CODE_STATS[s].short}}`, fmt(values[i]), null]),
+        bank: valueBank(after, slips, 3),
+        answer: after.map(fmt),
+      };
+    },
+    solution: ({ b, c, stats, values }) => {
+      const averages = stats.filter((s) => CODE_STATS[s].average).map((s) => CODE_STATS[s].word);
+      const spreads = stats.filter((s) => !CODE_STATS[s].average).map((s) => CODE_STATS[s].word);
+      const lines = stats.map((s, i) => {
+        const v = values[i];
+        const after = fmt(movedStat(s, v, b, c));
+        const head = `\\text{${CODE_STATS[s].short}}`;
+        if (CODE_STATS[s].average) {
+          const scaled = b === 1 ? fmt(v) : `${fmt(b)} \\times ${fmt(v)}`;
+          return `${head} &= ${c === 0 ? scaled : `${scaled} ${c > 0 ? '+' : '-'} ${fmt(Math.abs(c))}`} = ${after}`;
+        }
+        if (b === 1) return `${head} &= ${after}`;
+        return `${head} &= ${s === 'variance' ? `${fmt(b)}^2` : fmt(b)} \\times ${fmt(v)} = ${after}`;
+      });
+      return [
+        {
+          text:
+            b === 1
+              ? `The ${averages.join(' and ')} move with the values. The ${spreads.join(' and ')} measure gaps, which do not change.`
+              : `Multiplying stretches everything: the ${averages.join(' and ')}, and the gaps too.${stats.includes('variance') ? ' The variance is in squared units, so it goes up by the square.' : ''}`,
+        },
+        { tex: aligned(...lines) },
+      ];
+    },
+  };
+}
+
+/**
+ * Four statistics before and after adding a constant: an increase over the
+ * mean, median, range and standard deviation at difficulty 1, a decrease
+ * over the mean, mode, IQR and variance at 2.
+ */
+const codeShiftTable = moveTable('dat-code-shift-table', (rng, difficulty) => {
+  const hard = difficulty > 1;
+  const stats: CodeStat[] = hard ? ['mean', 'mode', 'iqr', 'variance'] : ['mean', 'median', 'range', 'sd'];
+  return {
+    b: 1,
+    c: hard ? -rng.int(2, 15) : rng.int(2, 20),
+    stats,
+    values: stats.map((s) => statValue(rng, s, true)),
+  };
+});
+
+/**
+ * Four statistics before and after multiplying: a whole multiplier at
+ * difficulty 1, and at 2 one that may be a half, with the variance asked.
+ */
+const codeScaleTable = moveTable('dat-code-scale-table', (rng, difficulty) => {
+  const hard = difficulty > 1;
+  const stats: CodeStat[] = hard ? ['mean', 'iqr', 'sd', 'variance'] : ['mean', 'median', 'range', 'sd'];
+  return {
+    b: rng.pick(hard ? [0.5, 1.5, 2, 3] : [2, 3, 4, 5, 10]),
+    c: 0,
+    stats,
+    values: stats.map((s) => statValue(rng, s, !hard || s === 'mean')),
+  };
+});
+
+interface ShiftBackParams {
+  c: number;
+  /** The mean after the change. */
+  after: number;
+  /** The spread, which the change did not touch. */
+  spread: number;
+  squared: boolean;
+}
+
+/**
+ * Undoing a shift: the mean and a spread after every value was moved, and
+ * the learner fills in both from before. An increase and the standard
+ * deviation at difficulty 1; a decrease and the variance at 2.
+ */
+const codeShiftBack: Generator<ShiftBackParams> = {
+  id: 'dat-code-shift-back',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const c = hard ? -rng.int(2, 15) : rng.int(2, 20);
+    return { c, after: oneDp(rng, 25, 90), spread: hard ? rng.int(4, 90) : oneDp(rng, 1.2, 9.8), squared: hard };
+  },
+  render: ({ c, after, spread, squared }): Slide => {
+    const before = after - c;
+    const k = Math.abs(c);
+    const sym = squared ? '\\sigma^2' : '\\sigma';
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(
+          `${changeSentence(1, c, true)} Afterwards the mean is $${fmt(after)}$ and the ${squared ? 'variance' : 'standard deviation'} is $${fmt(spread)}$. Fill in both from before the change.`,
+        ),
+      ],
+      template: `\\bar{x} = {0} ${c > 0 ? '-' : '+'} {1} = {2} \\qquad ${sym} = {3}`,
+      bank: valueBank([after, k, before, spread], [after + c, spread - k, spread + k, before - c]),
+      answer: [fmt(after), fmt(k), fmt(before), fmt(spread)],
+    };
+  },
+  solution: ({ c, after, spread, squared }) => [
+    { text: `The change ${c > 0 ? 'added' : 'took off'} $${Math.abs(c)}$, so undo it for the mean: ${c > 0 ? 'take it off' : 'add it back'}.` },
+    { tex: `\\bar{x} = ${fmt(after)} ${c > 0 ? '-' : '+'} ${Math.abs(c)} = ${fmt(after - c)}` },
+    { text: `The ${squared ? 'variance' : 'standard deviation'} was never changed, since moving every value together leaves every gap alone: it is still $${fmt(spread)}$.` },
+  ],
+};
+
+interface EffectParams {
+  b: number;
+  c: number;
+  stat: CodeStat;
+  v: number;
+}
+
+/** Three values to choose between for the new statistic, the answer among them. */
+function effectValues({ b, c, stat, v }: EffectParams): number[] {
+  const right = movedStat(stat, v, b, c);
+  const out: number[] = [right];
+  for (const x of [...moveSlips(stat, v, b, c), right + 1, right + 2]) {
+    if (out.length === 3) break;
+    if (x > 0 && exact(x, 2) && !out.some((y) => fmt(y) === fmt(x))) out.push(x);
+  }
+  return out;
+}
+
+/**
+ * Whether a statistic is an average or a spread, then what it becomes: a
+ * shift at difficulty 1, and at 2 a multiplier, with or without a shift.
+ */
+const codeEffectFlow: Generator<EffectParams> = {
+  id: 'dat-code-effect-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const stat = rng.pick(ALL_STATS);
+      const b = hard ? rng.pick([2, 3, 4, 5, 10, 0.5]) : 1;
+      const c = hard && rng.chance(0.3) ? 0 : rng.int(2, 20) * (hard ? 1 : rng.sign());
+      const v = statValue(rng, stat, !hard);
+      const p = { b, c, stat, v };
+      if (!exact(movedStat(stat, v, b, c), 2) || movedStat(stat, v, b, c) <= 0) continue;
+      return p;
+    }
+  },
+  render: (params): Slide => {
+    const { b, c, stat, v } = params;
+    const { word, average } = CODE_STATS[stat];
+    const key = `${b}|${c}|${stat}|${v}`;
+    const values = rotated(effectValues(params), `${key}v`);
+    const pickValue = (id: string, ask: string) => ({
+      id,
+      ask,
+      branches: values.map((x) => ({ label: `$${fmt(x)}$`, outcome: `The new ${word} is $${fmt(x)}$.` })),
+    });
+    return {
+      kind: 'flow',
+      prompt: [say(`The ${word} of a set of data is $${fmt(v)}$. ${changeSentence(b, c)}`)],
+      subject: `x \\to ${linTex(b, c)}`,
+      steps: [
+        {
+          id: 'kind',
+          ask: `Is the ${word} an average or a measure of spread?`,
+          branches: rotated(
+            [
+              { label: 'An average', to: 'avg' },
+              { label: 'A spread', to: 'spr' },
+            ],
+            `${key}k`,
+          ),
+        },
+        pickValue('avg', `An average goes wherever the values go. What is the new ${word}?`),
+        pickValue('spr', `A spread measures gaps between values. What is the new ${word}?`),
+      ],
+      answer: [average ? 'An average' : 'A spread', `$${fmt(movedStat(stat, v, b, c))}$`],
+    };
+  },
+  solution: ({ b, c, stat, v }) => moveSolution(stat, v, b, c),
+};
+
+interface LinearParams {
+  context: number;
+  b: number;
+  c: number;
+  m: number;
+  s: number;
+  ask: 'mean' | 'sd' | 'variance';
+}
+
+const LINEAR_LEAD = { mean: '\\bar{y} =', sd: '\\sigma_y =', variance: '\\sigma_y^2 =' };
+const LINEAR_WORD = { mean: 'the mean', sd: 'the standard deviation', variance: 'the variance' };
+
+/** Values x with a mean and standard deviation, changed by y = bx + c. */
+function sampleLinear(rng: Rng, difficulty: number, asks: LinearParams['ask'][]): LinearParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const b = rng.pick(hard ? [0.5, 1.5, 2.5, 3, 4, 10] : [2, 3, 4, 5]);
+    const c = rng.int(1, 20) * (hard ? rng.sign() : 1);
+    const m = hard ? oneDp(rng, 5, 40) : rng.int(5, 40);
+    const s = hard ? oneDp(rng, 1.2, 8) : rng.int(2, 9);
+    const ask = rng.pick(asks);
+    const p = { context: rng.int(0, CODE_CONTEXTS.length - 1), b, c, m, s, ask };
+    const out = linearAnswer(p);
+    if (!exact(out, 2) || b * m + c <= 0) continue;
+    return p;
+  }
+}
+
+function linearAnswer({ b, c, m, s, ask }: LinearParams): number {
+  return ask === 'mean' ? b * m + c : ask === 'sd' ? b * s : (b * s) ** 2;
+}
+
+const linearPrompt = ({ b, c, m, s }: LinearParams, ask: string): Block[] => [
+  say(`Values of $x$ have a mean of $${fmt(m)}$ and a standard deviation of $${fmt(s)}$. Each one is changed to`),
+  show(`y = ${linTex(b, c)}`),
+  say(ask),
+];
+
+function linearSolution({ b, c, m, s }: LinearParams): SolutionStep[] {
+  const cTex = `${c > 0 ? '+' : '-'} ${fmt(Math.abs(c))}`;
+  return [
+    { text: 'The multiplying acts on the mean and on every gap; the adding only moves the mean.' },
+    {
+      tex: aligned(
+        `\\bar{y} &= ${fmt(b)} \\times ${fmt(m)} ${cTex} = ${fmt(b * m + c)}`,
+        `\\sigma_y &= ${fmt(b)} \\times ${fmt(s)} = ${fmt(b * s)}`,
+        `\\sigma_y^2 &= ${fmt(b * s)}^2 = ${fmt((b * s) ** 2)}`,
+      ),
+    },
+  ];
+}
+
+/**
+ * y = bx + c from the mean and standard deviation of x: the mean or the
+ * standard deviation of y with a whole b at difficulty 1; at 2 b may be a
+ * half, c may be taken off, and the variance is asked too.
+ */
+const codeLinear: Generator<LinearParams> = {
+  id: 'dat-code-linear',
+  sample: (rng, difficulty) => sampleLinear(rng, difficulty, difficulty > 1 ? ['mean', 'sd', 'variance'] : ['mean', 'sd']),
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: linearPrompt(p, `Find ${LINEAR_WORD[p.ask]} of $y$.`),
+    lead: LINEAR_LEAD[p.ask],
+    keypad: NUMBER_KEYS,
+    answer: fmt(linearAnswer(p)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: linearSolution,
+  choices: (p) => {
+    const { b, c, m, s, ask } = p;
+    const slips =
+      ask === 'mean' ? [b * m, m + c, b * (m + c)] : ask === 'sd' ? [b * s + c, s, b * b * s] : [b * s * s, b * s, (b * s) ** 2 + c];
+    return valueChoices(linearAnswer(p), slips.filter((x) => x > 0), mix(b * 10, c, m * 10, s * 10), 1);
+  },
+};
+
+/**
+ * y = bx + c as a tree: b times the mean and b times the standard deviation,
+ * then the new mean and the new variance.
+ */
+const codeLinearTree: Generator<LinearParams> = {
+  id: 'dat-code-bxc-tree',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const p = sampleLinear(rng, difficulty, ['variance']);
+      const answer = [p.b * p.m, p.b * p.s, p.b * p.m + p.c, (p.b * p.s) ** 2];
+      if (new Set(answer.map(fmt)).size === 4 && answer.every((x) => exact(x, 2))) return p;
+    }
+  },
+  render: (p): Slide => {
+    const { b, c, m, s } = p;
+    const answer = [b * m, b * s, b * m + c, (b * s) ** 2];
+    const slips = [m + c, b * m - c, b * s + c, b * s * s, b * b * s, s * s];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `Values of $x$ have $\\bar{x} = ${fmt(m)}$ and $\\sigma_x = ${fmt(s)}$. Find the mean and the variance of $y$. Top row: $${fmt(b)} \\times \\bar{x}$, then $${fmt(b)} \\times \\sigma_x$. Underneath: $\\bar{y}$, then $\\sigma_y^2$.`,
+        ),
+      ],
+      expression: `y = ${linTex(b, c)}`,
+      nodes: [
+        { id: 'bm', from: [] },
+        { id: 'bs', from: [] },
+        { id: 'ym', from: ['bm'] },
+        { id: 'yv', from: ['bs'] },
+      ],
+      bank: valueBank(answer, tidy(slips.filter((x) => x > 0))),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: linearSolution,
+};
+
+/* ---------- coding and decoding ---------- */
+
+/** y = (x - a)/b as the learner reads it, or y = x - a when b is 1. */
+function codingTex(a: number, b: number): string {
+  return b === 1 ? `y = x - ${fmt(a)}` : `y = \\frac{x - ${fmt(a)}}{${fmt(b)}}`;
+}
+
+interface CodedTableParams {
+  a: number;
+  b: number;
+  ys: number[];
+}
+
+/**
+ * Coding a short list: each value's coded value, then the coded mean. Four
+ * values with coded values from 0 to 8 at difficulty 1; five at 2, with one
+ * below the value subtracted, so a coded value is negative.
+ */
+const codeCodedTable: Generator<CodedTableParams> = {
+  id: 'dat-code-coded-table',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const b = rng.pick(hard ? [5, 10, 20, 25] : [2, 5, 10]);
+      const a = rng.int(hard ? 20 : 10, 99) * 10;
+      const ys = rng.sample(hard ? [-4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6] : [0, 1, 2, 3, 4, 5, 6, 7, 8], hard ? 5 : 4);
+      if (hard && !ys.some((y) => y < 0)) continue;
+      const my = total(ys) / ys.length;
+      if (!exact(my, 1) || ys.includes(my)) continue;
+      return { a, b, ys };
+    }
+  },
+  render: ({ a, b, ys }): Slide => {
+    const xs = ys.map((y) => a + b * y);
+    const my = total(ys) / ys.length;
+    const answer = [...ys, my];
+    const slips = [b * ys[0], b * ys[1], my * b, a + b * my, ys[0] + 1, my + 1];
+    return {
+      kind: 'table',
+      prompt: [say('Code each value with'), show(codingTex(a, b)), say('Then find the mean of the coded values.')],
+      columns: ['x', 'y'],
+      rows: [...xs.map((x) => [fmt(x), null]), ['\\bar{y}', null]],
+      bank: valueBank(answer, tidy(slips)),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: ({ a, b, ys }) => {
+    const xs = ys.map((x) => a + b * x);
+    return [
+      { text: `Take $${fmt(a)}$ off each value, then divide by $${fmt(b)}$:` },
+      { tex: aligned(...xs.map((x, i) => `\\frac{${fmt(x)} - ${fmt(a)}}{${fmt(b)}} &= ${fmt(ys[i])}`)) },
+      { tex: `\\bar{y} = \\frac{${fmt(total(ys))}}{${ys.length}} = ${fmt(total(ys) / ys.length)}` },
+    ];
+  },
+};
+
+interface DecodeParams {
+  a: number;
+  b: number;
+  /** The coded mean. */
+  my: number;
+  /** The coded standard deviation, or the coded variance when `ask` is variance. */
+  sy: number;
+  ask: 'mean' | 'sd' | 'variance';
+}
+
+const DECODE_LEAD = { mean: '\\bar{x} =', sd: '\\sigma_x =', variance: '\\sigma_x^2 =' };
+
+function decodeAnswer({ a, b, my, sy, ask }: DecodeParams): number {
+  return ask === 'mean' ? a + b * my : ask === 'sd' ? b * sy : b * b * sy;
+}
+
+const codedStatsTex = ({ my, sy, ask }: DecodeParams): string =>
+  ask === 'variance' ? `\\bar{y} = ${fmt(my)} \\qquad \\sigma_y^2 = ${fmt(sy)}` : `\\bar{y} = ${fmt(my)} \\qquad \\sigma_y = ${fmt(sy)}`;
+
+function decodeSolution(p: DecodeParams): SolutionStep[] {
+  const { a, b, my, sy, ask } = p;
+  const steps: SolutionStep[] = [{ text: `Decoding undoes the coding: $x = ${fmt(a)} + ${fmt(b)}y$.` }];
+  if (ask === 'mean') {
+    steps.push({ tex: `\\bar{x} = ${fmt(a)} + ${fmt(b)} \\times ${my < 0 ? `(${fmt(my)})` : fmt(my)} = ${fmt(a + b * my)}` });
+  } else if (ask === 'sd') {
+    steps.push(
+      { text: `Adding $${fmt(a)}$ does not change a spread, so only the $${fmt(b)}$ acts on it.` },
+      { tex: `\\sigma_x = ${fmt(b)} \\times ${fmt(sy)} = ${fmt(b * sy)}` },
+    );
+  } else {
+    steps.push(
+      { text: `Adding $${fmt(a)}$ does not change a spread, and the variance is multiplied by $${fmt(b)}^2$.` },
+      { tex: `\\sigma_x^2 = ${fmt(b)}^2 \\times ${fmt(sy)} = ${fmt(b * b * sy)}` },
+    );
+  }
+  return steps;
+}
+
+/**
+ * Decoding a summary: the mean of x from the coded mean at difficulty 1, a
+ * whole b; at 2 the standard deviation or variance of x too, with a coded
+ * mean that may be negative.
+ */
+const codeDecode: Generator<DecodeParams> = {
+  id: 'dat-code-decode',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const ask = hard ? rng.pick<DecodeParams['ask']>(['mean', 'sd', 'variance']) : 'mean';
+      const b = rng.pick(hard ? [2, 4, 5, 10, 20] : [2, 5, 10]);
+      const a = rng.int(2, 99) * 10;
+      const my = hard ? oneDp(rng, -5, 8) : oneDp(rng, 0.5, 9);
+      const sy = ask === 'variance' ? oneDp(rng, 0.5, 12) : oneDp(rng, 0.5, 6);
+      const p = { a, b, my, sy, ask };
+      if (my === 0 || !exact(decodeAnswer(p), 2)) continue;
+      return p;
+    }
+  },
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [
+      say('Values of $x$ are coded with'),
+      show(codingTex(p.a, p.b)),
+      say('and the coded values have'),
+      show(codedStatsTex(p)),
+      say(`Find ${LINEAR_WORD[p.ask]} of $x$.`),
+    ],
+    lead: DECODE_LEAD[p.ask],
+    keypad: NUMBER_KEYS,
+    answer: fmt(decodeAnswer(p)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: decodeSolution,
+  choices: (p) => {
+    const { a, b, my, sy, ask } = p;
+    const slips =
+      ask === 'mean' ? [a + my, b * my, a * b + my, a - b * my] : ask === 'sd' ? [a + b * sy, sy, b * b * sy] : [b * sy, a + b * b * sy, sy];
+    return valueChoices(decodeAnswer(p), slips, mix(a, b, my * 10, sy * 10), 1);
+  },
+};
+
+/**
+ * Decoding as tiles: the mean filled in as a + b times the coded mean, then
+ * the standard deviation at difficulty 1 or the variance at 2.
+ */
+const codeDecodeTiles: Generator<DecodeParams> = {
+  id: 'dat-code-decode-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const b = rng.pick(hard ? [2, 4, 5, 10, 20] : [2, 5, 10]);
+      const a = rng.int(2, 99) * 10;
+      const my = oneDp(rng, 0.5, 9);
+      const sy = hard ? oneDp(rng, 0.5, 12) : oneDp(rng, 0.5, 6);
+      const p: DecodeParams = { a, b, my, sy, ask: hard ? 'variance' : 'sd' };
+      if (my === b || !exact(decodeAnswer(p), 2)) continue;
+      return p;
+    }
+  },
+  render: (p): Slide => {
+    const { a, b, my, sy, ask } = p;
+    const answer = [a, b, my, a + b * my, decodeAnswer(p)];
+    const slips = [a + my, b * my, sy, ask === 'variance' ? b * sy : b * b * sy, a + decodeAnswer(p)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say('Values of $x$ are coded with'),
+        show(codingTex(a, b)),
+        say('and the coded values have'),
+        show(codedStatsTex(p)),
+        say(`Fill in the mean and the ${ask === 'sd' ? 'standard deviation' : 'variance'} of $x$.`),
+      ],
+      template: `\\bar{x} = {0} + {1} \\times {2} = {3} \\qquad ${ask === 'sd' ? '\\sigma_x' : '\\sigma_x^2'} = {4}`,
+      bank: valueBank(answer, tidy(slips)),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: (p) => [...decodeSolution({ ...p, ask: 'mean' }), ...decodeSolution(p).slice(1)],
+};
+
+interface EncodeParams {
+  a: number;
+  b: number;
+  /** The coded mean and standard deviation the question works towards. */
+  my: number;
+  sy: number;
+  ask: 'mean' | 'sd' | 'variance';
+}
+
+/** What is asked for, worked forwards from x. */
+const encodeAnswer = ({ my, sy, ask }: EncodeParams): number => (ask === 'mean' ? my : ask === 'sd' ? sy : sy * sy);
+
+/**
+ * Coding a summary forwards: from the mean and standard deviation of x to
+ * those of y. The mean or the standard deviation at difficulty 1; at 2 the
+ * variance too, from a variance of x, and a coded mean that may be negative.
+ */
+const codeEncode: Generator<EncodeParams> = {
+  id: 'dat-code-encode',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const b = rng.pick(hard ? [2, 4, 5, 10, 20] : [2, 5, 10]);
+      const a = rng.int(2, 99) * 10;
+      const my = hard ? oneDp(rng, -5, 8) : oneDp(rng, 0.5, 9);
+      const sy = oneDp(rng, 0.5, 6);
+      const ask = rng.pick<EncodeParams['ask']>(hard ? ['mean', 'sd', 'variance'] : ['mean', 'sd']);
+      if (my === 0 || !exact(a + b * my, 2) || !exact(b * sy, 2) || !exact((b * sy) ** 2, 2)) continue;
+      return { a, b, my, sy, ask };
+    }
+  },
+  render: (p): Slide => {
+    const { a, b, my, sy, ask } = p;
+    const mx = a + b * my;
+    const sx = b * sy;
+    const given = ask === 'variance' ? `\\bar{x} = ${fmt(mx)} \\qquad \\sigma_x^2 = ${fmt(sx * sx)}` : `\\bar{x} = ${fmt(mx)} \\qquad \\sigma_x = ${fmt(sx)}`;
+    return {
+      kind: 'expression',
+      prompt: [say('Values of $x$ have'), show(given), say('They are coded with'), show(codingTex(a, b)), say(`Find ${LINEAR_WORD[ask]} of $y$.`)],
+      lead: LINEAR_LEAD[ask],
+      keypad: NUMBER_KEYS,
+      answer: fmt(encodeAnswer(p)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ a, b, my, sy, ask }) => {
+    const mx = a + b * my;
+    const sx = b * sy;
+    if (ask === 'mean') {
+      return [
+        { text: 'Code the mean just as you would code one value: take off $a$, then divide by $b$.' },
+        { tex: `\\bar{y} = \\frac{${fmt(mx)} - ${fmt(a)}}{${fmt(b)}} = ${fmt(my)}` },
+      ];
+    }
+    if (ask === 'sd') {
+      return [
+        { text: `Taking off $${fmt(a)}$ leaves a spread alone, so only the dividing acts on it.` },
+        { tex: `\\sigma_y = \\frac{${fmt(sx)}}{${fmt(b)}} = ${fmt(sy)}` },
+      ];
+    }
+    return [
+      { text: `Taking off $${fmt(a)}$ leaves a spread alone, and dividing by $${fmt(b)}$ divides the variance by $${fmt(b)}^2 = ${fmt(b * b)}$.` },
+      { tex: `\\sigma_y^2 = \\frac{${fmt(sx * sx)}}{${fmt(b * b)}} = ${fmt(sy * sy)}` },
+    ];
+  },
+  choices: (p) => {
+    const { a, b, my, sy, ask } = p;
+    const mx = a + b * my;
+    const sx = b * sy;
+    const slips = ask === 'mean' ? [mx - a, mx / b - a, (mx + a) / b] : ask === 'sd' ? [(sx - a) / b, sx, sx / (b * b)] : [(sx * sx) / b, sx * sx, sy];
+    return valueChoices(encodeAnswer(p), slips, mix(a, b, my * 10, sy * 10), 1);
+  },
+};
+
+/* ---------- variance from coded sums ---------- */
+
+interface SumsTableParams {
+  a: number;
+  b: number;
+  ys: number[];
+}
+
+/**
+ * Coding four values and filling in y, y squared, and both sums: y = x - a
+ * with coded values from 1 to 9 at difficulty 1; y = (x - a)/b at 2, with a
+ * coded value below zero whose square is positive.
+ */
+const codeSumsTable: Generator<SumsTableParams> = {
+  id: 'dat-code-sums-table',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const b = hard ? rng.pick([2, 5, 10]) : 1;
+      const a = hard ? rng.int(5, 99) * 10 : rng.int(4, 99) * 5;
+      const ys = rng.sample(hard ? [-5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5, 6, 7, 8, 9], 4);
+      if (hard && !ys.some((y) => y < 0)) continue;
+      if (hard && new Set(ys.map(Math.abs)).size !== 4) continue;
+      return { a, b, ys };
+    }
+  },
+  render: ({ a, b, ys }): Slide => {
+    const xs = ys.map((y) => a + b * y);
+    const sy = total(ys);
+    const syy = total(ys.map((y) => y * y));
+    const answer = [...ys.flatMap((y) => [y, y * y]), sy, syy];
+    const slips = [b * ys[0], sy * sy, ...ys.filter((y) => y < 0).map((y) => -y * y), syy + 1];
+    return {
+      kind: 'table',
+      prompt: [say('Code each value with'), show(codingTex(a, b)), say('Fill in $y$ and $y^2$ for each, then both totals.')],
+      columns: ['x', 'y', 'y^2'],
+      rows: [...xs.map((x) => [fmt(x), null, null]), ['\\textstyle\\sum', null, null]],
+      bank: valueBank(answer, tidy(slips)),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: ({ a, b, ys }) => {
+    const xs = ys.map((y) => a + b * y);
+    return [
+      { text: b === 1 ? `Take $${fmt(a)}$ off each value, then square:` : `Take $${fmt(a)}$ off each value and divide by $${fmt(b)}$, then square:` },
+      { tex: aligned(...xs.map((x, i) => `${fmt(x)} &\\to ${fmt(ys[i])} \\to ${fmt(ys[i] * ys[i])}`)) },
+      { tex: `\\textstyle\\sum y = ${fmt(total(ys))} \\qquad \\sum y^2 = ${fmt(total(ys.map((y) => y * y)))}` },
+    ];
+  },
+};
+
+interface SumsParams {
+  a: number;
+  b: number;
+  n: number;
+  /** Σy and Σy². */
+  sy: number;
+  syy: number;
+  ask: 'mean' | 'sd' | 'variance';
+}
+
+/** The coded mean and variance, and what they decode to. */
+export function codedSummary({ a, b, n, sy, syy }: SumsParams) {
+  const my = sy / n;
+  const meanSq = syy / n;
+  const vy = meanSq - my * my;
+  return { my, meanSq, my2: my * my, vy, mx: a + b * my, vx: b * b * vy, sx: b * Math.sqrt(vy) };
+}
+
+/**
+ * n, Σy and Σy² for coded data, drawn from a coded mean and standard
+ * deviation so everything asked is exact: y = x - a at difficulty 1 unless
+ * `scaled`, y = (x - a)/b otherwise. `root` asks for a coded standard
+ * deviation with an exact root; `positive` keeps the coded mean above zero.
+ */
+function sampleSums(
+  rng: Rng,
+  difficulty: number,
+  opts: { scaled?: boolean; root?: boolean; positive?: boolean; asks?: SumsParams['ask'][] } = {},
+): SumsParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const b = hard || opts.scaled ? rng.pick(hard ? [2, 4, 5, 10, 20] : [2, 5, 10]) : 1;
+    const a = rng.int(2, 99) * 10;
+    const n = rng.int(5, 30);
+    const my = rng.int(opts.positive ? 1 : -20, 50) / 10;
+    const sdy = opts.root ? rng.pick([1, 1.5, 2, 2.5, 3, 4, 5, 6]) : 0;
+    const vy = opts.root ? sdy * sdy : rng.int(5, 200) / 10;
+    const sy = n * my;
+    const syy = n * (vy + my * my);
+    if (!whole(sy) || !whole(syy) || sy === 0) continue;
+    const ask = rng.pick<SumsParams['ask']>(opts.asks ?? ['mean']);
+    const p = { a, b, n, sy: Math.round(sy), syy: Math.round(syy), ask };
+    const s = codedSummary(p);
+    if (![s.my, s.meanSq, s.my2, s.vy, s.mx, s.vx].every((x) => exact(x, 2))) continue;
+    if (opts.root && !exact(s.sx, 2)) continue;
+    return p;
+  }
+}
+
+const sumsPrompt = ({ a, b, n, sy, syy }: SumsParams, ask: string): Block[] => [
+  say(`$${n}$ values of $x$ are coded with`),
+  show(codingTex(a, b)),
+  say('giving'),
+  show(`\\textstyle\\sum y = ${fmt(sy)} \\qquad \\sum y^2 = ${fmt(syy)}`),
+  say(ask),
+];
+
+function sumsSolution(p: SumsParams): SolutionStep[] {
+  const { a, b, n, sy, syy, ask } = p;
+  const s = codedSummary(p);
+  const steps: SolutionStep[] = [{ tex: `\\bar{y} = \\frac{${fmt(sy)}}{${n}} = ${fmt(s.my)}` }];
+  if (ask === 'mean') {
+    steps.push({ tex: `\\bar{x} = ${fmt(a)} + ${b === 1 ? '' : `${fmt(b)} \\times `}${s.my < 0 ? `(${fmt(s.my)})` : fmt(s.my)} = ${fmt(s.mx)}` });
+    return steps;
+  }
+  steps.push({
+    tex: aligned(`\\sigma_y^2 &= \\frac{${fmt(syy)}}{${n}} - ${s.my < 0 ? `(${fmt(s.my)})` : fmt(s.my)}^2`, `&= ${fmt(s.meanSq)} - ${fmt(s.my2)} = ${fmt(s.vy)}`),
+  });
+  if (ask === 'variance') {
+    steps.push(
+      { text: b === 1 ? 'Taking off $a$ changed no spread, so the variance of $x$ is the same.' : `Decode: the $${fmt(a)}$ does not touch a spread, and the variance is multiplied by $${fmt(b)}^2$.` },
+      { tex: `\\sigma_x^2 = ${b === 1 ? '' : `${fmt(b)}^2 \\times `}${fmt(s.vy)} = ${fmt(s.vx)}` },
+    );
+  } else {
+    steps.push(
+      { tex: `\\sigma_y = \\sqrt{${fmt(s.vy)}} = ${fmt(Math.sqrt(s.vy))}` },
+      { text: `Decode: the $${fmt(a)}$ does not touch a spread${b === 1 ? '' : `, and the standard deviation is multiplied by $${fmt(b)}$`}.` },
+      { tex: `\\sigma_x = ${b === 1 ? '' : `${fmt(b)} \\times `}${fmt(Math.sqrt(s.vy))} = ${fmt(s.sx)}` },
+    );
+  }
+  return steps;
+}
+
+/**
+ * The variance of x from coded sums, as a tree: the coded mean and the mean
+ * of the squares, the coded mean squared, the coded variance, and the
+ * variance of x. A whole b of 2, 5 or 10 at difficulty 1; at 2 any b, and a
+ * coded mean that may be negative.
+ */
+const codeSumsTree: Generator<SumsParams> = {
+  id: 'dat-code-var-tree',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const p = sampleSums(rng, difficulty, { scaled: true, positive: difficulty === 1, asks: ['variance'] });
+      const s = codedSummary(p);
+      const answer = [s.my, s.meanSq, s.my2, s.vy, s.vx];
+      if (new Set(answer.map(fmt)).size === 5) return p;
+    }
+  },
+  render: (p): Slide => {
+    const s = codedSummary(p);
+    const answer = [s.my, s.meanSq, s.my2, s.vy, s.vx];
+    const slips = [s.meanSq - s.my, 2 * s.my, (p.sy * p.sy) / p.n, p.b * s.vy, s.vy + p.a, s.mx];
+    return {
+      kind: 'tree',
+      prompt: sumsPrompt(
+        p,
+        'Find the variance of $x$. Top row: $\\bar{y}$, then $\\sum y^2 \\div n$. Then $\\bar{y}^2$, then $\\sigma_y^2$, and last $\\sigma_x^2$.',
+      ),
+      expression: `\\sigma_x^2 = ${fmt(p.b)}^2 \\times \\sigma_y^2`,
+      nodes: [
+        { id: 'ybar', from: [] },
+        { id: 'sq', from: [] },
+        { id: 'ybar2', from: ['ybar'] },
+        { id: 'vy', from: ['sq', 'ybar2'] },
+        { id: 'vx', from: ['vy'] },
+      ],
+      bank: valueBank(answer, tidy(slips)),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: sumsSolution,
+};
+
+/**
+ * The mean of x from Σy, one operation at a time: y = x - a at difficulty 1,
+ * so the coded mean and then a added; at 2 y = (x - a)/b, so the coded
+ * mean, times b, plus a.
+ */
+const codeSumsMean: Generator<SumsParams> = {
+  id: 'dat-code-sums-mean',
+  sample: (rng, difficulty) => sampleSums(rng, difficulty, { positive: true }),
+  render: (p): Slide => {
+    const { a, b, n, sy } = p;
+    const s = codedSummary(p);
+    const bank = (value: number, ...slips: number[]) => stepBank(fmt(value), ...tidy(slips).map(fmt).filter((t) => t !== fmt(value)));
+    const prompt: Block[] = [
+      say(`$${n}$ values of $x$ are coded with`),
+      show(codingTex(a, b)),
+      say(`and $\\sum y = ${fmt(sy)}$. Find the mean of $x$: tap the part you would do next, then choose what it comes to.`),
+    ];
+    if (b === 1) {
+      return {
+        kind: 'steps',
+        prompt,
+        start: [fmt(a), '+', fmt(sy), '\\div', `${n}`],
+        reductions: [
+          { span: [2, 5], operator: 3, value: fmt(s.my), bank: bank(s.my, sy * n, s.my + 1, s.my - 1) },
+          { span: [0, 3], operator: 1, value: fmt(s.mx), bank: bank(s.mx, a + sy, s.mx + 1, s.mx - 1) },
+        ],
+      };
+    }
+    return {
+      kind: 'steps',
+      prompt,
+      start: [fmt(a), '+', fmt(b), '\\times', '(', fmt(sy), '\\div', `${n}`, ')'],
+      reductions: [
+        { span: [4, 9], operator: 6, value: fmt(s.my), bank: bank(s.my, sy * n, s.my + 1, s.my - 1) },
+        { span: [2, 5], operator: 3, value: fmt(b * s.my), bank: bank(b * s.my, b + s.my, s.my / b, b * s.my + b) },
+        { span: [0, 3], operator: 1, value: fmt(s.mx), bank: bank(s.mx, a + s.my, s.mx + 1, s.mx - 1) },
+      ],
+    };
+  },
+  solution: sumsSolution,
+};
+
+const SUMS_LEAD = DECODE_LEAD;
+
+/**
+ * The mean, standard deviation or variance of x from coded sums, typed. The
+ * mean or variance with y = x - a at difficulty 1; at 2 y = (x - a)/b and the
+ * standard deviation too, with a coded variance whose root is exact.
+ */
+const codeSums: Generator<SumsParams> = {
+  id: 'dat-code-sums',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const ask = rng.pick<SumsParams['ask']>(hard ? ['mean', 'sd', 'variance'] : ['mean', 'variance']);
+    return sampleSums(rng, difficulty, { root: ask === 'sd', asks: [ask] });
+  },
+  render: (p): Slide => {
+    const s = codedSummary(p);
+    return {
+      kind: 'expression',
+      prompt: sumsPrompt(p, `Find ${LINEAR_WORD[p.ask]} of $x$.`),
+      lead: SUMS_LEAD[p.ask],
+      keypad: NUMBER_KEYS,
+      answer: fmt(p.ask === 'mean' ? s.mx : p.ask === 'sd' ? s.sx : s.vx),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: sumsSolution,
+  choices: (p) => {
+    const s = codedSummary(p);
+    const { a, b, ask } = p;
+    const right = ask === 'mean' ? s.mx : ask === 'sd' ? s.sx : s.vx;
+    const slips = ask === 'mean' ? [a + p.sy, b * s.my, a + s.my] : ask === 'sd' ? [a + s.sx, b * s.vy, Math.sqrt(s.vy)] : [b * s.vy, a + s.vx, s.meanSq * b * b, s.vy];
+    return valueChoices(right, tidy(slips), mix(a, b, p.n, p.sy, p.syy), 1);
+  },
+};
+
+/* ---------- coding in context ---------- */
+
+interface ConvertContext {
+  what: string;
+  /** Unit written after a value before and after, TeX. */
+  from: string;
+  to: string;
+  toWords: string;
+  rule: string;
+  b: number;
+  c: number;
+}
+
+const CONVERSIONS: ConvertContext[] = [
+  {
+    what: 'Temperatures at a weather station',
+    from: '^\\circ\\text{C}',
+    to: '^\\circ\\text{F}',
+    toWords: 'degrees Fahrenheit',
+    rule: 'F = 1.8C + 32',
+    b: 1.8,
+    c: 32,
+  },
+  {
+    what: 'Temperatures in a greenhouse',
+    from: '^\\circ\\text{C}',
+    to: '^\\circ\\text{F}',
+    toWords: 'degrees Fahrenheit',
+    rule: 'F = 1.8C + 32',
+    b: 1.8,
+    c: 32,
+  },
+  { what: 'Marks in a test out of $40$', from: '', to: '\\%', toWords: 'percentages', rule: 'P = 2.5M', b: 2.5, c: 0 },
+  { what: 'Marks in a quiz out of $20$', from: '', to: '\\%', toWords: 'percentages', rule: 'P = 5M', b: 5, c: 0 },
+  { what: 'Times spent on homework', from: '\\text{ h}', to: '\\text{ min}', toWords: 'minutes', rule: 'M = 60H', b: 60, c: 0 },
+];
+
+interface ConvertParams {
+  context: number;
+  m: number;
+  s: number;
+  ask: 'mean' | 'sd' | 'variance';
+}
+
+function convertAnswer({ context, m, s, ask }: ConvertParams): number {
+  const { b, c } = CONVERSIONS[context];
+  return ask === 'mean' ? b * m + c : ask === 'sd' ? b * s : b * b * s;
+}
+
+/**
+ * A summary converted into other units, a coding in all but name: the mean
+ * or standard deviation at difficulty 1, and at 2 the standard deviation or
+ * the variance, which goes up by the square of the multiplier.
+ */
+const codeConvert: Generator<ConvertParams> = {
+  id: 'dat-code-convert',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const context = rng.int(0, CONVERSIONS.length - 1);
+      const ask = rng.pick<ConvertParams['ask']>(hard ? ['sd', 'variance'] : ['mean', 'sd']);
+      const [lo, hi] = CONVERSIONS[context].b === 60 ? [0.5, 4] : CONVERSIONS[context].c ? [5, 30] : [8, 18];
+      const m = oneDp(rng, lo, hi);
+      const s = ask === 'variance' ? (CONVERSIONS[context].b === 60 ? rng.int(1, 20) / 100 : rng.int(2, 30)) : oneDp(rng, 0.5, lo < 1 ? 1.5 : 6);
+      const p = { context, m, s, ask };
+      if (!exact(convertAnswer(p), 2)) continue;
+      return p;
+    }
+  },
+  render: (p): Slide => {
+    const ctx = CONVERSIONS[p.context];
+    const spread = p.ask === 'variance' ? `a variance of $${fmt(p.s)}$` : `a standard deviation of $${fmt(p.s)}${ctx.from}$`;
+    return {
+      kind: 'expression',
+      prompt: [
+        say(`${ctx.what} have a mean of $${fmt(p.m)}${ctx.from}$ and ${spread}. They are converted into ${ctx.toWords} with`),
+        show(ctx.rule),
+        say(`Find ${LINEAR_WORD[p.ask]} in ${ctx.toWords}.`),
+      ],
+      lead: p.ask === 'mean' ? '\\text{mean} =' : p.ask === 'sd' ? '\\text{SD} =' : '\\text{variance} =',
+      keypad: NUMBER_KEYS,
+      answer: fmt(convertAnswer(p)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ context, m, s, ask }) => {
+    const { b, c, rule } = CONVERSIONS[context];
+    const stat: CodeStat = ask === 'mean' ? 'mean' : ask;
+    return [{ text: `The rule $${rule}$ multiplies every value by $${fmt(b)}$${c ? ` and adds $${c}$` : ''}.` }, ...moveSolution(stat, ask === 'mean' ? m : s, b, c)];
+  },
+  choices: (p) => {
+    const { b, c } = CONVERSIONS[p.context];
+    const { m, s, ask } = p;
+    const slips = ask === 'mean' ? [b * m, m + c, b * (m + c)] : ask === 'sd' ? [b * s + c, s, b * b * s] : [b * s, b * s + c, b * b * s + c, s];
+    return valueChoices(convertAnswer(p), tidy(slips).filter((x) => x > 0), mix(p.context, m * 10, s * 100), 1);
+  },
+};
+
+interface ChooseParams {
+  /** The values, in the order the prompt lists them. */
+  xs: number[];
+  /** The coded values asked for, in order. */
+  targets: number[];
+  a: number;
+  b: number;
+}
+
+/**
+ * Choosing a coding: five equally spaced values, and a and b to turn them
+ * into given coded values. -2 to 2 at difficulty 1, so a is the middle value
+ * and b the gap; at 2 the values are jumbled, and the targets are 0 to 4, so
+ * a is the smallest, or -4 to 4 in twos, so b is half the gap.
+ */
+const codeChooseTiles: Generator<ChooseParams> = {
+  id: 'dat-code-choose-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const plan = hard ? rng.pick(['zero', 'even'] as const) : 'mid';
+    const gap = rng.pick(plan === 'even' ? [10, 20, 30, 40, 50] : [5, 10, 15, 20, 25, 50]);
+    const first = rng.int(10, 300) * 5;
+    const sorted = Array.from({ length: 5 }, (_, i) => first + i * gap);
+    const targets = plan === 'mid' ? [-2, -1, 0, 1, 2] : plan === 'zero' ? [0, 1, 2, 3, 4] : [-4, -2, 0, 2, 4];
+    const a = plan === 'zero' ? sorted[0] : sorted[2];
+    const b = plan === 'even' ? gap / 2 : gap;
+    return { xs: hard ? rng.shuffle(sorted) : sorted, targets, a, b };
+  },
+  render: ({ xs, targets, a, b }): Slide => {
+    const s = ordered(xs);
+    const gap = s[1] - s[0];
+    const slips = [a === s[0] ? s[2] : s[0], s[4], b === gap ? 2 * gap : gap, a + gap, b / 2];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(`The values ${listProse(xs)} are coded with`),
+        show('y = \\frac{x - a}{b}'),
+        say(`so that the coded values are ${listProse(targets)}. Fill in $a$ and $b$.`),
+      ],
+      template: 'y = (x \\;-\\; {0}) \\;\\div\\; {1}',
+      bank: valueBank([a, b], tidy(slips), 4),
+      answer: [fmt(a), fmt(b)],
+    };
+  },
+  solution: ({ xs, targets, a, b }) => {
+    const s = ordered(xs);
+    const zero = targets.indexOf(0);
+    return [
+      { text: `The value coded as $0$ is the one $a$ is taken from: in order, the ${nth(zero + 1)} value, $${fmt(a)}$.` },
+      { text: `Neighbouring values are $${fmt(s[1] - s[0])}$ apart, and their coded values $${fmt(targets[1] - targets[0])}$ apart, so $b = ${fmt(b)}$.` },
+      { tex: `y = \\frac{x - ${fmt(a)}}{${fmt(b)}}` },
+    ];
+  },
+};
+
+const CODED_PAIRS: { intro: string; names: [string, string] }[] = [
+  { intro: 'Two farms weighed the eggs their hens laid, in grams.', names: ['Farm A', 'Farm B'] },
+  { intro: 'Two machines filled bags of rice, in grams.', names: ['Machine A', 'Machine B'] },
+  { intro: 'Two shops weighed their bags of flour, in grams.', names: ['Shop A', 'Shop B'] },
+  { intro: 'Two bakeries weighed their loaves, in grams.', names: ['Bakery A', 'Bakery B'] },
+  { intro: 'Two orchards weighed their apples, in grams.', names: ['Orchard A', 'Orchard B'] },
+];
+
+interface CompareCodedParams {
+  context: number;
+  a: [number, number];
+  b: [number, number];
+  my: [number, number];
+  sy: [number, number];
+}
+
+const decodedMeans = ({ a, b, my }: CompareCodedParams): [number, number] => [a[0] + b[0] * my[0], a[1] + b[1] * my[1]];
+const decodedSds = ({ b, sy }: CompareCodedParams): [number, number] => [b[0] * sy[0], b[1] * sy[1]];
+
+/**
+ * Two sets coded two different ways. At difficulty 1 both take off a
+ * different a, so the coded means compare the wrong way round; at 2 they
+ * divide by a different b as well, so the coded standard deviations do too.
+ */
+function sampleCompareCoded(rng: Rng, difficulty: number): CompareCodedParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const a0 = rng.int(5, 90) * 10;
+    const a: [number, number] = hard ? [a0, a0] : [a0, a0 + rng.pick([10, 20, 30]) * rng.sign()];
+    const b: [number, number] = hard ? (rng.sample([1, 2, 4, 5], 2) as [number, number]) : [1, 1];
+    const my: [number, number] = [oneDp(rng, 1, 12), oneDp(rng, 1, 12)];
+    const sy: [number, number] = [oneDp(rng, 1, 6), oneDp(rng, 1, 6)];
+    const p = { context: rng.int(0, CODED_PAIRS.length - 1), a, b, my, sy };
+    const [m0, m1] = decodedMeans(p);
+    const [s0, s1] = decodedSds(p);
+    if (m0 === m1 || s0 === s1 || my[0] === my[1] || sy[0] === sy[1]) continue;
+    if (!hard && Math.sign(m0 - m1) === Math.sign(my[0] - my[1])) continue;
+    if (hard && Math.sign(s0 - s1) === Math.sign(sy[0] - sy[1])) continue;
+    if (![m0, m1, s0, s1].every((x) => exact(x, 2))) continue;
+    return p;
+  }
+}
+
+function comparePrompt(p: CompareCodedParams, ask: string): Block[] {
+  const [nA, nB] = CODED_PAIRS[p.context].names;
+  return [
+    say(`${CODED_PAIRS[p.context].intro} Each coded its masses its own way:`),
+    show(`\\text{${nA}:} \\; ${codingTex(p.a[0], p.b[0])} \\qquad \\text{${nB}:} \\; ${codingTex(p.a[1], p.b[1])}`),
+    show(
+      `\\begin{array}{l|c|c} & \\bar{y} & \\sigma_y \\\\ \\hline \\text{${nA}} & ${fmt(p.my[0])} & ${fmt(p.sy[0])} \\\\ \\text{${nB}} & ${fmt(p.my[1])} & ${fmt(p.sy[1])} \\end{array}`,
+    ),
+    say(ask),
+  ];
+}
+
+function compareCodedSolution(p: CompareCodedParams): SolutionStep[] {
+  const [nA, nB] = CODED_PAIRS[p.context].names;
+  const means = decodedMeans(p);
+  const sds = decodedSds(p);
+  const times = (i: 0 | 1) => (p.b[i] === 1 ? '' : `${fmt(p.b[i])} \\times `);
+  const lines = (i: 0 | 1) => {
+    const tag = i === 0 ? 'A' : 'B';
+    return [
+      `\\bar{x}_${tag} &= ${fmt(p.a[i])} + ${times(i)}${fmt(p.my[i])} = ${fmt(means[i])}`,
+      `\\sigma_${tag} &= ${times(i)}${fmt(p.sy[i])}${p.b[i] === 1 ? '' : ` = ${fmt(sds[i])}`}`,
+    ];
+  };
+  return [
+    { text: `Decode each set with its own coding before comparing:` },
+    { tex: '\\bar{x} = a + b\\bar{y} \\qquad \\sigma_x = b\\sigma_y' },
+    { tex: aligned(...lines(0), ...lines(1)) },
+    {
+      text: `${means[0] > means[1] ? nA : nB} has the higher mean, and ${sds[0] < sds[1] ? nA : nB} the smaller standard deviation, so it is more consistent.`,
+    },
+  ];
+}
+
+/** Both sets decoded into a table of means and standard deviations. */
+const codeCompareTable: Generator<CompareCodedParams> = {
+  id: 'dat-code-compare-table',
+  sample: sampleCompareCoded,
+  render: (p): Slide => {
+    const [nA, nB] = CODED_PAIRS[p.context].names;
+    const means = decodedMeans(p);
+    const sds = decodedSds(p);
+    const answer = [means[0], sds[0], means[1], sds[1]];
+    const slips = [p.a[0] + p.my[1], p.a[1] + p.my[0], p.a[0] + p.sy[0], p.b[0] * p.b[0] * p.sy[0], p.b[1] * p.b[1] * p.sy[1], p.a[1] + p.sy[1]];
+    return {
+      kind: 'table',
+      prompt: comparePrompt(p, 'Decode both: fill in the mean and standard deviation of each.'),
+      columns: ['', '\\bar{x}', '\\sigma_x'],
+      rows: [
+        [`\\text{${nA}}`, null, null],
+        [`\\text{${nB}}`, null, null],
+      ],
+      bank: valueBank(answer, tidy(slips.filter((x) => x > 0))),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: compareCodedSolution,
+};
+
+/** Which set has the higher mean, then which is more consistent, once decoded. */
+const codeCompareFlow: Generator<CompareCodedParams> = {
+  id: 'dat-code-compare-flow',
+  sample: sampleCompareCoded,
+  render: (p): Slide => {
+    const [nA, nB] = CODED_PAIRS[p.context].names;
+    const means = decodedMeans(p);
+    const sds = decodedSds(p);
+    const verdict = (best: string) =>
+      [nA, nB].map((y) => ({
+        label: y,
+        outcome: best === y ? `${best} is heavier on average and more consistent.` : `${best} is heavier on average, but ${y} is more consistent.`,
+      }));
+    return {
+      kind: 'flow',
+      prompt: comparePrompt(p, 'Compare the two sets of masses.'),
+      subject: '\\bar{x} = a + b\\bar{y} \\qquad \\sigma_x = b\\sigma_y',
+      steps: [
+        {
+          id: 'mean',
+          ask: 'Decoded, which has the higher mean?',
+          branches: [
+            { label: nA, to: 'ca' },
+            { label: nB, to: 'cb' },
+          ],
+        },
+        { id: 'ca', ask: 'Decoded, which has the smaller standard deviation?', branches: verdict(nA) },
+        { id: 'cb', ask: 'Decoded, which has the smaller standard deviation?', branches: verdict(nB) },
+      ],
+      answer: [means[0] > means[1] ? nA : nB, sds[0] < sds[1] ? nA : nB],
+    };
+  },
+  solution: compareCodedSolution,
+};
+
 export const dataAveragesSpreadGenerators = [
   mean,
   medianMode,
@@ -5548,4 +6899,24 @@ export const dataAveragesSpreadGenerators = [
   interpTiles,
   interpSteps,
   interpValue,
+  codeShift,
+  codeShiftTable,
+  codeShiftBack,
+  codeEffectFlow,
+  codeScale,
+  codeScaleTable,
+  codeLinear,
+  codeLinearTree,
+  codeCodedTable,
+  codeDecode,
+  codeDecodeTiles,
+  codeEncode,
+  codeSumsTable,
+  codeSumsTree,
+  codeSumsMean,
+  codeSums,
+  codeConvert,
+  codeChooseTiles,
+  codeCompareTable,
+  codeCompareFlow,
 ];

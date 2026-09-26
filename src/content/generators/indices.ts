@@ -4943,7 +4943,9 @@ const pythagSurd: Generator<PythagParams> = {
       return options(
         right,
         { tex: `${x + y}`, answer: `${x + y}` },
-        { tex: `\\sqrt{${x + y}}`, answer: `sqrt(${x + y})` },
+        // Simplified like every other option: an unsimplified root such as
+        // \sqrt{9} stands out as wrong without any maths being done.
+        { tex: surdTex(x + y), answer: surdAnswer(x + y) },
         // At y = x + 1, y^2 - x^2 is x + y: the slip before this one again.
         ...(y !== x && y !== x + 1 ? [{ tex: surdTex(y * y - x * x), answer: surdAnswer(y * y - x * x) }] : []),
       );

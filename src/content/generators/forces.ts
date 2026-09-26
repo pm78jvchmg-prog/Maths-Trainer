@@ -2630,7 +2630,12 @@ function sampleSlopeMotion(rng: Rng, hard: boolean, pulledShare = 0.5): SlopeMot
       }
       return { m, t, mu, P: 0, a: G * (sinOf(t) - mu * cosOf(t)), hard };
     },
-    (p) => p.a > 0 && exact(p.P, 4) && exact(p.a, 4),
+    // Three places at most in anything written down, the tree's R, friction
+    // and resultant included: 2.4696 N is exact but nobody works to it.
+    (p) => {
+      const R = G * p.m * cosOf(p.t);
+      return p.a > 0 && [p.P, p.a, R, p.mu * R, p.m * p.a].every((v) => exact(v, 3));
+    },
   );
 }
 
@@ -7849,7 +7854,7 @@ function sampleLadder(rng: Rng, person: boolean, find: LadderParams['find'], har
 function ladderScene(p: LadderParams): string {
   const angle = angleFacts(p.t, p.hard);
   const on = p.P > 0 ? ` A person of weight ${newtons(p.P)} stands ${metres(p.s)} up from $A$.` : '';
-  return `A uniform ladder $AB$, of length ${metres(p.L)} and weight ${newtons(p.W)}, has its foot $A$ on rough horizontal ground and its top $B$ against a smooth vertical wall, at $\\alpha$ to the ground, where ${angle}.${on}`;
+  return `A uniform ladder $AB$, of length ${metres(p.L)} and weight ${newtons(p.W)}, rests with $A$ on rough level ground and $B$ against a smooth wall, at $\\alpha$ to the ground, where ${angle}.${on}`;
 }
 
 const ladderPicture = (p: LadderParams): Block => picture(ladderSvg(p.t, p.P > 0 ? { person: p.s / p.L } : {}));
@@ -7895,7 +7900,7 @@ const ladder: Generator<LadderParams> = {
     };
     const prose =
       p.find === 's'
-        ? `${ladderScene({ ...p, P: 0 })} A person of weight ${newtons(p.P)} climbs it, and the coefficient of friction between the ladder and the ground is $${fmt(mu)}$. How far up from $A$ can they climb before it slips, in metres?`
+        ? `${ladderScene({ ...p, P: 0 })} A person of weight ${newtons(p.P)} climbs it, and $\\mu = ${fmt(mu)}$ at the ground. How far up from $A$ can they climb before it slips, in metres?`
         : `${ladderScene(p)} ${asks[p.find]}`;
     const value = { S: wallPush(p), F: wallPush(p), R: p.W + p.P, mu, s: p.s }[p.find];
     return typed([say(prose), ladderPicture(p)], `${{ S: 'S', F: 'F', R: 'R', mu: '\\mu', s: 's' }[p.find]} =`, value);

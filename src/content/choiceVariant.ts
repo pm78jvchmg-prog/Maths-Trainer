@@ -87,6 +87,40 @@ function promptFrom(slide: Slide): Block[] {
 }
 
 /**
+ * The prompt of a derived `evaluate` slide when the generator writes none of
+ * its own: the reduction's prompt with its tapping instructions taken out,
+ * since nothing on an `evaluate` line is tappable.
+ *
+ * It used to be the bare "Evaluate the expression." whatever the reduction
+ * was about, and the worked solution, written for the reduction, then went on
+ * about an equation, an inequality or a right-hand side the learner had never
+ * been shown ("The right-hand side is 49, not 52, so x = 8 is not a
+ * solution"). Keeping the question's own words keeps the two in step.
+ */
+export function evaluatePromptFrom(prompt: Block[]): Block[] {
+  const kept: Block[] = [];
+  for (const block of prompt) {
+    if (block.kind !== 'prose') {
+      kept.push(block);
+      continue;
+    }
+    // "One piece at a time" is how a reduction is worked, not an evaluation.
+    const text = block.text
+      .replace(/,? one piece at a time/g, '')
+      .split(/(?<=[.?!])\s+/)
+      .filter((sentence) => !/\btap\b/i.test(sentence) && !/^Work this out\.?$/.test(sentence))
+      .join(' ')
+      .trim();
+    if (text) kept.push({ ...block, text });
+  }
+  const prose = kept.filter((block) => block.kind === 'prose');
+  if (prose.length === 0) return [{ kind: 'prose', text: 'Evaluate the expression.' }, ...kept];
+  const last = prose[prose.length - 1];
+  if (last.kind === 'prose' && !/\?$/.test(last.text)) kept.push({ kind: 'prose', text: 'What does it come to?' });
+  return kept;
+}
+
+/**
  * Derive the multiple-choice generator, or undefined when there is nothing to
  * derive from. Callers treat undefined as "this generator has one shape".
  */
@@ -110,7 +144,7 @@ export function choiceVariant<P>(generator: Generator<P>): Generator<P> | undefi
       if (base.kind === 'reduce') {
         return {
           kind: 'evaluate',
-          prompt: generator.evaluatePrompt?.(params) ?? [{ kind: 'prose', text: 'Evaluate the expression.' }],
+          prompt: generator.evaluatePrompt?.(params) ?? evaluatePromptFrom(base.prompt),
           expr: base.expr,
           options: rotate(options).map((option) => option.tex),
         };

@@ -6768,9 +6768,13 @@ function tailSliderParts({ form, L, a }: TailSliderParams) {
       lower: a,
       f: (x: number) => (L * a) / (x * x),
       area: (t: number) => (t < a ? NaN : L - (L * a) / t),
-      span: 12 * a,
-      // Where half the area has built up, so the shaded piece is a fair share.
-      sample: 2 * a,
+      // A power tail levels off slowly: out to 13a the area graph was still
+      // visibly climbing at the right-hand edge. At 30a it has reached 97%
+      // and reads as level, as the question says it does.
+      span: 29 * a,
+      // Two thirds of the area built up, so the shaded piece is still a fair
+      // share on the longer axis.
+      sample: 3 * a,
     };
   }
   return {

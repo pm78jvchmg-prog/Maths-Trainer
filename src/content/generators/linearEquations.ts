@@ -568,6 +568,17 @@ const checkSolution: Generator<CheckParams> = {
       ? numberChoices(v, a * k - b, a + k + b, -v)
       : numberChoices(v, a * k + b, a * (k - b), -v);
   },
+  // The worked solution compares the value with the right-hand side, so the
+  // question has to show the equation it came from, not bare arithmetic.
+  evaluatePrompt: (params) => {
+    const { k, ok, miss } = params;
+    const v = checkValue(params);
+    return [
+      { kind: 'prose', text: `Is $x = ${k}$ a solution of this equation?` },
+      { kind: 'display', tex: `${checkLeftTex(params)} = ${ok ? v : v + miss}` },
+      { kind: 'prose', text: `Put $${k}$ into the left-hand side: what does it come to?` },
+    ];
+  },
   sample: (rng, difficulty) => {
     const hard = difficulty > 1;
     return {
@@ -586,10 +597,9 @@ const checkSolution: Generator<CheckParams> = {
     return {
       kind: 'reduce',
       prompt: [
-        {
-          kind: 'prose',
-          text: `Is $x = ${k}$ a solution of $${checkLeftTex(params)} = ${ok ? v : v + miss}$? Put it into the left-hand side and see what comes out. ${HOW_TO_REDUCE}`,
-        },
+        { kind: 'prose', text: `Is $x = ${k}$ a solution of this equation?` },
+        { kind: 'display', tex: `${checkLeftTex(params)} = ${ok ? v : v + miss}` },
+        { kind: 'prose', text: `Put it into the left-hand side and see what comes out. ${HOW_TO_REDUCE}` },
       ],
       expr,
       banks: banksFor(expr),
@@ -1199,7 +1209,7 @@ const bracketFlow: Generator<BracketRouteParams> = {
     ),
   render: (params): Slide => ({
     kind: 'flow',
-    prompt: [{ kind: 'prose', text: 'Before any algebra: expand the bracket, or divide by the number outside it first?' }],
+    prompt: [{ kind: 'prose', text: 'Before any algebra: what comes first?' }],
     subject: routeTex(params),
     steps: [
       {
@@ -7452,7 +7462,7 @@ function dropWorking(p: DropParams): SolutionStep[] {
     { tex: `${comboTex(four)}: \\; ${rowEqTex(four.row, four.d)} \\quad (4)` },
     { tex: `${comboTex(five)}: \\; ${rowEqTex(five.row, five.d)} \\quad (5)` },
     {
-      text: `(4) and (5) are a pair in $${TRI_LETTERS[a]}$ and $${TRI_LETTERS[b]}$ alone, solved as in level 2: $${TRI_LETTERS[a]} = ${p.sol[a]}$ and $${TRI_LETTERS[b]} = ${p.sol[b]}$. Then (1) gives $${letter} = ${p.sol[p.k]}$.`,
+      text: `(4) and (5) are a pair in $${TRI_LETTERS[a]}$ and $${TRI_LETTERS[b]}$ alone, solved as in Simultaneous Linear Equations: $${TRI_LETTERS[a]} = ${p.sol[a]}$ and $${TRI_LETTERS[b]} = ${p.sol[b]}$. Then (1) gives $${letter} = ${p.sol[p.k]}$.`,
     },
   ];
 }
@@ -8019,7 +8029,7 @@ function letterSolution(p: LetterParams): SolutionStep[] {
       {
         text: `No letter is missing, and no letter's coefficients are the same size in all three: $x$ has $${p.rows.map((row) => row[0]).join(', ')}$, $y$ has $${p.rows.map((row) => row[1]).join(', ')}$, $z$ has $${p.rows.map((row) => row[2]).join(', ')}$.`,
       },
-      { text: 'So scale first: multiply an equation until one letter matches in a pair, as in level 2.' },
+      { text: 'So scale first: multiply an equation until one letter matches in a pair, as in Simultaneous Linear Equations.' },
     ];
   }
   const letter = TRI_LETTERS[p.k];

@@ -865,7 +865,7 @@ export const exponentsRadicals: Course = {
           slides: [
             teach(
               prose(
-                'Small numbers use the same idea with a **negative** power. Level 1 showed that a negative index means a reciprocal, so $10^{-3}$ is $\\frac{1}{1000}$.',
+                'Small numbers use the same idea with a **negative** power. The Index Laws showed that a negative index means a reciprocal, so $10^{-3}$ is $\\frac{1}{1000}$.',
               ),
               maths('4.5 \\times 10^{-3} = 4.5 \\div 1000 = 0.0045'),
               prose(
@@ -926,7 +926,7 @@ export const exponentsRadicals: Course = {
                 '\\left(3 \\times 10^{4}\\right) \\times \\left(2 \\times 10^{6}\\right) = \\left(3 \\times 2\\right) \\times \\left(10^{4} \\times 10^{6}\\right) = 6 \\times 10^{10}',
               ),
               prose(
-                'The powers are added, exactly as in level 1: $10^{4} \\times 10^{6} = 10^{10}$. Multiplying them is the slip to avoid.',
+                'The powers are added, exactly as in The Index Laws: $10^{4} \\times 10^{6} = 10^{10}$. Multiplying them is the slip to avoid.',
               ),
             ),
             asking(
@@ -1114,12 +1114,12 @@ export const exponentsRadicals: Course = {
           slides: [
             teach(
               prose(
-                'Level 3 simplified single surds. Now surds sit in brackets with whole numbers, and the aim is always one tidy shape: a whole number plus a multiple of one surd, like $7 + 3\\sqrt{2}$.',
+                'The Surds level simplified single surds. Now surds sit in brackets with whole numbers, and the aim is always one tidy shape: a whole number plus a multiple of one surd, like $7 + 3\\sqrt{2}$.',
               ),
               prose('A number outside a bracket multiplies **every** term inside it, exactly as in algebra.'),
               working('3(4 + 2\\sqrt{5}) &= 3 \\times 4 + 3 \\times 2\\sqrt{5}', '&= 12 + 6\\sqrt{5}'),
               prose(
-                'Each term is a product, and level 3 settled how surds multiply: $\\sqrt{a} \\times \\sqrt{b} = \\sqrt{ab}$, and $\\sqrt{a} \\times \\sqrt{a} = a$ exactly.',
+                'Each term is a product, and the Surds level settled how surds multiply: $\\sqrt{a} \\times \\sqrt{b} = \\sqrt{ab}$, and $\\sqrt{a} \\times \\sqrt{a} = a$ exactly.',
               ),
             ),
             ask('rad-expand-single'),
@@ -1249,7 +1249,7 @@ export const exponentsRadicals: Course = {
           slides: [
             teach(
               prose(
-                'Level 3 cleared a root from a denominator by multiplying by that root. With two terms underneath that no longer works: $(2 + \\sqrt{3}) \\times \\sqrt{3} = 2\\sqrt{3} + 3$ still has a root in it.',
+                'Surds, "Rationalising the Denominator", cleared a root from a denominator by multiplying by that root. With two terms underneath that no longer works: $(2 + \\sqrt{3}) \\times \\sqrt{3} = 2\\sqrt{3} + 3$ still has a root in it.',
               ),
               prose(
                 'Multiply instead by the **conjugate**: the same two terms with the sign between them changed. The bottom becomes a difference of two squares, which is whole.',
@@ -1334,7 +1334,7 @@ export const exponentsRadicals: Course = {
               ),
               working('x\\sqrt{3} &= 6 + 2\\sqrt{3}', 'x &= \\frac{6}{\\sqrt{3}} + \\frac{2\\sqrt{3}}{\\sqrt{3}}'),
               prose(
-                'Divide each term by $\\sqrt{3}$ separately. The second is simply 2; the first is rationalised as in level 3, $\\frac{6\\sqrt{3}}{3} = 2\\sqrt{3}$. So $x = 2 + 2\\sqrt{3}$. If a number is added to the $x$ term, subtract it from both sides first.',
+                'Divide each term by $\\sqrt{3}$ separately. The second is simply 2; the first is rationalised as in the Surds level, $\\frac{6\\sqrt{3}}{3} = 2\\sqrt{3}$. So $x = 2 + 2\\sqrt{3}$. If a number is added to the $x$ term, subtract it from both sides first.',
               ),
             ),
             ask('rad-divide-surd-steps'),
@@ -1439,7 +1439,7 @@ export const exponentsRadicals: Course = {
           slides: [
             teach(
               prose(
-                'Level 2 solved $2^{x} = 32$ by writing 32 as a power of 2. When the bases differ, as in $4^{x} = 32$, write **both** sides as powers of one number.',
+                'Roots and Fractional Indices solved $2^{x} = 32$ by writing 32 as a power of 2. When the bases differ, as in $4^{x} = 32$, write **both** sides as powers of one number.',
               ),
               working('4^{x} &= (2^{2})^{x} = 2^{2x}', '32 &= 2^{5}'),
               prose(
@@ -1485,7 +1485,7 @@ export const exponentsRadicals: Course = {
               ),
               working('x &= 8^{\\frac{2}{3}}', '&= (\\sqrt[3]{8})^{2} = 4'),
               prose(
-                'Take the root first, as in level 2. If a number multiplies the power, as in $3x^{\\frac{3}{2}} = 24$, divide it off before anything else.',
+                'Take the root first, as in Roots and Fractional Indices. If a number multiplies the power, as in $3x^{\\frac{3}{2}} = 24$, divide it off before anything else.',
               ),
             ),
             ask('ieq-undo-tree'),
@@ -1575,7 +1575,7 @@ export const exponentsRadicals: Course = {
               ),
               working('3 \\times 4^{\\frac{3}{2}} &= 3 \\times (\\sqrt{4})^{3}', '&= 3 \\times 8 = 24'),
               prose(
-                'Root first, then power, as in level 2. If $x$ is not a perfect square, $x^{\\frac{1}{2}}$ is a surd, and the value is not a whole number.',
+                'Root first, then power, as in Roots and Fractional Indices. If $x$ is not a perfect square, $x^{\\frac{1}{2}}$ is a surd, and the value is not a whole number.',
               ),
             ),
             ask('ieq-term-steps'),
@@ -1841,7 +1841,7 @@ export const exponentsRadicals: Course = {
               ),
               maths('a = 405 \\div 3^{4} = 405 \\div 81 = 5'),
               prose(
-                'For the number of steps, divide off the start and match the bases, as in level 2: $5 \\times 2^{n} = 320$ gives $2^{n} = 64 = 2^{6}$, so $n = 6$. A percentage undoes the same way: divide by $1.1^{2}$ to undo two years of 10%.',
+                'For the number of steps, divide off the start and match the bases, as in Roots and Fractional Indices: $5 \\times 2^{n} = 320$ gives $2^{n} = 64 = 2^{6}$, so $n = 6$. A percentage undoes the same way: divide by $1.1^{2}$ to undo two years of 10%.',
               ),
             ),
             ask('grow-find-start'),

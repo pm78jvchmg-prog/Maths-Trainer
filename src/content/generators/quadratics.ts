@@ -27,6 +27,10 @@ import { ALGEBRA_KEYS, termTex } from './calculus';
 import { fracTex } from './format';
 import { bin, num, pow } from '../expr';
 
+function gcd(a: number, b: number): number {
+  return b === 0 ? Math.abs(a) : gcd(b, a % b);
+}
+
 /** Roots can be surds, so the formula questions need a root key. */
 export const SURD_KEYS: KeypadKey[] = [...ALGEBRA_KEYS, { insert: 'sqrt(' }];
 
@@ -250,10 +254,15 @@ const differenceOfSquares: Generator<DifferenceParams> = {
       { tex: `\\left(${factorTile(k, -m)}\\right)^{2}`, answer: `((${k})*x + (${-m}))^2` },
       { tex: `\\left(${factorTile(k * k, -m)}\\right)\\left(${factorTile(k * k, m)}\\right)`, answer: `((${k * k})*x + (${-m})) * ((${k * k})*x + (${m}))` },
     ),
-  sample: (rng, difficulty) => ({
-    k: difficulty > 1 ? rng.int(2, 6) : rng.int(1, 3),
-    m: rng.int(2, difficulty > 1 ? 12 : 11),
-  }),
+  // k and m share no factor, or 4x^2 - 16 would be answered (2x - 4)(2x + 4),
+  // which still has a 4 to take out.
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const k = difficulty > 1 ? rng.int(2, 6) : rng.int(1, 3);
+      const m = rng.int(2, 13);
+      if (gcd(k, m) === 1) return { k, m };
+    }
+  },
   render: ({ k, m }) => {
     const lead = k === 1 ? 'x^{2}' : `${k * k}x^{2}`;
     return {
@@ -315,11 +324,16 @@ const factoriseWithCoefficient: Generator<CoefficientParams> = {
       // At s = -1 the second bracket would read (x + 0): it is the plain x, in front.
       { tex: s + 1 === 0 ? `x\\left(${factorTile(p, q)}\\right)` : `\\left(${factorTile(p, q)}\\right)\\left(${factorTile(1, s + 1)}\\right)`, answer: `((${p})*x + (${q})) * (x + (${s + 1}))` },
     ),
-  sample: (rng, difficulty) => ({
-    p: rng.int(2, difficulty > 1 ? 6 : 4),
-    q: nonZero(rng.int(difficulty > 1 ? -7 : -5, difficulty > 1 ? 7 : 5), 3),
-    s: nonZero(rng.int(difficulty > 1 ? -7 : -5, difficulty > 1 ? 7 : 5), -2),
-  }),
+  // p and q share no factor, or the quadratic has one and the answer is not
+  // fully factorised: (4x - 2)(x - 3) is 2(2x - 1)(x - 3).
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const p = rng.int(2, difficulty > 1 ? 6 : 4);
+      const q = nonZero(rng.int(difficulty > 1 ? -7 : -5, difficulty > 1 ? 7 : 5), 3);
+      const s = nonZero(rng.int(difficulty > 1 ? -7 : -5, difficulty > 1 ? 7 : 5), -2);
+      if (gcd(p, q) === 1) return { p, q, s };
+    }
+  },
   render: ({ p, q, s }) => {
     // (px + q)(x + s) = p x^2 + (ps + q) x + qs
     const a = p;

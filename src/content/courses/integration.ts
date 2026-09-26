@@ -1202,7 +1202,7 @@ export const integration: Course = {
           slides: [
             teach(
               prose(
-                'Level 2 found the area between a curve and the $x$-axis. Now put a second curve where the axis was: the region is bounded above by one curve and below by another.',
+                'Definite Integrals and Area found the area between a curve and the $x$-axis. Now put a second curve where the axis was: the region is bounded above by one curve and below by another.',
               ),
               // The worked example below: y = x^2 + 4 over y = 2x - 1, from
               // x = 0 to x = 3, where the gap x^2 - 2x + 5 integrates to 15.

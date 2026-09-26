@@ -51,6 +51,12 @@ describe('the slider s resting value', () => {
     expect(defaultSliderValue(0, 5, 2)).toBe(2);
   });
 
+  it('prints no float noise on a decimal step', () => {
+    // 77 steps of 0.14 is 10.780000000000001 in floating point.
+    expect(String(defaultSliderValue(0, 21.56, 0.14))).toBe('10.78');
+    expect(String(defaultSliderValue(0, 14, 0.14))).toBe('7');
+  });
+
   it('starts every slider question on a value its own track can reach', () => {
     // The guard the bug above escaped: a resting value off the lattice is one
     // the learner can never slide back to, and it is read out as the answer.
@@ -163,8 +169,8 @@ describe('a slider figure', () => {
     expect(draws).not.toEqual([]);
     for (const { generator, slide, seed, difficulty } of draws) {
       const { form, L } = generator.sample(makeRng(seed), difficulty) as TailSliderParams;
-      // Out to 6 / a for the exponential, 13a for the power: see tailSliderParts.
-      const reached = form === 'exp' ? L * (1 - Math.exp(-6)) : L - L / 13;
+      // Out to 6 / a for the exponential, 30a for the power: see tailSliderParts.
+      const reached = form === 'exp' ? L * (1 - Math.exp(-6)) : L - L / 30;
       const figure = slide.figure!;
       const height = Number(figure.svg.match(/viewBox="0 0 [\d.]+ ([\d.]+)"/)![1]);
       const curves = [...figure.svg.matchAll(/fill="none" stroke="currentColor" stroke-width="2" d="([^"]+)"/g)];

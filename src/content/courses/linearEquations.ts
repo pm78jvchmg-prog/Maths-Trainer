@@ -1211,7 +1211,7 @@ export const linearEquations: Course = {
               maths('\\begin{aligned} x + 2y + z &= 8 & \\quad (1) \\\\ 2x + y + z &= 7 & \\quad (2) \\\\ x - y - z &= -4 & \\quad (3) \\end{aligned}'),
               maths('\\begin{aligned} x - y &= -1 & \\quad (4) \\\\ 2x + y &= 4 & \\quad (5) \\end{aligned}'),
               prose(
-                'Solve the pair as in level 2: $(4) + (5)$ gives $3x = 3$, so $x = 1$. Then put back one letter at a time: (4) gives $1 - y = -1$, so $y = 2$, and (1) gives $1 + 4 + z = 8$, so $z = 3$.',
+                'Solve the pair as in Simultaneous Linear Equations: $(4) + (5)$ gives $3x = 3$, so $x = 1$. Then put back one letter at a time: (4) gives $1 - y = -1$, so $y = 2$, and (1) gives $1 + 4 + z = 8$, so $z = 3$.',
               ),
             ),
             ask('lin-tri-back-steps'),

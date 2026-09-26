@@ -106,9 +106,13 @@ function* draws(generator: Generator<unknown>) {
 }
 
 describe('a negative base is bracketed before a power', () => {
+  // complex-power no longer draws a real base (it asked "What is 3^5?" in a
+  // complex-numbers lesson), so the bare negative base this file was written
+  // for cannot arise there; what is left to hold is that the question comes to
+  // its answer, and that the base really is complex.
   it('complex-power asks a question that comes to its answer', () => {
-    let negatives = 0;
     for (const { params, where } of draws(power)) {
+      expect((params as { im: number }).im, `${where}: a real base`).not.toBe(0);
       const slide = power.render(params);
       if (slide.kind !== 'expression') throw new Error(`rendered ${slide.kind}`);
       const answer = valueOf(slide.answer);
@@ -117,11 +121,9 @@ describe('a negative base is bracketed before a power', () => {
       for (const asked of [mathOf(slide), (slide.lead ?? '').replace(/=\s*$/, '')]) {
         const value = valueOf(asked);
         expect(value && same(value, answer), `${where}: ${asked} is ${value?.toString()}, answer ${slide.answer}`).toBe(true);
-        if (NEGATIVE_BASE.test(asked)) negatives += 1;
       }
-      negatives += checkSolution(power.solution(params), where);
+      checkSolution(power.solution(params), where);
     }
-    expect(negatives).toBeGreaterThan(0);
   });
 
   it('complex-power+choice marks correct the option the question comes to', () => {

@@ -137,3 +137,18 @@ export function liftBlocks(blocks: Block[]): Lifted[] {
   }
   return out;
 }
+
+/**
+ * Whether a prompt already shows `tex`, in a sentence or as a display. A
+ * flow slide sets its subject in a box under the prompt, and most prompts
+ * name the model they are about, so without this check the model is on the
+ * screen twice, one just above the other.
+ */
+export function showsLine(blocks: Block[], tex: string): boolean {
+  const target = squash(tex);
+  return blocks.some((block) =>
+    block.kind === 'display'
+      ? squash(block.tex) === target
+      : block.kind === 'prose' && [...block.text.matchAll(/\$([^$]+)\$/g)].some((m) => squash(m[1]) === target),
+  );
+}

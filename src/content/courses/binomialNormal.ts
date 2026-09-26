@@ -135,7 +135,7 @@ export const binomialNormal: Course = {
           slides: [
             teach(
               prose('For $X \\sim B(n, p)$, exactly $r$ successes means $r$ successes and $n - r$ failures, in some order.'),
-              prose('One order has probability $p^r (1 - p)^{n - r}$, and there are $\\tbinom{n}{r}$ orders (that is ${}^{n}C_{r}$, from Binomial Expansion level 2).'),
+              prose('One order has probability $p^r (1 - p)^{n - r}$, and there are $\\tbinom{n}{r}$ orders (that is ${}^{n}C_{r}$, from Binomial Expansion, nCr and the General Term).'),
               maths('P(X = r) = \\tbinom{n}{r} p^r (1 - p)^{n - r}'),
               prose('$X \\sim B(4, 0.3)$: $P(X = 2)$ is $2$ successes and $2$ failures, in $\\tbinom{4}{2} = 6$ orders.'),
               working('& P(X = 2)', '&= \\tbinom{4}{2} \\times 0.3^2 \\times 0.7^2', '&= 6 \\times 0.09 \\times 0.49', '&= 0.2646'),
@@ -514,7 +514,7 @@ export const binomialNormal: Course = {
           title: 'Why One Probability Is Not Enough',
           slides: [
             teach(
-              prose('In level 2 one probability was enough, because only one of $\\mu$ and $\\sigma$ was missing. Standardising gave one equation, and one equation fixes one unknown:'),
+              prose('In The Normal Distribution one probability was enough, because only one of $\\mu$ and $\\sigma$ was missing. Standardising gave one equation, and one equation fixes one unknown:'),
               maths('\\frac{x - \\mu}{\\sigma} = z'),
               prose('With both missing, that same equation has two unknowns in it.'),
             ),
@@ -1005,7 +1005,7 @@ export const binomialNormal: Course = {
           title: 'A Probability from the Combination',
           slides: [
             teach(
-              prose('Once a combination has its normal, a probability is found as in level 2: standardise with its own mean and $\\sigma$, then read $\\Phi$.'),
+              prose('Once a combination has its normal, a probability is found as in The Normal Distribution: standardise with its own mean and $\\sigma$, then read $\\Phi$.'),
               prose('$X \\sim N(40, 9)$ and $Y \\sim N(30, 16)$ are independent, so $X + Y \\sim N(70, 25)$ and $\\sigma = 5$. With $\\Phi(1) = 0.8413$:'),
               working('z &= \\frac{75 - 70}{5} = 1', '& P(X + Y > 75)', '&= 1 - \\Phi(1)', '&= 0.1587'),
             ),
@@ -1058,7 +1058,7 @@ export const binomialNormal: Course = {
             teach(
               prose('Take a random sample of $n$ values of $X \\sim N(\\mu, \\sigma^2)$ and average them. The mean is the total over $n$:'),
               maths('\\bar{X} = \\frac{X_1 + X_2 + \\dots + X_n}{n} = \\frac{T}{n}'),
-              prose('Level 5 gave the total: $\\mathrm{E}(T) = n\\mu$ and $\\mathrm{Var}(T) = n\\sigma^2$. Dividing by $n$ is $aT$ with $a = \\frac{1}{n}$, so the mean is divided by $n$ and the variance by $n^2$:'),
+              prose('Sums and Differences of Independent Normals gave the total: $\\mathrm{E}(T) = n\\mu$ and $\\mathrm{Var}(T) = n\\sigma^2$. Dividing by $n$ is $aT$ with $a = \\frac{1}{n}$, so the mean is divided by $n$ and the variance by $n^2$:'),
               working('\\mathrm{E}(\\bar{X}) &= \\frac{n\\mu}{n} = \\mu', '\\mathrm{Var}(\\bar{X}) &= \\frac{n\\sigma^2}{n^2} = \\frac{\\sigma^2}{n}'),
             ),
             asking(
@@ -1095,7 +1095,7 @@ export const binomialNormal: Course = {
               maths('\\bar{X} \\sim N\\left(\\mu, \\frac{\\sigma^2}{n}\\right)'),
               prose('Its standard deviation is the square root of that variance:'),
               maths('\\sigma_{\\bar{X}} = \\frac{\\sigma}{\\sqrt{n}}'),
-              prose('Hypothesis Testing level 2 quotes this result in its lesson The Sample Mean; this is where it comes from.'),
+              prose('Hypothesis Testing, Testing a Mean, quotes this result in its lesson The Sample Mean; this is where it comes from.'),
             ),
             ask('dist-xbar-normal'),
             ask('dist-xbar-build'),
@@ -1155,7 +1155,7 @@ export const binomialNormal: Course = {
           title: 'A Probability for a Mean',
           slides: [
             teach(
-              prose('A probability for $\\bar{X}$ is found as in level 2, standardising with $\\sigma_{\\bar{X}}$ in place of $\\sigma$:'),
+              prose('A probability for $\\bar{X}$ is found as in The Normal Distribution, standardising with $\\sigma_{\\bar{X}}$ in place of $\\sigma$:'),
               maths('z = \\frac{\\bar{x} - \\mu}{\\sigma / \\sqrt{n}}'),
               prose('$X \\sim N(50, 36)$ and $n = 9$, so $\\sigma_{\\bar{X}} = 2$. With $\\Phi(1.5) = 0.9332$:'),
               working('z &= \\frac{53 - 50}{2} = 1.5', 'P(\\bar{X} > 53) &= 1 - 0.9332', '&= 0.0668'),
@@ -1185,7 +1185,7 @@ export const binomialNormal: Course = {
           title: 'Working Back from a Mean',
           slides: [
             teach(
-              prose('Working back is level 2\'s percentage points with $\\sigma_{\\bar{X}}$. $\\bar{X} \\sim N(50, 4)$, so $\\sigma_{\\bar{X}} = 2$.'),
+              prose('Working back is done as in The Normal Distribution, "Working Back from a Probability", with $\\sigma_{\\bar{X}}$. $\\bar{X} \\sim N(50, 4)$, so $\\sigma_{\\bar{X}} = 2$.'),
               prose('For $P(\\bar{X} > k) = 0.05$, $k$ sits $1.645$ standard deviations above the mean:'),
               working('k &= 50 + 1.645 \\times 2', '&= 53.29'),
             ),

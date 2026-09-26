@@ -453,7 +453,7 @@ export const vectors: Course = {
           slides: [
             teach(
               prose(
-                'Level 1 met the test for **parallel** vectors: one is a scalar multiple of the other, with the same multiple on every component.',
+                'Vectors Basics, "Scalar Multiples", met the test for **parallel** vectors: one is a scalar multiple of the other, with the same multiple on every component.',
               ),
               maths('\\begin{pmatrix} 6 \\\\ -4 \\end{pmatrix} = -2\\begin{pmatrix} -3 \\\\ 2 \\end{pmatrix}'),
               prose(
@@ -608,7 +608,7 @@ export const vectors: Course = {
             ),
             teach(
               prose(
-                'Proofs in vector geometry usually end on the level 1 test. Two vectors written in $\\mathbf{a}$ and $\\mathbf{b}$ are parallel when one is a multiple of the other, with the same multiple on both coefficients.',
+                'Proofs in vector geometry usually end on the test for parallel vectors. Two vectors written in $\\mathbf{a}$ and $\\mathbf{b}$ are parallel when one is a multiple of the other, with the same multiple on both coefficients.',
               ),
               maths('6\\mathbf{a} - 4\\mathbf{b} = 2\\left(3\\mathbf{a} - 2\\mathbf{b}\\right)'),
               prose(

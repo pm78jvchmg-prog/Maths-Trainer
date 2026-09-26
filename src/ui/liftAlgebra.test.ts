@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasTopLevelRelation, isAlgebraLine, liftAlgebra, liftBlocks } from './liftAlgebra';
+import { hasTopLevelRelation, isAlgebraLine, liftAlgebra, liftBlocks, showsLine } from './liftAlgebra';
 
 describe('liftAlgebra', () => {
   it('lifts the model out of the tea question the owner flagged', () => {
@@ -57,5 +57,18 @@ describe('liftBlocks', () => {
       { kind: 'display', tex: 'v = 60' },
     ]);
     expect(items.map((item) => item.kind)).toEqual(['text', 'lifted', 'text', 'display']);
+  });
+});
+
+describe('showsLine', () => {
+  it('finds a model named in a sentence, so a flow does not show it twice', () => {
+    const prompt = [{ kind: 'prose' as const, text: 'The caffeine left, in mg, is modelled by $C = 400e^{-0.2t}$. Read the model.' }];
+    expect(showsLine(prompt, 'C = 400e^{-0.2t}')).toBe(true);
+    expect(showsLine(prompt, 'C = 400e^{-0.3t}')).toBe(false);
+  });
+
+  it('finds it in a display, and not when the prompt shows something else', () => {
+    expect(showsLine([{ kind: 'display', tex: 'F = \\frac{1600}{1 + 7e^{-0.1t}}' }], 'F = \\frac{1600}{1 + 7e^{-0.1t}}')).toBe(true);
+    expect(showsLine([{ kind: 'prose', text: 'Solve $2x + 3 = 11$.' }], '2x = 8')).toBe(false);
   });
 });

@@ -1083,7 +1083,7 @@ export const trigonometricFunctions: Course = {
           slides: [
             teach(
               prose(
-                'Everything from Level 1 now attaches to a formula. In $y = a\\sin(t) + d$, the $a$ is the amplitude and the $d$ is the midline.',
+                'Everything from Periodic Phenomena now attaches to a formula. In $y = a\\sin(t) + d$, the $a$ is the amplitude and the $d$ is the midline.',
               ),
               maths('y = a\\sin(t) + d'),
               // sin(t) dashed against y = 2sin(t) + 3, so a and d are visible
@@ -1152,7 +1152,7 @@ export const trigonometricFunctions: Course = {
               ),
               maths('y = \\sin\\left(b(t - c)\\right)'),
               prose(
-                'The $b$ divides the period: larger $b$ means faster repeats. The $c$ shifts the graph right, exactly as it did in Level 1. On a drawn graph the period is still the gap between consecutive peaks: peaks at $t = 1$ and $t = 5$ mean a period of $5 - 1 = 4$.',
+                'The $b$ divides the period: larger $b$ means faster repeats. The $c$ shifts the graph right, exactly as it did in Periodic Phenomena. On a drawn graph the period is still the gap between consecutive peaks: peaks at $t = 1$ and $t = 5$ mean a period of $5 - 1 = 4$.',
               ),
               prose(
                 'Writing it with $b$ outside the inner bracket is deliberate. It makes $c$ a genuine shift in $t$; in the expanded form $\\sin(bt - bc)$ the shift is much harder to see.',
@@ -1243,7 +1243,7 @@ export const trigonometricFunctions: Course = {
             ask('trig-match-graph', 2),
             teach(
               prose(
-                'This is the wheel from Level 2 in a new coat: a wheel making more turns per second has a shorter period, and $b$ counts cycles per turn in exactly the same way.',
+                'This is the wheel from Periodic Functions from Circular Motion in a new coat: a wheel making more turns per second has a shorter period, and $b$ counts cycles per turn in exactly the same way.',
               ),
               maths('b \\times \\text{period} = 360^{\\circ}'),
               prose(
@@ -1320,7 +1320,7 @@ export const trigonometricFunctions: Course = {
         ask('trig-period-from-speed', 2),
         ask('trig-period-from-b', 2),
         ask('trig-wave-swing', 2),
-        ask('trig-read-graph', 2),
+        ask('trig-read-period', 2),
         ask('trig-evaluate-exact+choice', 2),
         ask('trig-period-from-b+choice', 2),
         ask('trig-amplitude', 2),
@@ -1371,7 +1371,7 @@ export const trigonometricFunctions: Course = {
             ask('trig-rad-from-turn+choice'),
             teach(
               prose(
-                'The waves of level 3 look exactly the same with the axis in radians; only the numbers along the bottom change. One cycle of $\\sin(x)$ now ends at $2\\pi$, not at $360$.',
+                'The waves of Graphs of Sine and Cosine look exactly the same with the axis in radians; only the numbers along the bottom change. One cycle of $\\sin(x)$ now ends at $2\\pi$, not at $360$.',
               ),
               graph({
                 xMin: 0,
@@ -1440,7 +1440,7 @@ export const trigonometricFunctions: Course = {
                 '30^{\\circ} = \\frac{\\pi}{6} \\qquad 45^{\\circ} = \\frac{\\pi}{4} \\qquad 60^{\\circ} = \\frac{\\pi}{3} \\qquad 90^{\\circ} = \\frac{\\pi}{2}',
               ),
               prose(
-                'These four are worth knowing on sight. They are the special angles of level 2 under new names, and every other common angle is a multiple of one of them.',
+                'These four are worth knowing on sight. They are the special angles of Periodic Functions from Circular Motion under new names, and every other common angle is a multiple of one of them.',
               ),
             ),
             ask('trig-rad-unit-tree', 2),
@@ -1458,7 +1458,7 @@ export const trigonometricFunctions: Course = {
           slides: [
             teach(
               prose(
-                'The special angles keep their exact values; only their names change. Level 2 used the values $0$, $\\frac{1}{2}$ and $1$, and two more complete the set.',
+                'The special angles keep their exact values; only their names change. Periodic Functions from Circular Motion used the values $0$, $\\frac{1}{2}$ and $1$, and two more complete the set.',
               ),
               maths(
                 '\\begin{array}{c|ccccc} \\theta & 0 & \\frac{\\pi}{6} & \\frac{\\pi}{4} & \\frac{\\pi}{3} & \\frac{\\pi}{2} \\\\ \\hline \\sin(\\theta) & 0 & \\frac{1}{2} & \\frac{\\sqrt{2}}{2} & \\frac{\\sqrt{3}}{2} & 1 \\\\ \\cos(\\theta) & 1 & \\frac{\\sqrt{3}}{2} & \\frac{\\sqrt{2}}{2} & \\frac{1}{2} & 0 \\end{array}',

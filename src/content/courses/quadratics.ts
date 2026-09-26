@@ -269,7 +269,7 @@ export const quadratics: Course = {
             ask('quad-factor-one+choice'),
             teach(
               prose(
-                'Not every quadratic factorises with whole numbers, and there is nothing wrong with one that does not — Level 2 has two methods that work regardless.',
+                'Not every quadratic factorises with whole numbers, and there is nothing wrong with one that does not — Solving Quadratic Equations has two methods that work regardless.',
               ),
               maths('x^{2} + x + 1'),
               prose(

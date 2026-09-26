@@ -1984,7 +1984,7 @@ function factorTex(factor: number): string {
 /** A factor as plain text, for option labels that wrap: `3`, `½`. */
 function factorWord(factor: number): string {
   if (Number.isInteger(factor)) return `${factor}`;
-  const unicode: Record<number, string> = { 2: '½', 3: '⅓', 4: '¼' };
+  const unicode: Record<number, string> = { 2: '½', 3: '⅓', 4: '¼', 5: '⅕' };
   return unicode[Math.round(1 / factor)];
 }
 

@@ -5489,11 +5489,11 @@ interface DiffContext {
 }
 
 const DIFF_CONTEXTS: DiffContext[] = [
-  { quantity: 'mass of a bag of flour', unit: 'g', group: 'machine', of: 'from machine', mus: [500, 750, 1000] },
+  { quantity: 'mass of a bag of flour', unit: 'grams', group: 'machine', of: 'from machine', mus: [500, 750, 1000] },
   { quantity: 'time a pizza delivery takes', unit: 'minutes', group: 'branch', of: 'from branch', mus: range(25, 45) },
-  { quantity: 'length of a bolt', unit: 'mm', group: 'factory', of: 'from factory', mus: range(40, 80, 5) },
+  { quantity: 'length of a bolt', unit: 'millimetres', group: 'factory', of: 'from factory', mus: range(40, 80, 5) },
   { quantity: 'lifetime of a battery', unit: 'hours', group: 'brand', of: 'for brand', mus: range(100, 200, 10) },
-  { quantity: 'height of a seedling', unit: 'cm', group: 'compost', of: 'in compost', mus: range(12, 30) },
+  { quantity: 'height of a seedling', unit: 'centimetres', group: 'compost', of: 'in compost', mus: range(12, 30) },
   { quantity: 'mark on a test', unit: 'marks', group: 'school', of: 'at school', mus: range(40, 80) },
   { quantity: 'time to run 400 m', unit: 'seconds', group: 'club', of: 'at club', mus: range(55, 75) },
 ];
@@ -5572,6 +5572,12 @@ function sampleDiff(rng: Rng, { tails = TAILS, zLo = 30, zHi = 320, tenths = fal
     return sc;
   }
 }
+
+/**
+ * A short statement held in one group, so an inline `H_0: \mu_A = \mu_B` or
+ * `z < -2.326` never breaks after its colon or relation at the end of a line.
+ */
+const whole = (tex: string): string => `{${tex}}`;
 
 const diffIntro = ({ ctx }: Pick<DiffScene, 'ctx'>): string => {
   const c = DIFF_CONTEXTS[ctx];
@@ -5670,7 +5676,7 @@ const diffModelTiles: Generator<DiffModelParams> = {
       prompt: [
         say(diffIntro(p)),
         diffTable(p, ['mu', 'sigma', 'n'], [muA, muB]),
-        say('Complete the distribution of $\\bar{X}_A - \\bar{X}_B$.'),
+        say('Complete the distribution of ${\\bar{X}_A - \\bar{X}_B}$ below.'),
       ],
       template: '\\bar{X}_A - \\bar{X}_B \\sim N({0}, {1})',
       bank: tokenBank(
@@ -5743,7 +5749,7 @@ const diffRuleFlow: Generator<DiffModelParams> = {
       prompt: [
         say(diffIntro(p)),
         diffTable(p, ['mu', 'sigma', 'n'], [muA, muB]),
-        say('Find the distribution of $\\bar{X}_A - \\bar{X}_B$.'),
+        say('Find the distribution of ${\\bar{X}_A - \\bar{X}_B}$.'),
       ],
       subject: '\\bar{X}_A - \\bar{X}_B',
       steps: [
@@ -5793,7 +5799,7 @@ const diffSpreadTree: Generator<DiffScene> = {
       prompt: [
         say(diffIntro(sc)),
         diffTable(sc, ['sigma', 'n']),
-        say('Fill in each $\\frac{\\sigma^2}{n}$, then their sum, the variance of $\\bar{X}_A - \\bar{X}_B$, then its square root.'),
+        say('Fill in each $\\sigma^2 / n$, then their sum, the variance of ${\\bar{X}_A - \\bar{X}_B}$, then its square root.'),
       ],
       expression: '\\sqrt{\\frac{\\sigma_A^2}{n_A} + \\frac{\\sigma_B^2}{n_B}}',
       nodes: [
@@ -5821,7 +5827,7 @@ const diffZStat: Generator<DiffScene> = {
   sample: (rng, difficulty) => sampleDiff(rng, { tails: difficulty > 1 ? TAILS : ['up'] }),
   render: (sc): Slide => ({
     kind: 'expression',
-    prompt: [say(diffIntro(sc)), diffTable(sc, ['sigma', 'n', 'xbar']), say('Find the test statistic $z$ for $H_0: \\mu_A = \\mu_B$.')],
+    prompt: [say(diffIntro(sc)), diffTable(sc, ['sigma', 'n', 'xbar']), say('Find the test statistic $z$ for ${H_0: \\mu_A = \\mu_B}$.')],
     lead: 'z =',
     keypad: [],
     answer: fmt(diffZ(sc)),
@@ -5838,7 +5844,7 @@ const diffZStat: Generator<DiffScene> = {
       g / (sdA(sc) + sdB(sc)),
     ]);
   },
-  solution: (sc) => [{ text: 'If $H_0$ is true, $\\bar{X}_A - \\bar{X}_B$ has mean $0$.' }, ...diffZLines(sc)],
+  solution: (sc) => [{ text: 'If $H_0$ is true, ${\\bar{X}_A - \\bar{X}_B}$ has mean $0$.' }, ...diffZLines(sc)],
 };
 
 /** z set up in its form: which mean goes first, and what goes under the root. */
@@ -5855,7 +5861,7 @@ const diffZTiles: Generator<DiffScene> = {
       prompt: [
         say(diffIntro(sc)),
         diffTable(sc, ['sigma', 'n', 'xbar']),
-        say('Set up $z$ for $H_0: \\mu_A = \\mu_B$, taking $A$ minus $B$.'),
+        say('Set up $z$ for ${H_0: \\mu_A = \\mu_B}$, taking $A$ minus $B$.'),
       ],
       template: 'z = ({0} - {1}) \\div {2}',
       bank: tokenBank(
@@ -5867,7 +5873,7 @@ const diffZTiles: Generator<DiffScene> = {
     };
   },
   solution: (sc) => [
-    { text: 'The difference of the sample means on top, in the order $A - B$, divided by the square root of the two variances added.' },
+    { text: 'The difference of the sample means on top, in the order ${A - B}$, divided by the square root of the two variances added.' },
     ...diffZLines(sc),
   ],
 };
@@ -5887,9 +5893,9 @@ const diffStatTree: Generator<DiffScene> = {
       prompt: [
         say(diffIntro(sc)),
         diffTable(sc, ['sigma', 'n', 'xbar']),
-        say('Top row: $\\bar{x}_A - \\bar{x}_B$, then the variance of $\\bar{X}_A - \\bar{X}_B$. Then its square root, and $z$.'),
+        say('Top row: ${\\bar{x}_A - \\bar{x}_B}$, then the variance of the difference. Below them, its square root, then $z$.'),
       ],
-      expression: 'z = \\frac{\\bar{x}_A - \\bar{x}_B}{\\sqrt{\\sigma_A^2 / n_A + \\sigma_B^2 / n_B}}',
+      expression: 'z = \\frac{\\bar{x}_A - \\bar{x}_B}{\\sqrt{\\dfrac{\\sigma_A^2}{n_A} + \\dfrac{\\sigma_B^2}{n_B}}}',
       nodes: [
         { id: 'd', from: [] },
         { id: 'v', from: [] },
@@ -5966,7 +5972,7 @@ const diffHypTiles: Generator<DiffHypParams> = {
       kind: 'tiles',
       prompt: [
         say(`Samples of the ${c.quantity} ${c.of} A and ${c.of} B are compared. ${diffSuspicion(p)}`),
-        say(`The test of $H_0: \\mu_A = \\mu_B$ is at the ${p.level}% level. Complete $H_1$ and the critical region.`),
+        say(`The test of $${whole('H_0: \\mu_A = \\mu_B')}$ is at the ${p.level}% level. Complete $H_1$ and the critical region.`),
       ],
       template: 'H_1: \\mu_A {0} \\mu_B, \\quad {1}',
       bank: tokenBank(answer, [...TAILS.map((t) => OP[t]), ...wrongRegions(p.level, p.tail)], 4),
@@ -6063,7 +6069,7 @@ const diffConclusionChoice: Generator<DiffDecideParams> = {
     return choiceSlide(
       [
         say(`${diffIntro(sc)} ${diffSuspicion(sc)}`),
-        say(`At the ${sc.level}% level the critical region is $${zRegionTex(sc.level, sc.tail)}$, and $z = ${fmt(diffZ(sc))}$. Which conclusion is right?`),
+        say(`At the ${sc.level}% level the critical region is $${whole(zRegionTex(sc.level, sc.tail))}$, and $z = ${fmt(diffZ(sc))}$. Which conclusion is right?`),
       ],
       options(
         { tex: reject ? yes : no },
@@ -6075,7 +6081,7 @@ const diffConclusionChoice: Generator<DiffDecideParams> = {
     );
   },
   solution: (sc) => [
-    { text: `$z = ${fmt(diffZ(sc))}$ is ${diffIn(sc) ? '' : 'not '}in the critical region $${zRegionTex(sc.level, sc.tail)}$.` },
+    { text: `$z = ${fmt(diffZ(sc))}$ is ${diffIn(sc) ? '' : 'not '}in the critical region $${whole(zRegionTex(sc.level, sc.tail))}$.` },
     {
       text: `${diffIn(sc) ? 'So' : 'So there is no reason to'} reject $H_0$. A test gives evidence at a level, never proof, and the conclusion names the two groups.`,
     },
@@ -6093,7 +6099,7 @@ const diffCrit: Generator<DiffScene> = {
       prompt: [
         say(`${diffIntro(sc)} ${diffSuspicion(sc)} The test is at the ${sc.level}% level.`),
         diffTable(sc, ['sigma', 'n']),
-        say(`Find ${ask} of $\\bar{x}_A - \\bar{x}_B$ that would lead to rejecting $H_0$, in ${DIFF_CONTEXTS[sc.ctx].unit}.`),
+        say(`Find ${ask} of $${whole('\\bar{x}_A - \\bar{x}_B')}$ that would lead to rejecting $H_0$, in ${DIFF_CONTEXTS[sc.ctx].unit}.`),
       ],
       lead: '\\bar{x}_A - \\bar{x}_B =',
       keypad: [],
@@ -6133,7 +6139,7 @@ const PAIR_CONTEXTS: PairContext[] = [
   { who: 'pupils', measure: 'mark on a test', unit: 'marks', cause: 'the revision course', lo: 35, hi: 80, dMax: 10 },
   { who: 'patients', measure: 'blood pressure', unit: 'mmHg', cause: 'the new drug', lo: 120, hi: 165, dMax: 15 },
   { who: 'workers', measure: 'number of items made in an hour', unit: 'items', cause: 'the new layout', lo: 30, hi: 60, dMax: 8 },
-  { who: 'drivers', measure: 'reaction time', unit: 'ms', cause: 'coffee', lo: 200, hi: 300, dMax: 30 },
+  { who: 'drivers', measure: 'reaction time', unit: 'milliseconds', cause: 'coffee', lo: 200, hi: 300, dMax: 30 },
   { who: 'swimmers', measure: 'time to swim 100 m', unit: 'seconds', cause: 'the new technique', lo: 60, hi: 90, dMax: 6 },
   { who: 'adults', measure: 'resting heart rate', unit: 'beats per minute', cause: 'the exercise plan', lo: 60, hi: 90, dMax: 10 },
 ];
@@ -6300,10 +6306,10 @@ const pairedMean: Generator<PairMeanParams> = {
       kind: 'expression',
       prompt: [
         say(pairWho(p)),
+        show(pairDef(p.flip)),
         show(
           `\\begin{array}{c|c${p.given ? '|c' : ''}} \\text{before} & \\text{after}${p.given ? ' & d' : ''} \\\\ \\hline ${rows.join(' \\\\ ')} \\end{array}`,
         ),
-        show(pairDef(p.flip)),
         say('Find $\\bar{d}$, the mean difference.'),
       ],
       lead: '\\bar{d} =',
@@ -6428,7 +6434,7 @@ const pairedMethodFlow: Generator<{ design: number }> = {
           ask: 'So what does the test work with?',
           branches: spun(
             [
-              { label: differences, outcome: 'Right: one sample of differences $d$, testing $H_0: \\mu_d = 0$ with $\\bar{d}$.' },
+              { label: differences, outcome: 'Right: one sample of differences $d$, testing ${H_0: \\mu_d = 0}$ with $\\bar{d}$.' },
               { label: means, outcome: 'Not this: matched values are not independent, so take the difference in each pair.' },
             ],
             `${text}|p`,
@@ -6439,7 +6445,7 @@ const pairedMethodFlow: Generator<{ design: number }> = {
           ask: 'So what does the test work with?',
           branches: spun(
             [
-              { label: means, outcome: 'Right: test $H_0: \\mu_A = \\mu_B$ with $\\bar{x}_A - \\bar{x}_B$.' },
+              { label: means, outcome: 'Right: test ${H_0: \\mu_A = \\mu_B}$ with ${\\bar{x}_A - \\bar{x}_B}$.' },
               { label: differences, outcome: 'Not this: with no pairs there is no difference to take for each one.' },
             ],
             `${text}|i`,
@@ -6462,7 +6468,7 @@ const pairedZ: Generator<PairScene> = {
     samplePair(rng, difficulty > 1 ? { flips: [false, true] } : { effects: ['up', 'down'] }),
   render: (p): Slide => ({
     kind: 'expression',
-    prompt: [say(pairIntro(p)), pairData(p), say('Find the test statistic $z$ for $H_0: \\mu_d = 0$.')],
+    prompt: [say(pairIntro(p)), pairData(p), say('Find the test statistic $z$ for ${H_0: \\mu_d = 0}$.')],
     lead: 'z =',
     keypad: [],
     answer: fmt(pairZ(p)),
@@ -6493,7 +6499,7 @@ const pairedStatTree: Generator<PairScene> = {
       prompt: [
         say(pairIntro(p)),
         show(`${pairDef(p.flip)} \\qquad \\textstyle\\sum d = ${fmt(total)} \\qquad \\sigma_d = ${sigmaD(p)}`),
-        say('Top row: $\\bar{d}$, then $\\frac{\\sigma_d}{\\sqrt{n}}$. Underneath, $z$.'),
+        say('Top row: $\\bar{d}$, then $\\sigma_d / \\sqrt{n}$. Underneath, $z$.'),
       ],
       expression: 'z = \\frac{\\bar{d}}{\\sigma_d / \\sqrt{n}}',
       nodes: [
@@ -6535,7 +6541,7 @@ const pairedH1Tiles: Generator<PairHypParams> = {
       prompt: [
         say(`${pairWho(p)} A researcher suspects ${pairEffect(p)}.`),
         show(pairDef(p.flip)),
-        say(`The test of $H_0: \\mu_d = 0$ is at the ${p.level}% level. Complete $H_1$ and the critical region.`),
+        say(`The test of $${whole('H_0: \\mu_d = 0')}$ is at the ${p.level}% level. Complete $H_1$ and the critical region.`),
       ],
       template: 'H_1: \\mu_d {0} 0, \\quad {1}',
       bank: tokenBank(answer, [...TAILS.map((t) => OP[t]), ...wrongRegions(p.level, tail)], 4),

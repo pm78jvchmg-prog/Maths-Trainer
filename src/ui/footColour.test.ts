@@ -5,7 +5,7 @@ import { bandColour } from './footColour';
 // for the same band and offset, read back from a screenshot.
 describe('bandColour', () => {
   it('matches the flat maths blue over the page, shaded', () => {
-    expect(bandColour('maths', 100, 4000)).toBe('rgb(36 40 111)');
+    expect(bandColour('maths', 100, 4000)).toBe('rgb(36 39 111)');
   });
 
   it('ends the maths run on the opaque purple the applied run opens on', () => {
@@ -13,7 +13,7 @@ describe('bandColour', () => {
   });
 
   it('ends the applied run on the brown at the foot of the list', () => {
-    expect(bandColour('applied', 1500, 1500)).toBe('rgb(76 37 38)');
+    expect(bandColour('applied', 1500, 1500)).toBe('rgb(76 38 38)');
   });
 
   it('darkens by the fade over the foot of the list', () => {

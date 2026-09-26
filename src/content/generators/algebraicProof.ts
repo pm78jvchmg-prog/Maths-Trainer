@@ -1071,7 +1071,7 @@ const aprfSquareDivides: Generator<SquareParams> = {
   render(params) {
     const s = squareShape(params);
     return typed(
-      [`What is the largest whole number that always divides $${s.Xsq} - ${s.Ysq}$, whatever whole number $n$ is?`],
+      [`What is the largest whole number that always divides \${${s.Xsq} - ${s.Ysq}}$, whatever whole number $n$ is?`],
       '\\text{largest} =',
       s.g,
     );
@@ -1565,7 +1565,7 @@ const aprfFactorTiles: Generator<FactorTilesParams> = {
   solution({ k, inner }) {
     const full = termsTex(inner.map(([c, v]) => [k * c, v]));
     return [
-      { text: `Every term is a multiple of $${k}$: ${inner.map(([c, v]) => `$${termsTex([[k * c, v]])} = ${k} \\times ${termsTex([[c, v]])}$`).join(', ')}.` },
+      { text: `Every term is a multiple of $${k}$: ${inner.map(([c, v]) => `$${termsTex([[k * c, v]])} = ${k} \\times ${c < 0 ? `(${termsTex([[c, v]])})` : termsTex([[c, v]])}$`).join(', ')}.` },
       { tex: stackTex(`${full} = ${k}(${termsTex(inner)})`) },
       { text: `The bracket is a whole number, so the expression is always a multiple of $${k}$. Expanding the bracket again is a quick check.` },
     ];

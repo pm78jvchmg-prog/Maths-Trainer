@@ -56,7 +56,8 @@ function multiplyTex(k: number, b: number, x: number): string {
 const xTerm = (a: number) => (a === 1 ? 'x' : `${a}x`);
 
 /** `ax ≡ b (mod n)`. */
-const congTex = (a: number, b: number, n: number) => `${xTerm(a)} \\equiv ${b} ${pmod(n)}`;
+/** Braced so an inline congruence moves to the next line whole rather than breaking after its `\\equiv`. */
+const congTex = (a: number, b: number, n: number) => `{${xTerm(a)} \\equiv ${b} ${pmod(n)}}`;
 
 const hcfTex = (a: number, n: number) => `\\text{HCF}(${a}, ${n})`;
 
@@ -271,7 +272,7 @@ const lcongInverse: Generator<ModParams> = {
   },
   render({ a, n }) {
     return typed(
-      [say(`Find the inverse of $${a}$ modulo $${n}$: the number $b$ from $1$ to $${n - 1}$ with $${a}b \\equiv 1 ${pmod(n)}$.`)],
+      [say(`Find the inverse of $${a}$ modulo $${n}$: the number $b$ from $1$ to $${n - 1}$ with \${${a}b \\equiv 1 ${pmod(n)}}$.`)],
       'b =',
       inverseOf(a, n),
     );

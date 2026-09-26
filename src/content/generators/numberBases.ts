@@ -757,7 +757,7 @@ const baseHexToBin: Generator<NParams> = {
     const ds = digitsOf(n, 16);
     return [
       { text: 'Each hex digit is exactly four binary digits, zeros kept:' },
-      ...ds.map((d) => ({ tex: `${digitTex(d)} = ${d} \\to ${padded(d.toString(2), 4)}` })),
+      ...ds.map((d) => ({ tex: `${d > 9 ? `${digitTex(d)} = ${d}` : d} \\to ${padded(d.toString(2), 4)}` })),
       { text: 'Put the groups side by side and drop any zeros at the very front:' },
       { tex: `\\begin{gathered} ${numTex(n, 16)} \\\\ = ${grouped(numeral(n, 2), 4)}_2 \\end{gathered}` },
     ];

@@ -82,10 +82,10 @@ export const npL11: Level = {
         ask('dvf-divide'),
         teach(
           prose('For a cube, top each power up to the next multiple of $3$. With $360 = 2^3 \\times 3^2 \\times 5$:'),
-          maths('\\begin{gathered} 3 + 0 = 3, \\quad 2 + 1 = 3, \\quad 1 + 2 = 3 \\\\ k = 3 \\times 5^2 = 75 \\end{gathered}'),
-          prose(
-            'To divide down to a cube, take each power down to the multiple of $3$ below it: $d = 3^2 \\times 5 = 45$, and $360 \\div 45 = 8 = 2^3$.',
-          ),
+          maths('3 + 0 = 3 \\qquad 2 + 1 = 3 \\qquad 1 + 2 = 3'),
+          maths('k = 3 \\times 5^2 = 75'),
+          prose('To divide down to a cube, take each power down to the multiple of $3$ below it:'),
+          maths('\\begin{gathered} d = 3^2 \\times 5 = 45 \\\\ 360 \\div 45 = 8 = 2^3 \\end{gathered}'),
         ),
         ask('dvf-multiplier', 2),
         ask('dvf-root+choice', 2),
@@ -100,7 +100,7 @@ export const npL11: Level = {
           prose(
             '$\\sigma(n)$, read "sigma of $n$", is the sum of all the positive divisors of $n$, with $1$ and $n$ itself included.',
           ),
-          maths('\\begin{aligned} \\sigma(12) &= 1 + 2 + 3 + 4 + 6 + 12 \\\\ &= 28 \\end{aligned}'),
+          maths('\\begin{aligned} \\sigma(12) &= 1 + 2 + 3 \\\\ &\\quad + 4 + 6 + 12 \\\\ &= 28 \\end{aligned}'),
           prose('A prime $p$ has just the divisors $1$ and $p$, so $\\sigma(p) = p + 1$.'),
         ),
         ask('dvf-sigma-list'),
@@ -162,9 +162,9 @@ export const npL11: Level = {
             'The perfect numbers under $1000$ are $6$, $28$ and $496$. Each is a power of $2$ times a prime one less than the next power of $2$:',
           ),
           maths('\\begin{gathered} 6 = 2 \\times 3, \\quad 28 = 4 \\times 7 \\\\ 496 = 16 \\times 31 \\end{gathered}'),
-          prose('For $496 = 2^4 \\times 31$, the brackets give'),
+          prose('For $496$, which is $2^4 \\times 31$, the brackets give'),
           maths('\\begin{gathered} \\sigma(16) = 31, \\quad \\sigma(31) = 32 \\\\ \\sigma(496) = 31 \\times 32 = 992 \\end{gathered}'),
-          prose('and $992 - 496 = 496$. With any other odd prime in place of $31$, the same working decides the kind.'),
+          prose('Take away $496$ itself: $992 - 496 = 496$. With any other odd prime in place of $31$, the same working decides the kind.'),
         ),
         ask('dvf-two-power-tree'),
         ask('dvf-classify-flow', 2),
@@ -207,7 +207,7 @@ export const npL11: Level = {
           ),
           maths('1 \\times 2 \\times 3 \\times 4 \\times 6 \\times 12 = 12^3'),
           prose(
-            'A square has one divisor left over. $36 = 2^2 \\times 3^2$ has $9$ divisors: $4$ pairs making $36 = 6^2$, and $6$ alone. So the product is $(6^2)^4 \\times 6 = 6^9$.',
+            'A square has one divisor left over. $36 = 2^2 \\times 3^2$ has $9$ divisors: $4$ pairs making ${36 = 6^2}$, and $6$ alone. So the product is $(6^2)^4 \\times 6 = 6^9$.',
           ),
         ),
         askAfter(

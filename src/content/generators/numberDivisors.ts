@@ -66,6 +66,11 @@ const powTex = (p: number, e: number) => (e === 1 ? `${p}` : e < 10 ? `${p}^${e}
 
 /** `2^3 \times 3^2 \times 5`. */
 const primeTex = (f: Factors) => sortFactors(f).map(([p, e]) => powTex(p, e)).join(' \\times ') || '1';
+/** The divisor count as a product of (power + 1), with no bracket round a lone factor. */
+const countTex = (f: Factors) => {
+  const powers = sortFactors(f).map(([, e]) => e);
+  return powers.length === 1 ? `${powers[0]} + 1` : powers.map((e) => `(${e} + 1)`).join('');
+};
 
 const divisorsOf = (n: number) => range(1, n).filter((d) => n % d === 0);
 const sigmaOf = (n: number) => divisorsOf(n).reduce((acc, d) => acc + d, 0);
@@ -1204,7 +1209,7 @@ const dvfOddCount: Generator<OddCountParams> = {
     return [
       { text: 'Only a square has an odd number of divisors, and a square has every power even.' },
       { text: `$${primeTex(opts[0])}$ has every power even. Each of the others has an odd power.` },
-      { text: `The count agrees: $${sortFactors(opts[0]).map(([, e]) => `(${e} + 1)`).join('')} = ${sortFactors(opts[0]).reduce((acc, [, e]) => acc * (e + 1), 1)}$, odd.` },
+      { text: `The count agrees: $${countTex(opts[0])} = ${sortFactors(opts[0]).reduce((acc, [, e]) => acc * (e + 1), 1)}$, odd.` },
     ];
   },
 };
@@ -1326,7 +1331,7 @@ const dvfProductPower: Generator<ProductParams> = {
   solution({ n }) {
     const f = factorise(n);
     const t = countOf(n);
-    const count = { tex: stackTex(`${f.map(([, e]) => `(${e} + 1)`).join('')} = ${t}`) };
+    const count = { tex: stackTex(`${countTex(f)} = ${t}`) };
     if (!isSquare(n)) {
       return [
         { tex: `${n} = ${primeTex(f)}` },

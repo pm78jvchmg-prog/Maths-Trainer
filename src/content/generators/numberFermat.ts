@@ -313,7 +313,7 @@ interface Statement {
 }
 
 const statementTex = ({ base, power, modulus }: { base: number; power: number; modulus: number }) =>
-  `${base}^{${power}} \\equiv 1 ${pmod(modulus)}`;
+  `{${base}^{${power}} \\equiv 1 ${pmod(modulus)}}`;
 
 function falseStatements({ p, a, b, n, c }: TrueParams): Statement[] {
   return [
@@ -1122,7 +1122,7 @@ const fltVerdict: Generator<VerdictParams> = {
   render({ a, n }) {
     const r = powMod(a, n - 1, n);
     return choiceSlide(
-      [say(`A calculator gives $${a}^{${n - 1}} \\equiv ${r} ${pmod(n)}$.`), say(`What does that show about $${n}$?`)],
+      [say(`A calculator gives \${${a}^{${n - 1}} \\equiv ${r} ${pmod(n)}}$.`), say(`What does that show about $${n}$?`)],
       r === 1 ? VERDICT_OPTIONS.unknown : VERDICT_OPTIONS.composite,
       r === 1 ? [VERDICT_OPTIONS.composite, VERDICT_OPTIONS.prime] : [VERDICT_OPTIONS.unknown, VERDICT_OPTIONS.prime],
       true,
@@ -1319,7 +1319,7 @@ interface WilsonTrueParams {
   wrong: Fact[];
 }
 
-const factTex = ({ f, r, m }: Fact) => `${f}! \\equiv ${r} ${pmod(m)}`;
+const factTex = ({ f, r, m }: Fact) => `{${f}! \\equiv ${r} ${pmod(m)}}`;
 const factHolds = ({ f, r, m }: Fact) => factMod(f, m) === mod(r, m);
 
 const fltWilsonTrue: Generator<WilsonTrueParams> = {

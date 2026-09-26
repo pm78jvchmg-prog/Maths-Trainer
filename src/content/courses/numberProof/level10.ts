@@ -48,7 +48,7 @@ export const npL10: Level = {
             '\\begin{array}{c|cccccc} k & 1 & 2 & 3 & 4 & 5 & 6 \\\\ \\hline 3k \\equiv & 3 & 6 & 2 & 5 & 1 & 4 \\end{array}',
           ),
           prose(
-            'Reduced, the bottom row is $1$ to $6$ again in a new order, so it multiplies to $6!$. Unreduced, it is $3$ times each of $1$ to $6$, and those multiply to $3^{6} \\times 6!$. So',
+            'Reduced, the bottom row is $1$ to $6$ again in a new order, so it multiplies to $6!$. Unreduced, it is $3$ times each of $1$ to $6$, and those multiply to ${3^{6} \\times 6!}$. So',
           ),
           maths('3^{6} \\times 6! \\equiv 6! \\pmod{7}'),
           prose(
@@ -116,7 +116,7 @@ export const npL10: Level = {
         ask('flt-inverse+choice', 2),
         ask('flt-inverse-order', 2),
         teach(
-          prose('Multiply both sides of $a^{p - 1} \\equiv 1$ by $a$:'),
+          prose('Multiply both sides of Fermat’s congruence by $a$:'),
           maths('a^{p} \\equiv a \\pmod{p}'),
           prose(
             'This one holds for **every** $a$: when $p$ divides $a$, both sides are $\\equiv 0$. So $20^{7} \\equiv 20 \\equiv 6 \\pmod{7}$, and $21^{7} \\equiv 0$.',
@@ -146,7 +146,7 @@ export const npL10: Level = {
         ask('flt-verdict'),
         teach(
           prose('The test only works one way: a residue of $1$ does not prove $n$ prime. $341 = 11 \\times 31$, yet with base $2$:'),
-          maths('\\begin{gathered} 2^{10} = 1024 = 3 \\times 341 + 1 \\\\ 2^{340} = (2^{10})^{34} \\equiv 1 \\pmod{341} \\end{gathered}'),
+          maths('\\begin{gathered} 2^{10} = 1024 = 3 \\times 341 + 1 \\\\ 2^{340} = (2^{10})^{34} \\\\ 2^{340} \\equiv 1 \\pmod{341} \\end{gathered}'),
           prose('So a $1$ says only that $n$ **might** be prime. A residue other than $1$ proves that $n$ is not.'),
         ),
         ask('flt-verdict', 2),
@@ -177,10 +177,10 @@ export const npL10: Level = {
         ask('flt-wilson'),
         teach(
           prose(
-            'The pairing works for every prime. If $x \\times x \\equiv 1$, then $p$ divides $(x - 1)(x + 1)$, so $x \\equiv 1$ or $x \\equiv -1$: only $1$ and $p - 1$ are their own inverses. That is **Wilson\'s theorem**:',
+            'The pairing works for every prime. If $x \\times x \\equiv 1$, then $p$ divides ${(x - 1)(x + 1)}$, so $x \\equiv 1$ or $x \\equiv -1$: only $1$ and $p - 1$ are their own inverses. That is **Wilson\'s theorem**:',
           ),
           maths('(p - 1)! \\equiv -1 \\pmod{p}'),
-          prose('It gives the factorial one below too. $16! = 16 \\times 15!$ and $16 \\equiv -1 \\pmod{17}$, so'),
+          prose('It gives the factorial one below too. Modulo $17$, $16 \\equiv -1$ and $16!$ is ${16 \\times 15!}$, so'),
           maths('\\begin{gathered} -1 \\equiv 16! \\equiv -1 \\times 15! \\\\ 15! \\equiv 1 \\pmod{17} \\end{gathered}'),
         ),
         ask('flt-wilson-flow'),

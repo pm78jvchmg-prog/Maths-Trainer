@@ -24,7 +24,7 @@ export const npL8: Level = {
             'In Proof, an even number was $2n$ and an odd number $2n + 1$, with $n$ any whole number. Other kinds of number have forms of their own.',
           ),
           prose(
-            'A multiple of $5$ is $5n$. A number $3$ more than a multiple of $5$ is $5n + 3$: it leaves remainder $3$ when divided by $5$. Check a form by trying $n = 0, 1, 2$:',
+            'A multiple of $5$ is $5n$. A number $3$ more than a multiple of $5$ is $5n + 3$: it leaves remainder $3$ when divided by $5$. Check a form by trying ${n = 0, 1, 2}$:',
           ),
           maths('5n + 3\\colon\\ 3, \\ 8, \\ 13'),
           prose('To find the $n$ that gives a number, undo the form. For $5n + 3 = 48$, take away $3$, then divide by $5$:'),
@@ -150,14 +150,14 @@ export const npL8: Level = {
       slides: [
         teach(
           prose(
-            'Two odd numbers need two letters, since they need not be equal: $2m + 1$ and $2n + 1$. Multiply out, then take $2$ out of everything but the $1$:',
+            'Two odd numbers need two letters, since they need not be equal: ${2m + 1}$ and ${2n + 1}$. Multiply out, then take $2$ out of everything but the $1$:',
           ),
           maths('\\begin{aligned} &(2m + 1)(2n + 1) \\\\ &= 4mn + 2m + 2n + 1 \\\\ &= 2(2mn + m + n) + 1 \\end{aligned}'),
           prose(
             'The bracket is a whole number, so odd times odd is odd. With $2m + 3$ and $2n + 5$ the last term is $15$, which is $14 + 1$, so the bracket ends in $+ 7$.',
           ),
           prose(
-            'An even number is $2k$, and $2k \\times m = 2(km)$: even times anything is even. So a product is odd only when both numbers are odd, and $mn$ on its own can be either.',
+            'An even number is $2k$, and $2k$ times any $m$ is $2(km)$: even times anything is even. So a product is odd only when both numbers are odd, and $mn$ on its own can be either.',
           ),
         ),
         ask('aprf-product-tiles'),
@@ -205,11 +205,11 @@ export const npL8: Level = {
       slides: [
         teach(
           prose(
-            '"Show that $6n + 15$ is a multiple of $3$" asks for it as $3 \\times$ a whole number. Take $3$ out of every term:',
+            '"Show that ${6n + 15}$ is a multiple of $3$" asks for it as $3 \\times$ a whole number. Take $3$ out of every term:',
           ),
           maths('6n + 15 = 3(2n + 5)'),
           prose(
-            '$2n + 5$ is a whole number, so $6n + 15$ is always a multiple of $3$. Expanding the bracket again checks it.',
+            '$2n + 5$ is a whole number, so ${6n + 15}$ is always a multiple of $3$. Expanding the bracket again checks it.',
           ),
           prose('A minus sign stays with its term: $12n - 8$ is $4(3n - 2)$.'),
           prose('The factor has to go into every term: $6n + 16$ is not always a multiple of $3$, since at $n = 0$ it is $16$.'),
@@ -221,7 +221,7 @@ export const npL8: Level = {
           maths('\\begin{aligned} &4(2n + 3) + 2(n + 5) \\\\ &= 8n + 12 + 2n + 10 \\\\ &= 10n + 22 \\\\ &= 2(5n + 11) \\end{aligned}'),
           prose('Taking a bracket away changes the sign of both its terms: $-2(n + 5)$ is $-2n - 10$.'),
           prose(
-            'With two letters, take the factor out of all three terms: $6m + 9n + 12$ is $3(2m + 3n + 4)$. And $(2n + 3)^2 - (2n - 3)^2 = 24n$, a multiple of $24$.',
+            'With two letters, take the factor out of all three terms: $6m + 9n + 12$ is $3(2m + 3n + 4)$. And ${(2n + 3)^2 - (2n - 3)^2}$ comes to $24n$, a multiple of $24$.',
           ),
         ),
         ask('aprf-show-steps'),
@@ -232,7 +232,7 @@ export const npL8: Level = {
           prose('To check a proof, test each line against the one before it. The usual slips:'),
           prose('A bracket multiplied into its first term only: $3(2n + 5)$ is $6n + 15$, not $6n + 5$.'),
           prose('A square missing its middle term, or its last term given a minus: $(n - 3)^2$ is $n^2 - 6n + 9$.'),
-          prose('A factor taken out of one term only: $2(5n + 22)$ is $10n + 44$, not $10n + 22$. And numbers that are not consecutive at all, such as $n$, $n + 2$, $n + 4$.'),
+          prose('A factor taken out of one term only: $2(5n + 22)$ is $10n + 44$, not ${10n + 22}$. And numbers that are not consecutive at all, such as $n$, $n + 2$, $n + 4$.'),
         ),
         ask('aprf-find-error'),
         ask('aprf-find-error', 2),

@@ -24,7 +24,7 @@ export const npL9: Level = {
             'Dividing by $3$ is multiplying by $\\tfrac{1}{3}$, the number that times $3$ makes $1$. Modulo $n$ there are no fractions, but a whole number can do the same job.',
           ),
           prose(
-            'The **inverse** of $a$ modulo $n$ is the number $b$ from $1$ to $n - 1$ with $ab \\equiv 1 \\pmod{n}$. It is written $a^{-1}$.',
+            'The **inverse** of $a$ modulo $n$ is the number $b$ from $1$ to $n - 1$ with ${ab \\equiv 1 \\pmod{n}}$. It is written $a^{-1}$.',
           ),
           prose('For a small $n$, go along the multiples of $a$, adding $a$ each time and reducing, until you reach $1$. For $3$ modulo $7$:'),
           maths('3, \\ 6, \\ 9 \\equiv 2, \\ 5, \\ 8 \\equiv 1'),
@@ -108,7 +108,7 @@ export const npL9: Level = {
       slides: [
         teach(
           prose(
-            'A **linear congruence** is $ax \\equiv b \\pmod{n}$. When $a$ has an inverse, multiply both sides by it, as you would divide both sides of $3x = 5$ by $3$.',
+            'A **linear congruence** is ${ax \\equiv b \\pmod{n}}$. When $a$ has an inverse, multiply both sides by it, as you would divide both sides of $3x = 5$ by $3$.',
           ),
           prose('For $3x \\equiv 5 \\pmod{7}$, the inverse of $3$ is $5$. Modulo $7$:'),
           maths('\\begin{aligned} 5 \\times 3x &\\equiv 5 \\times 5 \\\\ 15x &\\equiv 25 \\\\ x &\\equiv 4 \\end{aligned}'),
@@ -123,7 +123,7 @@ export const npL9: Level = {
           prose(
             'The inverse of $4$ is $7$, since $4 \\times 7 = 28 \\equiv 1$. So $x \\equiv 7 \\times 6 = 42 \\equiv 6$. Check: $4 \\times 6 + 5 = 29 \\equiv 2$.',
           ),
-          prose('Every other solution, such as $6 + 9 = 15$, is congruent to it, so the answer is given from $0$ to $n - 1$.'),
+          prose('Every other solution, such as $15$, which is $6 + 9$, is congruent to it, so the answer is given from $0$ to $n - 1$.'),
         ),
         ask('lcong-shift'),
         ask('lcong-solve-order'),
@@ -146,12 +146,14 @@ export const npL9: Level = {
       slides: [
         teach(
           prose(
-            '$ax \\equiv b \\pmod{n}$ means $ax - b = kn$ for a whole number $k$. Let $d = \\text{HCF}(a, n)$. It divides $ax$ and $kn$, so it has to divide $b$ too.',
+            '$ax \\equiv b \\pmod{n}$ means $ax - b = kn$ for a whole number $k$. Let ${d = \\text{HCF}(a, n)}$. It divides $ax$ and $kn$, so it has to divide $b$ too.',
           ),
           prose(
             "So there is no solution unless $d$ divides $b$, the rule from Number Theory, Euclid's Algorithm, Solving ax + by = c. $4x \\equiv 3 \\pmod{6}$ has none: $4x - 6k$ is always even.",
           ),
-          prose('When $d$ does divide $b$, divide $a$, $b$ and the modulus all by $d$. $4x - 2 = 6k$ exactly when $2x - 1 = 3k$, so'),
+          prose('When $d$ does divide $b$, divide $a$, $b$ and the modulus all by $d$. Here ${d = 2}$:'),
+          maths('\\begin{gathered} 4x - 2 = 6k \\\\ \\text{exactly when } 2x - 1 = 3k \\end{gathered}'),
+          prose('So the congruence divides through too:'),
           maths('\\begin{gathered} 4x \\equiv 2 \\pmod{6} \\\\ \\text{becomes } 2x \\equiv 1 \\pmod{3} \\end{gathered}'),
           prose('Now $2$ is coprime to $3$, so solve as before: the inverse of $2$ is $2$, and $x \\equiv 2 \\pmod{3}$.'),
         ),
@@ -160,7 +162,7 @@ export const npL9: Level = {
         ask('lcong-hcf-solve'),
         teach(
           prose(
-            '$x \\equiv 2 \\pmod{3}$ means $x = 2, 5, 8, \\dots$. Modulo $6$, the modulus you started with, that is **two** solutions from $0$ to $5$: $2$ and $5$. Check: $4 \\times 5 = 20 = 3 \\times 6 + 2$.',
+            '$x \\equiv 2 \\pmod{3}$ means ${x = 2, 5, 8, \\dots}$. Modulo $6$, the modulus you started with, that is **two** solutions from $0$ to $5$: $2$ and $5$. Check: $4 \\times 5 = 20 = 3 \\times 6 + 2$.',
           ),
           prose('In general, dividing by $d$ leaves one solution $x_0$ modulo $n \\div d$, and it comes round $d$ times before $n$:'),
           maths('x_0, \\ x_0 + \\tfrac{n}{d}, \\ \\dots, \\ x_0 + (d - 1)\\tfrac{n}{d}'),
@@ -171,7 +173,7 @@ export const npL9: Level = {
         ask('lcong-count'),
         teach(
           prose(
-            'All of it together, for $12x \\equiv 18 \\pmod{30}$. $\\text{HCF}(12, 30) = 6$, which divides $18$, so there are $6$ solutions. Divide through by $6$:',
+            'All of it together, for ${12x \\equiv 18 \\pmod{30}}$. $\\text{HCF}(12, 30)$ is $6$, which divides $18$, so there are $6$ solutions. Divide through by $6$:',
           ),
           maths('2x \\equiv 3 \\pmod{5}'),
           prose('The inverse of $2$ modulo $5$ is $3$, so $x \\equiv 9 \\equiv 4 \\pmod{5}$. Adding $5$ each time, up to $29$:'),
@@ -188,14 +190,14 @@ export const npL9: Level = {
       slides: [
         teach(
           prose(
-            'In ordinary algebra $6x = 6$ gives $x = 1$. Modulo $9$ it does not: $6x \\equiv 6 \\pmod{9}$ is true for $x = 1$, $4$ and $7$.',
+            'In ordinary algebra $6x = 6$ gives $x = 1$. Modulo $9$ it does not: ${6x \\equiv 6 \\pmod{9}}$ is true for $x = 1$, $4$ and $7$.',
           ),
           maths('\\begin{gathered} 6 \\times 4 = 24 = 2 \\times 9 + 6 \\\\ 6 \\times 7 = 42 = 4 \\times 9 + 6 \\end{gathered}'),
           prose(
-            'Cancelling $c$ is multiplying by its inverse, which exists only when $\\text{HCF}(c, n) = 1$. Then $cx \\equiv cy \\pmod{n}$ becomes $x \\equiv y \\pmod{n}$.',
+            'Cancelling $c$ is multiplying by its inverse, which exists only when $\\text{HCF}(c, n) = 1$. Then ${cx \\equiv cy \\pmod{n}}$ becomes ${x \\equiv y \\pmod{n}}$.',
           ),
           prose(
-            'Otherwise divide the modulus by $g = \\text{HCF}(c, n)$ too: $cx \\equiv cy \\pmod{n}$ becomes $x \\equiv y \\pmod{n \\div g}$. Here $g = 3$, so $x \\equiv 1 \\pmod{3}$, which is $1$, $4$ and $7$.',
+            'Otherwise divide the modulus by $g = \\text{HCF}(c, n)$ too: ${cx \\equiv cy \\pmod{n}}$ becomes $x \\equiv y \\pmod{n \\div g}$. Here $g = 3$, so $x \\equiv 1 \\pmod{3}$, which is $1$, $4$ and $7$.',
           ),
         ),
         ask('lcong-cancel-safe'),
@@ -210,7 +212,7 @@ export const npL9: Level = {
             'The inverse of $5$ modulo $12$ is $5$, since $25 = 2 \\times 12 + 1$. So $x \\equiv 35 \\equiv 11$: it first lands on square $7$ after $11$ moves.',
           ),
           prose(
-            'Packs work the same way: $x$ packs of $a$ cards dealt into $n$ equal piles with $b$ left over means $ax \\equiv b \\pmod{n}$. The answer is the smallest positive solution.',
+            'Packs work the same way: $x$ packs of $a$ cards dealt into $n$ equal piles with $b$ left over means ${ax \\equiv b \\pmod{n}}$. The answer is the smallest positive solution.',
           ),
         ),
         ask('lcong-story-setup'),
@@ -219,7 +221,7 @@ export const npL9: Level = {
         teach(
           prose('The numbers in a story can share a factor. A timer beeps every $25$ minutes from $0$ past the hour. It beeps at $35$ past when'),
           maths('25x \\equiv 35 \\pmod{60}'),
-          prose('$\\text{HCF}(25, 60) = 5$ divides $35$, so divide through by $5$, modulus too:'),
+          prose('$\\text{HCF}(25, 60)$ is $5$, which divides $35$, so divide through by $5$, modulus too:'),
           maths('5x \\equiv 7 \\pmod{12}'),
           prose(
             'That is the ring again: $x \\equiv 11$, the $11$th beep, at $275 = 4 \\times 60 + 35$ minutes. Keeping $60$ would give $5x \\equiv 7 \\pmod{60}$, which has no solutions at all. Hours on a $24$-hour clock work the same way, modulo $24$.',

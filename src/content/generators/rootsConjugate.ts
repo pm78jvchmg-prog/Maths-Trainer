@@ -56,6 +56,14 @@ interface Root {
 
 const zOf = ({ a, b }: Root): string => complexTex(a, b);
 const barOf = ({ a, b }: Root): string => complexTex(a, -b);
+/**
+ * A complex number held in one brace group, so inline maths in a sentence of
+ * working cannot break it across two lines after its + or -. Only for
+ * solutions: prompts keep the plain form, which rootsConjugate.test.ts reads.
+ */
+const held = (a: number, b: number): string => `{${complexTex(a, b)}}`;
+const zHeld = ({ a, b }: Root): string => held(a, b);
+const barHeld = ({ a, b }: Root): string => held(a, -b);
 const sumOf = ({ a }: Root): number => 2 * a;
 const prodOf = ({ a, b }: Root): number => a * a + b * b;
 
@@ -98,8 +106,9 @@ function pairSteps(z: Root): string {
   );
 }
 
-/** A polynomial written with x^2 rather than x^{2}, for a tiles template. */
-const templateTex = (p: Poly): string => polyTex(p).replace(/\^\{(\d+)\}/g, '^$1');
+/** A quadratic held in one brace group, so a sentence never breaks it across lines. */
+const heldPoly = (p: Poly): string => `{${polyTex(p)}}`;
+
 
 const polyOption = (p: Poly): Omit<ChoiceOption, 'correct'> => ({ tex: polyTex(p), answer: polyAnswer(p) });
 
@@ -115,7 +124,7 @@ const conjPartnerPlot: Generator<Root> = {
   sample: (rng, difficulty) => (difficulty > 1 ? sampleRoot(rng, 4, 4) : sampleRoot(rng, 3, 3)),
   render: (z): Slide => ({
     kind: 'plot',
-    prompt: [say(`A polynomial with real coefficients has $z = ${zOf(z)}$ as a root. Tap the other root that $z$ tells you it must have.`)],
+    prompt: [say(`A polynomial with real coefficients has the root $z = ${zOf(z)}$. Tap the other root that $z$ tells you it must have.`)],
     range: 4,
     answer: { re: z.a, im: -z.b },
   }),
@@ -149,7 +158,7 @@ const conjPairSum: Generator<PairAskParams> = {
     kind: 'expression',
     prompt: [
       say(
-        `$z = ${complexTex(a, b)}$ is a root of a polynomial with real coefficients, so $\\overline{z}$ is a root too. Find the ${ask === 0 ? 'sum' : 'product'} of the pair.`,
+        `A polynomial with real coefficients has the root $z = ${complexTex(a, b)}$, so $\\overline{z}$ is a root too. Find the ${ask === 0 ? 'sum' : 'product'} of the pair.`,
       ),
     ],
     lead: `${PAIR_LABELS[ask]} =`,
@@ -166,7 +175,8 @@ const conjPairSum: Generator<PairAskParams> = {
           { tex: `(${zOf(z)}) + (${barOf(z)}) = ${sumOf(z)}` },
         ]
       : [
-          { text: 'Multiplying a pair: $(a + bi)(a - bi) = a^{2} - b^{2}i^{2} = a^{2} + b^{2}$, since $i^{2} = -1$.' },
+          { text: 'Multiply out a pair, using $i^{2} = -1$:' },
+          { tex: chain('(a + bi)(a - bi) &= a^{2} - b^{2}i^{2}', '&= a^{2} + b^{2}') },
           { tex: `z\\overline{z} = ${f(a)}^{2} + ${f(b)}^{2} = ${prodOf(z)}` },
         ];
   },
@@ -181,9 +191,8 @@ const conjFactorTree: Generator<Root> = {
     return {
       kind: 'tree',
       prompt: [
-        say(
-          `$z = ${zOf(z)}$ is a root, so $\\overline{z}$ is too. Top row: $z + \\overline{z}$, then the real part squared and the imaginary part squared. Underneath: $z\\overline{z}$, their sum.`,
-        ),
+        say(`A real polynomial has the root $z = ${zOf(z)}$, so $\\overline{z}$ is a root too.`),
+        say('Top row: ${z + \\overline{z}}$, then the real part squared and the imaginary part squared. Underneath: $z\\overline{z}$, their sum.'),
       ],
       expression: PAIR_RULE,
       nodes: [
@@ -198,7 +207,7 @@ const conjFactorTree: Generator<Root> = {
   },
   solution: (z) => [
     { tex: pairSteps(z) },
-    { text: 'So the quadratic factor the pair gives is' },
+    { text: 'So the quadratic factor the pair gives is:' },
     { tex: polyTex(pairQuad(z)) },
   ],
 };
@@ -230,7 +239,7 @@ const conjQuadFactorTiles: Generator<Root> = {
     };
   },
   solution: (z) => [
-    { text: `The pair is $${zOf(z)}$ and $${barOf(z)}$.` },
+    { text: `The pair is $${zHeld(z)}$ and $${barHeld(z)}$.` },
     { tex: pairSteps(z) },
     { text: 'Minus the sum in front of $x$, the product at the end:' },
     { tex: polyTex(pairQuad(z)) },
@@ -283,7 +292,10 @@ const conjCubicRealRoot: Generator<CubicParams> = {
   },
   render: (params): Slide => ({
     kind: 'expression',
-    prompt: [say(`$${zOf(params)}$ is a root of $${polyTex(cubicOf(params))} = 0$. Find its real root, $\\gamma$.`)],
+    prompt: [
+      say(`This cubic has the root $${zOf(params)}$. Find its real root, $\\gamma$:`),
+      say(`$${polyTex(cubicOf(params))} = 0$`),
+    ],
     lead: '\\gamma =',
     keypad: [],
     answer: String(params.r),
@@ -293,12 +305,11 @@ const conjCubicRealRoot: Generator<CubicParams> = {
   solution: (params) => {
     const p = cubicOf(params);
     return [
-      { text: `The coefficients are real, so $${barOf(params)}$ is a root too, and the pair adds to $2 \\times ${f(params.a)} = ${sumOf(params)}$.` },
+      { text: `The coefficients are real, so $${barHeld(params)}$ is a root too, and the pair adds to twice the real part, $${sumOf(params)}$.` },
       { text: 'The sum of all three roots is $-\\frac{b}{a}$:' },
       { tex: realRootSteps(params) },
-      {
-        text: `Check with the product: the pair multiplies to $${prodOf(params)}$, and $${prodOf(params)} \\times ${f(params.r)} = ${prodOf(params) * params.r}$, which is $-\\frac{d}{a}$ with $d = ${p[3]}$${p[0] === 1 ? '' : ` and $a = ${p[0]}$`}.`,
-      },
+      { text: `Check with the product of the roots, $-\\frac{d}{a}$. The pair multiplies to $${prodOf(params)}$:` },
+      { tex: `${prodOf(params)} \\times ${f(params.r)} = ${prodOf(params) * params.r} = -\\tfrac{${p[3]}}{${p[0]}}` },
     ];
   },
 };
@@ -347,7 +358,7 @@ const conjCubicFlow: Generator<CubicParams> = {
     };
   },
   solution: (params) => [
-    { text: `Real coefficients: $${barOf(params)}$ is a root as well.` },
+    { text: `Real coefficients: $${barHeld(params)}$ is a root as well.` },
     { tex: pairSteps(params) },
     { tex: polyTex(pairQuad(params)) },
     { text: 'The real root from the sum of the roots:' },
@@ -407,7 +418,7 @@ const conjCubicBuildTiles: Generator<BuildParams> = {
   solution: (params) => {
     const q = pairQuad(params);
     return [
-      { text: `The other roots are $${barOf(params)}$ and $${params.r}$. The pair gives:` },
+      { text: `The other roots are $${barHeld(params)}$ and $${params.r}$. The pair gives:` },
       { tex: polyTex(q) },
       { text: `Multiply by $x ${signedNum(-params.r)}$:` },
       {
@@ -461,8 +472,10 @@ function otherFactorSteps(params: QuarticParams): string {
   const s = sumOf(params);
   const m = prodOf(params);
   return chain(
-    `x^{3}\\!: \\quad u ${signedNum(-s)} &= ${p[1]}, \\quad u = ${params.u}`,
-    `\\text{constant}\\!: \\quad ${m}v &= ${p[4]}, \\quad v = ${params.v}`,
+    `u ${signedNum(-s)} &= ${p[1]}`,
+    `u &= ${params.u}`,
+    `${m}v &= ${p[4]}`,
+    `v &= ${params.v}`,
   );
 }
 
@@ -490,8 +503,11 @@ const conjQuarticFactorTiles: Generator<QuarticParams> = {
     const answer = [signedTerm(params.u, 1), signedNum(params.v)];
     return {
       kind: 'tiles',
-      prompt: [say(`$${zOf(params)}$ is a root of $${polyTex(p)} = 0$. Find its other quadratic factor.`)],
-      template: `(${templateTex(pairQuad(params))})(x^2 {0} {1})`,
+      prompt: [
+        say(`This quartic has the root $${zOf(params)}$, so one factor is $${heldPoly(pairQuad(params))}$. Find the other quadratic factor:`),
+        say(`$${polyTex(p)} = 0$`),
+      ],
+      template: 'x^2 {0} {1}',
       bank: fillBank(answer, [
         signedTerm(-params.u, 1),
         signedNum(-params.v),
@@ -503,7 +519,7 @@ const conjQuarticFactorTiles: Generator<QuarticParams> = {
     };
   },
   solution: (params) => [
-    { text: `$${zOf(params)}$ and $${barOf(params)}$ give the factor $${polyTex(pairQuad(params))}$. Call the other $x^{2} + ux + v$ and compare:` },
+    { text: `$${zHeld(params)}$ and $${barHeld(params)}$ give the factor $${heldPoly(pairQuad(params))}$. Call the other $x^{2} + ux + v$ and compare the $x^{3}$ terms, then the constants:` },
     { tex: otherFactorSteps(params) },
     { tex: polyTex(otherQuad(params)) },
   ],
@@ -541,13 +557,13 @@ const conjQuarticFlow: Generator<QuarticParams> = {
       wrong.push(`$${-w.a} \\pm ${complexTex(0, w.b)}$`, `$${w.a - w.b}$ and $${w.a + w.b}$`);
     }
     const roots = [
-      { label: right, outcome: `So the four roots are $${zOf(params)}$, $${barOf(params)}$, ${right}.` },
+      { label: right, outcome: `So the four roots are $${zHeld(params)}$, $${barHeld(params)}$, ${right}.` },
       ...wrong.map((label) => ({ label, outcome: `Solve $${polyTex([1, u, v])} = 0$ and check a root in it.` })),
     ];
     return {
       kind: 'flow',
       prompt: [say(`This quartic has real coefficients and a root $z = ${zOf(params)}$. Each answer chooses what gets asked next.`)],
-      subject: `${key} = 0`,
+      subject: key,
       steps: [
         { id: 'factor', ask: 'Which quadratic factor do $z$ and its conjugate give?', branches: turned(quads, `${key}|1`) },
         { id: 'other', ask: 'Comparing the $x^{3}$ terms and the constants, what is the other factor?', branches: turned(others, `${key}|2`) },
@@ -561,13 +577,13 @@ const conjQuarticFlow: Generator<QuarticParams> = {
     const disc = params.u * params.u - 4 * params.v;
     return [
       { tex: pairSteps(params) },
-      { text: `So one factor is $${polyTex(pairQuad(params))}$. For the other, $x^{2} + ux + v$:` },
+      { text: `So one factor is $${heldPoly(pairQuad(params))}$. Call the other $x^{2} + ux + v$ and compare the $x^{3}$ terms, then the constants:` },
       { tex: otherFactorSteps(params) },
       {
         text:
           'real' in params.other
-            ? `$${polyTex(other)}$ factorises, with roots ${otherRootsTex(params)}.`
-            : `$${polyTex(other)}$ has discriminant $${disc} < 0$, so its roots are another pair: ${otherRootsTex(params)}.`,
+            ? `$${heldPoly(other)}$ factorises, with roots ${otherRootsTex(params)}.`
+            : `$${heldPoly(other)}$ has discriminant $${disc} < 0$, so its roots are another pair: ${otherRootsTex(params)}.`,
       },
     ];
   },
@@ -621,12 +637,14 @@ const conjTwoPairsTree: Generator<TwoPairsParams> = {
     const [s1, m1, s2, m2] = [sumOf(z), prodOf(z), sumOf(w), prodOf(w)];
     const p = mulPoly(pairQuad(z), pairQuad(w));
     return [
-      { text: `The factors are $${polyTex(pairQuad(z))}$ and $${polyTex(pairQuad(w))}$. Multiplying out:` },
+      { text: `The factors are $${heldPoly(pairQuad(z))}$ and $${heldPoly(pairQuad(w))}$. Multiplying out:` },
       {
         tex: chain(
           `B &= -(${s1} ${signedNum(s2)}) = ${p[1]}`,
-          `C &= ${m1} + ${m2} + ${f(s1)} \\times ${f(s2)} = ${p[2]}`,
-          `D &= -(${f(s1)} \\times ${m2} + ${f(s2)} \\times ${m1}) = ${p[3]}`,
+          `C &= ${m1} + ${m2} + ${f(s1)} \\times ${f(s2)}`,
+          `&= ${p[2]}`,
+          `D &= -(${s1} \\times ${m2} + ${f(s2)} \\times ${m1})`,
+          `&= ${p[3]}`,
           `E &= ${m1} \\times ${m2} = ${p[4]}`,
         ),
       },
@@ -680,7 +698,7 @@ function unknownRootSteps(params: UnknownParams): string {
   if (params.form === 'sum') {
     return chain(`\\Sigma\\alpha &= ${minusOf(c[1])}`, `${s} + \\gamma &= ${s + params.r}`, `\\gamma &= ${params.r}`);
   }
-  return chain(`\\alpha\\beta\\gamma &= ${minusOf(c[3])}`, `${m}\\gamma &= ${m * params.r}`, `\\gamma &= ${params.r}`);
+  return chain(`z\\overline{z}\\gamma &= ${minusOf(c[3])}`, `${m}\\gamma &= ${m * params.r}`, `\\gamma &= ${params.r}`);
 }
 
 /** Then p and q from the other two identities. */
@@ -691,9 +709,19 @@ function unknownCoeffSteps(params: UnknownParams): string {
   const [p, q] = unknownsOf(params);
   const pairs = `${m} + ${f(r)} \\times ${f(s)}`;
   if (params.form === 'sum') {
-    return chain(`p &= \\Sigma\\alpha\\beta = ${pairs} = ${p}`, `q &= -\\alpha\\beta\\gamma = -${m} \\times ${f(r)} = ${q}`);
+    return chain(
+      `p &= \\Sigma\\alpha\\beta`,
+      `&= ${pairs} = ${p}`,
+      `q &= -z\\overline{z}\\gamma`,
+      `&= -${m} \\times ${f(r)} = ${q}`,
+    );
   }
-  return chain(`p &= -\\Sigma\\alpha = -(${s} ${signedNum(r)}) = ${p}`, `q &= \\Sigma\\alpha\\beta = ${pairs} = ${q}`);
+  return chain(
+    `p &= -\\Sigma\\alpha`,
+    `&= -(${s} ${signedNum(r)}) = ${p}`,
+    `q &= \\Sigma\\alpha\\beta`,
+    `&= ${pairs} = ${q}`,
+  );
 }
 
 /** Pair sum, pair product, the real root, then p and q. */
@@ -709,7 +737,7 @@ const conjUnknownTree: Generator<UnknownParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `$${zOf(params)}$ is a root of $${unknownEquation(params)}$, where $p$ and $q$ are real. Top row: $z + \\overline{z}$ and $z\\overline{z}$. Then the real root $\\gamma$, then $p$ and $q$.`,
+          `This cubic has the root $${zOf(params)}$, where $p$ and $q$ are real. Top row: \${z + \\overline{z}}$ and $z\\overline{z}$. Then the real root $\\gamma$, then $p$ and $q$.`,
         ),
       ],
       expression: unknownEquation(params),
@@ -749,7 +777,10 @@ const conjUnknownCoeff: Generator<UnknownAskParams> = {
     const name = params.ask === 0 ? 'p' : 'q';
     return {
       kind: 'expression',
-      prompt: [say(`$${zOf(params)}$ is a root of $${unknownEquation(params)}$, where $p$ and $q$ are real. Find $${name}$.`)],
+      prompt: [
+        say(`This cubic has the root $${zOf(params)}$, where $p$ and $q$ are real. Find $${name}$:`),
+        say(`$${unknownEquation(params)}$`),
+      ],
       lead: `${name} =`,
       keypad: [],
       answer: String(unknownsOf(params)[params.ask]),
@@ -758,7 +789,7 @@ const conjUnknownCoeff: Generator<UnknownAskParams> = {
     };
   },
   solution: (params) => [
-    { text: `$${barOf(params)}$ is a root too.` },
+    { text: `$${barHeld(params)}$ is a root too.` },
     { tex: pairSteps(params) },
     { text: 'Find the real root $\\gamma$ first, from the identity with no unknown in it:' },
     { tex: unknownRootSteps(params) },
@@ -849,7 +880,7 @@ const conjMustInclude: Generator<IncludeParams> = {
     const given = w ? `$${zOf(w)}$, $${barOf(w)}$ and $${zOf(z)}$` : `$${zOf(z)}$ and $${r}$`;
     const third = w ? { tex: complexTex(-w.a, -w.b), answer: complexAnswer(-w.a, -w.b) } : { tex: String(-r!), answer: String(-r!) };
     const opts = options(
-      { tex: barOf(z), answer: complexAnswer(z.a, -z.b) },
+      { tex: complexTex(z.a, -z.b), answer: complexAnswer(z.a, -z.b) },
       { tex: complexTex(-z.a, -z.b), answer: complexAnswer(-z.a, -z.b) },
       { tex: complexTex(-z.a, z.b), answer: complexAnswer(-z.a, z.b) },
       third,
@@ -861,8 +892,8 @@ const conjMustInclude: Generator<IncludeParams> = {
   },
   solution: ({ z, w }) => [
     { text: 'Non-real roots of a real polynomial come in conjugate pairs.' },
-    ...(w ? [{ text: `$${zOf(w)}$ and $${barOf(w)}$ are already a pair, so they force nothing new.` }] : []),
-    { text: `$${zOf(z)}$ has no partner yet, so its conjugate must be a root:` },
+    ...(w ? [{ text: `$${zHeld(w)}$ and $${barHeld(w)}$ are already a pair, so they force nothing new.` }] : []),
+    { text: `$${zHeld(z)}$ has no partner yet, so its conjugate must be a root:` },
     { tex: `\\overline{${zOf(z)}} = ${barOf(z)}` },
     { text: 'The other options might be roots, but nothing says they have to be.' },
   ],
@@ -944,7 +975,7 @@ const conjCountFlow: Generator<CountParams> = {
     const k = known.length;
     const left = n - 2 * k;
     return [
-      { text: `Each given root brings its conjugate: ${known.map((z) => `$${barOf(z)}$`).join(' and ')}. That is $${2 * k}$ non-real roots.` },
+      { text: `Each given root brings its conjugate: ${known.map((z) => `$${barHeld(z)}$`).join(' and ')}. That is $${2 * k}$ non-real roots.` },
       { text: `Degree $${n}$ means $${n}$ roots counted with multiplicity, so $${n} - ${2 * k} = ${left}$ are left.` },
       { text: `Those are real, or more conjugate pairs, so the number of real roots is ${countLabel(possibleCounts(left)).replace('Exactly', 'exactly')}.` },
     ];
@@ -979,10 +1010,10 @@ const conjPossibleSets: Generator<SetsParams> = {
     }
   },
   render: ({ degree, z, w, r, s, twoPairs }): Slide => {
-    const Z = zOf(z);
-    const Zb = barOf(z);
+    const Z = complexTex(z.a, z.b);
+    const Zb = complexTex(z.a, -z.b);
     const flipped = complexTex(-z.a, z.b);
-    const W = zOf(w);
+    const W = complexTex(w.a, w.b);
     const opts: Omit<ChoiceOption, 'correct'>[] =
       degree === 3
         ? [
@@ -992,7 +1023,7 @@ const conjPossibleSets: Generator<SetsParams> = {
             { tex: listTex([Z, Zb, W]) },
           ]
         : [
-            { tex: listTex(twoPairs ? [Z, Zb, W, barOf(w)] : [Z, Zb, String(r), String(s)]) },
+            { tex: listTex(twoPairs ? [Z, Zb, W, complexTex(w.a, -w.b)] : [Z, Zb, String(r), String(s)]) },
             { tex: listTex([Z, Zb, W, String(r)]) },
             { tex: listTex([Z, flipped, String(r), String(s)]) },
             { tex: listTex([Z, Zb, W, complexTex(-w.a, -w.b)]) },
@@ -1005,10 +1036,10 @@ const conjPossibleSets: Generator<SetsParams> = {
   },
   solution: ({ degree, z, w, twoPairs }) => [
     { text: 'Every non-real root must have its conjugate in the list too.' },
-    { text: `$${zOf(z)}$ needs $${barOf(z)}$, not $${complexTex(-z.a, z.b)}$.` },
+    { text: `$${zHeld(z)}$ needs $${barHeld(z)}$, not $${held(-z.a, z.b)}$.` },
     ...(degree === 4 && twoPairs
-      ? [{ text: `$${zOf(w)}$ needs $${barOf(w)}$, and here it has it.` }]
-      : [{ text: `A lone $${zOf(w)}$ would need $${barOf(w)}$ as well, so any list with it and not its partner is impossible.` }]),
+      ? [{ text: `$${zHeld(w)}$ needs $${barHeld(w)}$, and here it has it.` }]
+      : [{ text: `A lone $${zHeld(w)}$ would need $${barHeld(w)}$ as well, so any list with it and not its partner is impossible.` }]),
     { text: `The list that works has every non-real root paired, and ${degree === 3 ? 'three' : 'four'} roots in all.` },
   ],
 };

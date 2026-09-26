@@ -162,10 +162,13 @@ describe('conjugate root generators, checked from the roots', () => {
     for (const slide of slides('poly-conj-quartic-factor-tiles')) {
       if (slide.kind !== 'tiles') throw new Error('kind');
       const p = equationOf(slide);
-      const product = filled(slide);
-      expect(isZero(value(p, rootOf(slide)))).toBe(true);
+      const other = filled(slide);
+      const z = rootOf(slide);
+      expect(isZero(value(p, z))).toBe(true);
+      // The template holds only the other factor; the pair's factor is x^2 - 2ax + a^2 + b^2.
+      const pair = (x: number) => x * x - 2 * z.re * x + z.re * z.re + z.im * z.im;
       for (const x of [-2.5, -1, 0, 0.5, 1.5, 3]) {
-        expect(value(p, x).re).toBeCloseTo(value(product, x).re, 6);
+        expect(value(p, x).re).toBeCloseTo(pair(x) * value(other, x).re, 6);
       }
     }
   });

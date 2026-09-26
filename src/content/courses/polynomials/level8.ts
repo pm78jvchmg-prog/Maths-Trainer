@@ -26,7 +26,9 @@ export const rootsOfQuartics: Level = {
       title: 'Four Roots',
       slides: [
         teach(
-          prose('A quartic has four roots, $\\alpha$, $\\beta$, $\\gamma$ and $\\delta$. Multiplying out $(x - \\alpha)(x - \\beta)(x - \\gamma)(x - \\delta)$ gives four sums:'),
+          prose('A quartic has four roots, $\\alpha$, $\\beta$, $\\gamma$ and $\\delta$. Multiplying out'),
+          maths('(x - \\alpha)(x - \\beta)(x - \\gamma)(x - \\delta)'),
+          prose('gives four sums:'),
           working('&x^{4} - (\\Sigma\\alpha)x^{3} + (\\Sigma\\alpha\\beta)x^{2}', '&- (\\Sigma\\alpha\\beta\\gamma)x + \\alpha\\beta\\gamma\\delta'),
           prose('$\\Sigma\\alpha\\beta$ adds the six products of two roots, and $\\Sigma\\alpha\\beta\\gamma$ the four products of three. The signs go minus, plus, minus, plus. So'),
           maths('x^{4} - 5x^{3} + 5x^{2} + 5x - 6 = 0'),
@@ -41,7 +43,8 @@ export const rootsOfQuartics: Level = {
             '\\Sigma\\alpha\\beta\\gamma &= \\alpha\\beta(\\gamma + \\delta)',
             '&\\quad + \\gamma\\delta(\\alpha + \\beta)',
           ),
-          prose('For roots $1$, $2$, $-1$ and $3$: $\\alpha + \\beta = 3$, $\\gamma + \\delta = 2$, $\\alpha\\beta = 2$ and $\\gamma\\delta = -3$.'),
+          prose('For roots $1$, $2$, $-1$ and $3$, in that order:'),
+          working('\\alpha + \\beta &= 3 &\\quad \\alpha\\beta &= 2', '\\gamma + \\delta &= 2 &\\quad \\gamma\\delta &= -3'),
           working(
             '\\Sigma\\alpha &= 3 + 2 = 5',
             '\\Sigma\\alpha\\beta &= 2 - 3 + 3 \\times 2 = 5',
@@ -52,10 +55,11 @@ export const rootsOfQuartics: Level = {
         ask('poly-q4-sums-tree'),
         ask('poly-q4-sums-flow'),
         teach(
-          prose('With a leading coefficient $a$, divide by it first. For a quartic $ax^{4} + bx^{3} + cx^{2} + dx + e$:'),
+          prose('With a leading coefficient $a$, divide by it first. For the quartic'),
+          maths('ax^{4} + bx^{3} + cx^{2} + dx + e = 0'),
           identities,
           prose('For example, with $a = 2$:'),
-          maths('2x^{4} - 2x^{3} - 14x^{2} + 2x + 12 = 0'),
+          working('&2x^{4} - 2x^{3} - 14x^{2}', '&\\quad + 2x + 12 = 0'),
           working(
             '\\Sigma\\alpha &= -\\tfrac{-2}{2} = 1',
             '\\Sigma\\alpha\\beta &= \\tfrac{-14}{2} = -7',
@@ -78,8 +82,10 @@ export const rootsOfQuartics: Level = {
           prose('To build a quartic from its roots, find the four sums and put them in with the signs alternating. For roots $-3$, $-1$, $1$ and $2$, pair them. The first pair adds to $-4$ and multiplies to $3$; the second adds to $3$ and multiplies to $2$.'),
           working(
             '\\Sigma\\alpha &= -4 + 3 = -1',
-            '\\Sigma\\alpha\\beta &= 3 + 2 + (-4) \\times 3 = -7',
-            '\\Sigma\\alpha\\beta\\gamma &= 3 \\times 3 + 2 \\times (-4) = 1',
+            '\\Sigma\\alpha\\beta &= 3 + 2 + (-4) \\times 3',
+            '&= -7',
+            '\\Sigma\\alpha\\beta\\gamma &= 3 \\times 3 + 2 \\times (-4)',
+            '&= 1',
             '\\alpha\\beta\\gamma\\delta &= 3 \\times 2 = 6',
           ),
           prose('Minus, plus, minus, plus:'),
@@ -110,11 +116,14 @@ export const rootsOfQuartics: Level = {
       title: 'Two Missing Roots',
       slides: [
         teach(
-          prose('For a quartic $ax^{4} + bx^{3} + cx^{2} + dx + e$:'),
+          prose('For the quartic'),
+          maths('ax^{4} + bx^{3} + cx^{2} + dx + e = 0'),
           identities,
           prose('Knowing two roots, $\\Sigma\\alpha$ and the product give the other two. This quartic has roots $\\alpha = 1$ and $\\beta = 2$:'),
           maths('x^{4} + x^{3} - 7x^{2} - x + 6 = 0'),
-          prose('So $\\alpha + \\beta = 3$ and $\\alpha\\beta = 2$.'),
+          prose('So for the known pair'),
+          working('\\alpha + \\beta &= 3 &\\quad \\alpha\\beta &= 2'),
+          prose('and from the coefficients'),
           working(
             '\\Sigma\\alpha &= -1',
             '\\gamma + \\delta &= -1 - 3 = -4',
@@ -132,9 +141,10 @@ export const rootsOfQuartics: Level = {
         ask('poly-q4-other-roots-flow'),
         teach(
           prose('With a leading coefficient, divide by it first. This quartic has the same roots:'),
-          maths('2x^{4} + 2x^{3} - 14x^{2} - 2x + 12 = 0'),
+          working('&2x^{4} + 2x^{3} - 14x^{2}', '&\\quad - 2x + 12 = 0'),
           working('\\Sigma\\alpha &= -\\tfrac{2}{2} = -1', '\\alpha\\beta\\gamma\\delta &= \\tfrac{12}{2} = 6'),
-          prose('From there it is the same working: $\\gamma + \\delta = -4$ and $\\gamma\\delta = 3$.'),
+          prose('From there it is the same working:'),
+          working('\\gamma + \\delta &= -4 &\\quad \\gamma\\delta &= 3'),
         ),
         ask('poly-q4-other-pair-tree', 2),
         ask('poly-q4-vieta+choice', 2),
@@ -165,7 +175,7 @@ export const rootsOfQuartics: Level = {
         teach(
           prose('With a leading coefficient, multiply through. Roots $\\pm 1$ and $\\pm 2$ with leading coefficient $2$:'),
           working('&2(x^{2} - 1)(x^{2} - 4)', '=\\;&2x^{4} - 10x^{2} + 8'),
-          prose('Going back, divide by the leading coefficient first. In the quartic below, the squares add to $5$, which is $\\frac{10}{2}$, and $k$ is $2$ times their product.'),
+          prose('Going back, divide by the leading coefficient first. In the quartic below, the squares add to $5$, which is $\\tfrac{10}{2}$, and $k$ is $2$ times their product.'),
           maths('2x^{4} - 10x^{2} + k = 0'),
         ),
         ask('poly-q4-pm-tiles+choice', 2),
@@ -196,8 +206,11 @@ export const rootsOfQuartics: Level = {
         ),
         ask('poly-q4-identity-flow'),
         teach(
-          prose('With a leading coefficient, find the sums first. This quartic has $\\Sigma\\alpha = 1$, $\\Sigma\\alpha\\beta = -7$, $\\Sigma\\alpha\\beta\\gamma = -1$ and $\\alpha\\beta\\gamma\\delta = 6$:'),
-          maths('2x^{4} - 2x^{3} - 14x^{2} + 2x + 12 = 0'),
+          prose('With a leading coefficient, find the sums first. This quartic'),
+          working('&2x^{4} - 2x^{3} - 14x^{2}', '&\\quad + 2x + 12 = 0'),
+          prose('has sums'),
+          working('\\Sigma\\alpha &= 1 &\\quad \\Sigma\\alpha\\beta &= -7', '\\Sigma\\alpha\\beta\\gamma &= -1 &\\quad \\alpha\\beta\\gamma\\delta &= 6'),
+          prose('so'),
           working('\\Sigma\\alpha^{2} &= 1^{2} - 2 \\times (-7) = 15', '\\Sigma\\frac{1}{\\alpha} &= \\frac{-1}{6} = -\\frac{1}{6}'),
         ),
         ask('poly-q4-symmetric+choice', 2),

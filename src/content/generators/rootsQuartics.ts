@@ -18,7 +18,7 @@
  * the reciprocal sums are fractions. `rootsQuartics.test.ts` recomputes each
  * answer from the roots themselves.
  */
-import type { ChoiceOption, Generator, Slide, SolutionStep } from '../types';
+import type { Block, ChoiceOption, Generator, Slide, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import { fracTex, say } from './format';
@@ -40,6 +40,7 @@ import {
   sampleRoots,
   signedNum,
   signedTerm,
+  termTiles,
   turned,
   type Poly,
 } from './polynomials';
@@ -88,11 +89,83 @@ function sampleQuartic(
   }
 }
 
+/**
+ * c/a with its sign, as the middle of a line of working, or '' when there is
+ * nothing to show: over a lead of 1, `-5` or a plain `6` is already the value,
+ * and writing `-(5) = -5` or `6 = 6` only repeats it. `-(-5)` stays, since
+ * the double minus is the step.
+ */
+function overLeadStep(c: number, a: number, minus: boolean): string {
+  if (a === 1 && (!minus || c >= 0)) return '';
+  if (a === 1) return `-(${c})`;
+  return overLead(c, a, minus);
+}
+
 /** A sum read off a quartic's coefficients, as one line of working. */
 function identityStep(p: Poly, k: number): string {
   const value = ((MINUS[k] ? -1 : 1) * p[k + 1]) / p[0];
-  return `${FOUR_LABELS[k]} = ${overLead(p[k + 1], p[0], MINUS[k])} = ${value}`;
+  const middle = overLeadStep(p[k + 1], p[0], MINUS[k]);
+  return `${FOUR_LABELS[k]} = ${middle ? `${middle} = ` : ''}${value}`;
 }
+
+/** The same as a line of an aligned block, aligned at its first `=`. */
+const identityRow = (p: Poly, k: number): string => identityStep(p, k).replace(' = ', ' &= ');
+
+/**
+ * About how many em a polynomial takes in display style, from KaTeX's
+ * metrics: a digit 0.5, x 0.572, a small power 0.4, a binary sign with its
+ * spacing 1.222, a leading minus 0.778 and ` = 0` 1.834. Close enough to
+ * decide whether it needs two lines.
+ */
+function polyEm(p: Poly, equation: boolean): number {
+  const n = p.length - 1;
+  let em = equation ? 1.834 : 0;
+  let first = true;
+  p.forEach((c, i) => {
+    if (c === 0) return;
+    const k = n - i;
+    const a = Math.abs(c);
+    em += first ? (c < 0 ? 0.778 : 0) : 1.222;
+    em += k > 0 && a === 1 ? 0 : String(a).length * 0.5;
+    em += k > 0 ? 0.572 : 0;
+    em += k > 1 ? 0.4 : 0;
+    first = false;
+  });
+  return em;
+}
+
+/**
+ * The widest single line a quartic may take. The narrowest frame it sits in
+ * is the flow question's, about 310 px at 25.7 px to the em; a teaching
+ * panel is 307 px at 24.2. `x^4 - 5x^3 + 5x^2 + 5x - 6 = 0` (12.2 em) just
+ * fits both.
+ */
+const ONE_LINE_EM = 12.3;
+
+/**
+ * A quartic as the learner reads it, on one line when it fits a phone and
+ * otherwise split after its x^2 term into an aligned pair. Left to wrap on
+ * its own it broke wherever the width ran out, stranding `90 = 0` or a lone
+ * `0` on a line of its own.
+ */
+function quarticTex(p: Poly, equation = true): string {
+  const tail = equation ? ' = 0' : '';
+  if (polyEm(p, equation) <= ONE_LINE_EM) return `${polyTex(p)}${tail}`;
+  const terms = termTiles(p);
+  // Braced, or the cell's leading minus is set as a binary sign with a gap after it.
+  if (terms[0].startsWith('-')) terms[0] = `{${terms[0]}}`;
+  return chain(`&${terms.slice(0, 3).join(' ')}`, `&\\quad ${terms.slice(3).join(' ')}${tail}`);
+}
+
+const show = (tex: string): Block => ({ kind: 'display', tex });
+
+/** "α, β, γ and δ are the roots of", the quartic on its own line, then the question. */
+function rootsOfPrompt(p: Poly, question: string): Block[] {
+  return [say(`${FOUR_ROOTS} are the roots of`), show(quarticTex(p)), say(question)];
+}
+
+/** Two values side by side in one aligned row: `α + β = 3,  αβ = 2`. */
+const pairRow = (a: string, b: string): string => `${a.replace(' = ', ' &= ')} &\\quad ${b.replace(' = ', ' &= ')}`;
 
 /** Which letter stands for which coefficient, as a sentence. */
 function lettersLine(p: Poly): SolutionStep {
@@ -137,6 +210,7 @@ const q4Vieta: Generator<AskParams> = {
     const p = fromRoots(roots, lead);
     return {
       kind: 'expression',
+      // Kept as one sentence: rootsQuartics.test.ts reads the quartic out of it.
       prompt: [say(`${FOUR_ROOTS} are the roots of $${polyTex(p)} = 0$. Find $${FOUR_LABELS[ask]}$.`)],
       lead: `${FOUR_LABELS[ask]} =`,
       keypad: [],
@@ -208,7 +282,10 @@ const q4SumsTree: Generator<RootsParams> = {
     const p34 = c * d;
     const f = (n: number) => factor(String(n));
     return [
-      { text: `Pair the roots: $\\alpha + \\beta = ${s12}$, $\\gamma + \\delta = ${s34}$, $\\alpha\\beta = ${p12}$ and $\\gamma\\delta = ${p34}$.` },
+      {
+        text: 'Pair the roots:',
+        tex: chain(pairRow(`\\alpha + \\beta = ${s12}`, `\\alpha\\beta = ${p12}`), pairRow(`\\gamma + \\delta = ${s34}`, `\\gamma\\delta = ${p34}`)),
+      },
       { tex: `\\Sigma\\alpha = ${s12} ${signedNum(s34)} = ${e1}` },
       { text: 'Each pair product is inside one pair or takes one root from each:' },
       {
@@ -246,7 +323,7 @@ const q4SumsFlow: Generator<QuarticParams> = {
     return {
       kind: 'flow',
       prompt: [say('Read the four sums of the roots off the coefficients. Each answer chooses what is asked next.')],
-      subject: `${key} = 0`,
+      subject: quarticTex(p),
       steps: sums.map((right, k) => {
         const raw = p[k + 1];
         const values = [right, -right, ...(raw !== right && raw !== -right ? [raw] : [])];
@@ -270,7 +347,7 @@ const q4SumsFlow: Generator<QuarticParams> = {
     return [
       { tex: FOUR_IDENTITIES },
       lettersLine(p),
-      { tex: chain(...[0, 1, 2, 3].map((k) => identityStep(p, k).replace(' = ', ' &= '))) },
+      { tex: chain(...[0, 1, 2, 3].map((k) => identityRow(p, k))) },
     ];
   },
 };
@@ -318,8 +395,8 @@ const q4BuildTiles: Generator<QuarticParams> = {
       { tex: chain(`\\Sigma\\alpha &= ${e1}`, `\\Sigma\\alpha\\beta &= ${e2}`, `\\Sigma\\alpha\\beta\\gamma &= ${e3}`, `\\alpha\\beta\\gamma\\delta &= ${e4}`) },
       { text: 'A monic quartic is built from the four sums, the signs alternating:' },
       { tex: chain('&x^{4} - (\\Sigma\\alpha)x^{3} + (\\Sigma\\alpha\\beta)x^{2}', '&- (\\Sigma\\alpha\\beta\\gamma)x + \\alpha\\beta\\gamma\\delta') },
-      { tex: polyTex(fromRoots(roots)) },
-      ...(lead === 1 ? [] : [{ text: `Then every term times $${lead}$:` }, { tex: polyTex(p) }]),
+      { tex: quarticTex(fromRoots(roots), false) },
+      ...(lead === 1 ? [] : [{ text: `Then every term times $${lead}$:` }, { tex: quarticTex(p, false) }]),
     ];
   },
 };
@@ -352,8 +429,7 @@ const q4PairsTiles: Generator<RootsParams> = {
     const quad = (s: number, p: number) => `x^{2} ${signedTerm(-s, 1)} ${signedNum(p)}`;
     return [
       { text: 'Two roots with sum $s$ and product $p$ are the roots of $x^{2} - sx + p$.' },
-      { tex: chain(`\\alpha + \\beta &= ${a + b}`, `\\alpha\\beta &= ${a * b}`) },
-      { tex: chain(`\\gamma + \\delta &= ${c + d}`, `\\gamma\\delta &= ${c * d}`) },
+      { tex: chain(pairRow(`\\alpha + \\beta = ${a + b}`, `\\alpha\\beta = ${a * b}`), pairRow(`\\gamma + \\delta = ${c + d}`, `\\gamma\\delta = ${c * d}`)) },
       { tex: `(${quad(a + b, a * b)})(${quad(c + d, c * d)})` },
     ];
   },
@@ -366,6 +442,12 @@ const q4PairsTiles: Generator<RootsParams> = {
 /** A quartic with two of its roots given: roots[0] and roots[1]. */
 function sampleKnownTwo(rng: Rng, difficulty: number): QuarticParams {
   return sampleQuartic(rng, difficulty, (_, __, roots) => roots[2] + roots[3] !== 0);
+}
+
+/** "$α = 2$ and $β = -2$", each braced so a line never breaks between a letter and its value. */
+function knownPair(a: number, b: number): string {
+  const kept = (letter: string, value: number) => '${' + `${letter} = ${value}` + '}$';
+  return `${kept('\\alpha', a)} and ${kept('\\beta', b)}`;
 }
 
 /** Σα, the known pair's sum, αβγδ and the known pair's product, then γ + δ and γδ. */
@@ -381,10 +463,10 @@ const q4OtherPairTree: Generator<QuarticParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `Two of the roots are $\\alpha = ${a}$ and $\\beta = ${b}$. Top row: $\\Sigma\\alpha$, $\\alpha + \\beta$, $\\alpha\\beta\\gamma\\delta$, $\\alpha\\beta$. Underneath: $\\gamma + \\delta$, then $\\gamma\\delta$.`,
+          `Two of the roots are ${knownPair(a, b)}. Top row: $\\Sigma\\alpha$, $\\alpha + \\beta$, $\\alpha\\beta\\gamma\\delta$, $\\alpha\\beta$. Underneath: $\\gamma + \\delta$, then $\\gamma\\delta$.`,
         ),
       ],
-      expression: `${polyTex(p)} = 0`,
+      expression: quarticTex(p),
       nodes: [
         { id: 'e1', from: [] },
         { id: 's12', from: [] },
@@ -402,8 +484,8 @@ const q4OtherPairTree: Generator<QuarticParams> = {
     const [a, b, c, d] = roots;
     const [e1, , , e4] = rootSums(roots);
     return [
-      { tex: chain(`\\Sigma\\alpha &= ${overLead(p[1], p[0], true)} = ${e1}`, `\\alpha\\beta\\gamma\\delta &= ${overLead(p[4], p[0], false)} = ${e4}`) },
-      { text: `The known pair: $\\alpha + \\beta = ${a + b}$ and $\\alpha\\beta = ${a * b}$.` },
+      { tex: chain(identityRow(p, 0), identityRow(p, 3)) },
+      { text: 'The known pair:', tex: chain(pairRow(`\\alpha + \\beta = ${a + b}`, `\\alpha\\beta = ${a * b}`)) },
       { tex: chain(`\\gamma + \\delta &= ${e1} - ${factor(String(a + b))} = ${c + d}`, `\\gamma\\delta &= \\frac{${e4}}{${a * b}} = ${c * d}`) },
     ];
   },
@@ -438,8 +520,8 @@ const q4OtherRootsFlow: Generator<QuarticParams> = {
     ]);
     return {
       kind: 'flow',
-      prompt: [say(`Two roots of this quartic are $\\alpha = ${a}$ and $\\beta = ${b}$. Find the other two, $\\gamma$ and $\\delta$.`)],
-      subject: `${polyTex(p)} = 0`,
+      prompt: [say(`Two roots of this quartic are ${knownPair(a, b)}. Find the other two, $\\gamma$ and $\\delta$.`)],
+      subject: quarticTex(p),
       steps: [
         { id: 'sum', ask: 'What is $\\gamma + \\delta$?', branches: turned(sumBranches, `${key}|s`) },
         { id: 'product', ask: 'What is $\\gamma\\delta$?', branches: turned(productBranches, `${key}|p`) },
@@ -453,10 +535,9 @@ const q4OtherRootsFlow: Generator<QuarticParams> = {
     const [a, b, c, d] = roots;
     const [e1, , , e4] = rootSums(roots);
     return [
-      { tex: chain(`\\Sigma\\alpha &= ${overLead(p[1], p[0], true)} = ${e1}`, `\\alpha\\beta\\gamma\\delta &= ${overLead(p[4], p[0], false)} = ${e4}`) },
+      { tex: chain(identityRow(p, 0), identityRow(p, 3)) },
       { tex: chain(`\\gamma + \\delta &= ${e1} - ${factor(String(a + b))} = ${c + d}`, `\\gamma\\delta &= \\frac{${e4}}{${a * b}} = ${c * d}`) },
-      { text: 'So $\\gamma$ and $\\delta$ are the roots of' },
-      { tex: `x^{2} ${signedTerm(-(c + d), 1)} ${signedNum(c * d)} = 0` },
+      { text: 'So $\\gamma$ and $\\delta$ are the roots of', tex: `x^{2} ${signedTerm(-(c + d), 1)} ${signedNum(c * d)} = 0` },
       { text: `which are ${pairText(c, d)}.` },
     ];
   },
@@ -573,7 +654,13 @@ const q4PmSquaresTree: Generator<PmParams> = {
     const p = pmPoly(params);
     return [
       { text: `Squaring the roots gives $${u}$ and $${v}$.` },
-      { tex: chain(`b &= ${coefMark(-lead)}(${u} + ${v}) = ${p[2]}`, `c &= ${coefMark(lead)}${lead === 1 || lead === -1 ? '' : ' \\times '}${u} \\times ${v} = ${p[4]}`) },
+      // The lead written out as a factor, so a lead of -1 reads as one rather than as a bare minus.
+      {
+        tex: chain(
+          lead === 1 ? `b &= -(${u} + ${v}) = ${p[2]}` : `b &= -${factor(String(lead))} \\times (${u} + ${v}) = ${p[2]}`,
+          lead === 1 ? `c &= ${u} \\times ${v} = ${p[4]}` : `c &= ${factor(String(lead))} \\times ${u} \\times ${v} = ${p[4]}`,
+        ),
+      },
       { tex: `${pmTex4(p)}` },
     ];
   },
@@ -601,7 +688,10 @@ const q4PmUnknown: Generator<PmUnknownParams> = {
     const known = params.given === 0 ? u : v;
     return {
       kind: 'expression',
-      prompt: [say(`$${signedTerm(lead, 4, true)} ${signedTerm(p[2], 2)} + k = 0$ has roots $${pmTex(known)}$ and $\\pm q$. Find $k$.`)],
+      prompt: [
+        say(`This quartic has roots $${pmTex(known)}$ and $\\pm q$. Find $k$.`),
+        show(`${signedTerm(lead, 4, true)} ${signedTerm(p[2], 2)} + k = 0`),
+      ],
       lead: 'k =',
       keypad: [],
       answer: String(p[4]),
@@ -616,7 +706,10 @@ const q4PmUnknown: Generator<PmUnknownParams> = {
     const other = params.given === 0 ? v : u;
     const divided = lead === 1 ? [] : [{ text: `Divide through by $${lead}$ first: the $x^{2}$ coefficient is $${-(u + v)}$.` }];
     return [
-      { text: `The roots come from $(x^{2} - ${known})(x^{2} - q^{2})$, so the $x^{2}$ coefficient is minus the sum of the squares.` },
+      {
+        text: 'The roots come from the factors below, so the $x^{2}$ coefficient is minus the sum of the squares.',
+        tex: `(x^{2} - ${known})(x^{2} - q^{2})`,
+      },
       ...divided,
       { tex: chain(`${known} + q^{2} &= ${u + v}`, `q^{2} &= ${other}`) },
       { tex: `k = ${lead === 1 ? '' : `${factor(String(lead))} \\times `}${known} \\times ${other} = ${p[4]}` },
@@ -661,7 +754,7 @@ const q4Symmetric: Generator<SymParams> = {
     const [n, d] = symValue(params);
     return {
       kind: 'expression',
-      prompt: [say(`${FOUR_ROOTS} are the roots of $${polyTex(p)} = 0$. Find $${SYM_LABELS[params.ask]}$.`)],
+      prompt: rootsOfPrompt(p, `Find $${SYM_LABELS[params.ask]}$.`),
       lead: `${SYM_LABELS[params.ask]} =`,
       keypad: [],
       answer: d === 1 ? String(n) : fracAnswer(n, d),
@@ -674,13 +767,13 @@ const q4Symmetric: Generator<SymParams> = {
     const [e1, e2, e3, e4] = rootSums(params.roots);
     if (params.ask === 0) {
       return [
-        { tex: chain(identityStep(p, 0).replace(' = ', ' &= '), identityStep(p, 1).replace(' = ', ' &= ')) },
+        { tex: chain(identityRow(p, 0), identityRow(p, 1)) },
         { text: 'Squaring the sum gives each square once and each of the six pair products twice:' },
         { tex: chain(`\\Sigma\\alpha^{2} &= (\\Sigma\\alpha)^{2} - 2\\Sigma\\alpha\\beta`, `&= ${factor(String(e1))}^{2} - 2 \\times ${factor(String(e2))}`, `&= ${e1 * e1 - 2 * e2}`) },
       ];
     }
     return [
-      { tex: chain(identityStep(p, 2).replace(' = ', ' &= '), identityStep(p, 3).replace(' = ', ' &= ')) },
+      { tex: chain(identityRow(p, 2), identityRow(p, 3)) },
       { text: 'Over the common denominator $\\alpha\\beta\\gamma\\delta$, each $\\frac{1}{\\alpha}$ becomes the product of the other three:' },
       { tex: chain(`\\Sigma\\frac{1}{\\alpha} &= \\frac{\\Sigma\\alpha\\beta\\gamma}{\\alpha\\beta\\gamma\\delta}`, `&= \\frac{${e3}}{${e4}} = ${fracTex(e3, e4)}`) },
     ];
@@ -720,7 +813,7 @@ const q4SquaresTree: Generator<QuarticParams> = {
       prompt: [
         say('Top row: $\\Sigma\\alpha$ and $\\Sigma\\alpha\\beta$. Next: $(\\Sigma\\alpha)^{2}$ and $2\\Sigma\\alpha\\beta$. Last: $\\Sigma\\alpha^{2}$.'),
       ],
-      expression: `${polyTex(p)} = 0`,
+      expression: quarticTex(p),
       nodes: [
         { id: 'e1', from: [] },
         { id: 'e2', from: [] },
@@ -736,7 +829,7 @@ const q4SquaresTree: Generator<QuarticParams> = {
     const p = fromRoots(roots, lead);
     const [e1, e2] = rootSums(roots);
     return [
-      { tex: chain(identityStep(p, 0).replace(' = ', ' &= '), identityStep(p, 1).replace(' = ', ' &= ')) },
+      { tex: chain(identityRow(p, 0), identityRow(p, 1)) },
       { tex: chain(`\\Sigma\\alpha^{2} &= (\\Sigma\\alpha)^{2} - 2\\Sigma\\alpha\\beta`, `&= ${e1 * e1} - ${factor(String(2 * e2))}`, `&= ${e1 * e1 - 2 * e2}`) },
     ];
   },
@@ -754,6 +847,13 @@ const FORMULAS = [
   '\\frac{\\Sigma\\alpha\\beta}{\\alpha\\beta\\gamma\\delta}',
   '\\frac{\\Sigma\\alpha}{\\alpha\\beta\\gamma\\delta}',
 ];
+
+/**
+ * A branch label at full size. A flow branch sets its maths in text style,
+ * where a fraction over αβγδ shrinks to a smudge; `\dfrac` keeps the four
+ * roots readable.
+ */
+const branch = (tex: string): string => `$${tex.replace(/\\frac/g, '\\dfrac')}$`;
 
 function identityValue(roots: number[], target: number): [number, number] {
   const [e1, e2, e3, e4] = rootSums(roots);
@@ -782,8 +882,8 @@ const q4IdentityFlow: Generator<IdentityFlowParams> = {
       .filter((k) => k !== 3 || target > 0)
       .map((k) =>
         k === target
-          ? { label: `$${FORMULAS[k]}$`, to: 'value' }
-          : { label: `$${FORMULAS[k]}$`, outcome: k === 3 ? 'That puts the sum of the roots on top. Each $\\frac{1}{\\alpha}$ needs the other three roots on top.' : `That is the identity for $${TARGETS[k]}$.` },
+          ? { label: branch(FORMULAS[k]), to: 'value' }
+          : { label: branch(FORMULAS[k]), outcome: k === 3 ? 'That puts the sum of the roots on top. Each $\\frac{1}{\\alpha}$ needs the other three roots on top.' : `That is the identity for $${TARGETS[k]}$.` },
       );
     // Twice the pairs added rather than taken away, or the fraction upside down.
     const slip = target === 0 ? fracTex(e1 * e1 + 2 * e2, 1) : fracTex(d, n);
@@ -796,12 +896,12 @@ const q4IdentityFlow: Generator<IdentityFlowParams> = {
     return {
       kind: 'flow',
       prompt: [say(`${FOUR_ROOTS} are the roots of this quartic. Find $${TARGETS[target]}$.`)],
-      subject: `${polyTex(p)} = 0`,
+      subject: quarticTex(p),
       steps: [
         { id: 'which', ask: `Which is $${TARGETS[target]}$?`, branches: turned(formulaBranches, `${key}|f`) },
         { id: 'value', ask: 'What does it come to?', branches: turned(valueBranches, `${key}|v`) },
       ],
-      answer: [`$${FORMULAS[target]}$`, `$${right}$`],
+      answer: [branch(FORMULAS[target]), `$${right}$`],
     };
   },
   solution: ({ roots, lead, target }) => {
@@ -809,7 +909,7 @@ const q4IdentityFlow: Generator<IdentityFlowParams> = {
     const [n, d] = identityValue(roots, target);
     const used = target === 0 ? [0, 1] : target === 1 ? [2, 3] : [1, 3];
     return [
-      { tex: chain(...used.map((k) => identityStep(p, k).replace(' = ', ' &= '))) },
+      { tex: chain(...used.map((k) => identityRow(p, k))) },
       { tex: `${TARGETS[target]} = ${FORMULAS[target]}` },
       { tex: `${TARGETS[target]} = ${fracTex(n, d)}` },
     ];

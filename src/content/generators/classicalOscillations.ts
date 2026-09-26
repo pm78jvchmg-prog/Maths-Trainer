@@ -8,8 +8,9 @@
  * speed of a wave on a stretched string (16.3); and standing waves on a
  * string fixed at both ends (16.6).
  *
- * Tidy cases: angular frequencies are whole, set by choosing each stiffness
- * as a mass times a square; wave speeds are whole and tensions are mu v^2.
+ * Tidy cases: angular frequencies are whole, drawn only where the stiffness
+ * that gives them is one a textbook prints (whole, or one decimal place);
+ * wave speeds are whole and tensions are mu v^2, again to one decimal place.
  */
 import type { Generator, SolutionStep } from '../types';
 import { exact, fmt, forks, kg, metres, ms, numChoices, salted, say, track, typed, until, valueBank } from './classicalKit';
@@ -62,7 +63,8 @@ const reducedMass: Generator<ReducedParams> = {
   sample: (rng, difficulty) =>
     until(
       () => ({ m1: rng.int(1, 20), m2: rng.int(1, 20), find: difficulty > 1 ? ('m2' as const) : ('mu' as const), what: rng.pick(PAIRS) }),
-      (p) => exact(reduced(p.m1, p.m2), 2) && p.m1 !== p.m2,
+      // The reduced mass is given on the hard side, so it must be one a textbook prints, to 1 decimal place.
+      (p) => exact(reduced(p.m1, p.m2), p.find === 'm2' ? 1 : 2) && p.m1 !== p.m2,
     ),
   render: (p) =>
     p.find === 'mu'
@@ -131,7 +133,7 @@ const moleculeTree: Generator<MoleculeParams> = {
   sample: (rng, difficulty) =>
     until(
       () => ({ m1: rng.int(1, difficulty > 1 ? 20 : 10), m2: rng.int(1, difficulty > 1 ? 20 : 10), w: rng.int(2, 12), A: rng.pick([0.01, 0.02, 0.05, 0.1, 0.2, 0.25]), what: rng.pick(PAIRS) }),
-      (p) => p.m1 !== p.m2 && exact(reduced(p.m1, p.m2), 2) && exact(moleculeK(p), 2),
+      (p) => p.m1 !== p.m2 && exact(reduced(p.m1, p.m2), 2) && Number.isInteger(moleculeK(p)),
     ),
   render: (p) => {
     const mu = reduced(p.m1, p.m2);
@@ -171,7 +173,7 @@ const moleculeFlow: Generator<{ light: number; heavy: number; w: number }> = {
         const light = rng.int(1, difficulty > 1 ? 8 : 4);
         return { light, heavy: light * rng.pick([2, 3, 4, 9, 19, 24, 49, 99]) + (difficulty > 1 ? rng.int(0, 3) : 0), w: rng.int(2, 10) };
       },
-      (p) => p.heavy > p.light && exact(reduced(p.light, p.heavy), 2) && exact(reduced(p.light, p.heavy) * p.w * p.w, 2),
+      (p) => p.heavy > p.light && exact(reduced(p.light, p.heavy), 2) && Number.isInteger(n3(reduced(p.light, p.heavy) * p.w * p.w)),
     ),
   render: (p) => {
     const mu = reduced(p.light, p.heavy);
@@ -269,7 +271,7 @@ const resonanceSlider: Generator<ResonanceParams> = {
   sample: (rng, difficulty) =>
     until(
       () => ({ m: n3(0.05 * rng.int(2, 200)), w: rng.int(2, difficulty > 1 ? 20 : 10), what: rng.pick(DRIVERS) }),
-      (p) => exact(p.m * p.w * p.w, 2),
+      (p) => Number.isInteger(n3(p.m * p.w * p.w)),
     ),
   render: (p) => {
     const figure = track(0, 10, [{ at: 0, name: 'none' }], 'A scale of masses in kilograms');
@@ -300,7 +302,7 @@ const resonanceFlow: Generator<{ m: number; w0: number; wd: number }> = {
         const w0 = rng.int(2, difficulty > 1 ? 15 : 10);
         return { m: rng.pick([0.2, 0.25, 0.5, 1, 2, 4, 5]), w0, wd: rng.chance(0.34) ? w0 : rng.int(2, difficulty > 1 ? 15 : 10) };
       },
-      (p) => exact(p.m * p.w0 * p.w0, 2) && exact((p.m * p.w0 * p.w0) / (p.wd * p.wd), 3),
+      (p) => exact(p.m * p.w0 * p.w0, 1) && exact((p.m * p.w0 * p.w0) / (p.wd * p.wd), 3),
     ),
   render: (p) => {
     const k = n3(p.m * p.w0 * p.w0);
@@ -346,7 +348,7 @@ const sampleCouple = (rng: { int: (a: number, b: number) => number; pick: <T>(xs
       const w1 = rng.int(2, hard ? 12 : 8);
       return { m: rng.pick([0.1, 0.2, 0.5, 1, 2, 4]), w1, w2: w1 + rng.int(1, hard ? 8 : 4) };
     },
-    (p) => exact(wallK(p), 2) && exact(middleK(p), 2),
+    (p) => exact(wallK(p), 1) && exact(middleK(p), 1),
   );
 
 /** Expression: the out-of-step mode's omega from the springs (easy), or the middle spring for a wanted one (hard). */
@@ -564,7 +566,7 @@ const waveTree: Generator<WaveTreeParams> = {
   sample: (rng, difficulty) =>
     until(
       () => ({ mu: rng.pick(MUS), v: 10 * rng.int(1, difficulty > 1 ? 40 : 20), L: rng.pick([0.5, 1, 2, 2.5, 4, 5, 10]), f: rng.pick([5, 10, 20, 25, 40, 50, 100, 200]), what: rng.pick(STRINGS) }),
-      (p) => exact(p.mu * p.v * p.v, 2) && exact(p.mu * p.L, 4) && exact(p.v / p.f, 3),
+      (p) => exact(p.mu * p.v * p.v, 1) && exact(p.mu * p.L, 2) && exact(p.v / p.f, 3),
     ),
   render: (p) => {
     const M = n3(p.mu * p.L);
@@ -687,7 +689,7 @@ const standingTree: Generator<StandingTreeParams> = {
   id: 'clm-standing-tree',
   sample: (rng, difficulty) =>
     until(
-      () => ({ mu: rng.pick(MUS), L: rng.pick([0.25, 0.4, 0.5, 0.8, 1, 1.25, 2, 2.5]), v: 10 * rng.int(4, 40), n: rng.int(2, difficulty > 1 ? 6 : 3), what: rng.pick(STRINGS) }),
+      () => ({ mu: rng.pick(MUS), L: rng.pick([0.25, 0.4, 0.5, 0.8, 1, 1.5, 2, 2.5]), v: 10 * rng.int(4, 40), n: rng.int(2, difficulty > 1 ? 6 : 3), what: rng.pick(STRINGS) }),
       (p) => exact(p.mu * p.v * p.v, 2) && exact(harmonic({ ...p, n: 1 }), 2),
     ),
   render: (p) => {

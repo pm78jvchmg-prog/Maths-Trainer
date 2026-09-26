@@ -60,6 +60,10 @@ function filled(slide: Slide): string[][] {
 
 const near = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol * Math.max(1, Math.abs(b));
 const n = (v: unknown) => v as number;
+/** Absolute closeness, for an answer rounded to a stated precision: within half a last-place unit. */
+const within = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol + 1e-9;
+/** Half a last-place unit of a value given to 3 significant figures. */
+const halfSf3 = (v: number) => 0.5 * 10 ** (Math.floor(Math.log10(Math.abs(v))) - 2);
 const gammaAt = (v: number) => 1 / Math.sqrt(1 - v * v);
 
 describe('classical mechanics level 6', () => {
@@ -136,9 +140,15 @@ describe('classical mechanics level 6', () => {
     }
     for (const { p, slide } of draws('clm-space-station')) {
       const got = answerOf(slide)[0];
-      const [w, r] = p.find === 'w' ? [got, (n(p.f) * g) / n(p.w) ** 2] : [n(p.w), got];
-      const v = w * r;
-      expect(near((v * v) / r, n(p.f) * g, 1e-9)).toBe(true);
+      // From the ground the rim moves at v = omega r, and v^2 / r must be the gravity felt. Asked to 3 significant figures.
+      if (p.find === 'w') {
+        const w = Math.sqrt((n(p.f) * g) / n(p.r));
+        const v = w * n(p.r);
+        expect(near((v * v) / n(p.r), n(p.f) * g, 1e-9) && within(got, w, halfSf3(w)), JSON.stringify(p)).toBe(true);
+      } else {
+        const r = (n(p.f) * g) / n(p.w) ** 2;
+        expect(within(got, r, halfSf3(r)), JSON.stringify(p)).toBe(true);
+      }
     }
     for (const { p, slide } of draws('clm-rotor-flow')) {
       const [N, F] = answerOf(slide);
@@ -149,8 +159,8 @@ describe('classical mechanics level 6', () => {
     for (const { p, slide } of draws('clm-rotor-slider')) {
       const w = answerOf(slide)[0];
       const r = slide.kind === 'slider' ? Number(/radius \$([\d.]+)/.exec(JSON.stringify(slide.prompt))?.[1]) : NaN;
-      // Friction at its limit just holds the weight.
-      expect(near(n(p.mu) * w * w * r, g, 1e-9), JSON.stringify(p)).toBe(true);
+      // Friction at its limit just holds the weight, at the spin to the nearest 0.1.
+      expect(within(w, Math.sqrt(g / (n(p.mu) * r)), 0.05), JSON.stringify(p)).toBe(true);
     }
   });
 

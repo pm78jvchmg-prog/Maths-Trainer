@@ -146,18 +146,27 @@ describe('classical mechanics level 7', () => {
   });
 
   it('holds a rope’s load with the upward parts of both halves', TIME, () => {
-    for (const id of ['clm-rope-tension', 'clm-rope-tree', 'clm-rope-flow', 'clm-rope-slider']) {
+    for (const { p, slide } of draws('clm-rope-slider')) {
+      // The tension and span as the prompt states them; the sag at which 2T sin(theta) = W, to the nearest centimetre.
+      const T = Number(/tension is \$([\d.]+)/.exec(JSON.stringify(slide.kind === 'slider' ? slide.prompt : ''))?.[1]);
+      const span = Number(/hooks \$([\d.]+)/.exec(JSON.stringify(slide.kind === 'slider' ? slide.prompt : ''))?.[1]);
+      const a = span / 2;
+      const sag = answerOf(slide)[0];
+      let lo = 0;
+      let hi = 1000;
+      for (let i = 0; i < 200; i += 1) {
+        const mid = (lo + hi) / 2;
+        if ((2 * T * mid) / Math.hypot(mid, a) < n(p.W)) lo = mid;
+        else hi = mid;
+      }
+      expect(Math.abs(sag - lo) <= 0.5 + 1e-6, JSON.stringify(p)).toBe(true);
+    }
+    for (const id of ['clm-rope-tension', 'clm-rope-tree', 'clm-rope-flow']) {
       for (const { p, slide } of draws(id)) {
         const tri = p.tri as number[];
         const s = tri[0] * n(p.k);
         const a = tri[1] * n(p.k);
         const got = answerOf(slide);
-        if (id === 'clm-rope-slider') {
-          const T = Number(/tension is \$([\d.]+)/.exec(JSON.stringify(slide.kind === 'slider' ? slide.prompt : ''))?.[1]);
-          const sag = got[0];
-          expect(near((2 * T * sag) / Math.hypot(sag, a), n(p.W), 1e-9), JSON.stringify(p)).toBe(true);
-          continue;
-        }
         const T = id === 'clm-rope-tension' ? got[0] : id === 'clm-rope-tree' ? got[2] : got[1];
         // Each half pulls along its own line, from the middle towards a hook a across and s up.
         const up = (T * s) / Math.hypot(a, s);

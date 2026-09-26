@@ -89,6 +89,11 @@ describe('classical mechanics level 2', () => {
     for (const id of ['clm-fall-time', 'clm-horiz-tree', 'clm-horiz-slider', 'clm-horiz-flow']) {
       for (const { p } of draws(id)) expect(Number.isInteger(n(p.h) * 10), `${id} ${JSON.stringify(p)}`).toBe(true);
     }
+    // Angled launches and loops: whole speeds and radii, never worked back from a tidy answer.
+    for (const id of ['clm-flight-tree', 'clm-range-flow']) {
+      for (const { p } of draws(id)) expect(Number.isInteger(n(p.ux)) && Number.isInteger(n(p.uy)), `${id} ${JSON.stringify(p)}`).toBe(true);
+    }
+    for (const { p } of draws('clm-g-force-flow')) expect(Number.isInteger(n(p.v)) && Number.isInteger(n(p.r))).toBe(true);
   });
 
   it('puts the landing mark, or the launch speed, where the flight says', TIME, () => {
@@ -119,27 +124,31 @@ describe('classical mechanics level 2', () => {
   it('flies an angled launch for its time, height and range', TIME, () => {
     for (const id of ['clm-flight-tree', 'clm-range-flow']) {
       for (const { p, slide } of draws(id)) {
-        const launch = p.launch as { tri: { o: number; a: number; h: number }; k: number } | null;
+        const launch = p.launch as { tri: { o: number; a: number; h: number }; c: number } | null;
         let ux = n(p.ux);
-        let uy = 4.9 * n(p.k);
+        let uy = n(p.uy);
         if (launch) {
-          const u = (4.9 * launch.k * launch.tri.h) / launch.tri.o;
+          const u = launch.tri.h * launch.c;
           const angle = Math.atan2(launch.tri.o, launch.tri.a);
           ux = u * Math.cos(angle);
           uy = u * Math.sin(angle);
         }
         const f = fly(ux, uy, 0);
         const got = answerOf(slide);
+        // Components exact; times to 2 decimal places, height and range to 1: within half a last-place unit.
         const want = id === 'clm-range-flow' ? [f.t / 2, f.t, f.x] : launch ? [ux, uy, f.t, f.top, f.x] : [f.t, f.top, f.x];
-        got.forEach((v, i) => expect(near(v, want[i], 1e-4), `${id} ${JSON.stringify(p)} slot ${i}: ${v} vs ${want[i]}`).toBe(true));
+        const tol = id === 'clm-range-flow' ? [0.005, 0.005, 0.05] : launch ? [1e-6, 1e-6, 0.005, 0.05, 0.05] : [0.005, 0.05, 0.05];
+        got.forEach((v, i) => expect(within(v, want[i], tol[i]), `${id} ${JSON.stringify(p)} slot ${i}: ${v} vs ${want[i]}`).toBe(true));
       }
     }
   });
 
   it('rises to the height the flight reaches', TIME, () => {
     for (const { p, slide } of draws('clm-max-height')) {
-      const f = fly(0, 1.4 * n(p.m), -1);
-      expect(near(answerOf(slide)[0], f.top, 1e-4), JSON.stringify(p)).toBe(true);
+      const launch = p.launch as { u: number; tri: { o: number; h: number } } | null;
+      const uy = launch ? (launch.u * launch.tri.o) / launch.tri.h : n(p.uy);
+      const f = fly(0, uy, -1);
+      expect(within(answerOf(slide)[0], f.top, 0.05), JSON.stringify(p)).toBe(true);
     }
   });
 
@@ -159,7 +168,10 @@ describe('classical mechanics level 2', () => {
   it('moves a rim, and a belt, at r omega', TIME, () => {
     for (const { p, slide } of draws('clm-rim-speed')) {
       const r = n(p.cm) / 100;
-      expect(near(answerOf(slide)[0], p.find === 'v' ? r * n(p.omega) : n(p.omega))).toBe(true);
+      // The radius is the one the prompt states, never more than two places.
+      expect(Number.isInteger(n(p.cm)) && (n(p.cm) < 100 || n(p.cm) % 10 === 0)).toBe(true);
+      if (p.find === 'v') expect(near(answerOf(slide)[0], r * n(p.omega))).toBe(true);
+      else expect(within(answerOf(slide)[0], n(p.v) / r, 0.05) && Number.isInteger(n(p.v) * 10)).toBe(true);
     }
     for (const { p, slide } of draws('clm-gear-tree')) {
       const r1 = n(p.r1) / 100;
@@ -185,8 +197,9 @@ describe('classical mechanics level 2', () => {
       return { th, w };
     };
     for (const { p, slide } of draws('clm-spin-up')) {
-      const a = n(p.quarters) / 4;
-      expect(near(answerOf(slide)[0], p.find === 'w' ? turn(n(p.w0), a, n(p.t)).w : a, 1e-6)).toBe(true);
+      if (p.find === 'w') expect(near(answerOf(slide)[0], turn(n(p.w0), n(p.alpha), n(p.t)).w, 1e-6)).toBe(true);
+      // To 2 decimal places, from the whole rates and time the prompt states.
+      else expect(within(answerOf(slide)[0], (n(p.w) - n(p.w0)) / n(p.t), 0.005)).toBe(true);
     }
     for (const { p, slide } of draws('clm-spin-turns-tree')) {
       const a = (n(p.w) - n(p.w0)) / n(p.t);
@@ -195,9 +208,11 @@ describe('classical mechanics level 2', () => {
       expect(near(got[0], a) && near(got[2], th, 1e-6)).toBe(true);
     }
     for (const { p, slide } of draws('clm-spin-stop-slider')) {
-      const a = n(p.quarters) / 4;
+      const a = n(p.alpha);
+      expect(Number.isInteger(a * 10)).toBe(true);
       const { th } = turn(n(p.w0), -a, n(p.w0) / a);
-      expect(near(answerOf(slide)[0], th, 1e-6)).toBe(true);
+      // To the nearest half turn.
+      expect(within(answerOf(slide)[0], th, 0.25)).toBe(true);
     }
     for (const { p, slide } of draws('clm-spin-flow')) {
       const a = n(p.quarters) / 4;
@@ -218,8 +233,9 @@ describe('classical mechanics level 2', () => {
     };
     for (const { p, slide } of draws('clm-centripetal')) {
       const got = answerOf(slide)[0];
-      if (p.find === 'a') expect(near(got, centreward(n(p.v), n(p.r)), 1e-6)).toBe(true);
-      else expect(near(got, n(p.v))).toBe(true);
+      // To 1 decimal place, from the whole radius and the speed or acceleration the prompt states.
+      if (p.find === 'a') expect(within(got, centreward(n(p.v), n(p.r)), 0.05)).toBe(true);
+      else expect(within(got, Math.sqrt(n(p.a) * n(p.r)), 0.05) && near(centreward(Math.sqrt(n(p.a) * n(p.r)), n(p.r)), n(p.a), 1e-6)).toBe(true);
     }
     for (const { p, slide } of draws('clm-circle-table')) {
       const rows = p.rows as { v: number; r: number; blank: string }[];
@@ -227,11 +243,9 @@ describe('classical mechanics level 2', () => {
       answerOf(slide).forEach((got, i) => expect(near(got, want[i], 1e-6)).toBe(true));
     }
     for (const { p, slide } of draws('clm-g-force-flow')) {
-      const v = 7 * n(p.j);
-      const r = (10 * n(p.j) ** 2) / n(p.halves);
-      const a = centreward(v, r);
+      const a = centreward(n(p.v), n(p.r));
       const got = answerOf(slide);
-      expect(near(got[0], a, 1e-6) && near(got[1], a / g, 1e-6)).toBe(true);
+      expect(within(got[0], a, 0.05) && within(got[1], a / g, 0.05), JSON.stringify(p)).toBe(true);
     }
     for (const { p, slide } of draws('clm-radius-slider')) {
       const r = answerOf(slide)[0];

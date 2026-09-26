@@ -7,11 +7,13 @@
  * problem's own constants are set to one (Tong); and the Lagrangian
  * L = T - V with its Euler-Lagrange equation (Tong, ch. 2).
  *
- * Dimensions are held as powers of [M, L, T]. Every numeric answer is exact:
- * natural units are built from squares, and Lagrangian systems use g = 9.8.
+ * Dimensions are held as powers of [M, L, T]. Natural units on a spring are
+ * built from squares and come out exact; a pendulum's length unit and an
+ * energy to convert are values a textbook prints, and what they give is asked
+ * to 3 significant figures. Lagrangian systems use g = 9.8.
  */
 import type { Generator, SolutionStep } from '../types';
-import { G_NOTE, exact, fmt, forks, kg, metres, ms, numChoices, salted, say, secs, track, typed, until, valueBank } from './classicalKit';
+import { G_NOTE, exact, fixed, fmt, forks, kg, metres, ms, numChoices, roundTo, roundedWell, salted, say, secs, track, typed, until, valueBank, type Precision } from './classicalKit';
 
 const n3 = (v: number): number => Number(v.toFixed(6));
 const Nm = (v: number): string => `$${fmt(v)}\\text{ N m}^{-1}$`;
@@ -509,78 +511,156 @@ const naturalTable: Generator<UnitsParams> = {
 };
 
 interface GravityUnitParams {
-  /** The length unit, chosen as 9.8 / w^2 so the time unit sqrt(L/g) is 1 / w. */
-  w: number;
-  /** A speed to convert, in natural units. */
-  n: number;
+  /** The length unit, in metres: whole when easy, one decimal place when hard. */
+  L0: number;
+  /** A speed to convert, in whole metres per second. */
+  v: number;
 }
 
-const gLength = (w: number): number => n3(9.8 / (w * w));
+/** Natural-unit conversions are asked to 3 significant figures. */
+const S3: Precision = { sf: 3 };
 
-/** Tree: units where a length and g are 1: the time unit, the speed unit, then a speed in natural units. */
+/** An unrounded value on a working line: 0.4517..., or the value itself when it ends. */
+const dots = (value: number, places = 4): string => (exact(value, places) ? fmt(value) : `${value.toFixed(places)}\\ldots`);
+
+/** The pendulum units: tau = sqrt(L0 / g), u = L0 / tau = sqrt(g L0), and the speed counted in u. */
+const gravityUnits = ({ L0, v }: GravityUnitParams) => {
+  const tau = Math.sqrt(L0 / 9.8);
+  const u = Math.sqrt(9.8 * L0);
+  return { tau, u, count: v / u };
+};
+
+/**
+ * Every rounded value clear of a rounding edge, and the same whether the
+ * learner carries the rounded time unit or the exact one into u, and the
+ * rounded or exact u into the count.
+ */
+const gravityRoundsWell = (p: GravityUnitParams): boolean => {
+  const { tau, u, count } = gravityUnits(p);
+  const tauR = roundTo(tau, S3);
+  const uR = roundTo(u, S3);
+  const countR = roundTo(count, S3);
+  return (
+    roundedWell(tau, S3) &&
+    roundedWell(u, S3) &&
+    roundedWell(count, S3) &&
+    roundTo(p.L0 / tauR, S3) === uR &&
+    roundTo(p.v / uR, S3) === countR &&
+    roundTo((p.v * tauR) / p.L0, S3) === countR
+  );
+};
+
+/** Rounded tokens for a bank or a fork: the answer's, then distinct positive extras, sorted by value. */
+const roundedTokens = (answer: string[], extras: number[], spare: number, precision: Precision): string[] => {
+  const out = [...answer];
+  for (const v of extras) {
+    if (out.length - answer.length >= spare) break;
+    if (!Number.isFinite(v) || v <= 0) continue;
+    const token = fixed(v, precision);
+    if (!out.some((t) => Number(t) === Number(token))) out.push(token);
+  }
+  return out.sort((x, y) => Number(x) - Number(y));
+};
+
+/** Tree: units where a length and g are 1: the time unit, the speed unit, then a speed in natural units, each to 3 significant figures. */
 const naturalTree: Generator<GravityUnitParams> = {
   id: 'clm-natural-tree',
-  sample: (rng, difficulty) => until(() => ({ w: rng.pick([0.5, 1, 2, 2.5, 5, 10]), n: rng.int(2, difficulty > 1 ? 20 : 9) }), (p) => exact(1 / p.w, 3) && exact(9.8 / p.w, 3) && exact((p.n * 9.8) / p.w, 3)),
+  sample: (rng, difficulty) =>
+    until(
+      () => ({ L0: difficulty > 1 ? rng.int(2, 99) / 10 : rng.int(1, 20), v: rng.int(2, difficulty > 1 ? 40 : 20) }),
+      // A length of 9.8 m makes both units 1 or 9.8, which is no question at all.
+      (p) => p.L0 !== 9.8 && gravityRoundsWell(p),
+    ),
   render: (p) => {
-    const L0 = gLength(p.w);
-    const tau = n3(1 / p.w);
-    const u = n3(9.8 / p.w);
+    const { tau, u, count } = gravityUnits(p);
+    const answer = [fixed(tau, S3), fixed(u, S3), fixed(count, S3)];
     return {
       kind: 'tree',
-      prompt: [say(`A pendulum problem uses units where the length ${metres(L0)} and $g$ both count as $1$. ${G_NOTE}`), say(`Find the unit of time, the unit of speed, and a speed of ${ms(n3(p.n * u))} in these units.`)],
+      prompt: [
+        say(`A pendulum problem uses units where the length ${metres(p.L0)} and $g$ both count as $1$. ${G_NOTE}`),
+        say(`Find the unit of time, the unit of speed, and a speed of ${ms(p.v)} in these units, each to 3 significant figures.`),
+      ],
       expression: '\\tau = \\sqrt{\\frac{\\ell}{g}} \\qquad u = \\frac{\\ell}{\\tau}',
       nodes: [
         { id: '\\tau', from: [] },
         { id: 'u', from: ['\\tau'] },
         { id: '\\frac{v}{u}', from: ['u'] },
       ],
-      bank: tidyBank([tau, u, p.n], [p.w, n3(L0 * p.w * p.w), n3(p.n * u * u), n3(L0 / (tau * tau))]),
-      answer: [tau, u, p.n].map(fmt),
+      bank: roundedTokens(answer, [1 / tau, p.L0 / 9.8, 9.8 * tau, p.v * u, p.L0 * tau, p.v / p.L0, 2 * tau, u / 2, p.v * tau], 3, S3),
+      answer,
     };
   },
   solution: (p) => {
-    const L0 = gLength(p.w);
-    const u = n3(9.8 / p.w);
+    const { tau, u, count } = gravityUnits(p);
     return [
-      { tex: `\\tau = \\sqrt{\\frac{${fmt(L0)}}{9.8}} = ${fmt(n3(1 / p.w))}` },
-      { tex: `u = \\frac{${fmt(L0)}}{${fmt(n3(1 / p.w))}} = ${fmt(u)}` },
-      { tex: `\\frac{${fmt(n3(p.n * u))}}{${fmt(u)}} = ${p.n}` },
+      { tex: `\\tau = \\sqrt{\\frac{${fmt(p.L0)}}{9.8}} = ${dots(tau)}` },
+      { text: 'To 3 significant figures:' },
+      { tex: `\\tau = ${fixed(tau, S3)}` },
+      { tex: `u = \\frac{${fmt(p.L0)}}{${fixed(tau, S3)}} = ${fixed(u, S3)}` },
+      { tex: `\\frac{${p.v}}{${fixed(u, S3)}} = ${fixed(count, S3)}` },
+      { text: 'Each to 3 significant figures, the same whether you carry the rounded values or the exact ones.' },
     ];
   },
 };
 
-/** Flow: units where a mass and a spring are 1: the unit of time, the unit of energy on a chosen length, then an energy in them. */
-const naturalFlow: Generator<{ m: number; w: number; L0: number; n: number }> = {
+interface SpringEnergyParams {
+  m: number;
+  w: number;
+  L0: number;
+  /** The energy to convert, in joules: whole when easy, one decimal place when hard. */
+  E: number;
+}
+
+const springK = (p: SpringEnergyParams): number => n3(p.m * p.w * p.w);
+const springE0 = (p: SpringEnergyParams): number => n3(springK(p) * p.L0 * p.L0);
+
+/** Flow: units where a mass and a spring are 1: the unit of time, the unit of energy on a chosen length, then an energy in them to 3 significant figures. */
+const naturalFlow: Generator<SpringEnergyParams> = {
   id: 'clm-natural-flow',
   sample: (rng, difficulty) =>
     until(
-      () => ({ m: rng.pick([0.5, 1, 2, 4, 5]), w: rng.pick([2, 4, 5, 10]), L0: rng.pick([0.1, 0.2, 0.5, 1]), n: rng.int(2, difficulty > 1 ? 20 : 9) }),
-      (p) => exact(p.m * p.w * p.w, 2) && exact(p.m * p.L0 * p.L0 * p.w * p.w, 3) && exact(p.n * p.m * p.L0 * p.L0 * p.w * p.w, 3),
+      () => ({ m: rng.pick([0.5, 1, 2, 4, 5]), w: rng.pick([2, 4, 5, 10]), L0: rng.pick([0.1, 0.2, 0.5, 1]), E: difficulty > 1 ? rng.int(10, 999) / 10 : rng.int(1, 60) }),
+      (p) => {
+        const count = p.E / springE0(p);
+        return exact(springK(p), 1) && exact(springE0(p), 3) && count >= 1.5 && count < 1000 && roundedWell(count, S3);
+      },
     ),
   render: (p) => {
-    const k = n3(p.m * p.w * p.w);
+    const k = springK(p);
     const tau = n3(1 / p.w);
-    const E0 = n3(k * p.L0 * p.L0);
+    const E0 = springE0(p);
+    const count = p.E / E0;
     return {
       kind: 'flow',
-      prompt: [say(`A ${kg(p.m)} mass sits on a spring of ${Nm(k)}. Units are chosen so the mass, the spring and a length of ${metres(p.L0)} each count as $1$. How much is an energy of $${fmt(n3(p.n * E0))}\\text{ J}$ in them?`)],
+      prompt: [
+        say(`A ${kg(p.m)} mass sits on a spring of ${Nm(k)}. Units are chosen so the mass, the spring and a length of ${metres(p.L0)} each count as $1$. How much is an energy of $${fmt(p.E)}\\text{ J}$ in them? Give your answer to 3 significant figures.`),
+      ],
       subject: '\\tau = \\sqrt{\\frac{m}{k}} \\qquad E_{0} = \\frac{m\\ell^{2}}{\\tau^{2}} = k\\ell^{2}',
       steps: [
         { id: 'tau', ask: 'The unit of time, in seconds:', branches: forks(tau, [p.w, n3(1 / (p.w * p.w))], 0.1).map((label) => ({ label, to: 'E' })) },
         { id: 'E', ask: 'The unit of energy, in joules:', branches: forks(E0, [n3(k * p.L0), n3(0.5 * k * p.L0 * p.L0)], 0.01).map((label) => ({ label, to: 'n' })) },
-        { id: 'n', ask: 'So the energy in natural units:', branches: forks(p.n, [n3(p.n * E0 * E0), p.n * 2], 1).map((label) => ({ label, outcome: 'A quantity in natural units is its SI value over the unit built for it.' })) },
+        {
+          id: 'n',
+          ask: 'So the energy in natural units, to 3 significant figures:',
+          branches: roundedTokens([fixed(count, S3)], [p.E * E0, (2 * p.E) / E0, p.E / (k * p.L0), 10 * count, count / 10], 2, S3).map((label) => ({
+            label: `$${label}$`,
+            outcome: 'A quantity in natural units is its SI value over the unit built for it.',
+          })),
+        },
       ],
-      answer: [`$${fmt(tau)}$`, `$${fmt(E0)}$`, `$${p.n}$`],
+      answer: [`$${fmt(tau)}$`, `$${fmt(E0)}$`, `$${fixed(count, S3)}$`],
     };
   },
   solution: (p) => {
-    const k = n3(p.m * p.w * p.w);
-    const E0 = n3(k * p.L0 * p.L0);
+    const k = springK(p);
+    const E0 = springE0(p);
+    const count = p.E / E0;
     return [
       { tex: `\\tau = \\sqrt{\\frac{${fmt(p.m)}}{${fmt(k)}}} = ${fmt(n3(1 / p.w))}` },
       { tex: `E_{0} = ${fmt(k)} \\times ${fmt(p.L0)}^{2} = ${fmt(E0)}` },
-      // A unit of exactly 1 J leaves the count as it is, with nothing to divide.
-      ...(E0 === 1 ? [] : [{ tex: `\\frac{${fmt(n3(p.n * E0))}}{${fmt(E0)}} = ${p.n}` }]),
+      { tex: `\\frac{${fmt(p.E)}}{${fmt(E0)}} = ${dots(count)}` },
+      { text: 'To 3 significant figures:' },
+      { tex: `\\frac{E}{E_{0}} = ${fixed(count, S3)}` },
     ];
   },
 };

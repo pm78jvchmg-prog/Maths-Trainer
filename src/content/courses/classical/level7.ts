@@ -122,6 +122,8 @@ export const level7: Level = {
         teach(
           prose('A shallow sag makes $\\sin\\theta$ small and the tension large. A sag of $7$ on a half-span of $24$ gives $l = 25$ and $\\sin\\theta = 0.28$, so a $140\\text{ N}$ load pulls each half with $\\frac{140}{0.56} = 250\\text{ N}$.'),
           prose('Backwards, from a tension to the sag: $120\\text{ N}$ at $100\\text{ N}$ tension needs $\\sin\\theta = \\frac{120}{200} = 0.6$, a 3-4-5 triangle. On a half-span of $40$ the sag is $\\frac{3}{4} \\times 40 = 30\\text{ cm}$.'),
+          prose('Usually the sine is no triangle’s. Then find the cosine, and the sag is the half-span times $\\tan\\theta$. $150\\text{ N}$ at $100\\text{ N}$ tension, on the same half-span, to the nearest centimetre:'),
+          stacked('\\sin\\theta = \\frac{150}{200} = 0.75', '\\cos\\theta = \\sqrt{1 - 0.75^{2}} = 0.6614\\ldots', 's = 40 \\times \\frac{0.75}{0.6614\\ldots} = 45.35\\ldots', 's = 45\\text{ cm}'),
         ),
         ask('clm-rope-slider'),
         ask('clm-rope-flow'),

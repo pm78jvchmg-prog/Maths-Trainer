@@ -9,11 +9,14 @@
  *
  * A sideways launch starts from a height a textbook would print, a whole
  * number of metres, and asks its time to 2 decimal places and distances and
- * speeds to 1, redrawn when a value sits near a rounding edge. A launch with vertical speed 4.9k is in the
- * air for exactly k seconds and rises 1.225k^2; a vertical speed 1.4m rises
- * 0.1m^2. Angles come from Pythagorean triples so both components are exact.
- * Angular work is done in revolutions per second, where the numbers are
- * whole, with radians per second asked as a whole multiple of pi.
+ * speeds to 1, redrawn when a value sits near a rounding edge. An angled
+ * launch has whole parts, or a whole speed at an angle from a Pythagorean
+ * triple so both parts are whole; its times are asked to 2 decimal places and
+ * its height and range to 1, the same whichever way the learner carries them.
+ * Radii, speeds and accelerations are whole or one decimal place (radii under
+ * a metre may have two), and a quotient that does not end is asked to a
+ * stated precision. Angular work is done in revolutions per second, with
+ * radians per second asked as a whole multiple of pi.
  */
 import type { ChoiceOption, Generator, KeypadKey, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
@@ -100,7 +103,7 @@ const fixedBank = (answer: string[], extras: string[], spare = 3): string[] => {
   const out = [...answer];
   for (const token of extras) {
     if (out.length - answer.length >= spare) break;
-    if (!out.includes(token) && Number(token) > 0) out.push(token);
+    if (Number(token) > 0 && !out.some((o) => Number(o) === Number(token))) out.push(token);
   }
   return out.sort((x, y) => Number(x) - Number(y));
 };
@@ -412,80 +415,126 @@ const launchTable: Generator<{ rows: LaunchRow[] }> = {
     ]),
 };
 
-/** Launches whose vertical speed 4.9k comes from a speed and a triangle angle exactly. */
+/**
+ * A launch given as a whole speed at an angle whose tangent is a triangle's,
+ * so both parts of the velocity are whole: speed tri.h * c, parts tri.a * c
+ * across and tri.o * c up.
+ */
 interface Launch {
-  /** sin and cos of the angle, as a triangle. */
   tri: Triangle;
-  /** Seconds in the air. */
-  k: number;
+  c: number;
 }
 
-const ANGLED: Launch[] = (() => {
-  const out: Launch[] = [];
-  for (const tri of [
-    { o: 3, a: 4, h: 5 },
-    { o: 4, a: 3, h: 5 },
-    { o: 7, a: 24, h: 25 },
-    { o: 5, a: 12, h: 13 },
-  ]) {
-    for (let k = 1; k <= 10; k += 1) {
-      const u = (4.9 * k * tri.h) / tri.o;
-      if (exact(u, 2) && u <= 100) out.push({ tri, k });
-    }
-  }
-  return out;
-})();
-
-const launchSpeed = ({ tri, k }: Launch): number => n3((4.9 * k * tri.h) / tri.o);
-const launchUx = (l: Launch): number => n3((launchSpeed(l) * l.tri.a) / l.tri.h);
+const LAUNCH_TRI: Triangle[] = [
+  { o: 3, a: 4, h: 5 },
+  { o: 4, a: 3, h: 5 },
+  { o: 5, a: 12, h: 13 },
+  { o: 12, a: 5, h: 13 },
+  { o: 7, a: 24, h: 25 },
+];
 
 interface FlightParams {
   thing: string;
-  /** Horizontal speed; the vertical is 4.9k. */
+  /** Horizontal and vertical parts of the launch velocity, whole m/s. */
   ux: number;
-  k: number;
+  uy: number;
   /** Hard: given as a speed and an angle instead. */
   launch: Launch | null;
 }
 
 const KICKED = ['ball', 'stone', 'shot', 'rocket', 'water jet', 'golf ball'];
 
-const sampleFlight = (rng: Rng, hard: boolean): FlightParams => {
-  if (hard) {
-    const launch = rng.pick(ANGLED);
-    return { thing: rng.pick(KICKED), ux: launchUx(launch), k: launch.k, launch };
-  }
-  return { thing: rng.pick(KICKED), ux: rng.int(3, 30), k: rng.int(1, 6), launch: null };
+/** Time to the top, time in the air and greatest height over level ground. */
+const topTime = (uy: number): number => uy / 9.8;
+const flightTime = (uy: number): number => (2 * uy) / 9.8;
+const flightHeight = (uy: number): number => (uy * uy) / 19.6;
+
+/**
+ * A flight whose times round cleanly to 2 decimal places and whose height and
+ * range round cleanly to 1, the same whether the learner doubles the rounded
+ * time to the top and carries the rounded time in the air into the range, or
+ * works with the exact values throughout.
+ */
+const flightRoundsWell = ({ ux, uy }: { ux: number; uy: number }): boolean => {
+  const top = topTime(uy);
+  const T = flightTime(uy);
+  const carried = roundTo(T, T_DP);
+  return (
+    roundedWell(top, T_DP) &&
+    roundedWell(T, T_DP) &&
+    roundTo(2 * roundTo(top, T_DP), T_DP) === carried &&
+    roundedWell(flightHeight(uy), D_DP) &&
+    roundedWell(ux * T, D_DP) &&
+    roundTo(ux * carried, D_DP) === roundTo(ux * T, D_DP)
+  );
 };
 
-const launchPhrase = ({ ux, k, launch }: FlightParams): string =>
-  launch
-    ? `at ${ms(launchSpeed(launch))} at an angle $\\alpha$ above the horizontal, where $\\tan\\alpha = \\tfrac{${launch.tri.o}}{${launch.tri.a}}$`
-    : `with a horizontal velocity of ${ms(ux)} and a vertical velocity of ${ms(n3(4.9 * k))} upwards`;
+const sampleFlight = (rng: Rng, hard: boolean): FlightParams =>
+  until(
+    (): FlightParams => {
+      if (hard) {
+        const tri = rng.pick(LAUNCH_TRI);
+        const c = rng.int(1, Math.floor(75 / tri.h));
+        return { thing: rng.pick(KICKED), ux: tri.a * c, uy: tri.o * c, launch: { tri, c } };
+      }
+      return { thing: rng.pick(KICKED), ux: rng.int(3, 30), uy: rng.int(5, 30), launch: null };
+    },
+    (p) => p.uy >= 3 && flightRoundsWell(p),
+  );
 
-const componentLines = ({ launch }: FlightParams): SolutionStep[] =>
+const launchPhrase = ({ ux, uy, launch }: FlightParams): string =>
+  launch
+    ? `at ${ms(launch.tri.h * launch.c)} at an angle $\\alpha$ above the horizontal, where $\\tan\\alpha = \\tfrac{${launch.tri.o}}{${launch.tri.a}}$`
+    : `with a horizontal velocity of ${ms(ux)} and a vertical velocity of ${ms(uy)} upwards`;
+
+const componentLines = ({ ux, uy, launch }: FlightParams): SolutionStep[] =>
   launch
     ? [
         { text: `A ${launch.tri.o}, ${launch.tri.a}, ${launch.tri.h} triangle gives $\\cos\\alpha = \\tfrac{${launch.tri.a}}{${launch.tri.h}}$ and $\\sin\\alpha = \\tfrac{${launch.tri.o}}{${launch.tri.h}}$.` },
-        { tex: `u_{x} = ${fmt(launchSpeed(launch))} \\times \\tfrac{${launch.tri.a}}{${launch.tri.h}} = ${fmt(launchUx(launch))}` },
-        { tex: `u_{y} = ${fmt(launchSpeed(launch))} \\times \\tfrac{${launch.tri.o}}{${launch.tri.h}} = ${fmt(4.9 * launch.k)}` },
+        { tex: `u_{x} = ${launch.tri.h * launch.c} \\times \\tfrac{${launch.tri.a}}{${launch.tri.h}} = ${ux}` },
+        { tex: `u_{y} = ${launch.tri.h * launch.c} \\times \\tfrac{${launch.tri.o}}{${launch.tri.h}} = ${uy}` },
       ]
     : [];
+
+/**
+ * Three labels for a fork of a flow, each rounded to the precision the step
+ * asks: the right one and slips, distinct in value after rounding, topped up
+ * with near misses and sorted, so the order says nothing.
+ */
+const roundedForks = (right: number, wrong: number[], precision: Precision, unit: number): string[] => {
+  const out = [fixed(right, precision)];
+  const add = (v: number) => {
+    if (out.length >= 3 || !Number.isFinite(v) || v <= 0) return;
+    const token = fixed(v, precision);
+    if (Number(token) > 0 && !out.some((o) => Number(o) === Number(token))) out.push(token);
+  };
+  wrong.forEach(add);
+  for (let k = 1; out.length < 3 && k < 1000; k += 1) {
+    add(right + k * unit);
+    add(right - k * unit);
+  }
+  return out.sort((x, y) => Number(x) - Number(y)).map((v) => `$${v}$`);
+};
 
 /** Tree: over level ground, the time of flight 2u_y/g, the greatest height u_y^2/2g and the range u_x T. */
 const flightTree: Generator<FlightParams> = {
   id: 'clm-flight-tree',
   sample: (rng, difficulty) => sampleFlight(rng, difficulty > 1),
   render: (p) => {
-    const uy = n3(4.9 * p.k);
-    const H = n3(1.225 * p.k * p.k);
-    const R = n3(p.ux * p.k);
-    const answer = p.launch ? [p.ux, uy, p.k, H, R] : [p.k, H, R];
+    const T = flightTime(p.uy);
+    const H = flightHeight(p.uy);
+    const R = p.ux * roundTo(T, T_DP);
+    const rounded = [fixed(T, T_DP), fixed(H, D_DP), fixed(R, D_DP)];
+    const answer = p.launch ? [fmt(p.ux), fmt(p.uy), ...rounded] : rounded;
     return {
       kind: 'tree',
       prompt: [
         say(`A ${p.thing} is launched from level ground ${launchPhrase(p)}. ${G_NOTE}`),
-        say(p.launch ? 'Top row: the horizontal and vertical parts of the velocity. Then the time in the air, the greatest height and the range.' : 'Find the time in the air, the greatest height and the range.'),
+        say(
+          p.launch
+            ? 'Top row: the horizontal and vertical parts of the velocity. Then the time in the air to 2 decimal places, and the greatest height and the range, each to 1 decimal place.'
+            : 'Find the time in the air to 2 decimal places, then the greatest height and the range, each to 1 decimal place.',
+        ),
       ],
       expression: 'T = \\frac{2u_{y}}{g} \\qquad H = \\frac{u_{y}^{2}}{2g}',
       nodes: p.launch
@@ -501,73 +550,108 @@ const flightTree: Generator<FlightParams> = {
             { id: 'H', from: [] },
             { id: 'R', from: ['T'] },
           ],
-      bank: tidyBank(answer, [p.k / 2, 2 * H, (p.ux * p.k) / 2, p.k * p.k]),
-      answer: answer.map(fmt),
+      bank: fixedBank(answer, [
+        fixed(T / 2, T_DP),
+        fixed(2 * H, D_DP),
+        fixed(R / 2, D_DP),
+        fixed((p.uy * p.uy) / 9.8, D_DP),
+        fixed(T + 1, T_DP),
+        fixed(H + 1, D_DP),
+      ]),
+      answer,
     };
   },
   solution: (p) => {
-    const uy = 4.9 * p.k;
+    const T = flightTime(p.uy);
+    const H = flightHeight(p.uy);
     return [
       ...componentLines(p),
-      { tex: `T = \\frac{2 \\times ${fmt(uy)}}{9.8} = ${p.k}` },
-      { tex: `H = \\frac{${fmt(uy)}^{2}}{2 \\times 9.8} = ${fmt(1.225 * p.k * p.k)}` },
-      { tex: `R = ${fmt(p.ux)} \\times ${p.k} = ${fmt(p.ux * p.k)}` },
+      { tex: `T = \\frac{2 \\times ${p.uy}}{9.8} = ${dots(T)}` },
+      { text: 'To 2 decimal places:' },
+      { tex: `T = ${fixed(T, T_DP)}` },
+      { tex: `H = \\frac{${p.uy}^{2}}{2 \\times 9.8} = ${dots(H, 3)}` },
+      { text: 'To 1 decimal place:' },
+      { tex: `H = ${fixed(H, D_DP)}` },
+      { tex: `R = ${p.ux} \\times ${fixed(T, T_DP)} = ${fixed(p.ux * T, D_DP)}` },
+      { text: 'To 1 decimal place, the same whether you carry the rounded time or the exact one.' },
     ];
   },
 };
 
 interface HeightParams {
-  m: number;
-  /** Hard: given as a speed and an angle with this sine, as a triangle. */
-  tri: Triangle | null;
+  /** Vertical launch speed. Easy: whole, given. Hard: from the speed and angle. */
+  uy: number;
+  /** Hard: a whole speed at an angle whose sine is a triangle's. */
+  launch: { u: number; tri: Triangle } | null;
 }
 
-const heightUy = ({ m }: HeightParams): number => n3(1.4 * m);
+const HEIGHT_TRI: Triangle[] = [
+  { o: 4, a: 3, h: 5 },
+  { o: 7, a: 24, h: 25 },
+  { o: 3, a: 4, h: 5 },
+];
 
-/** Expression: the greatest height u_y^2/(2g), from the vertical speed (easy) or a speed and angle (hard). */
+/** Expression: the greatest height u_y^2/(2g), from the vertical speed (easy) or a speed and angle (hard), to 1 decimal place. */
 const maxHeight: Generator<HeightParams> = {
   id: 'clm-max-height',
   sample: (rng, difficulty) =>
-    difficulty > 1
-      ? until(
-          () => ({ m: rng.int(2, 25), tri: rng.pick([{ o: 4, a: 3, h: 5 }, { o: 7, a: 24, h: 25 }, { o: 3, a: 4, h: 5 }]) }),
-          (p) => exact((1.4 * p.m * p.tri!.h) / p.tri!.o, 2),
-        )
-      : { m: rng.int(2, 32), tri: null },
+    until(
+      (): HeightParams => {
+        if (difficulty > 1) {
+          const u = rng.int(10, 60);
+          const tri = rng.pick(HEIGHT_TRI);
+          return { uy: n3((u * tri.o) / tri.h), launch: { u, tri } };
+        }
+        return { uy: rng.int(3, 40), launch: null };
+      },
+      (p) => roundedWell(flightHeight(p.uy), D_DP),
+    ),
   render: (p) => {
-    const uy = heightUy(p);
-    const H = n3(0.1 * p.m * p.m);
-    if (p.tri) {
-      const u = n3((uy * p.tri.h) / p.tri.o);
-      return typed(
-        [say(`An arrow is shot at ${ms(u)} at an angle $\\alpha$ above the horizontal, where $\\sin\\alpha = ${fmt(p.tri.o / p.tri.h)}$. ${G_NOTE} How high does it rise above its starting point, in metres?`)],
+    const H = flightHeight(p.uy);
+    if (p.launch) {
+      return typedRounded(
+        [
+          say(
+            `An arrow is shot at ${ms(p.launch.u)} at an angle $\\alpha$ above the horizontal, where $\\sin\\alpha = ${fmt(p.launch.tri.o / p.launch.tri.h)}$. ${G_NOTE} How high does it rise above its starting point, in metres? ${askPrecision(D_DP)}`,
+          ),
+        ],
         'H =',
         H,
+        D_DP,
       );
     }
-    return typed([say(`A ball leaves the ground with a vertical velocity of ${ms(uy)} upwards. ${G_NOTE} How high does it rise, in metres?`)], 'H =', H);
+    return typedRounded(
+      [say(`A ball leaves the ground with a vertical velocity of ${ms(p.uy)} upwards. ${G_NOTE} How high does it rise, in metres? ${askPrecision(D_DP)}`)],
+      'H =',
+      H,
+      D_DP,
+    );
   },
   solution: (p) => {
-    const uy = heightUy(p);
+    const H = flightHeight(p.uy);
     return [
-      ...(p.tri ? [{ tex: `u_{y} = ${fmt((uy * p.tri.h) / p.tri.o)} \\times ${fmt(p.tri.o / p.tri.h)} = ${fmt(uy)}` }] : []),
+      ...(p.launch ? [{ tex: `u_{y} = ${p.launch.u} \\times ${fmt(p.launch.tri.o / p.launch.tri.h)} = ${fmt(p.uy)}` }] : []),
       { text: 'At the top the vertical velocity is zero, so $0 = u_{y}^{2} - 2gH$:' },
-      { tex: `H = \\frac{${fmt(uy)}^{2}}{2 \\times 9.8} = ${fmt(0.1 * p.m * p.m)}` },
+      { tex: `H = \\frac{${fmt(p.uy)}^{2}}{2 \\times 9.8} = ${dots(H, 3)}` },
+      { text: 'To 1 decimal place:' },
+      { tex: `H = ${fixed(H, D_DP)}` },
     ];
   },
   choices: (p) => {
-    const uy = heightUy(p);
-    const H = 0.1 * p.m * p.m;
-    return numChoices(H, [2 * H, uy * uy / 9.8, uy / 9.8, H / 2], salted(p.m, p.tri ? p.tri.o : 0));
+    const H = flightHeight(p.uy);
+    const r = (v: number) => roundTo(v, D_DP);
+    return numChoices(r(H), [r(2 * H), r((p.uy * p.uy) / 9.8), r(p.uy / 9.8), r(H / 2)], salted(p.uy, p.launch ? p.launch.u : 0));
   },
 };
 
-/** Flow: time to the top u_y/g, time of flight (twice it), then the range. */
+/** Flow: time to the top u_y/g, time of flight (twice it), then the range. Times to 2 decimal places, the range to 1. */
 const rangeFlow: Generator<FlightParams> = {
   id: 'clm-range-flow',
   sample: (rng, difficulty) => sampleFlight(rng, difficulty > 1),
   render: (p) => {
-    const R = n3(p.ux * p.k);
+    const top = topTime(p.uy);
+    const T = flightTime(p.uy);
+    const R = p.ux * T;
     return {
       kind: 'flow',
       prompt: [say(`A ${p.thing} is launched from level ground ${launchPhrase(p)}. ${G_NOTE} How far away does it land?`)],
@@ -575,30 +659,38 @@ const rangeFlow: Generator<FlightParams> = {
       steps: [
         {
           id: 'top',
-          ask: 'Time to reach the top, when the vertical velocity is zero, in seconds:',
-          branches: forks(p.k / 2, [p.k, p.k * 2, 4.9 * p.k], 0.5).map((label) => ({ label, to: 'T' })),
+          ask: 'Time to reach the top, when the vertical velocity is zero, in seconds to 2 decimal places:',
+          branches: roundedForks(top, [T, 2 * T, p.uy / 4.9 + 1], T_DP, 0.25).map((label) => ({ label, to: 'T' })),
         },
         {
           id: 'T',
-          ask: 'So the whole time in the air, in seconds:',
-          branches: forks(p.k, [p.k / 2, p.k * 1.5, p.k + 1], 0.5).map((label) => ({ label, to: 'R' })),
+          ask: 'So the whole time in the air, in seconds to 2 decimal places:',
+          branches: roundedForks(T, [top, 1.5 * T, T + 1], T_DP, 0.25).map((label) => ({ label, to: 'R' })),
         },
         {
           id: 'R',
-          ask: 'And the range, in metres:',
-          branches: forks(R, [R / 2, 2 * R, n3(4.9 * p.k * p.k)], 0.5).map((label) => ({ label, outcome: 'The flight is symmetric: as long coming down as going up.' })),
+          ask: 'And the range, in metres to 1 decimal place:',
+          branches: roundedForks(R, [R / 2, 2 * R, (p.uy * p.ux) / 4.9 + 5], D_DP, 1.5).map((label) => ({ label, outcome: 'The flight is symmetric: as long coming down as going up.' })),
         },
       ],
-      answer: [`$${fmt(p.k / 2)}$`, `$${p.k}$`, `$${fmt(R)}$`],
+      answer: [`$${fixed(top, T_DP)}$`, `$${fixed(T, T_DP)}$`, `$${fixed(R, D_DP)}$`],
     };
   },
-  solution: (p) => [
-    ...componentLines(p),
-    { tex: `t_{\\text{top}} = \\frac{${fmt(4.9 * p.k)}}{9.8} = ${fmt(p.k / 2)}` },
-    { tex: `T = 2 \\times ${fmt(p.k / 2)} = ${p.k}` },
-    { tex: `R = ${fmt(p.ux)} \\times ${p.k} = ${fmt(p.ux * p.k)}` },
-  ],
+  solution: (p) => {
+    const top = topTime(p.uy);
+    const T = flightTime(p.uy);
+    return [
+      ...componentLines(p),
+      { tex: `t_{\\text{top}} = \\frac{${p.uy}}{9.8} = ${dots(top)}` },
+      { text: 'To 2 decimal places:' },
+      { tex: `t_{\\text{top}} = ${fixed(top, T_DP)}` },
+      { tex: `T = 2 \\times ${fixed(top, T_DP)} = ${fixed(T, T_DP)}` },
+      { tex: `R = ${p.ux} \\times ${fixed(T, T_DP)} = ${fixed(p.ux * T, D_DP)}` },
+      { text: 'To 1 decimal place, the same whether you carry the rounded times or the exact ones.' },
+    ];
+  },
 };
+
 
 /* ================================================================
  * Angular speed
@@ -661,41 +753,65 @@ const rpmConvert: Generator<RpmParams> = {
 
 interface RimParams {
   who: string;
-  /** Radius in centimetres. */
+  /** Radius in centimetres: a multiple of 5 under a metre, of 10 from a metre up. */
   cm: number;
+  /** Easy: the angular speed, whole, given. Hard: v / r, asked to 1 decimal place. */
   omega: number;
+  /** Easy: r omega. Hard: the rim speed, whole or one decimal place, given. */
+  v: number;
   find: 'v' | 'omega';
 }
 
-/** Expression: the speed of a point on a rim, v = r omega; hard, omega from the speed. */
+/** Radii a textbook prints: 0.05 m to 0.95 m in fives, then 1 m to 1.5 m in tenths. */
+const RIM_CM = [...Array.from({ length: 19 }, (_, i) => 5 * (i + 1)), 100, 110, 120, 130, 140, 150];
+
+/** Expression: the speed of a point on a rim, v = r omega; hard, omega from the speed, to 1 decimal place. */
 const rimSpeed: Generator<RimParams> = {
   id: 'clm-rim-speed',
-  sample: (rng, difficulty) => ({
-    who: rng.pick(SPINNERS),
-    cm: rng.int(1, 30) * 5,
-    omega: rng.int(2, 40),
-    find: difficulty > 1 ? 'omega' : 'v',
-  }),
-  render: ({ who, cm, omega, find }) => {
+  sample: (rng, difficulty) => {
+    const who = rng.pick(SPINNERS);
+    if (difficulty > 1)
+      return until(
+        () => {
+          const cm = rng.pick(RIM_CM);
+          const v = rng.int(10, 250) / 10;
+          return { who, cm, v, omega: v / (cm / 100), find: 'omega' as const };
+        },
+        (p) => p.omega >= 2 && p.omega <= 200 && roundedWell(p.omega, D_DP),
+      );
+    const cm = rng.pick(RIM_CM);
+    const omega = rng.int(2, 40);
+    return { who, cm, omega, v: n3((cm / 100) * omega), find: 'v' };
+  },
+  render: ({ who, cm, omega, v, find }) => {
     const r = cm / 100;
-    const v = n3(r * omega);
     return find === 'v'
       ? typed([say(`${who} of radius ${metres(r)} turns at $${omega}\\text{ rad s}^{-1}$. How fast does a point on its rim move, in $\\text{m s}^{-1}$?`)], 'v =', v)
-      : typed([say(`A point on the rim of ${who.toLowerCase().replace(/^a /, 'a ')} of radius ${metres(r)} moves at ${ms(v)}. Find the angular speed, in $\\text{rad s}^{-1}$.`)], '\\omega =', omega);
+      : typedRounded(
+          [say(`A point on the rim of ${who.toLowerCase()} of radius ${metres(r)} moves at ${ms(v)}. Find the angular speed, in $\\text{rad s}^{-1}$. ${askPrecision(D_DP)}`)],
+          '\\omega =',
+          omega,
+          D_DP,
+        );
   },
-  solution: ({ cm, omega, find }) => {
+  solution: ({ cm, omega, v, find }) => {
     const r = cm / 100;
     return [
       { text: 'Each radian turned carries the rim a distance $r$ along, so $v = r\\omega$.' },
-      find === 'v' ? { tex: `v = ${fmt(r)} \\times ${omega} = ${fmt(r * omega)}` } : { tex: `\\omega = \\frac{${fmt(r * omega)}}{${fmt(r)}} = ${omega}` },
+      ...(find === 'v'
+        ? [{ tex: `v = ${fmt(r)} \\times ${omega} = ${fmt(v)}` }]
+        : [{ tex: `\\omega = \\frac{${fmt(v)}}{${fmt(r)}} = ${dots(omega, 3)}` }, { text: 'To 1 decimal place:' }, { tex: `\\omega = ${fixed(omega, D_DP)}` }]),
     ];
   },
-  choices: ({ cm, omega, find }) => {
+  choices: ({ cm, omega, v, find }) => {
     const r = cm / 100;
-    const v = r * omega;
-    return find === 'v' ? numChoices(v, [cm * omega, v * 2, omega / r], salted(cm, omega)) : numChoices(omega, [v * r, 2 * omega, omega / 2], salted(omega, cm));
+    const r1 = (x: number) => roundTo(x, D_DP);
+    return find === 'v'
+      ? numChoices(v, [cm * omega, v * 2, omega / r], salted(cm, omega))
+      : numChoices(r1(omega), [r1(v * r), r1(2 * omega), r1(omega / 2)], salted(v * 10, cm));
   },
 };
+
 
 interface SpinRow {
   /** Revolutions per second, in halves. */
@@ -822,51 +938,74 @@ const gearTree: Generator<GearParams> = {
 
 interface SpinUpParams {
   who: string;
+  /** Starting rate, whole rev/s. */
   w0: number;
-  /** Angular acceleration in quarter-revolutions per second squared. */
-  quarters: number;
+  /** Final rate: easy w0 + alpha t (one decimal place), hard whole and given. */
+  w: number;
+  /** Angular acceleration: easy one decimal place and given, hard (w - w0) / t, asked to 2 decimal places. */
+  alpha: number;
   t: number;
   find: 'w' | 'alpha';
 }
 
-const spinEnd = ({ w0, quarters, t }: Pick<SpinUpParams, 'w0' | 'quarters' | 't'>): number => w0 + (quarters / 4) * t;
+/** Angular accelerations are asked to 2 decimal places. */
+const A_DP: Precision = { dp: 2 };
 
-/** Expression: omega = omega0 + alpha t, in rev/s; hard, alpha from the change. */
+/** Expression: omega = omega0 + alpha t, in rev/s; hard, alpha from the change, to 2 decimal places. */
 const spinUp: Generator<SpinUpParams> = {
   id: 'clm-spin-up',
-  sample: (rng, difficulty) =>
-    until(
-      () => ({ who: rng.pick(SPINNERS), w0: rng.int(0, 10), quarters: rng.int(1, 12), t: rng.int(2, 12), find: difficulty > 1 ? ('alpha' as const) : ('w' as const) }),
-      (p) => spinEnd(p) <= 40,
-    ),
-  render: (p) => {
-    const w = spinEnd(p);
-    const alpha = p.quarters / 4;
-    return p.find === 'w'
+  sample: (rng, difficulty) => {
+    const who = rng.pick(SPINNERS);
+    if (difficulty > 1)
+      return until(
+        () => {
+          const w0 = rng.int(0, 10);
+          const w = rng.int(w0 + 1, 40);
+          const t = rng.int(2, 12);
+          return { who, w0, w, t, alpha: (w - w0) / t, find: 'alpha' as const };
+        },
+        (p) => roundedWell(p.alpha, A_DP),
+      );
+    return until(
+      () => {
+        const w0 = rng.int(0, 10);
+        const alpha = rng.int(1, 30) / 10;
+        const t = rng.int(2, 12);
+        return { who, w0, alpha, t, w: n3(w0 + alpha * t), find: 'w' as const };
+      },
+      (p) => p.w <= 40,
+    );
+  },
+  render: (p) =>
+    p.find === 'w'
       ? typed(
-          [say(`${p.who} turning at $${p.w0}\\text{ rev s}^{-1}$ speeds up steadily at $${fmt(alpha)}\\text{ rev s}^{-2}$ for ${secs(p.t)}. How fast is it turning then, in $\\text{rev s}^{-1}$?`)],
+          [say(`${p.who} turning at $${p.w0}\\text{ rev s}^{-1}$ speeds up steadily at $${fmt(p.alpha)}\\text{ rev s}^{-2}$ for ${secs(p.t)}. How fast is it turning then, in $\\text{rev s}^{-1}$?`)],
           '\\omega =',
-          w,
+          p.w,
         )
-      : typed(
-          [say(`${p.who} speeds up steadily from $${p.w0}$ to $${fmt(w)}\\text{ rev s}^{-1}$ in ${secs(p.t)}. Find its angular acceleration, in $\\text{rev s}^{-2}$.`)],
+      : typedRounded(
+          [say(`${p.who} speeds up steadily from $${p.w0}$ to $${p.w}\\text{ rev s}^{-1}$ in ${secs(p.t)}. Find its angular acceleration, in $\\text{rev s}^{-2}$. ${askPrecision(A_DP)}`)],
           '\\alpha =',
-          alpha,
-        );
-  },
-  solution: (p) => {
-    const w = spinEnd(p);
-    const alpha = p.quarters / 4;
-    return p.find === 'w'
-      ? [{ text: 'Like $v = u + at$:' }, { tex: `\\omega = ${p.w0} + ${fmt(alpha)} \\times ${p.t} = ${fmt(w)}` }]
-      : [{ text: 'Like $a = \\frac{v - u}{t}$:' }, { tex: `\\alpha = \\frac{${fmt(w)} - ${p.w0}}{${p.t}} = ${fmt(alpha)}` }];
-  },
+          p.alpha,
+          A_DP,
+        ),
+  solution: (p) =>
+    p.find === 'w'
+      ? [{ text: 'Like $v = u + at$:' }, { tex: `\\omega = ${p.w0} + ${fmt(p.alpha)} \\times ${p.t} = ${fmt(p.w)}` }]
+      : [
+          { text: 'Like $a = \\frac{v - u}{t}$:' },
+          { tex: `\\alpha = \\frac{${p.w} - ${p.w0}}{${p.t}} = ${dots(p.alpha)}` },
+          { text: 'To 2 decimal places:' },
+          { tex: `\\alpha = ${fixed(p.alpha, A_DP)}` },
+        ],
   choices: (p) => {
-    const w = spinEnd(p);
-    const alpha = p.quarters / 4;
-    return p.find === 'w' ? numChoices(w, [alpha * p.t, p.w0 + alpha, w + p.w0], salted(p.w0, p.quarters, p.t)) : numChoices(alpha, [w / p.t, (w + p.w0) / p.t, w - p.w0], salted(p.t, p.quarters, p.w0));
+    const r2 = (x: number) => roundTo(x, A_DP);
+    return p.find === 'w'
+      ? numChoices(p.w, [p.alpha * p.t, p.w0 + p.alpha, p.w + p.w0], salted(p.w0, p.alpha * 10, p.t))
+      : numChoices(r2(p.alpha), [r2(p.w / p.t), r2((p.w + p.w0) / p.t), p.w - p.w0], salted(p.t, p.w, p.w0));
   },
 };
+
 
 interface TurnsParams {
   w0: number;
@@ -913,38 +1052,39 @@ const spinTurnsTree: Generator<TurnsParams> = {
 
 interface StopTurnsParams {
   w0: number;
-  /** Deceleration in quarter-revolutions per second squared. */
-  quarters: number;
+  /** Deceleration in rev/s^2, to one decimal place. */
+  alpha: number;
 }
 
-const stopTurns = ({ w0, quarters }: StopTurnsParams): number => (w0 * w0) / (2 * (quarters / 4));
+const stopTurns = ({ w0, alpha }: StopTurnsParams): number => (w0 * w0) / (2 * alpha);
 const TURN_SPAN = 100;
 
-/** Slider: turns made while slowing to rest, omega0^2 / (2 alpha), like a braking distance. */
+/** Slider: turns made while slowing to rest, omega0^2 / (2 alpha), like a braking distance, to the nearest half turn. */
 const spinStopSlider: Generator<StopTurnsParams> = {
   id: 'clm-spin-stop-slider',
   sample: (rng, difficulty) =>
     until(
-      () => ({ w0: rng.int(2, difficulty > 1 ? 20 : 12), quarters: rng.int(1, 16) }),
-      (p) => Number.isInteger(stopTurns(p) * 2) && stopTurns(p) <= TURN_SPAN && stopTurns(p) >= 2,
+      () => ({ w0: rng.int(2, difficulty > 1 ? 20 : 12), alpha: rng.int(1, 30) / 10 }),
+      (p) => stopTurns(p) <= TURN_SPAN && stopTurns(p) >= 2 && notchedWell(stopTurns(p)),
     ),
   render: (p) => {
     const figure = track(0, TURN_SPAN, [], 'A scale of turns from 0 to 100');
     return {
       kind: 'slider',
-      prompt: [say(`A potter's wheel turning at $${p.w0}\\text{ rev s}^{-1}$ slows steadily at $${fmt(p.quarters / 4)}\\text{ rev s}^{-2}$ until it stops. Slide to how many turns it makes meanwhile.`)],
+      prompt: [say(`A potter's wheel turning at $${p.w0}\\text{ rev s}^{-1}$ slows steadily at $${fmt(p.alpha)}\\text{ rev s}^{-2}$ until it stops. Slide to how many turns it makes meanwhile, to the nearest half turn.`)],
       min: 0,
       max: TURN_SPAN,
       step: 0.5,
-      answer: stopTurns(p),
+      answer: notch(stopTurns(p)),
       readout: '\\theta = {v}',
       figure: { svg: figure.svg, xMin: figure.xMin, xMax: figure.xMax, axis: 'x' },
     };
   },
   solution: (p) => [
     { text: 'Like $v^{2} = u^{2} + 2as$, ending at rest:' },
-    { tex: `0 = ${p.w0}^{2} - 2 \\times ${fmt(p.quarters / 4)}\\theta` },
-    { tex: `\\theta = \\frac{${p.w0 * p.w0}}{${fmt(p.quarters / 2)}} = ${fmt(stopTurns(p))}` },
+    { tex: `0 = ${p.w0}^{2} - 2 \\times ${fmt(p.alpha)}\\theta` },
+    { tex: `\\theta = \\frac{${p.w0 * p.w0}}{${fmt(2 * p.alpha)}} = ${dots(stopTurns(p), 2)}` },
+    { text: `The nearest half is $${fmt(notch(stopTurns(p)))}$.` },
   ],
 };
 
@@ -1032,36 +1172,69 @@ const spinFlow: Generator<SpinFlowParams> = {
  * ================================================================ */
 
 interface CentripetalParams {
+  who: string;
+  /** Easy: whole and given. Hard: the square root of a r, asked to 1 decimal place. */
   v: number;
+  /** Radius, whole metres. */
   r: number;
+  /** Easy: v^2 / r, asked to 1 decimal place. Hard: one decimal place and given. */
+  a: number;
   find: 'a' | 'v';
 }
 
 const CIRCLERS = ['A car on a roundabout', 'A runner on a bend', 'A cyclist on a curved track', 'A train on a curve', 'A child on a roundabout'];
 
-/** Expression: a = v^2 / r; hard, the speed from the acceleration and radius. */
-const centripetal: Generator<CentripetalParams & { who: string }> = {
+/** Expression: a = v^2 / r; hard, the speed from the acceleration and radius. Each to 1 decimal place. */
+const centripetal: Generator<CentripetalParams> = {
   id: 'clm-centripetal',
-  sample: (rng, difficulty) =>
-    until(
-      () => ({ who: rng.pick(CIRCLERS), v: rng.int(2, 30), r: rng.pick([2, 4, 5, 8, 10, 16, 20, 25, 40, 50, 80, 100]), find: difficulty > 1 ? ('v' as const) : ('a' as const) }),
-      (p) => exact((p.v * p.v) / p.r, 2),
-    ),
-  render: ({ who, v, r, find }) => {
-    const a = n3((v * v) / r);
-    return find === 'a'
-      ? typed([say(`${who} moves at a steady ${ms(v)} round a circle of radius ${metres(r)}. Find its acceleration towards the centre, in $\\text{m s}^{-2}$.`)], 'a =', a)
-      : typed([say(`${who} goes round a circle of radius ${metres(r)} with an acceleration of ${ms2(a)} towards the centre. How fast is it going, in $\\text{m s}^{-1}$?`)], 'v =', v);
+  sample: (rng, difficulty) => {
+    const who = rng.pick(CIRCLERS);
+    if (difficulty > 1)
+      return until(
+        () => {
+          const r = rng.int(5, 100);
+          const a = rng.int(5, 200) / 10;
+          return { who, r, a, v: Math.sqrt(a * r), find: 'v' as const };
+        },
+        (p) => p.v >= 2 && p.v <= 40 && roundedWell(p.v, D_DP),
+      );
+    return until(
+      () => {
+        const v = rng.int(2, 30);
+        const r = rng.int(2, 100);
+        return { who, v, r, a: (v * v) / r, find: 'a' as const };
+      },
+      (p) => p.a >= 0.5 && p.a <= 150 && roundedWell(p.a, D_DP),
+    );
   },
-  solution: ({ v, r, find }) => {
-    const a = (v * v) / r;
+  render: ({ who, v, r, a, find }) =>
+    find === 'a'
+      ? typedRounded(
+          [say(`${who} moves at a steady ${ms(v)} round a circle of radius ${metres(r)}. Find its acceleration towards the centre, in $\\text{m s}^{-2}$. ${askPrecision(D_DP)}`)],
+          'a =',
+          a,
+          D_DP,
+        )
+      : typedRounded(
+          [say(`${who} goes round a circle of radius ${metres(r)} with an acceleration of ${ms2(a)} towards the centre. How fast is it going, in $\\text{m s}^{-1}$? ${askPrecision(D_DP)}`)],
+          'v =',
+          v,
+          D_DP,
+        ),
+  solution: ({ v, r, a, find }) =>
+    find === 'a'
+      ? [{ tex: `a = \\frac{v^{2}}{r} = \\frac{${v}^{2}}{${r}} = ${dots(a, 3)}` }, { text: 'To 1 decimal place:' }, { tex: `a = ${fixed(a, D_DP)}` }]
+      : [
+          { tex: `v^{2} = ar = ${fmt(a)} \\times ${r} = ${fmt(n3(a * r))}` },
+          { tex: `v = \\sqrt{${fmt(n3(a * r))}} = ${dots(v, 3)}` },
+          { text: 'To 1 decimal place:' },
+          { tex: `v = ${fixed(v, D_DP)}` },
+        ],
+  choices: ({ v, r, a, find }) => {
+    const r1 = (x: number) => roundTo(x, D_DP);
     return find === 'a'
-      ? [{ tex: `a = \\frac{v^{2}}{r} = \\frac{${v}^{2}}{${r}} = ${fmt(a)}` }]
-      : [{ tex: `v^{2} = ar = ${fmt(a)} \\times ${r} = ${v * v}` }, { tex: `v = ${v}` }];
-  },
-  choices: ({ v, r, find }) => {
-    const a = (v * v) / r;
-    return find === 'a' ? numChoices(a, [v / r, (v * v) / (2 * r), v * r], salted(v, r)) : numChoices(v, [v * v, a * r, a / r], salted(r, v));
+      ? numChoices(r1(a), [r1(v / r), r1((v * v) / (2 * r)), v * r], salted(v, r))
+      : numChoices(r1(v), [r1(a * r), r1(Math.sqrt(2 * a * r)), r1(Math.sqrt(a * r) / 2)], salted(r, a * 10));
   },
 };
 
@@ -1110,51 +1283,61 @@ const circleTable: Generator<{ rows: CircleRow[] }> = {
 };
 
 interface GForceParams {
-  /** Speed 7j m/s. */
-  j: number;
-  /** How many g, in halves. */
-  halves: number;
+  /** Speed, whole m/s. */
+  v: number;
+  /** Radius of the loop, whole metres. */
+  r: number;
 }
 
-/** Flow: a ride's acceleration v^2/r, then how many g that is. v = 7j so r = 5 j^2 / k is exact. */
+/** The acceleration and its multiple of g, each to 1 decimal place. */
+const gForceOf = ({ v, r }: GForceParams): { a: number; k: number } => ({ a: (v * v) / r, k: (v * v) / r / 9.8 });
+
+/** Flow: a ride's acceleration v^2/r, then how many g that is, each to 1 decimal place. */
 const gForceFlow: Generator<GForceParams> = {
   id: 'clm-g-force-flow',
   sample: (rng, difficulty) =>
     until(
-      () => ({ j: rng.int(1, difficulty > 1 ? 8 : 6), halves: rng.int(1, difficulty > 1 ? 10 : 8) }),
-      (p) => exact((10 * p.j * p.j) / p.halves, 2) && (10 * p.j * p.j) / p.halves >= 2,
+      () => (difficulty > 1 ? { v: rng.int(10, 30), r: rng.int(5, 60) } : { v: rng.int(5, 20), r: rng.int(5, 40) }),
+      (p) => {
+        const { a, k } = gForceOf(p);
+        return (
+          a >= 4.9 &&
+          a <= 60 &&
+          roundedWell(a, D_DP) &&
+          roundedWell(k, D_DP) &&
+          roundTo(roundTo(a, D_DP) / 9.8, D_DP) === roundTo(k, D_DP)
+        );
+      },
     ),
-  render: ({ j, halves }) => {
-    const v = 7 * j;
-    const k = halves / 2;
-    const r = n3((10 * j * j) / halves);
-    const a = n3(9.8 * k);
+  render: (p) => {
+    const { a, k } = gForceOf(p);
     return {
       kind: 'flow',
-      prompt: [say(`A fairground car swings round a loop of radius ${metres(r)} at ${ms(v)}. ${G_NOTE} How many $g$ does a rider feel from the turning alone?`)],
+      prompt: [say(`A fairground car swings round a loop of radius ${metres(p.r)} at ${ms(p.v)}. ${G_NOTE} How many $g$ does a rider feel from the turning alone?`)],
       subject: 'a = \\frac{v^{2}}{r}',
       steps: [
         {
           id: 'a',
-          ask: 'The acceleration towards the centre, in $\\text{m s}^{-2}$:',
-          branches: forks(a, [v / r, 2 * a, a / 2], 0.1).map((label) => ({ label, to: 'g' })),
+          ask: 'The acceleration towards the centre, in $\\text{m s}^{-2}$ to 1 decimal place:',
+          branches: roundedForks(a, [p.v / p.r, 2 * a, a / 2], D_DP, 1.5).map((label) => ({ label, to: 'g' })),
         },
         {
           id: 'g',
-          ask: 'As a number of $g$, divide by $9.8$:',
-          branches: forks(k, [k + 1, 2 * k, a / 10], 0.5).map((label) => ({ label, outcome: 'One g is the pull of gravity at the surface of the Earth.' })),
+          ask: 'As a number of $g$, divide by $9.8$, to 1 decimal place:',
+          branches: roundedForks(k, [k + 1, 2 * k, a / 10], D_DP, 0.5).map((label) => ({ label, outcome: 'One g is the pull of gravity at the surface of the Earth.' })),
         },
       ],
-      answer: [`$${fmt(a)}$`, `$${fmt(k)}$`],
+      answer: [`$${fixed(a, D_DP)}$`, `$${fixed(k, D_DP)}$`],
     };
   },
-  solution: ({ j, halves }) => {
-    const v = 7 * j;
-    const r = (10 * j * j) / halves;
-    const a = 4.9 * halves;
+  solution: (p) => {
+    const { a, k } = gForceOf(p);
     return [
-      { tex: `a = \\frac{${v}^{2}}{${fmt(r)}} = ${fmt(a)}` },
-      { tex: `\\frac{${fmt(a)}}{9.8} = ${fmt(halves / 2)}` },
+      { tex: `a = \\frac{${p.v}^{2}}{${p.r}} = ${dots(a, 3)}` },
+      { text: 'To 1 decimal place:' },
+      { tex: `a = ${fixed(a, D_DP)}` },
+      { tex: `\\frac{${fixed(a, D_DP)}}{9.8} = ${dots(roundTo(a, D_DP) / 9.8, 3)}` },
+      { text: `To 1 decimal place, $${fixed(k, D_DP)}g$, the same whether you carry the rounded acceleration or the exact one.` },
     ];
   },
 };
@@ -1213,4 +1396,4 @@ export const classicalTwoDGenerators = [
   radiusSlider,
 ] as Generator<never>[];
 
-export const classicalTwoDInternals = { fallTime, launchSpeed, launchUx, ANGLED, stopTurns };
+export const classicalTwoDInternals = { fallTime, flightTime, flightHeight, stopTurns };

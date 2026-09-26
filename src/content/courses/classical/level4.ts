@@ -48,8 +48,8 @@ export const level4: Level = {
         teach(
           prose('Backwards, the stretch that stores an energy comes from'),
           display('x^{2} = \\frac{2E}{k}'),
-          prose('To store $2.25\\text{ J}$ with $k = 200$:'),
-          stacked('x^{2} = \\frac{4.5}{200} = 0.0225', 'x = 0.15\\text{ m}'),
+          prose('To store $4\\text{ J}$ with $k = 200$:'),
+          stacked('x^{2} = \\frac{8}{200} = 0.04', 'x = 0.2\\text{ m}'),
           prose('And the stiffness from a force and its stretch is $k = \\frac{F}{x}$: $30\\text{ N}$ at $0.15\\text{ m}$ gives $200\\text{ N m}^{-1}$.'),
         ),
         ask('clm-spring-slider'),

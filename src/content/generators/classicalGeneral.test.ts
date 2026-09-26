@@ -48,6 +48,8 @@ function answerOf(slide: Slide): number[] {
 }
 
 const near = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol * Math.max(1, Math.abs(b));
+/** Within half a last-place unit of b, for an answer given to 3 significant figures. */
+const within3sf = (a: number, b: number) => Math.abs(a - b) <= 0.5 * 10 ** (Math.floor(Math.log10(Math.abs(b))) - 2) + 1e-9;
 const n = (v: unknown) => v as number;
 const promptText = (slide: Slide): string => JSON.stringify('prompt' in slide ? slide.prompt : '');
 const quantities = (slide: Slide, unit: string): number[] => [...promptText(slide).matchAll(new RegExp(`\\$(-?[\\d.]+)\\\\\\\\text\\{ ${unit}`, 'g'))].map((m) => Number(m[1]));
@@ -191,8 +193,9 @@ describe('classical mechanics level 10', () => {
       const [tau, u, count] = answerOf(slide);
       const [L0] = quantities(slide, 'm}');
       const [v] = quantities(slide, 'm s');
-      // A small pendulum of length L0 swings at 1/tau.
-      expect(near(1 / tau, natural(9.8, L0), 1e-6) && near(v * DEFS.v([1, L0, tau]), count, 1e-9) && near(u, L0 / tau, 1e-9), JSON.stringify(p)).toBe(true);
+      // A small pendulum of length L0 swings at 1/tau; each answer is to 3 significant figures.
+      const tauTrue = 1 / natural(9.8, L0);
+      expect(within3sf(tau, tauTrue) && within3sf(count, v * DEFS.v([1, L0, tauTrue])) && within3sf(u, L0 / tauTrue), JSON.stringify(p)).toBe(true);
     }
     for (const { p, slide } of draws('clm-natural-flow')) {
       const [tau, E0, count] = answerOf(slide);
@@ -200,7 +203,7 @@ describe('classical mechanics level 10', () => {
       const [k] = quantities(slide, 'N m');
       const [L0] = quantities(slide, 'm}');
       const [E] = quantities(slide, 'J');
-      expect(near(1 / tau, natural(k, m), 1e-6) && near(1 / DEFS.E([m, L0, tau]), E0, 1e-9) && near(E / E0, count, 1e-9), JSON.stringify(p)).toBe(true);
+      expect(near(1 / tau, natural(k, m), 1e-6) && near(1 / DEFS.E([m, L0, tau]), E0, 1e-9) && within3sf(count, E / E0), JSON.stringify(p)).toBe(true);
     }
   });
 

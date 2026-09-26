@@ -12,7 +12,11 @@
  *
  * Tidy cases throughout: a drop of 2.5j^2 metres hits at 7j m/s; momenta in
  * two dimensions come from Pythagorean triples; light pressure is worked in
- * micronewtons, where 300 W of absorbed light pushes with 1 uN.
+ * micronewtons, where 300 W of absorbed light pushes with 1 uN. Every value
+ * the learner reads is one a textbook prints, whole or one decimal place: a
+ * coefficient of restitution from two such heights, and a temperature from a
+ * whole-kPa pressure, do not come out exactly, so they are asked to a stated
+ * precision (see `classicalKit`).
  */
 import type { ChoiceOption, Generator, KeypadKey, SolutionStep } from '../types';
 import { options } from '../choiceVariant';
@@ -20,7 +24,9 @@ import { steered } from './parametricImplicit';
 import { WORKING_KEYS } from './workingKeys';
 import {
   G_NOTE,
+  askPrecision,
   exact,
+  fixed,
   fmt,
   forks,
   kg,
@@ -28,12 +34,17 @@ import {
   ms,
   newtons,
   numChoices,
+  precisionWords,
+  roundTo,
+  roundedWell,
   salted,
   say,
   track,
   typed,
+  typedRounded,
   until,
   valueBank,
+  type Precision,
 } from './classicalKit';
 
 const tidyBank = (answer: number[], wrong: number[], spare = 3): string[] =>
@@ -234,7 +245,8 @@ const peakSlider: Generator<PeakParams> = {
   sample: (rng, difficulty) =>
     until(
       () => ({ steps: rng.int(2, PEAK_MAX / 50), T: rng.pick(difficulty > 1 ? [3, 4, 5, 6, 8, 12, 15] : [2, 4, 5, 10, 20]), what: rng.pick(['kick', 'bat', 'club', 'racket', 'punch']) }),
-      (p) => exact((50 * p.steps * p.T) / 2000, 3),
+      // The impulse is printed, so it is one a textbook would print: one decimal place.
+      (p) => exact((50 * p.steps * p.T) / 2000, 1),
     ),
   render: (p) => {
     const F = 50 * p.steps;
@@ -290,30 +302,63 @@ const bounceHeight: Generator<BounceParams> = {
 
 interface RestParams {
   ball: string;
+  /** Easy: the coefficient, from a list. Hard: sqrt(h2/h1), unrounded. */
   e: number;
-  /** Easy: speeds in and out; hard: heights, the first 2.5j^2. */
+  /** Easy: the speed in, whole. */
   u: number;
-  j: number;
+  /** Hard: dropped from h1 whole metres, bouncing to h2 to one decimal place. */
+  h1: number;
+  h2: number;
   fromHeights: boolean;
 }
 
-/** Expression: the coefficient of restitution from the speeds (easy) or the heights (hard). */
+/** An unrounded value on a working line: 0.8062..., or the value itself when it ends. */
+const dots = (value: number, places = 4): string => (exact(value, places) ? fmt(value) : `${value.toFixed(places)}\\ldots`);
+
+/** e from heights is asked to 2 decimal places. */
+const E_DP: Precision = { dp: 2 };
+
+/** Expression: the coefficient of restitution from the speeds (easy) or the heights, rounded (hard). */
 const restitution: Generator<RestParams> = {
   id: 'clm-restitution',
   sample: (rng, difficulty) =>
-    until(
-      () => ({ ball: rng.pick(BALLS), e: rng.pick([...ES, 0.25, 0.75, 0.3]), u: rng.int(2, 30), j: rng.int(1, 8), fromHeights: difficulty > 1 }),
-      (p) => exact(p.e * p.u, 2) && exact(p.e * p.e * 2.5 * p.j * p.j, 4),
-    ),
+    difficulty > 1
+      ? until(
+          () => {
+            const h1 = rng.int(2, 20);
+            const h2 = rng.int(Math.ceil(h1), Math.floor(h1 * 8.5)) / 10;
+            return { ball: rng.pick(BALLS), e: Math.sqrt(h2 / h1), u: 0, h1, h2, fromHeights: true };
+          },
+          (p) => roundedWell(p.e, E_DP),
+        )
+      : until(
+          () => ({ ball: rng.pick(BALLS), e: rng.pick([...ES, 0.25, 0.75, 0.3]), u: rng.int(2, 30), h1: 0, h2: 0, fromHeights: false }),
+          // The speed out is printed, so it has one decimal place at most.
+          (p) => exact(p.e * p.u, 1),
+        ),
   render: (p) =>
     p.fromHeights
-      ? typed([say(`A ${p.ball} dropped from ${metres(n3(2.5 * p.j * p.j))} bounces back up to ${metres(n3(p.e * p.e * 2.5 * p.j * p.j))}. What is the coefficient of restitution?`)], 'e =', p.e)
+      ? typedRounded(
+          [say(`A ${p.ball} dropped from ${metres(p.h1)} bounces back up to ${metres(p.h2)}. What is the coefficient of restitution? ${askPrecision(E_DP)}`)],
+          'e =',
+          p.e,
+          E_DP,
+        )
       : typed([say(`A ${p.ball} hits the floor at ${ms(p.u)} and leaves it at ${ms(n3(p.e * p.u))}. What is the coefficient of restitution?`)], 'e =', p.e),
   solution: (p) =>
     p.fromHeights
-      ? [{ text: 'Speeds go as the square root of heights, so' }, { tex: `e = \\sqrt{\\frac{${fmt(p.e * p.e * 2.5 * p.j * p.j)}}{${fmt(2.5 * p.j * p.j)}}} = \\sqrt{${fmt(p.e * p.e)}} = ${fmt(p.e)}` }]
+      ? [
+          { text: 'Speeds go as the square root of heights, so' },
+          { tex: `e = \\sqrt{\\frac{${fmt(p.h2)}}{${fmt(p.h1)}}} = ${dots(p.e)}` },
+          { text: 'To 2 decimal places:' },
+          { tex: `e = ${fixed(p.e, E_DP)}` },
+        ]
       : [{ tex: `e = \\frac{v}{u} = \\frac{${fmt(p.e * p.u)}}{${p.u}} = ${fmt(p.e)}` }],
-  choices: (p) => numChoices(p.e, [n3(p.e * p.e), n3(1 - p.e), n3(1 / p.e)], salted(p.e, p.u, p.j, p.fromHeights ? 1 : 0)),
+  choices: (p) => {
+    if (!p.fromHeights) return numChoices(p.e, [n3(p.e * p.e), n3(1 - p.e), n3(1 / p.e)], salted(p.e, p.u));
+    const r = (v: number) => roundTo(v, E_DP);
+    return numChoices(r(p.e), [r(p.h2 / p.h1), r(1 - p.e), r(1 / p.e)], salted(p.h1, p.h2 * 10));
+  },
 };
 
 /** Tree: a drop: the speed it lands at, the speed it leaves at, and the height of the bounce. */
@@ -457,7 +502,7 @@ const mergeTree: Generator<MergeParams> = {
   sample: (rng, difficulty) =>
     until(
       () => ({ tri: rng.pick(difficulty > 1 ? TRIPLES : TRIPLES.slice(0, 2)), k: rng.int(1, 10), mA: rng.int(1, 12), mB: rng.int(1, 12), what: rng.pick(PAIRS) }),
-      (p) => (p.k * p.tri[0]) / p.mA <= 30 && (p.k * p.tri[1]) / p.mB <= 30 && exact((p.k * p.tri[0]) / p.mA, 2) && exact((p.k * p.tri[1]) / p.mB, 2) && exact((p.k * p.tri[2]) / (p.mA + p.mB), 2),
+      (p) => (p.k * p.tri[0]) / p.mA <= 30 && (p.k * p.tri[1]) / p.mB <= 30 && exact((p.k * p.tri[0]) / p.mA, 1) && exact((p.k * p.tri[1]) / p.mB, 1) && exact((p.k * p.tri[2]) / (p.mA + p.mB), 2),
     ),
   render: (p) => {
     const px = p.k * p.tri[0];
@@ -553,7 +598,7 @@ const mergeAngle: Generator<MergeParams> = {
   sample: (rng, difficulty) =>
     until(
       () => ({ tri: rng.pick(TRIPLES), k: rng.int(1, 10), mA: rng.int(1, 12), mB: rng.int(1, 12), what: rng.pick(PAIRS) }),
-      (p) => (p.k * p.tri[0]) / p.mA <= 30 && (p.k * p.tri[1]) / p.mB <= 30 && exact((p.k * p.tri[0]) / p.mA, 2) && exact((p.k * p.tri[1]) / p.mB, 2) && exact(p.tri[1] / p.tri[0], 4) && (difficulty > 1 || p.tri[2] % 5 === 0),
+      (p) => (p.k * p.tri[0]) / p.mA <= 30 && (p.k * p.tri[1]) / p.mB <= 30 && exact((p.k * p.tri[0]) / p.mA, 1) && exact((p.k * p.tri[1]) / p.mB, 1) && exact(p.tri[1] / p.tri[0], 4) && (difficulty > 1 || p.tri[2] % 5 === 0),
     ),
   render: (p) => {
     const px = p.k * p.tri[0];
@@ -784,44 +829,67 @@ const streamForce: Generator<HailParams> = {
 };
 
 interface GasParams {
-  /** Moles, kelvin, volume in litres. */
+  /** Moles, kelvin, volume in litres. Hard: T is left 0 and the pressure is given in whole kPa. */
   n: number;
   T: number;
   L: number;
+  kPa: number;
   find: 'p' | 'T';
 }
 
 const R_GAS = 8.3;
 
+/** A temperature worked out from a pressure is asked to 3 significant figures. */
+const T_SF: Precision = { sf: 3 };
+
+/** Kelvin from a pressure in kPa, unrounded. */
+const gasT = ({ n, L, kPa }: Pick<GasParams, 'n' | 'L' | 'kPa'>): number => (kPa * L) / (n * R_GAS);
+
 /** Tree: the ideal gas law pV = nRT: nRT, the volume in m^3, then the pressure (easy) or from a pressure, the temperature (hard). */
 const gasTree: Generator<GasParams> = {
   id: 'clm-gas-tree',
   sample: (rng, difficulty) =>
-    until(
-      () => ({ n: rng.pick([0.5, 1, 2, 3, 4, 5]), T: 10 * rng.int(25, 50), L: rng.pick([1, 2, 4, 5, 8, 10, 20, 25, 40, 50]), find: difficulty > 1 ? ('T' as const) : ('p' as const) }),
-      (p) => exact((p.n * R_GAS * p.T) / (p.L / 1000) / 1000, 3),
-    ),
+    difficulty > 1
+      ? until(
+          () => {
+            const n = rng.pick([0.5, 1, 2, 3, 4, 5]);
+            const L = rng.pick([1, 2, 4, 5, 8, 10, 20, 25, 40, 50]);
+            // A pressure a textbook would print, whole kPa, near what the gas has somewhere from 250 K to 500 K.
+            const kPa = Math.round((n * R_GAS * rng.int(250, 500)) / L);
+            return { n, T: 0, L, kPa, find: 'T' as const };
+          },
+          (p) => p.kPa >= 20 && gasT(p) >= 250 && gasT(p) <= 500 && roundedWell(gasT(p), T_SF),
+        )
+      : until(
+          () => ({ n: rng.pick([0.5, 1, 2, 3, 4, 5]), T: 10 * rng.int(25, 50), L: rng.pick([1, 2, 4, 5, 8, 10, 20, 25, 40, 50]), kPa: 0, find: 'p' as const }),
+          (p) => exact((p.n * R_GAS * p.T) / (p.L / 1000) / 1000, 3),
+        ),
   render: (p) => {
-    const nRT = n3(p.n * R_GAS * p.T);
     const V = n3(p.L / 1000);
-    const kPa = n3(nRT / V / 1000);
     if (p.find === 'T') {
+      const pV = p.kPa * p.L;
+      const T = gasT(p);
       return {
         kind: 'tree',
-        prompt: [say(`${fmt(p.n)} moles of gas fill ${fmt(p.L)} litres at a pressure of $${fmt(kPa)}\\text{ kPa}$. Take $R = ${R_GAS}\\text{ J mol}^{-1}\\text{ K}^{-1}$.`), say('Find the volume in $\\text{m}^{3}$, $pV$ in joules, then the temperature in kelvin.')],
+        prompt: [
+          say(`${fmt(p.n)} moles of gas fill ${fmt(p.L)} litre${p.L === 1 ? '' : 's'} at a pressure of $${fmt(p.kPa)}\\text{ kPa}$. Take $R = ${R_GAS}\\text{ J mol}^{-1}\\text{ K}^{-1}$.`),
+          say(`Find the volume in $\\text{m}^{3}$, $pV$ in joules, then the temperature in kelvin ${precisionWords(T_SF)}.`),
+        ],
         expression: 'pV = nRT',
         nodes: [
           { id: 'V', from: [] },
           { id: 'pV', from: ['V'] },
           { id: 'T', from: ['pV'] },
         ],
-        bank: tidyBank([V, nRT, p.T], [p.L, n3(p.T - 273), n3(nRT / p.n)]),
-        answer: [V, nRT, p.T].map(fmt),
+        bank: tidyBank([V, pV, roundTo(T, T_SF)], [p.L, roundTo(T - 273, T_SF), roundTo(pV / R_GAS, T_SF), roundTo(T / 2, T_SF)]),
+        answer: [fmt(V), fmt(pV), fixed(T, T_SF)],
       };
     }
+    const nRT = n3(p.n * R_GAS * p.T);
+    const kPa = n3(nRT / V / 1000);
     return {
       kind: 'tree',
-      prompt: [say(`${fmt(p.n)} moles of gas at ${p.T} K fill ${fmt(p.L)} litres. Take $R = ${R_GAS}\\text{ J mol}^{-1}\\text{ K}^{-1}$.`), say('Find $nRT$ in joules, the volume in $\\text{m}^{3}$, then the pressure in kPa.')],
+      prompt: [say(`${fmt(p.n)} moles of gas at ${p.T} K fill ${fmt(p.L)} litre${p.L === 1 ? '' : 's'}. Take $R = ${R_GAS}\\text{ J mol}^{-1}\\text{ K}^{-1}$.`), say('Find $nRT$ in joules, the volume in $\\text{m}^{3}$, then the pressure in kPa.')],
       expression: 'pV = nRT',
       nodes: [
         { id: 'nRT', from: [] },
@@ -833,11 +901,19 @@ const gasTree: Generator<GasParams> = {
     };
   },
   solution: (p) => {
-    const nRT = p.n * R_GAS * p.T;
     const V = p.L / 1000;
-    return p.find === 'T'
-      ? [{ tex: `V = ${p.L} \\div 1000 = ${fmt(V)}` }, { tex: `pV = ${fmt((nRT / V))} \\times ${fmt(V)} = ${fmt(nRT)}` }, { tex: `T = \\frac{${fmt(nRT)}}{${fmt(p.n)} \\times ${R_GAS}} = ${p.T}` }]
-      : [{ tex: `nRT = ${fmt(p.n)} \\times ${R_GAS} \\times ${p.T} = ${fmt(nRT)}` }, { tex: `V = ${p.L} \\div 1000 = ${fmt(V)}` }, { tex: `p = \\frac{${fmt(nRT)}}{${fmt(V)}} = ${fmt(nRT / V)}\\text{ Pa}` }, { tex: `p = ${fmt(nRT / V / 1000)}\\text{ kPa}` }];
+    if (p.find === 'T') {
+      const pV = p.kPa * p.L;
+      return [
+        { tex: `V = ${p.L} \\div 1000 = ${fmt(V)}` },
+        { tex: `pV = ${fmt(p.kPa * 1000)} \\times ${fmt(V)} = ${fmt(pV)}` },
+        { tex: `T = \\frac{${fmt(pV)}}{${fmt(p.n)} \\times ${R_GAS}} = ${dots(gasT(p), 2)}` },
+        { text: 'To 3 significant figures:' },
+        { tex: `T = ${fixed(gasT(p), T_SF)}` },
+      ];
+    }
+    const nRT = p.n * R_GAS * p.T;
+    return [{ tex: `nRT = ${fmt(p.n)} \\times ${R_GAS} \\times ${p.T} = ${fmt(nRT)}` }, { tex: `V = ${p.L} \\div 1000 = ${fmt(V)}` }, { tex: `p = \\frac{${fmt(nRT)}}{${fmt(V)}} = ${fmt(nRT / V)}\\text{ Pa}` }, { tex: `p = ${fmt(nRT / V / 1000)}\\text{ kPa}` }];
   },
 };
 

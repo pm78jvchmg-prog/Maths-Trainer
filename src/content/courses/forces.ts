@@ -356,6 +356,10 @@ export const forces: Course = {
               prose(
                 'About to slide **down**, friction helps $P$: $P + 39.2 = 98 \\times 0.6 = 58.8$, so $P = 19.6\\text{ N}$. About to move **up**, friction is against $P$: $P = 58.8 + 39.2 = 98\\text{ N}$.',
               ),
+              prose(
+                'Given the pull instead, the same equation gives $\\mu$, which rarely comes out exact, so the question says how to round it. With $P = 25\\text{ N}$ and the particle about to slide down:',
+              ),
+              stacked('25 + 78.4\\mu = 58.8', '\\mu = 33.8 \\div 78.4 = 0.4311\\ldots', '\\mu = 0.43 \\text{ to 2 decimal places}'),
             ),
             ask('force-limiting-slope'),
             ask('force-friction-tree', 2),
@@ -1140,6 +1144,8 @@ export const forces: Course = {
                 'A person climbing adds to $R$, and adds even more to the moment about $A$ the higher they go, so a ladder that is safe at the bottom can slip near the top. With $\\mu = 0.6$, how far up can they go? On the point of slipping $F = 0.6 \\times 1000 = 600 = S$:',
               ),
               stacked('600 \\times 3.2 = 240 + 800 \\times 0.6s', '1920 - 240 = 480s', '1680 = 480s', 's = 3.5\\text{ m}'),
+              prose('It rarely comes out exact, and the question says how to round. With $\\mu = 0.55$, $F = 550$:'),
+              stacked('550 \\times 3.2 = 240 + 480s', '1520 = 480s', 's = 3.1666\\ldots', 's = 3.2\\text{ m to 1 decimal place}'),
             ),
             ask('force-ladder-flow'),
             ask('force-ladder-limit-tree'),

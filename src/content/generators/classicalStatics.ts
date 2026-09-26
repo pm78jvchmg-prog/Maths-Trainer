@@ -584,28 +584,71 @@ const ropeTree: Generator<RopeParams> = {
   ],
 };
 
-/** Slider: how far a load must pull a rope's middle down for the tension to be a stated value. */
-const ropeSlider: Generator<RopeParams> = {
+interface RopeSliderParams {
+  /** Half the distance between the hooks, whole centimetres. */
+  a: number;
+  /** Load and tension, whole newtons. */
+  W: number;
+  T: number;
+}
+
+/** The sag, in centimetres, at which a load W pulls each half of the rope with tension T. */
+const sliderSag = ({ a, W, T }: RopeSliderParams, sin = W / (2 * T)): number => (a * sin) / Math.sqrt(1 - sin * sin);
+
+/** An unrounded value on a working line: 0.7857..., or the value itself when it ends. */
+const dots = (value: number, places = 4): string => (exact(value, places) ? fmt(value) : `${value.toFixed(places)}\\ldots`);
+
+/** Slider: how far a load must pull a rope's middle down for the tension to be a stated value, to the nearest centimetre. */
+const ropeSlider: Generator<RopeSliderParams> = {
   id: 'clm-rope-slider',
-  sample: (rng, difficulty) => until(() => sampleRope(rng, difficulty > 1), (p) => sag(p) <= 100),
+  sample: (rng, difficulty) =>
+    until(
+      () =>
+        difficulty > 1
+          ? { a: 5 * rng.int(4, 30), W: 10 * rng.int(2, 60), T: 10 * rng.int(2, 100) }
+          : { a: 5 * rng.int(4, 16), W: 10 * rng.int(2, 30), T: 10 * rng.int(2, 60) },
+      (p) => {
+        const sin = p.W / (2 * p.T);
+        const s = sliderSag(p);
+        // Well clear of a half centimetre, and the same if the sine is carried to 3 decimal places.
+        return (
+          sin >= 0.15 &&
+          sin <= 0.9 &&
+          s >= 3 &&
+          s <= 100 &&
+          Math.abs(s - Math.round(s)) <= 0.35 &&
+          Math.round(sliderSag(p, Number(sin.toFixed(3)))) === Math.round(s)
+        );
+      },
+    ),
   render: (p) => {
     const figure = track(0, 100, [{ at: 0, name: 'level' }], 'A scale in centimetres below the level of the hooks');
     return {
       kind: 'slider',
-      prompt: [say(`A rope is stretched between two hooks ${cm(2 * halfSpan(p))} apart. A load weighing ${N(p.W)} hangs from its middle, and the rope is let out until the tension is ${N(tension(p))}. Slide to how far the middle hangs below the hooks, in centimetres.`)],
+      prompt: [
+        say(
+          `A rope is stretched between two hooks ${cm(2 * p.a)} apart. A load weighing ${N(p.W)} hangs from its middle, and the rope is let out until the tension is ${N(p.T)}. Slide to how far the middle hangs below the hooks, to the nearest centimetre.`,
+        ),
+      ],
       min: 0,
       max: 100,
       step: 1,
-      answer: sag(p),
+      answer: Math.round(sliderSag(p)),
       readout: 's = {v}',
       figure: { svg: figure.svg, xMin: figure.xMin, xMax: figure.xMax, axis: 'x' },
     };
   },
-  solution: (p) => [
-    { tex: `\\sin\\theta = \\frac{W}{2T} = \\frac{${p.W}}{2 \\times ${fmt(tension(p))}} = ${fmt(sine(p))}` },
-    { text: `So the sides of the triangle go as $${p.tri[0]} : ${p.tri[1]} : ${p.tri[2]}$, sag to half-span to rope:` },
-    { tex: `s = \\frac{${p.tri[0]}}{${p.tri[1]}} \\times ${halfSpan(p)} = ${sag(p)}` },
-  ],
+  solution: (p) => {
+    const sin = p.W / (2 * p.T);
+    const cos = Math.sqrt(1 - sin * sin);
+    return [
+      { tex: `\\sin\\theta = \\frac{W}{2T} = \\frac{${p.W}}{2 \\times ${p.T}} = ${dots(sin)}` },
+      { tex: `\\cos\\theta = \\sqrt{1 - \\sin^{2}\\theta} = ${dots(cos)}` },
+      { text: 'The sag is the half-span times $\\tan\\theta$:' },
+      { tex: `s = ${p.a} \\times \\frac{${dots(sin)}}{${dots(cos)}} = ${dots(sliderSag(p), 2)}` },
+      { text: `To the nearest centimetre, $s = ${Math.round(sliderSag(p))}$.` },
+    ];
+  },
 };
 
 interface RopeFlowParams extends RopeParams {

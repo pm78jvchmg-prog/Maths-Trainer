@@ -62,8 +62,9 @@ import { canonicalForces, type Direction, type ForceArrow, type ForceScene } fro
 import { markerWindow, plotSvg, vectorSvg } from '../figures';
 import { fmt } from './numericalMethods';
 import { mix, stepBank, steered, turned } from './parametricImplicit';
-import { aOrAn, gcd, say } from './format';
+import { aOrAn, say } from './format';
 import { WORKING_KEYS } from './workingKeys';
+import { roundTo, type Precision } from '../../engine/equivalence';
 
 /* ================================================================
  * Shared helpers
@@ -299,6 +300,58 @@ function choiceSlide(prompt: Block[], opts: ChoiceOption[], tex = true): Slide {
 /** A typed number: the base keypad already holds the digits, minus and the point. */
 function typed(prompt: Block[], lead: string, value: number): Slide {
   return { kind: 'expression', prompt, lead, keypad: WORKING_KEYS, answer: fmt(value), domain: 'real', mode: 'exact' };
+}
+
+/*
+ * Rounded answers. A given value is one a textbook prints, whole or to one
+ * decimal place, never worked backwards from a tidy answer; where the answer
+ * then does not terminate, the question states its precision and the answer
+ * is rounded to it. These mirror `classicalKit.ts`, which cannot be imported
+ * here: it imports `exact` and `valueBank` from this file.
+ */
+
+/** "to 2 decimal places" or "to 3 significant figures". */
+function precisionWords(precision: Precision): string {
+  if ('dp' in precision) return `to ${precision.dp} decimal place${precision.dp === 1 ? '' : 's'}`;
+  return `to ${precision.sf} significant figure${precision.sf === 1 ? '' : 's'}`;
+}
+
+/** The sentence a rounded question ends on: "Give your answer to 2 decimal places." */
+function askPrecision(precision: Precision): string {
+  return `Give your answer ${precisionWords(precision)}.`;
+}
+
+/** A rounded value with its trailing zeros, as a textbook prints it: 0.40, not 0.4. */
+function fixed(value: number, precision: Precision): string {
+  const r = roundTo(value, precision);
+  if ('dp' in precision) return r.toFixed(precision.dp);
+  const places = Math.max(0, precision.sf - 1 - Math.floor(Math.log10(Math.abs(r) || 1)));
+  return r.toFixed(places);
+}
+
+/** Whether a value sits at least `margin` of a last-place unit clear of a rounding half-way point. */
+function roundedWell(value: number, precision: Precision, margin = 0.15): boolean {
+  if (!Number.isFinite(value) || value === 0) return Number.isFinite(value);
+  const places = 'dp' in precision ? precision.dp : precision.sf - 1 - Math.floor(Math.log10(Math.abs(value)));
+  const scaled = Math.abs(value) * 10 ** places;
+  return Math.abs(scaled - Math.floor(scaled) - 0.5) >= margin;
+}
+
+/** An unrounded value on a working line: 0.4311..., or the value itself when it ends. */
+const dots = (value: number, places = 4): string => (exact(value, places) ? fmt(value) : `${value.toFixed(places)}\\ldots`);
+
+/** A typed number asked to a stated precision: the checker accepts anything that rounds to the answer. */
+function typedRounded(prompt: Block[], lead: string, value: number, precision: Precision): Slide {
+  return {
+    kind: 'expression',
+    prompt,
+    lead,
+    keypad: WORKING_KEYS,
+    answer: fmt(roundTo(value, precision)),
+    precision,
+    domain: 'real',
+    mode: 'exact',
+  };
 }
 
 /* ================================================================
@@ -1728,7 +1781,9 @@ function sampleFriction(rng: Rng, hard: boolean): FrictionParams {
     },
     (p) => {
       const { R, max, push } = frictionOf(p);
-      return R > 0 && exact(p.P, 3) && exact(max, 4) && exact(push, 4) && (Math.abs(push - max) < 1e-9 || Math.abs(push - max) > 0.5);
+      // The pull is given, so it is one a textbook prints: whole, or a tenth
+      // where it lands exactly on the greatest friction.
+      return R > 0 && exact(p.P, 1) && exact(max, 4) && exact(push, 4) && (Math.abs(push - max) < 1e-9 || Math.abs(push - max) > 0.5);
     },
   );
 }
@@ -1832,11 +1887,17 @@ const frictionTree: Generator<FrictionParams> = {
 
 interface LimitingParams {
   m: number;
+  /** Given, except when it is asked: then the value the pull leaves, unrounded. */
   mu: number;
   t: Angle;
   mode: 'down' | 'up' | 'mu';
   hard: boolean;
+  /** When mu is asked: the pull up the slope, in whole newtons. */
+  P?: number;
 }
+
+/** mu, when it is asked, is given to 2 decimal places. */
+const MU_DP: Precision = { dp: 2 };
 
 /** The force up a rough slope that leaves a particle on the point of moving. */
 export function limitingForce({ m, mu, t, mode }: LimitingParams): number {
@@ -1849,12 +1910,26 @@ const limitingSlope: Generator<LimitingParams> = {
   id: 'force-limiting-slope',
   sample: (rng, difficulty) => {
     const hard = difficulty > 1;
+    const mode = hard ? rng.pick<'up' | 'mu'>(['up', 'mu']) : 'down';
+    if (mode === 'mu') {
+      // The pull is given in whole newtons, so mu rarely terminates: it is
+      // asked to 2 decimal places, and a draw near a rounding edge is redrawn.
+      return until(
+        (): LimitingParams => {
+          const m = rng.int(2, 15);
+          const t = rng.pick([A34, A43, A247]);
+          const P = rng.int(1, Math.floor(G * m * sinOf(t)));
+          return { m, t, P, mu: (G * m * sinOf(t) - P) / (G * m * cosOf(t)), mode, hard };
+        },
+        (p) => p.mu >= 0.1 && p.mu <= 0.9 && roundedWell(p.mu, MU_DP),
+      );
+    }
     return until(
       (): LimitingParams => ({
         m: rng.int(2, 15),
         mu: rng.pick(MUS),
         t: rng.pick(hard ? [A34, A43, A247] : [A34, A43]),
-        mode: hard ? rng.pick<'up' | 'mu'>(['up', 'mu']) : 'down',
+        mode,
         hard,
       }),
       (p) => limitingForce(p) > 0 && exact(limitingForce(p)),
@@ -1862,18 +1937,19 @@ const limitingSlope: Generator<LimitingParams> = {
   },
   render: (params) => {
     const { m, mu, t, mode, hard } = params;
-    const P = limitingForce(params);
+    const P = mode === 'mu' ? params.P! : limitingForce(params);
     const scene = `A particle of mass $${m}\\text{ kg}$ rests on a rough slope at $\\alpha$ to the horizontal, where ${angleFacts(t, hard)}.`;
     if (mode === 'mu') {
-      return typed(
+      return typedRounded(
         [
           say(
-            `${scene} A force of $${fmt(P)}\\text{ N}$ up the slope, parallel to it, leaves it on the point of sliding down. ${G_NOTE} Find $\\mu$.`,
+            `${scene} A force of $${fmt(P)}\\text{ N}$ up the slope, parallel to it, leaves it on the point of sliding down. ${G_NOTE} Find $\\mu$. ${askPrecision(MU_DP)}`,
           ),
           picture(slopeSvg(t, { friction: true, pull: 'along' })),
         ],
         '\\mu =',
         mu,
+        MU_DP,
       );
     }
     return typed(
@@ -1891,7 +1967,7 @@ const limitingSlope: Generator<LimitingParams> = {
     const { m, mu, t, mode, hard } = params;
     const W = G * m;
     const R = W * cosOf(t);
-    const P = limitingForce(params);
+    const P = mode === 'mu' ? params.P! : limitingForce(params);
     const steps: SolutionStep[] = [...angleStep(t, hard), { tex: `R = ${fmt(W)}\\cos\\alpha = ${fmt(R)}` }];
     if (mode === 'up') {
       steps.push(
@@ -1908,7 +1984,9 @@ const limitingSlope: Generator<LimitingParams> = {
       steps.push(
         { text: 'About to slide down, so friction acts up the slope at its greatest, $\\mu R$:' },
         { tex: `${fmt(P)} + \\mu \\times ${fmt(R)} = ${fmt(W * sinOf(t))}` },
-        { tex: `\\mu = \\frac{${fmt(W * sinOf(t) - P)}}{${fmt(R)}} = ${fmt(mu)}` },
+        { tex: `\\mu = \\frac{${fmt(W * sinOf(t) - P)}}{${fmt(R)}} = ${dots(mu)}` },
+        { text: 'To 2 decimal places:' },
+        { tex: `\\mu = ${fixed(mu, MU_DP)}` },
       );
     }
     return steps;
@@ -2624,9 +2702,11 @@ function sampleSlopeMotion(rng: Rng, hard: boolean, pulledShare = 0.5): SlopeMot
       const t = rng.pick(hard ? [A34, A43, A724, A247] : [A34, A43]);
       const mu = hard ? rng.pick(MUS) : 0;
       if (rng.chance(pulledShare)) {
-        const a = rng.pick(A_VALUES);
-        const P = m * a + G * m * (sinOf(t) + mu * cosOf(t));
-        return { m, t, mu, P, a, hard };
+        // The pull is given, so it is a whole number of newtons, drawn near
+        // one that gives a sensible acceleration; the acceleration follows.
+        const held = G * m * (sinOf(t) + mu * cosOf(t));
+        const P = Math.round(held + m * rng.pick(A_VALUES) + rng.int(-3, 3));
+        return { m, t, mu, P, a: (P - held) / m, hard };
       }
       return { m, t, mu, P: 0, a: G * (sinOf(t) - mu * cosOf(t)), hard };
     },
@@ -2779,7 +2859,7 @@ const slopeFlow: Generator<SlopeFlowParams> = {
       },
       (p) => {
         const { push, max } = slopeTendency(p);
-        return (difficulty < 2 || p.P > 0) && exact(p.P, 4) && exact(push, 4) && (Math.abs(push - max) < 1e-9 || Math.abs(push - max) > 0.5) && push > 0;
+        return (difficulty < 2 || p.P > 0) && exact(p.P, 1) && exact(push, 4) && (Math.abs(push - max) < 1e-9 || Math.abs(push - max) > 0.5) && push > 0;
       },
     ),
   render: (params) => {
@@ -2849,44 +2929,37 @@ const slopeFlow: Generator<SlopeFlowParams> = {
 interface SlopeSliderParams {
   t: Angle;
   dir: 'down' | 'up';
-  /** mu as a whole number of sixths (for tan 4/3) or of eighths (for tan 3/4). */
-  parts: number;
+  /** The coefficient of friction as a textbook prints it, 0 for a smooth slope. */
+  mu: number;
   hard: boolean;
 }
 
-/** Every case whose acceleration lands on a multiple of 0.98, the slider's lattice. */
-const SLOPE_SLIDER_CASES: Omit<SlopeSliderParams, 'hard'>[] = [
-  ...[0, 1, 2, 3, 4, 5].map((parts) => ({ t: A34, dir: 'down' as const, parts })),
-  ...[0, 1, 2, 3, 4, 5, 6, 7].map((parts) => ({ t: A34, dir: 'up' as const, parts })),
-  ...[0, 1, 2, 3, 4, 5, 6, 7].map((parts) => ({ t: A43, dir: 'down' as const, parts })),
-  ...[1, 2, 3, 4, 5, 6].map((parts) => ({ t: A43, dir: 'up' as const, parts })),
-];
-
-/** mu for a slider case: eighths on the shallow slope, sixths on the steep one. */
-export const sliderMu = ({ t, parts }: Pick<SlopeSliderParams, 't' | 'parts'>): number => parts / (t === A34 ? 8 : 6);
-
-function sliderMuTex(params: Pick<SlopeSliderParams, 't' | 'parts'>): string {
-  const mu = sliderMu(params);
-  if (params.t === A34) return fmt(mu);
-  if (Number.isInteger(mu)) return fmt(mu);
-  const g = gcd(params.parts, 6);
-  return `\\tfrac{${params.parts / g}}{${6 / g}}`;
-}
+/** The slider steps in tenths, and the question asks to the nearest one. */
+const SLOPE_STEP = 0.1;
+const SLOPE_MUS_2DP = [0, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75];
 
 /** The size of the acceleration: down the slope when released, the deceleration when sent up it. */
-export const sliderAcceleration = (params: Pick<SlopeSliderParams, 't' | 'dir' | 'parts'>): number => {
-  const mu = sliderMu(params);
-  return G * (sinOf(params.t) + (params.dir === 'up' ? 1 : -1) * mu * cosOf(params.t));
-};
+export const sliderAcceleration = ({ t, dir, mu }: Pick<SlopeSliderParams, 't' | 'dir' | 'mu'>): number =>
+  G * (sinOf(t) + (dir === 'up' ? 1 : -1) * mu * cosOf(t));
 
-/** Slider: the acceleration on a slope, read against mu. */
+/** The notch a value sits nearest, and whether it sits well clear of the midpoint between two. */
+const slopeNotch = (value: number): number => Number((Math.round(value / SLOPE_STEP) * SLOPE_STEP).toFixed(1));
+const slopeNotchedWell = (value: number): boolean => Math.abs(value / SLOPE_STEP - Math.round(value / SLOPE_STEP)) <= 0.35;
+
+/** Every case that slides at least half a metre per second squared and sits clear of a half-notch. */
+const SLOPE_SLIDER_CASES: Omit<SlopeSliderParams, 'hard'>[] = [A34, A43].flatMap((t) =>
+  (['down', 'up'] as const).flatMap((dir) =>
+    SLOPE_MUS_2DP.map((mu) => ({ t, dir, mu })).filter((c) => sliderAcceleration(c) >= 0.5 && slopeNotchedWell(sliderAcceleration(c))),
+  ),
+);
+
+/** Slider: the acceleration on a slope, read against mu, to the nearest tenth. */
 const slopeSlider: Generator<SlopeSliderParams> = {
   id: 'force-slope-slider',
   sample: (rng, difficulty) => ({ ...rng.pick(SLOPE_SLIDER_CASES), hard: difficulty > 1 }),
   render: (params) => {
-    const { t, dir, hard } = params;
-    const smooth = params.parts === 0;
-    const surface = smooth ? 'a smooth slope' : `a rough slope ($\\mu = ${sliderMuTex(params)}$)`;
+    const { t, dir, mu, hard } = params;
+    const surface = mu === 0 ? 'a smooth slope' : `a rough slope ($\\mu = ${fmt(mu)}$)`;
     const s = sinOf(t);
     const c = cosOf(t);
     return {
@@ -2894,15 +2967,15 @@ const slopeSlider: Generator<SlopeSliderParams> = {
       prompt: [
         say(
           dir === 'down'
-            ? `A particle slides down ${surface} at $\\alpha$ to the horizontal, where ${angleFacts(t, hard)}. ${G_NOTE} Slide to its acceleration, in $\\text{m s}^{-2}$.`
-            : `A particle is sent up ${surface} at $\\alpha$ to the horizontal, where ${angleFacts(t, hard)}. ${G_NOTE} Slide to its deceleration as it moves up, in $\\text{m s}^{-2}$.`,
+            ? `A particle slides down ${surface} at $\\alpha$ to the horizontal, where ${angleFacts(t, hard)}. ${G_NOTE} Slide to its acceleration, to the nearest $0.1${ACC}$.`
+            : `A particle is sent up ${surface} at $\\alpha$ to the horizontal, where ${angleFacts(t, hard)}. ${G_NOTE} Slide to its deceleration as it moves up, to the nearest $0.1${ACC}$.`,
         ),
         say(`The graph shows how it would change with $\\mu$.`),
       ],
       min: 0,
       max: 14,
-      step: 0.14,
-      answer: sliderAcceleration(params),
+      step: SLOPE_STEP,
+      answer: slopeNotch(sliderAcceleration(params)),
       readout: dir === 'down' ? 'a = {v}' : '\\text{deceleration} = {v}',
       figure: {
         svg: plotSvg({
@@ -2919,8 +2992,7 @@ const slopeSlider: Generator<SlopeSliderParams> = {
     };
   },
   solution: (params) => {
-    const { t, dir, hard } = params;
-    const mu = sliderMu(params);
+    const { t, dir, mu, hard } = params;
     const a = sliderAcceleration(params);
     return [
       ...angleStep(t, hard),
@@ -2930,8 +3002,9 @@ const slopeSlider: Generator<SlopeSliderParams> = {
             ? 'Down the slope, gravity pulls with $mg\\sin\\alpha$ and friction holds back with $\\mu mg\\cos\\alpha$. The mass cancels:'
             : 'Going up, gravity and friction both act down the slope, so both slow it. The mass cancels:',
       },
-      { tex: `a = 9.8(${fmt(sinOf(t))} ${dir === 'up' ? '+' : '-'} ${sliderMuTex(params)} \\times ${fmt(cosOf(t))}) = ${fmt(a)}` },
-      ...(mu === 0 ? [] : [{ text: `On the graph, that is the height of the line at $\\mu = ${sliderMuTex(params)}$.` }]),
+      { tex: `a = 9.8(${fmt(sinOf(t))} ${dir === 'up' ? '+' : '-'} ${fmt(mu)} \\times ${fmt(cosOf(t))}) = ${fmt(a)}` },
+      { text: `The nearest tenth is $${slopeNotch(a).toFixed(1)}$.` },
+      ...(mu === 0 ? [] : [{ text: `On the graph, that is the height of the line at $\\mu = ${fmt(mu)}$.` }]),
     ];
   },
 };
@@ -4676,26 +4749,52 @@ const slackStagesTree: Generator<SlackParams> = {
   solution: (params) => slackWorking(params, true),
 };
 
-/** Steps: s = v^2 / 2d, the extra distance once the string is slack. */
-const slackDistanceSteps: Generator<SlackParams> = {
+interface SlackStepsParams {
+  /** A on a rough table, or up a rough slope. */
+  table: boolean;
+  /** Hard: the acceleration while taut and how far B falls; easy: A's speed as B lands. */
+  a: number;
+  h: number;
+  v: number;
+  /** A's deceleration once the string is slack. */
+  d: number;
+  hard: boolean;
+}
+
+/**
+ * Steps: s = v^2 / 2d, the extra distance once the string is slack. The
+ * line states its numbers outright rather than from a rig, so each is one a
+ * textbook prints, to a tenth at most, and the draw is kept when the
+ * distance comes out exact to 2 decimal places.
+ */
+const slackDistanceSteps: Generator<SlackStepsParams> = {
   id: 'force-slack-distance-steps',
   sample: (rng, difficulty) => {
     const hard = difficulty > 1;
-    // Only a handful of numbers reach the line, so it draws from every set-up to vary them.
-    return { ...rng.pick([...slackCases[0](), ...slackCases[1]()]), hard };
+    return until(
+      (): SlackStepsParams => {
+        const a = rng.int(5, 50) / 10;
+        const h = rng.int(1, 8) / 2;
+        const v = hard ? Math.sqrt(2 * a * h) : rng.int(10, 60) / 10;
+        return { table: rng.chance(0.5), a, h, v, d: rng.int(5, 60) / 10, hard };
+      },
+      ({ v, d }) => {
+        const s = (v * v) / (2 * d);
+        return exact(v * v, 2) && exact(s, 2) && s >= 0.3 && s <= 10;
+      },
+    );
   },
-  render: (params) => {
-    const k = slackOf(params);
-    const { h, hard } = params;
-    const table = level(params.rig.t1);
+  render: ({ table, a, h, v, d, hard }) => {
+    const v2 = hard ? 2 * a * h : v * v;
+    const s = v2 / (2 * d);
     const start = hard
-      ? ['2', '\\times', fmt(k.a), '\\times', fmt(h), '\\div', '(2', '\\times', `${fmt(k.d)})`]
-      : [fmt(k.v), '\\times', fmt(k.v), '\\div', '(2', '\\times', `${fmt(k.d)})`];
+      ? ['2', '\\times', fmt(a), '\\times', fmt(h), '\\div', '(2', '\\times', `${fmt(d)})`]
+      : [fmt(v), '\\times', fmt(v), '\\div', '(2', '\\times', `${fmt(d)})`];
     const moves: Collapse[] = [
-      ...(hard ? [{ op: 1, value: 2 * k.a, wrong: [k.a * k.a, 2 + k.a, k.a / 2] }] : []),
-      { op: 1, value: k.v2, wrong: [2 * k.v, k.v2 * 2, k.v2 + 1] },
-      { op: 3, value: 2 * k.d, wrong: [k.d * k.d, 2 + k.d, k.d / 2] },
-      { op: 1, value: k.s, wrong: [k.v2 * 2 * k.d, k.s * 2, k.s + 1, k.s * 4] },
+      ...(hard ? [{ op: 1, value: 2 * a, wrong: [a * a, 2 + a, a / 2] }] : []),
+      { op: 1, value: v2, wrong: hard ? [2 * a + h, v2 * 2, v2 + 1] : [2 * v, v2 * 2, v2 + 1] },
+      { op: 3, value: 2 * d, wrong: [d * d, 2 + d, d / 2] },
+      { op: 1, value: s, wrong: [v2 * 2 * d, s * 2, s + 1, s * 4] },
     ];
     const stage = table ? 'The string goes slack and $A$ slows' : 'The string goes slack and $A$ slows up the slope';
     return {
@@ -4703,8 +4802,8 @@ const slackDistanceSteps: Generator<SlackParams> = {
       prompt: [
         say(
           hard
-            ? `$A$ and $B$ are joined over a pulley, and move with acceleration $${fmt(k.a)}${ACC}$ from rest until $B$ has fallen $${fmt(h)}\\text{ m}$ and lands. ${stage}, with deceleration $${fmt(k.d)}${ACC}$.`
-            : `$B$ lands and $A$ is moving at $${fmt(k.v)}\\text{ m s}^{-1}$. ${stage}, with deceleration $${fmt(k.d)}${ACC}$.`,
+            ? `$A$ and $B$ are joined over a pulley, and move with acceleration $${fmt(a)}${ACC}$ from rest until $B$ has fallen $${fmt(h)}\\text{ m}$ and lands. ${stage}, with deceleration $${fmt(d)}${ACC}$.`
+            : `$B$ lands and $A$ is moving at $${fmt(v)}\\text{ m s}^{-1}$. ${stage}, with deceleration $${fmt(d)}${ACC}$.`,
         ),
         say(
           'Find how much further $A$ goes, in metres: tap the part to do next, then choose what it comes to.',
@@ -4714,12 +4813,12 @@ const slackDistanceSteps: Generator<SlackParams> = {
       reductions: collapses(moves),
     };
   },
-  solution: (params) => {
-    const k = slackOf(params);
+  solution: ({ a, h, v, d, hard }) => {
+    const v2 = hard ? 2 * a * h : v * v;
     return [
-      ...(params.hard ? [{ tex: `u^{2} = 2 \\times ${fmt(k.a)} \\times ${fmt(params.h)} = ${fmt(k.v2)}` }] : [{ tex: `u^{2} = ${fmt(k.v)}^{2} = ${fmt(k.v2)}` }]),
+      ...(hard ? [{ tex: `u^{2} = 2 \\times ${fmt(a)} \\times ${fmt(h)} = ${fmt(v2)}` }] : [{ tex: `u^{2} = ${fmt(v)}^{2} = ${fmt(v2)}` }]),
       { text: 'It stops when $v = 0$, so $0 = u^{2} - 2ds$:' },
-      { tex: `s = \\frac{${fmt(k.v2)}}{2 \\times ${fmt(k.d)}} = \\frac{${fmt(k.v2)}}{${fmt(2 * k.d)}} = ${fmt(k.s)}` },
+      { tex: `s = \\frac{${fmt(v2)}}{2 \\times ${fmt(d)}} = \\frac{${fmt(v2)}}{${fmt(2 * d)}} = ${fmt(v2 / (2 * d))}` },
     ];
   },
 };
@@ -6350,7 +6449,8 @@ function ftOf(rng: Rng, hard: boolean, ok: (p: Omit<FtParams, 'find'>) => boolea
       const t = hard ? rng.int(1, 16) / 2 : rng.int(1, 8);
       return { m, u, v, t, F: (m * (v - u)) / t };
     },
-    (p) => p.u !== p.v && exact(p.F, 2) && Math.abs(p.F) <= 60 && (hard || p.v > p.u) && ok(p),
+    // The force is given in two of the three forms, so it is whole or a tenth.
+    (p) => p.u !== p.v && exact(p.F, 1) && Math.abs(p.F) <= 60 && (hard || p.v > p.u) && ok(p),
   );
 }
 
@@ -6445,7 +6545,7 @@ const ftFlow: Generator<FtFlowParams> = {
         const t = hard ? rng.int(1, 10) / 2 : rng.int(1, 6);
         return { m, u, v, t, F: (m * (v - u)) / t };
       },
-      (p) => p.u > 1 && exact(p.F, 2) && p.v < p.u && Math.abs(p.F) <= 60,
+      (p) => p.u > 1 && exact(p.F, 1) && p.v < p.u && Math.abs(p.F) <= 60,
     );
   },
   render: ({ m, u, v, t, F }) => {
@@ -6519,7 +6619,8 @@ const impulseIjTiles: Generator<ImpulseIjParams> = {
     const comp = () => sizeSign(rng, 1, 8);
     return until(
       () => ({ kind, m: hard ? rng.int(1, 8) / 2 : rng.int(1, 5), u: [comp(), comp()] as Pt, v: [comp(), comp()] as Pt, t: hard ? rng.int(1, 6) / 2 : 1 }),
-      ({ m, u, v, t }) => u[0] !== v[0] && u[1] !== v[1] && [0, 1].every((i) => exact((m * (v[i] - u[i])) / t, 2)),
+      // A force's components are given, so each is whole or a tenth.
+      ({ m, u, v, t }) => u[0] !== v[0] && u[1] !== v[1] && [0, 1].every((i) => exact((m * (v[i] - u[i])) / t, kind === 'force' ? 1 : 2)),
     );
   },
   render: ({ kind, m, u, v, t }) => {
@@ -7477,7 +7578,7 @@ const plankUnknown: Generator<PlankUnknownParams> = {
       },
       (b) => {
         const r = reactionsOf(b);
-        return r.RC >= 5 && r.RD >= 5 && exact(r[known], find === 'm' ? 2 : 1) && spread([b.c, b.d, ...downOf(b).map((l) => l.x)], b.L);
+        return r.RC >= 5 && r.RD >= 5 && exact(r[known], 1) && spread([b.c, b.d, ...downOf(b).map((l) => l.x)], b.L);
       },
     );
     return { beam, known, find };
@@ -7816,9 +7917,37 @@ interface LadderParams {
   s: number;
   find: 'S' | 'F' | 'R' | 'mu' | 's';
   hard: boolean;
+  /** When how far up is asked: the coefficient of friction given, to 2 places at most. */
+  mu?: number;
 }
 
 const LADDER_ANGLES = [A43, A247, A34];
+
+/** How far up the ladder is asked to 1 decimal place. */
+const CLIMB_DP: Precision = { dp: 1 };
+
+/**
+ * How far up a person climbs before the ladder slips, with mu given: on the
+ * point of slipping S = mu(W + P), then moments about the foot.
+ */
+export const climbOf = ({ L, W, t, P, mu }: Pick<LadderParams, 'L' | 'W' | 't' | 'P'> & { mu: number }): number =>
+  (mu * (W + P) * L * sinOf(t) - ((W * L) / 2) * cosOf(t)) / (P * cosOf(t));
+
+/**
+ * A ladder with mu given as a textbook prints it and a person climbing:
+ * the distance they reach is rounded to 1 decimal place, redrawn when it sits
+ * near a rounding edge or off the ladder.
+ */
+function sampleClimb(rng: Rng, hard: boolean): LadderParams {
+  return until(
+    (): LadderParams => {
+      const L = rng.pick([4, 5, 6, 8, 10]);
+      const p = { L, W: rng.int(8, 40) * 10, t: rng.pick(LADDER_ANGLES), P: rng.int(40, 90) * 10, mu: rng.int(4, 18) / 20 };
+      return { ...p, s: climbOf(p), find: 's', hard };
+    },
+    (p) => p.s >= 0.5 && p.s <= p.L - 0.5 && roundedWell(p.s, CLIMB_DP),
+  );
+}
 
 /** The wall's push, from moments about the foot. */
 export function wallPush({ L, W, t, P, s }: Pick<LadderParams, 'L' | 'W' | 't' | 'P' | 's'>): number {
@@ -7887,7 +8016,8 @@ const ladder: Generator<LadderParams> = {
   id: 'force-ladder',
   sample: (rng, difficulty) => {
     const hard = difficulty > 1;
-    return sampleLadder(rng, hard, rng.pick(hard ? (['S', 'mu', 's'] as const) : (['S', 'F', 'R'] as const)), hard);
+    const find = rng.pick(hard ? (['S', 'mu', 's'] as const) : (['S', 'F', 'R'] as const));
+    return find === 's' ? sampleClimb(rng, hard) : sampleLadder(rng, hard, find, hard);
   },
   render: (p) => {
     const mu = leastMu(p);
@@ -7898,10 +8028,20 @@ const ladder: Generator<LadderParams> = {
       mu: 'Find the least possible value of the coefficient of friction $\\mu$ between the ladder and the ground.',
       s: '',
     };
-    const prose =
-      p.find === 's'
-        ? `${ladderScene({ ...p, P: 0 })} A person of weight ${newtons(p.P)} climbs it, and $\\mu = ${fmt(mu)}$ at the ground. How far up from $A$ can they climb before it slips, in metres?`
-        : `${ladderScene(p)} ${asks[p.find]}`;
+    if (p.find === 's') {
+      return typedRounded(
+        [
+          say(
+            `${ladderScene({ ...p, P: 0 })} A person of weight ${newtons(p.P)} climbs it, and $\\mu = ${fmt(p.mu!)}$ at the ground. How far up from $A$ can they climb before it slips, in metres? ${askPrecision(CLIMB_DP)}`,
+          ),
+          ladderPicture(p),
+        ],
+        's =',
+        p.s,
+        CLIMB_DP,
+      );
+    }
+    const prose = `${ladderScene(p)} ${asks[p.find]}`;
     const value = { S: wallPush(p), F: wallPush(p), R: p.W + p.P, mu, s: p.s }[p.find];
     return typed([say(prose), ladderPicture(p)], `${{ S: 'S', F: 'F', R: 'R', mu: '\\mu', s: 's' }[p.find]} =`, value);
   },
@@ -7911,14 +8051,18 @@ const ladder: Generator<LadderParams> = {
     }
     if (p.find === 's') {
       const { L, W, t, P } = p;
-      const S = wallPush(p);
+      const mu = p.mu!;
+      const S = mu * (W + P);
       return [
         ...angleStep(t, p.hard),
         { text: 'On the point of slipping friction is at its limit, and resolving gives $R$ and then $F$:' },
-        { tex: `R = ${fmt(W)} + ${fmt(P)} = ${fmt(W + P)}, \\quad F = \\mu R = ${fmt(leastMu(p))} \\times ${fmt(W + P)} = ${fmt(S)}` },
+        { tex: `R = ${fmt(W)} + ${fmt(P)} = ${fmt(W + P)}, \\quad F = \\mu R = ${fmt(mu)} \\times ${fmt(W + P)} = ${fmt(S)}` },
         { text: 'Horizontally $S = F$. Then moments about $A$, with the person $s$ metres up:' },
         { tex: `${fmt(S)} \\times ${timesTex(L, '\\sin\\alpha')} = ${fmt(W)} \\times ${timesTex(L / 2, '\\cos\\alpha')} + ${fmt(P)}s\\cos\\alpha` },
-        { tex: `${fmt(S * L * sinOf(t))} = ${fmt((W * L) / 2 * cosOf(t))} + ${fmt(P * cosOf(t))}s, \\quad s = ${fmt(p.s)}` },
+        { tex: `${fmt(S * L * sinOf(t))} = ${fmt((W * L) / 2 * cosOf(t))} + ${fmt(P * cosOf(t))}s` },
+        { tex: `s = ${fmt(S * L * sinOf(t) - (W * L) / 2 * cosOf(t))} \\div ${fmt(P * cosOf(t))} = ${dots(p.s)}` },
+        { text: 'To 1 decimal place:' },
+        { tex: `s = ${fixed(p.s, CLIMB_DP)}` },
       ];
     }
     return ladderWorking(p, p.find === 'mu' ? 'mu' : 'S').concat(p.find === 'F' ? [{ text: 'Resolving horizontally, the friction at the foot balances the wall\'s push, so $F = S$.' }] : []);
@@ -7929,7 +8073,10 @@ const ladder: Generator<LadderParams> = {
     const flipped = ((p.W * p.L) / 2 + p.P * p.s) * (p.t.o / p.t.a) / p.L;
     if (p.find === 'R') return valueChoices(p.W + p.P, [p.W + S, S, p.W / 2, p.W * cosOf(p.t)], salt);
     if (p.find === 'mu') return valueChoices(leastMu(p), [S / p.W, (p.W + p.P) / S, flipped / (p.W + p.P), S / p.P], salt);
-    if (p.find === 's') return valueChoices(p.s, [p.L - p.s, p.s * 2, p.L / 2, p.s + 1], salt);
+    if (p.find === 's') {
+      const r = (v: number) => roundTo(v, CLIMB_DP);
+      return valueChoices(r(p.s), [r(p.L - p.s), r(p.s * 2), p.L / 2, r(p.s + 1)], salt);
+    }
     return valueChoices(S, [flipped, S * 2, p.W * (p.t.a / p.t.o), (p.W + p.P) / 2], salt);
   },
 };
@@ -8489,12 +8636,12 @@ const ke: Generator<KeParams> = {
   id: 'force-ke',
   sample: (rng, difficulty) => {
     const hard = difficulty > 1;
-    return {
-      thing: rng.pick(LOADS),
-      m: massIn(rng, hard, 1, hard ? 10 : 12),
-      v: hard ? rng.int(2, 20) : rng.int(1, 15),
-      find: hard ? rng.pick<KeParams['find']>(['E', 'v', 'm']) : 'E',
-    };
+    const find = hard ? rng.pick<KeParams['find']>(['E', 'v', 'm']) : 'E';
+    // Run backwards, the energy is given, so it is whole or a tenth.
+    return until(
+      (): KeParams => ({ thing: rng.pick(LOADS), m: massIn(rng, hard, 1, hard ? 10 : 12), v: hard ? rng.int(2, 20) : rng.int(1, 15), find }),
+      ({ m, v }) => find === 'E' || exact((m * v * v) / 2, 1),
+    );
   },
   render: ({ thing, m, v, find }) => {
     const E = (m * v * v) / 2;
@@ -8553,7 +8700,8 @@ const peSlider: Generator<PeSliderParams> = {
     if (difficulty < 2) return { thing: rng.pick(LOADS), m: rng.int(1, 10), h: rng.int(1, 10), from: null };
     return until(
       () => ({ thing: rng.pick(DROPPED), m: rng.int(1, 12) / 2, h: rng.int(1, 22) / 2, from: rng.int(2, H_SPAN) }),
-      ({ h, from }) => from! - h >= 1,
+      // The energy lost is given, so it is whole or a tenth.
+      ({ m, h, from }) => from! - h >= 1 && exact(G * m * (from! - h), 1),
     );
   },
   render: ({ thing, m, h, from }) => {

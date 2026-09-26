@@ -12,10 +12,14 @@ the sample size moves the verdict); Type I and Type II Errors (the two mistakes,
 for a stated alternative); Testing a Correlation (H0: rho = 0 and which tail
 from the suspicion, critical values of the product-moment coefficient read from
 a quoted table, one- and two-tailed decisions with the column halved for two,
-how n and the level move the verdict, and association not cause).
+how n and the level move the verdict, and association not cause); Comparing
+Two Samples (the difference of two independent sample means with the variances
+added, the two-sample z statistic with known variances, the tail from a
+suspicion naming either group, the critical difference, and paired data: when
+samples are matched, the differences, their mean and the test of the mean
+difference).
 
-Needs: Comparing Two Samples (the difference of two means with known variances, and
-paired data); Goodness of Fit (the chi-squared statistic, expected
+Needs: Goodness of Fit (the chi-squared statistic, expected
 frequencies, degrees of freedom and a quoted critical value); Testing with the
 Normal Approximation (large-n binomial tests through the normal, with a
 continuity correction; after C18's later levels have landed).

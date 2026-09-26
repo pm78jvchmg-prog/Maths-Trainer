@@ -20,6 +20,14 @@
  * the level move the verdict, with rejecting read as association, not cause.
  * The table's values are always quoted, never taught to memorise.
  *
+ * Level 5 compares two samples: the difference of two independent sample
+ * means, normal with the means subtracted and the variances added, the
+ * two-sample z statistic for `H_0: \mu_A = \mu_B` with known variances, the
+ * tail from a suspicion that may name either group first, and the critical
+ * difference itself. Then paired data: when two samples are matched, the
+ * difference in each pair, its mean, and the test of `H_0: \mu_d = 0` with a
+ * stated standard deviation of the differences.
+ *
  * Binomial probabilities, the normal curve and standardising belong to the
  * Binomial & Normal Distributions course and nCr to Binomial Expansion's
  * second level: each is quoted once here, never taught again, and every
@@ -919,6 +927,227 @@ export const hypothesisTesting: Course = {
         ask('hyp-rho-n-slider', 2),
         ask('hyp-rho-which-rejects', 2),
         ask('hyp-rho-cause-choice', 2),
+      ],
+    },
+    {
+      id: 'ht-l5',
+      title: 'Comparing Two Samples',
+      lessons: [
+        {
+          id: 'ht-l5-difference',
+          title: 'Two Means, One Difference',
+          slides: [
+            teach(
+              prose('Two machines fill bags of flour. A random sample is taken from each, independently, to see whether the machines differ.'),
+              prose('From Testing a Mean, a sample mean is normal with variance $\\sigma^2 / n$. The difference of two independent sample means is normal too, with'),
+              working('\\text{mean} &= \\mu_A - \\mu_B', '\\text{variance} &= \\frac{\\sigma_A^2}{n_A} + \\frac{\\sigma_B^2}{n_B}'),
+              prose('The means subtract, but the variances **add**.'),
+            ),
+            asking(
+              'hyp-diff-model-tiles',
+              1,
+              prose('Machine A\'s bags have mean $502$ g and standard deviation $12$ g; machine B\'s have mean $498$ g and standard deviation $16$ g. With $16$ bags from each:'),
+              working('\\text{mean} &= 502 - 498 = 4', '\\text{variance} &= \\frac{144}{16} + \\frac{256}{16}', '&= 9 + 16 = 25'),
+              display('\\bar{X}_A - \\bar{X}_B \\sim N(4, 25)'),
+            ),
+            ask('hyp-diff-var'),
+            ask('hyp-diff-rule-flow'),
+            teach(
+              prose('Why add? Each sample mean wobbles on its own, and taking one wobble from another cannot cancel it out: the difference wobbles more than either.'),
+              prose('The standard deviation is the square root of the variance, taken **after** adding:'),
+              working('\\text{sd} &= \\sqrt{9 + 16}', '&= \\sqrt{25} = 5'),
+              prose('Adding the standard deviations, $3$ and $4$, would give $7$, which is wrong: standard deviations never add.'),
+            ),
+            ask('hyp-diff-spread-tree'),
+            ask('hyp-diff-var+choice', 2),
+            ask('hyp-diff-rule-flow', 2),
+            teach(
+              prose('If B has the larger mean, the mean of the difference is negative. With $\\mu_A = 495$ g and $\\mu_B = 498$ g:'),
+              working('\\text{mean} &= 495 - 498 = -3'),
+              prose('The variance is still the sum, and is never negative.'),
+            ),
+            ask('hyp-diff-model-tiles', 2),
+            ask('hyp-diff-spread-tree', 2),
+          ],
+          skillCheck: [ask('hyp-diff-model-tiles', 2), ask('hyp-diff-var', 2), ask('hyp-diff-spread-tree', 2)],
+        },
+        {
+          id: 'ht-l5-z',
+          title: 'The Two-Sample z Statistic',
+          slides: [
+            teach(
+              prose('To test whether two machines differ, start from no difference at all:'),
+              display('H_0: \\mu_A = \\mu_B'),
+              prose('If $H_0$ is true, ${\\bar{X}_A - \\bar{X}_B}$ has mean $0$. So standardise the observed difference by its standard deviation:'),
+              display('z = \\frac{\\bar{x}_A - \\bar{x}_B}{\\sqrt{\\dfrac{\\sigma_A^2}{n_A} + \\dfrac{\\sigma_B^2}{n_B}}}'),
+            ),
+            asking(
+              'hyp-diff-z-tiles',
+              1,
+              prose('Sixteen bags are taken from each machine, in grams:'),
+              display('\\begin{array}{c|ccc} & \\sigma & n & \\bar{x} \\\\ \\hline A & 12 & 16 & 506.1 \\\\ B & 16 & 16 & 497.6 \\end{array}'),
+              working(
+                '\\bar{x}_A - \\bar{x}_B &= 506.1 - 497.6 = 8.5',
+                '\\text{sd} &= \\sqrt{\\frac{144}{16} + \\frac{256}{16}}',
+                '&= \\sqrt{25} = 5',
+                'z &= \\frac{8.5}{5} = 1.7',
+              ),
+            ),
+            ask('hyp-diff-z'),
+            ask('hyp-diff-stat-tree'),
+            teach(
+              prose('Keep the order ${A - B}$ throughout. If A\'s sample mean is the smaller, $z$ is negative. With ${\\bar{x}_A = 497.6}$ g and ${\\bar{x}_B = 503.1}$ g:'),
+              working('\\bar{x}_A - \\bar{x}_B &= 497.6 - 503.1 = -5.5', 'z &= \\frac{-5.5}{5} = -1.1'),
+              prose('If $H_0$ is true, $z$ follows the standard normal curve, so the critical values from Testing a Mean apply. The shaded tail is the upper 5%, beyond $1.645$.'),
+              figure({
+                xMin: -3.5,
+                xMax: 3.5,
+                yMin: 0,
+                yMax: 0.45,
+                curves: [{ f: phi }],
+                verticals: [{ x: 0, dashed: true }],
+                shade: { f: phi, from: 1.645, to: 3.5 },
+                label: 'The standard normal curve with its upper 5% tail shaded',
+              }),
+            ),
+            ask('hyp-diff-z-slider'),
+            ask('hyp-diff-z+choice', 2),
+            ask('hyp-diff-z-tiles', 2),
+            ask('hyp-diff-stat-tree', 2),
+            ask('hyp-diff-z-slider', 2),
+          ],
+          skillCheck: [ask('hyp-diff-z', 2), ask('hyp-diff-stat-tree', 2), ask('hyp-diff-z-slider', 2)],
+        },
+        {
+          id: 'ht-l5-decision',
+          title: 'Deciding in Context',
+          slides: [
+            teach(
+              prose('The suspicion gives $H_1$, and the order ${A - B}$ fixes its sign. "A fills heavier bags than B" and "B fills lighter bags than A" are the same suspicion:'),
+              display('H_1: \\mu_A > \\mu_B'),
+              prose('"A is lighter", or "B is heavier", is ${H_1: \\mu_A < \\mu_B}$. "The machines differ" names no direction, so it is two-tailed, ${H_1: \\mu_A \\ne \\mu_B}$.'),
+              prose('The critical values are the ones from Testing a Mean. At 5%, reject $H_0$ when'),
+              working('\\mu_A > \\mu_B &: \\quad z > 1.645', '\\mu_A < \\mu_B &: \\quad z < -1.645', '\\mu_A \\ne \\mu_B &: \\quad |z| > 1.96'),
+              prose('At 1% the values are $2.326$ for one tail and $2.576$ for two.'),
+            ),
+            ask('hyp-diff-hyp-tiles'),
+            asking(
+              'hyp-diff-decision-flow',
+              1,
+              prose('For the flour, ${z = 1.7}$ against ${H_1: \\mu_A > \\mu_B}$ at 5%. The critical region is ${z > 1.645}$, and $z$ is in it, so reject $H_0$:'),
+              prose('"There is evidence at the 5% level that the mean mass of a bag is higher from machine A than from machine B."'),
+              prose('Had $z$ fallen outside the region, the conclusion would be "not enough evidence", never proof that the machines are the same.'),
+            ),
+            ask('hyp-diff-conclusion-choice'),
+            teach(
+              prose('Given the samples instead of $z$, work $z$ out first, then decide. A two-tailed test at 5%, with $\\bar{x}_A - \\bar{x}_B = -11.2$ and standard deviation $5$:'),
+              working('z &= \\frac{-11.2}{5} = -2.24', '|z| &= 2.24 > 1.96'),
+              prose('Reject $H_0$: there is evidence at the 5% level that the mean mass of a bag differs between the machines.'),
+            ),
+            ask('hyp-diff-hyp-tiles', 2),
+            ask('hyp-diff-decision-flow', 2),
+            teach(
+              prose('The critical region can be written for the difference itself. With standard deviation $5$, the 5% test of ${H_1: \\mu_A > \\mu_B}$ rejects when'),
+              working('\\bar{x}_A - \\bar{x}_B &> 1.645 \\times 5', '&= 8.225'),
+              prose('For ${H_1: \\mu_A < \\mu_B}$ the region is below $-8.225$. For two tails the upper value is'),
+              working('1.96 \\times 5 &= 9.8'),
+            ),
+            ask('hyp-diff-crit'),
+            ask('hyp-diff-conclusion-choice', 2),
+            ask('hyp-diff-crit', 2),
+          ],
+          skillCheck: [ask('hyp-diff-decision-flow', 2), ask('hyp-diff-conclusion-choice', 2), ask('hyp-diff-crit', 2)],
+        },
+        {
+          id: 'ht-l5-paired',
+          title: 'Paired Data',
+          slides: [
+            teach(
+              prose('Sometimes two samples are not independent. Five runners are timed over 400 m before and after a training programme: each "after" belongs with one "before".'),
+              prose('Data like this is **paired**. Work with the difference in each pair:'),
+              display('d = \\text{after} - \\text{before}'),
+              display(
+                '\\begin{array}{c|c|c} \\text{before} & \\text{after} & d \\\\ \\hline 62 & 59 & -3 \\\\ 58 & 57 & -1 \\\\ 71 & 66 & -5 \\\\ 65 & 65 & 0 \\\\ 60 & 56 & -4 \\end{array}',
+              ),
+              prose('A negative $d$ is a faster time. Take $d$ the way round the question says: before minus after would flip every sign.'),
+            ),
+            ask('hyp-paired-diff-table'),
+            asking(
+              'hyp-paired-design-choice',
+              1,
+              prose('Data is paired when each value in one sample is matched with one value in the other: the same person measured twice, the two halves of one plot, a pair of twins.'),
+              prose('Two separate groups, such as runners from two different clubs, are **independent**: nothing links a value in one to a value in the other.'),
+            ),
+            asking(
+              'hyp-paired-mean',
+              1,
+              prose('The mean difference $\\bar{d}$ is the total of the differences over the number of pairs. For the five runners:'),
+              working('\\bar{d} &= \\frac{-3 - 1 - 5 + 0 - 4}{5}', '&= \\frac{-13}{5} = -2.6'),
+            ),
+            teach(
+              prose('Why pair? Runners differ from each other far more than training changes any one of them. Comparing two separate groups, that spread would hide the effect.'),
+              prose('Each difference compares a runner with themselves, so the spread between runners drops out and only the change is left.'),
+              prose('So a paired test works with the differences, testing their population mean:'),
+              display('H_0: \\mu_d = 0'),
+              prose('Independent samples keep ${H_0: \\mu_A = \\mu_B}$ and the two-sample $z$.'),
+            ),
+            ask('hyp-paired-method-flow'),
+            ask('hyp-paired-diff-table', 2),
+            ask('hyp-paired-mean+choice', 2),
+            ask('hyp-paired-design-choice', 2),
+            ask('hyp-paired-method-flow', 2),
+          ],
+          skillCheck: [ask('hyp-paired-diff-table', 2), ask('hyp-paired-mean', 2), ask('hyp-paired-design-choice', 2)],
+        },
+        {
+          id: 'ht-l5-paired-test',
+          title: 'Testing Paired Differences',
+          slides: [
+            teach(
+              prose('A paired test is a test of one mean, the mean difference $\\mu_d$, just as in Testing a Mean. With $n$ pairs, and the differences modelled with standard deviation $\\sigma_d$:'),
+              display('z = \\frac{\\bar{d}}{\\sigma_d / \\sqrt{n}}'),
+              prose('Sixteen runners train, with $d$ taken as after minus before. The differences have ${\\bar{d} = -2.6}$ s and ${\\sigma_d = 8}$ s:'),
+              working('\\frac{\\sigma_d}{\\sqrt{n}} &= \\frac{8}{4} = 2', 'z &= \\frac{-2.6}{2} = -1.3'),
+            ),
+            ask('hyp-paired-z'),
+            asking(
+              'hyp-paired-h1-tiles',
+              1,
+              prose('$H_1$ comes from the suspicion and the way round $d$ is. Training is suspected to lower times, and with $d = \\text{after} - \\text{before}$ a lower time is a negative $d$:'),
+              display('H_0: \\mu_d = 0 \\qquad H_1: \\mu_d < 0'),
+              prose('At 5% the critical region is then ${z < -1.645}$. A suspected rise gives ${\\mu_d > 0}$, and a suspected change either way gives ${\\mu_d \\ne 0}$.'),
+            ),
+            ask('hyp-paired-stat-tree'),
+            teach(
+              prose('Then decide as in any z test. For the runners, ${z = -1.3}$ against ${z < -1.645}$ at 5%: not in the region. So do not reject $H_0$:'),
+              prose('"There is not enough evidence at the 5% level that the training programme lowers the mean time to run 400 m."'),
+              prose('Had $d$ been before minus after, every sign flips: ${H_1: \\mu_d > 0}$ and ${z = 1.3}$, with the same conclusion.'),
+            ),
+            ask('hyp-paired-decision-flow'),
+            ask('hyp-paired-z+choice', 2),
+            ask('hyp-paired-h1-tiles', 2),
+            ask('hyp-paired-decision-flow', 2),
+            ask('hyp-paired-stat-tree', 2),
+          ],
+          skillCheck: [ask('hyp-paired-z', 2), ask('hyp-paired-decision-flow', 2), ask('hyp-paired-h1-tiles', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('hyp-diff-model-tiles', 2),
+        ask('hyp-diff-var', 2),
+        ask('hyp-diff-spread-tree', 2),
+        ask('hyp-diff-z', 2),
+        ask('hyp-diff-stat-tree', 2),
+        ask('hyp-diff-z-slider', 2),
+        ask('hyp-diff-hyp-tiles', 2),
+        ask('hyp-diff-decision-flow', 2),
+        ask('hyp-diff-conclusion-choice', 2),
+        ask('hyp-diff-crit', 2),
+        ask('hyp-paired-diff-table', 2),
+        ask('hyp-paired-mean', 2),
+        ask('hyp-paired-design-choice', 2),
+        ask('hyp-paired-z', 2),
+        ask('hyp-paired-decision-flow', 2),
       ],
     },
   ],

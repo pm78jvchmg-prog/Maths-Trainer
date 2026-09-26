@@ -91,14 +91,17 @@ function toCss([r, g, b]: Rgba): string {
  */
 export function paintFoot(list: HTMLElement): void {
   const foot = window.innerHeight - 1;
+  const bands = [...list.querySelectorAll<HTMLElement>('.band')];
   let colour = bandColour('', 0, 0, FOOT_SHADE);
-  for (const el of list.querySelectorAll<HTMLElement>('.band')) {
+  bands.forEach((el, i) => {
     const box = el.getBoundingClientRect();
-    if (foot >= box.top && foot < box.bottom) {
+    // Pulled past the end, the last band's colour carries on below it (its
+    // shadow, in `index.css`), so the strip keeps that colour too.
+    const last = i === bands.length - 1;
+    if (foot >= box.top && (foot < box.bottom || last)) {
       const band = [...el.classList].find((c) => c.startsWith('band-'))?.slice(5) ?? '';
-      colour = bandColour(band, foot - box.top, box.height, FOOT_SHADE);
-      break;
+      colour = bandColour(band, Math.min(foot - box.top, box.height), box.height, FOOT_SHADE);
     }
-  }
+  });
   document.body.style.backgroundColor = colour;
 }

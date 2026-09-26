@@ -1679,6 +1679,16 @@ button {
   --accent: #ffa45e;
   --accent-strong: #e8711c;
   --card-glow: rgb(255 150 70 / 0.22);
+  /* The dimming shade, plus the run's last colour repeated below it (a
+     shadow, so it adds nothing to the scroll): pulled past the end, the list
+     shows more of its own brown rather than the navy page, and the strip
+     below the window keeps the same colour (`paintFoot`). */
+  box-shadow:
+    inset 0 0 0 100vmax rgb(0 0 0 / 0.2),
+    /* Two copies, half a screen apart, cover a whole screen below the run
+       without a spread, which would paint the iPad margins beside it. */
+    0 50vh 0 0 rgb(76 37 38),
+    0 100vh 0 0 rgb(76 37 38);
 }
 
 .category-section + .category-section {

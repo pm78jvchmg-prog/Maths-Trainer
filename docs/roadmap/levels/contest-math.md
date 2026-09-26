@@ -287,3 +287,88 @@ Generators in `src/content/generators/contestModular.ts`.
 | Euler's Theorem | `cm-md-fermat`, `cm-md-cycle-table`, `cm-md-euler-tower`, `cm-md-phi` | cut the power down by p − 1, or by φ(n) for a composite modulus; the cycle's length divides p − 1; cut a tower's top down by p − 1 first; φ(n) keeps the same share for each prime |
 
 Level check: 13 questions across all four lessons.
+
+## Level 18: Synthetic Geometry (`cm-l18`)
+
+Generators in `src/content/generators/contestSyntheticGeometry.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Pythagorean Theorem | `cm-sg-british-flag`, `cm-sg-broken-pole`, `cm-sg-pole-tiles`, `cm-sg-unfold` | opposite corners' squares add to the same; the fallen part is the hypotenuse and the squares cancel; unfold the faces, or unroll the cylinder, and the path is straight |
+| Triangle Areas | `cm-sg-heron`, `cm-sg-heron-table`, `cm-sg-inradius`, `cm-sg-extended-sides` | Heron from three sides; the longest side has the shortest height; area is r times half the perimeter, and any inside point splits it the same way; triangles on equal bases under one height have equal area |
+| Similar Triangles | `cm-sg-inscribed-square`, `cm-sg-angle-similar`, `cm-sg-angle-similar-tiles`, `cm-sg-parallel-area` | the triangle above the square is similar; one equal angle plus a shared one makes AB squared equal AD times AC; areas go by the square of the ratio to the whole side |
+| Angle Bisector Theorem | `cm-sg-bisector-split`, `cm-sg-bisector-length`, `cm-sg-bisector-tiles`, `cm-sg-incentre-ratio` | the bisector splits the far side as the near sides; AD squared is AB times AC less BD times DC; the incentre cuts AD in the ratio (AB + AC) to BC |
+| Power of a Point | `cm-sg-chords`, `cm-sg-secants`, `cm-sg-power-radius`, `cm-sg-power-table` | every chord through P has the same product of pieces; from outside, measure both lengths from P, and a tangent squared is that product; the diameter gives (r - d)(r + d) |
+| Cyclic Quadrilaterals | `cm-sg-cyclic-angles`, `cm-sg-cyclic-table`, `cm-sg-ptolemy`, `cm-sg-brahmagupta` | angles on one arc are equal and opposite angles add to 180; the diagonals multiply to the sum of opposite products; Brahmagupta is Heron for four sides, and with a circle inside it is the square root of abcd |
+| Circles | `cm-sg-pitot`, `cm-sg-tangent-table`, `cm-sg-parallel-chords`, `cm-sg-tangent-angle` | two tangents from a point are equal, so opposite sides add to the same; half-chord, distance and radius make a right triangle; the angle at the centre is 180 less the angle between the tangents |
+
+Level check: 14 questions across all seven lessons.
+
+## Level 19: Analytical Geometry (`cm-l19`)
+
+Generators in `src/content/generators/contestAnalyticGeometry.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Coordinate Geometry | `cm-ag-river`, `cm-ag-lattice`, `cm-ag-pick`, `cm-ag-line-distance` | reflect the far end in each wall and walk straight; the gcd of the steps counts the lattice points; Pick's theorem, with each side counted by its gcd; the height is twice the area over the long side, and parallel lines differ in c over the root |
+| Conics | `cm-ag-ellipse`, `cm-ag-circle-centre`, `cm-ag-circle-chord`, `cm-ag-parabola` | the distances to the foci add to 2a, and c² = a² − b²; complete both squares, dividing through first; the roots' difference from their sum and product; the focal distance is the distance to the directrix |
+| Mass Points | `cm-ag-mass-cevians`, `cm-ag-mass-table`, `cm-ag-mass-reverse`, `cm-ag-mass-ceva` | masses go against the lengths and a balance point carries both; work back from AP : PD to A's mass; the third cevian balances too |
+| Complex Number Geometry | `cm-ag-rotate`, `cm-ag-turn-area`, `cm-ag-modulus`, `cm-ag-reach` | times i turns 90° about 0, so move the centre there first; z, iz, −z, −iz make a square of area 2\|z\|²; moduli multiply, and an even power never needs the root; the nearest and farthest points lie on the line through the centre |
+
+Level check: 13 questions across all four lessons.
+
+## Level 20: Trigonometry (`cm-l20`)
+
+Generators in `src/content/generators/contestTrigonometry.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Trigonometric Functions | `cm-tr-other-ratio`, `cm-tr-exact-table`, `cm-tr-big-angle`, `cm-tr-square-sum` | a triple gives every ratio and the quadrant gives the sign; measure from the nearer side of the axis; whole turns change nothing; sin²x pairs with sin²(90° − x) to make 1 |
+| Law of Cosines | `cm-tr-cos-side`, `cm-tr-cos-angle`, `cm-tr-cos-table`, `cm-tr-parallelogram` | cos 60° = 1/2 takes ab off, cos 120° = −1/2 adds it; the law turned round gives the angle, and (a + b + c)(a + b − c) = k ab is its top in disguise; a parallelogram's cosines cancel, and a median is half a diagonal |
+| Law of Sines | `cm-tr-circumradius`, `cm-tr-sine-table`, `cm-tr-sine-side`, `cm-tr-ssa` | a/sin A is the diameter, and 150° has the sine of 30°; the third angle first; the height decides two, one or no triangles, and the two lengths multiply to b² − a² |
+| Trigonometric Identities | `cm-tr-sum-product`, `cm-tr-tan-ratio`, `cm-tr-double-table`, `cm-tr-max-value` | square sin θ + cos θ; divide by cos θ, or by cos² θ over sin² θ + cos² θ; the double angles from the triangle; a sin x + b cos x reaches √(a² + b²), not a + b |
+| Roots of Unity | `cm-tr-common-roots`, `cm-tr-unity-count-table`, `cm-tr-root-polygon`, `cm-tr-unity-product` | common roots are the gcd-th roots; count the angles in a window; the roots of z^n = c are a regular polygon of n triangles; z^n − 1 over z − 1 is the product over the other roots |
+
+## Level 21: More Advanced Combinatorics (`cm-l21`)
+
+Generators in `src/content/generators/contestAdvancedCounting.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Constructive Counting | `cm-ac-no-adjacent`, `cm-ac-gaps-table`, `cm-ac-increasing-digits`, `cm-ac-diagonal-crossings` | line up the others and choose gaps for the ones kept apart; a set of digits has one increasing order, and 0 can only end a decreasing one; four points make one crossing, and each chord adds one region plus its crossings |
+| Complementary Counting | `cm-ac-contains-digit`, `cm-ac-grid-avoid`, `cm-ac-committee`, `cm-ac-committee-tiles` | at least one is all less none, at least two the same is all less all different; take off the routes through a closed corner, adding back those through both; all teams less the teams of one kind |
+| Binomial Coefficients | `cm-ac-binom-coeff`, `cm-ac-expansion-table`, `cm-ac-hockey-stick`, `cm-ac-row-sum` | a coefficient is a choice of brackets times the other part's power; the constant term is where the powers cancel; a diagonal adds to the entry below it; a row adds to 2^n, and choosing the chair first gives n × 2^(n − 1) |
+| Principle of Inclusion-Exclusion | `cm-ac-pie-multiples`, `cm-ac-pie-table`, `cm-ac-derangements`, `cm-ac-onto` | add singles, take off pairs, add back the triple, with LCMs for pairs; nobody right is n!/0! − n!/1! + n!/2! − …; exactly j right is a choice times a derangement; nobody left empty takes off the shares missing someone |
+| Balls and Urns | `cm-ac-urns-minimum`, `cm-ac-urns-tiles`, `cm-ac-dice-cap`, `cm-ac-terms` | hand out the minimums, then balls and dividers; odd parts are 2a + 1; an upper limit is taken off by inclusion–exclusion; terms of an expansion are shares of the power, and a slack unknown turns at most into equal |
+
+Level check: 14 questions across all five lessons.
+
+## Level 22: More Advanced Probability (`cm-l22`)
+
+Generators in `src/content/generators/contestAdvancedProbability.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Probability | `cm-ap-geom-square`, `cm-ap-birthday`, `cm-ap-dice-max`, `cm-ap-dice-max-table` | two random numbers are a point in a square, so a probability is an area; multiply the shrinking chances for all different; exactly is at most less at most, and smallest and largest together is inclusion and exclusion |
+| Conditional Probability | `cm-ap-test-bayes`, `cm-ap-test-table`, `cm-ap-cond-pair`, `cm-ap-coin-bag` | picture a crowd and count the positives; a second test multiplies both counts again; at least one is not the first one; weigh each coin by how likely its tosses were |
+| Expected Value | `cm-ap-ev-table`, `cm-ap-ev-missing`, `cm-ap-ev-max`, `cm-ap-ev-respin` | value times chance, added; read it backwards for a missing prize or a fair payout; k tickets make k + 1 equal gaps, and a whole score is the sum of its tail chances; keep what beats a fresh spin, working backwards |
+| Recursion | `cm-ap-wait`, `cm-ap-first-to-win`, `cm-ap-land-on`, `cm-ap-land-table` | after a miss it all starts again; both miss and the game comes back round; land on k from k − 1 or from k − 2 |
+| Linearity of Expectation | `cm-ap-draw-sum`, `cm-ap-distinct`, `cm-ap-adjacent`, `cm-ap-adjacent-tiles` | each draw alone averages the middle, and expectations add; a count is a sum of one-or-nothing scores; every neighbouring pair is a random pair, and a circle has one more |
+| Events with States | `cm-ap-streak`, `cm-ap-streak-table`, `cm-ap-pattern`, `cm-ap-ruin` | a run of j costs r(T + 1) from a run of j − 1; nothing is lost after the first half of a two-different pattern, and after a miss TH beats HH; the gambler's steps are equal, or in the ratio q : p |
+
+Level check: 14 questions across all six lessons.
+
+## Level 23: Contest Problem Strategies (`cm-l23`)
+
+Generators in `src/content/generators/contestStrategies.ts`.
+
+| Lesson | Exercises | The idea |
+|---|---|---|
+| Casework | `cm-st-triangles`, `cm-st-abs-regions`, `cm-st-case-table`, `cm-st-square-ends` | fix the longest side first; cut the number line where each bracket turns, and the middle piece is constant; one case per value of y; only the last digit of n decides the last digit of n² or n(n + 1) |
+| Extreme Cases and Invariants | `cm-st-socks-table`, `cm-st-pair-sum`, `cm-st-board`, `cm-st-cups` | the unluckiest draw, capped by what the drawer holds, plus one; one from each pair, every unpartnered number free; the total moves by a fixed step, or the product of (number + s) never changes; odd turns per cup, extra turns in pairs, no more turns than moves |
+| Generalization | `cm-st-pattern-table`, `cm-st-alt-squares`, `cm-st-nth-term`, `cm-st-josephus` | small cases, then why the step grows; pairs of squares make minus triangular numbers; the last copy of k sits at a sum you can add up; 2L + 1 past the power of 2 |
+| Using Symmetry | `cm-st-river`, `cm-st-river-tiles`, `cm-st-pair-function`, `cm-st-gap-min` | reflect B in the bank and walk straight; the touch point splits the gap in the ratio of the heights; f(x) + f(1 − x) = 1; k picks make k + 1 gaps of equal average size |
+| Eliminating Choices | `cm-st-product-elim`, `cm-st-square-elim`, `cm-st-consecutive-product`, `cm-st-remainder-elim`, `cm-st-root-table` | last digits, then digit sums; squares never end in 2, 3, 7, 8 and their digit sums come to 1, 4, 7, 9; the squares or cube either side; test each option against every condition; the tens, then the square halfway |
+| Simplifications | `cm-st-power-fraction`, `cm-st-name-number`, `cm-st-sym-sum-tiles`, `cm-st-sym-sum` | take out the smallest power, after writing 4ⁿ as 2²ⁿ; call the middle (or smallest) number x and the x terms cancel; a² + b² and a³ + b³ from a + b and ab; 1/a + 1/b and a/b + b/a without finding a and b |
+
+Level check: 13 questions across all six lessons.

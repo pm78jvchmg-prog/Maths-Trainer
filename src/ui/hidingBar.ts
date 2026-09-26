@@ -53,7 +53,9 @@ export function useHidingBar(reveal = 48) {
     (event: UIEvent<HTMLElement>) => {
       const el = event.currentTarget;
       const y = el.scrollTop;
-      setAtTop(y <= 0);
+      // Under a pixel counts as the top: iOS can settle a flick a fraction of
+      // a pixel short of 0, which left the bar blurred with nothing under it.
+      setAtTop(y < 1);
       if (from.current === null) {
         from.current = y;
         return;

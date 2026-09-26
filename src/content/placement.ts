@@ -94,10 +94,10 @@ export const NEW_COURSES: NewCourse[] = [
   {
     id: 'series-induction',
     title: 'Series & Induction',
-    blurb: 'Proof by induction, the standard sums of powers, and the method of differences.',
+    blurb: 'Proof by induction, sums of powers, the method of differences, and recurrences.',
     category: 'advanced-maths',
     position: 55,
-    levels: ['np-l4', 'sq-l4', 'af-l6', 'sq-l5'],
+    levels: ['np-l4', 'sq-l4', 'sq-l8', 'af-l6', 'sq-l5', 'sq-l9'],
   },
   {
     id: 'number-theory',

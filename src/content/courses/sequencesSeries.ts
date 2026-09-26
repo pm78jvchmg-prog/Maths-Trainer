@@ -31,14 +31,19 @@
  * same amount or multiplies by the same factor; and two pay plans, a fixed
  * rise against a percentage one.
  *
- * The next level, harder arithmetic and geometric problems, is in the level
- * plan in `docs/roadmap/levels/sequences-series.md`.
+ * Levels 7 to 9 are files of their own in `courses/sequences/`. Level 7,
+ * harder arithmetic and geometric problems, stays on this card. Levels 8 and
+ * 9, harder sums of powers and strong induction with recurrences, are shown in
+ * Series & Induction (see placement.ts).
  *
  * Each level closes with a level check: fifteen questions, no teaching
  * slides, one attempt each.
  */
 import type { Block, Course, Lesson, SlideRef } from '../types';
 import { plotSvg } from '../figures';
+import { harderProblems } from './sequences/level7';
+import { harderSums } from './sequences/level8';
+import { strongInduction } from './sequences/level9';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -1225,6 +1230,9 @@ export const sequencesSeries: Course = {
         ask('seq-plans-total-tree', 2),
       ],
     },
+    harderProblems,
+    harderSums,
+    strongInduction,
   ],
 };
 

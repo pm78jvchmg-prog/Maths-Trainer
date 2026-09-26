@@ -3,6 +3,33 @@
 A short, dated record of what landed and why. Newest first. Each entry names
 its pull request; the PR description holds the evidence.
 
+## 2026-09-26
+
+- **Numerical Methods: four new levels (#272).** Numerical Differentiation joins
+  Numerical Methods, and Locating Roots Graphically, The Trapezium Rule in
+  Context and Numerical Methods in Modelling join Numerical Methods Basics,
+  bringing both cards to 30.
+- **Number & Proof and Number Theory reach 30 (#271).** Number Bases and
+  Algebraic Proof join Number & Proof; Linear Congruences and Inverses, Fermat's
+  Little Theorem, and Divisors and Unique Factorisation join Number Theory.
+- **Roots of Polynomials catches up (#270).** Four new levels, Roots of
+  Quartics, Transforming the Roots, Complex Conjugate Roots and Sums of Powers
+  of Roots, take the card from 6 to 30.
+- **Hypothesis Testing: Comparing Two Samples (#269).** A fifth level tests the
+  difference of two means with known variances and paired data, from the
+  distribution of the difference to the decision in context. The card now shows
+  30.
+- **Sequences & Series levels 7 to 9 (#268).** Harder arithmetic and geometric
+  problems on Sequences & Series; harder sums of powers and strong induction
+  with recurrences on Series & Induction. Both cards now show at least 30.
+- **Data: Coding Data (#267).** A fifth level shows how adding to and
+  multiplying every value moves the mean and the spread, how to code and decode,
+  and how to get the mean and variance from coded sums. The card now shows 30.
+- **Series Expansions: The Binomial Series (#266).** A fifth level derives the
+  binomial series from derivatives, finds its radius, runs the coefficient rule,
+  integrates it to arctan and arcsin, and multiplies it by other series. The
+  card now shows 30.
+
 ## 2026-09-25
 
 - **Contest Math Levels 18 to 23 (#264).** Synthetic Geometry, Analytical

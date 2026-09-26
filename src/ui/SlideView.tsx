@@ -11,6 +11,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Tex, Blocks } from './Math';
 import { MathSlot } from './MathSlot';
+import { keypadRows } from './keypadRows';
 import {
   applyKey,
   deleteBack,
@@ -132,8 +133,9 @@ export function ExpressionSlide({
 
   if (slide.kind !== 'expression') return null;
 
-  // Topic-specific keys come last, so `i` sits where the screenshots put it.
-  const keys = [...BASE_KEYS, ...slide.keypad];
+  // Topic-specific keys come after the digits, so `i` sits where the
+  // screenshots put it, and each row is its own grid so none ends in a gap.
+  const rows = keypadRows(BASE_KEYS, slide.keypad);
 
   // The keypad is pinned to the foot of the slide (`.keypad.pinned`), so on a
   // question long enough to scroll it can sit over the answer box. Pressing a
@@ -202,17 +204,21 @@ export function ExpressionSlide({
 
       <div className={locked ? 'keypad' : 'keypad pinned'} ref={keypadRef}>
         <div className="keypad-keys">
-          {keys.map((key, idx) => (
-            <button
-              key={idx}
-              type="button"
-              className={key.fn ? 'key fn' : 'key'}
-              aria-label={keyName(key)}
-              disabled={locked}
-              onClick={() => apply(applyKey(doc, key))}
-            >
-              {keyFace(key)}
-            </button>
+          {rows.map((row, rowIdx) => (
+            <div key={rowIdx} className="keypad-row" style={{ gridTemplateColumns: `repeat(${row.length}, minmax(0, 1fr))` }}>
+              {row.map((key, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  className={key.fn ? 'key fn' : 'key'}
+                  aria-label={keyName(key)}
+                  disabled={locked}
+                  onClick={() => apply(applyKey(doc, key))}
+                >
+                  {keyFace(key)}
+                </button>
+              ))}
+            </div>
           ))}
         </div>
 

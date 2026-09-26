@@ -20,6 +20,10 @@ type Stop = { at: (height: number) => number; colour: Rgba };
 /** `--edge`, the page colour the bands are laid over. */
 export const EDGE: Rgba = [30, 33, 84, 1];
 
+/** How much darker the strip is than the list's foot: the end of the fade
+ *  over a list's last stretch (`.app-wide::after`, `rgb(0 0 0 / 0.14)`). */
+const FOOT_SHADE = 0.14;
+
 /** The inset shade over both runs (`rgb(0 0 0 / 0.2)`). */
 const SHADE = 0.2;
 
@@ -68,11 +72,11 @@ function gradientAt(stops: Stop[], offset: number, height: number): Rgba {
 }
 
 /** What a band shows `offset` px down: its gradient over the page, shaded. */
-export function bandColour(band: string, offset: number, height: number): string {
+export function bandColour(band: string, offset: number, height: number, shade = 0): string {
   const stops = BAND_STOPS[band];
-  if (!stops) return toCss(EDGE);
-  const [r, g, b, a] = gradientAt(stops, offset, height);
-  const over = (c: number, base: number) => (c * a + base * (1 - a)) * (1 - SHADE);
+  const [r, g, b, a] = stops ? gradientAt(stops, offset, height) : [0, 0, 0, 0];
+  const dim = stops ? (1 - SHADE) * (1 - shade) : 1 - shade;
+  const over = (c: number, base: number) => (c * a + base * (1 - a)) * dim;
   return toCss([over(r, EDGE[0]), over(g, EDGE[1]), over(b, EDGE[2]), 1]);
 }
 
@@ -82,17 +86,17 @@ function toCss([r, g, b]: Rgba): string {
 
 /**
  * Sets the body to the colour at the bottom edge of the window, read from
- * whichever band is there. Anything else there (past the last band) leaves
- * the page colour.
+ * whichever band is there and darkened as the fade over it ends. Anything
+ * else there (past the last band) leaves the page colour, darkened the same.
  */
 export function paintFoot(list: HTMLElement): void {
   const foot = window.innerHeight - 1;
-  let colour = toCss(EDGE);
+  let colour = bandColour('', 0, 0, FOOT_SHADE);
   for (const el of list.querySelectorAll<HTMLElement>('.band')) {
     const box = el.getBoundingClientRect();
     if (foot >= box.top && foot < box.bottom) {
       const band = [...el.classList].find((c) => c.startsWith('band-'))?.slice(5) ?? '';
-      colour = bandColour(band, foot - box.top, box.height);
+      colour = bandColour(band, foot - box.top, box.height, FOOT_SHADE);
       break;
     }
   }

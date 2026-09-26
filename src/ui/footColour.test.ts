@@ -16,6 +16,10 @@ describe('bandColour', () => {
     expect(bandColour('applied', 1500, 1500)).toBe('rgb(76 37 38)');
   });
 
+  it('darkens by the fade over the foot of the list', () => {
+    expect(bandColour('applied', 1500, 1500, 0.14)).toBe('rgb(65 32 32)');
+  });
+
   it('falls back to the page colour for anything that is not a band', () => {
     expect(bandColour('other', 0, 100)).toBe('rgb(30 33 84)');
   });

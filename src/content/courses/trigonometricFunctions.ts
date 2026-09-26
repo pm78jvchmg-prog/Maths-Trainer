@@ -517,7 +517,8 @@ export const trigonometricFunctions: Course = {
               prose(
                 'Adding a constant to a function raises the whole graph, midline included. Subtracting lowers it.',
               ),
-              maths('y = f(t) + 6 \\quad \\text{has midline 6 higher than } y = f(t)'),
+              maths('y = f(t) + 6'),
+              prose('That graph has its midline $6$ higher than the graph of $y = f(t)$.'),
               prose(
                 'Unlike a horizontal shift, this one reads the way you expect: add to go up. The sign only misbehaves when the change is *inside* the function.',
               ),
@@ -660,7 +661,7 @@ export const trigonometricFunctions: Course = {
                 'Put a point on a circle of radius $1$, centred at the origin, at the far right, and turn it anticlockwise. Its height above the centre *is* the **sine** of the angle turned — a height, not a ratio of two sides. Its distance to the right of the centre is the **cosine**. At each quarter turn:',
               ),
               maths(
-                '\\begin{array}{c|cccc} \\theta & 0^{\\circ} & 90^{\\circ} & 180^{\\circ} & 270^{\\circ} \\\\ \\hline \\sin & 0 & 1 & 0 & -1 \\\\ \\cos & 1 & 0 & -1 & 0 \\end{array}',
+                '\\begin{array}{c|cc} \\theta & \\sin & \\cos \\\\ \\hline 0^{\\circ} & 0 & 1 \\\\ 90^{\\circ} & 1 & 0 \\\\ 180^{\\circ} & 0 & -1 \\\\ 270^{\\circ} & -1 & 0 \\end{array}',
               ),
               prose(
                 'On a circle of radius $r$ every length is $r$ times as big: the height is $r\\sin(\\theta)$ and the displacement is $r\\cos(\\theta)$. Radius $3$, turned $270^{\\circ}$:',
@@ -1461,13 +1462,13 @@ export const trigonometricFunctions: Course = {
                 'The special angles keep their exact values; only their names change. Periodic Functions from Circular Motion used the values $0$, $\\frac{1}{2}$ and $1$, and two more complete the set.',
               ),
               maths(
-                '\\begin{array}{c|ccccc} \\theta & 0 & \\frac{\\pi}{6} & \\frac{\\pi}{4} & \\frac{\\pi}{3} & \\frac{\\pi}{2} \\\\ \\hline \\sin(\\theta) & 0 & \\frac{1}{2} & \\frac{\\sqrt{2}}{2} & \\frac{\\sqrt{3}}{2} & 1 \\\\ \\cos(\\theta) & 1 & \\frac{\\sqrt{3}}{2} & \\frac{\\sqrt{2}}{2} & \\frac{1}{2} & 0 \\end{array}',
+                '{\\def\\arraystretch{1.8} \\begin{array}{c|cc} \\theta & \\sin(\\theta) & \\cos(\\theta) \\\\ \\hline 0 & 0 & 1 \\\\ \\frac{\\pi}{6} & \\frac{1}{2} & \\frac{\\sqrt{3}}{2} \\\\ \\frac{\\pi}{4} & \\frac{\\sqrt{2}}{2} & \\frac{\\sqrt{2}}{2} \\\\ \\frac{\\pi}{3} & \\frac{\\sqrt{3}}{2} & \\frac{1}{2} \\\\ \\frac{\\pi}{2} & 1 & 0 \\end{array}}',
               ),
               prose(
-                'The cosine row is the sine row backwards: as the point climbs the circle its height grows while its sideways distance shrinks. Past $\\frac{\\pi}{2}$ the sizes repeat and only the sign changes, and converting to degrees is always a safe way in.',
+                'The cosine column is the sine column upside down: as the point climbs the circle its height grows while its sideways distance shrinks. Past $\\frac{\\pi}{2}$ the sizes repeat and only the sign changes, and converting to degrees is always a safe way in.',
               ),
               prose(
-                'Take $\\cos\\left(\\frac{2\\pi}{3}\\right)$. Put $180^{\\circ}$ for $\\pi$: $\\frac{2 \\times 180^{\\circ}}{3} = 120^{\\circ}$. That is $60^{\\circ}$ short of a half turn, so the size comes from the $60^{\\circ}$ column, $\\frac{1}{2}$. The point is left of the centre, so the displacement is negative:',
+                'Take $\\cos\\left(\\frac{2\\pi}{3}\\right)$. Put $180^{\\circ}$ for $\\pi$: $\\frac{2 \\times 180^{\\circ}}{3} = 120^{\\circ}$. That is $60^{\\circ}$ short of a half turn, so the size comes from the $\\frac{\\pi}{3}$ row, $\\frac{1}{2}$. The point is left of the centre, so the displacement is negative:',
               ),
               maths('\\cos\\left(\\frac{2\\pi}{3}\\right) = \\cos(120^{\\circ}) = -\\frac{1}{2}'),
               prose(
@@ -1615,7 +1616,7 @@ export const trigonometricFunctions: Course = {
               prose(
                 'A fraction with zero on the bottom has no value. Cosine is zero at $90^{\\circ}$ and $270^{\\circ}$, where the point is straight above or below the centre, so $\\tan$ is **undefined** there: a vertical radius has no gradient.',
               ),
-              maths('\\tan(90^{\\circ}) \\text{ and } \\tan(270^{\\circ}) \\text{ are undefined}'),
+              maths('\\tan(90^{\\circ}) \\text{ undefined} \\qquad \\tan(270^{\\circ}) \\text{ undefined}'),
               prose(
                 'Zero on *top* is different. At $0^{\\circ}$ and $180^{\\circ}$ the sine is zero, the radius lies flat, and $\\tan$ is simply $0$.',
               ),
@@ -1628,7 +1629,7 @@ export const trigonometricFunctions: Course = {
                 'The sign of $\\tan$ comes from the signs of sine and cosine. The same signs divide to a positive, opposite signs to a negative.',
               ),
               maths(
-                '\\begin{array}{c|cccc} \\text{quarter} & 1\\text{st} & 2\\text{nd} & 3\\text{rd} & 4\\text{th} \\\\ \\hline \\sin & + & + & - & - \\\\ \\cos & + & - & - & + \\\\ \\tan & + & - & + & - \\end{array}',
+                '\\begin{array}{c|ccc} \\text{quarter} & \\sin & \\cos & \\tan \\\\ \\hline 1\\text{st} & + & + & + \\\\ 2\\text{nd} & + & - & - \\\\ 3\\text{rd} & - & - & + \\\\ 4\\text{th} & - & + & - \\end{array}',
               ),
               prose(
                 'So $\\tan$ is positive in the first and third quarters, where the radius slopes upwards, and negative in the second and fourth, where it slopes down.',
@@ -1821,8 +1822,10 @@ export const trigonometricFunctions: Course = {
               prose(
                 'Each is undefined where the ratio on the bottom is zero. Written with sine and cosine, $\\sec$ has $\\cos$ on the bottom, while $\\operatorname{cosec}$ and $\\cot$ both have $\\sin$.',
               ),
-              maths('\\sec \\text{ is undefined at } 90^{\\circ} \\text{ and } 270^{\\circ}'),
-              maths('\\operatorname{cosec}, \\ \\cot \\text{ are undefined at } 0^{\\circ} \\text{ and } 180^{\\circ}'),
+              maths('\\sec \\text{ undefined at } 90^{\\circ}, 270^{\\circ}'),
+              maths(
+                '\\operatorname{cosec} \\text{ undefined at } 0^{\\circ}, 180^{\\circ} \\qquad \\cot \\text{ undefined at } 0^{\\circ}, 180^{\\circ}',
+              ),
               prose(
                 'Watch $\\cot(90^{\\circ})$. $\\tan(90^{\\circ})$ is undefined, but $\\cot(90^{\\circ}) = \\frac{\\cos(90^{\\circ})}{\\sin(90^{\\circ})} = \\frac{0}{1} = 0$, so writing it as cosine over sine is the safe way to decide.',
               ),

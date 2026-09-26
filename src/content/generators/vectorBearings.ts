@@ -1112,6 +1112,9 @@ function treeBank(answer: string[], candidates: number[]): string[] {
   return [...answer, ...extras].sort((p, q) => Number(p) - Number(q));
 }
 
+/** `a + b`, with a negative `b` written as a subtraction. */
+const plusTex = (a: number, b: number) => (b < 0 ? `${a} - ${-b}` : `${a} + ${b}`);
+
 /** Two legs to a total, then how far from the start: a triple, so it is whole. */
 const tripTree: Generator<LegsParams & { c: number }> = {
   id: 'vjour-trip-tree',
@@ -1138,7 +1141,10 @@ const tripTree: Generator<LegsParams & { c: number }> = {
         },
         { kind: 'display', tex: legsDisplay(legs) },
       ],
-      expression: `\\sqrt{(${e1} + ${paren(e2)})^2 + (${n1} + ${paren(n2)})^2}`,
+      // A negative second leg is written as a subtraction, `-2 - 6` rather
+      // than `-2 + (-6)`: the root cannot break, so the shorter form is what
+      // keeps it on a phone screen.
+      expression: `\\sqrt{(${plusTex(e1, e2)})^2 + (${plusTex(n1, n2)})^2}`,
       nodes: [
         { id: 'e', from: [] },
         { id: 'n', from: [] },

@@ -1203,7 +1203,7 @@ const method: Generator<MethodParams> = {
       route === 'magnitude'
         ? `\\text{How long is } ${a} \\text{?}`
         : route === 'angle'
-          ? `\\text{What angle is there between } ${a} \\text{ and } ${b} \\text{?}`
+          ? `\\text{Angle between } ${a} \\text{ and } ${b} \\text{?}`
           : route === 'scale'
             ? `\\text{What is } ${k}${a} \\text{?}`
             : `\\text{What is } ${a} + ${b} \\text{?}`;

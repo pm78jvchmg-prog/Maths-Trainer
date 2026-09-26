@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { displayPieces } from './displayPieces';
+import { alignedRows, displayLines, displayPieces, displayRows } from './displayPieces';
 
 describe('displayPieces', () => {
   it('splits a display at each top-level \\qquad', () => {
@@ -23,5 +23,67 @@ describe('displayPieces', () => {
 
   it('does not read \\qquadx or \\\\ as a separator', () => {
     expect(displayPieces('a \\\\ \\qquad b')).toEqual(['a \\\\', 'b']);
+  });
+});
+
+describe('displayLines', () => {
+  it('takes a whole-display gathered block apart into its rows', () => {
+    expect(displayLines('\\begin{gathered} a = 1 \\\\ \\frac{b}{2} = \\left( 2 \\\\ 3 \\right) \\\\[4pt] c \\end{gathered}')).toEqual([
+      'a = 1',
+      '\\frac{b}{2} = \\left( 2 \\\\ 3 \\right)',
+      'c',
+    ]);
+  });
+
+  it('keeps nested environments, aligned blocks and part-display gathered whole', () => {
+    expect(displayLines('\\begin{gathered} \\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix} \\\\ x \\end{gathered}')).toEqual([
+      '\\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix}',
+      'x',
+    ]);
+    for (const tex of [
+      '\\begin{aligned} a &= 1 \\\\ b &= 2 \\end{aligned}',
+      'x = \\begin{gathered} a \\\\ b \\end{gathered}',
+      '\\begin{gathered} a \\end{gathered} + \\begin{gathered} b \\end{gathered}',
+    ]) {
+      expect(displayLines(tex)).toEqual([tex]);
+    }
+  });
+});
+
+describe('displayRows', () => {
+  it('marks a line whose separator asked for extra room', () => {
+    expect(displayRows('\\begin{gathered} a \\\\ b \\\\[6pt] c \\end{gathered}')).toEqual([
+      { tex: 'a', spaced: false },
+      { tex: 'b', spaced: false },
+      { tex: 'c', spaced: true },
+    ]);
+  });
+});
+
+describe('alignedRows', () => {
+  it('splits a whole aligned block into rows at the &', () => {
+    expect(alignedRows('\\begin{aligned} x^2 &= \\frac{a}{b} \\\\ &\\quad + \\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix} \\\\[4pt] t &= 3 \\end{aligned}')).toEqual([
+      ['x^2', '= \\frac{a}{b}'],
+      ['', '\\quad + \\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix}'],
+      ['t', '= 3', true],
+    ]);
+  });
+
+  it('keeps a row with no & as all left of the alignment point', () => {
+    expect(alignedRows('\\begin{aligned} a = 1 \\\\ b &= 2 \\end{aligned}')).toEqual([
+      ['a = 1', ''],
+      ['b', '= 2'],
+    ]);
+  });
+
+  it('refuses two column pairs, and anything that is not one whole aligned block', () => {
+    for (const tex of [
+      '\\begin{aligned} a &= 1 & b &= 2 \\end{aligned}',
+      'x = \\begin{aligned} a &= 1 \\end{aligned}',
+      '\\begin{aligned} a &= 1 \\end{aligned} + \\begin{aligned} b &= 2 \\end{aligned}',
+      '\\begin{gathered} a \\end{gathered}',
+    ]) {
+      expect(alignedRows(tex)).toBeNull();
+    }
   });
 });

@@ -370,7 +370,7 @@ export const coordinateGeometry: Course = {
               ),
               grid(6, [segment(-3, -2, 1, 2), line(-1, -1)], [{ x: -3, y: -2 }, { x: 1, y: 2 }, { x: -1, y: 0 }], 'A segment and its perpendicular bisector through the midpoint'),
               prose('For $A(-3, -2)$ and $B(1, 2)$, the recipe is three steps: the midpoint, the gradient, then $c$ from the midpoint.'),
-              maths('\\begin{aligned} M &= (-1, 0) \\\\ m_{AB} &= \\tfrac{4}{4} = 1, \\quad m = -1 \\\\ 0 &= -1 \\times (-1) + c, \\quad c = -1 \\end{aligned}'),
+              maths('\\begin{aligned} M &= (-1, 0) \\\\ m_{AB} &= \\tfrac{4}{4} = 1, \\quad m = -1 \\\\ 0 &= -1 \\times (-1) + c \\\\ c &= -1 \\end{aligned}'),
               prose('So the bisector is $y = -x - 1$. Every point on it is the same distance from $A$ as from $B$.'),
             ),
             ask('coord-bisector-flow'),
@@ -451,7 +451,7 @@ export const coordinateGeometry: Course = {
               prose(
                 'Completing the square on $x$ and on $y$, as in Quadratics, brings back the centre and radius. Halve the coefficient for each bracket, and take its square away again:',
               ),
-              maths('\\begin{aligned} (x - 3)^2 - 9 + (y + 2)^2 - 4 &= 12 \\\\ (x - 3)^2 + (y + 2)^2 &= 25 \\end{aligned}'),
+              maths('\\begin{gathered} \\begin{aligned} x^2 - 6x &= (x - 3)^2 - 9 \\\\ y^2 + 4y &= (y + 2)^2 - 4 \\end{aligned} \\\\ (x - 3)^2 + (y + 2)^2 \\\\ = 12 + 9 + 4 = 25 \\end{gathered}'),
             ),
             ask('coord-complete-steps'),
             ask('coord-expanded-tiles'),
@@ -640,7 +640,7 @@ export const coordinateGeometry: Course = {
                 'When several lines share a gradient, there is a shortcut. For $y = mx + c$ and $x^2 + y^2 = r^2$ the quadratic is $(1 + m^2)x^2 + 2mcx + c^2 - r^2 = 0$, and its discriminant tidies up:',
               ),
               maths(
-                '\\begin{aligned} b^2 - 4ac &= 4m^2c^2 \\\\ &\\quad - 4(1 + m^2)(c^2 - r^2) \\\\ &= 4m^2c^2 - 4c^2 - 4m^2c^2 \\\\ &\\quad + 4r^2 + 4m^2r^2 \\\\ &= 4\\left[r^2(1 + m^2) - c^2\\right] \\end{aligned}',
+                '\\begin{aligned} & b^2 - 4ac \\\\ &= 4m^2c^2 \\\\ &\\quad - 4(1 + m^2)(c^2 - r^2) \\\\ &= 4m^2c^2 - 4m^2c^2 \\\\ &\\quad - 4c^2 + 4r^2 + 4m^2r^2 \\\\ &= 4\\left[r^2(1 + m^2) - c^2\\right] \\end{aligned}',
               ),
               prose(
                 'So the line touches when $c^2 = r^2(1 + m^2)$, cuts when $c^2$ is less and misses when it is more. With the centre at $(a, b)$, slide the picture so the centre is at the origin: the line becomes $y = mx + k$ with $k = ma + c - b$, and $k$ takes the place of $c$.',
@@ -669,7 +669,7 @@ export const coordinateGeometry: Course = {
               maths('\\begin{aligned} &(1 + m^2)x^2 + 2mcx \\\\ &\\quad + c^2 - r^2 = 0 \\end{aligned}'),
               prose('The discriminant is zero when $b^2 = 4ac$. Divide both sides by $4$, multiply out, and the $m^2c^2$ on each side cancels:'),
               maths(
-                '\\begin{aligned} (2mc)^2 &= 4(1 + m^2)(c^2 - r^2) \\\\ m^2c^2 &= (1 + m^2)(c^2 - r^2) \\\\ m^2c^2 &= c^2 + m^2c^2 - r^2 - m^2r^2 \\\\ 0 &= c^2 - r^2 - m^2r^2 \\end{aligned}',
+                '\\begin{aligned} (2mc)^2 &= 4(1 + m^2)(c^2 - r^2) \\\\ m^2c^2 &= (1 + m^2)(c^2 - r^2) \\\\ m^2c^2 &= c^2 + m^2c^2 \\\\ &\\quad - r^2 - m^2r^2 \\\\ 0 &= c^2 - r^2 - m^2r^2 \\end{aligned}',
               ),
               prose('That leaves the **tangent condition**:'),
               maths('c^2 = r^2(1 + m^2)'),
@@ -738,7 +738,7 @@ export const coordinateGeometry: Course = {
               ),
               prose('If the circle comes multiplied out, complete the square first, as in Midpoints, Distances and Circles, to find $C$ and $r^2$. For $x^2 + y^2 - 2x - 4y - 4 = 0$, move the number across first:'),
               maths(
-                '\\begin{aligned} x^2 - 2x + y^2 - 4y &= 4 \\\\ (x - 1)^2 - 1 + (y - 2)^2 - 4 &= 4 \\\\ (x - 1)^2 + (y - 2)^2 &= 9 \\end{aligned}',
+                '\\begin{gathered} x^2 - 2x + y^2 - 4y = 4 \\\\ \\begin{aligned} x^2 - 2x &= (x - 1)^2 - 1 \\\\ y^2 - 4y &= (y - 2)^2 - 4 \\end{aligned} \\\\ (x - 1)^2 + (y - 2)^2 \\\\ = 4 + 1 + 4 = 9 \\end{gathered}',
               ),
               prose('So $C(1, 2)$ and $r^2 = 9$. For $P(4, 6)$, $CP^2 = 3^2 + 4^2 = 25$, more than $9$: two tangents.'),
             ),
@@ -987,7 +987,7 @@ export const coordinateGeometry: Course = {
               maths('\\begin{aligned} -1 &= 3 \\times 3 + c \\\\ c &= -10 \\end{aligned}'),
               prose('So the chord is $y = 3x - 10$. When the circle comes multiplied out, complete the square first to find its centre. For $x^2 + y^2 - 4x + 2y - 20 = 0$, move the number across first:'),
               maths(
-                '\\begin{aligned} x^2 - 4x + y^2 + 2y &= 20 \\\\ (x - 2)^2 - 4 + (y + 1)^2 - 1 &= 20 \\\\ (x - 2)^2 + (y + 1)^2 &= 25 \\end{aligned}',
+                '\\begin{gathered} x^2 - 4x + y^2 + 2y = 20 \\\\ \\begin{aligned} x^2 - 4x &= (x - 2)^2 - 4 \\\\ y^2 + 2y &= (y + 1)^2 - 1 \\end{aligned} \\\\ (x - 2)^2 + (y + 1)^2 \\\\ = 20 + 4 + 1 = 25 \\end{gathered}',
               ),
               prose('The centre is $C(2, -1)$, and every fact then works from there.'),
             ),
@@ -1044,7 +1044,7 @@ export const coordinateGeometry: Course = {
                 'When the circle comes multiplied out, complete the square first, as in Midpoints, Distances and Circles, to find the centre and $r^2$. After that every fact works as before. For $x^2 + y^2 - 2x - 2y - 8 = 0$, move the number across first:',
               ),
               maths(
-                '\\begin{aligned} x^2 - 2x + y^2 - 2y &= 8 \\\\ (x - 1)^2 - 1 + (y - 1)^2 - 1 &= 8 \\\\ (x - 1)^2 + (y - 1)^2 &= 10 \\end{aligned}',
+                '\\begin{gathered} x^2 - 2x + y^2 - 2y = 8 \\\\ \\begin{aligned} x^2 - 2x &= (x - 1)^2 - 1 \\\\ y^2 - 2y &= (y - 1)^2 - 1 \\end{aligned} \\\\ (x - 1)^2 + (y - 1)^2 \\\\ = 8 + 1 + 1 = 10 \\end{gathered}',
               ),
               prose('That is the same circle as above: centre $(1, 1)$ and $r^2 = 10$.'),
             ),

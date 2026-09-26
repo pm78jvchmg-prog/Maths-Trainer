@@ -130,8 +130,8 @@ export const advancedProbability: Level = {
         ),
         teach(
           prose('**Weigh by the evidence.** A bag holds 2 fair coins and 1 two-headed coin. One is taken at random and tossed twice: heads both times. Multiply along each path:'),
-          maths('P(\\text{two-headed and 2 heads}) = \\frac{1}{3} \\times 1 = \\frac{1}{3}'),
-          maths('P(\\text{fair and 2 heads}) = \\frac{2}{3} \\times \\frac{1}{4} = \\frac{1}{6}'),
+          maths('P(\\text{two-headed, 2 heads}) = \\frac{1}{3} \\times 1 = \\frac{1}{3}'),
+          maths('P(\\text{fair, 2 heads}) = \\frac{2}{3} \\times \\frac{1}{4} = \\frac{1}{6}'),
           prose('Given the heads, only these two paths are left, in the ratio $2 : 1$:'),
           maths('P(\\text{two-headed}) = \\frac{2}{3}'),
           prose('The trap is $\\tfrac{1}{3}$, which ignores the tosses. The chance that the next toss is heads too uses the new weights:'),

@@ -2007,7 +2007,7 @@ export const integration: Course = {
               ),
               maths('3x + 5 = 3(x + 1) + 2'),
               prose('Now divide each part by $(x + 1)^{2}$:'),
-              maths('\\begin{aligned} \\frac{3x + 5}{(x + 1)^{2}} &= \\frac{3(x + 1)}{(x + 1)^{2}} + \\frac{2}{(x + 1)^{2}} \\\\ &= \\frac{3}{x + 1} + \\frac{2}{(x + 1)^{2}} \\end{aligned}'),
+              maths('\\begin{aligned} & \\frac{3x + 5}{(x + 1)^{2}} \\\\ &= \\frac{3(x + 1)}{(x + 1)^{2}} + \\frac{2}{(x + 1)^{2}} \\\\ &= \\frac{3}{x + 1} + \\frac{2}{(x + 1)^{2}} \\end{aligned}'),
               prose(
                 'The first part integrates to $3\\ln|x + 1|$. The second is a power, $2(x + 1)^{-2}$: raise the index to $-1$ and divide by $-1$.',
               ),

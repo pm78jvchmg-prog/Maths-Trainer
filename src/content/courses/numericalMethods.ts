@@ -595,7 +595,7 @@ export const numericalMethods: Course = {
                 'Close to a root Newton-Raphson is fast: the number of correct decimal places roughly doubles each step. Three or four steps from a sensible start usually settle a root to four places.',
               ),
               prose('Carrying on from $2.1$, the root being $2.094551\\ldots$, with how far out each step is beside it:'),
-              working('x_1 &= 2.1 & &0.005', 'x_2 &= 2.094568 & &0.00002', 'x_3 &= 2.094551 & &0.0000000002'),
+              working('x_1 &= 2.1 & &0.005', 'x_2 &= 2.094568 & &0.00002', 'x_3 &= 2.094551 & &2 \\times 10^{-10}'),
             ),
             ask('numer-newton-formula-tiles', 2),
             ask('numer-newton-tree', 2),
@@ -1283,7 +1283,7 @@ export const numericalMethods: Course = {
               prose(
                 'When $f$ has $y$ in it as well, each gradient uses the $y$ the last step reached. $\\frac{dy}{dx} = x + y$ with $y = 1$ when $x = 0$, estimating $y(1)$ with $h = 0.5$: $\\frac{1 - 0}{0.5} = 2$ steps, so the answer is $y_2$.',
               ),
-              working('f(0, 1) &= 0 + 1 = 1', 'y_1 &= 1 + 0.5 \\times 1 = 1.5', 'f(0.5, 1.5) &= 0.5 + 1.5 = 2', 'y_2 &= 1.5 + 0.5 \\times 2 = 2.5'),
+              working('f(0, 1) &= 0 + 1 = 1', 'y_1 &= 1 + 0.5 \\times 1 = 1.5', 'f(0.5, 1.5) &= 0.5 + 1.5 = 2', 'y_2 &= 1.5 + 0.5 \\times 2', '&= 2.5'),
               prose('So $y(1) \\approx 2.5$. The next lesson, When f Has y in It, takes this further.'),
             ),
             ask('numer-euler-count-flow'),

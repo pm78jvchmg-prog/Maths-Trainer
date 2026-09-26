@@ -48,7 +48,7 @@ export const level17: Level = {
           ),
           display('\\overrightarrow{PF} = \\begin{pmatrix} 2 \\\\ 2 \\\\ 4 \\end{pmatrix} - \\begin{pmatrix} 4 \\\\ 1 \\\\ 4 \\end{pmatrix} = \\begin{pmatrix} -2 \\\\ 1 \\\\ 0 \\end{pmatrix}'),
           prose('It checks out: its scalar product with the direction is zero.'),
-          stacked('(-2)(1) + (1)(2) + (0)(2)', '= -2 + 2 + 0 = 0'),
+          stacked('(-2)(1) + 1(2) + 0(2)', '= -2 + 2 + 0 = 0'),
           prose('If that check fails, a sign has slipped somewhere in finding $t$.'),
         ),
         ask('vdist-foot-vector'),
@@ -143,10 +143,14 @@ export const level17: Level = {
       slides: [
         teach(
           prose(
-            'Parallel planes share a normal. Written with the **same** $\\mathbf{n}$, as $\\mathbf{r} \\cdot \\mathbf{n} = d_1$ and $\\mathbf{r} \\cdot \\mathbf{n} = d_2$, they are this far apart:',
+            'Parallel planes share a normal. Written with the **same** $\\mathbf{n}$,',
           ),
+          display('\\mathbf{r} \\cdot \\mathbf{n} = d_1 \\qquad \\mathbf{r} \\cdot \\mathbf{n} = d_2'),
+          prose('they are this far apart:'),
           display('\\text{distance} = \\frac{|d_1 - d_2|}{|\\mathbf{n}|}'),
-          prose('For $x + 2y + 2z = 3$ and $x + 2y + 2z = 15$:'),
+          prose('For the planes'),
+          display('x + 2y + 2z = 3 \\qquad x + 2y + 2z = 15'),
+          prose('that is'),
           display('\\frac{|3 - 15|}{3} = \\frac{12}{3} = 4'),
           prose(
             'If the second plane is $2x + 4y + 4z = 30$, divide it by $2$ first, to $x + 2y + 2z = 15$. Comparing $3$ with $30$ would be comparing different normals.',
@@ -198,7 +202,7 @@ export const level17: Level = {
             'y\\colon \\; {0(1) - 1(1) = -1}',
             'z\\colon \\; {1(0) - (-2)(1) = 2}',
           ),
-          display('\\mathbf{n} = \\left(-2, -1, 2\\right), \\quad |\\mathbf{n}| = 3'),
+          display('\\mathbf{n} = \\left(-2, -1, 2\\right) \\qquad |\\mathbf{n}| = 3'),
         ),
         ask('vdist-common-normal'),
         askAfter(
@@ -235,7 +239,8 @@ export const level17: Level = {
           ),
           stacked(
             '1(\\lambda - 3) + 2(2\\lambda - 1) + 2(2\\lambda - 2) = 0',
-            '\\lambda = 1, \\quad F = \\left(2, 2, 4\\right)',
+            '\\lambda = 1',
+            'F = \\left(2, 2, 4\\right)',
             '\\overrightarrow{CF} = \\left(-2, 1, 0\\right)',
             '\\left|\\overrightarrow{CF}\\right| = \\sqrt{5}',
           ),

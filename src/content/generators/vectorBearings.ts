@@ -34,6 +34,9 @@ const pad = (b: number) => (b < 0 ? `${b}` : String(b).padStart(3, '0'));
 /** A bearing as the learner reads it: `045^\circ`. */
 const brg = (b: number) => `${pad(b)}^\\circ`;
 
+/** An angle turned through, not a bearing: `45^\circ`. */
+const dg = (a: number) => `${a}^\\circ`;
+
 /** A bank or option list of bearings, smallest first. */
 const byValue = (values: number[]) => [...values].sort((p, q) => p - q);
 
@@ -364,7 +367,7 @@ const compass: Generator<CompassParams> = {
       steps.push({
         text: `This asks the other way: from the ${x} back to the ${y}, which is the opposite direction, $180^\\circ$ round.`,
       });
-      steps.push({ tex: `${out < 180 ? `${out} + 180` : `${out} - 180`} = ${pad(mod360(out + 180))}` });
+      steps.push({ tex: `${brg(out)} ${out < 180 ? '+' : '-'} 180^\\circ = ${brg(mod360(out + 180))}` });
       steps.push({ text: `So the bearing is $${brg(mod360(out + 180))}$.` });
     } else {
       steps.push({ text: `So the bearing is $${brg(out)}$.` });
@@ -419,14 +422,14 @@ const read: Generator<ReadParams> = {
       steps.push(
         side > 0
           ? { text: `The angle is already clockwise from north, so the bearing is $${brg(b)}$.` }
-          : { text: `The angle is ${a}° anticlockwise from north. Clockwise, that is the rest of the full turn:` },
+          : { text: `The angle is $${dg(a)}$ anticlockwise from north. Clockwise, that is the rest of the full turn:` },
       );
-      if (side < 0) steps.push({ tex: `360 - ${a} = ${b}` });
+      if (side < 0) steps.push({ tex: `360^\\circ - ${dg(a)} = ${brg(b)}` });
     } else {
       steps.push({
         text: `Turning clockwise from north, ${COMPASS[ref]} is at $${brg(base)}$. The angle turns ${side > 0 ? 'on, clockwise' : 'back, anticlockwise'}, from there:`,
       });
-      steps.push({ tex: `${base} ${side > 0 ? '+' : '-'} ${a} = ${b}` });
+      steps.push({ tex: `${brg(base)} ${side > 0 ? '+' : '-'} ${dg(a)} = ${brg(b)}` });
     }
     steps.push({ text: `So the bearing of $B$ from $A$ is $${brg(b)}$.` });
     return steps;
@@ -487,14 +490,14 @@ const turn: Generator<TurnParams> = {
     const right = turned(params);
     const steps: SolutionStep[] = [
       { text: `Bearings grow clockwise, so a clockwise turn adds and an anticlockwise turn takes away.` },
-      { tex: `${start} ${cw ? '+' : '-'} ${t} = ${raw}` },
+      { tex: `${brg(start)} ${cw ? '+' : '-'} ${dg(t)} = ${brg(raw)}` },
     ];
     if (raw >= 360) {
       steps.push({ text: 'That has gone past north, a full turn. Take $360^\\circ$ off:' });
-      steps.push({ tex: `${raw} - 360 = ${right}` });
+      steps.push({ tex: `${brg(raw)} - 360^\\circ = ${brg(right)}` });
     } else if (raw < 0) {
       steps.push({ text: 'That has gone back past north. Add a full turn, $360^\\circ$:' });
-      steps.push({ tex: `${raw} + 360 = ${right}` });
+      steps.push({ tex: `${brg(raw)} + 360^\\circ = ${brg(right)}` });
     }
     steps.push({ text: `The new bearing is $${brg(right)}$.` });
     return steps;
@@ -562,7 +565,7 @@ const back: Generator<BackParams> = {
       b < 180
         ? { text: `$${brg(b)}$ is less than $180^\\circ$, so add $180^\\circ$:` }
         : { text: `$${brg(b)}$ is more than $180^\\circ$, so take $180^\\circ$ away (adding would go past $360^\\circ$):` },
-      { tex: b < 180 ? `${b} + 180 = ${right}` : `${b} - 180 = ${right}` },
+      { tex: `${brg(b)} ${b < 180 ? '+' : '-'} 180^\\circ = ${brg(right)}` },
       { text: `The bearing of $${p}$ from $${q}$ is $${brg(right)}$.` },
     ];
   },
@@ -1231,7 +1234,7 @@ const home: Generator<HomeParams> = {
       { tex: '\\alpha = 45^\\circ' },
       { text: `Heading ${SIGN_WORDS[quadOf(e, n)]}, the bearing of the end from the start is $${brg(out)}$.` },
       { text: 'Going back is the opposite direction, $180^\\circ$ round:' },
-      { tex: out < 180 ? `${out} + 180 = ${pad(right)}` : `${out} - 180 = ${pad(right)}` },
+      { tex: `${brg(out)} ${out < 180 ? '+' : '-'} 180^\\circ = ${brg(right)}` },
       { text: `So it heads back on $${brg(right)}$, for $${k}\\sqrt{2}$ km.` },
     ];
   },

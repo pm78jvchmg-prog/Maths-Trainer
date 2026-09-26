@@ -84,6 +84,12 @@ function affTex(c: number, k: number, sym: string): string {
   return `${c} ${k < 0 ? '-' : '+'} ${size}${sym}`;
 }
 
+/** `3k + 2`, `-k - 5`: an unknown's term first, the order a substitution leaves it in. */
+function kFirstTex(c: number, k: number): string {
+  const term = k === 1 ? 'k' : k === -1 ? '-k' : `${k}k`;
+  return c === 0 ? term : `${term} ${c < 0 ? '-' : '+'} ${Math.abs(c)}`;
+}
+
 /**
  * `2x - y + kz`, as written by hand, dropping a zero coefficient. A string
  * coefficient is an unknown written in front of its letter.
@@ -125,7 +131,9 @@ function substituteTex(n: Vec, entries: string[]): string {
     const entry = entries[i];
     const numeric = !Number.isNaN(Number(entry));
     const value =
-      numeric && (size !== '' || Number(entry) < 0 || (c < 0 && out === '' && Number(entry) === 0)) ? `(${entry})` : entry;
+      numeric && (size !== '' || (Number(entry) < 0 && (out !== '' || c < 0)) || (c < 0 && out === '' && Number(entry) === 0))
+        ? `(${entry})`
+        : entry;
     const sign = c < 0 ? '-' : out === '' ? '' : '+';
     out += out === '' ? `${sign}${size}${value}` : ` ${sign} ${size}${value}`;
   });
@@ -427,7 +435,7 @@ function solveTwoSteps(e1: Equation2, e2: Equation2, names: [string, string], va
     ];
     if (scaledShown.length > 0) {
       steps.push(
-        { text: `${text}, so $${u}$ cancels. The multiplied equations:` },
+        { text: `${text}, so $${u}$ cancels. ${scaledShown.length > 1 ? 'The multiplied equations:' : 'The multiplied equation:'}` },
         ...scaledShown,
         { text: e1[0] * e2[0] < 0 ? 'Adding:' : 'Subtracting:' },
       );
@@ -534,7 +542,7 @@ const vplxPlanesFlow: Generator<PlanesFlowParams> = {
       namedPlane(1, n1, d1),
       namedPlane(2, n2, d2),
     ],
-    subject: `\\mathbf{n}_1 = ${colTex(n1)}, \\quad \\mathbf{n}_2 = ${colTex(n2)}`,
+    subject: `\\mathbf{n}_1 = ${colTex(n1)} \\qquad \\mathbf{n}_2 = ${colTex(n2)}`,
     steps: [
       {
         id: 'normals',
@@ -994,7 +1002,7 @@ function meetAngleSolution(params: MeetAngleParams) {
     { text: 'Where they meet, $\\mathbf{a} \\cdot \\mathbf{n} + t\\,\\mathbf{b} \\cdot \\mathbf{n} = d$:' },
     { tex: `${affTex(an, bn, 't')} = ${d}` },
     { tex: solvedForTex(bn, 't', d - an, `t = ${t}`) },
-    { tex: `\\begin{aligned} &${colTex(a)} + ${paren(t)}${colTex(b)} \\\\ &= ${colTex(P)} \\end{aligned}` },
+    { tex: `\\begin{aligned} &${colTex(a)} ${t < 0 ? '-' : '+'} ${Math.abs(t) === 1 ? '' : Math.abs(t)}${colTex(b)} \\\\ &= ${colTex(P)} \\end{aligned}` },
     { text: `The lengths are $|\\mathbf{b}| = ${rootTex(B)}$ and $|\\mathbf{n}| = ${rootTex(N)}$.` },
     { tex: `\\sin\\theta = ${sinTail(Math.abs(bn), B * N, cls)}` },
     { text: `So they meet at $${point3Tex(P)}$, at $\\theta = ${theta}^\\circ$.` },
@@ -1171,7 +1179,7 @@ const vplxLineInPlane: Generator<InPlaneParams> = {
     const entries = n.map((x, i) => (i === pos ? 'k' : `${x}`));
     const rest = dotOf(b, n) - b[pos] * n[pos];
     const put = substituteTex(b, entries);
-    const collected = affTex(rest, b[pos], 'k');
+    const collected = kFirstTex(rest, b[pos]);
     return [
       { text: 'The line runs along the plane, so its direction is perpendicular to the normal, $\\mathbf{b} \\cdot \\mathbf{n} = 0$:' },
       ...(put === collected ? [] : [{ tex: `${put} = 0` }]),
@@ -1507,12 +1515,14 @@ const vplxSingularK: Generator<SingularKParams> = {
     const c = crossOf(n2, n3);
     const entries = n1.map((x, i) => (i === pos ? 'k' : `${x}`));
     const rest = singularRest(params);
+    const put = substituteTex(c, entries);
+    const collected = kFirstTex(rest, c[pos]);
     return [
       { text: 'They fail to meet at a single point when the determinant of the normals is zero. First $\\mathbf{n}_2 \\times \\mathbf{n}_3$:' },
       ...crossSteps(n2, n3),
       { text: 'Then its scalar product with $\\mathbf{n}_1$, which holds $k$, set to zero:' },
-      { tex: `${substituteTex(c, entries)} = 0` },
-      { tex: `${affTex(rest, c[pos], 'k')} = 0 \\implies k = ${n1[pos]}` },
+      ...(put === collected ? [] : [{ tex: `${put} = 0` }]),
+      { tex: `${collected} = 0 \\implies k = ${n1[pos]}` },
     ];
   },
 };
@@ -1808,8 +1818,8 @@ const vplxConfigFlow: Generator<ConfigParams> = {
       steps.push({
         text:
           config === 'three-parallel'
-            ? 'All three normals are multiples of one normal, and no equation is a multiple of another constant included, so these are three different parallel planes.'
-            : 'Two normals are multiples of each other, and those two equations are not multiples constant included: two parallel planes. The third normal is not a multiple, so that plane cuts both.',
+            ? 'All three normals are multiples of one normal, and no equation is a multiple of another, constant included, so these are three different parallel planes.'
+            : 'Two normals are multiples of each other, and those two equations are not multiples, constant included: two parallel planes. The third normal is not a multiple, so that plane cuts both.',
       });
       return steps;
     }

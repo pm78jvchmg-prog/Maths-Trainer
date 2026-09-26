@@ -843,11 +843,12 @@ const angleChoice: Generator<AngleParams> = {
     return [
       { text: 'First the acute angle with the $x$ axis, from the sizes of the components.' },
       { tex: `\\tan\\alpha = \\frac{${B}}{${A}}` },
-      { tex: `\\alpha = \\tan^{-1}(\\tfrac{${B}}{${A}}) = ${alpha.toFixed(1)}^\\circ` },
+      { tex: `\\alpha = \\tan^{-1}\\left(\\tfrac{${B}}{${A}}\\right) \\approx ${alpha.toFixed(1)}^\\circ` },
       {
         text: `The vector points ${a > 0 ? 'right' : 'left'} and ${b > 0 ? 'up' : 'down'}, so $${quadrantRule(a, b)}$.`,
       },
-      { tex: `\\theta = ${fullAngle(a, b).toFixed(1)}^\\circ \\approx ${Math.round(fullAngle(a, b))}^\\circ` },
+      { tex: `\\theta \\approx ${fullAngle(a, b).toFixed(1)}^\\circ` },
+      { text: `To the nearest degree, $\\theta = ${Math.round(fullAngle(a, b))}^\\circ$.` },
     ];
   },
 };
@@ -1246,13 +1247,13 @@ const add3: Generator<Add3Params> = {
     const { p, q, a, b } = params;
     const r = combined3(params);
     const line = (at: number) =>
-      `${UNITS[at]}: \\; ${p === 1 ? '' : `${p} \\times `}${br(a[at])} ${q < 0 ? '-' : '+'} ${Math.abs(q) === 1 ? '' : `${Math.abs(q)} \\times `}${br(b[at])} = ${r[at]}`;
+      `${UNITS[at]}: \\; ${p === 1 ? `${a[at]}` : `${p} \\times ${br(a[at])}`} ${q < 0 ? '-' : '+'} ${Math.abs(q) === 1 ? '' : `${Math.abs(q)} \\times `}${br(b[at])} = ${r[at]}`;
     return [
       { text: 'Exactly as in two dimensions: each component on its own, with $\\mathbf{k}$ as a third.' },
       { tex: line(0) },
       { tex: line(1) },
       { tex: line(2) },
-      { tex: `= ${vecTex(r)}` },
+      { tex: `${scaledName(p, '\\mathbf{a}', true)} ${scaledName(q, '\\mathbf{b}', false)} = ${vecTex(r)}` },
     ];
   },
 };

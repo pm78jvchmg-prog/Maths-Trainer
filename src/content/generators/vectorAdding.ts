@@ -1608,11 +1608,15 @@ const scalarUnknown: Generator<ScalarUnknownParams> = {
     const w = scalarUnknownW(params);
     const op = minus ? '-' : '+';
     const undo = minus ? '+' : '-';
+    // `k` and `-k`, never `1k` or `-1k`; with a coefficient of 1 there is nothing to divide by.
+    const ku = u[0] === 1 ? 'k' : u[0] === -1 ? '-k' : `${u[0]}k`;
+    const divide =
+      u[0] === 1 ? [] : u[0] === -1 ? [{ tex: `k = ${k}` }] : [{ tex: `k = \\frac{${u[0] * k}}{${u[0]}} = ${k}` }];
     return [
       { text: 'Match the top entries: that is one equation in $k$.' },
-      { tex: `${u[0]}k ${op} ${br(v[0])} = ${w[0]}` },
-      { tex: `${u[0]}k = ${w[0]} ${undo} ${br(v[0])} = ${u[0] * k}` },
-      { tex: `k = \\frac{${u[0] * k}}{${u[0]}} = ${k}` },
+      { tex: `${ku} ${op} ${br(v[0])} = ${w[0]}` },
+      { tex: `${ku} = ${w[0]} ${undo} ${br(v[0])} = ${u[0] * k}` },
+      ...divide,
       { text: 'Check with the bottom entries: the same $k$ has to work there too.' },
       { tex: `${u[1]} \\times ${br(k)} ${op} ${br(v[1])} = ${w[1]}` },
     ];

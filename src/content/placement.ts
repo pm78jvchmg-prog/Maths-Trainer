@@ -65,7 +65,7 @@ export const NEW_COURSES: NewCourse[] = [
     blurb: 'Curves traced by a parameter, and gradients of curves that never say y =.',
     category: 'advanced-algebra',
     position: 26,
-    levels: ['pi-l1', 'pi-l2'],
+    levels: ['pi-l1', 'pi-l2', 'pi-l8', 'pi-l9', 'pi-l10', 'pi-l11'],
   },
   {
     id: 'differential-equations-basics',

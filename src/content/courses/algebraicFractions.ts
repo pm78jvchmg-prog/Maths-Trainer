@@ -23,11 +23,23 @@
  * Induction shows it straight after the sums of powers (`sq-l4`), whose own
  * lessons on it, with the split given, are no longer shown.
  *
+ * Levels 7 to 12 are files in `courses/algebraicFractions/`: rational
+ * equations in context, factorising to simplify, rearranging formulae with
+ * fractions and fractions within fractions stay on this card; partial
+ * fractions with higher powers and the turning points and ranges of rational
+ * functions are shown in Partial Fractions & Rational Functions.
+ *
  * Each level closes with a level check: fifteen questions, no teaching
  * slides, one attempt each.
  */
 import { plotSvg } from '../figures';
 import type { Block, Course, SlideRef } from '../types';
+import { level7 } from './algebraicFractions/level7';
+import { level8 } from './algebraicFractions/level8';
+import { level9 } from './algebraicFractions/level9';
+import { level10 } from './algebraicFractions/level10';
+import { level11 } from './algebraicFractions/level11';
+import { level12 } from './algebraicFractions/level12';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -1419,5 +1431,11 @@ export const algebraicFractions: Course = {
         ask('frac-within', 2),
       ],
     },
+    level7,
+    level8,
+    level9,
+    level10,
+    level11,
+    level12,
   ],
 };

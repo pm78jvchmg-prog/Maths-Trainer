@@ -42,53 +42,53 @@ import { windowFor } from './numberLine';
 
 /* ---------- display ---------- */
 
-const show = (tex: string): Block => ({ kind: 'display', tex });
+export const show = (tex: string): Block => ({ kind: 'display', tex });
 
 /** The inside of the bracket (x + c): x + 3, x - 2, or x. */
-function br(c: number): string {
+export function br(c: number): string {
   if (c === 0) return 'x';
   return c > 0 ? `x + ${c}` : `x - ${-c}`;
 }
 
 /** The bracket itself. */
-const pbr = (c: number): string => `(${br(c)})`;
+export const pbr = (c: number): string => `(${br(c)})`;
 
 /** x + c as a polynomial. */
-const lin = (c: number): Poly => [1, c];
+export const lin = (c: number): Poly => [1, c];
 
 /** (x + c)(x + d), multiplied out. */
-const quad = (c: number, d: number): Poly => mulPoly(lin(c), lin(d));
+export const quad = (c: number, d: number): Poly => mulPoly(lin(c), lin(d));
 
-const frac = (top: string, bottom: string): string => `\\frac{${top}}{${bottom}}`;
+export const frac = (top: string, bottom: string): string => `\\frac{${top}}{${bottom}}`;
 
 /** A number after another term, its sign always shown: + 4, - 3. */
-const signed = (n: number): string => (n < 0 ? `- ${-n}` : `+ ${n}`);
+export const signed = (n: number): string => (n < 0 ? `- ${-n}` : `+ ${n}`);
 
 /** A number as a factor or a substituted value, bracketed when negative. */
-const paren = (n: number): string => (n < 0 ? `(${n})` : `${n}`);
+export const paren = (n: number): string => (n < 0 ? `(${n})` : `${n}`);
 
 /** k over a bottom as a lone term: 3/(x + 1), or -3/(x + 1). */
-function fracTerm(k: number, bottom: string): string {
+export function fracTerm(k: number, bottom: string): string {
   return k < 0 ? `-${frac(String(-k), bottom)}` : frac(String(k), bottom);
 }
 
 /** The same after another term: + 3/(x + 1), or - 3/(x + 1). */
-function signedFracTerm(k: number, bottom: string): string {
+export function signedFracTerm(k: number, bottom: string): string {
   return k < 0 ? `- ${frac(String(-k), bottom)}` : `+ ${frac(String(k), bottom)}`;
 }
 
 /** A sum of numerators over bottoms, as the learner reads it. */
-function splitTex(parts: [number, string][]): string {
+export function splitTex(parts: [number, string][]): string {
   return parts.map(([k, bottom], i) => (i === 0 ? fracTerm(k, bottom) : signedFracTerm(k, bottom))).join(' ');
 }
 
 /** One term with its sign in front, for a tile that follows another. */
-function signedTerm(c: number, k: number): string {
+export function signedTerm(c: number, k: number): string {
   return c < 0 ? `- ${termTex(-c, k)}` : `+ ${termTex(c, k)}`;
 }
 
 /** Every non-zero term of p as tiles, the first unsigned and the rest signed. */
-function termTiles(p: Poly): string[] {
+export function termTiles(p: Poly): string[] {
   const n = p.length - 1;
   const out: string[] = [];
   p.forEach((c, i) => {
@@ -98,33 +98,33 @@ function termTiles(p: Poly): string[] {
 }
 
 /** k(x + c) as the learner reads it; the 1 and the bracket drop where they can. */
-function timesTex(k: number, inside: string): string {
+export function timesTex(k: number, inside: string): string {
   if (k === 1) return inside;
   if (k === -1) return `-(${inside})`;
   return `${k}(${inside})`;
 }
 
 /** A polynomial for the grader. Never displayed. */
-function polyMath(p: Poly): string {
+export function polyMath(p: Poly): string {
   const n = p.length - 1;
   const terms = p.map((c, i) => (c === 0 ? '' : `(${c})*x^(${n - i})`)).filter(Boolean);
   return terms.length === 0 ? '0' : `(${terms.join(' + ')})`;
 }
 
-function chain(...lines: string[]): string {
+export function chain(...lines: string[]): string {
   return `\\begin{aligned} ${lines.join(' \\\\ ')} \\end{aligned}`;
 }
 
 /* ---------- banks and options ---------- */
 
-const bare = (token: string): string => token.replace(/\s+/g, '');
+export const bare = (token: string): string => token.replace(/\s+/g, '');
 
 /**
  * A tiles or tree bank: every token the answer needs, as a multiset, plus the
  * distractors that differ from all of them. Sorted, so one question renders
  * one way (PITFALLS 3.10).
  */
-function tileBank(answer: string[], distractors: string[]): string[] {
+export function tileBank(answer: string[], distractors: string[]): string[] {
   const needed = new Set(answer.map(bare));
   const extras: string[] = [];
   for (const token of distractors) {
@@ -135,7 +135,7 @@ function tileBank(answer: string[], distractors: string[]): string[] {
 }
 
 /** Whole numbers near a value, nearest first, for topping up a bank whose slips collided. */
-function near(value: number, count: number): number[] {
+export function near(value: number, count: number): number[] {
   const out: number[] = [];
   for (let gap = 1; out.length < count; gap += 1) out.push(value + gap, value - gap);
   return out.slice(0, count);
@@ -147,7 +147,7 @@ function near(value: number, count: number): number[] {
  * built from a question's own numbers collide with its answers more often
  * than they look like they will.
  */
-function numberBank(answer: number[], slips: number[], spare = 3): string[] {
+export function numberBank(answer: number[], slips: number[], spare = 3): string[] {
   const needed = new Set(answer.map(String));
   const extras: string[] = [];
   for (const value of [...slips, ...answer.flatMap((v) => near(v, 6))]) {
@@ -163,13 +163,13 @@ function numberBank(answer: number[], slips: number[], spare = 3): string[] {
  * A steps bank: the value and its slips, de-duplicated and scattered by hash
  * rather than shuffled, so the same question renders one way.
  */
-function stepBank(value: string, ...slips: string[]): string[] {
+export function stepBank(value: string, ...slips: string[]): string[] {
   const out = [...new Set([value, ...slips])];
   return out.sort((a, b) => hashSeed(a) - hashSeed(b));
 }
 
 /** Four whole-number options: the answer and the first three distinct whole slips, topped up. */
-function intOptions(correct: number, slips: number[]): ChoiceOption[] {
+export function intOptions(correct: number, slips: number[]): ChoiceOption[] {
   const seen = new Set([correct]);
   const picked: number[] = [];
   for (const value of [...slips, ...near(correct, 12)]) {
@@ -188,7 +188,7 @@ function intOptions(correct: number, slips: number[]): ChoiceOption[] {
  * A native choice slide, the options turned by a hash of their labels so the
  * answer is not always first yet one question renders one way.
  */
-function choiceSlide(prompt: Block[], opts: ChoiceOption[]): Slide {
+export function choiceSlide(prompt: Block[], opts: ChoiceOption[]): Slide {
   const turn = hashSeed(opts.map((o) => o.tex).join('|')) % opts.length;
   const ordered = [...opts.slice(turn), ...opts.slice(0, turn)];
   return {
@@ -200,24 +200,24 @@ function choiceSlide(prompt: Block[], opts: ChoiceOption[]): Slide {
 }
 
 /** Flow branches turned by a hash of `key`, so the right one is not always first. */
-function turned<T>(items: T[], key: string): T[] {
+export function turned<T>(items: T[], key: string): T[] {
   const turn = hashSeed(key) % items.length;
   return [...items.slice(turn), ...items.slice(0, turn)];
 }
 
 /** Options with the right one first, de-duplicated by label and cut to four. */
-function firstFour(correct: string, ...wrong: string[]): ChoiceOption[] {
+export function firstFour(correct: string, ...wrong: string[]): ChoiceOption[] {
   return options({ tex: correct }, ...wrong.map((tex) => ({ tex }))).slice(0, 4);
 }
 
 /* ---------- sampling ---------- */
 
-function nonZero(rng: Rng, max: number): number {
+export function nonZero(rng: Rng, max: number): number {
   return rng.int(1, max) * rng.sign();
 }
 
 /** `count` distinct non-zero whole numbers in [-max, max], none of them in `avoid`. */
-function distinct(rng: Rng, count: number, max: number, avoid: number[] = []): number[] {
+export function distinct(rng: Rng, count: number, max: number, avoid: number[] = []): number[] {
   for (;;) {
     const out = Array.from({ length: count }, () => nonZero(rng, max));
     if (new Set(out).size === count && out.every((v) => !avoid.includes(v))) return out;
@@ -225,14 +225,14 @@ function distinct(rng: Rng, count: number, max: number, avoid: number[] = []): n
 }
 
 /** The largest whole number dividing every coefficient. */
-const contentOf = (p: Poly): number => p.reduce((g, c) => gcd(g, c), 0);
+export const contentOf = (p: Poly): number => p.reduce((g, c) => gcd(g, c), 0);
 
 /**
  * Whether top and bottom share a factor that cancels: a common whole-number
  * factor, or a common root. Every polynomial here is built from whole roots
  * or has none, so checking whole points is enough.
  */
-function sharesFactor(top: Poly, bottom: Poly): boolean {
+export function sharesFactor(top: Poly, bottom: Poly): boolean {
   if (gcd(contentOf(top), contentOf(bottom)) > 1) return true;
   for (let x = -30; x <= 30; x += 1) {
     if (valueAt(top, x) === 0 && valueAt(bottom, x) === 0) return true;
@@ -241,10 +241,10 @@ function sharesFactor(top: Poly, bottom: Poly): boolean {
 }
 
 /** The value a slider rests at before it is touched, which must not be the answer. */
-const restingOn = (min: number, max: number): number => min + Math.round((max - min) / 2);
+export const restingOn = (min: number, max: number): number => min + Math.round((max - min) / 2);
 
 /** The factorised form of (x + s)(x + t) times k, as the learner reads it. */
-function factorisedTex(k: number, ...cs: number[]): string {
+export function factorisedTex(k: number, ...cs: number[]): string {
   const brackets = cs.map(pbr).join('');
   if (k === 1) return brackets;
   if (k === -1) return `-${brackets}`;

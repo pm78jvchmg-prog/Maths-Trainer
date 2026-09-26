@@ -20,6 +20,24 @@
  * simple harmonic motion `ẍ = -ω²x`, its amplitude, period and greatest
  * speed, the phase form R cos(ωt - α), then damping `ẍ + kẋ + ω²x = 0` as
  * over-, critical and under-damping, and damped motion from its start.
+ * Level 7 solves numerically, starting from Numerical Methods' "Euler's
+ * Method" rather than repeating it: Euler on this course's models, where the
+ * estimates settle on the model's level unless the step is too long, the
+ * improved Euler method, the midpoint formula, a second-order equation split
+ * into two first-order ones with `z = dy/dx`, and how each error shrinks with h.
+ * Level 8, Families of Solutions, is shown with the first two levels in
+ * Differential Equations Basics: the general solution read as a family of
+ * curves, the member a point picks out, the gradient `dy/dx = f(x, y)` gives
+ * at a point, direction fields with their isoclines, and solutions followed
+ * through a field to an equilibrium.
+ * Level 9 goes back to separating the variables when the x side needs a
+ * technique from Integration: a top that is a multiple of the derivative of
+ * the bottom, partial fractions, tan, cot and sec², substitution and parts,
+ * each recapped with numbers before it is asked, then particular solutions.
+ * Level 10, "Models of Populations and Money", goes back to first order at
+ * A-level pace: continuous interest, savings with money paid in or out, a
+ * harvested population, a drug that halves in the blood, and a steady drip
+ * that settles at a level. It is shown in Differential Equations Basics.
  *
  * Integration and the exponential model are used here, not taught again:
  * `dy/dx = ky` read off a model belongs to Exponential Models' rate lesson,
@@ -29,6 +47,7 @@
  */
 import type { Block, Course, SlideRef } from '../types';
 import { plotSvg } from '../figures';
+import { fieldSvg } from '../generators/deFamilies';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -67,6 +86,9 @@ const tFactorLead: Block[] = [
 ];
 
 const figure = (options: Parameters<typeof plotSvg>[0]): Block => ({ kind: 'diagram', svg: plotSvg(options) });
+
+/** A direction field: a short segment at each whole point. */
+const field = (options: Parameters<typeof fieldSvg>[0]): Block => ({ kind: 'diagram', svg: fieldSvg(options) });
 
 export const differentialEquations: Course = {
   id: 'differential-equations',
@@ -1538,6 +1560,1194 @@ export const differentialEquations: Course = {
         ask('de-shm-phase-tan', 2),
         ask('de-damp-roots-tree', 2),
         ask('de-damp-graph', 2),
+      ],
+    },
+    {
+      id: 'de-l7',
+      title: 'Numerical Solutions',
+      lessons: [
+        {
+          id: 'de-l7-model',
+          title: 'Euler on a Model',
+          slides: [
+            teach(
+              prose(
+                "Euler's method is taught in Numerical Methods, Euler's Method: from a known point, walk a short step $h$ along the tangent.",
+              ),
+              working('y_{n+1} &= y_n + h\\,f(x_n, y_n)'),
+              prose('For $\\frac{dy}{dx} = x + y$ from $(0, 1)$, with $h = 0.5$:'),
+              working('f(0, 1) &= 0 + 1 = 1', 'y_1 &= 1 + 0.5 \\times 1', '&= 1.5'),
+              prose('This level runs it on the models of this course, in $t$, and then goes further.'),
+            ),
+            asking(
+              'de-num-model-tree',
+              1,
+              prose('A drink at 80°C cools in a room at 20°C. Its temperature, $x$°C after $t$ minutes, satisfies'),
+              display('\\frac{dx}{dt} = -0.2(x - 20)'),
+              prose('One step with $h = 2$: the bracket, the rate, $h$ times the rate, then add it on.'),
+              working('x_0 - 20 &= 80 - 20 = 60', '\\frac{dx}{dt} &= -0.2 \\times 60 = -12', '2 \\times (-12) &= -24', 'x_1 &= 80 - 24 = 56'),
+            ),
+            asking(
+              'de-num-model-recur',
+              1,
+              prose('Every step is the same sum, so collect it up once. With $h = 2$, $h$ times $-0.2$ is $-0.4$:'),
+              working('x_{n+1} &= x_n - 0.4(x_n - 20)', '&= x_n - 0.4x_n + 8', '&= 0.6x_n + 8'),
+              prose('Then each row is one multiplication and one addition. From $x_0 = 80$:'),
+              working('x_1 &= 0.6 \\times 80 + 8 = 56', 'x_2 &= 0.6 \\times 56 + 8 = 41.6'),
+              prose('$t = 4$ is two steps of $2$, so $x(4) \\approx 41.6$.'),
+            ),
+            ask('de-num-model-value'),
+            teach(
+              prose(
+                'Run on, the estimates settle. For the same drink with $h = 1$, $h$ times $-0.2$ is $-0.2$, and the step collects up as',
+              ),
+              working('x_{n+1} &= x_n - 0.2(x_n - 20)', '&= 0.8x_n + 4'),
+              prose('From $x_0 = 45$ the rows, to 2 decimal places, are'),
+              working('x_1 &= 40.00', 'x_2 &= 36.00', 'x_3 &= 32.80', 'x_4 &= 30.24'),
+              prose(
+                'The gap to $20$ is multiplied by $0.8$ each step, so it dies away: the estimates settle on $20.00$, where the rate is zero, as the exact solution does. In the table, type $0.8 \\times$ Ans $+ 4$ into the calculator once, then press $=$ for each row.',
+              ),
+              prose('A tank model reads the same way. For $\\frac{dx}{dt} = 6 - 0.2x$ at $x = 10$:'),
+              working('0.2 \\times 10 &= 2', '\\frac{dx}{dt} &= 6 - 2 = 4'),
+            ),
+            ask('de-num-model-iterate'),
+            ask('de-num-model-tree', 2),
+            ask('de-num-model-value+choice', 2),
+            teach(
+              prose('Too long a step spoils this. For $\\frac{dx}{dt} = -0.5(x - 20)$ with $h = 3$:'),
+              working('x_{n+1} &= x_n - 1.5(x_n - 20)', '&= -0.5x_n + 30'),
+              prose(
+                'From $40$ the estimates run $10$, $25$, $17.5$: the multiplier $-0.5$ flips the gap each step and halves it, so they overshoot $20$ and swing in. With $h = 5$ the multiplier is $-1.5$, and they swing further out each time: $40$, $-10$, $65$.',
+              ),
+              prose('The multiplier $m$ of $x_n$ decides it:'),
+              working('0 < m < 1 &: \\text{close in}', '-1 < m < 0 &: \\text{swing in}', 'm < -1 &: \\text{swing out}'),
+            ),
+            ask('de-num-model-flow'),
+            ask('de-num-model-iterate', 2),
+          ],
+          skillCheck: [ask('de-num-model-tree', 2), ask('de-num-model-iterate', 2), ask('de-num-model-value', 2)],
+        },
+        {
+          id: 'de-l7-improved',
+          title: 'The Improved Euler Method',
+          slides: [
+            teach(
+              prose(
+                "Euler takes the gradient at the start of a step and keeps it all the way. The **improved Euler method** averages it with the gradient at the end. That needs $y$ at the end first, so an Euler step predicts it:",
+              ),
+              working('k_1 &= f(x_r, y_r)', 'k_2 &= f(x_{r+1}, y_r + hk_1)', 'y_{r+1} &= y_r + \\tfrac{h}{2}(k_1 + k_2)'),
+              prose('Written as one formula:'),
+              working(
+                'y_{r+1} &= y_r + \\tfrac{h}{2}\\big[f(x_r, y_r)',
+                '&\\quad + f(x_{r+1},',
+                '&\\qquad y_r + hf(x_r, y_r))\\big]',
+              ),
+            ),
+            asking(
+              'de-num-heun-tree',
+              1,
+              prose('For $\\frac{dy}{dx} = x + y$ from $(0, 1)$ with $h = 0.2$:'),
+              working(
+                'k_1 &= f(0, 1) = 1',
+                'y_0 + hk_1 &= 1 + 0.2 \\times 1 = 1.2',
+                'k_2 &= f(0.2, 1.2) = 1.4',
+                'y_1 &= 1 + 0.1(1 + 1.4)',
+                '&= 1.24',
+              ),
+              prose('Euler alone stops at the prediction, $1.2$.'),
+            ),
+            ask('de-num-heun-tiles'),
+            ask('de-num-heun-value'),
+            teach(
+              prose(
+                'Two slips to avoid: $k_2$ is taken at the predicted $y$, not at $y_0$; and the sum of the gradients is multiplied by $\\frac{h}{2}$, not by $h$.',
+              ),
+              prose('For $\\frac{dy}{dx} = 2x - y$ from $(1, 3)$ with $h = 0.1$:'),
+              working(
+                'k_1 &= 2 - 3 = -1',
+                'y_0 + hk_1 &= 3 - 0.1 = 2.9',
+                'k_2 &= 2.2 - 2.9 = -0.7',
+                'y_1 &= 3 + 0.05(-1.7)',
+                '&= 2.915',
+              ),
+              prose('Taking $k_2$ at $y_0$ instead would give $f(1.1, 3) = -0.8$.'),
+            ),
+            ask('de-num-heun-flow'),
+            ask('de-num-heun-tree', 2),
+            ask('de-num-heun-value+choice', 2),
+            teach(
+              prose(
+                'How much better is it? $\\frac{dy}{dx} = x + y$ from $(0, 1)$ has the exact solution $y = 2e^{x} - x - 1$, as The Integrating Factor finds. At $x = 0.2$:',
+              ),
+              working('\\text{exact} &= 1.2428\\ldots', '\\text{Euler} &= 1.2', '\\text{improved} &= 1.24'),
+              prose(
+                'Euler is out by about $0.04$, the improved method by about $0.003$: averaging the two gradients follows the bend of the curve.',
+              ),
+            ),
+            ask('de-num-heun-tiles', 2),
+            ask('de-num-heun-flow', 2),
+          ],
+          skillCheck: [ask('de-num-heun-tree', 2), ask('de-num-heun-value', 2), ask('de-num-heun-flow', 2)],
+        },
+        {
+          id: 'de-l7-midpoint',
+          title: 'The Midpoint Formula',
+          slides: [
+            teach(
+              prose(
+                'The **midpoint formula** takes its gradient in the middle of a double step: from $y_{r-1}$, across $2h$, with the gradient at $x_r$.',
+              ),
+              display('y_{r+1} = y_{r-1} + 2h\\,f(x_r, y_r)'),
+              prose('It needs two values to begin. $y_0$ is given, and one Euler step finds $y_1$.'),
+            ),
+            asking(
+              'de-num-mid-tree',
+              1,
+              prose('For $\\frac{dy}{dx} = x + y$ from $(0, 1)$ with $h = 0.2$:'),
+              working('f(0, 1) &= 1', 'y_1 &= 1 + 0.2 \\times 1 = 1.2', 'f(0.2, 1.2) &= 1.4', 'y_2 &= 1 + 0.4 \\times 1.4', '&= 1.56'),
+            ),
+            ask('de-num-mid-tiles'),
+            ask('de-num-mid-value'),
+            teach(
+              prose("Each step after that starts from the row before last. In a table, each row's gradient, then the next $y$:"),
+              display(
+                '\\begin{array}{c|c|c|c} n & x_n & y_n & f(x_n, y_n) \\\\ \\hline 0 & 0 & 1 & 1 \\\\ 1 & 0.2 & 1.2 & 1.4 \\\\ 2 & 0.4 & 1.56 & 1.96 \\\\ 3 & 0.6 & 1.984 & \\end{array}',
+              ),
+              working('y_3 &= y_1 + 2h\\,f(x_2, y_2)', '&= 1.2 + 0.4 \\times 1.96', '&= 1.984'),
+              prose('The slip is to start from $y_2$: that is an Euler step twice as long.'),
+            ),
+            ask('de-num-mid-table'),
+            ask('de-num-mid-tree', 2),
+            ask('de-num-mid-value+choice', 2),
+            teach(
+              prose('Against the exact $y = 2e^{x} - x - 1$ at $x = 0.4$, with Euler taking two steps of $0.2$:'),
+              working('\\text{exact} &= 1.5836\\ldots', '\\text{Euler} &= 1.48', '\\text{midpoint} &= 1.56'),
+              prose(
+                'Like the improved method, the midpoint formula follows the bend far better than Euler, for one gradient a step.',
+              ),
+            ),
+            ask('de-num-mid-tiles', 2),
+            ask('de-num-mid-table', 2),
+          ],
+          skillCheck: [ask('de-num-mid-tree', 2), ask('de-num-mid-table', 2), ask('de-num-mid-value', 2)],
+        },
+        {
+          id: 'de-l7-second',
+          title: 'Second-Order Equations Step by Step',
+          slides: [
+            teach(
+              prose("Euler's method steps a first-order equation. A second-order one becomes two: call the gradient $z$."),
+              working('z &= \\frac{dy}{dx}', '\\frac{dz}{dx} &= \\frac{d^2y}{dx^2}'),
+              prose('For $\\frac{d^2y}{dx^2} + 3\\frac{dy}{dx} + 2y = x$, write $z$ in and keep $\\frac{dz}{dx}$ on the left:'),
+              working('\\frac{dz}{dx} + 3z + 2y &= x', '\\frac{dz}{dx} &= x - 3z - 2y'),
+              prose('So the pair is $\\frac{dy}{dx} = z$ and $\\frac{dz}{dx} = x - 3z - 2y$.'),
+            ),
+            ask('de-num-second-split'),
+            teach(
+              prose(
+                'Step both together, each from the same row: $y$ moves by $h$ times $z$, and $z$ by $h$ times $\\frac{dz}{dx} = f(x, y, z)$.',
+              ),
+              working('y_{r+1} &= y_r + hz_r', 'z_{r+1} &= z_r + h\\,f(x_r, y_r, z_r)'),
+              prose('With $y = 1$ and $\\frac{dy}{dx} = 0$ when $x = 0$, and $h = 0.1$:'),
+              working('f(0, 1, 0) &= 0 - 0 - 2 = -2', 'y_1 &= 1 + 0.1 \\times 0 = 1', 'z_1 &= 0 + 0.1 \\times (-2)', '&= -0.2'),
+            ),
+            asking(
+              'de-num-second-tree',
+              1,
+              prose('The second step starts from row 1:'),
+              working(
+                '\\frac{dz}{dx} &= f(0.1, 1, -0.2)',
+                '&= 0.1 + 0.6 - 2',
+                '&= -1.3',
+                'y_2 &= 1 + 0.1 \\times (-0.2)',
+                '&= 0.98',
+                'z_2 &= -0.2 + 0.1 \\times (-1.3)',
+                '&= -0.33',
+              ),
+            ),
+            ask('de-num-second-table'),
+            ask('de-num-second-value'),
+            teach(
+              prose('Both steps use row $r$: $y_{r+1}$ takes $z_r$, not the $z_{r+1}$ just found.'),
+              prose(
+                'If $\\frac{d^2y}{dx^2}$ has a number in front, divide by it first. For $2\\frac{d^2y}{dx^2} + 4\\frac{dy}{dx} + 6y = 2x$:',
+              ),
+              working('2\\frac{dz}{dx} &= 2x - 4z - 6y', '\\frac{dz}{dx} &= x - 2z - 3y'),
+            ),
+            ask('de-num-second-split', 2),
+            ask('de-num-second-tree', 2),
+            ask('de-num-second-value+choice', 2),
+            ask('de-num-second-table', 2),
+          ],
+          skillCheck: [ask('de-num-second-split', 2), ask('de-num-second-tree', 2), ask('de-num-second-table', 2)],
+        },
+        {
+          id: 'de-l7-accuracy',
+          title: 'Step Size and Accuracy',
+          slides: [
+            teach(
+              prose(
+                'An exact solution shows how good an estimate is. $\\frac{dy}{dx} = y - x^{2} + 2x$ with $y = 0$ when $x = 0$ has $y = x^{2}$, as an integrating factor finds (The Integrating Factor). Putting it back in checks it:',
+              ),
+              working('\\frac{d}{dx}(x^{2}) &= 2x', 'x^{2} - x^{2} + 2x &= 2x'),
+              prose('One step, $h = 0.2$, to $x = 0.2$, where the exact value is $0.04$. Euler gives $0$ and the improved method $0.036$. The error is the estimate minus the exact value:'),
+              working('\\text{Euler} &: 0 - 0.04 = -0.04', '\\text{improved} &: 0.036 - 0.04', '&= -0.004'),
+              prose('The improved estimate is closer: its error is smaller, ignoring the sign.'),
+            ),
+            ask('de-num-closer-flow'),
+            teach(
+              prose('Now halve the step. Euler with $h = 0.1$ takes two steps to $x = 0.2$:'),
+              working('y_1 &= 0 + 0.1 \\times 0 = 0', 'f(0.1, 0) &= -0.01 + 0.2', '&= 0.19', 'y_2 &= 0 + 0.1 \\times 0.19', '&= 0.019'),
+              prose(
+                "Its error is $-0.021$, about half of $-0.04$. The improved method with $h = 0.1$ gives $0.0389475$, an error of about $-0.001$: a quarter of $-0.004$.",
+              ),
+              working('\\text{Euler: error} &\\propto h', '\\text{improved: error} &\\propto h^2'),
+              prose(
+                "So an error of $0.8$ becomes about $0.4$ with Euler and about $0.2$ with the improved method. Read it backwards too: errors of $0.8$ then $0.2$ as $h$ halves is a quarter, so the error follows $h^2$.",
+              ),
+            ),
+            ask('de-num-halve-value'),
+            ask('de-num-ratio-slider'),
+            ask('de-num-order-choice'),
+            teach(
+              prose('From an estimate and the exact value, the next estimate can be foreseen. The exact $y(1)$ is $7$, and Euler with $h = 0.1$ gives $8.2$:'),
+              working('\\text{error} &= 8.2 - 7 = 1.2'),
+              prose('Halving $h$ to $0.05$ about halves it:'),
+              working('\\text{error} &\\approx 0.6', 'y(1) &\\approx 7 + 0.6 = 7.6'),
+              prose(
+                "Cutting $h$ to a third divides Euler's error by about $3$ and the improved method's by about $9$. Errors of $0.9$ then $0.1$ as $h$ goes from $0.3$ to $0.1$:",
+              ),
+              working('\\frac{0.9}{0.1} &= 9 = 3^2'),
+              prose('So that error follows $h^2$. The midpoint formula behaves like the improved method.'),
+            ),
+            ask('de-num-halve-value+choice', 2),
+            ask('de-num-closer-flow', 2),
+            ask('de-num-ratio-slider', 2),
+            ask('de-num-order-choice', 2),
+          ],
+          skillCheck: [ask('de-num-halve-value', 2), ask('de-num-closer-flow', 2), ask('de-num-order-choice', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('de-num-model-iterate', 2),
+        ask('de-num-heun-tree', 2),
+        ask('de-num-mid-table', 2),
+        ask('de-num-second-split', 2),
+        ask('de-num-halve-value', 2),
+        ask('de-num-model-flow', 2),
+        ask('de-num-heun-value', 2),
+        ask('de-num-mid-tree', 2),
+        ask('de-num-second-value', 2),
+        ask('de-num-order-choice', 2),
+        ask('de-num-model-value', 2),
+        ask('de-num-heun-flow', 2),
+        ask('de-num-mid-value', 2),
+        ask('de-num-second-table', 2),
+        ask('de-num-closer-flow', 2),
+      ],
+    },
+    {
+      id: 'de-l8',
+      title: 'Families of Solutions',
+      lessons: [
+        {
+          id: 'de-l8-family',
+          title: 'A Family of Curves',
+          slides: [
+            teach(
+              prose(
+                'Solving $\\frac{dy}{dx} = 2x$ gives $y = x^{2} + C$. That is not one curve but a **family**: one **member** for each value of $C$.',
+              ),
+              figure({
+                xMin: -2.5,
+                xMax: 2.5,
+                yMin: -3,
+                yMax: 9,
+                curves: [-2, 0, 2, 4].map((C) => ({ f: (x: number) => x * x + C })),
+                verticals: [{ x: 0, dashed: false }],
+                label: 'Four parabolas y = x squared + C, each the one below moved up by 2',
+              }),
+              prose(
+                'At $x = 0$, $x^{2} = 0$, so each member crosses the $y$-axis at $y = C$. From $C = 1$ to $C = 4$, every height goes up by $4 - 1 = 3$: $C$ is **added on**, and the curve **moves up** by $3$. From $C = 4$ back to $C = 1$ it moves down by $3$.',
+              ),
+            ),
+            ask('de-fam-read'),
+            ask('de-fam-effect'),
+            asking(
+              'de-fam-equation',
+              1,
+              prose('Every member satisfies the same equation. Differentiate $y = x^{3} + C$:'),
+              working('y &= x^{3} + C', '\\frac{dy}{dx} &= 3x^{2}'),
+              prose('$C$ differentiates to $0$, so whichever member you take, $\\frac{dy}{dx} = 3x^{2}$.'),
+            ),
+            teach(
+              prose(
+                'In $y = Ae^{x}$ the constant **multiplies**. From $A = 1$ to $A = 3$ every height is multiplied by $3 \\div 1 = 3$: the curve is **stretched** from the $x$-axis, scale factor $3$.',
+              ),
+              figure({
+                xMin: -2,
+                xMax: 1.5,
+                yMin: -0.5,
+                yMax: 10,
+                curves: [1, 2, 3].map((A) => ({ f: (x: number) => A * Math.exp(x) })),
+                verticals: [{ x: 0, dashed: false }],
+                label: 'Three curves y = A e to the x for A = 1, 2 and 3, crossing the y-axis at 1, 2 and 3',
+              }),
+              prose('At $x = 0$, $e^{0} = 1$, so $y = A$ there: $A$ is still where the member crosses the $y$-axis.'),
+            ),
+            asking(
+              'de-fam-gap-tree',
+              1,
+              prose('Two members of $y = x^{2} + C$ at $x = 3$:'),
+              working('C = 1&: \\; 9 + 1 = 10', 'C = 5&: \\; 9 + 5 = 14'),
+              prose('The gap is $14 - 10 = 4$, the change in $C$. Added on, the gap is the same at every $x$.'),
+            ),
+            asking(
+              'de-fam-equation',
+              2,
+              prose('With a multiplying constant, hide it inside $y$ again. For $y = Ae^{2x}$:'),
+              working('\\frac{dy}{dx} &= 2Ae^{2x}', '&= 2y'),
+              prose('The same trick for $y = Ax^{2}$ and $y = \\frac{C}{x}$:'),
+              working('\\frac{dy}{dx} &= 2Ax = \\frac{2y}{x}', '\\frac{dy}{dx} &= -\\frac{C}{x^{2}} = -\\frac{y}{x}'),
+            ),
+            ask('de-fam-read', 2),
+            teach(
+              prose(
+                'Multiplying, the gap between two members changes with $x$. For $y = Ax^{2}$, $A = 1$ and $A = 2$ are $9$ and $18$ at $x = 3$, a gap of $9$, but only $1$ and $2$ at $x = 1$.',
+              ),
+              prose(
+                'The family $y = \\frac{C}{x}$ stretches the same way. At $x = 2$, $C = 4$ gives $2$ and $C = 10$ gives $5$: a gap of $3$, and every height times $10 \\div 4$.',
+              ),
+              figure({
+                xMin: 0,
+                xMax: 5,
+                yMin: -0.5,
+                yMax: 6,
+                curves: [1, 2, 4].map((C) => ({ f: (x: number) => C / x })),
+                label: 'Three curves y = C over x for C = 1, 2 and 4, each further from the axes than the last',
+              }),
+            ),
+            ask('de-fam-effect', 2),
+            ask('de-fam-gap-tree', 2),
+          ],
+          skillCheck: [ask('de-fam-equation', 2), ask('de-fam-effect', 2), ask('de-fam-gap-tree', 2)],
+        },
+        {
+          id: 'de-l8-point',
+          title: 'The Curve Through a Point',
+          slides: [
+            teach(
+              prose(
+                'A point picks out one member. For the member of $y = x^{2} + C$ through $(2, 7)$, put $x = 2$ and $y = 7$ in and solve for $C$:',
+              ),
+              working('7 &= 2^{2} + C', '7 &= 4 + C', 'C &= 3'),
+              prose(
+                'The member through $(2, 7)$ is $y = x^{2} + 3$. With a negative $x$, keep the brackets: through $(-1, 2)$ on $y = 3x + C$, $2 = -3 + C$, so $C = 5$.',
+              ),
+            ),
+            ask('de-fam-point-steps'),
+            ask('de-fam-member'),
+            asking(
+              'de-fam-through',
+              1,
+              prose(
+                'On a graph, that member crosses the $y$-axis at its $C$. Through $(1, 5)$ on $y = 2x + C$: $5 = 2 + C$, so $C = 3$, and it crosses at $3$.',
+              ),
+            ),
+            teach(
+              prose('A multiplying constant is found by dividing. Through $(2, 12)$ on $y = Ax^{2}$:'),
+              working('12 &= A \\times 2^{2} = 4A', 'A &= 3'),
+              prose('Through $(3, 4)$ on $y = \\frac{C}{x}$, multiply instead:'),
+              working('4 &= \\frac{C}{3}', 'C &= 12'),
+              prose(
+                'On $y = Ae^{2x}$, through $(0, 5)$ gives $5 = Ae^{0} = A$. Through $(1, 5e^{2})$ gives $5e^{2} = Ae^{2}$, so $A = 5$ as well.',
+              ),
+            ),
+            ask('de-fam-member+choice', 2),
+            ask('de-fam-point-steps', 2),
+            asking(
+              'de-fam-onpoint',
+              1,
+              prose(
+                'Once the member is known, every other point on it follows. The member of $y = x^{2} + C$ through $(2, 7)$ is $y = x^{2} + 3$. At $x = 3$ it has $y = 9 + 3 = 12$, so $(3, 12)$ is on it too.',
+              ),
+            ),
+            teach(
+              prose(
+                'Two members of $y = x^{2} + C$ never meet: at any point $C = y - x^{2}$ has just one value. So one point settles the member completely.',
+              ),
+              prose('Negative $x$ works the same way, minding the sign. Through $(-2, 1)$ on $y = x^{3} + C$:'),
+              working('1 &= (-2)^{3} + C', '1 &= -8 + C', 'C &= 9'),
+            ),
+            ask('de-fam-through', 2),
+            ask('de-fam-onpoint', 2),
+          ],
+          skillCheck: [ask('de-fam-member', 2), ask('de-fam-point-steps', 2), ask('de-fam-onpoint', 2)],
+        },
+        {
+          id: 'de-l8-gradient',
+          title: 'The Gradient at a Point',
+          slides: [
+            teach(
+              prose(
+                'An equation such as $\\frac{dy}{dx} = x + y$ gives the gradient at any point without being solved. At $(2, 3)$:',
+              ),
+              working('\\frac{dy}{dx} &= 2 + 3', '&= 5'),
+              prose(
+                'So the solution curve through $(2, 3)$ has gradient $5$ there. For $\\frac{dy}{dx} = 2xy$ at $(1, -3)$, the gradient is $2 \\times 1 \\times (-3) = -6$.',
+              ),
+            ),
+            ask('de-fam-gradient'),
+            asking(
+              'de-fam-step-tree',
+              1,
+              prose(
+                'Near the point, the curve runs along a short segment with that gradient. From $(2, 3)$ with gradient $5$, one unit right the segment rises by $5$, to height $3 + 5 = 8$.',
+              ),
+              prose('For $\\frac{dy}{dx} = 2x - y$ at $(1, 4)$:'),
+              working('2x &= 2, \\quad -y = -4', '\\frac{dy}{dx} &= 2 - 4 = -2', 'y &= 4 - 2 = 2'),
+            ),
+            ask('de-fam-gradient+choice'),
+            teach(
+              prose('The sign says which way the curve heads: positive is **rising**, negative **falling** and zero **flat**. For $\\frac{dy}{dx} = x - 2y$:'),
+              working('(4, 1)&: \\; 4 - 2 = 2', '(1, 3)&: \\; 1 - 6 = -5', '(2, 1)&: \\; 2 - 2 = 0'),
+              field({
+                xMin: 0,
+                xMax: 5,
+                yMin: 0,
+                yMax: 4,
+                f: (x: number, y: number) => x - 2 * y,
+                at: [
+                  [4, 1],
+                  [1, 3],
+                  [2, 1],
+                ],
+                marks: [
+                  { x: 4, y: 1 },
+                  { x: 1, y: 3 },
+                  { x: 2, y: 1 },
+                ],
+                label: 'Three short segments: rising at (4, 1), falling steeply at (1, 3) and flat at (2, 1)',
+              }),
+            ),
+            ask('de-fam-sign'),
+            asking(
+              'de-fam-step-tree',
+              2,
+              prose(
+                'To go further, start again from the new point. For $\\frac{dy}{dx} = x + y$ from $(0, 1)$: the gradient is $1$, so one unit right is $(1, 2)$. There the gradient is $1 + 2 = 3$, so the next point is $(2, 5)$.',
+              ),
+            ),
+            asking(
+              'de-fam-gradpoint',
+              1,
+              prose('Going backwards, test each point. Where does $\\frac{dy}{dx} = x + 2y$ give $4$?'),
+              working('(2, 1)&: \\; 2 + 2 = 4', '(1, 2)&: \\; 1 + 4 = 5'),
+              prose('Only $(2, 1)$ gives $4$.'),
+            ),
+            teach(
+              prose('The right side can be any expression in $x$ and $y$: put the point in the same way. For $\\frac{dy}{dx} = x^{2} - y$ at $(3, 2)$:'),
+              working('\\frac{dy}{dx} &= 3^{2} - 2 = 7'),
+              prose('For $\\frac{dy}{dx} = \\frac{2y}{x}$ at $(2, 3)$:'),
+              working('\\frac{dy}{dx} &= \\frac{2 \\times 3}{2} = 3'),
+              prose('A number on the end just adds on: $\\frac{dy}{dx} = x + y - 3$ at $(1, 1)$ gives $1 + 1 - 3 = -1$.'),
+            ),
+            ask('de-fam-gradpoint', 2),
+            ask('de-fam-sign', 2),
+          ],
+          skillCheck: [ask('de-fam-gradient', 2), ask('de-fam-step-tree', 2), ask('de-fam-sign', 2)],
+        },
+        {
+          id: 'de-l8-field',
+          title: 'Direction Fields',
+          slides: [
+            teach(
+              prose('Draw that short segment at every whole point and the picture is a **direction field**. This is the field of $\\frac{dy}{dx} = x$:'),
+              field({
+                xMin: -3,
+                xMax: 3,
+                yMin: -2,
+                yMax: 2,
+                f: (x: number) => x,
+                label: 'The direction field of dy/dx = x: segments parallel up each vertical line, rising on the right and falling on the left',
+              }),
+              prose(
+                'Up any vertical line $x$ is fixed, so the segments there are parallel: the gradient depends on $x$ alone. They rise right of the $y$-axis and fall left of it. For $\\frac{dy}{dx} = y$ the same happens along horizontal lines, rising above the $x$-axis.',
+              ),
+              prose(
+                'A minus sign swaps the tilts: $\\frac{dy}{dx} = -x$ falls right of the $y$-axis. And $\\frac{dy}{dx} = x + y$ is flat where $x + y = 0$, along $y = -x$, rising above that line and falling below it.',
+              ),
+            ),
+            ask('de-fam-field'),
+            asking(
+              'de-fam-gradient',
+              1,
+              prose(
+                'Each segment is the gradient at its point. In the field of $\\frac{dy}{dx} = x + y$, the segment at $(1, 2)$ has gradient $1 + 2 = 3$: steep and rising. In the field of $\\frac{dy}{dx} = 2xy$, the one at $(1, -1)$ has gradient $-2$.',
+              ),
+            ),
+            asking(
+              'de-fam-flat',
+              1,
+              prose('Where the right side is zero, the segments are **flat**. For $\\frac{dy}{dx} = x + y$ on the line $x = 2$:'),
+              working('2 + y &= 0', 'y &= -2'),
+              prose('For $\\frac{dy}{dx} = 2x - y$ on $x = 1$, $2 - y = 0$, so $y = 2$.'),
+            ),
+            teach(
+              prose('Joining the points where the gradient is the same gives an **isocline**. For $\\frac{dy}{dx} = x + y$ the gradient is $2$ where'),
+              working('x + y &= 2', 'y &= -x + 2'),
+              field({
+                xMin: -3,
+                xMax: 3,
+                yMin: -2,
+                yMax: 2,
+                f: (x: number, y: number) => x + y,
+                curves: [{ f: (x: number) => 2 - x, dashed: true }],
+                label: 'The field of dy/dx = x + y with the dashed line y = -x + 2, along which every segment has the same slope',
+              }),
+              prose(
+                'With $-y$, move $y$ over: $\\frac{dy}{dx} = 3x - y$ is $1$ where $y = 3x - 1$. A square or a number works the same: $\\frac{dy}{dx} = 2x + y - 1$ on $x = 1$ is flat where $y = -1$.',
+              ),
+            ),
+            ask('de-fam-isocline'),
+            ask('de-fam-gradient+choice'),
+            asking(
+              'de-fam-flat',
+              2,
+              prose('For $\\frac{dy}{dx} = x^{2} - y$ on the line $x = -1$:'),
+              working('(-1)^{2} - y &= 0', 'y &= 1'),
+            ),
+            teach(
+              prose(
+                'To match a field to its equation, look for where it is flat and which way it tilts. $\\frac{dy}{dx} = x - y$ is flat along $y = x$, and below that line $x > y$, so the segments rise.',
+              ),
+              prose('$\\frac{dy}{dx} = xy$ is flat along both axes, and rises where $x$ and $y$ have the same sign:'),
+              field({
+                xMin: -3,
+                xMax: 3,
+                yMin: -2,
+                yMax: 2,
+                f: (x: number, y: number) => x * y,
+                label: 'The field of dy/dx = xy: flat on both axes, rising top right and bottom left, falling in the other quarters',
+              }),
+              prose(
+                '$\\frac{dy}{dx} = -xy$ tilts the other way in each quarter. $\\frac{dy}{dx} = x^{2}$ is never negative, so its field never falls, and neither does the field of $y^{2}$.',
+              ),
+            ),
+            ask('de-fam-field', 2),
+            asking(
+              'de-fam-isocline',
+              2,
+              prose(
+                'Isoclines can be curves. For $\\frac{dy}{dx} = xy$ the gradient is $6$ where $xy = 6$, so $y = \\frac{6}{x}$. For $\\frac{dy}{dx} = y - x^{2}$ it is $2$ where $y = x^{2} + 2$.',
+              ),
+            ),
+          ],
+          skillCheck: [ask('de-fam-field', 2), ask('de-fam-isocline', 2), ask('de-fam-flat', 2)],
+        },
+        {
+          id: 'de-l8-follow',
+          title: 'Following the Field',
+          slides: [
+            teach(
+              prose(
+                'A solution curve runs along the field, touching every segment it meets. Where the right side is zero for **every** $x$ at some height, the horizontal line there is a solution in its own right: an **equilibrium solution**.',
+              ),
+              prose('For $\\frac{dy}{dx} = (y - 1)(y - 3)$, $y = 1$ and $y = 3$ make it zero whatever $x$ is:'),
+              field({
+                xMin: 0,
+                xMax: 4,
+                yMin: -1,
+                yMax: 5,
+                f: (_x: number, y: number) => (y - 1) * (y - 3),
+                horizontals: [1, 3],
+                height: 240,
+                label: 'The field of dy/dx = (y - 1)(y - 3) with dashed lines at y = 1 and y = 3 where every segment is flat',
+              }),
+              prose(
+                'At $y = 2$ the right side is $(1)(-1) = -1$, so between the lines solutions fall. At $y = 0$ it is $(-1)(-3) = 3$, so below $1$ they rise. Either way they close in on $y = 1$. At $y = 4$ it is $(3)(1) = 3$: above $3$ they rise without limit.',
+              ),
+              prose('A lone factor $y$ counts too: $\\frac{dy}{dx} = y(y - 4)$ is zero at $y = 0$ and $y = 4$.'),
+            ),
+            ask('de-fam-equilibrium'),
+            ask('de-fam-rise'),
+            asking(
+              'de-fam-level',
+              1,
+              prose(
+                'No solution can cross an equilibrium line. So starting anywhere below $3$, a solution of $\\frac{dy}{dx} = (y - 1)(y - 3)$ levels off at $y = 1$: from below it rises to it, from between the lines it falls to it.',
+              ),
+            ),
+            teach(
+              prose('Following the field by hand means stepping along segments: one unit right, and up by the gradient. For $\\frac{dy}{dx} = x + y$ from $(0, 1)$:'),
+              working('(0, 1)&: \\; \\text{gradient } 1', '(1, 2)&: \\; \\text{gradient } 3', '(2, 5)&'),
+              prose(
+                'For $\\frac{dy}{dx} = 2x - y$ at $(1, 4)$, the terms are $2$ and $-4$, the gradient is $-2$, and one unit right the height is $4 - 2 = 2$. Only the sign is needed to say which way: negative, so that solution is falling. For $\\frac{dy}{dx} = xy$ at $(2, 3)$ it is $6$, rising, and at $(0, 3)$ it is $0$, flat.',
+              ),
+            ),
+            ask('de-fam-step-tree'),
+            asking(
+              'de-fam-equilibrium',
+              2,
+              prose(
+                'Other shapes work the same. $\\frac{dy}{dx} = y^{2} - 4$ is zero at $y = 2$ and $y = -2$, and $\\frac{dy}{dx} = 2y(y - 3)$ at $y = 0$ and $y = 3$.',
+              ),
+              prose(
+                'For $\\frac{dy}{dx} = x(y - 5)$, $y = 5$ is a solution, but $x = 0$ is not: it is a vertical line, not a height.',
+              ),
+            ),
+            ask('de-fam-sign'),
+            teach(
+              prose(
+                'With the second bracket turned round the flow turns round too. $\\frac{dy}{dx} = (y - 1)(3 - y)$ at $y = 2$ is $(1)(1) = 1$, so between the lines solutions rise to $3$. At $y = 4$ it is $(3)(-1) = -3$, so above $3$ they fall back to it.',
+              ),
+              field({
+                xMin: 0,
+                xMax: 4,
+                yMin: -1,
+                yMax: 5,
+                f: (_x: number, y: number) => (y - 1) * (3 - y),
+                horizontals: [1, 3],
+                height: 240,
+                label: 'The field of dy/dx = (y - 1)(3 - y): segments point towards y = 3 from both sides and away from y = 1',
+              }),
+              prose('Now every solution starting above $1$ settles at $y = 3$, and one starting below $1$ falls without limit.'),
+            ),
+            ask('de-fam-rise', 2),
+            ask('de-fam-level', 2),
+          ],
+          skillCheck: [ask('de-fam-equilibrium', 2), ask('de-fam-rise', 2), ask('de-fam-level', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('de-fam-read', 2),
+        ask('de-fam-member', 2),
+        ask('de-fam-gradient', 2),
+        ask('de-fam-field', 2),
+        ask('de-fam-equilibrium', 2),
+        ask('de-fam-effect', 2),
+        ask('de-fam-point-steps', 2),
+        ask('de-fam-step-tree', 2),
+        ask('de-fam-isocline', 2),
+        ask('de-fam-rise', 2),
+        ask('de-fam-equation', 2),
+        ask('de-fam-through', 2),
+        ask('de-fam-sign', 2),
+        ask('de-fam-flat', 2),
+        ask('de-fam-level', 2),
+      ],
+    },
+
+    {
+      id: 'de-l9',
+      title: 'Separable Equations with Harder Integrals',
+      lessons: [
+        {
+          id: 'de-l9-fprime',
+          title: 'A Fraction Whose Top Is the Derivative',
+          slides: [
+            teach(
+              prose(
+                'Separating sometimes leaves a fraction on the $x$ side. As in Integration, Partial Fractions in Integration: when the top is a number times the derivative of the bottom, the integral is that number times the logarithm of the bottom.',
+              ),
+              display("\\int \\frac{f'(x)}{f(x)}\\,dx = \\ln|f(x)| + C"),
+              prose('In $\\int \\frac{6x}{x^{2} + 4}\\,dx$ the bottom differentiates to $2x$, and $6x$ is $3$ times that:'),
+              working('& \\int \\frac{6x}{x^{2} + 4}\\,dx', '& = 3\\ln(x^{2} + 4) + C'),
+              prose(
+                '$x^{2} + 4$ is always positive, so no modulus is needed. The same works with $e^{x}$: in $\\int \\frac{2e^{x}}{e^{x} + 1}\\,dx$ the bottom differentiates to $e^{x}$, and the top is $2$ times that:',
+              ),
+              working('& \\int \\frac{2e^{x}}{e^{x} + 1}\\,dx', '& = 2\\ln(e^{x} + 1) + C'),
+            ),
+            ask('de-hsep-fp-flow'),
+            ask('de-hsep-fp-int'),
+            ask('de-hsep-fp-int+choice'),
+            teach(
+              prose('In a differential equation, separate first. For $\\frac{dy}{dx} = \\frac{6xy}{x^{2} + 4}$:'),
+              working('\\frac{1}{y}\\,dy &= \\frac{6x}{x^{2} + 4}\\,dx', '\\ln|y| &= 3\\ln(x^{2} + 4) + C'),
+              prose('A number times a logarithm is the logarithm of a power:'),
+              display('3\\ln(x^{2} + 4) = \\ln(x^{2} + 4)^{3}'),
+              prose('so taking $e$ to the power of each side undoes the logarithms. $A$ stands for $\\pm e^{C}$:'),
+              working('|y| &= e^{C}(x^{2} + 4)^{3}', 'y &= A(x^{2} + 4)^{3}'),
+            ),
+            ask('de-hsep-fp-steps'),
+            ask('de-hsep-fp-general'),
+            ask('de-hsep-fp-flow'),
+            teach(
+              prose(
+                'Harder bottoms work the same way. $e^{2x} + 1$ differentiates to $2e^{2x}$, and $x^{2} + 2x + 5$ to $2x + 2$. Both bottoms are always positive.',
+              ),
+              prose('A negative multiple gives a negative power. For $\\frac{dy}{dx} = -\\frac{2xy}{x^{2} + 1}$:'),
+              working('\\ln|y| &= -\\ln(x^{2} + 1) + C', 'y &= A(x^{2} + 1)^{-1}', 'y &= \\frac{A}{x^{2} + 1}'),
+              prose('With $y$ on the bottom of the right side, $y$ goes with $dy$ on top. For $\\frac{dy}{dx} = \\frac{6x}{(x^{2} + 4)y}$:'),
+              working('y\\,dy &= \\frac{6x}{x^{2} + 4}\\,dx', '\\tfrac{1}{2}y^{2} &= 3\\ln(x^{2} + 4) + C', 'y^{2} &= 6\\ln(x^{2} + 4) + C'),
+            ),
+            ask('de-hsep-fp-steps', 2),
+            ask('de-hsep-fp-general', 2),
+          ],
+          skillCheck: [ask('de-hsep-fp-steps', 2), ask('de-hsep-fp-general', 2), ask('de-hsep-fp-int', 2)],
+        },
+        {
+          id: 'de-l9-partial',
+          title: 'Partial Fractions',
+          slides: [
+            teach(
+              prose(
+                'When the bottom factorises and the top is not a multiple of its derivative, split the fraction first, as in Integration, Partial Fractions in Integration. Cover up one bracket and put in the $x$ that makes it zero:',
+              ),
+              display('\\frac{5}{(x - 1)(x + 4)} = \\frac{A}{x - 1} + \\frac{B}{x + 4}'),
+              prose('$x = 1$ for $A$, and $x = -4$ for $B$:'),
+              display('A = \\frac{5}{1 + 4} = 1 \\qquad B = \\frac{5}{-4 - 1} = -1'),
+              prose('Each piece integrates to a logarithm. $x - 1$ can be negative, so these keep their modulus:'),
+              working('& \\int \\frac{5}{(x - 1)(x + 4)}\\,dx', '& = \\ln|x - 1| - \\ln|x + 4| + C'),
+            ),
+            ask('de-hsep-pf-cover-tree'),
+            ask('de-hsep-pf-flow'),
+            teach(
+              prose('In an equation, separate, split, then integrate. For $\\frac{dy}{dx} = \\frac{5y}{(x - 1)(x + 4)}$:'),
+              working('\\frac{1}{y}\\,dy &= \\frac{5}{(x - 1)(x + 4)}\\,dx'),
+              prose('Split it by covering up, as before, then integrate:'),
+              display('\\frac{1}{y}\\,dy = \\left(\\frac{1}{x - 1} - \\frac{1}{x + 4}\\right)dx'),
+              display('\\ln|y| = \\ln\\left|x - 1\\right| - \\ln\\left|x + 4\\right| + C'),
+              prose('Subtracting logarithms divides, so taking $e$ to the power of each side gives'),
+              display('y = \\frac{A(x - 1)}{x + 4}'),
+              prose('A factor of $x$ works the same way. For $\\frac{dy}{dx} = \\frac{3y}{x(x + 3)}$:'),
+              working('\\frac{3}{x(x + 3)} &= \\frac{1}{x} - \\frac{1}{x + 3}', 'y &= \\frac{Ax}{x + 3}'),
+            ),
+            ask('de-hsep-pf-steps'),
+            ask('de-hsep-pf-general'),
+            ask('de-hsep-pf-flow'),
+            teach(
+              prose(
+                'A top with an $x$ in it splits the same way, and the constants become powers. For $\\frac{dy}{dx} = \\frac{(3x + 4)y}{x^{2} + 2x}$, factorise the bottom to $x(x + 2)$, then cover up with $x = 0$ and $x = -2$:',
+              ),
+              display('A = \\frac{4}{2} = 2 \\qquad B = \\frac{-2}{-2} = 1'),
+              display('\\ln|y| = 2\\ln|x| + \\ln\\left|x + 2\\right| + C \\qquad y = Ax^{2}(x + 2)'),
+              prose('A negative constant puts its bracket on the bottom. From $\\ln|y| = \\ln\\left|x - 1\\right| - 2\\ln\\left|x + 3\\right| + C$:'),
+              display('y = \\frac{A(x - 1)}{(x + 3)^{2}}'),
+            ),
+            ask('de-hsep-pf-cover-tree', 2),
+            ask('de-hsep-pf-steps', 2),
+            ask('de-hsep-pf-general', 2),
+          ],
+          skillCheck: [ask('de-hsep-pf-steps', 2), ask('de-hsep-pf-cover-tree', 2), ask('de-hsep-pf-general', 2)],
+        },
+        {
+          id: 'de-l9-trig',
+          title: 'Trigonometric Integrals',
+          slides: [
+            teach(
+              prose(
+                'Two trigonometric integrals come up again and again. $\\tan x$ differentiates to $\\sec^{2} x$, so $\\sec^{2}$ integrates to $\\tan$. With $2x$ inside, divide by the $2$ the chain rule brings out:',
+              ),
+              working('\\int 6\\sec^{2} 2x\\,dx &= 3\\tan 2x + C'),
+              prose('And $\\tan x$ is a fraction whose top is minus the derivative of its bottom:'),
+              working('& \\int \\tan x\\,dx = \\int \\frac{\\sin x}{\\cos x}\\,dx', '& = -\\ln|\\cos x| + C', '& = \\ln|\\sec x| + C'),
+              prose(
+                'In the same way $\\cot x = \\frac{\\cos x}{\\sin x}$ integrates to $\\ln|\\sin x|$. In $\\int 6\\tan 2x\\,dx$ the bottom, $\\cos 2x$, differentiates to $-2\\sin 2x$:',
+              ),
+              display('\\int 6\\tan 2x\\,dx = 3\\ln|\\sec 2x| + C'),
+            ),
+            ask('de-hsep-trig-flow'),
+            ask('de-hsep-trig-int'),
+            ask('de-hsep-trig-int+choice'),
+            teach(
+              prose('In an equation, for $\\frac{dy}{dx} = 3y\\tan x$:'),
+              working('\\frac{1}{y}\\,dy &= 3\\tan x\\,dx', '\\ln|y| &= 3\\ln|\\sec x| + C', 'y &= A\\sec^{3} x'),
+              prose('and for $\\frac{dy}{dx} = 4y\\sec^{2} 2x$:'),
+              working('\\ln|y| &= 2\\tan 2x + C', 'y &= Ae^{2\\tan 2x}'),
+              prose('A $\\cot$ gives a power of $\\sin$. For $\\frac{dy}{dx} = 2y\\cot x$:'),
+              working('\\ln|y| &= 2\\ln|\\sin x| + C', 'y &= A\\sin^{2} x'),
+            ),
+            ask('de-hsep-trig-steps'),
+            ask('de-hsep-trig-general'),
+            ask('de-hsep-trig-flow'),
+            teach(
+              prose('A negative multiple of $\\ln|\\sec x|$ is a power of $\\cos x$, since $\\sec x = \\frac{1}{\\cos x}$. For $\\frac{dy}{dx} = -2y\\tan x$:'),
+              working('\\ln|y| &= -2\\ln|\\sec x| + C', 'y &= A\\cos^{2} x'),
+              prose('Dividing by $\\cos^{2} y$ gives $\\sec^{2} y$, which integrates to $\\tan y$. For $\\frac{dy}{dx} = 2x\\cos^{2} y$:'),
+              working('\\sec^{2} y\\,dy &= 2x\\,dx', '\\tan y &= x^{2} + C', 'y &= \\arctan(x^{2} + C)'),
+              prose('With $y$ on the bottom, $y\\,dy$ integrates to $\\tfrac{1}{2}y^{2}$. For $\\frac{dy}{dx} = \\frac{2\\sec^{2} x}{y}$:'),
+              working('\\tfrac{1}{2}y^{2} &= 2\\tan x + C', 'y^{2} &= 4\\tan x + C'),
+            ),
+            ask('de-hsep-trig-steps', 2),
+            ask('de-hsep-trig-general', 2),
+          ],
+          skillCheck: [ask('de-hsep-trig-steps', 2), ask('de-hsep-trig-general', 2), ask('de-hsep-trig-int', 2)],
+        },
+        {
+          id: 'de-l9-subparts',
+          title: 'Substitution and Parts',
+          slides: [
+            teach(
+              prose(
+                'When the $x$ side is a function of an inside times the derivative of that inside, substitute, as in Integration, Techniques of Integration. For $\\int 8x(x^{2} + 1)^{3}\\,dx$, let $u = x^{2} + 1$, so $du = 2x\\,dx$:',
+              ),
+              working('& \\int 8x(x^{2} + 1)^{3}\\,dx', '& = \\int 4u^{3}\\,du', '& = u^{4} + C', '& = (x^{2} + 1)^{4} + C'),
+              prose('With $u = x^{2}$, $\\int 2xe^{x^{2}}\\,dx = e^{x^{2}} + C$. With $u = \\cos x$, $du = -\\sin x\\,dx$:'),
+              working('& \\int 3\\sin x\\cos^{2} x\\,dx', '& = \\int -3u^{2}\\,du', '& = -\\cos^{3} x + C'),
+            ),
+            ask('de-hsep-sub-int'),
+            ask('de-hsep-sub-int+choice'),
+            teach(
+              prose('When it is $x$ times $e^{x}$, $\\sin x$ or $\\cos x$, integrate by parts with $u = x$:'),
+              display('\\int u\\frac{dv}{dx}\\,dx = uv - \\int v\\frac{du}{dx}\\,dx'),
+              working('& \\int xe^{x}\\,dx = xe^{x} - \\int e^{x}\\,dx', '& = xe^{x} - e^{x} + C'),
+              prose('Likewise, and with $v = -e^{-x}$ for $e^{-x}$:'),
+              working(
+                '& \\int x\\cos x\\,dx',
+                '& \\quad = x\\sin x + \\cos x + C',
+                '& \\int x\\sin x\\,dx',
+                '& \\quad = -x\\cos x + \\sin x + C',
+                '& \\int xe^{-x}\\,dx',
+                '& \\quad = -xe^{-x} - e^{-x} + C',
+              ),
+              prose(
+                'So a fraction whose bottom factorises means partial fractions, an inside with its derivative beside it means substitution, and $x$ times one of these means parts.',
+              ),
+            ),
+            ask('de-hsep-parts-int'),
+            ask('de-hsep-which'),
+            ask('de-hsep-parts-int', 2),
+            teach(
+              prose('In an equation the $y$ side decides the last step. For $\\frac{dy}{dx} = \\frac{x\\cos x}{y}$:'),
+              working('y\\,dy &= x\\cos x\\,dx', '\\tfrac{1}{2}y^{2} &= x\\sin x + \\cos x + C', 'y^{2} &= 2x\\sin x + 2\\cos x + C'),
+              prose('For $\\frac{dy}{dx} = \\frac{xe^{x}}{e^{y}}$, multiply by $e^{y}$, then take $\\ln$:'),
+              working('e^{y}\\,dy &= xe^{x}\\,dx', 'e^{y} &= xe^{x} - e^{x} + C', 'y &= \\ln(xe^{x} - e^{x} + C)'),
+              prose('And for $\\frac{dy}{dx} = xye^{x}$:'),
+              working('\\ln|y| &= xe^{x} - e^{x} + C', 'y &= Ae^{xe^{x} - e^{x}}'),
+            ),
+            ask('de-hsep-sp-steps'),
+            ask('de-hsep-which', 2),
+            ask('de-hsep-sp-steps', 2),
+          ],
+          skillCheck: [ask('de-hsep-sub-int', 2), ask('de-hsep-parts-int', 2), ask('de-hsep-sp-steps', 2)],
+        },
+        {
+          id: 'de-l9-particular',
+          title: 'Particular Solutions with Harder Integrals',
+          slides: [
+            teach(
+              prose(
+                'A condition fixes the constant, as in Differential Equations Basics, First-Order by Separation. For $\\frac{dy}{dx} = \\frac{4xy}{x^{2} + 1}$ with $y(1) = 12$:',
+              ),
+              working('y &= A(x^{2} + 1)^{2}', '12 &= A \\times 2^{2}', 'A &= 3'),
+              prose('So the particular solution is $y = 3(x^{2} + 1)^{2}$. Then'),
+              working('y(2) &= 3 \\times 5^{2} = 75', 'y(0) &= 3 \\times 1^{2} = 3'),
+              prose('and $y(0)$ is where it crosses the $y$-axis.'),
+            ),
+            ask('de-hsep-through-tree'),
+            ask('de-hsep-slider'),
+            teach(
+              prose('The same works whatever the integral was. For $\\frac{dy}{dx} = \\frac{5y}{(x - 1)(x + 4)}$ with $y(6) = 10$:'),
+              working('y &= \\frac{A(x - 1)}{x + 4}', '10 &= \\frac{5A}{10}, \\quad A = 20', 'y(16) &= \\frac{20 \\times 15}{20} = 15'),
+              prose(
+                'For $\\frac{dy}{dx} = y\\tan x$, $y = A\\sec x$, with $\\sec 0 = 1$ and $\\sec\\frac{\\pi}{3} = 2$. If $y(0) = 5$, then $A = 5$, so $y(\\frac{\\pi}{3}) = 10$. With $\\sec^{2} x$ it would be $5 \\times 2^{2} = 20$.',
+              ),
+              prose('A reciprocal works too. For $\\frac{dy}{dx} = -\\frac{2xy}{x^{2} + 1}$ with $y(1) = 6$:'),
+              working('y &= \\frac{A}{x^{2} + 1}', '6 &= \\frac{A}{2}, \\quad A = 12', 'y(0) &= 12'),
+            ),
+            ask('de-hsep-value'),
+            ask('de-hsep-ivp-steps'),
+            ask('de-hsep-slider', 2),
+            teach(
+              prose('A solution left as $y^{2}$ takes its condition the same way, for $C$. For $\\frac{dy}{dx} = \\frac{4x(x^{2} + 2)}{y}$ with $y(0) = 5$:'),
+              working('y^{2} &= 2(x^{2} + 2)^{2} + C', '25 &= 8 + C, \\quad C = 17', 'y^{2} &= 2(x^{2} + 2)^{2} + 17'),
+              prose(
+                'For $\\frac{dy}{dx} = 2y\\cot x$, $y = A\\sin^{2} x$. With $y(\\frac{\\pi}{2}) = 8$, $A = 8$, and since $\\sin\\frac{\\pi}{6} = \\frac{1}{2}$, $y(\\frac{\\pi}{6}) = 8 \\times \\frac{1}{4} = 2$.',
+              ),
+              prose('A bottom of $e^{x} + 2$ is easy at $x = \\ln 4$, since $e^{\\ln 4} = 4$. With $y = 3(e^{x} + 2)^{2}$:'),
+              working('y(\\ln 4) &= 3 \\times 6^{2} = 108'),
+            ),
+            ask('de-hsep-ivp-steps', 2),
+            ask('de-hsep-value+choice', 2),
+            ask('de-hsep-through-tree', 2),
+          ],
+          skillCheck: [ask('de-hsep-through-tree', 2), ask('de-hsep-value', 2), ask('de-hsep-ivp-steps', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('de-hsep-fp-steps', 2),
+        ask('de-hsep-pf-cover-tree', 2),
+        ask('de-hsep-trig-int', 2),
+        ask('de-hsep-sp-steps', 2),
+        ask('de-hsep-through-tree', 2),
+        ask('de-hsep-fp-general', 2),
+        ask('de-hsep-pf-steps', 2),
+        ask('de-hsep-trig-general', 2),
+        ask('de-hsep-sub-int', 2),
+        ask('de-hsep-value', 2),
+        ask('de-hsep-fp-int', 2),
+        ask('de-hsep-pf-general', 2),
+        ask('de-hsep-trig-steps', 2),
+        ask('de-hsep-parts-int', 2),
+        ask('de-hsep-which', 2),
+      ],
+    },
+
+    {
+      id: 'de-l10',
+      title: 'Models of Populations and Money',
+      lessons: [
+        {
+          id: 'de-l10-interest',
+          title: 'Continuous Interest',
+          slides: [
+            teach(
+              prose(
+                'Interest **compounded continuously** is added all the time, in proportion to the balance. At 5% a year the balance $A$ grows at $0.05$ of itself a year:',
+              ),
+              display('\\frac{dA}{dt} = 0.05A'),
+              prose('This is growth, $\\frac{dy}{dt} = ky$, so the solution is the start value times $e^{kt}$. With £2,000 to start:'),
+              display('A = 2000e^{0.05t}'),
+              prose('A value that falls continuously has a negative rate. A car bought for £12,000 that loses 15% of its value a year has'),
+              working('\\frac{dV}{dt} &= -0.15V', 'V &= 12000e^{-0.15t}'),
+            ),
+            ask('de-model-interest-tiles'),
+            asking(
+              'de-model-yearly',
+              1,
+              prose(
+                'Banks often add interest once a year instead. At 5% a year that multiplies the balance by $1.05$ each year, so after $t$ years it is $1.05^{t}$ times the start.',
+              ),
+              prose('The continuous rate $k = \\ln 1.05$ gives exactly that, because $e^{t\\ln a} = a^{t}$. With £2,000 to start:'),
+              working('\\frac{dA}{dt} &= (\\ln 1.05)A', 'A &= 2000e^{t\\ln 1.05}', '&= 2000 \\times 1.05^{t}', 'A(1) &= 2100', 'A(2) &= 2205'),
+              prose('A continuous rate of $0.05$ does a little better: $e^{0.05}$ is about $1.0513$, a gain of about 5.13% a year.'),
+            ),
+            ask('de-model-yearly+choice', 2),
+            teach(
+              prose('A rate written as a logarithm keeps the numbers whole. With $k = \\frac{\\ln 2}{8}$,'),
+              display('e^{kt} = e^{(t/8)\\ln 2} = 2^{t/8}'),
+              prose('so the balance doubles every 8 years. £1,500 invested this way has doubled 3 times after 24 years:'),
+              working('2^{3} &= 8', 'A(24) &= 1500 \\times 8', '&= 12000'),
+              prose('In the same way $k = \\frac{\\ln 3}{h}$ triples the balance every $h$ years.'),
+            ),
+            ask('de-model-double-tree'),
+            ask('de-model-interest-tiles', 2),
+            ask('de-model-double-tree', 2),
+            teach(
+              prose(
+                'To find **when** a level is reached, count the doublings. £500 doubling every 6 years reaches £4,000 once it is 8 times bigger:',
+              ),
+              working('4000 \\div 500 &= 8 = 2^{3}', 't &= 3 \\times 6 = 18'),
+              prose(
+                'A value that halves works the same way. A van bought for £16,000 with $\\frac{dV}{dt} = -\\frac{\\ln 2}{4}V$ halves every 4 years, so it is worth £4,000 after two halvings, at $t = 8$.',
+              ),
+            ),
+            ask('de-model-reach-slider'),
+            ask('de-model-reach-slider', 2),
+          ],
+          skillCheck: [ask('de-model-interest-tiles', 2), ask('de-model-double-tree', 2), ask('de-model-reach-slider', 2)],
+        },
+        {
+          id: 'de-l10-saving',
+          title: 'Saving and Spending',
+          slides: [
+            teach(
+              prose(
+                'Money paid in or taken out changes a balance as well as interest. Spread evenly through the year, it adds a constant to the rate. At 4% with £1,200 a year paid in:',
+              ),
+              display('\\frac{dA}{dt} = 0.04A + 1200'),
+              prose('At 5% with £3,000 a year taken out:'),
+              display('\\frac{dA}{dt} = 0.05A - 3000'),
+              prose('Both at once add up: £3,000 a year in and £1,000 a year out is $+2000$.'),
+            ),
+            ask('de-model-save-tiles'),
+            asking(
+              'de-model-save-level',
+              1,
+              prose('A balance stays **level** when it is not changing, so the rate is zero. For $\\frac{dA}{dt} = 0.05A - 3000$:'),
+              working('0.05A - 3000 &= 0', '0.05A &= 3000', 'A &= 60000'),
+              prose('The interest on £60,000 is exactly the £3,000 taken out each year, so a fund that size can pay it out forever.'),
+            ),
+            ask('de-model-save-tiles', 2),
+            teach(
+              prose('Any other start moves away from that level. For $\\frac{dA}{dt} = 0.05A - 3000$ starting at £50,000:'),
+              working('0.05 \\times 50000 - 3000 &= -500'),
+              prose(
+                'The rate is negative, so the balance falls. A smaller balance earns less interest, so it falls faster and faster until the fund **runs out**.',
+              ),
+              prose(
+                'From £70,000 the rate is $+500$: the balance grows, earns more, and grows faster and faster. Only a start of exactly £60,000 stays level. The level is **unstable**, as in Long-Term Behaviour.',
+              ),
+            ),
+            ask('de-model-save-flow'),
+            ask('de-model-save-level+choice', 2),
+            ask('de-model-save-flow', 2),
+            teach(
+              prose('To solve, take out the rate first: $3000 \\div 0.05 = 60000$. Then separate and integrate:'),
+              display('\\frac{dA}{dt} = 0.05(A - 60000)'),
+              working('\\ln|A - 60000| &= 0.05t + C', 'A - 60000 &= Be^{0.05t}'),
+              prose('The constant is called $B$, since $A$ is the balance. Starting at £50,000, $B = 50000 - 60000 = -10000$:'),
+              display('A = 60000 - 10000e^{0.05t}'),
+            ),
+            ask('de-model-save-steps'),
+            ask('de-model-save-steps', 2),
+          ],
+          skillCheck: [ask('de-model-save-tiles', 2), ask('de-model-save-level', 2), ask('de-model-save-steps', 2)],
+        },
+        {
+          id: 'de-l10-harvest',
+          title: 'Harvesting a Population',
+          slides: [
+            teach(
+              prose('Left alone, a population grows at a rate proportional to its size. Fish in a lake growing at 20% a year have'),
+              display('\\frac{dP}{dt} = 0.2P'),
+              prose('Catching 300 fish a year, spread through the year, takes a constant off the rate:'),
+              display('\\frac{dP}{dt} = 0.2P - 300'),
+              prose('Fish added from a hatchery count the other way: 300 caught and 100 released a year is $-200$.'),
+            ),
+            ask('de-model-harvest-tiles'),
+            asking(
+              'de-model-harvest-level',
+              1,
+              prose('The population stays the same size where the rate is zero, when growth exactly replaces the catch:'),
+              working('0.2P - 300 &= 0', '0.2P &= 300', 'P &= 1500'),
+            ),
+            ask('de-model-harvest-tiles', 2),
+            teach(
+              prose('As with a fund paying out, any other start moves away from that level. Starting with 1200 fish:'),
+              working('0.2 \\times 1200 - 300 &= -60'),
+              prose(
+                'The rate is negative, so the population shrinks. Fewer fish breed fewer, so it shrinks faster and faster until it **dies out**.',
+              ),
+              prose('From 1800 fish the rate is $+60$, and it grows faster and faster. Only a start of exactly $1500$ stays the same size.'),
+            ),
+            ask('de-model-harvest-flow'),
+            ask('de-model-harvest-level+choice', 2),
+            ask('de-model-harvest-flow', 2),
+            teach(
+              prose('A lake of 2000 fish growing at $\\frac{dP}{dt} = 0.2P$ gains $0.2 \\times 2000 = 400$ fish a year.'),
+              prose(
+                'Catch more than 400 a year and the rate is negative from the start, so the population shrinks and dies out. The largest catch it can bear without falling is 400 a year.',
+              ),
+              prose('Turned round: to supply 400 fish a year, the lake needs at least'),
+              working('0.2P &= 400', 'P &= 400 \\div 0.2 = 2000'),
+            ),
+            ask('de-model-harvest-max'),
+            ask('de-model-harvest-max', 2),
+          ],
+          skillCheck: [ask('de-model-harvest-tiles', 2), ask('de-model-harvest-flow', 2), ask('de-model-harvest-max', 2)],
+        },
+        {
+          id: 'de-l10-drug',
+          title: 'A Drug in the Bloodstream',
+          slides: [
+            teach(
+              prose('The body removes a drug at a rate proportional to the amount in the blood. With $C$ mg left after $t$ hours,'),
+              display('\\frac{dC}{dt} = -kC \\qquad C = C_{0}e^{-kt}'),
+              prose(
+                'The **half-life** is the time it takes to halve. A half-life of 3 hours means $k = \\frac{\\ln 2}{3}$, and then $e^{-kt} = 2^{-t/3}$.',
+              ),
+              prose('From 80 mg, after 9 hours it has halved 3 times:'),
+              working('2^{3} &= 8', 'C(9) &= 80 \\div 8 = 10'),
+            ),
+            ask('de-model-halve-tree'),
+            asking(
+              'de-model-dose-when',
+              1,
+              prose('To find when it falls to a level, count the halvings. With a half-life of 4 hours, 160 mg is down to 20 mg when'),
+              working('160 \\div 20 &= 8 = 2^{3}', 't &= 3 \\times 4 = 12'),
+            ),
+            ask('de-model-halve-tree', 2),
+            teach(
+              prose('Two readings give the half-life. 120 mg falls to 30 mg in 10 hours:'),
+              working('120 \\div 30 &= 4 = 2^{2}', 'h &= 10 \\div 2 = 5', 'k &= \\frac{\\ln 2}{5}'),
+              prose('Two halvings in 10 hours is one every 5 hours.'),
+            ),
+            ask('de-model-halflife-tree'),
+            ask('de-model-dose-when+choice', 2),
+            ask('de-model-halflife-tree', 2),
+            teach(
+              prose(
+                'A second dose adds on top of what is left, and then the whole amount halves as before. Take 80 mg with a half-life of 4 hours, and another 80 mg at $t = 4$:',
+              ),
+              working('C(4) &= 80 \\div 2 = 40', '40 + 80 &= 120', 'C(8) &= 120 \\div 2 = 60'),
+              figure({
+                xMin: 0,
+                xMax: 12,
+                yMin: -5,
+                yMax: 130,
+                curves: [{ f: (t: number) => (t < 4 ? 80 * 2 ** (-t / 4) : 120 * 2 ** (-(t - 4) / 4)) }],
+                label: 'A curve falling from 80 to 40, jumping up to 120 at the second dose, then falling again',
+              }),
+            ),
+            ask('de-model-dose-slider'),
+            ask('de-model-dose-slider', 2),
+          ],
+          skillCheck: [ask('de-model-halve-tree', 2), ask('de-model-halflife-tree', 2), ask('de-model-dose-slider', 2)],
+        },
+        {
+          id: 'de-l10-drip',
+          title: 'A Steady Drip',
+          slides: [
+            teach(
+              prose(
+                'A drip puts 12 mg of a drug into the blood an hour, and the body removes 20% of what is there an hour. In at a steady rate, out in proportion:',
+              ),
+              display('\\frac{dC}{dt} = 12 - 0.2C'),
+              prose('Taking out the $0.2$ shows the level it heads for, since $12 \\div 0.2 = 60$:'),
+              display('\\frac{dC}{dt} = 0.2(60 - C)'),
+            ),
+            ask('de-model-drip-tiles'),
+            asking(
+              'de-model-drip-level',
+              1,
+              prose('It settles where it stops changing, when what goes out balances what comes in:'),
+              working('12 - 0.2C &= 0', '0.2C &= 12', 'C &= 60'),
+              prose('Above $60$ more goes out than comes in, and below it less, so every start settles at $60$. This level is **stable**.'),
+            ),
+            ask('de-model-drip-tiles', 2),
+            teach(
+              prose(
+                'Solve from the factored form. $\\frac{1}{60 - C}$ integrates to $-\\ln|60 - C|$, and the constant is $K$, since $C$ is taken:',
+              ),
+              working('-\\ln|60 - C| &= 0.2t + K', '60 - C &= Ae^{-0.2t}'),
+              prose('Starting from $C(0) = 0$, $A = 60$:'),
+              display('C = 60 - 60e^{-0.2t}'),
+              prose('Starting from $C(0) = 100$ instead, $A = 60 - 100 = -40$:'),
+              display('C = 60 + 40e^{-0.2t}'),
+            ),
+            ask('de-model-drip-steps'),
+            ask('de-model-drip-level+choice', 2),
+            ask('de-model-drip-steps', 2),
+            teach(
+              prose(
+                'With $k = \\frac{\\ln 2}{h}$ the gap to the level halves every $h$ hours. For $\\frac{dC}{dt} = \\frac{\\ln 2}{3}(80 - C)$ from $C(0) = 0$, the gap starts at $80$:',
+              ),
+              working('C(3) &= 80 - 40 = 40', 'C(6) &= 80 - 20 = 60'),
+              figure({
+                xMin: 0,
+                xMax: 12,
+                yMin: -4,
+                yMax: 90,
+                curves: [{ f: (t: number) => 80 - 80 * 2 ** (-t / 3) }],
+                horizontals: [80],
+                label: 'A curve rising from 0 and levelling off under a dashed line at 80',
+              }),
+              prose('From above, the gap above the level halves the same way: from $C(0) = 120$, $C(3) = 80 + 20 = 100$.'),
+            ),
+            ask('de-model-drip-slider'),
+            ask('de-model-drip-slider', 2),
+          ],
+          skillCheck: [ask('de-model-drip-tiles', 2), ask('de-model-drip-steps', 2), ask('de-model-drip-slider', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('de-model-interest-tiles', 2),
+        ask('de-model-save-level', 2),
+        ask('de-model-harvest-flow', 2),
+        ask('de-model-halflife-tree', 2),
+        ask('de-model-drip-slider', 2),
+        ask('de-model-double-tree', 2),
+        ask('de-model-save-steps', 2),
+        ask('de-model-harvest-tiles', 2),
+        ask('de-model-dose-when', 2),
+        ask('de-model-drip-steps', 2),
+        ask('de-model-yearly', 2),
+        ask('de-model-save-flow', 2),
+        ask('de-model-harvest-max', 2),
+        ask('de-model-dose-slider', 2),
+        ask('de-model-drip-level', 2),
       ],
     },
   ],

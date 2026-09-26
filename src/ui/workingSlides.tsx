@@ -28,10 +28,10 @@ type StepsSlide = Extract<Slide, { kind: 'steps' }>;
  * A stage with no ordering decision is still just the value.
  */
 export function parseStep(token: string): { span?: [number, number]; value: string } {
-  const bar = token.indexOf('|');
-  if (bar < 0) return { value: token };
-  const [from, to] = token.slice(0, bar).split('-').map(Number);
-  return { span: [from, to], value: token.slice(bar + 1) };
+  // Only a leading `from-to|` is a span: a value such as `\ln|y|` has bars of its own.
+  const match = /^(\d+)-(\d+)\|/.exec(token);
+  if (!match) return { value: token };
+  return { span: [Number(match[1]), Number(match[2])], value: token.slice(match[0].length) };
 }
 
 export function stepToken(span: [number, number] | undefined, value: string): string {

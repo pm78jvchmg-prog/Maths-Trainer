@@ -24,6 +24,7 @@ import {
   MIN_WIDGET_KINDS,
 } from '../shapeVariety';
 import { TRIPLES } from './complexPlane';
+import { WORKING_KEYS } from './workingKeys';
 import {
   BARE_TEX_COMMAND,
   SEEDS,
@@ -677,5 +678,43 @@ describe('course integrity', () => {
   it('uses unique lesson ids', () => {
     const ids = lessons.map((l) => l.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+/*
+ * A typed mechanics answer offers the keys its working needs and no others.
+ * A drop taught as h = ½gt² and then asked for t had no root key to type
+ * √(2h/g) with, while it offered sin, cos and tan that nothing in it used.
+ */
+describe('working keys', () => {
+  const working = registeredGenerators.flatMap((generator) => {
+    const draws = [];
+    for (let seed = 0; seed < 12; seed += 1) {
+      for (const difficulty of [1, 2] as const) {
+        const params = generator.sample(makeRng(`working-keys:${generator.id}:${seed}`), difficulty);
+        const slide = generator.render(params);
+        if (slide.kind !== 'expression' || !slide.keypad.includes(WORKING_KEYS[0])) continue;
+        draws.push({ slide, solution: JSON.stringify(generator.solution(params)) });
+      }
+    }
+    return draws.length ? [{ id: generator.id, draws }] : [];
+  });
+
+  it('finds the questions it is about', () => {
+    expect(working.length).toBeGreaterThan(100);
+  });
+
+  it('offers a root key wherever the working takes a root', () => {
+    const missing = working.filter(({ draws }) =>
+      draws.some(({ slide, solution }) => solution.includes('\\\\sqrt') && !slide.keypad.some((key) => key.insert === 'sqrt(')),
+    );
+    expect(missing.map(({ id }) => id)).toEqual([]);
+  });
+
+  it('offers trig keys only where the question states an angle in degrees', () => {
+    const wrong = working.filter(({ draws }) =>
+      draws.some(({ slide }) => slide.keypad.some((key) => key.fn) !== JSON.stringify(slide.prompt).includes('^\\\\circ')),
+    );
+    expect(wrong.map(({ id }) => id)).toEqual([]);
   });
 });

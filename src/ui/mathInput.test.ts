@@ -11,6 +11,7 @@ import katex from 'katex';
 import { describe, expect, it } from 'vitest';
 import { checkAnswer } from '../engine/equivalence';
 import { TRIG_KEYS } from '../content/generators/trigonometry';
+import { WORKING_KEYS } from '../content/generators/workingKeys';
 import type { KeypadKey } from '../content/types';
 import {
   EMPTY_DOC,
@@ -396,5 +397,26 @@ describe('typing a digit then e on the keypad', () => {
     expect(toAnswer(doc.nodes)).toBe('2e-1');
     expect(checkAnswer(toAnswer(doc.nodes), '2*e - 1').status).toBe('correct');
     expect(checkAnswer(toAnswer(doc.nodes), '0.2').status).toBe('incorrect');
+  });
+});
+
+describe('working keys', () => {
+  const key = (insert: string): KeypadKey => WORKING_KEYS.find((k) => k.insert === insert)!;
+  const press = (doc: Doc, ...keys: (KeypadKey | string)[]): Doc =>
+    keys.reduce<Doc>((acc, k) => (typeof k === 'string' ? type(acc, k) : applyKey(acc, k)), doc);
+
+  it('types the time to fall as a root, graded by its value', () => {
+    // h = ½gt² asked for t: √(2 × 60.025 ÷ 9.8) = 3.5
+    const over = press(EMPTY_DOC, key('sqrt('), key('/'), '2', key('*'), '60.025');
+    const doc = type(moveRight(over), '9.8');
+    expect(toTex(doc.nodes)).toContain('\\sqrt{\\frac{2');
+    expect(checkAnswer(toAnswer(doc.nodes), '3.5', { domain: 'real', mode: 'exact' }).status).toBe('correct');
+    expect(checkAnswer(toAnswer(doc.nodes), '3.6', { domain: 'real', mode: 'exact' }).status).toBe('incorrect');
+  });
+
+  it('types a square with the power key', () => {
+    // ½ × 3 × 8² = 96
+    const doc = press(EMPTY_DOC, '0.5', key('*'), '3', key('*'), '8', key('^'), '2');
+    expect(checkAnswer(toAnswer(doc.nodes), '96', { domain: 'real', mode: 'exact' }).status).toBe('correct');
   });
 });

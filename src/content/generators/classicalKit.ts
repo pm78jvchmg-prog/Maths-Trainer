@@ -10,7 +10,7 @@
  * rounded one, and a draw that would not be is refused at sampling through
  * `until`, never rounded. Units live in the prose, never in an answer.
  */
-import type { Block, ChoiceOption, Slide } from '../types';
+import type { Block, ChoiceOption, KeypadKey, Slide } from '../types';
 import { options } from '../choiceVariant';
 import { fmt } from './numericalMethods';
 import { steered } from './parametricImplicit';
@@ -50,8 +50,8 @@ export function until<T>(draw: () => T, ok: (value: T) => boolean): T {
 }
 
 /** A typed number, with the working keys so the calculation can be typed instead. */
-export function typed(prompt: Block[], lead: string, value: number): Slide {
-  return { kind: 'expression', prompt, lead, keypad: WORKING_KEYS, answer: fmt(value), domain: 'real', mode: 'exact' };
+export function typed(prompt: Block[], lead: string, value: number, keypad: KeypadKey[] = WORKING_KEYS): Slide {
+  return { kind: 'expression', prompt, lead, keypad, answer: fmt(value), domain: 'real', mode: 'exact' };
 }
 
 /**

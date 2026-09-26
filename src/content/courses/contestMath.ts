@@ -30,6 +30,12 @@ import { polynomialsLevel } from './contest/level14';
 import { sequencesSeriesLevel } from './contest/level15';
 import { countingFactors } from './contest/level16';
 import { modularArithmetic } from './contest/level17';
+import { syntheticGeometry } from './contest/level18';
+import { analyticalGeometry } from './contest/level19';
+import { contestTrig } from './contest/level20';
+import { advancedCombinatorics } from './contest/level21';
+import { advancedProbability } from './contest/level22';
+import { problemStrategies } from './contest/level23';
 
 export const contestMath: Course = {
   id: 'contest-math',
@@ -37,5 +43,5 @@ export const contestMath: Course = {
   position: 10,
   title: 'Contest Math',
   blurb: 'Competition problems: short to state, hard to crack, and each one opened by a single good idea.',
-  levels: [problemSolving, equationsRatios, basicStatistics, geometryFundamentals, similarityScaling, compositeFigures, combinatorics, probability, fastProblemSolving, factorization, reframingProblems, advancedAlgebra, inequalities, polynomialsLevel, sequencesSeriesLevel, countingFactors, modularArithmetic],
+  levels: [problemSolving, equationsRatios, basicStatistics, geometryFundamentals, similarityScaling, compositeFigures, combinatorics, probability, fastProblemSolving, factorization, reframingProblems, advancedAlgebra, inequalities, polynomialsLevel, sequencesSeriesLevel, countingFactors, modularArithmetic, syntheticGeometry, analyticalGeometry, contestTrig, advancedCombinatorics, advancedProbability, problemStrategies],
 };

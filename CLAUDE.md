@@ -387,9 +387,12 @@ root in their head. It grades nothing and knows nothing but `x_0`, which seeds
 Its clicks stop at the panel, so it never counts as the retry tap.
 
 Typed mechanics answers (`forces.ts`, `kinematics.ts`, the `mech-*` vectors)
-carry `WORKING_KEYS` (`generators/workingKeys.ts`): times, divide, brackets
-and trig in degrees, so the learner can type the calculation rather than do
-it mentally. It is graded by value like any typed answer, which is only safe
+carry `WORKING_KEYS` (`generators/workingKeys.ts`): times, divide, brackets,
+a square root and a power, so the learner can type the calculation rather than
+do it mentally — a drop taught as `h = ½gt²` and asked for `t` needs the root.
+Trig keys in degrees come only with `TRIG_WORKING_KEYS`, on a question whose
+prompt states an angle in degrees; most give `tan α = ¾` instead, and a test
+in `generators.test.ts` holds each draw to the right set. It is graded by value like any typed answer, which is only safe
 because those answers are exact decimals, or rounded ones carrying
 `precision`.
 

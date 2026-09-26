@@ -13,7 +13,7 @@
  * `typedRounded` and `roundedWell`); the checker then accepts anything that
  * rounds to the same value. Units live in the prose, never in an answer.
  */
-import type { Block, ChoiceOption, Slide } from '../types';
+import type { Block, ChoiceOption, KeypadKey, Slide } from '../types';
 import { options } from '../choiceVariant';
 import { fmt } from './numericalMethods';
 import { steered } from './parametricImplicit';
@@ -54,8 +54,8 @@ export function until<T>(draw: () => T, ok: (value: T) => boolean): T {
 }
 
 /** A typed number, with the working keys so the calculation can be typed instead. */
-export function typed(prompt: Block[], lead: string, value: number): Slide {
-  return { kind: 'expression', prompt, lead, keypad: WORKING_KEYS, answer: fmt(value), domain: 'real', mode: 'exact' };
+export function typed(prompt: Block[], lead: string, value: number, keypad: KeypadKey[] = WORKING_KEYS): Slide {
+  return { kind: 'expression', prompt, lead, keypad, answer: fmt(value), domain: 'real', mode: 'exact' };
 }
 
 /** "to 2 decimal places" or "to 3 significant figures". */
@@ -95,12 +95,18 @@ export function roundedWell(value: number, precision: Precision, margin = 0.15):
  * the rounded value; the checker accepts anything that rounds to it, so the
  * learner's unrounded working typed on the keypad passes too.
  */
-export function typedRounded(prompt: Block[], lead: string, value: number, precision: Precision): Slide {
+export function typedRounded(
+  prompt: Block[],
+  lead: string,
+  value: number,
+  precision: Precision,
+  keypad: KeypadKey[] = WORKING_KEYS,
+): Slide {
   return {
     kind: 'expression',
     prompt,
     lead,
-    keypad: WORKING_KEYS,
+    keypad,
     answer: fmt(roundTo(value, precision)),
     precision,
     domain: 'real',

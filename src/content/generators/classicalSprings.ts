@@ -36,6 +36,7 @@ import {
   valueBank,
   type Precision,
 } from './classicalKit';
+import { TRIG_WORKING_KEYS, WORKING_KEYS } from './workingKeys';
 
 const n3 = (v: number): number => Number(v.toFixed(6));
 const Nm = (v: number): string => `$${fmt(v)}\\text{ N m}^{-1}$`;
@@ -750,7 +751,7 @@ const sampleSwing = (rng: { int: (a: number, b: number) => number; pick: <T>(xs:
 const swingSpeedGen: Generator<SwingParams> = {
   id: 'clm-swing-speed',
   sample: (rng, difficulty) => sampleSwing(rng, difficulty > 1),
-  render: (p) => typed([say(`A ${p.what} ${metres(p.L)} long is let go from rest at ${p.release.at}. ${G_NOTE} How fast is it going at the bottom, in $\\text{m s}^{-1}$?`)], 'v =', swingSpeed(p)),
+  render: (p) => typed([say(`A ${p.what} ${metres(p.L)} long is let go from rest at ${p.release.at}. ${G_NOTE} How fast is it going at the bottom, in $\\text{m s}^{-1}$?`)], 'v =', swingSpeed(p), p.release.at.includes('^\\circ') ? TRIG_WORKING_KEYS : WORKING_KEYS),
   solution: (p) => [
     { tex: `h = ${fmt(p.L)}(1 - ${fmt(p.release.c)}) = ${fmt(drop(p))}` },
     { tex: `v = \\sqrt{2 \\times 9.8 \\times ${fmt(drop(p))}} = ${fmt(swingSpeed(p))}` },

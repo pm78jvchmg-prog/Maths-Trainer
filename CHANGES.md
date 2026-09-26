@@ -5,6 +5,26 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-25
 
+- **Contest Math Levels 18 to 23 (#264).** Synthetic Geometry, Analytical
+  Geometry, Trigonometry, More Advanced Combinatorics, More Advanced Probability
+  and Contest Problem Strategies; this completes the 23-level course, with every
+  formula and figure checked by the design agent.
+- **Geometry Levels 7 and 8 (#263).** Surface Area (faces and nets, prisms,
+  cylinders, pyramids and cones) and Volume (cuboids, prisms, cylinders, scale
+  factor k³, pyramids, cones and spheres), each with a level check; the Geometry
+  course is complete.
+- **Contest Math Levels 15 to 17 (#262).** Sequences and Series, Finding and
+  Counting Factors and Modular Arithmetic: 10 lessons and three level checks,
+  every formula checked by the design agent.
+- **Geometry Levels 5 and 6 (#261).** Areas (squares, triangles, parallelograms,
+  trapezia, circles, sectors, area scale factor) and Pythagoras' Geometry (the
+  theorem, triples, roots, special right triangles, ladders, diagonals and
+  distances), each with a level check.
+- **Contest Math Levels 12 to 14 (#260).** More Advanced Algebra, Inequalities
+  and Polynomials: 13 lessons and three level checks, with every formula checked
+  by the design agent.
+- **Classical Mechanics Level 10 (#259).** General Considerations, five lessons
+  and a level check; the course's ten levels are complete.
 - **Classical Mechanics Level 9 (#257).** Oscillations, five lessons and a level
   check; Level 8 formulas tidied for phones.
 - **Geometry diagrams tidied (#256).** Geometry diagrams and formulas tidied for

@@ -30,6 +30,11 @@
  * slides, one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
+import { npL7 } from './numberProof/level7';
+import { npL8 } from './numberProof/level8';
+import { npL9 } from './numberProof/level9';
+import { npL10 } from './numberProof/level10';
+import { npL11 } from './numberProof/level11';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -1461,5 +1466,10 @@ export const numberProof: Course = {
         ask('cong-missing-digit', 2),
       ],
     },
+    npL7,
+    npL8,
+    npL9,
+    npL10,
+    npL11,
   ],
 };

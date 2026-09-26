@@ -17,7 +17,10 @@
  * exact solution and which way it misses, and how the error follows h.
  * Level 6 is choosing a method: interval bisection, one root chased by
  * bisection, iteration and Newton-Raphson side by side, speed of
- * convergence, when each breaks, and which to reach for.
+ * convergence, when each breaks, and which to reach for. Level 7 is
+ * numerical differentiation: the forward and central differences, why the
+ * central one's error shrinks faster, both on a table of readings, and the
+ * second difference for f''(a).
  *
  * The tangent's equation belongs to Differentiation (`df-l1-tangent`) and
  * rectangle sums to Integration (`in-l8`); both are pointed at, not taught
@@ -30,6 +33,7 @@
 import type { Block, Course, SlideRef } from '../types';
 import { plotSvg } from '../figures';
 import { cobwebSvg } from '../generators/numericalMethods';
+import { withAxisNumbers } from '../generators/numericalKit';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -223,13 +227,120 @@ const eulerSteps: Block = {
   }),
 };
 
+/** y = x^3 + x - 3 on squared paper, crossing the axis at about 1.2. */
+const rootGraph: Block = {
+  kind: 'diagram',
+  svg: withAxisNumbers(
+    plotSvg({
+      xMin: -2,
+      xMax: 3,
+      yMin: -6,
+      yMax: 6,
+      grid: true,
+      curves: [{ f: (x) => Math.max(-9, Math.min(9, x * x * x + x - 3)) }],
+      label: 'The curve y = x cubed plus x minus 3, crossing the x-axis between 1 and 2, at about 1.2',
+    }),
+  ),
+};
+
+/** y = x^3 - 4x meeting the dashed line y = 2 three times. */
+const threeCrossings: Block = {
+  kind: 'diagram',
+  svg: withAxisNumbers(
+    plotSvg({
+      xMin: -3,
+      xMax: 3,
+      yMin: -6,
+      yMax: 6,
+      grid: true,
+      curves: [{ f: (x) => Math.max(-9, Math.min(9, x * x * x - 4 * x)) }],
+      horizontals: [2],
+      label: 'The curve y = x cubed minus 4x and the dashed line y = 2, meeting three times',
+    }),
+  ),
+};
+
+/** y = x^3 and y = 3 - x meeting once, at about 1.2. */
+const meetGraphs: Block = {
+  kind: 'diagram',
+  svg: withAxisNumbers(
+    plotSvg({
+      xMin: -3,
+      xMax: 3,
+      yMin: -6,
+      yMax: 6,
+      grid: true,
+      curves: [{ f: (x) => Math.max(-9, Math.min(9, x * x * x)) }, { f: (x) => 3 - x, accent: true }],
+      label: 'The curve y = x cubed and the line y = 3 minus x, meeting once at about x = 1.2',
+    }),
+  ),
+};
+
+/** The chords of v = 12t - t^2 over strips of width 2. */
+function levellingChords(t: number): number {
+  const v = (x: number) => 12 * x - x * x;
+  const a = Math.min(3, Math.floor(t / 2)) * 2;
+  return v(a) + ((v(a + 2) - v(a)) * (t - a)) / 2;
+}
+
+/** A speed that levels off, v = 12t - t^2, with four trapezia whose tops sit below it. */
+const levellingOff: Block = {
+  kind: 'diagram',
+  svg: plotSvg({
+    xMin: 0,
+    xMax: 8,
+    yMin: 0,
+    yMax: 40,
+    curves: [
+      { f: (t) => 12 * t - t * t },
+      { f: levellingChords, accent: true },
+    ],
+    verticals: [0, 2, 4, 6, 8].map((x) => ({ x })),
+    label: 'A speed-time graph that bends down as it levels off, with the tops of four trapezia drawn below it',
+  }),
+};
+
+/** y = x^2 with its tangent at x = 2 dashed and the forward chord from x = 2 to x = 3. */
+const forwardChord: Block = {
+  kind: 'diagram',
+  svg: plotSvg({
+    xMin: 0,
+    xMax: 3.6,
+    yMin: -1,
+    yMax: 12,
+    curves: [{ f: (x) => x * x }, { f: (x) => 4 * x - 4, dashed: true }, { f: (x) => 5 * x - 6, accent: true }],
+    marks: [
+      { x: 2, y: 4 },
+      { x: 3, y: 9 },
+    ],
+    label: 'The curve y = x squared, its tangent at x = 2 dashed, and the chord from x = 2 to x = 3, which is steeper than the tangent',
+  }),
+};
+
+/** The same curve and tangent with the central chord from x = 1 to x = 3, parallel to it. */
+const centralChord: Block = {
+  kind: 'diagram',
+  svg: plotSvg({
+    xMin: 0,
+    xMax: 3.6,
+    yMin: -1,
+    yMax: 12,
+    curves: [{ f: (x) => x * x }, { f: (x) => 4 * x - 4, dashed: true }, { f: (x) => 4 * x - 3, accent: true }],
+    marks: [
+      { x: 1, y: 1 },
+      { x: 3, y: 9 },
+    ],
+    label: 'The curve y = x squared, its tangent at x = 2 dashed, and the chord from x = 1 to x = 3, which runs parallel to the tangent',
+  }),
+};
+
 export const numericalMethods: Course = {
   id: 'numerical-methods',
   category: 'advanced-maths',
   position: 80,
   title: 'Numerical Methods',
   // Its first two levels are shown in Numerical Methods Basics; see placement.ts.
-  blurb: "Bounds and errors, Simpson's rule, Euler's method, and choosing between methods.",
+  blurb: "Bounds and errors, Simpson's rule, Euler's method, choosing a method, and gradients from differences.",
   levels: [
     {
       id: 'nm-l1',
@@ -1547,6 +1658,813 @@ export const numericalMethods: Course = {
         ask('numer-speed-table', 2),
         ask('numer-breaks-tree', 2),
         ask('numer-reach-flow', 2),
+      ],
+    },
+    {
+      id: 'nm-l7',
+      title: 'Numerical Differentiation',
+      lessons: [
+        {
+          id: 'nm-l7-forward',
+          title: 'The Forward Difference',
+          slides: [
+            teach(
+              prose('The gradient at a point is the gradient of the tangent there. Without differentiating, a chord to a nearby point estimates it.'),
+              forwardChord,
+              prose('The chord from $x = a$ to $x = a + h$ gives the **forward difference**:'),
+              maths("f'(a) \\approx \\frac{f(a + h) - f(a)}{h}"),
+              prose('For $f(x) = x^{2}$ at $a = 3$ with $h = 0.1$:'),
+              working('f(3.1) &= 9.61', 'f(3) &= 9', "f'(3) &\\approx \\frac{9.61 - 9}{0.1} = 6.1"),
+              prose("On one line that is $[f(3.1) - f(3)] \\div 0.1$. Differentiating gives $f'(3) = 6$, so the estimate is close."),
+            ),
+            ask('numer-fd-forward'),
+            ask('numer-fd-chord-tree'),
+            ask('numer-fd-formula-tiles'),
+            teach(
+              prose('A cubic works the same way. For $f(x) = x^{3} - 2x$ at $a = 1$ with $h = 0.2$:'),
+              working('f(1.2) &= 1.728 - 2.4', '&= -0.672', 'f(1) &= 1 - 2 = -1'),
+              working("f'(1) &\\approx \\frac{-0.672 - (-1)}{0.2}", '&= \\frac{0.328}{0.2} = 1.64'),
+              prose("Here $f'(x) = 3x^{2} - 2$, so $f'(1) = 1$: a bigger step leaves a bigger gap."),
+            ),
+            ask('numer-fd-forward+choice', 2),
+            ask('numer-fd-chord-tree', 2),
+            ask('numer-fd-formula-tiles', 2),
+            teach(
+              prose(
+                "Whether the estimate is too big or too small depends on how the curve bends. When $f''(x) > 0$ the curve bends up and gets steeper, so the chord is steeper than the tangent at its left end: the forward difference **overestimates**.",
+              ),
+              prose("When $f''(x) < 0$ it bends down, the chord is less steep, and the forward difference **underestimates**."),
+              prose("For $x^{3} - 2x$, $f''(x) = 6x$, which is positive on $[1, 1.2]$: an overestimate, and indeed $1.64 > 1$."),
+            ),
+            ask('numer-fd-over-flow'),
+            ask('numer-fd-over-flow', 2),
+          ],
+          skillCheck: [ask('numer-fd-forward', 2), ask('numer-fd-chord-tree', 2), ask('numer-fd-over-flow', 2)],
+        },
+        {
+          id: 'nm-l7-central',
+          title: 'The Central Difference',
+          slides: [
+            teach(
+              prose('A better chord is centred on $a$: from $a - h$ to $a + h$, a width of $2h$. It runs almost parallel to the tangent.'),
+              centralChord,
+              prose('This gives the **central difference**:'),
+              maths("f'(a) \\approx \\frac{f(a + h) - f(a - h)}{2h}"),
+              prose('For $f(x) = x^{2}$ at $a = 3$ with $h = 0.1$:'),
+              working('f(3.1) &= 9.61', 'f(2.9) &= 8.41', "f'(3) &\\approx \\frac{9.61 - 8.41}{0.2} = 6"),
+              prose("On one line that is $[f(3.1) - f(2.9)] \\div 0.2$. It gives exactly $f'(3) = 6$, where the forward difference gave $6.1$."),
+            ),
+            ask('numer-cd-value'),
+            ask('numer-cd-chord-tree'),
+            ask('numer-cd-formula-tiles'),
+            teach(
+              prose('Work along the line one piece at a time: each height, then the bracket, then the division. For $f(x) = x^{3} - 2x$ at $a = 1$ with $h = 0.2$:'),
+              working('&[f(1.2) - f(0.8)] \\div 0.4', '&= [-0.672 - (-1.088)] \\div 0.4', '&= 0.416 \\div 0.4', '&= 1.04'),
+              prose("The exact value is $f'(1) = 1$. The forward difference with the same $h$ gave $1.64$."),
+            ),
+            ask('numer-cd-steps'),
+            ask('numer-cd-value+choice', 2),
+            ask('numer-cd-chord-tree', 2),
+            teach(
+              prose(
+                'Take care with the width. The chord runs from $a - h$ to $a + h$, so it is $2h$ wide, not $h$: dividing by $h$ instead doubles the estimate.',
+              ),
+            ),
+            ask('numer-cd-formula-tiles', 2),
+            ask('numer-cd-steps', 2),
+          ],
+          skillCheck: [ask('numer-cd-value', 2), ask('numer-cd-chord-tree', 2), ask('numer-cd-steps', 2)],
+        },
+        {
+          id: 'nm-l7-better',
+          title: 'Why the Central Difference Wins',
+          slides: [
+            teach(
+              prose('The **error** of an estimate is the estimate minus the exact value. For $f(x) = x^{2}$ at $a = 3$ with $h = 0.1$, where $f\'(3) = 6$:'),
+              working('\\text{forward error} &= 6.1 - 6 = 0.1', '\\text{central error} &= 6 - 6 = 0'),
+              prose("For $f(x) = x^{3} - 2x$ at $a = 1$ with $h = 0.2$, where $f'(1) = 1$:"),
+              working('\\text{forward error} &= 1.64 - 1', '&= 0.64', '\\text{central error} &= 1.04 - 1', '&= 0.04'),
+            ),
+            ask('numer-fd-error'),
+            ask('numer-diff-errors-tree'),
+            ask('numer-cd-error'),
+            teach(
+              prose(
+                'On a quadratic $ax^{2} + bx + c$ the forward difference is out by exactly $a \\times h$, so halving $h$ halves its error. Above, $1 \\times 0.1 = 0.1$.',
+              ),
+              prose(
+                'On a cubic the central difference is out by exactly the $x^{3}$ coefficient times $h^{2}$, so halving $h$ divides its error by $4$. Above, $1 \\times 0.2^{2} = 0.04$.',
+              ),
+              maths('\\text{forward error} \\propto h \\qquad \\text{central error} \\propto h^{2}'),
+            ),
+            ask('numer-diff-halve-choice'),
+            ask('numer-fd-error', 2),
+            ask('numer-cd-error+choice', 2),
+            teach(
+              prose(
+                'So the central difference wins twice over: its error is smaller to begin with, and it shrinks faster as $h$ gets smaller. Use it whenever there is a point on each side of $a$.',
+              ),
+            ),
+            ask('numer-diff-errors-tree', 2),
+            ask('numer-diff-halve-choice', 2),
+          ],
+          skillCheck: [ask('numer-fd-error', 2), ask('numer-cd-error', 2), ask('numer-diff-halve-choice', 2)],
+        },
+        {
+          id: 'nm-l7-readings',
+          title: 'Gradients from Readings',
+          slides: [
+            teach(
+              prose("Often $f$ is known only from readings. A car's distance $s$ m is recorded every $2$ s:"),
+              maths('\\begin{array}{c|ccccc} t & 0 & 2 & 4 & 6 & 8 \\\\ \\hline s & 0 & 9 & 24 & 45 & 72 \\end{array}'),
+              prose('Its speed is the rate $\\frac{ds}{dt}$. At $t = 4$, take the central difference from the readings either side, $4$ s apart:'),
+              maths('\\frac{45 - 9}{4} = 9'),
+              prose('So it is doing about $9$ m/s. Each inside reading gets its own, the same way:'),
+              working('t = 2: &\\ \\frac{24 - 0}{4} = 6', 't = 6: &\\ \\frac{72 - 24}{4} = 12'),
+            ),
+            ask('numer-data-central'),
+            ask('numer-data-rates-table'),
+            teach(
+              prose('The first reading has nothing before it, so use the forward difference to the next one. At $t = 0$:'),
+              maths('\\frac{9 - 0}{2} = 4.5'),
+              prose('The last has nothing after it, so use the **backward difference** from the one before. At $t = 8$:'),
+              maths('\\frac{72 - 45}{2} = 13.5'),
+            ),
+            ask('numer-data-end-rate'),
+            ask('numer-data-which-flow'),
+            ask('numer-data-central+choice', 2),
+            teach(
+              prose(
+                "The rate's units are the reading's units per unit of time: metres per second, litres per minute. A reading that is falling, like a cooling cup of tea, gives a negative rate.",
+              ),
+            ),
+            ask('numer-data-rates-table', 2),
+            ask('numer-data-end-rate', 2),
+            ask('numer-data-which-flow', 2),
+          ],
+          skillCheck: [ask('numer-data-central', 2), ask('numer-data-end-rate', 2), ask('numer-data-which-flow', 2)],
+        },
+        {
+          id: 'nm-l7-second',
+          title: 'The Second Difference',
+          slides: [
+            teach(
+              prose("A difference of differences estimates $f''(a)$, from the heights either side and in the middle:"),
+              maths("f''(a) \\approx \\frac{f(a + h) - 2f(a) + f(a - h)}{h^{2}}"),
+              prose('For $f(x) = x^{3} - 2x$ at $a = 1$ with $h = 0.2$:'),
+              working('f(1.2) &= -0.672', 'f(1) &= -1', 'f(0.8) &= -1.088'),
+              working("f''(1) &\\approx \\frac{-0.672 + 2 - 1.088}{0.04}", '&= \\frac{0.24}{0.04} = 6'),
+              prose("On one line that is $[f(1.2) - 2f(1) + f(0.8)] \\div 0.04$. Here $f''(x) = 6x$, so $f''(1) = 6$: on a cubic the second difference is exact."),
+            ),
+            ask('numer-second-value'),
+            ask('numer-second-chord-tree'),
+            ask('numer-second-formula-tiles'),
+            teach(
+              prose('With an $x^{4}$ term it is only close. For $f(x) = x^{4}$ at $a = 1$ with $h = 0.1$:'),
+              working('f(1.1) &= 1.4641', 'f(1) &= 1', 'f(0.9) &= 0.6561'),
+              working("f''(1) &\\approx \\frac{1.4641 - 2 + 0.6561}{0.01}", '&= \\frac{0.1202}{0.01} = 12.02'),
+              prose("The exact value is $f''(1) = 12$."),
+            ),
+            ask('numer-second-value+choice', 2),
+            ask('numer-second-chord-tree', 2),
+            ask('numer-second-formula-tiles', 2),
+            teach(
+              prose(
+                "At a stationary point the sign of $f''$ gives its nature: positive means a minimum, negative a maximum. The second difference gives that sign without differentiating twice.",
+              ),
+              prose('$f(x) = x^{3} - 3x$ has a stationary point at $x = 1$. With $h = 0.1$:'),
+              working('f(1.1) &= -1.969', 'f(1) &= -2', 'f(0.9) &= -1.971'),
+              working("f''(1) &\\approx \\frac{-1.969 + 4 - 1.971}{0.01}", '&= \\frac{0.06}{0.01} = 6'),
+              prose('Positive, so the stationary point at $x = 1$ is a minimum.'),
+            ),
+            ask('numer-second-nature-flow'),
+            ask('numer-second-nature-flow', 2),
+          ],
+          skillCheck: [ask('numer-second-value', 2), ask('numer-second-chord-tree', 2), ask('numer-second-nature-flow', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('numer-fd-forward', 2),
+        ask('numer-cd-chord-tree', 2),
+        ask('numer-fd-over-flow', 2),
+        ask('numer-cd-value+choice', 2),
+        ask('numer-cd-steps', 2),
+        ask('numer-fd-chord-tree', 2),
+        ask('numer-fd-error', 2),
+        ask('numer-cd-error+choice', 2),
+        ask('numer-diff-halve-choice', 2),
+        ask('numer-diff-errors-tree', 2),
+        ask('numer-data-central', 2),
+        ask('numer-data-end-rate', 2),
+        ask('numer-data-rates-table', 2),
+        ask('numer-second-value', 2),
+        ask('numer-second-nature-flow', 2),
+      ],
+    },
+    {
+      id: 'nm-l8',
+      title: 'Locating Roots Graphically',
+      lessons: [
+        {
+          id: 'nm-l8-graph',
+          title: 'Roots on a Graph',
+          slides: [
+            teach(
+              prose('A root of $f(x) = 0$ is where the graph of $y = f(x)$ crosses the $x$-axis, since $y = 0$ there.'),
+              rootGraph,
+              prose(
+                'This is $f(x) = x^{3} + x - 3$. It crosses between the grid lines at $x = 1$ and $x = 2$, so the root is in $[1, 2]$. Splitting that square into tenths by eye, it is at about $x = 1.2$.',
+              ),
+            ),
+            ask('numer-graph-interval-choice'),
+            ask('numer-graph-root-slider'),
+            ask('numer-graph-count'),
+            teach(
+              prose(
+                'To count roots, count where the curve meets the axis. A curve that just touches the axis and turns back has a root there too.',
+              ),
+              prose(
+                'The solutions of $f(x) = k$ are where the curve meets the line $y = k$. Here $y = x^{3} - 4x$ meets the dashed line $y = 2$ three times, so $x^{3} - 4x = 2$ has three solutions.',
+              ),
+              threeCrossings,
+              prose('With several roots, say which: the largest is the one furthest right.'),
+            ),
+            ask('numer-graph-interval-choice', 2),
+            ask('numer-graph-count+choice', 2),
+            ask('numer-graph-root-slider', 2),
+            teach(
+              prose('A graph is only as good as its drawing. A change of sign proves the root is really there:'),
+              working('f(1) &= 1 + 1 - 3 = -1', 'f(2) &= 8 + 2 - 3 = 7'),
+              prose(
+                'Opposite signs, and the curve has no breaks, so there is a root in $[1, 2]$. Across an asymptote, like the one of $\\frac{1}{x}$ at $x = 0$, the sign can change with no root at all.',
+              ),
+            ),
+            ask('numer-sign-flow'),
+            ask('numer-sign-flow', 2),
+          ],
+          skillCheck: [ask('numer-graph-interval-choice', 2), ask('numer-graph-root-slider', 2), ask('numer-sign-flow', 2)],
+        },
+        {
+          id: 'nm-l8-meet',
+          title: 'Where Two Graphs Meet',
+          slides: [
+            teach(
+              prose(
+                'The solutions of $x^{3} = 3 - x$ are where the graphs of $y = x^{3}$ and $y = 3 - x$ meet: at a meeting point the two sides are equal.',
+              ),
+              meetGraphs,
+              prose('They meet once, at about $x = 1.2$, so there is one solution.'),
+            ),
+            ask('numer-meet-count-choice'),
+            ask('numer-meet-slider'),
+            ask('numer-meet-rearrange-tiles'),
+            teach(
+              prose('To test for a change of sign, move everything to one side:'),
+              working('x^{3} &= 3 - x', 'x^{3} + x - 3 &= 0'),
+              prose('Call the left side $h(x)$. Then'),
+              working('h(1) &= 1 + 1 - 3 = -1', 'h(2) &= 8 + 2 - 3 = 7'),
+              prose('A change of sign, so the solution is in $[1, 2]$.'),
+            ),
+            ask('numer-meet-value'),
+            ask('numer-meet-rearrange-tiles', 2),
+            teach(
+              prose(
+                'A curve and a line can meet twice, or not at all. $y = x^{2}$ and $y = x + 2$ meet twice, at $x = -1$ and $x = 2$. The curve $y = \\frac{4}{x}$ has two separate branches, so a line can meet each of them.',
+              ),
+              prose('Halfway values work the same way. For $h(x) = x^{3} + x - 3$:'),
+              working('h(1.5) &= 3.375 + 1.5 - 3', '&= 1.875'),
+            ),
+            ask('numer-meet-count-choice', 2),
+            ask('numer-meet-value', 2),
+            ask('numer-meet-slider', 2),
+          ],
+          skillCheck: [ask('numer-meet-count-choice', 2), ask('numer-meet-rearrange-tiles', 2), ask('numer-meet-value', 2)],
+        },
+        {
+          id: 'nm-l8-table',
+          title: 'Roots from a Table',
+          slides: [
+            teach(
+              prose('A table of values shows roots without a graph. For $f(x) = x^{3} - 3x + 1$:'),
+              maths('\\begin{array}{r|r} x & f(x) \\\\ \\hline -2 & -1 \\\\ -1 & 3 \\\\ 0 & 1 \\\\ 1 & -1 \\\\ 2 & 3 \\end{array}'),
+              prose('Each value is a substitution:'),
+              working('f(-2) &= (-2)^{3} - 3(-2) + 1', '&= -8 + 6 + 1 = -1'),
+              prose('The sign changes on $[-2, -1]$, $[0, 1]$ and $[1, 2]$. Each change proves a root, so there are at least three.'),
+            ),
+            ask('numer-table-fill'),
+            ask('numer-sign-interval'),
+            ask('numer-table-count'),
+            teach(
+              prose('To narrow a root down, test the middle of its interval. For the root in $[0, 1]$:'),
+              working('f(0) &= 1', 'f(0.5) &= 0.125 - 1.5 + 1', '&= -0.375', 'f(1) &= -1'),
+              prose('$f(0.5)$ has the other sign to $f(0)$, so the change, and the root, is in $[0, 0.5]$.'),
+            ),
+            ask('numer-table-next-flow'),
+            ask('numer-table-fill', 2),
+            ask('numer-table-count+choice', 2),
+            teach(
+              prose('Keep halving:'),
+              working('&f(0.25)', '&= 0.015625 - 0.75 + 1', '&= 0.265625'),
+              prose('The same sign as $f(0)$, so the root is in $[0.25, 0.5]$.'),
+              prose(
+                'A table only shows its own points. Two roots between neighbouring points leave the sign unchanged, so the sign changes give the number of roots there must be, at least.',
+              ),
+            ),
+            ask('numer-table-next-flow', 2),
+            ask('numer-sign-interval'),
+          ],
+          skillCheck: [ask('numer-table-fill', 2), ask('numer-table-count', 2), ask('numer-table-next-flow', 2)],
+        },
+        {
+          id: 'nm-l8-zoom',
+          title: 'Zooming In',
+          slides: [
+            teach(
+              prose(
+                '$f(x) = x^{3} - 2x - 5$ has $f(2) = -1$ and $f(3) = 16$, so a root in $[2, 3]$. To zoom in, work out $f$ at each tenth from $2$:',
+              ),
+              working('f(2) &= -1', 'f(2.1) &= 9.261 - 4.2 - 5', '&= 0.061'),
+              prose('The sign has changed already, so the root is in $[2, 2.1]$. This is a **decimal search**.'),
+            ),
+            ask('numer-zoom-table'),
+            ask('numer-sign-interval', 2),
+            ask('numer-sign-value'),
+            teach(
+              prose('Is it $2.0$ or $2.1$ to 1 decimal place? Rounding switches at the halfway point, so test $2.05$:'),
+              working('f(2.05) &= 8.615125 - 4.1 - 5', '&= -0.484875'),
+              prose('The same sign as $f(2)$, so the root is past halfway, in $[2.05, 2.1]$: it is $2.1$ to 1 decimal place.'),
+            ),
+            ask('numer-zoom-round-flow'),
+            ask('numer-zoom-table', 2),
+            ask('numer-sign-value+choice', 2),
+            teach(
+              prose(
+                'Each round of the search gains a decimal place: tenths, then hundredths. Keep every digit on the calculator, and round only what you write down.',
+              ),
+            ),
+            ask('numer-sign-interval', 2),
+            ask('numer-zoom-round-flow', 2),
+          ],
+          skillCheck: [ask('numer-zoom-table', 2), ask('numer-sign-value', 2), ask('numer-zoom-round-flow', 2)],
+        },
+        {
+          id: 'nm-l8-confirm',
+          title: 'Confirming a Root',
+          slides: [
+            teach(
+              prose(
+                'A graph suggests $\\alpha \\approx 1.4$ for $f(x) = x^{3} + x - 4$. $\\alpha = 1.4$ to 1 decimal place means $\\alpha$ rounds to $1.4$:',
+              ),
+              maths('1.35 \\le \\alpha < 1.45'),
+              prose('So show that $f$ changes sign between those bounds:'),
+              working('f(1.35) &\\approx -0.1896', 'f(1.45) &\\approx 0.4986'),
+              prose('Opposite signs, so $\\alpha = 1.4$ to 1 decimal place.'),
+            ),
+            ask('numer-confirm-bounds-tiles'),
+            ask('numer-confirm-verdict-flow'),
+            ask('numer-accuracy-choice'),
+            teach(
+              prose('It works for any number of places. $\\alpha = 1.38$ to 2 decimal places needs a change of sign on $[1.375, 1.385]$:'),
+              working('f(1.375) &\\approx -0.0254', 'f(1.385) &\\approx 0.0417'),
+              prose('A quick check is to multiply the two: a negative product means opposite signs.'),
+            ),
+            ask('numer-bounds-steps'),
+            ask('numer-confirm-bounds-tiles', 2),
+            ask('numer-confirm-verdict-flow', 2),
+            teach(
+              prose(
+                'If the signs agree, the claim is wrong: the root is beyond one of the bounds, so it rounds to a neighbouring value.',
+              ),
+              prose('Read the other way, a change of sign across $[1.375, 1.385]$ is exactly what shows $\\alpha = 1.38$ to 2 decimal places.'),
+            ),
+            ask('numer-accuracy-choice', 2),
+            ask('numer-bounds-steps', 2),
+          ],
+          skillCheck: [ask('numer-confirm-bounds-tiles', 2), ask('numer-confirm-verdict-flow', 2), ask('numer-bounds-steps', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('numer-graph-interval-choice', 2),
+        ask('numer-graph-count', 2),
+        ask('numer-graph-root-slider', 2),
+        ask('numer-meet-count-choice', 2),
+        ask('numer-meet-slider', 2),
+        ask('numer-meet-rearrange-tiles', 2),
+        ask('numer-meet-value', 2),
+        ask('numer-table-fill', 2),
+        ask('numer-table-count', 2),
+        ask('numer-table-next-flow', 2),
+        ask('numer-zoom-table', 2),
+        ask('numer-zoom-round-flow', 2),
+        ask('numer-confirm-bounds-tiles', 2),
+        ask('numer-confirm-verdict-flow', 2),
+        ask('numer-bounds-steps', 2),
+      ],
+    },
+    {
+      id: 'nm-l9',
+      title: 'The Trapezium Rule in Context',
+      lessons: [
+        {
+          id: 'nm-l9-readings',
+          title: 'Areas from Readings',
+          slides: [
+            teach(
+              prose('The trapezium rule works on readings as well as on a formula:'),
+              maths('\\begin{gathered} A \\approx \\frac{h}{2}\\big[y_0 + y_n \\\\ + 2(y_1 + \\cdots + y_{n-1})\\big] \\end{gathered}'),
+              prose("A river's depth $d$ m is measured every $2$ m from bank to bank:"),
+              maths('\\begin{array}{c|ccccc} x & 0 & 2 & 4 & 6 & 8 \\\\ \\hline d & 0 & 3 & 5 & 4 & 0 \\end{array}'),
+              prose('Five readings make four strips of width $h = 2$. The ends count once, the middle readings twice:'),
+              working('y_0 + y_4 &= 0 + 0 = 0', 'y_1 + y_2 + y_3 &= 3 + 5 + 4 = 12', 'A &\\approx \\frac{2}{2}(0 + 2 \\times 12)', '&= 24'),
+              prose('The cross-section is about $24$ square metres.'),
+            ),
+            ask('numer-ctx-trap-value'),
+            ask('numer-ctx-sums-tree'),
+            ask('numer-ctx-strips-choice'),
+            teach(
+              prose(
+                'The readings mark the edges of the strips, so $n$ readings make $n - 1$ strips. A river $12$ m wide measured at $5$ evenly spaced points has $4$ strips, each $h = \\frac{12}{4} = 3$ m wide. Readings over time work the same way.',
+              ),
+              prose('On one line, one piece at a time: the ends, the doubled middles, the bracket, then $\\frac{h}{2}$ times it.'),
+              working('&1 \\times [0 + 0 + 2(3 + 5 + 4)]', '&= 1 \\times [0 + 24]', '&= 24'),
+            ),
+            ask('numer-ctx-rule-steps'),
+            ask('numer-ctx-trap-value+choice', 2),
+            ask('numer-ctx-strips-choice', 2),
+            teach(
+              prose(
+                'A quick check: the answer should lie between the smallest and the largest reading times the whole width. Here that is $0 \\times 8$ up to $5 \\times 8$, so $0$ to $40$, and $24$ is inside it.',
+              ),
+            ),
+            ask('numer-ctx-sums-tree', 2),
+            ask('numer-ctx-rule-steps', 2),
+          ],
+          skillCheck: [ask('numer-ctx-trap-value', 2), ask('numer-ctx-sums-tree', 2), ask('numer-ctx-rule-steps', 2)],
+        },
+        {
+          id: 'nm-l9-speed',
+          title: 'Distance from Speed',
+          slides: [
+            teach(
+              prose(
+                'The area under a speed-time graph is the distance travelled, since speed times time is distance, strip by strip. So the trapezium rule on speed readings estimates distance.',
+              ),
+              prose("A car's speed $v$ m/s is read every $2$ s:"),
+              maths('\\begin{array}{c|ccccc} t & 0 & 2 & 4 & 6 & 8 \\\\ \\hline v & 4 & 10 & 14 & 16 & 17 \\end{array}'),
+              working('y_0 + y_4 &= 4 + 17 = 21', 'y_1 + y_2 + y_3 &= 10 + 14 + 16', '&= 40'),
+              working('\\text{distance} &\\approx \\frac{2}{2}(21 + 2 \\times 40)', '&= 101'),
+              prose('About $101$ m. Over the $8$ s that is an average speed, in m/s, of'),
+              maths('101 \\div 8 = 12.625'),
+            ),
+            ask('numer-speed-distance'),
+            ask('numer-ctx-meaning-choice'),
+            ask('numer-speed-average'),
+            teach(
+              prose(
+                'Any rate works the same way: litres per minute over minutes gives litres, kilowatts over hours gives kilowatt-hours. Widths over a length give an area in square metres.',
+              ),
+              prose(
+                'The average speed is the height of the rectangle with the same area as the trapezia: the same distance over the same time.',
+              ),
+            ),
+            ask('numer-speed-mean-slider'),
+            ask('numer-speed-distance+choice', 2),
+            ask('numer-ctx-meaning-choice', 2),
+            teach(
+              prose(
+                'The average speed is the whole distance over the whole time, not the mean of the readings: in the rule the middle readings count twice.',
+              ),
+            ),
+            ask('numer-speed-average', 2),
+            ask('numer-speed-mean-slider', 2),
+          ],
+          skillCheck: [ask('numer-speed-distance', 2), ask('numer-ctx-meaning-choice', 2), ask('numer-speed-average', 2)],
+        },
+        {
+          id: 'nm-l9-bend',
+          title: 'Over or Under in Context',
+          slides: [
+            teach(
+              prose(
+                'The tops of the trapezia are straight chords. When the graph bends up, each chord lies above the curve and the rule gives too much: an **overestimate**. When it bends down, each chord lies below: an **underestimate**.',
+              ),
+              levellingOff,
+              prose('A car pulling away and levelling off has a speed graph that bends down, so the rule underestimates the distance.'),
+            ),
+            ask('numer-ctx-bend-choice'),
+            ask('numer-concavity-choice'),
+            ask('numer-ctx-bend-tiles'),
+            teach(
+              prose(
+                'Without a picture, read the formula. For $v = p + qt + rt^{2}$, a positive $t^{2}$ term bends the graph up and a negative one bends it down. With no $t^{2}$ term the graph is a straight line, and the rule is exactly right.',
+              ),
+              prose('So $v = 3 + 2t - 0.5t^{2}$ bends down: an underestimate.'),
+            ),
+            ask('numer-ctx-bend-flow'),
+            ask('numer-ctx-bend-choice', 2),
+            ask('numer-ctx-bend-tiles', 2),
+            teach(
+              prose(
+                "For any curve $f''(x)$ decides: positive bends up, negative bends down. For $f(x) = x^{3}$ on $[1, 3]$, $f''(x) = 6x > 0$, so the rule overestimates.",
+              ),
+            ),
+            ask('numer-ctx-bend-flow', 2),
+            ask('numer-concavity-choice', 2),
+          ],
+          skillCheck: [ask('numer-ctx-bend-choice', 2), ask('numer-ctx-bend-flow', 2), ask('numer-concavity-choice', 2)],
+        },
+        {
+          id: 'nm-l9-more',
+          title: 'More Strips',
+          slides: [
+            teach(
+              prose(
+                'More strips give shorter chords that hug the curve, so a better estimate. For $\\int_0^6 (x^{2} + 1)\\,dx$, whose exact value is $78$:',
+              ),
+              maths('\\begin{array}{c|c} n & \\text{estimate} \\\\ \\hline 1 & 114 \\\\ 2 & 87 \\\\ 3 & 82 \\\\ 6 & 79 \\end{array}'),
+              prose('The curve bends up, so every estimate is too big, and they fall towards $78$ as the strips increase.'),
+            ),
+            ask('numer-trapezium-estimate'),
+            ask('numer-more-strips-table'),
+            ask('numer-ordinates-tree'),
+            teach(
+              prose('Each row is the rule again. With $3$ strips, $h = 2$ and the heights at $x = 0, 2, 4, 6$ are $1, 5, 17, 37$:'),
+              maths('\\frac{2}{2}\\big[1 + 37 + 2(5 + 17)\\big] = 82'),
+              prose('The estimates close in from one side, so the exact value lies beyond the best of them: below $79$ here.'),
+            ),
+            ask('numer-more-closer-choice'),
+            ask('numer-trapezium-estimate+choice', 2),
+            ask('numer-more-strips-table', 2),
+            teach(
+              prose(
+                'The error falls fast. With $2$ strips it is $87 - 78$, which is $9$. With $6$, three times as many, it is $79 - 78$, just $1$: a ninth.',
+              ),
+            ),
+            ask('numer-ordinates-tree', 2),
+            ask('numer-more-closer-choice', 2),
+          ],
+          skillCheck: [ask('numer-more-strips-table', 2), ask('numer-trapezium-estimate', 2), ask('numer-more-closer-choice', 2)],
+        },
+        {
+          id: 'nm-l9-profile',
+          title: 'Profiles and Cross-Sections',
+          slides: [
+            teach(
+              prose(
+                "Sometimes a formula gives the heights. A tunnel's entrance is the region under $y = 9 - x^{2}$ from $x = -3$ to $x = 3$, in metres. With $6$ strips, $h = 1$ and the heights at $x = -3, -2, \\ldots, 3$ are",
+              ),
+              maths('0,\\ 5,\\ 8,\\ 9,\\ 8,\\ 5,\\ 0'),
+              prose('The ends are $0$, and the middle heights add to'),
+              maths('5 + 8 + 9 + 8 + 5 = 35'),
+              working('A &\\approx \\frac{1}{2}(0 + 0 + 2 \\times 35)', '&= 35'),
+              prose('About $35$ square metres; the exact area is $36$.'),
+            ),
+            ask('numer-profile-area'),
+            teach(
+              prose('When both ends are $0$, the rule shortens:'),
+              maths('A \\approx \\frac{h}{2} \\times 2(y_1 + \\cdots) = h(y_1 + \\cdots)'),
+              prose('With $4$ strips on the same tunnel, $h = 1.5$. The heights at $x = -1.5$, $0$ and $1.5$ are $6.75$, $9$ and $6.75$:'),
+              maths('A \\approx 1.5 \\times 22.5 = 33.75'),
+            ),
+            ask('numer-profile-heights-tree'),
+            ask('numer-profile-area+choice', 2),
+            teach(
+              prose(
+                'A canal or a tunnel with the same cross-section all along is a prism, so its volume is the cross-section times the length. A canal $50$ m long with a cross-section of about $24$ square metres holds about $1200$ cubic metres:',
+              ),
+              maths('24 \\times 50 = 1200'),
+              prose(
+                'Keep track of what the number means: widths over a width give square metres, times a length gives cubic metres, and a rate over time gives an amount.',
+              ),
+            ),
+            ask('numer-profile-volume'),
+            ask('numer-profile-heights-tree', 2),
+            ask('numer-profile-volume+choice', 2),
+            ask('numer-ctx-meaning-choice', 2),
+          ],
+          skillCheck: [ask('numer-profile-area', 2), ask('numer-profile-heights-tree', 2), ask('numer-profile-volume', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('numer-ctx-trap-value', 2),
+        ask('numer-ctx-sums-tree', 2),
+        ask('numer-ctx-strips-choice', 2),
+        ask('numer-ctx-rule-steps', 2),
+        ask('numer-speed-distance', 2),
+        ask('numer-speed-mean-slider', 2),
+        ask('numer-speed-average', 2),
+        ask('numer-ctx-meaning-choice', 2),
+        ask('numer-ctx-bend-choice', 2),
+        ask('numer-ctx-bend-flow', 2),
+        ask('numer-ctx-bend-tiles', 2),
+        ask('numer-more-closer-choice', 2),
+        ask('numer-more-strips-table', 2),
+        ask('numer-profile-area', 2),
+        ask('numer-profile-volume', 2),
+      ],
+    },
+    {
+      id: 'nm-l10',
+      title: 'Numerical Methods in Modelling',
+      lessons: [
+        {
+          id: 'nm-l10-model',
+          title: 'From a Story to an Equation',
+          slides: [
+            teach(
+              prose(
+                'A box has a square base of side $x$ cm. It is $2$ cm taller than it is wide, and its volume is $50$ cm³. Multiply out the volume, then take $50$ from both sides:',
+              ),
+              working('x^{2}(x + 2) &= 50', 'x^{3} + 2x^{2} &= 50', 'x^{3} + 2x^{2} - 50 &= 0'),
+              prose('Call the left side $f(x)$ and try whole numbers:'),
+              working('f(3) &= 3^{3} + 2 \\times 3^{2} - 50', '&= -5', 'f(4) &= 4^{3} + 2 \\times 4^{2} - 50', '&= 46'),
+              prose('The sign changes, so the side is between $3$ and $4$: $3 < x < 4$.'),
+            ),
+            ask('numer-model-equation-tiles'),
+            ask('numer-model-value'),
+            ask('numer-model-interval-choice'),
+            teach(
+              prose(
+                'The same side shows on a graph. Draw the volume $y = x^{2}(x + 2)$ and the line $y = 50$: they meet at the side, about $x = 3.1$.',
+              ),
+              prose('Other shapes work the same way. A box $3$ cm less tall than wide, with volume $20$ cm³:'),
+              working('x^{2}(x - 3) &= 20', 'x^{3} - 3x^{2} - 20 &= 0'),
+              prose('A block $x$ by $2x$ by $x + 1$, with volume $30$ cm³:'),
+              working('2x^{2}(x + 1) &= 30', '2x^{3} + 2x^{2} - 30 &= 0'),
+            ),
+            ask('numer-model-graph-slider'),
+            ask('numer-model-equation-tiles', 2),
+            ask('numer-model-value+choice', 2),
+            teach(
+              prose(
+                'With no table, make one: work out $f$ at one whole number after another until the sign changes. For $2x^{3} + 2x^{2} - 30 = 0$, $f(2) = -6$ and $f(3) = 42$, so $2 < x < 3$.',
+              ),
+            ),
+            ask('numer-model-interval-choice', 2),
+            ask('numer-model-graph-slider', 2),
+          ],
+          skillCheck: [ask('numer-model-equation-tiles', 2), ask('numer-model-value', 2), ask('numer-model-interval-choice', 2)],
+        },
+        {
+          id: 'nm-l10-report',
+          title: 'Reporting an Answer',
+          slides: [
+            teach(
+              prose('To round, look at the next digit: $5$ or more rounds up. To $2$ decimal places:'),
+              maths('3.1233645 \\approx 3.12'),
+              prose('A side given as $x = 3.1$ cm to $1$ decimal place is anything that rounds to $3.1$, up to half a unit either side:'),
+              maths('3.05 \\le x < 3.15'),
+              prose('So the largest the error can be is $0.05$.'),
+            ),
+            ask('numer-report-round'),
+            ask('numer-report-interval-tiles'),
+            ask('numer-report-error-bound-choice'),
+            teach(
+              prose(
+                'Significant figures count from the first digit that is not nought. To $2$ significant figures:',
+              ),
+              maths('348.27 \\approx 350 \\qquad 0.0034517 \\approx 0.0035'),
+              prose('A length of $350$ m to $2$ significant figures is from $345$ up to $355$: an error of at most $5$.'),
+              prose(
+                'A search gives better and better estimates. When two in a row round to the same value, report it: $3.1234$ and $3.1229$ are both $3.12$ to $2$ decimal places.',
+              ),
+            ),
+            ask('numer-report-agree-flow'),
+            ask('numer-report-round+choice', 2),
+            ask('numer-report-interval-tiles', 2),
+            teach(
+              prose(
+                'When they round differently, as $3.1249$ and $3.1251$ do to $2$ decimal places, the root is not fixed yet: take another estimate.',
+              ),
+            ),
+            ask('numer-report-error-bound-choice', 2),
+            ask('numer-report-agree-flow', 2),
+          ],
+          skillCheck: [ask('numer-report-round', 2), ask('numer-report-interval-tiles', 2), ask('numer-report-agree-flow', 2)],
+        },
+        {
+          id: 'nm-l10-sense',
+          title: 'Does the Answer Make Sense?',
+          slides: [
+            teach(
+              prose(
+                'A ball is thrown up from $2$ m above the ground. Its height after $t$ s is $h = 2 + 15t - 5t^{2}$, and it lands when $h = 0$. The roots are $t \\approx -0.13$ and $t \\approx 3.13$.',
+              ),
+              prose('A negative time is before the throw, so the ball lands at $t \\approx 3.13$ s.'),
+              prose('Then check an answer by putting it back in. For the box $x^{2}(x + 2) = 50$, a search gives $x = 3.1$:'),
+              working('3.1^{2} \\times (3.1 + 2) &= 9.61 \\times 5.1', '&= 49.011'),
+              prose('That is close to $50$, so $x = 3.1$ makes sense.'),
+            ),
+            ask('numer-sense-root-choice'),
+            ask('numer-sense-check-value'),
+            teach(
+              prose(
+                'Sometimes both roots make sense. A rectangle with a perimeter of $20$ m and an area of $20$ m² gives $x^{2} - 10x + 20 = 0$, with roots $x \\approx 2.76$ and $x \\approx 7.24$: the width and the length.',
+              ),
+              prose(
+                'To judge an answer: is it positive, does it fit any limit the story sets, and does it come within $10\\%$ of the target when put back in? $10\\%$ of $50$ is $5$, and $49.011$ is within $5$ of $50$.',
+              ),
+              prose('For a block $x$ by $2x$ by $x + 1$, putting back $x = 2.5$:'),
+              working('&2 \\times 2.5^{2} \\times (2.5 + 1)', '&= 2 \\times 6.25 \\times 3.5', '&= 43.75'),
+            ),
+            ask('numer-sense-flow'),
+            ask('numer-sense-check-value+choice', 2),
+            ask('numer-sense-root-choice', 2),
+            teach(
+              prose(
+                'The sign of $f$ says which side of the root a number is. For $f(x) = x^{3} + 2x^{2} - 50$, $f(3) = -5$ is negative, so a box of side $3$ cm holds too little: the side is more than $3$.',
+              ),
+            ),
+            ask('numer-model-value'),
+            ask('numer-sense-flow', 2),
+          ],
+          skillCheck: [ask('numer-sense-root-choice', 2), ask('numer-sense-check-value', 2), ask('numer-sense-flow', 2)],
+        },
+        {
+          id: 'nm-l10-error',
+          title: 'Percentage Error',
+          slides: [
+            teach(
+              prose('The percentage error compares the error with the exact value:'),
+              maths('\\text{percentage error} = \\frac{\\text{error}}{\\text{exact}} \\times 100'),
+              prose('The trapezium rule gives $82$ for an area that is exactly $80$:'),
+              working('\\text{error} &= 82 - 80 = 2', '\\frac{2}{80} \\times 100 &= 2.5'),
+              prose('A percentage error of $2.5\\%$.'),
+            ),
+            ask('numer-pct-error'),
+            ask('numer-pct-parts-tree'),
+            teach(
+              prose(
+                'Divide by the exact value, not the estimate. Then decide: an estimate within the accuracy asked for is good enough, and one that is not needs more strips or a closer search. $2.5\\%$ is within $5\\%$ but not within $1\\%$.',
+              ),
+              prose('Round as before, the next digit deciding:'),
+              working('2.7182818 &\\approx 2.72 \\text{ (2 d.p.)}', '348.27 &\\approx 350 \\text{ (2 s.f.)}'),
+            ),
+            ask('numer-pct-accept-flow'),
+            ask('numer-report-round'),
+            ask('numer-pct-error+choice', 2),
+            teach(
+              prose(
+                'An estimate below the exact value works the same way: the error is the gap either way. $76$ for exactly $80$ is an error of $4$, which is $5\\%$. Halves are fine too: an error of $2.5$ on $50$ is $5\\%$.',
+              ),
+            ),
+            ask('numer-pct-parts-tree', 2),
+            ask('numer-pct-accept-flow', 2),
+            ask('numer-report-round+choice', 2),
+          ],
+          skillCheck: [ask('numer-pct-error', 2), ask('numer-pct-parts-tree', 2), ask('numer-pct-accept-flow', 2)],
+        },
+        {
+          id: 'nm-l10-method',
+          title: 'Choosing a Method',
+          slides: [
+            teach(
+              prose('Choose the method that fits the task:'),
+              prose(
+                'A quadratic has a formula that gives its roots exactly. Most other equations need a change of sign, then a decimal search. Readings with no formula need the trapezium rule. A polynomial can be integrated exactly.',
+              ),
+              prose(
+                'For the box $x^{3} + 2x^{2} - 50 = 0$ there is no formula to use here, so start with a change of sign:',
+              ),
+              working('f(3) &= 27 + 18 - 50 = -5', 'f(4) &= 46'),
+            ),
+            ask('numer-method-choice'),
+            ask('numer-method-flow'),
+            ask('numer-model-value'),
+            teach(
+              prose("For readings, use the trapezium rule. A river's depth $d$ m every $2$ m from bank to bank:"),
+              maths('\\begin{array}{c|ccccc} x & 0 & 2 & 4 & 6 & 8 \\\\ \\hline d & 0 & 3 & 5 & 4 & 0 \\end{array}'),
+              working('y_0 + y_4 &= 0 + 0 = 0', 'y_1 + y_2 + y_3 &= 3 + 5 + 4 = 12', 'A &\\approx \\frac{2}{2}(0 + 2 \\times 12)', '&= 24'),
+            ),
+            ask('numer-ctx-trap-value'),
+            ask('numer-method-choice', 2),
+            ask('numer-method-flow', 2),
+            teach(
+              prose('More readings work the same way: the two ends once, every middle reading twice, then times $\\frac{h}{2}$.'),
+              prose('For a cubic, a sign change between two whole numbers proves a root there; no change means try another pair.'),
+            ),
+            ask('numer-model-value+choice', 2),
+            ask('numer-ctx-trap-value+choice', 2),
+          ],
+          skillCheck: [ask('numer-method-choice', 2), ask('numer-method-flow', 2), ask('numer-model-value', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('numer-model-equation-tiles', 2),
+        ask('numer-model-value', 2),
+        ask('numer-model-interval-choice', 2),
+        ask('numer-model-graph-slider', 2),
+        ask('numer-report-round', 2),
+        ask('numer-report-interval-tiles', 2),
+        ask('numer-report-error-bound-choice', 2),
+        ask('numer-report-agree-flow', 2),
+        ask('numer-sense-root-choice', 2),
+        ask('numer-sense-check-value', 2),
+        ask('numer-sense-flow', 2),
+        ask('numer-pct-error', 2),
+        ask('numer-pct-parts-tree', 2),
+        ask('numer-method-choice', 2),
+        ask('numer-method-flow', 2),
       ],
     },
   ],

@@ -81,7 +81,7 @@ export const NEW_COURSES: NewCourse[] = [
     blurb: 'Roots and areas pinned down by sign changes, iteration, tangents and trapezia.',
     category: 'advanced-algebra',
     position: 50,
-    levels: ['nm-l1', 'nm-l2'],
+    levels: ['nm-l1', 'nm-l2', 'nm-l8', 'nm-l9', 'nm-l10'],
   },
   {
     id: 'roots-of-polynomials',
@@ -89,15 +89,15 @@ export const NEW_COURSES: NewCourse[] = [
     blurb: 'How the roots of a polynomial sit in its coefficients.',
     category: 'advanced-maths',
     position: 15,
-    levels: ['pl-l4'],
+    levels: ['pl-l4', 'pl-l8', 'pl-l9', 'pl-l10', 'pl-l11'],
   },
   {
     id: 'series-induction',
     title: 'Series & Induction',
-    blurb: 'Proof by induction, the standard sums of powers, and the method of differences.',
+    blurb: 'Proof by induction, sums of powers, the method of differences, and recurrences.',
     category: 'advanced-maths',
     position: 55,
-    levels: ['np-l4', 'sq-l4', 'af-l6', 'sq-l5'],
+    levels: ['np-l4', 'sq-l4', 'sq-l8', 'af-l6', 'sq-l5', 'sq-l9'],
   },
   {
     id: 'number-theory',
@@ -105,7 +105,7 @@ export const NEW_COURSES: NewCourse[] = [
     blurb: "Euclid's algorithm, whole-number solutions, and arithmetic mod n.",
     category: 'advanced-maths',
     position: 90,
-    levels: ['np-l5', 'np-l6'],
+    levels: ['np-l5', 'np-l6', 'np-l9', 'np-l10', 'np-l11'],
   },
 ];
 

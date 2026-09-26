@@ -83,6 +83,11 @@ function promptFrom(slide: Slide): Block[] {
   // four options that already read "x = ...": a display block with nothing
   // in it. quad-symmetry is the only generator this affects today.
   if (/^[A-Za-z]$/.test(lead)) return slide.prompt;
+  // A lead that is only a word ("\text{value} =", "\text{km/h} =") names the
+  // input box; with no box it is a stray label floating above the options.
+  // The prompt already asks for that quantity, so there is nothing to lift.
+  // Nearly 400 derived choice slides showed one.
+  if (/^\\text\{[^{}]*\}$/.test(lead)) return slide.prompt;
   return [...slide.prompt, { kind: 'display', tex: lead }];
 }
 

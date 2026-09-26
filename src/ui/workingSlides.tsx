@@ -524,7 +524,9 @@ export function FlowSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideP
           then carries the right-or-wrong frame instead. */}
       {!subjectShown && (
         <div className={frameClass(feedback)}>
-          <Tex tex={slide.subject} />
+          {/* Display style, like every other formula set on its own: inline
+              style shrank a fraction here to the height of the text. */}
+          <Tex tex={`\\displaystyle ${slide.subject}`} />
         </div>
       )}
 

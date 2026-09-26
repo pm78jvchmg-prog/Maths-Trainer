@@ -7424,10 +7424,11 @@ function sortRoute({ inv, w }: SortWhichParams): SortRoute {
   return inv.s[at] === 1 ? 'fixed' : 'moves';
 }
 
-const SORT_TEX: Record<SortRoute, string> = {
-  fixed: '\\text{A line of invariant points}',
-  moves: '\\text{An invariant line whose points move}',
-  off: '\\text{Not an invariant line}',
+/** Plain words, so a label too long for one line wraps inside its button. */
+const SORT_WORDS: Record<SortRoute, string> = {
+  fixed: 'A line of invariant points',
+  moves: 'An invariant line whose points move',
+  off: 'Not an invariant line',
 };
 
 /** One line, sorted by where (1, m) goes: back to itself, along the line, or off it. */
@@ -7443,9 +7444,10 @@ const invSortWhich: Generator<SortWhichParams> = {
   render: (p): Slide => {
     const right = sortRoute(p);
     const { options: offered, correctId } = slotted(
-      SORT_TEX[right],
-      (['fixed', 'moves', 'off'] as const).filter((r) => r !== right).map((r) => SORT_TEX[r]),
+      SORT_WORDS[right],
+      (['fixed', 'moves', 'off'] as const).filter((r) => r !== right).map((r) => SORT_WORDS[r]),
       `${p.inv.m.join(',')}|${p.w}`,
+      false,
     );
     return {
       kind: 'choice',

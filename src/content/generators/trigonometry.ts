@@ -1627,6 +1627,22 @@ const FLOW_SUBJECTS: Record<'periodic' | 'none' | 'uneven' | 'dying', string[]> 
   ],
 };
 
+/**
+ * Words as TeX broken onto lines of at most `width` characters. A `\\text`
+ * run cannot wrap, so a subject such as "the amount of sand that has fallen
+ * through an hourglass" ran off a phone screen as one line.
+ */
+function textLines(words: string, width = 24): string {
+  const lines: string[] = [];
+  for (const word of words.split(' ')) {
+    const last = lines[lines.length - 1];
+    if (last !== undefined && last.length + 1 + word.length <= width) lines[lines.length - 1] = `${last} ${word}`;
+    else lines.push(word);
+  }
+  if (lines.length === 1) return `\\text{${lines[0]}}`;
+  return `\\begin{gathered} ${lines.map((line) => `\\text{${line}}`).join(' \\\\ ')} \\end{gathered}`;
+}
+
 interface PeriodicFlowParams {
   route: 'periodic' | 'none' | 'uneven' | 'dying';
   index: number;
@@ -1655,7 +1671,7 @@ const periodicFlow: Generator<PeriodicFlowParams> = {
         text: 'Work down the questions to decide whether this quantity has a period. Each answer chooses what gets asked next.',
       },
     ],
-    subject: `\\text{${FLOW_SUBJECTS[route][index]}}`,
+    subject: textLines(FLOW_SUBJECTS[route][index]),
     steps: [
       {
         id: 'returns',

@@ -4,13 +4,14 @@
  * KaTeX is bundled rather than loaded from a CDN, fonts included, because the
  * app has to render maths with no network at all.
  */
-import { useMemo } from 'react';
+import { Fragment, useMemo } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import type { Block } from '../content/types';
 import { Traversal } from './figures';
-import { displayPieces } from './displayPieces';
+import { alignedRows, displayLines, displayPieces } from './displayPieces';
 import { liftBlocks } from './liftAlgebra';
+import { inlineParts } from './inlineParts';
 
 function render(tex: string, displayMode: boolean, trust: boolean): string {
   try {
@@ -57,30 +58,31 @@ export function Tex({
  * word showed `*periodic*` — 34 bold spans and dozens of italic ones reading
  * as stray punctuation.
  *
- * One alternation, bold before italic so `**` is claimed by the bold branch
- * rather than being read as an empty italic followed by a stray asterisk.
- * Splitting on a capturing group keeps each marked-up span in the array; each
- * part is then told apart by its delimiters.
+ * The parsing, and the characters kept on a line with each formula, are in
+ * `inlineParts`.
  *
  * Split out from `Prose` because a decision tree's branch labels carry maths
  * too, and they live inside buttons — where a `<p>` is not valid content.
  * Anything that needs the inline markup in a non-paragraph context uses this.
  */
 export function Inline({ text }: { text: string }) {
-  const parts = useMemo(() => text.split(/(\$[^$]+\$|\*\*[^*]+\*\*|\*[^*]+\*)/g), [text]);
+  const parts = useMemo(() => inlineParts(text), [text]);
   return (
     <>
       {parts.map((part, idx) => {
-        if (part.startsWith('$') && part.endsWith('$')) {
-          return <Tex key={idx} tex={part.slice(1, -1)} />;
+        if (part.kind === 'maths') {
+          if (!part.before && !part.after) return <Tex key={idx} tex={part.tex} />;
+          return (
+            <span key={idx} className="inline-glue">
+              {part.before}
+              <Tex tex={part.tex} />
+              {part.after}
+            </span>
+          );
         }
-        if (part.startsWith('**') && part.endsWith('**')) {
-          return <strong key={idx}>{part.slice(2, -2)}</strong>;
-        }
-        if (part.startsWith('*') && part.endsWith('*')) {
-          return <em key={idx}>{part.slice(1, -1)}</em>;
-        }
-        return <span key={idx}>{part}</span>;
+        if (part.kind === 'bold') return <strong key={idx}>{part.text}</strong>;
+        if (part.kind === 'italic') return <em key={idx}>{part.text}</em>;
+        return <span key={idx}>{part.text}</span>;
       })}
     </>
   );
@@ -104,17 +106,49 @@ export function Prose({ text }: { text: string }) {
  * display mode: display mode cannot break a line, so a formula wider than the
  * phone scrolled sideways, while inline mode breaks after an `=` or a `+` only
  * when the line does not fit. The piece's own overflow scroll is left for the
- * rare formula with nowhere to break.
+ * rare formula with nowhere to break. A display that is one `gathered` block
+ * is taken apart into its lines first (`displayLines`), each on a row of its
+ * own, so its lines can break too.
  */
 export function DisplayMath({ tex, lifted = false }: { tex: string; lifted?: boolean }) {
   return (
     <div className={lifted ? 'display-math display-row lifted' : 'display-math display-row'}>
-      {displayPieces(tex).map((piece, at) => (
-        <span key={at} className="display-piece">
-          <Tex tex={`\\displaystyle ${piece}`} />
-        </span>
+      {displayLines(tex).map((line, row) => (
+        <Fragment key={row}>
+          {row > 0 && <span className="display-break" />}
+          {displayPieces(line).map((piece, at) => (
+            <DisplayPiece key={at} tex={piece} />
+          ))}
+        </Fragment>
       ))}
     </div>
+  );
+}
+
+/**
+ * One piece of a display. An `aligned` block is laid out as two columns
+ * (`alignedRows`), the parts before and after each `&`, so a long line wraps
+ * inside the right column instead of scrolling the block; the `{}` keeps the
+ * space KaTeX puts before a relation that opens the right-hand part.
+ */
+function DisplayPiece({ tex }: { tex: string }) {
+  const rows = useMemo(() => alignedRows(tex), [tex]);
+  if (!rows) {
+    return (
+      <span className="display-piece">
+        <Tex tex={`\\displaystyle ${tex}`} />
+      </span>
+    );
+  }
+  return (
+    <span className="display-piece display-aligned">
+      {rows.map(([left, right], row) => (
+        <Fragment key={row}>
+          <span className="aligned-left">{left && <Tex tex={`\\displaystyle ${left}`} />}</span>
+          <span className="aligned-right">{right && <Tex tex={`\\displaystyle {}${right}`} />}</span>
+        </Fragment>
+      ))}
+    </span>
   );
 }
 

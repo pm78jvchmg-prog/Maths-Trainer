@@ -1370,7 +1370,7 @@ export const quadratics: Course = {
               prose(
                 'Given no graph and no brackets, take out any common factor and factorise first. For $2x^{2} + 2x - 12 < 0$:',
               ),
-              maths('\\begin{aligned} 2x^{2} + 2x - 12 &= 2\\left(x^{2} + x - 6\\right) \\\\ &= 2\\left(x + 3\\right)\\left(x - 2\\right) \\end{aligned}'),
+              maths('\\begin{aligned} & 2x^{2} + 2x - 12 \\\\ &= 2\\left(x^{2} + x - 6\\right) \\\\ &= 2\\left(x + 3\\right)\\left(x - 2\\right) \\end{aligned}'),
               prose(
                 'The 2 is positive, so the curve is still U-shaped, and the answer is $-3 < x < 2$. Its largest whole number is 1.',
               ),

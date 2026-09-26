@@ -882,7 +882,7 @@ export const differentialEquations: Course = {
               prose(
                 'Every factorising uses one fact: the roots of $m^2 + bm + c = 0$ **add to $-b$** and **multiply to $c$**. For $y\'\' + y\' - 12y = 0$:',
               ),
-              working('m^2 + m - 12 &= 0', 'p + q &= -1, \\quad pq = -12'),
+              working('m^2 + m - 12 &= 0', 'p + q &= -1', 'pq &= -12'),
               prose(
                 'Two whole numbers adding to $-1$ and multiplying to $-12$ are $-4$ and $3$. So $(m + 4)(m - 3) = 0$ and $y = Ae^{-4x} + Be^{3x}$.',
               ),

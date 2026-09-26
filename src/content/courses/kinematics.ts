@@ -480,7 +480,7 @@ export const kinematics: Course = {
             ),
             teach(
               prose('At the **greatest height** it stops for an instant: $v = 0$. So the time to the top is $t = \\frac{u}{9.8}$, and the height gained is $\\tfrac{1}{2}(u + 0)t$. Thrown up at $19.6$ m/s from 10 m above the ground:'),
-              working('0 &= 19.6 - 9.8t, \\quad t = 2', 's &= \\tfrac{1}{2}(19.6 + 0) \\times 2 = 19.6', '\\text{height} &= 10 + 19.6 = 29.6'),
+              working('0 &= 19.6 - 9.8t, \\quad t = 2', 's &= \\tfrac{1}{2}(19.6 + 0) \\times 2', '&= 19.6', '\\text{height} &= 10 + 19.6 = 29.6'),
               prose('Going up and coming back to the same level take the same time. Thrown from a cliff, it carries on past its start: below that point $s$ is negative.'),
             ),
             ask('kin-top-tree'),
@@ -489,7 +489,8 @@ export const kinematics: Course = {
             teach(
               prose('From the top it falls from rest, so it falls $4.9t^{2}$. Thrown up at $19.6$ m/s from 24.5 m above the ground:'),
               working(
-                '\\text{to the top: } t &= 2, \\text{ rising } 19.6',
+                '\\text{top at: } t &= 2',
+                '\\text{rising: } s &= 19.6',
                 '\\text{top: } 24.5 + 19.6 &= 44.1',
                 '\\text{fall: } 4.9t^{2} &= 44.1',
                 't^{2} &= 9, \\ t = 3',

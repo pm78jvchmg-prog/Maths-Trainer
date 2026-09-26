@@ -1032,7 +1032,9 @@ const rangeSum = ({ from, to }: SignsParams) => ((from + to) * (to - from + 1)) 
 
 function signsRow({ from, to }: SignsParams): string {
   const terms = to - from + 1;
-  if (terms <= 7) return Array.from({ length: terms }, (_, i) => `\\square\\, ${from + i}`).join(' ');
+  // `\allowbreak` between terms: seven two-digit terms are wider than a phone,
+  // and nothing else in the row gives the line a place to break.
+  if (terms <= 7) return Array.from({ length: terms }, (_, i) => `\\square\\, ${from + i}`).join(' \\allowbreak ');
   return `\\square\\, ${from} \\; \\square\\, ${from + 1} \\; \\square\\, ${from + 2} \\; \\cdots \\; \\square\\, ${to}`;
 }
 

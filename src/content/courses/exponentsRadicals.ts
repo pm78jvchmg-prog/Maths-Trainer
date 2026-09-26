@@ -693,7 +693,8 @@ export const exponentsRadicals: Course = {
               working(
                 '\\sqrt{8} &= \\sqrt{4} \\times \\sqrt{2} = 2\\sqrt{2}',
                 '\\sqrt{18} &= \\sqrt{9} \\times \\sqrt{2} = 3\\sqrt{2}',
-                '\\sqrt{8} + \\sqrt{18} &= 2\\sqrt{2} + 3\\sqrt{2} = 5\\sqrt{2}',
+                '\\sqrt{8} + \\sqrt{18} &= 2\\sqrt{2} + 3\\sqrt{2}',
+                '&= 5\\sqrt{2}',
               ),
               prose(
                 'Neither surd looked like a multiple of $\\sqrt{2}$ on the page, so a sum that appears impossible often only needs simplifying. Always simplify before concluding that two terms will not combine.',

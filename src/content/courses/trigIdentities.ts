@@ -518,7 +518,7 @@ export const trigIdentities: Course = {
               ),
               prose('Past $90^{\\circ}$ some table values are negative. With $\\cos 120^{\\circ} = -\\frac{1}{2}$:'),
               maths(
-                '\\begin{aligned} \\cos 165^{\\circ} &= \\cos 120^{\\circ}\\cos 45^{\\circ} \\\\ &\\quad - \\sin 120^{\\circ}\\sin 45^{\\circ} \\\\ &= -\\frac{1}{2} \\cdot \\frac{\\sqrt{2}}{2} - \\frac{\\sqrt{3}}{2} \\cdot \\frac{\\sqrt{2}}{2} \\\\ &= -\\frac{\\sqrt{2}}{4} - \\frac{\\sqrt{6}}{4} \\end{aligned}',
+                '\\begin{aligned} \\cos 165^{\\circ} &= \\cos 120^{\\circ}\\cos 45^{\\circ} \\\\ &\\quad - \\sin 120^{\\circ}\\sin 45^{\\circ} \\\\ &= -\\frac{1}{2} \\cdot \\frac{\\sqrt{2}}{2} \\\\ &\\quad - \\frac{\\sqrt{3}}{2} \\cdot \\frac{\\sqrt{2}}{2} \\\\ &= -\\frac{\\sqrt{2}}{4} - \\frac{\\sqrt{6}}{4} \\end{aligned}',
               ),
             ),
             ask('tid-exact-tiles+choice', 2),
@@ -1663,7 +1663,7 @@ export const trigIdentities: Course = {
             teach(
               prose('Each formula starts from twice the product. Without the $2$, halve the sum; with another number, take a $2$ out first:'),
               maths(
-                '\\begin{aligned} & \\sin 4x \\cos x = \\tfrac{1}{2}(\\sin 5x + \\sin 3x) \\\\[6pt] & 6\\cos 5x \\cos x \\\\ &= 3 \\times 2\\cos 5x \\cos x \\\\ &= 3(\\cos 6x + \\cos 4x) \\end{aligned}',
+                '\\begin{aligned} & \\sin 4x \\cos x \\\\ &= \\tfrac{1}{2}(\\sin 5x + \\sin 3x) \\\\[6pt] & 6\\cos 5x \\cos x \\\\ &= 3 \\times 2\\cos 5x \\cos x \\\\ &= 3(\\cos 6x + \\cos 4x) \\end{aligned}',
               ),
               prose('It finds values too. Neither $75^{\\circ}$ nor $15^{\\circ}$ is on the table, but their sum and difference are:'),
               maths('\\begin{aligned} & 2\\cos 75^{\\circ} \\cos 15^{\\circ} \\\\ &= \\cos 90^{\\circ} + \\cos 60^{\\circ} \\\\ &= 0 + \\tfrac{1}{2} = \\tfrac{1}{2} \\end{aligned}'),

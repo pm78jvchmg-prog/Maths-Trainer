@@ -395,7 +395,7 @@ export const binomialExpansion: Course = {
               maths('(1 - 3x)^{7} \\approx 1 - 21x + 189x^{2}'),
               prose('$7 \\times (-3x) = -21x$, and $21 \\times (-3x)^2 = 21 \\times 9x^2 = 189x^2$.'),
               prose('A first part other than $1$ is raised too, its power falling term by term:'),
-              maths('\\begin{aligned} & (2 + x)^{5} \\\\ &\\approx 2^{5} + 5 \\times 2^{4}x + 10 \\times 2^{3}x^{2} \\\\ &= 32 + 80x + 80x^{2} \\end{aligned}'),
+              maths('\\begin{aligned} & (2 + x)^{5} \\\\ &\\approx 2^{5} + 5 \\times 2^{4}x \\\\ &\\quad + 10 \\times 2^{3}x^{2} \\\\ &= 32 + 80x + 80x^{2} \\end{aligned}'),
             ),
             ask('bin-approx-tiles'),
             ask('bin-approx+choice'),
@@ -875,7 +875,7 @@ export const binomialExpansion: Course = {
             ask('bin-near-setup'),
             teach(
               prose('The $2$ is raised to a power in every term, falling as the power of $x$ rises. With $(2 - x)$ the $x$ term turns negative.'),
-              maths('\\begin{aligned} & (2 + x)^{5} \\\\ &= 2^{5} + 5 \\times 2^{4}x + 10 \\times 2^{3}x^{2} + \\dots \\\\ &= 32 + 80x + 80x^{2} + \\dots \\end{aligned}'),
+              maths('\\begin{aligned} & (2 + x)^{5} \\\\ &= 2^{5} + 5 \\times 2^{4}x \\\\ &\\quad + 10 \\times 2^{3}x^{2} + \\dots \\\\ &= 32 + 80x + 80x^{2} + \\dots \\end{aligned}'),
               prose('Put $x = 0.01$:'),
               maths('32 + 0.8 + 0.008 = 32.808'),
             ),
@@ -1233,7 +1233,7 @@ export const binomialExpansion: Course = {
             teach(
               prose('Watch the signs. With $n$ negative the terms alternate, and a minus in the bracket turns the odd ones back: every term of $(1 - x)^{-2}$ is positive, so $\\frac{1}{0.98^2}$ comes out above $1$, as it should.'),
               prose('A root underneath is a fractional negative power: $\\frac{1}{\\sqrt{(1 - x)^3}} = (1 - x)^{-3/2}$, and a number on top stays in front, $\\frac{2}{\\sqrt[3]{1 + x}} = 2(1 + x)^{-1/3}$. For $\\frac{1}{\\sqrt{0.98}} = (1 - x)^{-1/2}$ with $x = 0.02$:'),
-              maths('\\begin{aligned} & (1 - x)^{-1/2} \\approx 1 + \\tfrac{1}{2}x + \\tfrac{3}{8}x^{2} \\\\ &= 1 + 0.01 + 0.00015 = 1.01015 \\end{aligned}'),
+              maths('\\begin{aligned} & (1 - x)^{-1/2} \\approx 1 + \\tfrac{1}{2}x + \\tfrac{3}{8}x^{2} \\\\ &= 1 + 0.01 + 0.00015 \\\\ &= 1.01015 \\end{aligned}'),
             ),
             ask('bin-reciprocal-estimate+choice', 2),
             ask('bin-reciprocal-rewrite', 2),

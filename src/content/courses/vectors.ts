@@ -514,7 +514,7 @@ export const vectors: Course = {
                 'So a missing corner comes from one subtraction. $\\overrightarrow{DC}$ ends at $C$, so $D$ is $C$ with that journey taken off.',
               ),
               maths(
-                'A\\left(1, 1\\right), \\; B\\left(5, 2\\right), \\; C\\left(6, 5\\right) \\implies D = C - \\overrightarrow{AB} = \\left(6, 5\\right) - \\begin{pmatrix} 4 \\\\ 1 \\end{pmatrix} = \\left(2, 4\\right)',
+                'A\\left(1, 1\\right), \\; B\\left(5, 2\\right), \\; C\\left(6, 5\\right) \\qquad D = C - \\overrightarrow{AB} = \\left(6, 5\\right) - \\begin{pmatrix} 4 \\\\ 1 \\end{pmatrix} = \\left(2, 4\\right)',
               ),
             ),
             ask('vec-fourth-vertex'),

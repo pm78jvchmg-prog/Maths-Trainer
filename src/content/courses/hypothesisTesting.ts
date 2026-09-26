@@ -997,7 +997,7 @@ export const hypothesisTesting: Course = {
             ask('hyp-diff-stat-tree'),
             teach(
               prose('Keep the order ${A - B}$ throughout. If A\'s sample mean is the smaller, $z$ is negative. With ${\\bar{x}_A = 497.6}$ g and ${\\bar{x}_B = 503.1}$ g:'),
-              working('\\bar{x}_A - \\bar{x}_B &= 497.6 - 503.1 = -5.5', 'z &= \\frac{-5.5}{5} = -1.1'),
+              working('\\bar{x}_A - \\bar{x}_B &= 497.6 - 503.1', '&= -5.5', 'z &= \\frac{-5.5}{5} = -1.1'),
               prose('If $H_0$ is true, $z$ follows the standard normal curve, so the critical values from Testing a Mean apply. The shaded tail is the upper 5%, beyond $1.645$.'),
               figure({
                 xMin: -3.5,

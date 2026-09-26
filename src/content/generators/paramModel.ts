@@ -611,7 +611,8 @@ export function motionSvg(
     xHi: number;
     yLo: number;
     yHi: number;
-    marks?: [number, number][];
+    /** Dots, each with an optional plain-text label set above it, or below it where a line would cross the label. */
+    marks?: ([number, number] | [number, number, string] | [number, number, string, 'below'])[];
     label: string;
     width?: number;
     height?: number;
@@ -634,8 +635,17 @@ export function motionSvg(
     points.push(`${i === 0 ? 'M' : 'L'} ${sx(x)},${sy(y)}`);
   }
   parts.push(`<path fill="none" stroke="currentColor" stroke-width="2" d="${points.join(' ')}" />`);
-  for (const [x, y] of marks) {
+  for (const [x, y, text, place] of marks) {
     parts.push(`<circle cx="${sx(x)}" cy="${sy(y)}" r="4" fill="currentColor" />`);
+    if (text === undefined) continue;
+    // Above the dot, or below it near the top; towards the middle near either side.
+    const cx = Number(sx(x));
+    const cy = Number(sy(y));
+    const anchor = place === 'below' ? (cx > W * 0.8 ? 'end' : 'start') : cx > W * 0.7 ? 'end' : cx < W * 0.3 ? 'start' : 'middle';
+    const ty = place === 'below' || cy < 20 ? cy + 19 : cy - 8;
+    parts.push(
+      `<text x="${cx.toFixed(1)}" y="${ty.toFixed(1)}" font-size="12" text-anchor="${anchor}" fill="currentColor">${text}</text>`,
+    );
   }
   parts.push('</svg>');
   return parts.join('');
@@ -1201,10 +1211,10 @@ const domain: Generator<DomainParams> = {
       { text: `So it is in the air from the throw at $t = 0$ until $t = ${T}$.`, tex: `0 \\le t \\le ${T}` },
     ];
     if (p.ask === 'x') {
-      steps.push({
-        text: `Across, $x = ${p.u}t$ runs from $0$ to $${p.u} \\times ${T} = ${p.u * T}$.`,
-        tex: `0 \\le x \\le ${p.u * T}`,
-      });
+      steps.push(
+        { text: `Across, $x = ${p.u}t$ runs from $0$ at the throw to its value when it lands:`, tex: `x = ${p.u} \\times ${T} = ${p.u * T}` },
+        { tex: `0 \\le x \\le ${p.u * T}` },
+      );
     }
     return steps;
   },

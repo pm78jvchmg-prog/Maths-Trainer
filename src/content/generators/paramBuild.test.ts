@@ -133,10 +133,8 @@ function lastFlowStep(slide: Slide): { right: string; wrong: string[] } {
 /* ---------- Graphs ---------- */
 
 function graphParts(slide: Asked): { f: string; g: string } {
-  const [yTex] = displays(slide.prompt);
-  const f = toMath(yTex.split('=')[1]);
-  const xTex = /\$x = ([^$]+)\$/.exec(texts(slide.prompt).join(' '))![1];
-  return { f, g: toMath(xTex) };
+  const [yTex, xTex] = displays(slide.prompt);
+  return { f: toMath(yTex.split('=')[1]), g: toMath(xTex.split('=')[1]) };
 }
 
 /** y in t, the composition worked by mathjs: f evaluated at x = g(t). */

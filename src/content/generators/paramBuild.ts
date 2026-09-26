@@ -114,7 +114,9 @@ function graphPrompt(params: GraphParams, ask: string): Block[] {
   return [
     prose('A curve has Cartesian equation'),
     display(`y = ${polyTex(params.f, 'x')}`),
-    prose(`It is parametrised with $x = ${lin(params.a, params.k)}$. ${ask}`),
+    prose('It is parametrised with'),
+    display(`x = ${lin(params.a, params.k)}`),
+    prose(ask),
   ];
 }
 
@@ -353,6 +355,9 @@ const pparLineTiles: Generator<LineParams> = {
   },
 };
 
+/** A start plus its step, worked: `3 - 4 = -1`, or just the step from 0. */
+const stepped = (start: number, step: number): string => (start === 0 ? `${step}` : `${start} ${signed(step)} = ${start + step}`);
+
 /** Reading A and B back off a line's equations: t = 0, then t = 1. */
 const pparLineEnds: Generator<LineParams> = {
   id: 'ppar-line-ends',
@@ -377,8 +382,8 @@ const pparLineEnds: Generator<LineParams> = {
     const [A, B] = lineEnds(params);
     return [
       { text: `Put $t = 0$ into both equations: the $t$ terms vanish.`, tex: `A = ${A}` },
-      { text: `Put $t = 1$: each coordinate gains its step, $${dx}$ and $${dy}$.`, tex: `x = ${x1} ${signed(dx)} = ${x1 + dx}` },
-      { tex: `y = ${y1} ${signed(dy)} = ${y1 + dy}` },
+      { text: `Put $t = 1$: each coordinate gains its step, $${dx}$ and $${dy}$.`, tex: `x = ${stepped(x1, dx)}` },
+      { tex: `y = ${stepped(y1, dy)}` },
       { text: `So $B = ${B}$.` },
     ];
   },
@@ -443,12 +448,15 @@ const pparLinePoint: Generator<LinePointParams> = {
     const [x, y] = linePointAt(params, k);
     return [
       { text: 'The steps from $A$ to $B$:', tex: `x_2 - x_1 = ${dx} \\qquad y_2 - y_1 = ${dy}` },
-      { text: `Put $t = ${tTex(k)}$ into each equation.`, tex: `x = ${x1} + ${tTex(k)}(${dx}) = ${x}` },
-      { tex: `y = ${y1} + ${tTex(k)}(${dy}) = ${y}` },
+      { text: `Put $t = ${tTex(k)}$ into each equation.`, tex: `x = ${atT(x1, dx, k)} = ${x}` },
+      { tex: `y = ${atT(y1, dy, k)} = ${y}` },
       { text: `So the point is $${pair(x, y)}$.` },
     ];
   },
 };
+
+/** `c + dt` with a value put in for t, signs kept as the line has them: `3 - 4(-2)`. */
+const atT = (c: number, d: number, t: number): string => lin(c, d).replace('t', `(${tTex(t)})`);
 
 /** Where a point sits on a line, from its value of t. */
 const PLACES = ['Before $A$', 'Between $A$ and $B$', 'Beyond $B$'] as const;
@@ -513,7 +521,7 @@ const pparLineWhereFlow: Generator<LinePointParams> = {
     return [
       { text: 'Solve the $x$ equation for $t$.', tex: `${lin(x1, dx)} = ${x}` },
       { tex: `t = ${tTex(k)}` },
-      { text: `Check it in the $y$ equation.`, tex: `y = ${lin(y1, dy).replace('t', `(${tTex(k)})`)} = ${y}` },
+      { text: `Check it in the $y$ equation.`, tex: `y = ${atT(y1, dy, k)} = ${y}` },
       { text: `$t$ is ${where}.` },
     ];
   },
@@ -540,8 +548,11 @@ function sampleCircle(rng: Rng, difficulty: number): CircleParams {
 
 function circleSolution({ a, b, r }: CircleParams): SolutionStep[] {
   return [
-    { text: `The equation is $(x - a)^{2} + (y - b)^{2} = r^{2}$ with centre $${pair(a, b)}$.` },
-    { text: `The radius is the square root of the right-hand side.`, tex: `r = \\sqrt{${r * r}} = ${r}` },
+    { text: 'Compare it with the general circle:', tex: '(x - a)^{2} + (y - b)^{2} = r^{2}' },
+    {
+      text: `The signs in the brackets turn over, so the centre is $${pair(a, b)}$. The radius is the square root of the right-hand side.`,
+      tex: `r = \\sqrt{${r * r}} = ${r}`,
+    },
     { text: 'So the circle is traced by', tex: `x = ${trigTerm(a, r, 'cos')}` },
     { tex: `y = ${trigTerm(b, r, 'sin')}` },
   ];
@@ -705,8 +716,8 @@ function conicPointSolution(params: ConicPointParams, circle: boolean): Solution
     {
       text: `Read the centre and ${circle ? 'radius' : 'multipliers'}: centre $${pair(a, b)}$, ${circle ? `radius $${p}$` : `$${p}$ across and $${q}$ up`}.`,
     },
-    { text: `At $t = ${angle}$, $\\${fn} t = ${ratio}$.`, tex: `${axis} = ${centre} + ${size}\\${fn} ${angle}` },
-    { tex: `${axis} = ${centre} ${ratio > 0 ? '+' : '-'} ${size} = ${axis === 'x' ? x : y}` },
+    { text: `At $t = ${angle}$, $\\${fn} t = ${ratio}$.`, tex: `${axis} = ${centre === 0 ? '' : `${centre} + `}${size}\\${fn} ${angle}` },
+    { tex: centre === 0 ? `${axis} = ${ratio * size}` : `${axis} = ${centre} ${ratio > 0 ? '+' : '-'} ${size} = ${axis === 'x' ? x : y}` },
     { text: `So the point is $${pair(x, y)}$: ${r} away from the centre, ${quarter === 0 ? 'to the right' : quarter === 1 ? 'straight up' : quarter === 2 ? 'to the left' : 'straight down'}.` },
   ];
 }
@@ -997,7 +1008,7 @@ const pparParabolaK: Generator<ParabolaKParams> = {
     { text: 'Square $y$.', tex: `y^{2} = ${n * n}t^{2}` },
     { text: `Write $kx$ with $x = ${coef(m)}t^{2}$.`, tex: `kx = ${coef(m)}kt^{2}` },
     { text: 'The two must agree for every $t$.', tex: `${coef(m)}k = ${n * n}` },
-    { tex: `k = ${(n * n) / m}` },
+    ...(m === 1 ? [] : [{ tex: `k = ${(n * n) / m}` }]),
   ],
 };
 

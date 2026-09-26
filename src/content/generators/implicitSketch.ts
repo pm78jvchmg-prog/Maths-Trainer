@@ -1226,9 +1226,11 @@ const iskSubTree: Generator<FlatParams> = {
     const [v, w] = horizontal ? ['y', 'x'] : ['x', 'y'];
     const inside = `${coef(slope)}${w}`;
     const qPart = `${q < 0 ? '-' : '+'} ${Math.abs(q) === 1 ? '' : Math.abs(q)}`;
+    // A gradient of 1 puts in a bare letter, which needs no bracket: 2x^{2}, not 2(x)^{2}.
+    const squared = slope === 1 ? `${w}^{2}` : `(${inside})^{2}`;
     const expression = horizontal
-      ? `${coef(p)}x^{2} ${qPart}x(${inside}) + ${coef(r)}(${inside})^{2} = ${c}`
-      : `${coef(p)}(${inside})^{2} ${qPart}(${inside})y + ${coef(r)}y^{2} = ${c}`;
+      ? `${coef(p)}x^{2} ${qPart}${slope === 1 ? 'x \\cdot x' : `x(${inside})`} + ${coef(r)}${squared} = ${c}`
+      : `${coef(p)}${squared} ${qPart}${slope === 1 ? 'y \\cdot y' : `(${inside})y`} + ${coef(r)}y^{2} = ${c}`;
     const answer = horizontal ? [first, second, S, u * u, u] : [first, second, S, u * u, u];
     return {
       kind: 'tree',
@@ -1236,7 +1238,7 @@ const iskSubTree: Generator<FlatParams> = {
         prose(`The ${horizontal ? 'horizontal' : 'vertical'} tangents of`),
         display(`${xyTex(flatTerms(params))} = ${c}`),
         prose(
-          `lie on $${lineTex(v, w, slope, 1)}$. Putting that in gives the line below. Top row: the $${w}^{2}$ from the ${horizontal ? '$xy$ term and the $y^{2}$ term' : '$x^{2}$ term and the $xy$ term'}. Then the total number of $${w}^{2}$, then $${w}^{2}$, then the positive $${w}$.`,
+          `lie on $${lineTex(v, w, slope, 1)}$. Putting that in gives the line below. Top row: how many $${w}^{2}$ come from the ${horizontal ? '$xy$ term and from the $y^{2}$ term' : '$x^{2}$ term and from the $xy$ term'}. Below: how many $${w}^{2}$ in all, then the value of $${w}^{2}$, then the positive value of $${w}$.`,
         ),
       ],
       expression,
@@ -1380,6 +1382,10 @@ function matchSample(rng: Rng): MatchParams {
   return { conics, slot };
 }
 
+/** y^2 over k, the sign out front: `-\\frac{y^{2}}{4}`, never over -4. */
+const overK = (k: number): string =>
+  `${k < 0 ? '-' : ''}${Math.abs(k) === 1 ? 'y^{2}' : `\\frac{y^{2}}{${Math.abs(k)}}`}`;
+
 /** Why a sketch is the curve: symmetry, crossings, extent. */
 function matchSolution({ conics }: MatchParams): SolutionStep[] {
   const c = conics[0];
@@ -1394,7 +1400,7 @@ function matchSolution({ conics }: MatchParams): SolutionStep[] {
     case 'ellipse':
       return [
         { text: 'Only squares appear, so it is symmetric in both axes.', tex },
-        { text: 'Put $y = 0$, then $x = 0$.', tex: `x = \\pm ${c.a} \\quad y = \\pm ${c.b}` },
+        { text: 'Put $y = 0$, then $x = 0$.', tex: `x = \\pm ${c.a} \\qquad y = \\pm ${c.b}` },
         { text: `An oval, ${c.a > c.b ? 'wider than it is tall' : 'taller than it is wide'}: $${betweenTex('x', c.a)}$ and $${betweenTex('y', c.b)}$.` },
       ];
     case 'hyperbola':
@@ -1403,15 +1409,17 @@ function matchSolution({ conics }: MatchParams): SolutionStep[] {
         { text: 'Put $y = 0$: it meets the $x$-axis here.', tex: `x = \\pm ${c.a}` },
         { text: 'Put $x = 0$: $y^{2}$ would be negative, so it never meets the $y$-axis.' },
         {
-          text: `And $\\frac{x^{2}}{${c.a * c.a}} = 1 + \\frac{y^{2}}{${c.b * c.b}} \\ge 1$, so nothing lies between: two branches, opening left and right.`,
+          text: 'Rearrange: $y^{2}$ is never negative, so the $x^{2}$ term is at least $1$.',
+          tex: `\\frac{x^{2}}{${c.a * c.a}} = 1 + \\frac{y^{2}}{${c.b * c.b}} \\ge 1`,
         },
+        { text: 'So nothing lies between: two branches, opening left and right.' },
       ];
     case 'parabola':
       return [
         { text: 'Only $y$ is squared, so it is symmetric in the $x$-axis only.', tex },
         { text: 'Put $y = 0$: it meets the axes only at the origin.' },
         {
-          text: `$x = \\frac{y^{2}}{${c.k}}$ and $y^{2} \\ge 0$, so $x ${c.k > 0 ? '\\ge' : '\\le'} 0$: it opens to the ${c.k > 0 ? 'right' : 'left'}.`,
+          text: `$x = ${overK(c.k)}$ and $y^{2} \\ge 0$, so $x ${c.k > 0 ? '\\ge' : '\\le'} 0$: it opens to the ${c.k > 0 ? 'right' : 'left'}.`,
         },
       ];
   }
@@ -1513,7 +1521,7 @@ const iskSketchFlow: Generator<SketchFlowParams> = {
           ? `$\\frac{x^{2}}{${a * a}} = 1 - \\frac{y^{2}}{${conic.b * conic.b}}$, which is at most $1$, so $x^{2} \\le ${a * a}$.`
           : conic.shape === 'circle'
             ? `$x^{2} = ${a * a} - y^{2}$, which is at most $${a * a}$, so $x^{2} \\le ${a * a}$.`
-            : `$x = \\frac{y^{2}}{${k}}$ and $y^{2} \\ge 0$, so $x ${k > 0 ? '\\ge' : '\\le'} 0$.`;
+            : `$x = ${overK(k)}$ and $y^{2} \\ge 0$, so $x ${k > 0 ? '\\ge' : '\\le'} 0$.`;
     const reachLabels = isParabola
       ? [side, `$${betweenTex('x', Math.abs(k))}$`, `$x ${k > 0 ? '\\le' : '\\ge'} 0$`]
       : [between, outside, side];

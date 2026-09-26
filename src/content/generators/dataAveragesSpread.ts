@@ -5517,34 +5517,46 @@ function linTex(b: number, c: number, v = 'x'): string {
   return c === 0 ? bx : `${bx} ${c > 0 ? '+' : '-'} ${fmt(Math.abs(c))}`;
 }
 
+/**
+ * A statistic after the change, as the left-hand side of a line of working:
+ * the same symbols the teaching uses, σ for the standard deviation and σ²
+ * for the variance, and words for the rest.
+ */
+function newStatTex(stat: CodeStat): string {
+  if (stat === 'sd') return '\\text{new } \\sigma';
+  if (stat === 'variance') return '\\text{new } \\sigma^2';
+  return `\\text{new ${stat === 'iqr' ? CODE_STATS[stat].short : CODE_STATS[stat].word}}`;
+}
+
 /** The working for one statistic after the change, with the reason. */
 function moveSolution(stat: CodeStat, v: number, b: number, c: number): SolutionStep[] {
   const { word, average } = CODE_STATS[stat];
   const after = fmt(movedStat(stat, v, b, c));
   const sign = c > 0 ? '+' : '-';
+  const lhs = newStatTex(stat);
   if (average) {
     const scaled = b === 1 ? fmt(v) : `${fmt(b)} \\times ${fmt(v)}`;
     return [
       { text: `The ${word} is an average, so it goes wherever the values go.` },
-      { tex: c === 0 ? `${scaled} = ${after}` : `${scaled} ${sign} ${fmt(Math.abs(c))} = ${after}` },
+      { tex: c === 0 ? `${lhs} = ${scaled} = ${after}` : `${lhs} = ${scaled} ${sign} ${fmt(Math.abs(c))} = ${after}` },
     ];
   }
   const steps: SolutionStep[] = [];
   if (c !== 0) steps.push({ text: `The ${word} measures spread. ${b === 1 ? 'Adding or taking off' : 'The adding or taking off'} the same amount moves every value together, so no gap changes.` });
   if (b === 1) {
-    steps.push({ tex: `\\text{still } ${fmt(v)}` });
+    steps.push({ tex: `${lhs} = ${fmt(v)}` });
     return steps;
   }
   if (stat === 'variance') {
     steps.push(
       { text: `Multiplying by $${fmt(b)}$ stretches every gap, and the variance is in squared units, so it is multiplied by $${fmt(b)}^2$.` },
-      { tex: `${fmt(b)}^2 \\times ${fmt(v)} = ${fmt(b * b)} \\times ${fmt(v)} = ${after}` },
+      { tex: `${lhs} = ${fmt(b)}^2 \\times ${fmt(v)} = ${fmt(b * b)} \\times ${fmt(v)} = ${after}` },
     );
     return steps;
   }
   steps.push(
     { text: `Multiplying by $${fmt(b)}$ stretches every gap by $${fmt(b)}$.` },
-    { tex: `${fmt(b)} \\times ${fmt(v)} = ${after}` },
+    { tex: `${lhs} = ${fmt(b)} \\times ${fmt(v)} = ${after}` },
   );
   return steps;
 }
@@ -5616,7 +5628,7 @@ function moveAsk(id: string, sample: (rng: Rng, difficulty: number) => MoveAskPa
             `${CODE_CONTEXTS[context]} have ${article(CODE_STATS[s0].word)} of $${fmt(values[0])}$ and ${article(CODE_STATS[s1].word)} of $${fmt(values[1])}$. ${changeSentence(b, c)} Find the new ${w.word}.`,
           ),
         ],
-        lead: `\\text{new ${stats[ask] === 'iqr' || stats[ask] === 'sd' ? w.short : w.word}} =`,
+        lead: `${newStatTex(stats[ask])} =`,
         keypad: NUMBER_KEYS,
         answer: fmt(movedStat(stats[ask], values[ask], b, c)),
         domain: 'real',
@@ -5739,7 +5751,7 @@ function moveTable(id: string, sample: (rng: Rng, difficulty: number) => MoveTab
           text:
             b === 1
               ? `The ${averages.join(' and ')} move with the values. The ${spreads.join(' and ')} measure gaps, which do not change.`
-              : `Multiplying stretches everything: the ${averages.join(' and ')}, and the gaps too. The variance is in squared units, so it goes up by the square.`,
+              : `Multiplying stretches everything: the ${averages.join(' and ')}, and the gaps too.${stats.includes('variance') ? ' The variance is in squared units, so it goes up by the square.' : ''}`,
         },
         { tex: aligned(...lines) },
       ];
@@ -6050,7 +6062,7 @@ const codeCodedTable: Generator<CodedTableParams> = {
       kind: 'table',
       prompt: [say('Code each value with'), show(codingTex(a, b)), say('Then find the mean of the coded values.')],
       columns: ['x', 'y'],
-      rows: [...xs.map((x) => [fmt(x), null]), ['\\text{Mean}', null]],
+      rows: [...xs.map((x) => [fmt(x), null]), ['\\bar{y}', null]],
       bank: valueBank(answer, tidy(slips)),
       answer: answer.map(fmt),
     };
@@ -6419,7 +6431,7 @@ const codeSumsTree: Generator<SumsParams> = {
       kind: 'tree',
       prompt: sumsPrompt(
         p,
-        'Find the variance of $x$. Top row: $\\bar{y}$, then $\\frac{\\sum y^2}{n}$. Then $\\bar{y}^2$, then $\\sigma_y^2$, and last $\\sigma_x^2$.',
+        'Find the variance of $x$. Top row: $\\bar{y}$, then $\\sum y^2 \\div n$. Then $\\bar{y}^2$, then $\\sigma_y^2$, and last $\\sigma_x^2$.',
       ),
       expression: `\\sigma_x^2 = ${fmt(p.b)}^2 \\times \\sigma_y^2`,
       nodes: [
@@ -6652,7 +6664,7 @@ const codeChooseTiles: Generator<ChooseParams> = {
         show('y = \\frac{x - a}{b}'),
         say(`so that the coded values are ${listProse(targets)}. Fill in $a$ and $b$.`),
       ],
-      template: 'y = (x - {0}) \\div {1}',
+      template: 'y = (x \\;-\\; {0}) \\;\\div\\; {1}',
       bank: valueBank([a, b], tidy(slips), 4),
       answer: [fmt(a), fmt(b)],
     };

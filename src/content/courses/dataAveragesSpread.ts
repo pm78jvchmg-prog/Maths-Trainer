@@ -998,8 +998,8 @@ export const dataAveragesSpread: Course = {
           title: 'Adding a Constant',
           slides: [
             teach(
-              prose('Adding the same number to every value slides the whole set of data along without changing its shape. Add $5$ to each of $3, 5, 6, 10$:'),
-              working('3, 5, 6, 10 &\\to 8, 10, 11, 15', '\\bar{x} &= 6 \\to 11', '\\text{range} &= 7 \\to 7'),
+              prose('Adding the same number to every value slides the whole set of data along without changing its shape. Add $5$ to each of $3$, $5$, $6$ and $10$:'),
+              working('3, 5, 6, 10 &\\to 8, 10, 11, 15', '\\bar{x} = 6 &\\to 11', '\\text{range} = 7 &\\to 7'),
               prose(
                 'The mean went up by $5$, like every value. The range stayed at $7$: each gap between two values is as wide as before. Adding $c$ to every value:',
               ),
@@ -1035,8 +1035,8 @@ export const dataAveragesSpread: Course = {
           title: 'Multiplying by a Constant',
           slides: [
             teach(
-              prose('Multiplying every value by the same number stretches the data. Multiply each of $3, 5, 6, 10$ by $2$:'),
-              working('3, 5, 6, 10 &\\to 6, 10, 12, 20', '\\bar{x} &= 6 \\to 12', '\\text{range} &= 7 \\to 14'),
+              prose('Multiplying every value by the same number stretches the data. Multiply each of $3$, $5$, $6$ and $10$ by $2$:'),
+              working('3, 5, 6, 10 &\\to 6, 10, 12, 20', '\\bar{x} = 6 &\\to 12', '\\text{range} = 7 &\\to 14'),
               prose(
                 'Every statistic doubles: the averages, and the spreads too, since every gap doubles. The variance is in squared units, so it goes up by $2^2 = 4$. Multiplying every value by $b$:',
               ),
@@ -1074,7 +1074,7 @@ export const dataAveragesSpread: Course = {
               prose('**Coding** swaps awkward values for easy ones: take $a$ off every value, then divide by $b$.'),
               display('y = \\frac{x - a}{b}'),
               prose('With $a = 200$ and $b = 5$:'),
-              working('205, 210, 220, 225 &\\to 1, 2, 4, 5', '\\bar{y} &= 12 \\div 4 = 3'),
+              display('205, 210, 220, 225 \\to 1, 2, 4, 5 \\qquad \\bar{y} = 12 \\div 4 = 3'),
               prose('**Decoding** goes back, and the mean follows the same rule:'),
               working('\\bar{x} &= a + b\\bar{y}', '&= 200 + 5 \\times 3 = 215'),
               prose('A value below $a$ codes to a negative: $195$ codes to $-1$.'),
@@ -1109,7 +1109,7 @@ export const dataAveragesSpread: Course = {
           title: 'Variance from Coded Sums',
           slides: [
             teach(
-              prose('Coding makes the sums for a variance small. Code $102, 104, 105, 109$ by taking $100$ off each, then square:'),
+              prose('Coding makes the sums for a variance small. Code $102$, $104$, $105$ and $109$ by taking $100$ off each, then square:'),
               display(
                 '\\begin{array}{c|c|c} x & y & y^2 \\\\ \\hline 102 & 2 & 4 \\\\ 104 & 4 & 16 \\\\ 105 & 5 & 25 \\\\ 109 & 9 & 81 \\\\ \\hline \\sum & 20 & 126 \\end{array}',
               ),
@@ -1131,7 +1131,7 @@ export const dataAveragesSpread: Course = {
             teach(
               prose('Three slips to watch for, using that example:'),
               prose(
-                'The variance decodes by $b^2$, so it is $900$, not $90$. The $a$ is never added to a spread, so it is not $950$. And $\\sum y^2$ squares first and then adds: it is $130$, not the square of $\\sum y$, which is $400$.',
+                'The variance decodes by $b^2$, so it is $900$, not $90$. The $a$ is never added to a spread, so it is not $950$. And $\\sum y^2$ squares first and then adds, so it is $130$. Squaring $\\sum y$ instead gives $400$.',
               ),
               prose('A negative coded value or coded mean still squares to a positive: $-3$ squares to $9$.'),
             ),
@@ -1154,9 +1154,9 @@ export const dataAveragesSpread: Course = {
             ask('dat-code-effect-flow', 2),
             ask('dat-code-convert+choice', 2),
             teach(
-              prose('A good coding makes the values small and whole. For equally spaced values, take $a$ as the middle value and $b$ as the gap. The values $1030, 1045, 1060, 1075, 1090$ are $15$ apart:'),
+              prose('A good coding makes the values small and whole. For equally spaced values, take $a$ as the middle value and $b$ as the gap. The values $1030$, $1045$, $1060$, $1075$ and $1090$ are $15$ apart:'),
               display('y = \\frac{x - 1060}{15}'),
-              prose('This codes them to $-2, -1, 0, 1, 2$. For $0, 1, 2, 3, 4$ instead, take $a$ as the smallest, $1030$. For $-4, -2, 0, 2, 4$, neighbours are $2$ apart once coded, so $b$ is half the gap, $7.5$.'),
+              prose('This codes them to $-2$, $-1$, $0$, $1$ and $2$. For $0$, $1$, $2$, $3$ and $4$ instead, take $a$ as the smallest, $1030$. For $-4$, $-2$, $0$, $2$ and $4$, neighbours are $2$ apart once coded, so $b$ is half the gap, $7.5$.'),
             ),
             ask('dat-code-choose-tiles'),
             ask('dat-code-choose-tiles', 2),

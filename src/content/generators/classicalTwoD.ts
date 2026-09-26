@@ -7,8 +7,9 @@
  * projectiles, so this is new ground, but its suvat equations are used, not
  * taught again.
  *
- * With g = 9.8 the tidy cases are chosen, never rounded: a fall time t in
- * halves gives a height 4.9t^2; a launch with vertical speed 4.9k is in the
+ * A sideways launch starts from a height a textbook would print, a whole
+ * number of metres, and asks its time to 2 decimal places and distances and
+ * speeds to 1, redrawn when a value sits near a rounding edge. A launch with vertical speed 4.9k is in the
  * air for exactly k seconds and rises 1.225k^2; a vertical speed 1.4m rises
  * 0.1m^2. Angles come from Pythagorean triples so both components are exact.
  * Angular work is done in revolutions per second, where the numbers are
@@ -21,20 +22,26 @@ import { steered, turned } from './parametricImplicit';
 import { WORKING_KEYS } from './workingKeys';
 import {
   G_NOTE,
+  askPrecision,
   exact,
+  fixed,
   fmt,
   forks,
   metres,
   ms,
   ms2,
   numChoices,
+  roundTo,
+  roundedWell,
   salted,
   say,
   secs,
   track,
   typed,
+  typedRounded,
   until,
   valueBank,
+  type Precision,
 } from './classicalKit';
 
 const tidyBank = (answer: number[], wrong: number[], spare = 3): string[] =>
@@ -53,71 +60,133 @@ const n3 = (v: number): number => Number(v.toFixed(6));
 const LEDGES = ['a cliff top', 'a flat roof', 'a bridge', 'a table top', 'a wall', 'a balcony'];
 const THROWN = ['ball', 'stone', 'marble', 'parcel', 'dart'];
 
+/** Times are asked to 2 decimal places, speeds and distances to 1. */
+const T_DP: Precision = { dp: 2 };
+const D_DP: Precision = { dp: 1 };
+
+/** Seconds to fall h metres from rest. */
+const fallTime = (h: number): number => Math.sqrt(h / 4.9);
+
+/** An unrounded value on a working line: 3.4993..., or the value itself when it ends. */
+const dots = (value: number, places = 4): string => (exact(value, places) ? fmt(value) : `${value.toFixed(places)}\\ldots`);
+
+/**
+ * A fall whose time, landing speed and distance out each round cleanly, and
+ * round the same whether the learner carried the exact time or the rounded
+ * one into the next line.
+ */
+const fallRoundsWell = (h: number, u: number): boolean => {
+  const t = fallTime(h);
+  const carried = roundTo(t, T_DP);
+  return (
+    roundedWell(t, T_DP) &&
+    roundedWell(u * t, D_DP) &&
+    roundedWell(9.8 * t, D_DP) &&
+    roundTo(u * carried, D_DP) === roundTo(u * t, D_DP) &&
+    roundTo(9.8 * carried, D_DP) === roundTo(9.8 * t, D_DP)
+  );
+};
+
+/** The working for the fall time, ending on its rounded value. */
+const timeLines = (h: number): SolutionStep[] => [
+  { tex: `${fmt(h)} = 4.9t^{2}` },
+  { tex: `t = \\sqrt{${fmt(h)} \\div 4.9} = ${dots(fallTime(h))}` },
+  { text: 'To 2 decimal places:' },
+  { tex: `t = ${fixed(fallTime(h), T_DP)}` },
+];
+
+/** A bank of rounded tokens: the answer's, then distinct extras, sorted by value. */
+const fixedBank = (answer: string[], extras: string[], spare = 3): string[] => {
+  const out = [...answer];
+  for (const token of extras) {
+    if (out.length - answer.length >= spare) break;
+    if (!out.includes(token) && Number(token) > 0) out.push(token);
+  }
+  return out.sort((x, y) => Number(x) - Number(y));
+};
+
 interface FallParams {
   where: string;
   thing: string;
-  /** Fall time in half seconds. */
-  halves: number;
+  /** Height in metres: whole, or one decimal place when hard. */
+  h: number;
   u: number;
   find: 't' | 'R';
 }
 
-const fallHeight = (t: number): number => n3(4.9 * t * t);
-
 /** Expression: time to fall from a height when launched sideways (easy), or how far out it lands (hard). */
-const fallTime: Generator<FallParams> = {
+const fallTimeGen: Generator<FallParams> = {
   id: 'clm-fall-time',
-  sample: (rng, difficulty) => ({
-    where: rng.pick(LEDGES),
-    thing: rng.pick(THROWN),
-    halves: rng.int(1, 8),
-    u: rng.int(2, 25),
-    find: difficulty > 1 ? 'R' : 't',
-  }),
-  render: ({ where, thing, halves, u, find }) => {
-    const t = halves / 2;
-    const setup = `A ${thing} is thrown horizontally at ${ms(u)} from ${where} ${metres(fallHeight(t))} above level ground. ${G_NOTE}`;
+  sample: (rng, difficulty) =>
+    until(
+      () => ({
+        where: rng.pick(LEDGES),
+        thing: rng.pick(THROWN),
+        h: difficulty > 1 ? rng.int(20, 800) / 10 : rng.int(2, 80),
+        u: rng.int(2, 25),
+        find: difficulty > 1 ? ('R' as const) : ('t' as const),
+      }),
+      ({ h, u }) => fallRoundsWell(h, u),
+    ),
+  render: ({ where, thing, h, u, find }) => {
+    const t = fallTime(h);
+    const setup = `A ${thing} is thrown horizontally at ${ms(u)} from ${where} ${metres(h)} above level ground. ${G_NOTE}`;
     return find === 't'
-      ? typed([say(`${setup} How long does it take to land, in seconds?`)], 't =', t)
-      : typed([say(`${setup} How far from the foot of ${where.replace(/^a /, 'the ')} does it land, in metres?`)], 'R =', u * t);
+      ? typedRounded([say(`${setup} How long does it take to land, in seconds? ${askPrecision(T_DP)}`)], 't =', t, T_DP)
+      : typedRounded(
+          [say(`${setup} How far from the foot of ${where.replace(/^a /, 'the ')} does it land, in metres? ${askPrecision(D_DP)}`)],
+          'R =',
+          u * t,
+          D_DP,
+        );
   },
-  solution: ({ halves, u, find }) => {
-    const t = halves / 2;
-    const h = fallHeight(t);
+  solution: ({ h, u, find }) => {
+    const t = fallTime(h);
     return [
       { text: 'Downwards it starts at rest, whatever the sideways speed:' },
-      { tex: `${fmt(h)} = 4.9t^{2}` },
-      { tex: `t^{2} = ${fmt(h)} \\div 4.9 = ${fmt(t * t)}` },
-      { tex: `t = ${fmt(t)}` },
-      ...(find === 'R' ? [{ text: 'Sideways it keeps its speed the whole time:' }, { tex: `R = ${u} \\times ${fmt(t)} = ${fmt(u * t)}` }] : []),
+      ...(find === 't'
+        ? timeLines(h)
+        : [
+            { tex: `${fmt(h)} = 4.9t^{2}` },
+            { tex: `t = \\sqrt{${fmt(h)} \\div 4.9} = ${dots(t)}` },
+            { text: 'Sideways it keeps its speed the whole time:' },
+            { tex: `R = ${u} \\times ${dots(t)} = ${dots(u * t, 3)}` },
+            { text: 'To 1 decimal place:' },
+            { tex: `R = ${fixed(u * t, D_DP)}` },
+          ]),
     ];
   },
-  choices: ({ halves, u, find }) => {
-    const t = halves / 2;
+  choices: ({ h, u, find }) => {
+    const t = fallTime(h);
+    const r = (v: number, p: Precision) => roundTo(v, p);
     return find === 't'
-      ? numChoices(t, [t * t, 2 * t, fallHeight(t) / 9.8], salted(halves, u))
-      : numChoices(u * t, [u * t * t, 2 * u * t, u * fallHeight(t)], salted(u, halves));
+      ? numChoices(r(t, T_DP), [r(h / 4.9, T_DP), r(2 * t, T_DP), r(h / 9.8, T_DP)], salted(h * 10, u))
+      : numChoices(r(u * t, D_DP), [r((u * h) / 4.9, D_DP), r(2 * u * t, D_DP), r(u * Math.sqrt(h / 9.8), D_DP)], salted(u, h * 10));
   },
 };
 
 /** Tree: a sideways launch: the time to land, the vertical speed on landing, and the range. */
 const horizTree: Generator<FallParams> = {
   id: 'clm-horiz-tree',
-  sample: (rng, difficulty) => ({
-    where: rng.pick(LEDGES),
-    thing: rng.pick(THROWN),
-    halves: difficulty > 1 ? rng.int(3, 10) : rng.int(2, 8),
-    u: difficulty > 1 ? rng.int(8, 30) : rng.int(2, 15),
-    find: 'R',
-  }),
-  render: ({ where, thing, halves, u }) => {
-    const t = halves / 2;
-    const vy = n3(9.8 * t);
+  sample: (rng, difficulty) =>
+    until(
+      () => ({
+        where: rng.pick(LEDGES),
+        thing: rng.pick(THROWN),
+        h: difficulty > 1 ? rng.int(10, 120) : rng.int(2, 60),
+        u: difficulty > 1 ? rng.int(8, 30) : rng.int(2, 15),
+        find: 'R' as const,
+      }),
+      ({ h, u }) => fallRoundsWell(h, u),
+    ),
+  render: ({ where, thing, h, u }) => {
+    const t = fallTime(h);
+    const answer = [fixed(t, T_DP), fixed(9.8 * t, D_DP), fixed(u * t, D_DP)];
     return {
       kind: 'tree',
       prompt: [
-        say(`A ${thing} is thrown horizontally at ${ms(u)} from ${where} ${metres(fallHeight(t))} up. ${G_NOTE}`),
-        say('Find the time in the air, the downward speed as it lands, and how far out it lands.'),
+        say(`A ${thing} is thrown horizontally at ${ms(u)} from ${where} ${metres(h)} up. ${G_NOTE}`),
+        say('Find the time in the air to 2 decimal places, then the downward speed as it lands and how far out it lands, each to 1 decimal place.'),
       ],
       expression: 'h = \\tfrac{1}{2}gt^{2}',
       nodes: [
@@ -125,52 +194,71 @@ const horizTree: Generator<FallParams> = {
         { id: 'vy', from: ['t'] },
         { id: 'R', from: ['t'] },
       ],
-      bank: tidyBank([t, vy, u * t], [t * t, 4.9 * t, u * t * t, 2 * t]),
-      answer: [t, vy, u * t].map(fmt),
+      bank: fixedBank(answer, [
+        fixed(h / 4.9, T_DP),
+        fixed(4.9 * t, D_DP),
+        fixed((u * h) / 4.9, D_DP),
+        fixed(2 * t, T_DP),
+        fixed(9.8 * t + 1, D_DP),
+        fixed(u * t - 1, D_DP),
+      ]),
+      answer,
     };
   },
-  solution: ({ halves, u }) => {
-    const t = halves / 2;
+  solution: ({ h, u }) => {
+    const t = fallTime(h);
     return [
-      { tex: `t^{2} = \\frac{${fmt(fallHeight(t))}}{4.9} = ${fmt(t * t)}` },
-      { tex: `t = ${fmt(t)}` },
-      { tex: `v_{y} = 9.8 \\times ${fmt(t)} = ${fmt(9.8 * t)}` },
-      { tex: `R = ${u} \\times ${fmt(t)} = ${fmt(u * t)}` },
+      ...timeLines(h),
+      { tex: `v_{y} = 9.8 \\times ${fixed(t, T_DP)} = ${fixed(9.8 * t, D_DP)}` },
+      { tex: `R = ${u} \\times ${fixed(t, T_DP)} = ${fixed(u * t, D_DP)}` },
+      { text: 'Each to 1 decimal place, the same whether you carry the rounded time or the exact one.' },
     ];
   },
 };
 
 interface LandParams {
   thing: string;
-  halves: number;
-  u: number;
+  /** Height in whole metres. */
+  h: number;
+  /** Easy: the launch speed, whole. Hard: the landing distance, whole. */
+  given: number;
   /** Hard: the landing point is given and the speed is asked. */
   findSpeed: boolean;
 }
 
 const LAND_SPAN = 60;
+const LAND_STEP = 0.5;
+
+/** The slider notch a value sits nearest, and whether it sits well clear of the midpoint between two. */
+const notch = (value: number): number => Math.round(value / LAND_STEP) * LAND_STEP;
+const notchedWell = (value: number): boolean => Math.abs(value / LAND_STEP - Math.round(value / LAND_STEP)) <= 0.35;
 
 /** Slider: where a sideways launch lands along the ground (easy), or the speed that lands it at a mark (hard). */
 const horizSlider: Generator<LandParams> = {
   id: 'clm-horiz-slider',
   sample: (rng, difficulty) =>
     until(
-      () => ({ thing: rng.pick(THROWN), halves: rng.int(1, 8), u: rng.int(2, 30), findSpeed: difficulty > 1 }),
-      ({ halves, u }) => (u * halves) / 2 <= LAND_SPAN && (u * halves) / 2 >= 4,
+      () => {
+        const findSpeed = difficulty > 1;
+        return { thing: rng.pick(THROWN), h: rng.int(2, 70), given: findSpeed ? rng.int(4, LAND_SPAN) : rng.int(2, 30), findSpeed };
+      },
+      ({ h, given, findSpeed }) => {
+        const t = fallTime(h);
+        const target = findSpeed ? given / t : given * t;
+        return target >= 4 && target <= (findSpeed ? 40 : LAND_SPAN) && notchedWell(target);
+      },
     ),
-  render: ({ thing, halves, u, findSpeed }) => {
-    const t = halves / 2;
-    const R = u * t;
-    const h = fallHeight(t);
+  render: ({ thing, h, given, findSpeed }) => {
+    const t = fallTime(h);
     if (findSpeed) {
       const figure = track(0, 40, [], 'A scale of launch speeds in metres per second');
       return {
         kind: 'slider',
-        prompt: [say(`A ${thing} thrown horizontally from ${metres(h)} up must land ${metres(R)} out from the foot. ${G_NOTE} Slide to the launch speed needed, in $\\text{m s}^{-1}$.`)],
+        prompt: [say(`A ${thing} thrown horizontally from ${metres(h)} up must land ${metres(given)} out from the foot. ${G_NOTE} Slide to the launch speed needed, to the nearest $0.5\\text{ m s}^{-1}$.`)],
         min: 0,
         max: 40,
-        step: 0.5,
-        answer: u,
+        step: LAND_STEP,
+        answer: notch(given / t),
         readout: 'u = {v}',
         figure: { svg: figure.svg, xMin: figure.xMin, xMax: figure.xMax, axis: 'x' },
       };
@@ -178,29 +266,32 @@ const horizSlider: Generator<LandParams> = {
     const figure = track(0, LAND_SPAN, [{ at: 0, name: 'foot' }], 'Level ground marked in metres out from the foot of the drop');
     return {
       kind: 'slider',
-      prompt: [say(`A ${thing} is thrown horizontally at ${ms(u)} from ${metres(h)} up. ${G_NOTE} Slide to where it lands, in metres from the foot.`)],
+      prompt: [say(`A ${thing} is thrown horizontally at ${ms(given)} from ${metres(h)} up. ${G_NOTE} Slide to where it lands, to the nearest $0.5\\text{ m}$ from the foot.`)],
       min: 0,
       max: LAND_SPAN,
-      step: 0.5,
-      answer: R,
+      step: LAND_STEP,
+      answer: notch(given * t),
       readout: 'R = {v}',
       figure: { svg: figure.svg, xMin: figure.xMin, xMax: figure.xMax, axis: 'x' },
     };
   },
-  solution: ({ halves, u, findSpeed }) => {
-    const t = halves / 2;
+  solution: ({ h, given, findSpeed }) => {
+    const t = fallTime(h);
     return [
-      { tex: `t^{2} = \\frac{${fmt(fallHeight(t))}}{4.9} = ${fmt(t * t)}` },
-      { tex: `t = ${fmt(t)}` },
-      findSpeed ? { tex: `u = \\frac{${fmt(u * t)}}{${fmt(t)}} = ${fmt(u)}` } : { tex: `R = ${u} \\times ${fmt(t)} = ${fmt(u * t)}` },
+      { tex: `t = \\sqrt{${fmt(h)} \\div 4.9} = ${dots(t)}` },
+      findSpeed
+        ? { tex: `u = ${fmt(given)} \\div ${dots(t)} = ${dots(given / t, 2)}` }
+        : { tex: `R = ${fmt(given)} \\times ${dots(t)} = ${dots(given * t, 2)}` },
+      { text: `The nearest half is $${fmt(notch(findSpeed ? given / t : given * t))}$.` },
     ];
   },
 };
 
 interface ClearParams {
-  halves: number;
+  /** Height in whole metres. */
+  h: number;
   u: number;
-  /** The gap to clear, in whole metres, never equal to the range. */
+  /** The gap to clear, in whole metres, at least a metre from the range. */
   D: number;
   hard: boolean;
 }
@@ -211,34 +302,38 @@ const horizFlow: Generator<ClearParams> = {
   sample: (rng, difficulty) =>
     until(
       () => {
-        const halves = rng.int(1, 6);
+        const h = rng.int(2, 45);
         const u = rng.int(4, 20);
-        const R = (u * halves) / 2;
+        const R = u * fallTime(h);
         const D = rng.chance(0.5) ? Math.ceil(R) + rng.int(1, 5) : Math.floor(R) - rng.int(1, 5);
-        return { halves, u, D, hard: difficulty > 1 };
+        return { h, u, D, hard: difficulty > 1 };
       },
-      ({ D }) => D >= 2,
+      ({ h, u, D }) => D >= 2 && fallRoundsWell(h, u),
     ),
-  render: ({ halves, u, D, hard }) => {
-    const t = halves / 2;
-    const R = u * t;
+  render: ({ h, u, D, hard }) => {
+    const t = fallTime(h);
+    const R = roundTo(u * t, D_DP);
     const clears = R > D;
-    const YES = `Yes, by $${fmt(R - D)}\\text{ m}$`;
+    const YES = `Yes, by $${fixed(R - D, D_DP)}\\text{ m}$`;
     const NO = 'No, it lands short';
-    const fake = `Yes, by $${fmt(Math.abs(R - D) + 1)}\\text{ m}$`;
+    const fake = `Yes, by $${fixed(Math.abs(R - D) + 1, D_DP)}\\text{ m}$`;
+    const tBranches = [fixed(t, T_DP), fixed(h / 4.9, T_DP), fixed(2 * t, T_DP), fixed(h / 9.8, T_DP), fixed(t + 0.5, T_DP)];
+    const RBranches = [fixed(R, D_DP), fixed((u * h) / 4.9, D_DP), fixed(2 * R, D_DP), fixed(R / 2, D_DP), fixed(R + 2, D_DP)];
+    const three = (tokens: string[]) =>
+      [...new Set(tokens.filter((v) => Number(v) > 0))].slice(0, 3).sort((x, y) => Number(x) - Number(y)).map((v) => `$${v}$`);
     return {
       kind: 'flow',
       prompt: [
         say(
           hard
-            ? `A stunt rider leaves a level ramp at ${ms(u)} and drops ${metres(fallHeight(t))} to a landing platform. The platform starts ${metres(D)} out. ${G_NOTE} Does the rider reach it?`
-            : `A ball rolls off a ${metres(fallHeight(t))} high table at ${ms(u)}. A bucket stands with its near edge ${metres(D)} from the table's foot. ${G_NOTE} Does the ball get past the near edge?`,
+            ? `A stunt rider leaves a level ramp at ${ms(u)} and drops ${metres(h)} to a landing platform. The platform starts ${metres(D)} out. ${G_NOTE} Does the rider reach it?`
+            : `A ball rolls off a ${metres(h)} high table at ${ms(u)}. A bucket stands with its near edge ${metres(D)} from the table's foot. ${G_NOTE} Does the ball get past the near edge?`,
         ),
       ],
       subject: 'h = \\tfrac{1}{2}gt^{2} \\qquad R = ut',
       steps: [
-        { id: 't', ask: 'Time to fall, in seconds:', branches: forks(t, [t * t, 2 * t, fallHeight(t) / 9.8], 0.5).map((label) => ({ label, to: 'R' })) },
-        { id: 'R', ask: 'Distance out when it lands, in metres:', branches: forks(R, [u * t * t, 2 * R, R / 2], 0.5).map((label) => ({ label, to: 'verdict' })) },
+        { id: 't', ask: 'Time to fall, in seconds, to 2 decimal places:', branches: three(tBranches).map((label) => ({ label, to: 'R' })) },
+        { id: 'R', ask: 'Distance out when it lands, in metres, to 1 decimal place:', branches: three(RBranches).map((label) => ({ label, to: 'verdict' })) },
         {
           id: 'verdict',
           ask: `Compare with the $${D}\\text{ m}$:`,
@@ -248,16 +343,16 @@ const horizFlow: Generator<ClearParams> = {
           ],
         },
       ],
-      answer: [`$${fmt(t)}$`, `$${fmt(R)}$`, clears ? YES : NO],
+      answer: [`$${fixed(t, T_DP)}$`, `$${fixed(R, D_DP)}$`, clears ? YES : NO],
     };
   },
-  solution: ({ halves, u, D }) => {
-    const t = halves / 2;
+  solution: ({ h, u, D }) => {
+    const t = fallTime(h);
+    const R = roundTo(u * t, D_DP);
     return [
-      { tex: `t^{2} = \\frac{${fmt(fallHeight(t))}}{4.9} = ${fmt(t * t)}` },
-      { tex: `t = ${fmt(t)}` },
-      { tex: `R = ${u} \\times ${fmt(t)} = ${fmt(u * t)}` },
-      { text: u * t > D ? `More than ${D} m, so it gets there.` : `Less than ${D} m, so it falls short.` },
+      ...timeLines(h),
+      { tex: `R = ${u} \\times ${fixed(t, T_DP)} = ${fixed(R, D_DP)}` },
+      { text: R > D ? `More than ${D} m, so it gets there.` : `Less than ${D} m, so it falls short.` },
     ];
   },
 };
@@ -1096,7 +1191,7 @@ const radiusSlider: Generator<RadiusParams> = {
 };
 
 export const classicalTwoDGenerators = [
-  fallTime,
+  fallTimeGen,
   horizTree,
   horizSlider,
   horizFlow,
@@ -1118,4 +1213,4 @@ export const classicalTwoDGenerators = [
   radiusSlider,
 ] as Generator<never>[];
 
-export const classicalTwoDInternals = { fallHeight, launchSpeed, launchUx, ANGLED, stopTurns };
+export const classicalTwoDInternals = { fallTime, launchSpeed, launchUx, ANGLED, stopTurns };

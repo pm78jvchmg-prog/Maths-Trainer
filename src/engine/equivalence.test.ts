@@ -421,3 +421,30 @@ describe('a digit typed before e', () => {
     expect(check('e^(2)-1', 'e^2 - 1')).toBe('correct');
   });
 });
+
+describe('an answer asked to a stated precision', () => {
+  const at = (input: string, expected: string, precision: CheckOptions['precision']) =>
+    checkAnswer(input, expected, { precision, seed: 1 }).status;
+
+  it('accepts anything that rounds to the answer, the working included', () => {
+    // A 60 m drop: t = sqrt(60/4.9) = 3.4993..., asked to 2 decimal places.
+    for (const typed of ['3.50', '3.5', '3.499', 'sqrt(60/4.9)', '(60/4.9)^(1/2)']) {
+      expect(at(typed, '3.5', { dp: 2 }), typed).toBe('correct');
+    }
+  });
+
+  it('rejects a truncated or wrongly rounded value', () => {
+    for (const typed of ['3.49', '3.51', '3', '4']) expect(at(typed, '3.5', { dp: 2 }), typed).toBe('incorrect');
+  });
+
+  it('reads significant figures', () => {
+    expect(at('1235', '1240', { sf: 3 })).toBe('correct');
+    expect(at('1244.9', '1240', { sf: 3 })).toBe('correct');
+    expect(at('1245.1', '1240', { sf: 3 })).toBe('incorrect');
+    expect(at('0.01234', '0.0123', { sf: 3 })).toBe('correct');
+  });
+
+  it('still wants the exact value without one', () => {
+    expect(at('3.499', '3.5', undefined)).toBe('incorrect');
+  });
+});

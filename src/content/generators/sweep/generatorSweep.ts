@@ -29,7 +29,7 @@
 import { afterAll, describe, it, expect } from 'vitest';
 import katex from 'katex';
 import { makeRng } from '../../../engine/rng';
-import { checkAnswer } from '../../../engine/equivalence';
+import { checkAnswer, roundTo } from '../../../engine/equivalence';
 import { parseExpression, math } from '../../../engine/expression';
 import { registeredGenerators } from '../../registry';
 import {
@@ -1068,6 +1068,21 @@ function sweepGenerator(_id: string, generator: RegisteredGenerator): void {
         seed,
       });
       expect(verdict.status, `seed ${seed}: ${slide.answer}`).toBe('correct');
+    }
+  });
+
+  it('writes a rounded answer at the precision its prompt asks for', () => {
+    // A slide with `precision` accepts anything rounding to its answer, so the
+    // answer must itself be rounded to that precision, and the learner must be
+    // told it: a hidden precision would mark a correct 3.499 against 3.5 by luck.
+    for (const { params, seed } of cases()) {
+      const slide = (generator as Generator<unknown>).render(params);
+      if (slide.kind !== 'expression' || !slide.precision) continue;
+      const value = Number(math.evaluate(slide.answer));
+      expect(roundTo(value, slide.precision), `seed ${seed}: ${slide.answer}`).toBe(value);
+      const words = 'dp' in slide.precision ? `${slide.precision.dp} decimal place` : `${slide.precision.sf} significant figure`;
+      const prose = slide.prompt.map((b) => ('text' in b ? b.text : '')).join(' ');
+      expect(prose, `seed ${seed}: prompt never states the precision`).toContain(words);
     }
   });
 

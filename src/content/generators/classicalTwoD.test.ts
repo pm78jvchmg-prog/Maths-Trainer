@@ -47,6 +47,8 @@ function answerOf(slide: Slide): number[] {
 
 const near = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol * Math.max(1, Math.abs(b));
 const n = (v: unknown) => v as number;
+/** Absolute closeness, for an answer rounded to a stated precision. */
+const within = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol + 1e-6;
 
 /** A flight stepped at 1e-4 s (exact for constant acceleration with the average-velocity step) until it comes back down to `floor`. */
 function fly(ux: number, uy: number, floor: number): { t: number; x: number; top: number; vy: number } {
@@ -70,29 +72,34 @@ function fly(ux: number, uy: number, floor: number): { t: number; x: number; top
 }
 
 describe('classical mechanics level 2', () => {
-  it('lands a sideways throw when the fall is done, and where', TIME, () => {
+  it('lands a sideways throw when the fall is done, and where, to the precision asked', TIME, () => {
+    // Times to 2 decimal places, speeds and distances to 1: within half a last-place unit of the flight.
     for (const { p, slide } of draws('clm-fall-time')) {
-      const h = 4.9 * (n(p.halves) / 2) ** 2;
-      const f = fly(n(p.u), 0, -h);
-      expect(near(answerOf(slide)[0], p.find === 't' ? f.t : f.x, 1e-6), JSON.stringify(p)).toBe(true);
+      const f = fly(n(p.u), 0, -n(p.h));
+      expect(within(answerOf(slide)[0], p.find === 't' ? f.t : f.x, p.find === 't' ? 0.005 : 0.05), JSON.stringify(p)).toBe(true);
     }
     for (const { p, slide } of draws('clm-horiz-tree')) {
-      const h = 4.9 * (n(p.halves) / 2) ** 2;
-      const f = fly(n(p.u), 0, -h);
+      const f = fly(n(p.u), 0, -n(p.h));
       const [t, vy, R] = answerOf(slide);
-      expect(near(t, f.t, 1e-6) && near(vy, f.vy, 1e-6) && near(R, f.x, 1e-6), JSON.stringify(p)).toBe(true);
+      expect(within(t, f.t, 0.005) && within(vy, f.vy, 0.05) && within(R, f.x, 0.05), JSON.stringify(p)).toBe(true);
+    }
+  });
+
+  it('prints the heights a textbook would, whole metres or one decimal place', TIME, () => {
+    for (const id of ['clm-fall-time', 'clm-horiz-tree', 'clm-horiz-slider', 'clm-horiz-flow']) {
+      for (const { p } of draws(id)) expect(Number.isInteger(n(p.h) * 10), `${id} ${JSON.stringify(p)}`).toBe(true);
     }
   });
 
   it('puts the landing mark, or the launch speed, where the flight says', TIME, () => {
     for (const { p, slide } of draws('clm-horiz-slider')) {
-      const h = 4.9 * (n(p.halves) / 2) ** 2;
-      const f = fly(n(p.u), 0, -h);
-      expect(near(answerOf(slide)[0], p.findSpeed ? f.x / f.t : f.x, 1e-6)).toBe(true);
+      const f = fly(p.findSpeed ? 1 : n(p.given), 0, -n(p.h));
+      // To the nearest half: within a quarter of the true value.
+      expect(within(answerOf(slide)[0], p.findSpeed ? n(p.given) / f.t : f.x, 0.25)).toBe(true);
     }
     for (const { p, slide } of draws('clm-horiz-flow')) {
       if (slide.kind !== 'flow') throw new Error('not a flow');
-      const f = fly(n(p.u), 0, -4.9 * (n(p.halves) / 2) ** 2);
+      const f = fly(n(p.u), 0, -n(p.h));
       expect(slide.answer[2].startsWith('Yes')).toBe(f.x > n(p.D));
     }
   });

@@ -6,9 +6,12 @@
  * without reaching into either. Nothing here is a generator: this file exports
  * no array ending in `Generators`, so the registry passes over it.
  *
- * The same rules as Forces hold: every answer is an exact decimal, never a
- * rounded one, and a draw that would not be is refused at sampling through
- * `until`, never rounded. Units live in the prose, never in an answer.
+ * Given values are the kind a textbook prints: whole numbers or one decimal
+ * place, never a height like 60.025 m worked backwards so the answer comes out
+ * whole. Where natural values give an answer that does not terminate, the
+ * question says the precision it wants and the answer is rounded to it (see
+ * `typedRounded` and `roundedWell`); the checker then accepts anything that
+ * rounds to the same value. Units live in the prose, never in an answer.
  */
 import type { Block, ChoiceOption, Slide } from '../types';
 import { options } from '../choiceVariant';
@@ -17,8 +20,9 @@ import { steered } from './parametricImplicit';
 import { say } from './format';
 import { WORKING_KEYS } from './workingKeys';
 import { exact, valueBank } from './forces';
+import { roundTo, type Precision } from '../../engine/equivalence';
 
-export { fmt, say, exact, valueBank };
+export { fmt, say, exact, valueBank, roundTo, type Precision };
 
 /** g, in m s^-2. Stated in every question that uses it. */
 export const G = 9.8;
@@ -52,6 +56,56 @@ export function until<T>(draw: () => T, ok: (value: T) => boolean): T {
 /** A typed number, with the working keys so the calculation can be typed instead. */
 export function typed(prompt: Block[], lead: string, value: number): Slide {
   return { kind: 'expression', prompt, lead, keypad: WORKING_KEYS, answer: fmt(value), domain: 'real', mode: 'exact' };
+}
+
+/** "to 2 decimal places" or "to 3 significant figures". */
+export function precisionWords(precision: Precision): string {
+  if ('dp' in precision) return `to ${precision.dp} decimal place${precision.dp === 1 ? '' : 's'}`;
+  return `to ${precision.sf} significant figure${precision.sf === 1 ? '' : 's'}`;
+}
+
+/** The sentence a rounded question ends on: "Give your answer to 2 decimal places." */
+export function askPrecision(precision: Precision): string {
+  return `Give your answer ${precisionWords(precision)}.`;
+}
+
+/** A rounded value written with its trailing zeros, as a textbook prints it: 3.50, not 3.5. */
+export function fixed(value: number, precision: Precision): string {
+  const r = roundTo(value, precision);
+  if ('dp' in precision) return r.toFixed(precision.dp);
+  const places = Math.max(0, precision.sf - 1 - Math.floor(Math.log10(Math.abs(r) || 1)));
+  return r.toFixed(places);
+}
+
+/**
+ * Whether a value sits safely inside its rounding interval: at least `margin`
+ * of a last-place unit from the half-way point, so a learner whose working
+ * carried a slightly different intermediate cannot round it the other way.
+ * A draw that fails is redrawn, never nudged.
+ */
+export function roundedWell(value: number, precision: Precision, margin = 0.15): boolean {
+  if (!Number.isFinite(value) || value === 0) return Number.isFinite(value);
+  const places = 'dp' in precision ? precision.dp : precision.sf - 1 - Math.floor(Math.log10(Math.abs(value)));
+  const scaled = Math.abs(value) * 10 ** places;
+  return Math.abs(scaled - Math.floor(scaled) - 0.5) >= margin;
+}
+
+/**
+ * A typed number the question asks for to a stated precision. The answer is
+ * the rounded value; the checker accepts anything that rounds to it, so the
+ * learner's unrounded working typed on the keypad passes too.
+ */
+export function typedRounded(prompt: Block[], lead: string, value: number, precision: Precision): Slide {
+  return {
+    kind: 'expression',
+    prompt,
+    lead,
+    keypad: WORKING_KEYS,
+    answer: fmt(roundTo(value, precision)),
+    precision,
+    domain: 'real',
+    mode: 'exact',
+  };
 }
 
 /**

@@ -5,6 +5,26 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-26
 
+- **Six new Algebraic Fractions levels (#278).** Rational equations in context,
+  factorising to simplify, rearranging formulae, fractions within fractions,
+  partial fractions with higher powers, and turning points and ranges of
+  rational functions; Algebraic Fractions and Partial Fractions & Rational
+  Functions now show 30 each.
+- **Differential Equations reaches 30 on both cards (#277).** Numerical
+  Solutions (improved Euler, midpoint, second order, step size) on Differential
+  Equations; Families of Solutions, Harder Integrals, and Populations and Money
+  on the Basics card; a modulus in a steps question no longer loses its first
+  bar.
+- **Parametric & Implicit Basics to 35 (#275).** Four new levels on the card:
+  Sketching Parametric Curves, Modelling with Parametric Equations,
+  Parametrising a Curve, and Implicit Curves and their Sketches.
+- **Further Integration reaches 35 (#274).** Three new levels: Reduction
+  Formulae; Arc Length and Surface Area; Inverse Trigonometric and Hyperbolic
+  Integrals.
+- **Vectors: six new levels (#273).** Vectors Basics gains Adding and
+  Subtracting Vectors, Unit Vectors and i, j Notation, Vector Proofs in Shapes
+  and Journeys and Bearings; Vectors gains Distances from Lines and Planes and
+  Angles and Intersections of Planes. The cards now show 34 and 31.
 - **Numerical Methods: four new levels (#272).** Numerical Differentiation joins
   Numerical Methods, and Locating Roots Graphically, The Trapezium Rule in
   Context and Numerical Methods in Modelling join Numerical Methods Basics,

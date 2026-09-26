@@ -380,12 +380,21 @@ button {
   margin-bottom: -52px;
 }
 
+/* Under the home list the page is the colour of the run at each end rather
+   than the navy with its glow: blue in the top half, the orange run's brown
+   in the bottom. It shows only when the list is pulled past either end, and
+   then the gap matches what it opened from. The runs are opaque, so it
+   changes nothing else. */
+body:has(.band-maths) #root {
+  background: linear-gradient(to bottom, rgb(36 39 111) 50%, rgb(76 38 38) 50%);
+}
+
 /* On the home list the space above the streak and behind it is the maths
    blue as the run draws it (over the page, shaded), at the owner's ask, so
    the list's blue runs unbroken up to the status bar rather than opening
    on the page's purple glow. */
 .app-wide:has(.band-maths) {
-  --home-blue: rgb(36 40 111);
+  --home-blue: rgb(36 39 111);
   background: linear-gradient(var(--home-blue), var(--home-blue)) top / 100%
     var(--top-inset, env(safe-area-inset-top)) no-repeat;
 }
@@ -1677,14 +1686,14 @@ button {
   /* One flat blue all the way down, as the owner asked: the light-to-dark
      run read as smoke. Only the last stretch leans towards rose, measured
      from the foot so it stays the same length however many subjects the
-     run holds. */
+     run holds. Both runs are opaque (each colour is the translucent one it
+     replaced, laid over `--edge`), so nothing behind them shows through and
+     the page under the home list is free to change (see `#root` below). */
   background: linear-gradient(
     to bottom,
-    var(--maths-blue) 0,
-    var(--maths-blue) calc(100% - 320px),
-    rgb(115 38 180 / 0.52) calc(100% - 150px),
-    /* Opaque where the runs meet (rgb(160 52 165 / 0.47) over the page), so
-       the pixel the two share cannot show as a hairline. */
+    rgb(45 49 139) 0,
+    rgb(45 49 139) calc(100% - 320px),
+    rgb(74 36 134) calc(100% - 150px),
     rgb(84 34 91) 100%
   );
 }
@@ -1703,11 +1712,11 @@ button {
   background: linear-gradient(
     to bottom,
     rgb(84 34 91) 0,
-    rgb(215 80 140 / 0.4) 130px,
-    rgb(250 130 100 / 0.33) 280px,
-    rgb(245 135 60 / 0.3) 420px,
-    rgb(240 120 40 / 0.3) 60%,
-    rgb(160 60 10 / 0.5) 100%
+    rgb(104 52 106) 130px,
+    rgb(103 65 89) 280px,
+    rgb(95 64 77) 420px,
+    rgb(93 59 71) 60%,
+    rgb(95 47 47) 100%
   );
   --accent: #ffa45e;
   --accent-strong: #e8711c;
@@ -1720,8 +1729,8 @@ button {
     inset 0 0 0 100vmax rgb(0 0 0 / 0.2),
     /* Two copies, half a screen apart, cover a whole screen below the run
        without a spread, which would paint the iPad margins beside it. */
-    0 50vh 0 0 rgb(76 37 38),
-    0 100vh 0 0 rgb(76 37 38);
+    0 50vh 0 0 rgb(76 38 38),
+    0 100vh 0 0 rgb(76 38 38);
 }
 
 .category-section + .category-section {

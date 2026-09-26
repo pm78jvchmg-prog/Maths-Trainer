@@ -18,10 +18,12 @@
  *
  * These rules hold everywhere in this file.
  *
- * - Every answer is exact: whole, or one decimal place. u, a and t are drawn
- *   whole and paired so s is whole; under gravity u is a multiple of 4.9 and t
- *   is whole, so every height and speed lands on one decimal. A draw that
- *   would not is refused at sampling, never rounded.
+ * - Every answer is exact, whole or one decimal place, except under gravity.
+ *   u, a and t are drawn whole and paired so s is whole. Under gravity the
+ *   given speeds and heights are whole, as a textbook prints them: a height or
+ *   velocity at a whole time lands on one decimal, and a time found by solving
+ *   is asked to 2 decimal places (or on a slider to the nearest 0.1 s), with
+ *   heights from it to 1, a draw near a rounding edge refused.
  * - Units live in the prompt prose only. mathjs reads `m` as a variable, so no
  *   template, tile or answer ever carries one.
  * - Nothing declares `source`, and only the definite integrals of levels 3
@@ -52,6 +54,18 @@ import { fmt } from './numericalMethods';
 import { OPERATOR_KEYS, spaced, stepBank, tokenBank } from './parametricImplicit';
 import { gcdOrOne, say } from './format';
 import { WORKING_KEYS } from './workingKeys';
+import {
+  askPrecision,
+  exact,
+  fixed,
+  numChoices as kitChoices,
+  roundTo,
+  roundedWell,
+  salted,
+  typedRounded,
+  until,
+  type Precision,
+} from './classicalKit';
 
 /* ================================================================
  * Shared helpers
@@ -2433,7 +2447,8 @@ const signsTiles: Generator<SignsParams> = {
       const accel = rng.int(2, 8);
       const speed = rng.int(8, 30);
       const dist = (speed * speed) / (2 * accel);
-      if (!isTenth(dist)) continue;
+      // The stopping distance is stated, so it is a whole number of metres.
+      if (!Number.isInteger(dist)) continue;
       return { kind, alongFirst, speed, accel, dist, axis: rng.int(0, 2), thing: rng.int(0, VEHICLES.length - 1) };
     }
   },
@@ -2476,79 +2491,112 @@ const signsTiles: Generator<SignsParams> = {
  * ================================================================ */
 
 /**
- * Under gravity everything is built from k, with u = 4.9k: the top is k/2
- * seconds up, the height at whole t is 4.9t(k - t), the velocity 4.9(k - 2t),
- * and a stone thrown from a cliff h = 4.9T(T - k) high lands at whole T. Each
- * of those is a whole number times 4.9, so it lands on one decimal place.
+ * Under gravity the given speeds and heights are ones a textbook prints:
+ * whole metres per second and whole metres, never a multiple of 4.9 chosen so
+ * a time comes out whole. A height or velocity at a whole time is then exact
+ * to a tenth, a forward calculation. A time that comes from solving (the top,
+ * a landing) is asked to 2 decimal places, heights and speeds found from it
+ * to 1, and a draw is refused when a value sits near a rounding edge or would
+ * round differently for a learner who carried a rounded time forward.
  */
-const upSpeed = (k: number): number => 4.9 * k;
-const heightAt = (k: number, t: number): number => 4.9 * t * (k - t);
-const velocityAt = (k: number, t: number): number => 4.9 * (k - 2 * t);
+const T_DP: Precision = { dp: 2 };
+const D_DP: Precision = { dp: 1 };
+
+/** Displacement above the point of projection after t seconds, thrown up at u. */
+const heightAt = (u: number, t: number): number => u * t - 4.9 * t * t;
+/** Seconds to fall to a point h metres below, thrown up at u (the positive root). */
+const landTime = (u: number, h: number): number => (u + Math.sqrt(u * u + 19.6 * h)) / 9.8;
+
+/** An unrounded value on a working line: 2.4489..., or the value itself when it ends. */
+const dots = (value: number, places = 4): string => (exact(value, places) ? fmt(value) : `${value.toFixed(places)}\\ldots`);
+
+/** A bank of rounded tokens: the answer's, then distinct positive extras, sorted by value. */
+const fixedBank = (answer: string[], extras: string[], spare = 3): string[] => {
+  const out = [...answer];
+  for (const token of extras) {
+    if (out.length - answer.length >= spare) break;
+    if (!out.includes(token) && Number(token) > 0) out.push(token);
+  }
+  return out.sort((x, y) => Number(x) - Number(y) || x.localeCompare(y));
+};
 
 interface GravParams {
   thing: number;
-  k: number;
-  /** Difficulty 1: the time asked about. Difficulty 2: the time it lands. */
+  /** Speed thrown up, whole m/s. */
+  u: number;
+  /** A whole time: asked about (easy), or when it hits the sea (impact, cliff). */
   t: number;
+  /** Time only: the cliff height, whole metres. */
+  h: number;
   ask: 'height' | 'velocity' | 'time' | 'impact' | 'cliff';
 }
 
-const cliffOf = (k: number, T: number): number => 4.9 * T * (T - k);
-
 /**
  * A height or velocity at a whole time, or at difficulty 2 a stone thrown up
- * from a cliff: when it lands (a quadratic in t), how fast, or how high the
- * cliff is.
+ * from a cliff: when it lands (a quadratic in t, to 2 decimal places), how
+ * fast, or how high the cliff is.
  */
 const gravHeight: Generator<GravParams> = {
   id: 'kin-grav-height',
   sample: (rng, difficulty) => {
     const thing = rng.int(0, THROWN.length - 1);
     if (difficulty > 1) {
-      const k = rng.int(1, 6);
-      return { thing, k, t: k + rng.int(1, 4), ask: rng.pick(['time', 'impact', 'cliff'] as const) };
+      const ask = rng.pick(['time', 'impact', 'cliff'] as const);
+      if (ask === 'time') {
+        return until(
+          (): GravParams => ({ thing, u: rng.int(3, 25), t: 0, h: rng.int(10, 90), ask }),
+          ({ u, h }) => roundedWell(landTime(u, h), T_DP),
+        );
+      }
+      return until(
+        (): GravParams => ({ thing, u: rng.int(3, 25), t: rng.int(2, 8), h: 0, ask }),
+        ({ u, t }) => heightAt(u, t) <= -5,
+      );
     }
-    for (;;) {
-      const k = rng.int(2, 8);
-      const t = rng.int(1, k - 1);
-      const ask = rng.pick(['height', 'velocity'] as const);
-      if (ask === 'velocity' && k === 2 * t) continue;
-      return { thing, k, t, ask };
-    }
+    return until(
+      (): GravParams => ({ thing, u: rng.int(8, 30), t: rng.int(1, 4), h: 0, ask: rng.pick(['height', 'velocity'] as const) }),
+      ({ u, t }) => heightAt(u, t) > 0,
+    );
   },
-  choices: ({ k, t, ask }) => {
-    const u = upSpeed(k);
+  choices: ({ u, t, h, ask }) => {
     switch (ask) {
       case 'height':
-        return numChoices(heightAt(k, t), [u * t + 4.9 * t * t, u * t - G * t * t, u * t]);
+        return numChoices(heightAt(u, t), [u * t + 4.9 * t * t, u * t - G * t * t, u * t]);
       case 'velocity':
-        return numChoices(velocityAt(k, t), [-velocityAt(k, t), u + G * t, u - 4.9 * t]);
-      case 'time':
-        return numChoices(t, [t - k, k, cliffOf(k, t) / u]);
+        return numChoices(u - G * t, [-(u - G * t), u + G * t, u - 4.9 * t]);
+      case 'time': {
+        const r = (v: number) => roundTo(v, T_DP);
+        const T = landTime(u, h);
+        return kitChoices(r(T), [r(u / 9.8), r(2 * u / 9.8), r(Math.sqrt(h / 4.9))], salted(u, h));
+      }
       case 'impact':
-        return numChoices(4.9 * (2 * t - k), [u, G * t, 4.9 * (2 * t + k)]);
+        return numChoices(G * t - u, [u, G * t, u + G * t]);
       case 'cliff':
-        return numChoices(cliffOf(k, t), [4.9 * t * t, 4.9 * t * (t + k), u * t]);
+        return numChoices(-heightAt(u, t), [4.9 * t * t, u * t + 4.9 * t * t, u * t]);
     }
   },
-  render: ({ thing, k, t, ask }): Slide => {
-    const u = fmt(upSpeed(k));
+  render: ({ thing, u, t, h, ask }): Slide => {
     const what = THROWN[thing];
+    if (ask === 'time') {
+      return typedRounded(
+        [
+          say(
+            `A ${what} is thrown straight up at ${u} m/s from the edge of a cliff ${h} m above the sea. Taking $g = 9.8$ m/s², how many seconds until it hits the sea? ${askPrecision(T_DP)}`,
+          ),
+        ],
+        't =',
+        landTime(u, h),
+        T_DP,
+      );
+    }
     const texts = {
       height: `A ${what} is thrown straight up at ${u} m/s. Taking $g = 9.8$ m/s², find its height above the point of projection after ${t} s, in metres.`,
       velocity: `A ${what} is thrown straight up at ${u} m/s. Taking up as positive and $g = 9.8$ m/s², find its velocity after ${t} s, in m/s.`,
-      time: `A ${what} is thrown straight up at ${u} m/s from the edge of a cliff ${fmt(cliffOf(k, t))} m above the sea. Taking $g = 9.8$ m/s², how many seconds until it hits the sea?`,
       impact: `A ${what} is thrown straight up at ${u} m/s from a clifftop and hits the sea ${t} s later. Taking $g = 9.8$ m/s², find its speed as it hits the sea, in m/s.`,
       cliff: `A ${what} is thrown straight up at ${u} m/s from a clifftop and hits the sea ${t} s later. Taking $g = 9.8$ m/s², find the height of the cliff, in metres.`,
     };
-    const answers = {
-      height: heightAt(k, t),
-      velocity: velocityAt(k, t),
-      time: t,
-      impact: 4.9 * (2 * t - k),
-      cliff: cliffOf(k, t),
-    };
-    const leads = { height: 's =', velocity: 'v =', time: 't =', impact: '\\text{speed} =', cliff: 'h =' };
+    const answers = { height: heightAt(u, t), velocity: u - G * t, impact: G * t - u, cliff: -heightAt(u, t) };
+    const leads = { height: 's =', velocity: 'v =', impact: '\\text{speed} =', cliff: 'h =' };
     return {
       kind: 'expression',
       prompt: [say(texts[ask])],
@@ -2559,34 +2607,37 @@ const gravHeight: Generator<GravParams> = {
       mode: 'exact',
     };
   },
-  solution: ({ k, t, ask }) => {
-    const u = fmt(upSpeed(k));
+  solution: ({ u, t, h, ask }) => {
     switch (ask) {
       case 'height':
-        return [{ text: 'Up is positive and gravity pulls down, so $a = -9.8$.' }, { tex: `s = ${u} \\times ${t} - 4.9 \\times ${t}^{2} = ${fmt(heightAt(k, t))}` }];
+        return [{ text: 'Up is positive and gravity pulls down, so $a = -9.8$.' }, { tex: `s = ${u} \\times ${t} - 4.9 \\times ${t}^{2} = ${fmt(heightAt(u, t))}` }];
       case 'velocity':
         return [
           { text: 'Up is positive and gravity pulls down, so $a = -9.8$.' },
-          { tex: `v = ${u} - 9.8 \\times ${t} = ${fmt(velocityAt(k, t))}` },
-          { text: velocityAt(k, t) < 0 ? 'Negative: it is already on its way down.' : 'Positive: it is still rising.' },
+          { tex: `v = ${u} - 9.8 \\times ${t} = ${fmt(u - G * t)}` },
+          { text: u - G * t < 0 ? 'Negative: it is already on its way down.' : 'Positive: it is still rising.' },
         ];
-      case 'time':
+      case 'time': {
+        const T = landTime(u, h);
         return [
-          { text: `Up is positive and the sea is ${fmt(cliffOf(k, t))} m below, so $s = -${fmt(cliffOf(k, t))}$ and $a = -9.8$.` },
-          { tex: `-${fmt(cliffOf(k, t))} = ${u}t - 4.9t^{2}` },
-          { tex: `4.9t^{2} - ${u}t - ${fmt(cliffOf(k, t))} = 0` },
-          { text: `The quadratic formula gives $t = ${t}$ or a negative time, which is before it was thrown.` },
+          { text: `Up is positive and the sea is ${h} m below, so $s = -${h}$ and $a = -9.8$.` },
+          { tex: `-${h} = ${u}t - 4.9t^{2}` },
+          { tex: `4.9t^{2} - ${u}t - ${h} = 0` },
+          { tex: `t = \\frac{${u} + \\sqrt{${u}^{2} + 4 \\times 4.9 \\times ${h}}}{9.8} = ${dots(T)}` },
+          { text: 'The other root is negative, before it was thrown. To 2 decimal places:' },
+          { tex: `t = ${fixed(T, T_DP)}` },
         ];
+      }
       case 'impact':
         return [
           { text: 'Up is positive, so $a = -9.8$:' },
-          { tex: `v = ${u} - 9.8 \\times ${t} = ${fmt(velocityAt(k, t))}` },
-          { text: `Negative because it is moving down; the speed is $${fmt(4.9 * (2 * t - k))}$.` },
+          { tex: `v = ${u} - 9.8 \\times ${t} = ${fmt(u - G * t)}` },
+          { text: `Negative because it is moving down; the speed is $${fmt(G * t - u)}$.` },
         ];
       case 'cliff':
         return [
-          { tex: `s = ${u} \\times ${t} - 4.9 \\times ${t}^{2} = ${fmt(heightAt(k, t))}` },
-          { text: `It ends ${fmt(cliffOf(k, t))} m below where it was thrown, so the cliff is ${fmt(cliffOf(k, t))} m high.` },
+          { tex: `s = ${u} \\times ${t} - 4.9 \\times ${t}^{2} = ${fmt(heightAt(u, t))}` },
+          { text: `It ends ${fmt(-heightAt(u, t))} m below where it was thrown, so the cliff is ${fmt(-heightAt(u, t))} m high.` },
         ];
     }
   },
@@ -2594,36 +2645,37 @@ const gravHeight: Generator<GravParams> = {
 
 interface GravStepsParams {
   thing: number;
-  k: number;
+  /** Speed thrown up, whole m/s. */
+  u: number;
+  /** A whole time. */
   t: number;
 }
 
 /**
- * s = ut - 4.9t^2 one operation at a time. At difficulty 2 it is thrown from
- * a cliff and the time runs past its return, so s comes out negative.
+ * s = ut - 4.9t^2 one operation at a time: a forward calculation from a whole
+ * speed and a whole time, so every value on the line ends within a tenth. At
+ * difficulty 2 it is thrown from a cliff and the time runs past its return,
+ * so s comes out negative.
  */
 const gravSteps: Generator<GravStepsParams> = {
   id: 'kin-grav-steps',
   sample: (rng, difficulty) => {
     const thing = rng.int(0, THROWN.length - 1);
-    if (difficulty > 1) {
-      const k = rng.int(1, 6);
-      return { thing, k, t: k + rng.int(1, 3) };
-    }
-    const k = rng.int(2, 8);
-    return { thing, k, t: rng.int(1, k - 1) };
+    return until(
+      (): GravStepsParams => ({ thing, u: rng.int(5, 30), t: rng.int(1, difficulty > 1 ? 6 : 4) }),
+      ({ u, t }) => (difficulty > 1 ? heightAt(u, t) < -1 : heightAt(u, t) > 1),
+    );
   },
-  render: ({ thing, k, t }): Slide => {
-    const u = upSpeed(k);
+  render: ({ thing, u, t }): Slide => {
     const ut = u * t;
     const drop = 4.9 * t * t;
-    const s = heightAt(k, t);
-    const where = t > k ? ' from the edge of a cliff' : '';
+    const s = heightAt(u, t);
+    const where = s < 0 ? ' from the edge of a cliff' : '';
     return {
       kind: 'steps',
       prompt: [
         say(
-          `A ${THROWN[thing]} is thrown straight up at ${fmt(u)} m/s${where}. Find its displacement $s$ above the point of projection after ${t} s. Tap the part to work out next, then choose its value.`,
+          `A ${THROWN[thing]} is thrown straight up at ${u} m/s${where}. Find its displacement $s$ above the point of projection after ${t} s. Tap the part to work out next, then choose its value.`,
         ),
       ],
       start: [fmt(u), '\\times', `${t}`, '-', '4.9', '\\times', `${t}^2`],
@@ -2635,10 +2687,10 @@ const gravSteps: Generator<GravStepsParams> = {
       ],
     };
   },
-  solution: ({ k, t }) => {
-    const s = heightAt(k, t);
+  solution: ({ u, t }) => {
+    const s = heightAt(u, t);
     return [
-      { tex: `s = ${fmt(upSpeed(k))} \\times ${t} - 4.9 \\times ${t}^{2} = ${fmt(upSpeed(k) * t)} - ${fmt(4.9 * t * t)} = ${fmt(s)}` },
+      { tex: `s = ${u} \\times ${t} - 4.9 \\times ${t}^{2} = ${fmt(u * t)} - ${fmt(4.9 * t * t)} = ${fmt(s)}` },
       {
         text:
           s < 0
@@ -2651,11 +2703,47 @@ const gravSteps: Generator<GravStepsParams> = {
 
 interface TopParams {
   thing: number;
-  k: number;
-  /** Height above the ground it is thrown from. */
+  /** Speed thrown up, whole m/s. */
+  u: number;
+  /** Height above the ground it is thrown from, whole metres. */
   h: number;
-  /** Difficulty 2: whole seconds to fall from the top to the ground. */
-  n?: number;
+  /** Difficulty 2: go on to the fall from the top and the whole time. */
+  fall: boolean;
+}
+
+/** The rounded tree values: time up (2 dp), rise and greatest height (1 dp), fall and total time (2 dp). */
+function topValues({ u, h }: TopParams) {
+  const up = u / 9.8;
+  const rise = (u * u) / 19.6;
+  const top = h + rise;
+  const down = Math.sqrt(top / 4.9);
+  return { up, rise, top, down, total: up + down };
+}
+
+/**
+ * Every tree value rounds cleanly, and to the same thing whether the learner
+ * carried the rounded time up, the rounded greatest height, or the rounded
+ * times into the next line.
+ */
+function topRoundsWell(p: TopParams): boolean {
+  const { up, rise, top, down, total } = topValues(p);
+  const r = roundTo;
+  const upR = r(up, T_DP);
+  const topR = r(top, D_DP);
+  const downR = r(down, T_DP);
+  const ok =
+    roundedWell(up, T_DP) &&
+    roundedWell(rise, D_DP) &&
+    r((p.u * upR) / 2, D_DP) === r(rise, D_DP) &&
+    r(p.h + r(rise, D_DP), D_DP) === topR;
+  if (!p.fall) return ok;
+  return (
+    ok &&
+    roundedWell(down, T_DP) &&
+    roundedWell(total, T_DP) &&
+    r(Math.sqrt(topR / 4.9), T_DP) === downR &&
+    r(upR + downR, T_DP) === r(total, T_DP)
+  );
 }
 
 /**
@@ -2667,37 +2755,33 @@ const topTree: Generator<TopParams> = {
   id: 'kin-top-tree',
   sample: (rng, difficulty) => {
     const thing = rng.int(0, THROWN.length - 1);
-    if (difficulty > 1) {
-      const k = rng.pick([2, 4, 6, 8, 10]);
-      const n = k / 2 + rng.int(1, 5);
-      return { thing, k, h: 4.9 * (n * n - (k / 2) ** 2), n };
-    }
-    return { thing, k: rng.pick([2, 4, 6, 8]), h: rng.int(1, 30) };
+    const fall = difficulty > 1;
+    return until((): TopParams => ({ thing, u: rng.int(5, 25), h: rng.int(1, 40), fall }), topRoundsWell);
   },
-  render: ({ thing, k, h, n }): Slide => {
-    const u = upSpeed(k);
-    const up = k / 2;
-    const rise = (u * up) / 2;
-    const top = h + rise;
-    const base = `A ${THROWN[thing]} is thrown straight up at ${fmt(u)} m/s from a point ${fmt(h)} m above the ground. Taking $g = 9.8$ m/s², fill in the time to the top, the height it rises, then its greatest height above the ground`;
-    const slips = [u / 4.9, u * up, rise * 2, top + h, h + u];
-    if (n === undefined) {
+  render: (p): Slide => {
+    const { thing, u, h, fall } = p;
+    const { up, rise, top, down, total } = topValues(p);
+    const base = `A ${THROWN[thing]} is thrown straight up at ${u} m/s from a point ${h} m above the ground. Taking $g = 9.8$ m/s², fill in the time to the top, the height it rises, then its greatest height above the ground`;
+    const slips = [fixed(u / 4.9, T_DP), fixed(u * up, D_DP), fixed(rise * 2, D_DP), fixed(top + h, D_DP), fixed(h + u, D_DP)];
+    if (!fall) {
+      const answer = [fixed(up, T_DP), fixed(rise, D_DP), fixed(top, D_DP)];
       return {
         kind: 'tree',
-        prompt: [say(`${base}.`)],
+        prompt: [say(`${base}. Give times to 2 decimal places and heights to 1 decimal place.`)],
         expression: 't = \\frac{u}{9.8}, \\quad s = \\tfrac{1}{2}ut',
         nodes: [
           { id: 't', from: [] },
           { id: 'H', from: ['t'] },
           { id: 'G', from: ['H'] },
         ],
-        bank: valueBank([up, rise, top], slips),
-        answer: [up, rise, top].map(fmt),
+        bank: fixedBank(answer, slips),
+        answer,
       };
     }
+    const answer = [fixed(up, T_DP), fixed(rise, D_DP), fixed(top, D_DP), fixed(down, T_DP), fixed(total, T_DP)];
     return {
       kind: 'tree',
-      prompt: [say(`${base}, the time to fall from there to the ground, and its whole time in the air.`)],
+      prompt: [say(`${base}, the time to fall from there to the ground, and its whole time in the air. Give times to 2 decimal places and heights to 1 decimal place.`)],
       expression: 't = \\frac{u}{9.8}, \\; s = \\tfrac{1}{2}ut, \\; s = 4.9t^{2}',
       nodes: [
         { id: 't', from: [] },
@@ -2706,25 +2790,25 @@ const topTree: Generator<TopParams> = {
         { id: 'F', from: ['G'] },
         { id: 'T', from: ['t', 'F'] },
       ],
-      bank: valueBank([up, rise, top, n, up + n], [...slips, n * 2, up * 2]),
-      answer: [up, rise, top, n, up + n].map(fmt),
+      bank: fixedBank(answer, [...slips, fixed(down * 2, T_DP), fixed(up * 2, T_DP)]),
+      answer,
     };
   },
-  solution: ({ k, h, n }) => {
-    const u = upSpeed(k);
-    const up = k / 2;
-    const rise = (u * up) / 2;
+  solution: (p) => {
+    const { u, h, fall } = p;
+    const { up, rise, top, down, total } = topValues(p);
     const steps: SolutionStep[] = [
       { text: 'At the top it stops for an instant, so $v = 0$ there.' },
-      { tex: aligned(`0 &= ${fmt(u)} - 9.8t`, `t &= ${fmt(up)}`) },
-      { tex: `s = \\tfrac{1}{2}(${fmt(u)} + 0) \\times ${fmt(up)} = ${fmt(rise)}` },
-      { tex: `\\text{height} = ${fmt(h)} + ${fmt(rise)} = ${fmt(h + rise)}` },
+      { tex: aligned(`0 &= ${u} - 9.8t`, `t &= ${u} \\div 9.8 = ${dots(up)}`, `&= ${fixed(up, T_DP)} \\text{ to 2 d.p.}`) },
+      { tex: `s = \\tfrac{1}{2}(${u} + 0) \\times ${fixed(up, T_DP)} = ${fixed(rise, D_DP)}` },
+      { tex: `\\text{height} = ${h} + ${fixed(rise, D_DP)} = ${fixed(top, D_DP)}` },
     ];
-    if (n !== undefined) {
+    if (fall) {
       steps.push(
         { text: 'From the top it falls from rest, so $s = 4.9t^{2}$ down:' },
-        { tex: aligned(`4.9t^{2} &= ${fmt(h + rise)}`, `t^{2} &= ${n * n}`, `t &= ${n}`) },
-        { tex: `\\text{time in the air} = ${fmt(up)} + ${n} = ${fmt(up + n)}` },
+        { tex: aligned(`4.9t^{2} &= ${fixed(top, D_DP)}`, `t &= \\sqrt{${fixed(top, D_DP)} \\div 4.9} = ${dots(down)}`, `&= ${fixed(down, T_DP)} \\text{ to 2 d.p.}`) },
+        { tex: `\\text{time in the air} = ${fixed(up, T_DP)} + ${fixed(down, T_DP)} = ${fixed(total, T_DP)}` },
+        { text: 'Each the same whether you carry the rounded values or the exact ones.' },
       );
     }
     return steps;
@@ -2733,56 +2817,64 @@ const topTree: Generator<TopParams> = {
 
 interface GravSliderParams {
   thing: number;
-  k: number;
-  /** Difficulty 2: the landing time from a cliff. */
-  T?: number;
+  /** Speed thrown up, whole m/s. */
+  u: number;
+  /** Difficulty 2: the cliff height, whole metres; 0 from the ground. */
+  h: number;
   ask: 'top' | 'land' | 'level';
 }
 
-const sliderAnswer = ({ k, T, ask }: GravSliderParams): number => (ask === 'top' ? k / 2 : ask === 'land' ? (T ?? k) : k);
+const SLIDE_STEP = 0.1;
+
+/** The exact time the slider asks for. */
+const sliderTime = ({ u, h, ask }: GravSliderParams): number => (ask === 'top' ? u / 9.8 : ask === 'level' ? (2 * u) / 9.8 : landTime(u, h));
+/** The notch nearest a time, and whether the time sits well clear of the midpoint between two. */
+const notch = (value: number): number => Number((Math.round(value / SLIDE_STEP) * SLIDE_STEP).toFixed(1));
+const notchedWell = (value: number): boolean => Math.abs(value / SLIDE_STEP - Math.round(value / SLIDE_STEP)) <= 0.35;
 
 /**
- * A time read off a graph of height against time by sliding to it: the top,
- * the landing, or at difficulty 2 the moment it passes the cliff top again.
+ * A time read off a graph of height against time by sliding to it, to the
+ * nearest tenth of a second: the top, the landing, or at difficulty 2 the
+ * moment it passes the cliff top again.
  */
 const gravSlider: Generator<GravSliderParams> = {
   id: 'kin-grav-slider',
   sample: (rng, difficulty) => {
     const thing = rng.int(0, THROWN.length - 1);
-    if (difficulty > 1) {
-      const k = rng.int(1, 6);
-      return { thing, k, T: k + rng.int(1, 4), ask: rng.pick(['top', 'land', 'level'] as const) };
-    }
-    return { thing, k: rng.int(1, 8), ask: rng.pick(['top', 'land'] as const) };
+    return until(
+      (): GravSliderParams =>
+        difficulty > 1
+          ? { thing, u: rng.int(3, 25), h: rng.int(10, 80), ask: rng.pick(['top', 'land', 'level'] as const) }
+          : { thing, u: rng.int(3, 35), h: 0, ask: rng.pick(['top', 'land'] as const) },
+      (p) => notchedWell(sliderTime(p)),
+    );
   },
   render: (params): Slide => {
-    const { thing, k, T, ask } = params;
-    const u = upSpeed(k);
-    const end = T ?? k;
-    const h = T === undefined ? 0 : cliffOf(k, T);
-    const f = (t: number) => h + u * t - 4.9 * t * t;
-    const top = h + 1.225 * k * k;
+    const { thing, u, h, ask } = params;
+    const end = Math.ceil(landTime(u, h) + 1e-9);
+    const f = (t: number) => h + heightAt(u, t);
+    const top = h + (u * u) / 19.6;
     const asked = {
-      top: 'Slide the line to the time it reaches its greatest height.',
-      land: T === undefined ? 'Slide the line to the time it lands again.' : 'Slide the line to the time it hits the sea.',
-      level: 'Slide the line to the time it passes the top of the cliff again on the way down.',
+      top: 'Slide the line to the time it reaches its greatest height',
+      land: h === 0 ? 'Slide the line to the time it lands again' : 'Slide the line to the time it hits the sea',
+      level: 'Slide the line to the time it passes the top of the cliff again on the way down',
     }[ask];
-    const setting = T === undefined ? 'from the ground' : `from the top of a cliff ${fmt(h)} m above the sea`;
+    const setting = h === 0 ? 'from the ground' : `from the top of a cliff ${h} m above the sea`;
     return {
       kind: 'slider',
       prompt: [
-        say(`A ${THROWN[thing]} is thrown straight up at ${fmt(u)} m/s ${setting}. The graph shows its height against time, with $g = 9.8$ m/s². ${asked}`),
+        say(`A ${THROWN[thing]} is thrown straight up at ${u} m/s ${setting}. The graph shows its height against time, with $g = 9.8$ m/s². ${asked}, to the nearest 0.1 s.`),
       ],
       min: 0,
       max: end,
-      step: 0.5,
-      answer: sliderAnswer(params),
+      step: SLIDE_STEP,
+      answer: notch(sliderTime(params)),
       readout: 't = {v}',
       figure: {
         svg: plotSvg({
           xMin: 0,
           xMax: end,
-          yMin: -top * 0.04,
+          yMin: Math.min(f(end), -top * 0.04),
           yMax: top * 1.1,
           curves: [{ f }],
           horizontals: h > 0 ? [h] : [],
@@ -2795,24 +2887,25 @@ const gravSlider: Generator<GravSliderParams> = {
     };
   },
   solution: (params) => {
-    const { k, T, ask } = params;
-    const u = fmt(upSpeed(k));
+    const { u, h, ask } = params;
+    const t = sliderTime(params);
+    const nearest = { text: `To the nearest 0.1 s that is $${notch(t).toFixed(1)}$.` };
     if (ask === 'top') {
-      return [{ text: 'At the top its velocity is zero:' }, { tex: aligned(`0 &= ${u} - 9.8t`, `t &= ${fmt(k / 2)}`) }, { text: 'On the graph that is the peak of the parabola.' }];
+      return [{ text: 'At the top its velocity is zero:' }, { tex: aligned(`0 &= ${u} - 9.8t`, `t &= ${u} \\div 9.8 = ${dots(t)}`) }, nearest, { text: 'On the graph that is the peak of the parabola.' }];
     }
-    if (ask === 'level') {
+    if (ask === 'level' || h === 0) {
       return [
         { text: 'Back at the height it was thrown from means $s = 0$:' },
-        { tex: aligned(`${u}t - 4.9t^{2} &= 0`, `t(${u} - 4.9t) &= 0`, `t = 0 \\text{ or } t &= ${k}`) },
-        { text: 'The graph crosses the dashed line of the cliff top there, twice as long as the rise.' },
+        { tex: aligned(`${u}t - 4.9t^{2} &= 0`, `t(${u} - 4.9t) &= 0`, `t = 0 \\text{ or } t &= ${u} \\div 4.9 = ${dots(t)}`) },
+        nearest,
+        { text: h === 0 ? 'Up and down take the same time: twice the time to the top.' : 'The graph crosses the dashed line of the cliff top there, twice as long as the rise.' },
       ];
     }
-    if (T === undefined) {
-      return [{ tex: aligned(`${u}t - 4.9t^{2} &= 0`, `t(${u} - 4.9t) &= 0`, `t = 0 \\text{ or } t &= ${k}`) }, { text: 'Up and down take the same time: twice the time to the top.' }];
-    }
     return [
-      { text: `The sea is ${fmt(cliffOf(k, T))} m below, so solve $${u}t - 4.9t^{2} = -${fmt(cliffOf(k, T))}$.` },
-      { text: `That gives $t = ${T}$, where the graph meets the axis.` },
+      { text: `The sea is ${h} m below, so solve $${u}t - 4.9t^{2} = -${h}$:` },
+      { tex: `t = \\frac{${u} + \\sqrt{${u}^{2} + 4 \\times 4.9 \\times ${h}}}{9.8} = ${dots(t)}` },
+      nearest,
+      { text: 'That is where the graph meets the axis.' },
     ];
   },
 };

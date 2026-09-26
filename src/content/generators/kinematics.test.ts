@@ -87,17 +87,23 @@ function stepped(u: number, a: number, t: number): { s: number; v: number } {
 describe('every kinematics answer', () => {
   const ids = Object.keys(registry).filter((id) => id.startsWith('kin-') && !id.endsWith('+choice'));
 
-  it('is a whole number or one decimal place, and carries no unit', () => {
+  it('is a whole number or one decimal place, or the precision its question states, and carries no unit', () => {
     const tenth = (token: string) => /^-?\d+(\.\d)?$/.test(token);
+    const hundredth = (token: string) => /^-?\d+(\.\d\d?)?$/.test(token);
     for (const id of ids) {
       for (const { slide, seed } of draws<unknown>(id)) {
         const where = `${id} seed ${seed}`;
         // Level 3 asks for v, a or s as a function of t: those answers are formulas, not numbers.
         const inT = slide.kind === 'expression' && slide.keypad.some((key) => key.insert.trim() === 't');
-        if (slide.kind === 'expression' && !inT) expect(tenth(slide.answer), `${where}: ${slide.answer}`).toBe(true);
+        // A question that states 2 decimal places may answer to 2; nothing goes finer.
+        const statesTwo =
+          (slide.kind === 'expression' && slide.precision !== undefined && 'dp' in slide.precision && slide.precision.dp === 2) ||
+          ('prompt' in slide && slide.prompt.some((b) => b.kind === 'prose' && b.text.includes('to 2 decimal places')));
+        const ok = statesTwo ? hundredth : tenth;
+        if (slide.kind === 'expression' && !inT) expect(ok(slide.answer), `${where}: ${slide.answer}`).toBe(true);
         if (slide.kind === 'slider') expect(slide.answer * 10 === Math.round(slide.answer * 10), where).toBe(true);
         if (slide.kind === 'tree' || slide.kind === 'table') {
-          for (const token of slide.answer) expect(tenth(token), `${where}: ${token}`).toBe(true);
+          for (const token of slide.answer) expect(ok(token), `${where}: ${token}`).toBe(true);
         }
         if (slide.kind === 'steps') {
           for (const { value } of slide.reductions) expect(tenth(value), `${where}: ${value}`).toBe(true);
@@ -442,58 +448,83 @@ describe('choosing the equation', () => {
 
 describe('gravity', () => {
   const height = (u: number, t: number) => stepped(u, -G, t).s;
+  const said = (slide: Slide) => ('prompt' in slide ? slide.prompt.map((b) => (b.kind === 'prose' ? b.text : '')).join(' ') : '');
+  /** Every number the prompt states, in order; each must be whole, as a textbook prints it. */
+  const givens = (slide: Slide) => [...said(slide).replace(/g = 9\.8/g, '').matchAll(/(\d+(?:\.\d+)?) (?:m\/s|m |m\.|s)/g)].map((m) => Number(m[1]));
+  /** The first time the flight reaches `level` metres relative to its start, on the way down, found by bisection. */
+  const reach = (u: number, level: number) => {
+    let lo = u / G;
+    let hi = lo + 100;
+    for (let i = 0; i < 200; i += 1) {
+      const mid = (lo + hi) / 2;
+      if (height(u, mid) > level) lo = mid;
+      else hi = mid;
+    }
+    return lo;
+  };
 
   it('gives heights, velocities and landings that stepping under g agrees with', () => {
-    for (const { params, slide, seed } of draws<{ k: number; t: number; ask: string }>('kin-grav-height')) {
+    for (const { params, slide, seed } of draws<{ u: number; t: number; h: number; ask: string }>('kin-grav-height')) {
       if (slide.kind !== 'expression') throw new Error('not an expression slide');
-      const u = 4.9 * params.k;
-      const answer = Number(slide.answer);
       const where = `seed ${seed}`;
+      givens(slide).forEach((v) => expect(Number.isInteger(v), `${where}: given ${v}`).toBe(true));
+      const u = params.u;
+      const answer = Number(slide.answer);
       if (params.ask === 'height') expect(Math.abs(answer - height(u, params.t)), where).toBeLessThan(1e-6);
       if (params.ask === 'velocity') expect(Math.abs(answer - stepped(u, -G, params.t).v), where).toBeLessThan(1e-6);
       if (params.ask === 'impact') expect(Math.abs(answer - Math.abs(stepped(u, -G, params.t).v)), where).toBeLessThan(1e-6);
       if (params.ask === 'cliff') expect(Math.abs(answer + height(u, params.t)), where).toBeLessThan(1e-6);
       if (params.ask === 'time') {
-        const cliff = Number(slide.prompt.map((b) => (b.kind === 'prose' ? b.text : '')).join(' ').match(/cliff ([\d.]+) m/)![1]);
-        expect(Math.abs(height(u, answer) + cliff), where).toBeLessThan(1e-6);
-        expect(height(u, answer - 0.5) + cliff, `${where}: lands earlier`).toBeGreaterThan(0);
+        const cliff = Number(said(slide).match(/cliff ([\d.]+) m/)![1]);
+        expect(slide.precision, where).toEqual({ dp: 2 });
+        expect(Math.abs(answer - reach(u, -cliff)), where).toBeLessThanOrEqual(0.005 + 1e-9);
       }
     }
-    for (const { params, slide, seed } of draws<{ k: number; t: number }>('kin-grav-steps')) {
+    for (const { params, slide, seed } of draws<{ u: number; t: number }>('kin-grav-steps')) {
       if (slide.kind !== 'steps') throw new Error('not a steps slide');
+      givens(slide).forEach((v) => expect(Number.isInteger(v), `seed ${seed}: given ${v}`).toBe(true));
       const last = slide.reductions[slide.reductions.length - 1].value;
-      expect(Math.abs(Number(last) - height(4.9 * params.k, params.t)), `seed ${seed}`).toBeLessThan(1e-6);
+      expect(Math.abs(Number(last) - height(params.u, params.t)), `seed ${seed}`).toBeLessThan(1e-6);
     }
   });
 
   it('puts the top where the rise stops, and the fall where the ground is', () => {
-    for (const { params, slide, seed } of draws<{ k: number; h: number; n?: number }>('kin-top-tree')) {
+    for (const { params, slide, seed } of draws<{ u: number; h: number; fall: boolean }>('kin-top-tree')) {
       if (slide.kind !== 'tree') throw new Error('not a tree slide');
-      const u = 4.9 * params.k;
+      givens(slide).forEach((v) => expect(Number.isInteger(v), `seed ${seed}: given ${v}`).toBe(true));
+      const u = params.u;
       // Search for the top rather than solve for it: run the flight until it stops rising.
       let best = 0;
-      for (let v = u, t = 0; v > 0; t += 1e-4) {
-        v -= G * 1e-4;
-        best = t + 1e-4;
+      for (let v = u, t = 0; v > 0; t += 1e-5) {
+        v -= G * 1e-5;
+        best = t + 1e-5;
       }
       const [up, rise, top] = slide.answer.map(Number);
-      expect(Math.abs(up - best), `seed ${seed}`).toBeLessThan(0.002);
-      expect(Math.abs(rise - height(u, up)), `seed ${seed}`).toBeLessThan(1e-6);
-      expect(Math.abs(top - params.h - rise), `seed ${seed}`).toBeLessThan(1e-6);
-      if (params.n !== undefined) {
-        const fall = Number(slide.answer[3]);
-        expect(Math.abs(stepped(0, G, fall).s - top), `seed ${seed}`).toBeLessThan(1e-6);
+      const within = (got: number, want: number, dp: number, what: string) =>
+        expect(Math.abs(got - want), `seed ${seed}: ${what} ${got} against ${want}`).toBeLessThanOrEqual(0.5 * 10 ** -dp + 1e-9);
+      within(up, best, 2, 'time up');
+      within(rise, height(u, u / G), 1, 'rise');
+      within(top, params.h + height(u, u / G), 1, 'top');
+      if (params.fall) {
+        const exactTop = params.h + height(u, u / G);
+        let fall = 0;
+        while (stepped(0, G, fall).s < exactTop) fall += 1e-4;
+        within(Number(slide.answer[3]), fall, 2, 'fall');
+        within(Number(slide.answer[4]), best + fall, 2, 'total');
       }
     }
-    for (const { params, slide, seed } of draws<{ k: number; T?: number; ask: string }>('kin-grav-slider')) {
+    for (const { params, slide, seed } of draws<{ u: number; h: number; ask: string }>('kin-grav-slider')) {
       if (slide.kind !== 'slider') throw new Error('not a slider slide');
-      const u = 4.9 * params.k;
-      const cliff = params.T === undefined ? 0 : -height(u, params.T);
+      const u = params.u;
       const t = slide.answer;
-      if (params.ask === 'top') expect(Math.abs(stepped(u, -G, t).v), `seed ${seed}`).toBeLessThan(1e-6);
-      if (params.ask === 'level') expect(Math.abs(height(u, t)), `seed ${seed}`).toBeLessThan(1e-6);
-      if (params.ask === 'land') expect(Math.abs(cliff + height(u, t)), `seed ${seed}`).toBeLessThan(1e-6);
+      let want: number;
+      if (params.ask === 'top') want = u / G;
+      else if (params.ask === 'level') want = reach(u, 0);
+      else want = reach(u, -params.h);
+      expect(Math.abs(t - want), `seed ${seed}: ${t} against ${want}`).toBeLessThanOrEqual(0.05 + 1e-9);
+      expect(Math.abs(t * 10 - Math.round(t * 10)), `seed ${seed}: on a notch`).toBeLessThan(1e-6);
       expect(t, `seed ${seed}`).toBeGreaterThan(0);
+      expect(t, `seed ${seed}`).toBeLessThanOrEqual(slide.max);
     }
   });
 });

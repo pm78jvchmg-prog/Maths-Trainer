@@ -11,7 +11,14 @@
  * combined course survives the split. Level 4, Vector Geometry, is `vm-l4`,
  * level 6, Lines in Vector Form, is `vm-l6`, level 8, Planes & the Cross
  * Product, is `vm-l8`, level 10 is `vm-l10` and level 12 is `vm-l12`: `vm-l2`, `vm-l3`, `vm-l5`,
- * `vm-l7` and `vm-l9` are the Matrices course's.
+ * `vm-l7`, `vm-l9` and `vm-l11` are the Matrices course's. Levels `vm-l13` to
+ * `vm-l18` are this course's too, each written in a file of its own under
+ * `./vectors/`; `vm-l19` onward is reserved for Matrices.
+ *
+ * Levels 13 to 16 are shown in Vectors Basics (see placement.ts): Adding and
+ * Subtracting Vectors, Unit Vectors and i, j Notation, Vector Proofs in
+ * Shapes, and Journeys and Bearings. Levels 17 and 18, Distances from Lines
+ * and Planes and Angles and Intersections of Planes, stay on this card.
  *
  * Level 4 turns vectors into a way of saying where points are: position
  * vectors, a point part-way along a line, three points on one line, the
@@ -41,6 +48,12 @@
  * teaching slides, one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
+import { level13 } from './vectors/level13';
+import { level14 } from './vectors/level14';
+import { level15 } from './vectors/level15';
+import { level16 } from './vectors/level16';
+import { level17 } from './vectors/level17';
+import { level18 } from './vectors/level18';
 
 const teach = (
   ...blocks: { kind: 'prose' | 'display'; text?: string; tex?: string }[]
@@ -629,6 +642,10 @@ export const vectors: Course = {
         ask('vec-path-coefficients', 2),
       ],
     },
+    level13,
+    level14,
+    level15,
+    level16,
     {
       id: 'vm-l6',
       title: 'Lines in Vector Form',
@@ -1834,5 +1851,7 @@ export const vectors: Course = {
         ask('mech-apart-tree', 2),
       ],
     },
+    level17,
+    level18,
   ],
 };

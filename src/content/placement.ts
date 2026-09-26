@@ -105,7 +105,7 @@ export const NEW_COURSES: NewCourse[] = [
     blurb: "Euclid's algorithm, whole-number solutions, and arithmetic mod n.",
     category: 'advanced-maths',
     position: 90,
-    levels: ['np-l5', 'np-l6'],
+    levels: ['np-l5', 'np-l6', 'np-l9', 'np-l10', 'np-l11'],
   },
 ];
 

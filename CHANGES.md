@@ -5,6 +5,25 @@ its pull request; the PR description holds the evidence.
 
 ## 2026-09-26
 
+- **Solid top bar (#292).** The home and course bars are solid rather than
+  blurred, so the streak bar stays sharp on an iPhone.
+- **Sharp streak bar at the top (#291).** Back at the top of a list the bar
+  drops its blur, even when iOS stops a fraction of a pixel short.
+- **Mechanics questions use textbook numbers (#290).** Heights, speeds and
+  forces are ones a textbook prints (a 60 m wall, not 60.025 m); where the
+  answer no longer comes out exactly, the question asks for 2 decimal places or
+  3 significant figures and accepts anything that rounds to it, and trees, flows
+  and sliders offer the calculator.
+- **Keypad keys match the question (#289).** Typed mechanics answers get a
+  square root and a power key; sin, cos and tan only where an angle is given in
+  degrees; every keypad row now fills the pad.
+- **Formulas fit a phone screen (#288).** Lined-up working, stacked working,
+  tables and worked answers that ran off the right edge now wrap or were split,
+  and "£5" or a list comma no longer wraps away from its number.
+- **Content bug fixes (#286).** Worked solutions now agree with their questions,
+  odd forms such as 3⁵, (…)¹ and √9 are gone, factorising answers are always
+  fully factorised, forces values stay tidy, lessons name levels by title, and
+  flow questions show the model once.
 - **Widget glitches (#285).** No stray label word above pick-the-answer options,
   full-size fractions in which-way-next questions, the keypad stays on screen
   above the Check button, and the graph transformer's readouts fit on narrow

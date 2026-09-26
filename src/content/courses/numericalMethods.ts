@@ -2258,5 +2258,207 @@ export const numericalMethods: Course = {
         ask('numer-profile-volume', 2),
       ],
     },
+    {
+      id: 'nm-l10',
+      title: 'Numerical Methods in Modelling',
+      lessons: [
+        {
+          id: 'nm-l10-model',
+          title: 'From a Story to an Equation',
+          slides: [
+            teach(
+              prose(
+                'A box has a square base of side $x$ cm. It is $2$ cm taller than it is wide, and its volume is $50$ cm³. Multiply out the volume, then take $50$ from both sides:',
+              ),
+              working('x^{2}(x + 2) &= 50', 'x^{3} + 2x^{2} &= 50', 'x^{3} + 2x^{2} - 50 &= 0'),
+              prose('Call the left side $f(x)$ and try whole numbers:'),
+              working('f(3) &= 3^{3} + 2 \\times 3^{2} - 50 = -5', 'f(4) &= 4^{3} + 2 \\times 4^{2} - 50 = 46'),
+              prose('The sign changes, so the side is between $3$ and $4$: $3 < x < 4$.'),
+            ),
+            ask('numer-model-equation-tiles'),
+            ask('numer-model-value'),
+            ask('numer-model-interval-choice'),
+            teach(
+              prose(
+                'The same side shows on a graph. Draw the volume $y = x^{2}(x + 2)$ and the line $y = 50$: they meet at the side, about $x = 3.1$.',
+              ),
+              prose('Other shapes work the same way. A box $3$ cm less tall than wide, with volume $20$ cm³:'),
+              working('x^{2}(x - 3) &= 20', 'x^{3} - 3x^{2} - 20 &= 0'),
+              prose('A block $x$ by $2x$ by $x + 1$, with volume $30$ cm³:'),
+              working('2x^{2}(x + 1) &= 30', '2x^{3} + 2x^{2} - 30 &= 0'),
+            ),
+            ask('numer-model-graph-slider'),
+            ask('numer-model-equation-tiles', 2),
+            ask('numer-model-value+choice', 2),
+            teach(
+              prose(
+                'With no table, make one: work out $f$ at one whole number after another until the sign changes. For $2x^{3} + 2x^{2} - 30 = 0$, $f(2) = -6$ and $f(3) = 42$, so $2 < x < 3$.',
+              ),
+            ),
+            ask('numer-model-interval-choice', 2),
+            ask('numer-model-graph-slider', 2),
+          ],
+          skillCheck: [ask('numer-model-equation-tiles', 2), ask('numer-model-value', 2), ask('numer-model-interval-choice', 2)],
+        },
+        {
+          id: 'nm-l10-report',
+          title: 'Reporting an Answer',
+          slides: [
+            teach(
+              prose('To round, look at the next digit: $5$ or more rounds up. To $2$ decimal places:'),
+              maths('3.1233645 \\approx 3.12'),
+              prose('A side given as $x = 3.1$ cm to $1$ decimal place is anything that rounds to $3.1$, up to half a unit either side:'),
+              maths('3.05 \\le x < 3.15'),
+              prose('So the largest the error can be is $0.05$.'),
+            ),
+            ask('numer-report-round'),
+            ask('numer-report-interval-tiles'),
+            ask('numer-report-error-bound-choice'),
+            teach(
+              prose(
+                'Significant figures count from the first digit that is not nought. To $2$ significant figures, $348.27 \\approx 350$ and $0.0034517 \\approx 0.0035$.',
+              ),
+              prose('A length of $350$ m to $2$ significant figures is from $345$ up to $355$: an error of at most $5$.'),
+              prose(
+                'A search gives better and better estimates. When two in a row round to the same value, report it: $3.1234$ and $3.1229$ are both $3.12$ to $2$ decimal places.',
+              ),
+            ),
+            ask('numer-report-agree-flow'),
+            ask('numer-report-round+choice', 2),
+            ask('numer-report-interval-tiles', 2),
+            teach(
+              prose(
+                'When they round differently, as $3.1249$ and $3.1251$ do to $2$ decimal places, the root is not fixed yet: take another estimate.',
+              ),
+            ),
+            ask('numer-report-error-bound-choice', 2),
+            ask('numer-report-agree-flow', 2),
+          ],
+          skillCheck: [ask('numer-report-round', 2), ask('numer-report-interval-tiles', 2), ask('numer-report-agree-flow', 2)],
+        },
+        {
+          id: 'nm-l10-sense',
+          title: 'Does the Answer Make Sense?',
+          slides: [
+            teach(
+              prose(
+                'A ball is thrown up from $2$ m above the ground. Its height after $t$ s is $h = 2 + 15t - 5t^{2}$, and it lands when $h = 0$. The roots are $t \\approx -0.13$ and $t \\approx 3.13$.',
+              ),
+              prose('A negative time is before the throw, so the ball lands at $t \\approx 3.13$ s.'),
+              prose('Then check an answer by putting it back in. For the box $x^{2}(x + 2) = 50$, a search gives $x = 3.1$:'),
+              working('3.1^{2} \\times (3.1 + 2) &= 9.61 \\times 5.1', '&= 49.011'),
+              prose('That is close to $50$, so $x = 3.1$ makes sense.'),
+            ),
+            ask('numer-sense-root-choice'),
+            ask('numer-sense-check-value'),
+            teach(
+              prose(
+                'Sometimes both roots make sense. A rectangle with a perimeter of $20$ m and an area of $20$ m² gives $x^{2} - 10x + 20 = 0$, with roots $x \\approx 2.76$ and $x \\approx 7.24$: the width and the length.',
+              ),
+              prose(
+                'To judge an answer: is it positive, does it fit any limit the story sets, and does it come within $10\\%$ of the target when put back in? $10\\%$ of $50$ is $5$, and $49.011$ is within $5$ of $50$.',
+              ),
+              prose('For a block $x$ by $2x$ by $x + 1$, putting back $x = 2.5$:'),
+              working('2 \\times 2.5^{2} \\times (2.5 + 1) &= 2 \\times 6.25 \\times 3.5', '&= 43.75'),
+            ),
+            ask('numer-sense-flow'),
+            ask('numer-sense-check-value+choice', 2),
+            ask('numer-sense-root-choice', 2),
+            teach(
+              prose(
+                'The sign of $f$ says which side of the root a number is. For $f(x) = x^{3} + 2x^{2} - 50$, $f(3) = -5$ is negative, so a box of side $3$ cm holds too little: the side is more than $3$.',
+              ),
+            ),
+            ask('numer-model-value'),
+            ask('numer-sense-flow', 2),
+          ],
+          skillCheck: [ask('numer-sense-root-choice', 2), ask('numer-sense-check-value', 2), ask('numer-sense-flow', 2)],
+        },
+        {
+          id: 'nm-l10-error',
+          title: 'Percentage Error',
+          slides: [
+            teach(
+              prose('The percentage error compares the error with the exact value:'),
+              maths('\\text{percentage error} = \\frac{\\text{error}}{\\text{exact}} \\times 100'),
+              prose('The trapezium rule gives $82$ for an area that is exactly $80$:'),
+              working('\\text{error} &= 82 - 80 = 2', '\\frac{2}{80} \\times 100 &= 2.5'),
+              prose('A percentage error of $2.5\\%$.'),
+            ),
+            ask('numer-pct-error'),
+            ask('numer-pct-parts-tree'),
+            teach(
+              prose(
+                'Divide by the exact value, not the estimate. Then decide: an estimate within the accuracy asked for is good enough, and one that is not needs more strips or a closer search. $2.5\\%$ is within $5\\%$ but not within $1\\%$.',
+              ),
+              prose('Round as before, the next digit deciding:'),
+              working('2.7182818 &\\approx 2.72 \\text{ (2 d.p.)}', '348.27 &\\approx 350 \\text{ (2 s.f.)}'),
+            ),
+            ask('numer-pct-accept-flow'),
+            ask('numer-report-round'),
+            ask('numer-pct-error+choice', 2),
+            teach(
+              prose(
+                'An estimate below the exact value works the same way: the error is the gap either way. $76$ for exactly $80$ is an error of $4$, which is $5\\%$. Halves are fine too: an error of $2.5$ on $50$ is $5\\%$.',
+              ),
+            ),
+            ask('numer-pct-parts-tree', 2),
+            ask('numer-pct-accept-flow', 2),
+            ask('numer-report-round+choice', 2),
+          ],
+          skillCheck: [ask('numer-pct-error', 2), ask('numer-pct-parts-tree', 2), ask('numer-pct-accept-flow', 2)],
+        },
+        {
+          id: 'nm-l10-method',
+          title: 'Choosing a Method',
+          slides: [
+            teach(
+              prose('Choose the method that fits the task:'),
+              prose(
+                'A quadratic has a formula that gives its roots exactly. Most other equations need a change of sign, then a decimal search. Readings with no formula need the trapezium rule. A polynomial can be integrated exactly.',
+              ),
+              prose(
+                'For the box $x^{3} + 2x^{2} - 50 = 0$ there is no formula to use here, so start with a change of sign: $f(3) = 27 + 18 - 50 = -5$ and $f(4) = 46$.',
+              ),
+            ),
+            ask('numer-method-choice'),
+            ask('numer-method-flow'),
+            ask('numer-model-value'),
+            teach(
+              prose("For readings, use the trapezium rule. A river's depth $d$ m every $2$ m from bank to bank:"),
+              maths('\\begin{array}{c|ccccc} x & 0 & 2 & 4 & 6 & 8 \\\\ \\hline d & 0 & 3 & 5 & 4 & 0 \\end{array}'),
+              working('y_0 + y_4 &= 0 + 0 = 0', 'y_1 + y_2 + y_3 &= 3 + 5 + 4 = 12', 'A &\\approx \\tfrac{2}{2}(0 + 2 \\times 12) = 24'),
+            ),
+            ask('numer-ctx-trap-value'),
+            ask('numer-method-choice', 2),
+            ask('numer-method-flow', 2),
+            teach(
+              prose('More readings work the same way: the two ends once, every middle reading twice, then times $\\frac{h}{2}$.'),
+              prose('For a cubic, a sign change between two whole numbers proves a root there; no change means try another pair.'),
+            ),
+            ask('numer-model-value+choice', 2),
+            ask('numer-ctx-trap-value+choice', 2),
+          ],
+          skillCheck: [ask('numer-method-choice', 2), ask('numer-method-flow', 2), ask('numer-model-value', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('numer-model-equation-tiles', 2),
+        ask('numer-model-value', 2),
+        ask('numer-model-interval-choice', 2),
+        ask('numer-model-graph-slider', 2),
+        ask('numer-report-round', 2),
+        ask('numer-report-interval-tiles', 2),
+        ask('numer-report-error-bound-choice', 2),
+        ask('numer-report-agree-flow', 2),
+        ask('numer-sense-root-choice', 2),
+        ask('numer-sense-check-value', 2),
+        ask('numer-sense-flow', 2),
+        ask('numer-pct-error', 2),
+        ask('numer-pct-parts-tree', 2),
+        ask('numer-method-choice', 2),
+        ask('numer-method-flow', 2),
+      ],
+    },
   ],
 };

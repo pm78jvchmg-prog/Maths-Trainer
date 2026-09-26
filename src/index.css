@@ -360,6 +360,26 @@ button {
   backdrop-filter: none;
 }
 
+/* Where iOS fills the strip below the window with the manifest's
+   `background_color` rather than the body (`stripIsFixed`), every list fades
+   into that colour over its last stretch instead, so the strip reads as the
+   end of the fade whatever is scrolled above it. Keep the colour in step
+   with `background_color` in `vite.config.ts`. The last row rests above the
+   fade rather than under it. */
+.strip-fixed .app-wide::after {
+  height: 56px;
+  background: linear-gradient(to bottom, transparent, #1e2154);
+}
+
+.strip-fixed .map {
+  padding-bottom: 52px;
+}
+
+.strip-fixed .band-applied {
+  padding-bottom: 52px;
+  margin-bottom: -52px;
+}
+
 /* On the home list the space above the streak and behind it is the maths
    blue as the run draws it (over the page, shaded), at the owner's ask, so
    the list's blue runs unbroken up to the status bar rather than opening

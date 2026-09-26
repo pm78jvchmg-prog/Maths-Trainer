@@ -3667,9 +3667,21 @@ body:has(.app-lesson) #root {
     var(--edge);
 }
 
-.top-bar,
 .app-lesson .lesson-header {
   background: color-mix(in srgb, var(--edge) 88%, transparent);
+}
+
+/* The list screens' bar is solid and never blurred. On the owner's iPhone the
+   blur outlived the scroll it was for and left the streak bar soft-edged at
+   the top of the list, so the bar simply covers what passes under it. */
+.top-bar {
+  background: var(--edge);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.app-wide:has(.band-maths) .top-bar {
+  background: var(--home-blue);
 }
 
 /* ---- Home: the paper over the two runs, a line through each. ---- */

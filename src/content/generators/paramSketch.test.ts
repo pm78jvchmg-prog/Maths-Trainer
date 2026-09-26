@@ -37,8 +37,10 @@ function compile(tex: string): Fn {
 
 /** The "x = ..." and "y = ..." equations from a list of display strings. */
 function curveFrom(displays: string[]): Curve {
+  // An ellipse's option is two aligned lines: `x &= ... \\ y &= ...`.
   const pieces = displays
-    .flatMap((tex) => tex.split(/,\s*\\quad|\\qquad|,\s*\\;/))
+    .map((tex) => tex.replace(/\\(begin|end)\{aligned\}/g, '').replace(/&=/g, '='))
+    .flatMap((tex) => tex.split(/,\s*\\quad|\\qquad|,\s*\\;|\\\\/))
     .map((piece) => piece.trim());
   const xTex = pieces.find((p) => p.startsWith('x = '))!.slice(4);
   const yTex = pieces.find((p) => p.startsWith('y = '))!.slice(4);

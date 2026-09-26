@@ -61,28 +61,46 @@ const traced = (curve: ParamCurve): Block[] => [prose('A curve is traced by'), .
  */
 export function substituted(coefficients: readonly number[], value: number): string {
   const top = coefficients.length - 1;
-  const v = bracketed(value);
+  // Zero is bracketed too, so a term such as -t reads -(0), never the bare -0.
+  const v = value === 0 ? '(0)' : bracketed(value);
   const parts: string[] = [];
   coefficients.forEach((c, i) => {
     if (c === 0) return;
     const n = top - i;
     const size = Math.abs(c);
     const power = n === 0 ? '' : n === 1 ? v : `${v}^{${n}}`;
-    // A bare minus before a power reads as the square of a negative number
-    // (-3^2), so a coefficient of -1 on a power is written out as 1 times it.
-    const bare = size === 1 && !(c < 0 && n >= 2);
-    const body = n === 0 ? `${size}` : bare ? power : `${size} \\times ${power}`;
+    // A bare minus before a power of a positive number (-3^2) reads as the
+    // square of -3, so there the power is bracketed: -(3^2). A negative number
+    // is already bracketed, and -(-2)^2 reads as it should.
+    const guarded = size === 1 && c < 0 && n >= 2 && value >= 0 ? `(${power})` : power;
+    const body = n === 0 ? `${size}` : size === 1 ? guarded : `${size} \\times ${power}`;
     if (parts.length === 0) parts.push(c < 0 ? `-${body}` : body);
     else parts.push(c < 0 ? `- ${body}` : `+ ${body}`);
   });
   return parts.length === 0 ? '0' : parts.join(' ');
 }
 
-/** `x = <working> = value`, or just `x = value` when there is nothing to work. */
+/** Roughly how many characters a line of TeX shows: a command is one, spacing none. */
+const shown = (tex: string): number => tex.replace(/\\[a-zA-Z]+/g, 'c').replace(/[{}^_\s]/g, '').length;
+
+/**
+ * Past this many characters a line of working does not fit a phone's worked
+ * solution beside its result, and would wrap wherever KaTeX finds an operator.
+ */
+const WORKING_FITS = 17;
+
+/**
+ * `x = <working> = value`, or just `x = value` when there is nothing to work.
+ * A long line puts the value under the working, `= value` aligned on the
+ * equals sign, rather than letting it wrap after a stray minus.
+ */
 function worked(name: string, coefficients: readonly number[], t: number): string {
   const value = valueAt(coefficients, t);
   const line = substituted(coefficients, t);
-  return line === `${value}` ? `${name} = ${value}` : `${name} = ${line} = ${value}`;
+  if (line === `${value}`) return `${name} = ${value}`;
+  const whole = `${name} = ${line} = ${value}`;
+  if (shown(whole) <= WORKING_FITS) return whole;
+  return `\\begin{aligned} ${name} &= ${line} \\\\ &= ${value} \\end{aligned}`;
 }
 
 /** The whole numbers from lo to hi. */
@@ -316,7 +334,10 @@ function findTSteps(params: OrderParams): SolutionStep[] {
   const other = lin === 'x' ? 'y' : 'x';
   const quad = params.quad;
   const steps: SolutionStep[] = [
-    { text: `Only $${lin} = ${polyTex([m, b])}$ has one $t$ for each value, so solve it for each point, then check $${other}$.` },
+    {
+      text: `Only the linear equation has one $t$ for each value, so solve it for each point, then check $${other}$.`,
+      tex: `${lin} = ${polyTex([m, b])}`,
+    },
   ];
   listed(params).forEach(({ p }, i) => {
     const value = lin === 'x' ? p[0] : p[1];
@@ -326,8 +347,9 @@ function findTSteps(params: OrderParams): SolutionStep[] {
     steps.push({
       text:
         actual === given
-          ? `$${letter(i)}$: $${polyTex([m, b])} = ${value}$ gives $t = ${t}$, and then $${other} = ${actual}$. It is on the curve.`
-          : `$${letter(i)}$: $${polyTex([m, b])} = ${value}$ gives $t = ${t}$, but then $${other} = ${actual}$, not $${given}$. It is not on the curve.`,
+          ? `$${letter(i)}\\,${pair(...p)}$ is on the curve:`
+          : `$${letter(i)}\\,${pair(...p)}$ is not on the curve, since $${other}$ there is $${actual}$, not $${given}$:`,
+      tex: `${polyTex([m, b])} = ${value} \\quad t = ${t} \\qquad ${other} = ${actual}`,
     });
   });
   return steps;
@@ -422,7 +444,7 @@ const pskFirst: Generator<FirstParams> = {
     const curve = orderCurve(params);
     const { lin, m, b } = params;
     const steps: SolutionStep[] = [
-      { text: `Find $t$ at each point from the linear equation, $${lin} = ${polyTex([m, b])}$.` },
+      { text: 'Find $t$ at each point from the linear equation.', tex: `${lin} = ${polyTex([m, b])}` },
     ];
     for (const t of [...params.ts].sort((p, q) => p - q)) {
       steps.push({ text: `$${pair(...pointAt(curve, t))}$ is where $t = ${t}$.` });
@@ -482,11 +504,15 @@ const pskHeading: Generator<HeadingParams> = {
   solution: ({ curve, k }) => {
     const dx = valueAt(derived(curve.x), k);
     const dy = valueAt(derived(curve.y), k);
+    // A rate that is a constant is already its value at t = k.
+    const rate = (name: string, poly: number[], value: number): SolutionStep[] =>
+      poly.length === 1
+        ? [{ tex: `${name} = ${value}` }]
+        : [{ tex: `${name} = ${polyTex(poly)}` }, { tex: `${name} = ${value} \\text{ at } t = ${k}` }];
+    const [first, ...rest] = [...rate(DXDT, derived(curve.x), dx), ...rate(DYDT, derived(curve.y), dy)];
     return [
-      { text: `Differentiate each equation and put in $t = ${k}$.`, tex: `${DXDT} = ${polyTex(derived(curve.x))}` },
-      { tex: `${DXDT} = ${dx} \\text{ at } t = ${k}` },
-      { tex: `${DYDT} = ${polyTex(derived(curve.y))}` },
-      { tex: `${DYDT} = ${dy} \\text{ at } t = ${k}` },
+      { text: `Differentiate each equation and put in $t = ${k}$.`, tex: first.tex },
+      ...rest,
       {
         text: `$${DXDT}$ is ${dx > 0 ? 'positive, so $x$ is increasing: right' : 'negative, so $x$ is decreasing: left'}. $${DYDT}$ is ${dy > 0 ? 'positive, so $y$ is increasing: up' : 'negative, so $y$ is decreasing: down'}.`,
       },
@@ -575,7 +601,11 @@ function sampleCircle(rng: Rng, difficulty: number): CircleParams {
 /** The same circle with cosine and sine traded between the coordinates. */
 const otherForm = (params: CircleParams): CircleParams => ({ ...params, form: params.form === 'cs' ? 'sc' : 'cs' });
 
-const circlePrompt = (params: CircleParams): Block[] => [prose('A circle is traced by'), display(circleTex(params))];
+/** The two equations on lines of their own: side by side they run to the edge of a phone. */
+function circlePrompt(params: CircleParams): Block[] {
+  const [[h, a, f], [k, b, g]] = circleParts(params);
+  return [prose('A circle is traced by'), display(`x = ${trigTex(h, a, f)}`), display(`y = ${trigTex(k, b, g)}`)];
+}
 
 /**
  * Where the point is at a quarter turn, as tiles.
@@ -721,7 +751,7 @@ function circleSolution(params: CircleParams): SolutionStep[] {
   return [
     { text: `At $t = 0$, $\\cos t = 1$ and $\\sin t = 0$, so it starts at $${pair(...start)}$.` },
     {
-      text: `$\\sin t$ grows from $0$ as $t$ increases, and it is in the $${fx === 'sin' ? 'x' : 'y'}$ equation with a ${sinSign} sign, so $${coord}$ ${rising ? 'rises' : 'falls'}: the point moves ${move}. ($\\cos t$, in the $${fy === 'cos' ? 'y' : 'x'}$ equation, barely changes at first.)`,
+      text: `$\\sin t$ grows from $0$ as $t$ increases, and it is in the $${fx === 'sin' ? 'x' : 'y'}$ equation with a ${sinSign} sign, so $${coord}$ ${rising ? 'rises' : 'falls'}: the point moves ${move}. Meanwhile $\\cos t$, in the $${fy === 'cos' ? 'y' : 'x'}$ equation, barely changes at first.`,
     },
     {
       text: `Moving ${move} from the ${params.form === 'cs' ? 'right-hand' : 'top'} point of the circle is ${anticlockwise(params) ? 'anticlockwise' : 'clockwise'}.`,
@@ -950,7 +980,8 @@ const pskRange: Generator<RangeParams> = {
     const inside = params.lo < params.h && params.h < params.hi;
     const rate = v === 'x' ? DXDT : DYDT;
     return [
-      { text: `At the ends: $t = ${params.lo}$ and $t = ${params.hi}$.`, tex: `${worked(v, quad, params.lo)} \\qquad ${worked(v, quad, params.hi)}` },
+      { text: `At the start, $t = ${params.lo}$:`, tex: worked(v, quad, params.lo) },
+      { text: `At the end, $t = ${params.hi}$:`, tex: worked(v, quad, params.hi) },
       { text: `$${v}$ turns where $${rate} = 0$.`, tex: `${polyTex(derived(quad))} = 0 \\quad t = ${params.h}` },
       inside
         ? {
@@ -1058,7 +1089,7 @@ const pskTurn: Generator<TurnParams> = {
       prompt: [
         ...traced(curve),
         prose(
-          `Find its ${extremeWord(params)} point, from the value of $t$ where $${rate} = 0$.`,
+          `Find its ${extremeWord(params)} point. The top box is the value of $t$ where $${rate} = 0$; the boxes below are $x$ and $y$ there.`,
         ),
       ],
       expression: `${polyTex(derived(quad))} = 0`,
@@ -1161,16 +1192,18 @@ const pskSquare: Generator<TurnParams> = {
     const inner = polyTex([1, -params.h]);
     const square = `(${inner})^{2}`;
     const shift = params.h * params.h;
+    // The constant term, signed, or nothing when it is 0.
+    const plus = (n: number) => (n === 0 ? '' : ` ${n < 0 ? '-' : '+'} ${Math.abs(n)}`);
     const lines: SolutionStep[] =
       params.a > 0
         ? [
             { text: 'Halve the coefficient of $t$ for the bracket.', tex: `${v} = ${polyTex(quad)}` },
-            { tex: `${v} = ${square} - ${shift} ${params.c + shift < 0 ? '-' : '+'} ${Math.abs(params.c + shift)}` },
+            { tex: `${v} = ${square} - ${shift}${plus(quad[2])}` },
             { tex: `${v} = ${square} ${params.c < 0 ? '-' : '+'} ${Math.abs(params.c)}` },
             { text: `A square is never negative, so $${v}$ is smallest when the bracket is $0$, at $t = ${params.h}$.` },
           ]
         : [
-            { text: 'Take out the minus sign first.', tex: `${v} = -(${polyTex([1, -2 * params.h])}) ${quad[2] < 0 ? '-' : '+'} ${Math.abs(quad[2])}` },
+            { text: 'Take out the minus sign first.', tex: `${v} = -(${polyTex([1, -2 * params.h, 0])})${plus(quad[2])}` },
             { tex: `${v} = -${square} ${params.c < 0 ? '-' : '+'} ${Math.abs(params.c)}` },
             { text: `Minus a square is never positive, so $${v}$ is largest when the bracket is $0$, at $t = ${params.h}$.` },
           ];
@@ -1219,9 +1252,14 @@ export function shapeAt(shape: Shape): (t: number) => [number, number] {
 
 export const shapeRange = (shape: Shape): [number, number] => (shape.kind === 'poly' ? [-5, 5] : [0, 2 * Math.PI]);
 
+/**
+ * The pair as an option reads it. An ellipse's pair on one line fills a
+ * phone's option edge to edge, so it is set as two lines aligned on the
+ * equals signs; every option of a question is the same kind of shape.
+ */
 export function shapeTex(shape: Shape): string {
   if (shape.kind === 'poly') return `x = ${polyTex(shape.x)}, \\; y = ${polyTex(shape.y)}`;
-  return `x = ${trigTex(...shape.x)}, \\; y = ${trigTex(...shape.y)}`;
+  return `\\begin{aligned} x &= ${trigTex(...shape.x)} \\\\ y &= ${trigTex(...shape.y)} \\end{aligned}`;
 }
 
 const swapShape = (shape: Shape): Shape => ({ ...shape, x: shape.y, y: shape.x }) as Shape;
@@ -1321,7 +1359,7 @@ const pskMatch: Generator<MatchParams> = {
             MATCH_SPAN,
           ),
         },
-        prose('Which pair of equations draws this curve? The dot is where $t = 0$.'),
+        prose('Which pair of equations draws this curve? Each grid square is one unit, and the dot is where $t = 0$.'),
       ],
       options: turned(all, mix(...numbers) % 4),
       correctId: 'o0',
@@ -1337,7 +1375,7 @@ const pskMatch: Generator<MatchParams> = {
       const quad = quadIsX ? right.x : right.y;
       const word = quadIsX ? (quad[0] > 0 ? 'leftmost' : 'rightmost') : quad[0] > 0 ? 'lowest' : 'highest';
       steps.push({
-        text: `$${quadIsX ? 'x' : 'y'} = ${polyTex(quad)}$ turns at $t = 0$, so the dot is also the ${word} point, and the curve opens ${quadIsX ? (quad[0] > 0 ? 'to the right' : 'to the left') : quad[0] > 0 ? 'upwards' : 'downwards'}.`,
+        text: `$${quadIsX ? 'x' : 'y'}$ is the quadratic, and it turns at $t = 0$, so the dot is also the ${word} point, and the curve opens ${quadIsX ? (quad[0] > 0 ? 'to the right' : 'to the left') : quad[0] > 0 ? 'upwards' : 'downwards'}.`,
       });
     } else {
       const [h, a] = right.x;
@@ -1415,7 +1453,7 @@ const pskFeatures: Generator<FeatureParams> = {
       rows: [
         ['t = 0', null, null],
         [`\\text{${params.a > 0 ? 'leftmost' : 'rightmost'}}`, null, null],
-        ['\\text{on the } x\\text{-axis}', null, '0'],
+        ['\\begin{array}{c} \\text{on the} \\\\ x\\text{-axis} \\end{array}', null, '0'],
       ],
       bank: numberBank(answer, slips),
       answer: answer.map(String),

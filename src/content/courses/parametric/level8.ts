@@ -32,7 +32,7 @@ export const level8: Level = {
           ),
           prose('Keep a negative $t$ in brackets when you square it. At $t = -2$:'),
           display('x = (-2)^{2} - 2 = 2'),
-          prose('Plot the points and join them **in order of $t$**, from $t = -2$ up to $t = 2$.'),
+          prose('Plot the points and join them **in order** of $t$, from $t = -2$ up to $t = 2$.'),
           figure((t) => [t * t - 2, t + 1], {
             span: 4,
             tMin: -2.2,
@@ -60,9 +60,9 @@ export const level8: Level = {
           prose(
             'So $\\text{B}$ comes first. Joining them from left to right would give $\\text{C}$, $\\text{B}$, $\\text{A}$, which is not the order the curve is drawn in: $x$ turns at $t = 0$, so the curve doubles back.',
           ),
-          prose(
-            'A listed point may not be on the curve at all. For $(2, 4)$, $t + 1 = 4$ gives $t = 3$, but then $x = 9 - 2 = 7$, not $2$. It is not on the curve, so it is left out.',
-          ),
+          prose('A listed point may not be on the curve at all. For $(2, 4)$, $t + 1 = 4$ gives $t = 3$, and then'),
+          display('x = 3^{2} - 2 = 7'),
+          prose('not $2$. So $(2, 4)$ is not on the curve, and it is left out.'),
         ),
         ask('psk-first'),
         ask('psk-order'),
@@ -105,8 +105,10 @@ export const level8: Level = {
             display('\\cos\\frac{\\pi}{2} = 0 \\qquad \\sin\\frac{\\pi}{2} = 1'),
             display('\\cos \\pi = -1 \\qquad \\sin \\pi = 0'),
             display('\\cos\\frac{3\\pi}{2} = 0 \\qquad \\sin\\frac{3\\pi}{2} = -1'),
-            prose('On $x = 1 + 3\\cos t$, $y = 2 + 3\\sin t$ at $t = \\frac{\\pi}{2}$:'),
-            display('x = 1 + 0 = 1 \\qquad y = 2 + 3 = 5'),
+            prose('On the circle'),
+            display('x = 1 + 3\\cos t \\qquad y = 2 + 3\\sin t'),
+            prose('at $t = \\frac{\\pi}{2}$ the point is'),
+            display('x = 1 + 3 \\times 0 = 1 \\qquad y = 2 + 3 \\times 1 = 5'),
           ],
           'psk-quarter',
         ),
@@ -128,9 +130,9 @@ export const level8: Level = {
             ],
             label: 'A circle of radius 3 about the origin, with its start points (3, 0) and (0, 3) marked',
           }),
-          prose(
-            'Moving the centre moves the start with it: $x = 2 + 3\\cos t$, $y = -1 + 3\\sin t$ starts at $(5, -1)$, three to the right of its centre $(2, -1)$, and goes anticlockwise.',
-          ),
+          prose('Moving the centre moves the start with it. The circle'),
+          display('x = 2 + 3\\cos t \\qquad y = -1 + 3\\sin t'),
+          prose('starts at $(5, -1)$, three to the right of its centre $(2, -1)$, and goes anticlockwise.'),
         ),
         ask('psk-circle-flow'),
         ask('psk-sense'),
@@ -191,9 +193,10 @@ export const level8: Level = {
         ask('psk-range'),
         ask('psk-table', 2),
         teach(
-          prose(
-            `The same goes for $y$. On $y = t^{2} - 4t$ for $3 \\le t \\le 5$, $${DYDT} = 2t - 4$ is zero at $t = 2$, outside the interval. So the ends decide it:`,
-          ),
+          prose('The same goes for $y$. Take'),
+          display('y = t^{2} - 4t \\qquad 3 \\le t \\le 5'),
+          display(`${DYDT} = 2t - 4 = 0 \\quad t = 2`),
+          prose('$t = 2$ is outside the interval, so the ends decide it:'),
           display('y = -3 \\text{ at } t = 3 \\qquad y = 5 \\text{ at } t = 5'),
           display('-3 \\le y \\le 5'),
         ),
@@ -245,8 +248,8 @@ export const level8: Level = {
           prose(
             'Where the curve crosses the axes finishes a sketch. It crosses the $y$-axis where $x = 0$ and the $x$-axis where $y = 0$: solve for $t$, then put that $t$ into the other equation.',
           ),
-          prose('On $x = t^{2} - 4t + 1$, $y = t + 2$: $y = 0$ at $t = -2$, where'),
-          display('x = 4 + 8 + 1 = 13'),
+          prose('On the same curve, $y = t + 2$ is $0$ when $t = -2$. Then'),
+          display('x = (-2)^{2} - 4 \\times (-2) + 1 = 13'),
           prose('So it crosses the $x$-axis at $(13, 0)$.'),
         ),
         ask('param-axis-tree'),
@@ -263,7 +266,9 @@ export const level8: Level = {
             'To match equations to a sketch, work out a few key points from the equations and look for them on the picture. Three usually settle it: the point where $t = 0$, the leftmost or rightmost point, and where it meets an axis.',
           ),
           display('x = t^{2} - 2t \\qquad y = 2t + 2'),
-          prose(`At $t = 0$ it is at $(0, 2)$. $${DXDT} = 2t - 2$ is zero at $t = 1$, giving the leftmost point $(-1, 4)$. $y = 0$ at $t = -1$, where $x = 3$.`),
+          prose('At $t = 0$ it is at $(0, 2)$. The leftmost point is where'),
+          display(`${DXDT} = 2t - 2 = 0 \\quad t = 1`),
+          prose('which gives $(-1, 4)$. And $y = 0$ at $t = -1$, where $x = 3$.'),
           display(
             '\\begin{array}{c|cc} & x & y \\\\ \\hline t = 0 & 0 & 2 \\\\ \\text{leftmost} & -1 & 4 \\\\ \\text{on the } x\\text{-axis} & 3 & 0 \\end{array}',
           ),
@@ -287,9 +292,9 @@ export const level8: Level = {
         ask('psk-features', 2),
         teach(
           prose('A wrong pair of equations often draws a reflection or a shift of the right curve.'),
-          prose(
-            'Swapping the $x$ and $y$ equations reflects the curve in the line $y = x$: $x = 2t + 2$, $y = t^{2} - 2t$ opens upwards instead of to the right.',
-          ),
+          prose('Swapping the $x$ and $y$ equations reflects the curve in the line $y = x$. The swapped pair'),
+          display('x = 2t + 2 \\qquad y = t^{2} - 2t'),
+          prose('opens upwards instead of to the right.'),
           prose(
             'Changing the sign of the whole $x$ equation reflects it in the $y$-axis, and changing the sign of the whole $y$ equation reflects it in the $x$-axis. The reflection of the curve above in the $x$-axis is',
           ),
@@ -304,7 +309,7 @@ export const level8: Level = {
         ask('psk-reflect+choice', 2),
         teach(
           prose(
-            'The picture also fixes the numbers. On $x = t^{2} - 2t$, $y = 2t + 2$ the leftmost point is at $x = -1$, so a line slid across to the leftmost point stops at $x = -1$. When $y$ is the quadratic, its lowest or highest point gives a height in the same way.',
+            'The picture also fixes the numbers. On the first curve of this lesson, the leftmost point is at $x = -1$, so a line slid across to the leftmost point stops at $x = -1$. When $y$ is the quadratic, its lowest or highest point gives a height in the same way.',
           ),
         ),
         ask('psk-extreme-slider', 2),

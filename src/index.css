@@ -360,6 +360,20 @@ button {
   backdrop-filter: none;
 }
 
+/* On the home list the space above the streak and behind it is the maths
+   blue as the run draws it (over the page, shaded), at the owner's ask, so
+   the list's blue runs unbroken up to the status bar rather than opening
+   on the page's purple glow. */
+.app-wide:has(.band-maths) {
+  --home-blue: rgb(36 40 111);
+  background: linear-gradient(var(--home-blue), var(--home-blue)) top / 100%
+    var(--top-inset, env(safe-area-inset-top)) no-repeat;
+}
+
+.app-wide:has(.band-maths) .top-bar.at-top {
+  background-color: var(--home-blue);
+}
+
 .top-bar .streak-bar,
 .top-bar .back-link {
   margin-bottom: 0;
@@ -1640,7 +1654,6 @@ button {
 
 .band-maths {
   padding-top: 8px;
-  border-radius: 24px 24px 0 0;
   /* One flat blue all the way down, as the owner asked: the light-to-dark
      run read as smoke. Only the last stretch leans towards rose, measured
      from the foot so it stays the same length however many subjects the

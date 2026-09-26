@@ -116,6 +116,20 @@ function productsTex(coeffs: number[], values: number[]): string {
   return coeffs.map((k, i) => `${i === 0 ? String(k) : signedNum(k)} \\times ${br(values[i])}`).join(' ');
 }
 
+/**
+ * One row of working, `lhs &= rhs = value`, with the value moved to a line of
+ * its own when the row would run past a phone's width. An aligned block cannot
+ * wrap, and a row of products such as -2 × 112 + 4 × (-32) is already most
+ * of a line.
+ */
+function row(lhs: string, rhs: string, value: number): string[] {
+  const size = rhs.replace(/\\times/g, 'xx').replace(/[\s{}]/g, '').length + String(value).length;
+  return size <= ROW_FIT ? [`${lhs} &= ${rhs} = ${value}`] : [`${lhs} &= ${rhs}`, `&= ${value}`];
+}
+
+/** Characters of numbers and signs one row holds beside a short label, a times counting two. */
+const ROW_FIT = 14;
+
 /** A monic polynomial with whole coefficients, none of them zero. */
 function monic(rng: Rng, ...limits: number[]): Poly {
   return [1, ...limits.map((m) => nonZero(rng, m))];
@@ -156,12 +170,13 @@ function cubeOfTwoSolution(p: Poly): SolutionStep[] {
   const [s, e] = rootSumsOf(p);
   return [
     { text: 'Cubing the sum gives both cubes and $3\\alpha\\beta(\\alpha + \\beta)$ besides, so' },
-    { tex: '\\alpha^{3} + \\beta^{3} = (\\alpha + \\beta)^{3} - 3\\alpha\\beta(\\alpha + \\beta)' },
+    { tex: chain('\\alpha^{3} + \\beta^{3} &= (\\alpha + \\beta)^{3}', '&\\quad - 3\\alpha\\beta(\\alpha + \\beta)') },
     { text: 'From the coefficients:' },
     { tex: quadSumsTex(p) },
     {
       tex: chain(
-        `\\alpha^{3} + \\beta^{3} &= ${br(s)}^{3} - 3 \\times ${br(e)} \\times ${br(s)}`,
+        `\\alpha^{3} + \\beta^{3} &= ${br(s)}^{3}`,
+        `&\\quad - 3 \\times ${br(e)} \\times ${br(s)}`,
         `&= ${s ** 3} ${signedNum(-3 * e * s)}`,
         `&= ${cubeOfTwo(s, e)}`,
       ),
@@ -263,9 +278,9 @@ const powTwoSym: Generator<TwoSymParams> = {
           ];
     const last =
       ask === 0
-        ? `${TWO_SYM_LABELS[0]} &= ${br(e)} \\times ${br(s)} = ${v}`
+        ? chain(`${TWO_SYM_LABELS[0]} &= ${br(e)} \\times ${br(s)}`, `&= ${v}`)
         : chain(`(\\alpha - \\beta)^{2} &= ${br(s)}^{2} - 4 \\times ${br(e)}`, `&= ${v}`);
-    return [...head, { text: 'From the coefficients:' }, { tex: quadSumsTex(p) }, { tex: ask === 0 ? chain(last) : last }];
+    return [...head, { text: 'From the coefficients:' }, { tex: quadSumsTex(p) }, { tex: last }];
   },
 };
 
@@ -304,7 +319,7 @@ const powQuadSteps: Generator<QuadStepsParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `${TWO} are the roots of $${polyTex(p)} = 0$, with $S_{${n - 2}} = ${s[n - 2]}$ and $S_{${n - 1}} = ${s[n - 1]}$. The line is $S_{${n}} = -bS_{${n - 1}} - cS_{${n - 2}}$ with the numbers in. Tap the part you would do **next**, then choose what it comes to.`,
+          `${TWO} are the roots of $${polyTex(p)} = 0$, with $S_{${n - 2}} = ${s[n - 2]}$ and $S_{${n - 1}} = ${s[n - 1]}$. The line below puts the numbers into $S_{${n}} = -bS_{${n - 1}} - cS_{${n - 2}}$. Tap the part you would do **next**, then choose what it comes to.`,
         ),
       ],
       start: [`${-b} \\times ${br(s[n - 1])}`, `${signedNum(-c)} \\times ${br(s[n - 2])}`],
@@ -369,7 +384,7 @@ const powQuadTable: Generator<QuadTableParams> = {
       prompt: [
         say(
           top === 4
-            ? `${TWO} are the roots of $${polyTex(p)} = 0$, so $${ruleTex([-b, -c])}$. Fill in the table.`
+            ? `${TWO} are the roots of $${polyTex(p)} = 0$. Their power sums follow $${ruleTex([-b, -c])}$. Fill in the table.`
             : `${TWO} are the roots of $${polyTex(p)} = 0$. Fill in the table of $S_n = \\alpha^{n} + \\beta^{n}$.`,
         ),
       ],
@@ -383,14 +398,14 @@ const powQuadTable: Generator<QuadTableParams> = {
     const p = [1, b, c];
     const s = powerSums(p, top);
     return [
-      { text: `$S_0 = 2$, one for each root, and $S_1 = \\alpha + \\beta = ${s[1]}$. Then` },
+      { text: `Start from $S_0 = 2$, one for each root, and $S_1 = ${s[1]}$, the sum of the roots. Then run the rule:` },
       { tex: ruleTex([-b, -c]) },
       {
         tex: chain(
           ...Array.from({ length: top - 1 }, (_, i) => {
             const n = i + 2;
-            return `S_{${n}} &= ${productsTex([-b, -c], [s[n - 1], s[n - 2]])} = ${s[n]}`;
-          }),
+            return row(`S_{${n}}`, productsTex([-b, -c], [s[n - 1], s[n - 2]]), s[n]);
+          }).flat(),
         ),
       },
     ];
@@ -452,6 +467,18 @@ function sampleCubic(rng: Rng, difficulty: number, ok: (s: number[]) => boolean)
 
 const smallS3 = (s: number[]) => Math.abs(s[3]) <= 200;
 
+/** S₃ in the sums of the roots: aS₃ + bS₂ + cS₁ + 3d = 0 divided by a. */
+const S3_RULE = 'S_3 = \\Sigma\\alpha\\,S_2 - \\Sigma\\alpha\\beta\\,S_1 + 3\\alpha\\beta\\gamma';
+
+/** `S3_RULE` with the numbers in, one term to a line where the products run long. */
+function s3Working(e1: number, e2: number, e3: number, s: number[]): string {
+  return chain(
+    `S_3 &= ${e1} \\times ${br(s[2])} ${signedNum(-e2)} \\times ${br(e1)}`,
+    `&\\quad ${signedNum(3 * e3)}`,
+    `&= ${s[3]}`,
+  );
+}
+
 function cubicS3Solution(p: Poly): SolutionStep[] {
   const [a, b, c, d] = p;
   const [e1, e2] = rootSumsOf(p);
@@ -459,7 +486,9 @@ function cubicS3Solution(p: Poly): SolutionStep[] {
   return [
     { text: 'Each root satisfies the equation. Adding the three versions, $d$ comes in once per root:' },
     { tex: 'aS_3 + bS_2 + cS_1 + 3d = 0' },
-    { text: `$S_1 = \\Sigma\\alpha = ${e1}$ and $S_2 = (\\Sigma\\alpha)^{2} - 2\\Sigma\\alpha\\beta = ${br(e1)}^{2} - 2 \\times ${br(e2)} = ${s[2]}$.` },
+    { text: `From the coefficients, $\\Sigma\\alpha = ${e1}$ and $\\Sigma\\alpha\\beta = ${e2}$. So $S_1 = ${e1}$ and` },
+    { tex: chain(`S_2 &= (\\Sigma\\alpha)^{2} - 2\\Sigma\\alpha\\beta`, `&= ${br(e1)}^{2} - 2 \\times ${br(e2)}`, `&= ${s[2]}`) },
+    { text: 'Putting those in:' },
     {
       tex: chain(
         `${coefMark(a)}S_3 &= ${-b * s[2]} ${signedNum(-c * s[1])} ${signedNum(-3 * d)}`,
@@ -482,7 +511,7 @@ const powS3Tree: Generator<CubicParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `${THREE} are the roots of this cubic. Top row: $\\Sigma\\alpha$, $\\Sigma\\alpha\\beta$ and $\\alpha\\beta\\gamma$. Next $S_2 = (\\Sigma\\alpha)^{2} - 2\\Sigma\\alpha\\beta$. Last $S_3 = \\Sigma\\alpha S_2 - \\Sigma\\alpha\\beta S_1 + 3\\alpha\\beta\\gamma$.`,
+          `${THREE} are the roots of this cubic. Top row: $\\Sigma\\alpha$, $\\Sigma\\alpha\\beta$ and $\\alpha\\beta\\gamma$. The next row is $S_2 = (\\Sigma\\alpha)^{2} - 2\\Sigma\\alpha\\beta$, and the last is $${S3_RULE}$.`,
         ),
       ],
       expression: `${polyTex(p)} = 0`,
@@ -501,16 +530,12 @@ const powS3Tree: Generator<CubicParams> = {
     const [e1, e2, e3] = rootSumsOf(p);
     const s = powerSums(p, 3);
     return [
+      { text: 'Read the three sums off the coefficients:' },
       { tex: cubicSumsTex(p) },
-      { tex: `S_2 = ${br(e1)}^{2} - 2 \\times ${br(e2)} = ${s[2]}` },
-      { text: 'Divided by $a$, $aS_3 + bS_2 + cS_1 + 3d = 0$ reads in the sums:' },
-      {
-        tex: chain(
-          `S_3 &= ${e1} \\times ${br(s[2])} ${signedNum(-e2)} \\times ${br(e1)}`,
-          `&\\quad ${signedNum(3 * e3)}`,
-          `&= ${s[3]}`,
-        ),
-      },
+      { tex: chain(`S_2 &= (\\Sigma\\alpha)^{2} - 2\\Sigma\\alpha\\beta`, `&= ${br(e1)}^{2} - 2 \\times ${br(e2)} = ${s[2]}`) },
+      { text: 'Adding the equation over the three roots and dividing by $a$ gives $S_3$ in the sums:' },
+      { tex: S3_RULE },
+      { tex: s3Working(e1, e2, e3, s) },
     ];
   },
 };
@@ -584,7 +609,7 @@ const powCubicSteps: Generator<CubicStepsParams> = {
       kind: 'steps',
       prompt: [
         say(
-          `${THREE} are the roots of $${polyTex(p)} = 0$, with ${given.slice(0, -1).join(', ')} and ${given[given.length - 1]}. The line is $${rule}$ with the numbers in. Tap the part you would do **next**, then choose what it comes to.`,
+          `${THREE} are the roots of $${polyTex(p)} = 0$, with ${given.slice(0, -1).join(', ')} and ${given[given.length - 1]}. The line below puts the numbers into $${rule}$. Tap the part you would do **next**, then choose what it comes to.`,
         ),
       ],
       start,
@@ -651,7 +676,7 @@ const powCubicTable: Generator<CubicTableParams> = {
       kind: 'table',
       prompt: [
         say(
-          `${THREE} are the roots of $${polyTex(p)} = 0$. Fill in the table of $S_n$, using $S_{n+3} = -bS_{n+2} - cS_{n+1} - dS_n$.`,
+          `${THREE} are the roots of $${polyTex(p)} = 0$. Fill in the table of $S_n$, using $S_{n+3} = {-bS_{n+2} - cS_{n+1} - dS_n}$.`,
         ),
       ],
       columns: ['n', 'S_n'],
@@ -664,14 +689,16 @@ const powCubicTable: Generator<CubicTableParams> = {
     const [, b, c, d] = p;
     const s = powerSums(p, top);
     return [
+      { text: 'Each coefficient changes sign on the way across:' },
       { tex: ruleTex([-b, -c, -d]) },
       { text: `Starting from $S_0 = 3$, $S_1 = ${s[1]}$ and $S_2 = ${s[2]}$:` },
       {
         tex: chain(
           ...Array.from({ length: top - 2 }, (_, i) => {
             const n = i + 3;
-            return `S_{${n}} &= ${[-b * s[n - 1], -c * s[n - 2], -d * s[n - 3]].map((v, j) => (j === 0 ? String(v) : signedNum(v))).join(' ')} = ${s[n]}`;
-          }),
+            const parts = [-b * s[n - 1], -c * s[n - 2], -d * s[n - 3]];
+            return row(`S_{${n}}`, parts.map((v, j) => (j === 0 ? String(v) : signedNum(v))).join(' '), s[n]);
+          }).flat(),
         ),
       },
     ];
@@ -726,9 +753,10 @@ const powHigher: Generator<HigherParams> = {
       const parts = coeffs.map((q, j) => q * s[m - 1 - j]);
       // S_k itself has k times the constant, not the constant times S_0.
       if (m === k) parts[k - 1] = -k * p[k];
-      return `S_{${m}} &= ${parts.map((v, j) => (j === 0 ? String(v) : signedNum(v))).join(' ')} = ${s[m]}`;
-    });
+      return row(`S_{${m}}`, parts.map((v, j) => (j === 0 ? String(v) : signedNum(v))).join(' '), s[m]);
+    }).flat();
     return [
+      { text: 'Each coefficient changes sign on the way across:' },
       { tex: ruleTex(coeffs) },
       {
         text:
@@ -765,9 +793,20 @@ function sqBetaSolution(p: Poly): SolutionStep[] {
   return [
     { text: '$\\Sigma\\alpha \\times \\Sigma\\alpha\\beta$ gives each of the six terms once and $\\alpha\\beta\\gamma$ three times, so' },
     { tex: `${SQ_BETA} = \\Sigma\\alpha\\,\\Sigma\\alpha\\beta - 3\\alpha\\beta\\gamma` },
+    { text: 'From the coefficients:' },
     { tex: cubicSumsTex(p) },
-    { tex: chain(`${SQ_BETA} &= ${br(e1)} \\times ${br(e2)} - 3 \\times ${br(e3)}`, `&= ${e1 * e2} ${signedNum(-3 * e3)}`, `&= ${sqBeta(e)}`) },
+    { tex: sqBetaWorking(e1, e2, e3) },
   ];
+}
+
+/** The two pieces of Σα²β, then their difference, as the tree builds it. */
+function sqBetaWorking(e1: number, e2: number, e3: number): string {
+  return chain(
+    `\\Sigma\\alpha\\,\\Sigma\\alpha\\beta &= ${br(e1)} \\times ${br(e2)} = ${e1 * e2}`,
+    `3\\alpha\\beta\\gamma &= 3 \\times ${br(e3)} = ${3 * e3}`,
+    `${SQ_BETA} &= ${e1 * e2} - ${br(3 * e3)}`,
+    `&= ${sqBeta([e1, e2, e3])}`,
+  );
 }
 
 /** Σα²β, the six terms α²β + α²γ + …, typed. */
@@ -826,8 +865,9 @@ interface ShiftParams {
   k: number;
 }
 
+/** (α + k)(β + k)(γ + k), braced so a display breaks either side of it and never inside a bracket. */
 const shiftLabel = (k: number): string =>
-  ['\\alpha', '\\beta', '\\gamma'].map((l) => `(${l} ${signedNum(k)})`).join('');
+  `{${['\\alpha', '\\beta', '\\gamma'].map((l) => `(${l} ${signedNum(k)})`).join('')}}`;
 
 /** p(x) at a whole x, as a line of working: each term's value, added. */
 function valueWorking(p: Poly, x: number): string {
@@ -866,12 +906,8 @@ const powShiftProduct: Generator<ShiftParams> = {
     const x = -k;
     const pv = valueOf(p, x);
     return [
-      { text: 'A monic cubic is $p(x) = (x - \\alpha)(x - \\beta)(x - \\gamma)$, so' },
       {
-        tex: chain(
-          `p(${x}) &= (${x} - \\alpha)(${x} - \\beta)(${x} - \\gamma)`,
-          `&= -${shiftLabel(k)}`,
-        ),
+        text: `A monic cubic is ${'$'}{(x - \\alpha)(x - \\beta)(x - \\gamma)}$. At ${'$'}{x = ${x}}$ each bracket is minus one of those asked for, and three minus signs make a minus, so the product is $-p(${x})$:`,
       },
       { tex: chain(`p(${x}) &= ${valueWorking(p, x)}`, `&= ${pv}`) },
       { tex: `${shiftLabel(k)} = ${-pv}` },
@@ -922,22 +958,36 @@ const powRecipSquares: Generator<CubicParams> = {
   },
   solution: ({ p }) => {
     const [e1, e2, e3] = rootSumsOf(p);
-    const n = e2 * e2 - 2 * e1 * e3;
-    const d = e3 * e3;
-    const simple = fracTex(n, d);
     return [
       { text: 'Squaring $\\Sigma\\frac{1}{\\alpha}$ gives each square once and each pair twice. Over $(\\alpha\\beta\\gamma)^{2}$ that comes to' },
-      { tex: '\\Sigma\\frac{1}{\\alpha^{2}} = \\frac{(\\Sigma\\alpha\\beta)^{2} - 2\\alpha\\beta\\gamma\\Sigma\\alpha}{(\\alpha\\beta\\gamma)^{2}}' },
+      { tex: RECIP_SQUARES },
+      { text: 'From the coefficients:' },
       { tex: cubicSumsTex(p) },
-      {
-        tex: chain(
-          `\\Sigma\\frac{1}{\\alpha^{2}} &= \\frac{${br(e2)}^{2} - 2 \\times ${br(e3)} \\times ${br(e1)}}{${br(e3)}^{2}}`,
-          `&= \\frac{${n}}{${d}}${simple === `\\frac{${n}}{${d}}` ? '' : ` = ${simple}`}`,
-        ),
-      },
+      { tex: recipWorking(e1, e2, e3) },
     ];
   },
 };
+
+const RECIP_SQUARES =
+  '\\Sigma\\frac{1}{\\alpha^{2}} = \\frac{(\\Sigma\\alpha\\beta)^{2} - 2\\alpha\\beta\\gamma\\,\\Sigma\\alpha}{(\\alpha\\beta\\gamma)^{2}}';
+
+/**
+ * Σ1/α² with the numbers in: the top's two pieces, then the fraction. Put in
+ * whole, the top alone is wider than a phone.
+ */
+function recipWorking(e1: number, e2: number, e3: number): string {
+  const top = e2 * e2 - 2 * e1 * e3;
+  const bottom = e3 * e3;
+  const simple = fracTex(top, bottom);
+  const raw = `\\frac{${top}}{${bottom}}`;
+  return chain(
+    `2\\alpha\\beta\\gamma\\,\\Sigma\\alpha &= 2 \\times ${br(e3)} \\times ${br(e1)}`,
+    `&= ${2 * e1 * e3}`,
+    `\\Sigma\\frac{1}{\\alpha^{2}} &= \\frac{${br(e2)}^{2} - ${br(2 * e1 * e3)}}{${br(e3)}^{2}}`,
+    // Over 1 the fraction is only its top; otherwise show it before cancelling.
+    `&= ${bottom === 1 || simple === raw ? simple : `${raw} = ${simple}`}`,
+  );
+}
 
 /* ---------- choosing the identity ---------- */
 
@@ -948,7 +998,7 @@ interface WhichParams {
   target: number;
 }
 
-const TARGET_NAMES = ['S_3', SQ_BETA, '\\Sigma\\frac{1}{\\alpha^{2}}', '(\\alpha + 1)(\\beta + 1)(\\gamma + 1)'];
+const TARGET_NAMES = ['S_3', SQ_BETA, '\\Sigma\\frac{1}{\\alpha^{2}}', shiftLabel(1)];
 
 interface Candidate {
   /** The right-hand side offered, TeX. */
@@ -965,9 +1015,9 @@ function candidates(p: Poly, target: number): Candidate[] {
   switch (target) {
     case 0:
       return [
-        { rhs: '\\Sigma\\alpha S_2 - \\Sigma\\alpha\\beta S_1 + 3\\alpha\\beta\\gamma', value: [s[3], 1] },
-        { rhs: '\\Sigma\\alpha S_2 - \\Sigma\\alpha\\beta S_1 + \\alpha\\beta\\gamma', value: [s[3] - 2 * e3, 1], why: 'The constant comes in once for each root: $3\\alpha\\beta\\gamma$.' },
-        { rhs: '(\\Sigma\\alpha)^{3} - 3\\Sigma\\alpha\\Sigma\\alpha\\beta', value: [e1 ** 3 - 3 * e1 * e2, 1], why: 'That is the two-root identity. With three roots it needs $+ 3\\alpha\\beta\\gamma$ as well.' },
+        { rhs: S3_RULE.replace('S_3 = ', ''), value: [s[3], 1] },
+        { rhs: '\\Sigma\\alpha\\,S_2 - \\Sigma\\alpha\\beta\\,S_1 + \\alpha\\beta\\gamma', value: [s[3] - 2 * e3, 1], why: 'The constant comes in once for each root: $3\\alpha\\beta\\gamma$.' },
+        { rhs: '(\\Sigma\\alpha)^{3} - 3\\Sigma\\alpha\\,\\Sigma\\alpha\\beta', value: [e1 ** 3 - 3 * e1 * e2, 1], why: 'That is the two-root identity. With three roots it needs $+ 3\\alpha\\beta\\gamma$ as well.' },
       ];
     case 1:
       return [
@@ -977,7 +1027,7 @@ function candidates(p: Poly, target: number): Candidate[] {
       ];
     case 2:
       return [
-        { rhs: '\\frac{(\\Sigma\\alpha\\beta)^{2} - 2\\alpha\\beta\\gamma\\Sigma\\alpha}{(\\alpha\\beta\\gamma)^{2}}', value: [e2 * e2 - 2 * e1 * e3, e3 * e3] },
+        { rhs: RECIP_SQUARES.replace('\\Sigma\\frac{1}{\\alpha^{2}} = ', ''), value: [e2 * e2 - 2 * e1 * e3, e3 * e3] },
         { rhs: '\\frac{(\\Sigma\\alpha\\beta)^{2}}{(\\alpha\\beta\\gamma)^{2}}', value: [e2 * e2, e3 * e3], why: 'That is $(\\Sigma\\frac{1}{\\alpha})^{2}$, which still holds the pairs twice.' },
         { rhs: '\\frac{(\\Sigma\\alpha)^{2} - 2\\Sigma\\alpha\\beta}{(\\alpha\\beta\\gamma)^{2}}', value: [e1 * e1 - 2 * e2, e3 * e3], why: 'That is $\\Sigma\\alpha^{2}$ over the square of the product, which is not the same thing.' },
       ];
@@ -1055,18 +1105,21 @@ const powWhichFlow: Generator<WhichParams> = {
     const [right] = candidates(p, target);
     const name = TARGET_NAMES[target];
     const work = [
-      chain(`S_3 &= ${e1} \\times ${br(s[2])} ${signedNum(-e2)} \\times ${br(e1)}`, `&\\quad ${signedNum(3 * e3)} = ${s[3]}`),
-      chain(`${SQ_BETA} &= ${br(e1)} \\times ${br(e2)} - 3 \\times ${br(e3)}`, `&= ${sqBeta([e1, e2, e3])}`),
-      chain(
-        `\\Sigma\\frac{1}{\\alpha^{2}} &= \\frac{${br(e2)}^{2} - 2 \\times ${br(e3)} \\times ${br(e1)}}{${br(e3)}^{2}}`,
-        `&= ${valueTex(right.value)}`,
-      ),
-      chain(`${name} &= 1 ${signedNum(e1)} ${signedNum(e2)} ${signedNum(e3)}`, `&= ${right.value[0]}`),
+      s3Working(e1, e2, e3, s),
+      sqBetaWorking(e1, e2, e3),
+      recipWorking(e1, e2, e3),
+      `${name} = 1 ${signedNum(e1)} ${signedNum(e2)} ${signedNum(e3)} = ${right.value[0]}`,
     ][target];
     return [
-      { tex: `${name} = ${right.rhs}` },
+      { tex: `${name} = {${right.rhs}}` },
+      { text: 'From the coefficients:' },
       { tex: cubicSumsTex(p) },
-      ...(target === 0 ? [{ text: `$S_1 = ${e1}$ and $S_2 = (\\Sigma\\alpha)^{2} - 2\\Sigma\\alpha\\beta = ${s[2]}$.` }] : []),
+      ...(target === 0
+        ? [
+            { text: `So $S_1 = ${e1}$ and` },
+            { tex: chain(`S_2 &= (\\Sigma\\alpha)^{2} - 2\\Sigma\\alpha\\beta`, `&= ${br(e1)}^{2} - 2 \\times ${br(e2)} = ${s[2]}`) },
+          ]
+        : []),
       { tex: work },
     ];
   },

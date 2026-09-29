@@ -18,6 +18,7 @@ import { makeRng, hashSeed } from './rng';
 import { checkAnswer } from './equivalence';
 import { formProblem } from './answerForm';
 import { rampOrder } from './ramp';
+import { withWorkingKeys } from './typedWorking';
 import { isSolved, valueOf, type Move } from '../content/expr';
 import { parseTransform, sameCurve } from '../content/transform';
 import { draftMatches } from '../content/numberLine';
@@ -130,7 +131,7 @@ function resolveRef(
   if (ref.type === 'literal') {
     const steps = ref.solution ?? NO_SOLUTION;
     return {
-      resolved: { id, slide: ref.slide, solution: () => steps },
+      resolved: { id, slide: withWorkingKeys(ref.slide), solution: () => steps },
       signature: JSON.stringify(ref.slide),
     };
   }
@@ -144,6 +145,8 @@ function resolveRef(
   const rng = makeRng(hashSeed(`${seed}:${id}:${salt}`));
   const params = generator.sample(rng, ref.difficulty ?? 1) as never;
   const slide = generator.render(params);
+  // Signed before the working keys are added, which every draw gets alike.
+  const shown = withWorkingKeys(slide);
 
   return {
     resolved: {
@@ -153,9 +156,9 @@ function resolveRef(
       // Teach slides have no prompt to prepend to, and a generator never
       // produces one, so the guard is for the type rather than for a real case.
       slide:
-        ref.leadIn && ref.leadIn.length > 0 && slide.kind !== 'teach'
-          ? { ...slide, prompt: [...ref.leadIn, ...slide.prompt] }
-          : slide,
+        ref.leadIn && ref.leadIn.length > 0 && shown.kind !== 'teach'
+          ? { ...shown, prompt: [...ref.leadIn, ...shown.prompt] }
+          : shown,
       solution: () => generator.solution(params),
     },
     signature: JSON.stringify(slide),

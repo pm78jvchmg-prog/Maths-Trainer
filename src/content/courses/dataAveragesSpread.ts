@@ -376,10 +376,9 @@ export const dataAveragesSpread: Course = {
             teach(
               prose('The range uses only two values, so one extreme value decides it. Marks of $12, 14, 15, 15, 17, 95$:'),
               working('\\text{with } 95 &= 95 - 12 = 83', '\\text{without} &= 17 - 12 = 5'),
-              prose('One mark of $95$, perhaps a typing error, makes the spread look sixteen times bigger than it is.'),
+              prose('One mark of $95$, perhaps a typing error, makes the spread look over sixteen times bigger than it is.'),
             ),
             ask('dat-remove-choice'),
-            ask('dat-range-flow'),
             ask('dat-range-tiles', 2),
             teach(
               prose('So which values change the range when they are taken out? Only an end, the largest or the smallest.'),
@@ -387,6 +386,7 @@ export const dataAveragesSpread: Course = {
                 'And only an end that is alone. In $3, 8, 9, 9$ taking out one $9$ leaves the other, so the range is still $9 - 3 = 6$. Taking out the $3$ makes it $9 - 8 = 1$.',
               ),
             ),
+            ask('dat-range-flow'),
             ask('dat-range-flow', 2),
             ask('dat-remove-choice', 2),
           ],
@@ -519,13 +519,14 @@ export const dataAveragesSpread: Course = {
               ),
               display('\\begin{array}{l|c|c} & \\text{Mean} & \\text{SD} \\\\ \\hline \\text{Class A} & 64 & 5 \\\\ \\text{Class B} & 58 & 11 \\end{array}'),
               prose('Class A scored higher on average and more consistently.'),
+              prose('Higher is not always better, though. For lap times or faulty parts the **lower** mean is the better one: a runner averaging $58$ s beats one averaging $64$ s.'),
             ),
             ask('dat-compare-choice'),
             ask('dat-compare-flow'),
             ask('dat-sd-tiles', 2),
             teach(
               prose(
-                'Two traps. First, higher is not always better: for lap times or faulty parts, the lower mean is the better one. Second, check whether a spread is a variance or a standard deviation before comparing. A variance of $16$ is a standard deviation of $4$, smaller than a standard deviation of $5$.',
+                'One trap. Check whether a spread is a variance or a standard deviation before comparing. A variance of $16$ is a standard deviation of $4$, smaller than a standard deviation of $5$.',
               ),
             ),
             ask('dat-compare-choice', 2),
@@ -719,8 +720,6 @@ export const dataAveragesSpread: Course = {
             ),
             ask('dat-fd-slider'),
             ask('dat-fd-area'),
-            ask('dat-fd-tiles', 2),
-            ask('dat-fd-table', 2),
             teach(
               prose('Densities need not be whole. $36$ values in a class $15$ wide have a density of $36 \\div 15 = 2.4$.'),
               prose(
@@ -729,6 +728,8 @@ export const dataAveragesSpread: Course = {
               prose('A range spanning two bars: find each bar\'s area, then add. With bars $10 \\le x < 15$ at density $4$ and $15 \\le x < 30$ at density $1.2$, the values between $10$ and $30$ are'),
               working('4 \\times 5 &= 20', '1.2 \\times 15 &= 18', '20 + 18 &= 38'),
             ),
+            ask('dat-fd-tiles', 2),
+            ask('dat-fd-table', 2),
             ask('dat-fd-slider', 2),
             ask('dat-fd-area', 2),
           ],

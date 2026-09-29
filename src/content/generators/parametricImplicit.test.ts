@@ -40,6 +40,7 @@ import {
   trigSources,
   xyAnswer,
   type AxisParams,
+  type ChainTermParams,
   type CircleParams,
   type ConcaveParams,
   type ConicParams,
@@ -1615,5 +1616,17 @@ describe('area under a parametric curve, checked against mathjs', { timeout: 180
         expect(ratio.every((r) => near(r, ratio[0], 1e-9)), form).toBe(true);
       }
     });
+  });
+});
+
+describe('impl-chain-term with a negative coefficient', () => {
+  it('puts the sign in front of a fraction, never on top of it', () => {
+    let negatives = 0;
+    for (const { params, slide } of draws(g.implChainTerm as Generator<ChainTermParams>)) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      if (params.k < 0) negatives++;
+      for (const option of slide.options) expect(option.label, option.label).not.toMatch(/\\frac\{-/);
+    }
+    expect(negatives).toBeGreaterThan(0);
   });
 });

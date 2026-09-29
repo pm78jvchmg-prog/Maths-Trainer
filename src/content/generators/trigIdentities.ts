@@ -6463,7 +6463,18 @@ const TRIPLE_ROOT_TWO: [Fn, number][] = [
   ['tan', -1],
 ];
 
-/** Equations whose solutions from 0 to 360 are all multiples of 15 degrees. */
+/**
+ * The equations Equations in x/2 and 3x works in full on its teach slides.
+ * The slider never asks one, or it hands back an answer the learner has just
+ * read: cos(x/2) = 1/2 is worked to 120 on the slide right before it.
+ */
+const SLIDER_WORKED: Pick<MultiEq, 'kind' | 'fn' | 'value'>[] = [
+  { kind: 'half', fn: 'cos', value: 0.5 },
+  { kind: 'half', fn: 'cos', value: -Math.SQRT2 / 2 },
+  { kind: 'triple', fn: 'tan', value: 1 },
+];
+
+/** Equations whose solutions from 0 to 360 are all multiples of 15 degrees, less the worked ones. */
 const SLIDER_EQS: TaggedEq[] = [
   ...(['sin', 'cos', 'tan'] as const).flatMap((fn) =>
     (fn === 'tan' ? TAN_VALUES : SC_VALUES).map((value) => ({ kind: 'half' as const, fn, value, top: 360, hard: false })),
@@ -6471,7 +6482,7 @@ const SLIDER_EQS: TaggedEq[] = [
   ...TRIPLE_TYPED.map(([fn, value]) => ({ kind: 'triple' as const, fn, value, top: 360, hard: false })),
   { kind: 'triple', fn: 'tan', value: 0, top: 360, hard: true } as TaggedEq,
   ...TRIPLE_ROOT_TWO.map(([fn, value]) => ({ kind: 'triple' as const, fn, value, top: 360, hard: true })),
-].filter((eq) => sliderEnds(eq, 2).length > 0);
+].filter((eq) => sliderEnds(eq, 2).length > 0 && !SLIDER_WORKED.some((w) => w.kind === eq.kind && w.fn === eq.fn && w.value === eq.value));
 
 /** Every solution strictly inside 0 to 360. */
 function openSolutions(eq: MultiEq): number[] {

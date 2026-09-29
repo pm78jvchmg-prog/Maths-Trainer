@@ -18,6 +18,7 @@ import { makeRng, hashSeed } from './rng';
 import { checkAnswer } from './equivalence';
 import { formProblem } from './answerForm';
 import { rampOrder } from './ramp';
+import { scaffoldFirst } from './scaffoldFirst';
 import { withWorkingKeys } from './typedWorking';
 import { isSolved, valueOf, type Move } from '../content/expr';
 import { parseTransform, sameCurve } from '../content/transform';
@@ -223,9 +224,12 @@ export function startSession(
   // Guided and skill check are deduplicated separately: a skill-check question
   // matching one from the lesson is the assessment doing its job, where two
   // identical guided slides are just a wasted slide.
-  // Each deck climbs in difficulty, whatever order its questions were written in.
-  const guided = resolveDeck(rampOrder(lesson.slides), lesson.id, 'g', seed, registry);
-  const skillCheck = resolveDeck(rampOrder(lesson.skillCheck), lesson.id, 's', seed, registry);
+  // Each deck climbs in difficulty, whatever order its questions were written
+  // in, and a question broken into its working comes before the one asking
+  // for the same result whole.
+  const order = (refs: SlideRef[]) => scaffoldFirst(rampOrder(refs), registry);
+  const guided = resolveDeck(order(lesson.slides), lesson.id, 'g', seed, registry);
+  const skillCheck = resolveDeck(order(lesson.skillCheck), lesson.id, 's', seed, registry);
 
   const states: Record<string, SlideState> = {};
   for (const resolved of [...guided, ...skillCheck]) {

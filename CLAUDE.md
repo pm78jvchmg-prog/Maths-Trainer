@@ -220,6 +220,13 @@ Consequences worth knowing before changing anything here:
 - Questions in a deck are shown in rising `difficulty` (`src/engine/ramp.ts`),
   sorted within each stretch between teaching (a teach slide, a literal slide or
   a lead-in), so a lesson climbs whatever order it was written in.
+- A question broken into its working (`steps`, `tree`, `reduce`, `flow`,
+  `table`, `iterate`, multi-blank `tiles`) comes before a typed or choice
+  question asking the same result whole (`src/engine/scaffoldFirst.ts`, run
+  after the ramp): the two trade generators, each slot keeping its difficulty.
+  In one stretch the same family or worked solution is enough; across a teach
+  slide only the very same question (same `sample` and `solution`) moves, since
+  a family can widen past what the earlier slide taught. The owner asked for it.
 - `ln` is aliased to natural log in the mathjs instance (`src/engine/expression.ts`),
   and an unknown function name is reported as invalid input rather than failing
   silently at every sample point.

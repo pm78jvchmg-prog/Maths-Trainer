@@ -40,6 +40,12 @@ export const level10: Level = {
           prose(
             'Each $t$ gives one point: $t = 0$ gives $(2, -4)$. To find the $t$ of a point, solve the $x$ equation: for $(5, 5)$, $t + 2 = 5$ gives $t = 3$.',
           ),
+          prose(
+            'To expand a squared bracket, multiply each term of one bracket by each term of the other; a minus times a minus is a plus. For $y = x^{2} + 1$ with $x = t - 3$:',
+          ),
+          stacked('(t - 3)^{2} = (t - 3)(t - 3)', '= t^{2} - 3t - 3t + 9', '= t^{2} - 6t + 9'),
+          prose('Then add the 1:'),
+          display('y = t^{2} - 6t + 10'),
         ),
         ask('ppar-graph'),
         ask('ppar-graph-tiles'),

@@ -373,6 +373,12 @@ export const binomialExpansion: Course = {
             teach(
               prose('Working back to $n$ uses ${}^{n}C_{1} = n$ and ${}^{n}C_{2} = \\frac{n(n - 1)}{2}$.'),
               prose('If $(1 + x)^n$ has $x^2$ coefficient $28$, then $n(n - 1) = 56 = 8 \\times 7$, so $n = 8$.'),
+              prose(
+                'With a number on $x$, its square multiplies ${}^{n}C_{2}$, so divide it out before looking for two numbers in a row. If $(1 + 3x)^n$ has $x^2$ coefficient $135$:',
+              ),
+              maths(
+                '\\begin{aligned} \\frac{n(n - 1)}{2} \\times 9 &= 135 \\\\ n(n - 1) &= 30 = 6 \\times 5 \\\\ n &= 6 \\end{aligned}',
+              ),
             ),
             ask('bin-find-n'),
             ask('bin-find-n+choice'),
@@ -421,6 +427,10 @@ export const binomialExpansion: Course = {
                 'A term of $(1 + 2x)(1 + x)^5$ does not need the whole product. The $x^3$ term comes two ways: $1$ times the expansion\'s $x^3$ term, and $2x$ times its $x^2$ term.',
               ),
               maths('1 \\times 10x^{3} + 2x \\times 10x^{2} = 30x^{3}'),
+              prose(
+                'Each part of the first bracket keeps its own number and sign. For the $x^2$ coefficient of $(2 - x)(1 + x)^4$, pair $2$ with the $x^2$ coefficient $6$, and $-1$ with the $x$ coefficient $4$:',
+              ),
+              maths('\\begin{aligned} & 2 \\times 6 + (-1) \\times 4 \\\\ &= 12 - 4 = 8 \\end{aligned}'),
             ),
             ask('bin-pair-flow'),
             ask('bin-product-coeff'),
@@ -430,6 +440,14 @@ export const binomialExpansion: Course = {
               maths('1 \\times 35 + (-2) \\times 35 = -35'),
               prose('For the first few terms of the product, multiply the first bracket into the start of the expansion and collect. With $(1 + x)^5 = 1 + 5x + 10x^2 + \\dots$:'),
               maths('\\begin{aligned} & (1 + 2x)(1 + 5x + 10x^{2}) \\\\ &= 1 + 5x + 10x^{2} \\\\ &\\quad + 2x + 10x^{2} + \\dots \\\\ &= 1 + 7x + 20x^{2} + \\dots \\end{aligned}'),
+              prose(
+                'The same with a number on $x$ and a first part other than 1. Start from the expansion of $(1 + 2x)^5$:',
+              ),
+              maths('(1 + 2x)^5 = 1 + 10x + 40x^2 + \\dots'),
+              prose('Multiply every kept term by $2$, then by $x$, and collect:'),
+              maths(
+                '\\begin{aligned} & (2 + x)(1 + 10x + 40x^{2}) \\\\ &= 2 + 20x + 80x^{2} \\\\ &\\quad + x + 10x^{2} + \\dots \\\\ &= 2 + 21x + 90x^{2} + \\dots \\end{aligned}',
+              ),
             ),
             ask('bin-product-expand'),
             ask('bin-pair-flow'),
@@ -439,6 +457,12 @@ export const binomialExpansion: Course = {
                 'When the expansion has a number of its own, find its two coefficients first. For the $x^3$ term of $(1 + 3x)(1 + 2x)^4$ they are $32$ and $24$:',
               ),
               maths('1 \\times 32 + 3 \\times 24 = 104'),
+              prose(
+                'Each is ${}^{n}C_{r}$ times the number on $x$ raised to the power $r$, sign and all. For the $x^3$ term of $(1 + 3x)(1 - 2x)^4$:',
+              ),
+              maths(
+                '\\begin{aligned} {}^{4}C_{3} \\times (-2)^{3} &= 4 \\times (-8) = -32 \\\\ {}^{4}C_{2} \\times (-2)^{2} &= 6 \\times 4 = 24 \\\\ 1 \\times (-32) + 3 \\times 24 &= 40 \\end{aligned}',
+              ),
             ),
             ask('bin-two-bracket-tree', 2),
             ask('bin-product-expand', 2),
@@ -532,6 +556,8 @@ export const binomialExpansion: Course = {
               maths('\\frac{b(n - r)}{a(r + 1)}'),
               prose('They are equal when that is $1$. In $(1 + 2x)^5$: $2(5 - r) = r + 1$, so $r = 3$, and the $x^3$ and $x^4$ coefficients are both $80$.'),
               prose('In $(3 + x)^7$: $7 - r = 3(r + 1)$, so $r = 1$, and the $x$ and $x^2$ coefficients are both $5103$.'),
+              prose('To solve for $r$, multiply out the brackets, gather the $r$ terms on one side, then divide. For $(1 + 2x)^5$:'),
+              maths('\\begin{aligned} 2(5 - r) &= r + 1 \\\\ 10 - 2r &= r + 1 \\\\ 9 &= 3r \\\\ r &= 3 \\end{aligned}'),
             ),
             ask('bin-equal-which'),
             ask('bin-equal-which', 2),
@@ -546,6 +572,10 @@ export const binomialExpansion: Course = {
               prose('Divide the $x^2$ coefficient of $(1 + kx)^n$ by the $x$ coefficient:'),
               maths('\\frac{n(n - 1)k^{2}}{2} \\div nk = \\frac{(n - 1)k}{2}'),
               prose('If the $x^2$ coefficient of $(1 + kx)^5$ is $6$ times the $x$ coefficient, then $\\frac{4k}{2} = 6$, so $k = 3$.'),
+              prose(
+                'When the multiple is a fraction, clear it before dividing. If the $x^2$ coefficient of $(1 + kx)^4$ is $\\frac{9}{2}$ times the $x$ one, multiply both sides by 2:',
+              ),
+              maths('\\begin{aligned} \\frac{3k}{2} &= \\frac{9}{2} \\\\ 3k &= 9 \\\\ k &= 3 \\end{aligned}'),
             ),
             ask('bin-ratio-tiles'),
             ask('bin-ratio-reduce'),
@@ -665,6 +695,10 @@ export const binomialExpansion: Course = {
               prose('Multiply two expansions and every term of the product is a term of the first times a term of the second. A multiple of $x^2$ comes three ways: $1 \\times x^2$, $x \\times x$ and $x^2 \\times 1$.'),
               prose('Take $(1 + 2x)^3(1 + x)^4$. Each bracket starts, as far as $x^2$:'),
               maths('\\begin{aligned} (1 + 2x)^{3}&: \\enspace 1 + 6x + 12x^{2} \\\\ (1 + x)^{4}&: \\enspace 1 + 4x + 6x^{2} \\end{aligned}'),
+              prose(
+                'Multiply each pair whose powers add to $2$, then add. For $(1 + x)^2(1 + 3x)^3$, which start $1 + 2x + x^2$ and $1 + 9x + 27x^2$:',
+              ),
+              maths('\\begin{aligned} & 1 \\times 27 + 2 \\times 9 + 1 \\times 1 \\\\ &= 27 + 18 + 1 = 46 \\end{aligned}'),
             ),
             ask('bin-two-exp-flow'),
             teach(
@@ -723,6 +757,8 @@ export const binomialExpansion: Course = {
           title: 'Pairing Brackets',
           slides: [
             teach(
+              prose('Multiply out two brackets that differ only in a sign. The middle terms cancel, and the number on $x$ is squared along with $x$:'),
+              maths('\\begin{aligned} (1 + 3x)(1 - 3x) &= 1 - 3x + 3x - 9x^{2} \\\\ &= 1 - 9x^{2} \\end{aligned}'),
               prose('$(1 + x)(1 - x) = 1 - x^2$. When both brackets have the same power, they pair off one at a time:'),
               maths('(1 + x)^{n}(1 - x)^{n} = (1 - x^{2})^{n}'),
               prose('So $(1 + 3x)^4(1 - 3x)^4 = (1 - 9x^2)^4$: one expansion to do instead of two. Its second part is $-9x^2$, so its $x^2$ term is'),
@@ -757,6 +793,12 @@ export const binomialExpansion: Course = {
               prose('$(1 + x + x^2)^n$ has three terms in its bracket. Call the last two $u = x + x^2$ and it is a binomial again:'),
               maths('\\begin{aligned} (1 + u)^{n} &= 1 + nu \\\\ &\\quad + {}^{n}C_{2}u^{2} + \\dots \\end{aligned}'),
               prose('Only $u$ and $u^2$ can reach $x^2$: $u^3$ starts at $x^3$.'),
+              prose(
+                'Square $u$ to see its start. In $(1 + 3x + 2x^2)^4$, $u = 3x + 2x^2$, and only the $x$ part of $u$, squared, reaches $x^2$ in $u^2$:',
+              ),
+              maths(
+                '\\begin{aligned} u^{2} &= 9x^{2} + 12x^{3} + 4x^{4} \\\\ x^{2}\\text{ coefficient} &= 4 \\times 2 + 6 \\times 9 \\\\ &= 8 + 54 = 62 \\end{aligned}',
+              ),
             ),
             ask('bin-trinomial-tree'),
             teach(
@@ -903,6 +945,10 @@ export const binomialExpansion: Course = {
               prose('Powers of $\\sqrt{2}$ alternate: $(\\sqrt{2})^2 = 2$ is whole, and $(\\sqrt{2})^3 = 2\\sqrt{2}$ keeps one root. So an expansion of $(1 + \\sqrt{2})^n$ gathers into $a + b\\sqrt{2}$, with $a$ and $b$ whole.'),
               maths('\\begin{aligned} & (1 + \\sqrt{2})^{3} \\\\ &= 1 + 3\\sqrt{2} + 6 + 2\\sqrt{2} \\\\ &= 7 + 5\\sqrt{2} \\end{aligned}'),
               prose('A number on the root is raised with it: $(2\\sqrt{3})^2 = 4 \\times 3 = 12$, so $(1 + 2\\sqrt{3})^2 = 1 + 4\\sqrt{3} + 12 = 13 + 4\\sqrt{3}$. The surd arithmetic is the same as in Exponents & Radicals.'),
+              prose('Higher powers: take out pairs of roots as whole numbers, and an odd power leaves one root over. A number on the root is cubed with it:'),
+              maths(
+                '\\begin{aligned} (\\sqrt{3})^{5} &= (\\sqrt{3})^{4} \\times \\sqrt{3} = 9\\sqrt{3} \\\\ (2\\sqrt{3})^{3} &= 2^{3} \\times (\\sqrt{3})^{3} \\\\ &= 8 \\times 3\\sqrt{3} = 24\\sqrt{3} \\end{aligned}',
+              ),
             ),
             ask('bin-surd-powers-tree'),
             ask('bin-surd-tiles'),
@@ -930,6 +976,10 @@ export const binomialExpansion: Course = {
             teach(
               prose('$(1 + \\sqrt{2})^4 = 17 + 12\\sqrt{2}$ and $(1 - \\sqrt{2})^4 = 17 - 12\\sqrt{2}$. Added, the roots cancel; subtracted, the whole parts cancel:'),
               maths('\\begin{aligned} \\text{sum} &= 34 \\\\ \\text{difference} &= 24\\sqrt{2} \\end{aligned}'),
+              prose(
+                'So a sum needs only the even-power terms, doubled; a difference, the odd-power ones. For $(1 + \\sqrt{2})^5 + (1 - \\sqrt{2})^5$, row $5$ is $1, 5, 10, 10, 5, 1$ and the even powers of $\\sqrt{2}$ are $1$, $2$ and $4$:',
+              ),
+              maths('\\begin{aligned} & 2(1 + 10 \\times 2 + 5 \\times 4) \\\\ &= 2 \\times 41 = 82 \\end{aligned}'),
             ),
             ask('bin-conjugate-tiles'),
             ask('bin-conjugate-value'),
@@ -961,6 +1011,10 @@ export const binomialExpansion: Course = {
               maths('\\begin{aligned} (2 + \\sqrt{3})^{2} &= 4 + 4\\sqrt{3} + 3 \\\\ &= 7 + 4\\sqrt{3} \\end{aligned}'),
               prose('A number on the root as well is raised with the root, $(2\\sqrt{3})^2 = 12$:'),
               maths('\\begin{aligned} (2 + 2\\sqrt{3})^{2} &= 4 + 8\\sqrt{3} + 12 \\\\ &= 16 + 8\\sqrt{3} \\end{aligned}'),
+              prose("For a cube, use row $3$: the $2$'s power falls as the root's rises."),
+              maths(
+                '\\begin{aligned} (2 + \\sqrt{3})^{3} &= 2^{3} + 3 \\times 2^{2}\\sqrt{3} \\\\ &\\quad + 3 \\times 2 \\times 3 + (\\sqrt{3})^{3} \\\\ &= 8 + 12\\sqrt{3} + 18 + 3\\sqrt{3} \\\\ &= 26 + 15\\sqrt{3} \\end{aligned}',
+              ),
             ),
             ask('bin-mixed-terms-tree'),
             ask('bin-mixed-tiles'),
@@ -1014,6 +1068,8 @@ export const binomialExpansion: Course = {
               prose('The coefficient of $x^r$ in $(1 + x)^n$ is $\\frac{n(n - 1)\\dots(n - r + 1)}{r!}$. For a whole $n$ a factor on top reaches $0$, and every coefficient after it is $0$. In $(1 + x)^2$ the $x^3$ coefficient is'),
               maths('(2)(1)(0) \\div 3! = 0'),
               prose('so the expansion stops. The same formula works for any $n$, and for $n = -\\frac{1}{2}$ the factors $-\\frac{1}{2}, -\\frac{3}{2}, -\\frac{5}{2}, \\dots$ never reach $0$: the expansion never ends.'),
+              prose('To work a coefficient with a fractional $n$, take $1$ off $n$ for each new factor, multiply, then divide by $r!$. For $n = \\frac{1}{2}$, the $x^2$ coefficient is'),
+              maths('\\begin{aligned} & (\\tfrac{1}{2})(-\\tfrac{1}{2}) \\div 2! \\\\ &= -\\tfrac{1}{4} \\div 2 = -\\tfrac{1}{8} \\end{aligned}'),
             ),
             ask('bin-series-factors-tiles'),
             ask('bin-series-stops-choice'),
@@ -1135,9 +1191,20 @@ export const binomialExpansion: Course = {
               prose('The series needs a $1$ in the bracket, so take the number out first, powered like the rest:'),
               maths('\\begin{aligned} & (4 + x)^{1/2} \\\\ &= 4^{1/2}(1 + \\tfrac{x}{4})^{1/2} \\\\ &= 2(1 + \\tfrac{x}{4})^{1/2} \\end{aligned}'),
               prose('$4^{1/2} = 2$ and $8^{-1/3} = \\frac{1}{2}$, as in Exponents & Radicals.'),
+              prose('In a fractional index the bottom is the root and the top the power, and a minus means one over:'),
+              maths(
+                '\\begin{aligned} 4^{3/2} &= (\\sqrt{4})^{3} = 2^{3} = 8 \\\\ 3^{-2} &= \\frac{1}{3^{2}} = \\frac{1}{9} \\\\ 16^{-1/2} &= \\frac{1}{\\sqrt{16}} = \\frac{1}{4} \\end{aligned}',
+              ),
             ),
             ask('bin-taken-out-coef-steps'),
-            ask('bin-taken-out-parts-tree'),
+            askWith(
+              'bin-taken-out-parts-tree',
+              1,
+              prose('Expand the bracket left behind with its own number on $x$, then multiply every term by the number taken out. With $\\frac{x}{9}$ in place of $x$:'),
+              maths(
+                '\\begin{aligned} (9 + x)^{1/2} &= 3(1 + \\tfrac{x}{9})^{1/2} \\\\ &= 3(1 + \\tfrac{x}{18} - \\tfrac{x^{2}}{648} + \\dots) \\\\ &= 3 + \\tfrac{x}{6} - \\tfrac{x^{2}}{216} + \\dots \\end{aligned}',
+              ),
+            ),
             teach(
               prose('Expand the bracket with $\\frac{x}{4}$ in place of $x$, then multiply every term by the $2$:'),
               maths('\\begin{aligned} & (1 + \\tfrac{x}{4})^{1/2} \\\\ &= 1 + \\tfrac{1}{8}x - \\tfrac{1}{128}x^{2} + \\dots \\end{aligned}'),
@@ -1203,6 +1270,10 @@ export const binomialExpansion: Course = {
               prose('One over a cube root below $1$: $\\frac{1}{\\sqrt[3]{0.91}} = (1 + x)^{-1/3}$ with $x = -0.09$, and $(1 + x)^{-1/3} \\approx 1 - \\frac{1}{3}x + \\frac{2}{9}x^2$:'),
               maths('1 + 0.03 + \\tfrac{2}{9} \\times 0.0081 = 1.0318'),
               prose('A root of a power multiplies the powers: $\\sqrt{1.01^{3}} = (1.01)^{3/2}$, so $n = \\frac{3}{2}$ and $x = 0.01$.'),
+              prose('For any other $n$, build the coefficients from $n$ first, then put $x$ in. For $\\sqrt[4]{1.08} = (1 + x)^{1/4}$ with $x = 0.08$:'),
+              maths(
+                '\\begin{aligned} x^{2}&: \\enspace (\\tfrac{1}{4})(-\\tfrac{3}{4}) \\div 2 = -\\tfrac{3}{32} \\\\ (1 + x)^{1/4} &\\approx 1 + \\tfrac{1}{4}x - \\tfrac{3}{32}x^{2} \\\\ &= 1 + 0.02 - 0.0006 = 1.0194 \\end{aligned}',
+              ),
             ),
             ask('bin-root-estimate+choice', 2),
             ask('bin-root-setup', 2),
@@ -1228,6 +1299,11 @@ export const binomialExpansion: Course = {
               prose('With a number on $x$, find $x$ from the whole bracket. $\\frac{1}{1.04} = (1 + 2x)^{-1}$ needs $1 + 2x = 1.04$, so $x = 0.02$:'),
               maths('\\begin{aligned} & (1 + 2x)^{-1} \\\\ &= 1 - 2x + 4x^{2} - \\dots \\end{aligned}'),
               maths('1 - 0.04 + 0.0016 = 0.9616'),
+              prose('For another power, work each number from $n$, then multiply by the number on $x$ to the same power. For $(1 - 2x)^{-3}$:'),
+              maths(
+                '\\begin{aligned} x&: \\enspace (-3) \\times (-2) = 6 \\\\ x^{2}&: \\enspace \\tfrac{(-3)(-4)}{2} \\times (-2)^{2} = 6 \\times 4 = 24 \\end{aligned}',
+              ),
+              prose('So $(1 - 2x)^{-3}$ starts $1 + 6x + 24x^2$.'),
             ),
             ask('bin-reciprocal-terms-tree'),
             teach(
@@ -1259,6 +1335,10 @@ export const binomialExpansion: Course = {
               prose('One over a root takes out one over the root, and a number just below makes $x$ negative:'),
               maths('\\begin{aligned} \\frac{1}{\\sqrt{3.92}} &= 4^{-1/2}(1 - 0.02)^{-1/2} \\\\ &= \\tfrac{1}{2}(1 + x)^{-1/2} \\end{aligned}'),
               prose('with $x = -0.02$.'),
+              prose('For the cube root, build the bracket\'s series with $n = \\frac{1}{3}$, put $x = 0.03$ in, then multiply by the $2$:'),
+              maths(
+                '\\begin{aligned} x^{2}&: \\enspace (\\tfrac{1}{3})(-\\tfrac{2}{3}) \\div 2 = -\\tfrac{1}{9} \\\\ \\sqrt[3]{8.24} &\\approx 2(1 + 0.01 - 0.0001) \\\\ &= 2.0198 \\end{aligned}',
+              ),
             ),
             ask('bin-out-first-estimate'),
             ask('bin-out-first-tree'),
@@ -1281,6 +1361,10 @@ export const binomialExpansion: Course = {
               prose('$\\frac{1}{1.02} = (1 + x)^{-1}$ at $x = 0.02$, and three terms give $1 - 0.02 + 0.0004 = 0.9804$. As in Estimates and Surds, the first term left out is about the size of the error:'),
               maths('-x^{3} = -0.000008'),
               prose('An estimate is good to $k$ places when its error is under half a unit in place $k$. $0.000008$ is under $0.00005$ but not under $0.000005$, so $0.9804$ is good to $4$ places.'),
+              prose('For another $n$, build the $x^3$ coefficient from $n$ before putting $x$ in. For $(1 + x)^{-2}$ at $x = 0.05$:'),
+              maths(
+                '\\begin{aligned} x^{3}&: \\enspace \\tfrac{(-2)(-3)(-4)}{3!} = \\tfrac{-24}{6} = -4 \\\\ -4 \\times 0.05^{3} &= -0.0005 \\end{aligned}',
+              ),
             ),
             ask('bin-error-term'),
             ask('bin-error-places-flow'),
@@ -1311,6 +1395,11 @@ export const binomialExpansion: Course = {
               prose('A proper fraction with two brackets underneath splits into two simpler ones, as in Algebraic & Partial Fractions:'),
               maths('\\begin{aligned} & \\frac{4 + 5x}{(1 - x)(1 + 2x)} \\\\ &= \\frac{3}{1 - x} + \\frac{1}{1 + 2x} \\end{aligned}'),
               prose('Each part is a number times $(1 + wx)^{-1}$, whose series is geometric: $1 - wx + w^2x^2 - \\dots$'),
+              prose('So expand each part with its own number, then add. For $\\frac{2}{1 + x} + \\frac{1}{1 - 3x}$:'),
+              maths(
+                '\\begin{aligned} \\frac{2}{1 + x} &= 2 - 2x + 2x^{2} - \\dots \\\\ \\frac{1}{1 - 3x} &= 1 + 3x + 9x^{2} + \\dots \\end{aligned}',
+              ),
+              prose('The $x^2$ coefficient of the whole is $2 + 9 = 11$.'),
             ),
             ask('bin-pf-parts-tree'),
             ask('bin-pf-coef'),

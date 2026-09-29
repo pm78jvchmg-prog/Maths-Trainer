@@ -201,6 +201,14 @@ export const level16: Level = {
           prose(
             'Parallel lines never meet, so two segments sharing no point is no reason to think they are not parallel.',
           ),
+          prose(
+            'When the start has two terms, bracket it, so the minus reaches every term. With $\\overrightarrow{OD} = 3\\mathbf{a}$ and $\\overrightarrow{OF} = 3\\mathbf{a} + 3\\mathbf{b}$:',
+          ),
+          stacked(
+            '\\overrightarrow{FD} = 3\\mathbf{a} - \\left(3\\mathbf{a} + 3\\mathbf{b}\\right)',
+            '= 3\\mathbf{a} - 3\\mathbf{a} - 3\\mathbf{b}',
+            '= -3\\mathbf{b}',
+          ),
         ),
         ask('vproof-mid-multiple'),
         ask('vproof-mid-flow'),
@@ -339,6 +347,14 @@ export const level16: Level = {
           prose('and rewrite it as a journey from $A$:'),
           display('\\overrightarrow{OP} = \\mathbf{a} + \\frac{2}{5}\\left(\\mathbf{b} - \\mathbf{a}\\right)'),
           prose('The fraction along from $A$ is the coefficient of $\\mathbf{b}$, so again $AP : PB = 2 : 3$.'),
+          prose(
+            'When the start has two terms, bracket it so the minus reaches both. With $\\overrightarrow{OA} = \\mathbf{a} - 2\\mathbf{b}$ and $\\overrightarrow{OB} = 4\\mathbf{a} + \\mathbf{b}$:',
+          ),
+          stacked(
+            '\\overrightarrow{AB} = \\left(4\\mathbf{a} + \\mathbf{b}\\right) - \\left(\\mathbf{a} - 2\\mathbf{b}\\right)',
+            '= 4\\mathbf{a} + \\mathbf{b} - \\mathbf{a} + 2\\mathbf{b}',
+            '= 3\\mathbf{a} + 3\\mathbf{b}',
+          ),
         ),
         ask('vproof-split-ratio'),
         ask('vproof-split-ratio+choice'),
@@ -382,6 +398,16 @@ export const level16: Level = {
           prose(
             'Then a point on $AB$ or $CB$ is its start plus the right fraction of the side, and any vector is destination minus start. A midpoint $Q$ of $CB$ is $\\overrightarrow{OC} + \\frac{1}{2}\\overrightarrow{CB}$.',
           ),
+          prose(
+            'With a two-term start, bracket it so the minus reaches every term. With $\\overrightarrow{OA} = 2\\mathbf{a}$ and $\\overrightarrow{OQ} = \\mathbf{a} + 3\\mathbf{b}$:',
+          ),
+          stacked(
+            '\\overrightarrow{QA} = 2\\mathbf{a} - \\left(\\mathbf{a} + 3\\mathbf{b}\\right)',
+            '= 2\\mathbf{a} - \\mathbf{a} - 3\\mathbf{b}',
+            '= \\mathbf{a} - 3\\mathbf{b}',
+          ),
+          prose('Halves collect over a common denominator:'),
+          display('3\\mathbf{a} - \\frac{3}{2}\\mathbf{a} = \\frac{6}{2}\\mathbf{a} - \\frac{3}{2}\\mathbf{a} = \\frac{3}{2}\\mathbf{a}'),
         ),
         ask('vproof-shape-route'),
         ask('vproof-shape-coeffs'),
@@ -412,6 +438,12 @@ export const level16: Level = {
           stacked(
             '\\overrightarrow{AM} = \\frac{1}{2}\\left(\\overrightarrow{AD} + \\overrightarrow{AE}\\right)',
             '= -\\frac{1}{2}\\mathbf{a} + 2\\mathbf{b}',
+          ),
+          prose('A fraction in front of a bracket multiplies every term in it; then collect like terms:'),
+          stacked(
+            '2\\mathbf{a} + \\frac{2}{3}\\left(3\\mathbf{a} + 2\\mathbf{b}\\right)',
+            '= 2\\mathbf{a} + 2\\mathbf{a} + \\frac{4}{3}\\mathbf{b}',
+            '= 4\\mathbf{a} + \\frac{4}{3}\\mathbf{b}',
           ),
         ),
         ask('vproof-hexagon'),
@@ -474,6 +506,8 @@ export const level16: Level = {
           prose(
             'Read the ratio off the fraction: $P$ is $\\frac{2}{3}$ of the way from $O$ to $D$, leaving $\\frac{1}{3}$, so $OP : PD = 2 : 1$. Likewise $AP : PE = 2 : 1$.',
           ),
+          prose('An equation with fractions is easiest with them cleared: multiply every term by the denominator first.'),
+          stacked('\\frac{1}{3}\\lambda = 1 - 2\\lambda', '\\lambda = 3 - 6\\lambda', '7\\lambda = 3', '\\lambda = \\frac{3}{7}'),
         ),
         ask('vproof-cross'),
         ask('vproof-cross-order'),

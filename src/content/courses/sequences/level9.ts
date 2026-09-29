@@ -66,6 +66,8 @@ export const strongInduction: Level = {
           maths('u_{n+2} = au_{n+1} + bu_n \\qquad x^2 = ax + b'),
           prose('and with roots $p$ and $q$ the terms are'),
           maths('u_n = Ap^n + Bq^n'),
+          prose('To factorise, bring every term to one side, then find two numbers that multiply to $6$ and add to $-5$: $-2$ and $-3$.'),
+          maths('\\begin{aligned} x^2 - 5x + 6 &= 0 \\\\ (x - 2)(x - 3) &= 0 \\end{aligned}'),
         ),
         ask('seq-l9-char-tiles'),
         askAfter(

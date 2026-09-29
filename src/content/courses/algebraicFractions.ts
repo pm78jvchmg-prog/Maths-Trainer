@@ -117,6 +117,10 @@ export const algebraicFractions: Course = {
               prose(
                 'Only a factor can cancel: something that multiplies the whole top and the whole bottom. In $\\frac{x + 5}{x + 3}$ nothing cancels, because the $x$ is a term added on, not a factor.',
               ),
+              prose(
+                'To factorise a quadratic like $x^{2} + 2x - 15$, find two numbers that multiply to the number term and add to the $x$ coefficient: $5$ and $-3$ multiply to $-15$ and add to $2$. They go straight into the brackets:',
+              ),
+              working('&x^{2} + 2x - 15', '=\\;&(x + 5)(x - 3)'),
             ),
             ask('frac-cancel-which'),
             ask('frac-cancel'),
@@ -127,6 +131,10 @@ export const algebraicFractions: Course = {
               ),
               working('&\\frac{3x + 6}{x^{2} + 5x + 6}', '=\\;&\\frac{3(x + 2)}{(x + 2)(x + 3)}', '=\\;&\\frac{3}{x + 3}'),
               prose('When the whole bottom cancels, nothing is left under the line: $\\frac{(x + 1)(x - 4)}{x + 1} = x - 4$.'),
+              prose(
+                'A square minus a square splits into two brackets that differ only in sign. With a number in every term, take it out first, then factorise what is left:',
+              ),
+              working('&x^{2} - 25 = (x - 5)(x + 5)', '&3x^{2} - 9x - 30', '=\\;&3(x^{2} - 3x - 10)', '=\\;&3(x - 5)(x + 2)'),
             ),
             ask('frac-cancel', 2),
             ask('frac-cancel-flow', 2),
@@ -153,6 +161,10 @@ export const algebraicFractions: Course = {
                 '=\\;&\\frac{x - 2}{x + 5}',
               ),
               prose('Any factor on top can cancel with any factor below, even across the $\\times$.'),
+              prose(
+                'A quadratic has to be factorised before it can cancel. For $x^{2} - x - 6$, find two numbers that multiply to $-6$ and add to $-1$: $-3$ and $2$.',
+              ),
+              working('&x^{2} - x - 6', '=\\;&(x - 3)(x + 2)'),
             ),
             ask('frac-multiply'),
             ask('frac-product-value'),
@@ -192,8 +204,10 @@ export const algebraicFractions: Course = {
               working(
                 '&\\frac{2}{x + 1} + \\frac{3}{x - 2}',
                 '=\\;&\\frac{2(x - 2) + 3(x + 1)}{(x + 1)(x - 2)}',
+                '=\\;&\\frac{2x - 4 + 3x + 3}{(x + 1)(x - 2)}',
                 '=\\;&\\frac{5x - 1}{(x + 1)(x - 2)}',
               ),
+              prose('On the top, multiply each bracket out, then collect the $x$ terms and the numbers.'),
               prose('Never add the bottoms: a common denominator is something each bottom divides into.'),
             ),
             ask('frac-lcd'),
@@ -204,6 +218,7 @@ export const algebraicFractions: Course = {
               working(
                 '&\\frac{4}{x + 3} - \\frac{1}{x - 1}',
                 '=\\;&\\frac{4(x - 1) - (x + 3)}{(x + 3)(x - 1)}',
+                '=\\;&\\frac{4x - 4 - x - 3}{(x + 3)(x - 1)}',
                 '=\\;&\\frac{3x - 7}{(x + 3)(x - 1)}',
               ),
             ),
@@ -223,7 +238,9 @@ export const algebraicFractions: Course = {
             askAfter(
               'frac-lcd',
               2,
-              prose('When the bottoms share one bracket but not the other, take each bracket once. Factorise both first:'),
+              prose(
+                'When the bottoms share one bracket but not the other, take each bracket once. Factorise both first, finding two numbers that multiply to the number term and add to the $x$ coefficient: $2$ and $-1$ for the first, $2$ and $3$ for the second:',
+              ),
               working('&x^{2} + x - 2 = (x + 2)(x - 1)', '&x^{2} + 5x + 6 = (x + 2)(x + 3)'),
               prose('$(x + 2)$ is in both, so it is needed once: the simplest common bottom is $(x + 2)(x - 1)(x + 3)$.'),
             ),
@@ -264,10 +281,13 @@ export const algebraicFractions: Course = {
             ),
             ask('frac-reject-flow'),
             teach(
-              prose('With $x$ on both tops, the $x^{2}$ terms usually cancel once each side is multiplied out, and the equation is linear again:'),
+              prose(
+                'With $x$ on both tops, the $x^{2}$ terms usually cancel once each side is multiplied out, and the equation is linear again. Multiply every term in one bracket by every term in the other:',
+              ),
               working(
                 '\\frac{x + 1}{x - 3} &= \\frac{x + 4}{x + 2}',
                 '(x + 1)(x + 2) &= (x + 4)(x - 3)',
+                'x^{2} + 2x + x + 2 &= x^{2} - 3x + 4x - 12',
                 'x^{2} + 3x + 2 &= x^{2} + x - 12',
                 '2x &= -14',
                 'x &= -7',
@@ -301,6 +321,11 @@ export const algebraicFractions: Course = {
               ),
               maths('\\frac{x + 1}{x - 3} \\text{ is undefined at } x = 3'),
               prose('Find these by setting the bottom to zero. The top plays no part.'),
+              prose(
+                'Factorise a quadratic bottom first. A square minus a square splits into brackets differing only in sign; otherwise find two numbers that multiply to the number term and add to the $x$ coefficient, here $-3$ and $2$:',
+              ),
+              working('&x^{2} - 16 = (x - 4)(x + 4)', '&x^{2} - x - 6 = (x - 3)(x + 2)'),
+              prose('So $x^{2} - 16$ is zero at $x = 4$ and $x = -4$, and $x^{2} - x - 6$ at $x = 3$ and $x = -2$.'),
             ),
             ask('frac-pole-slider'),
             ask('frac-undefined-which'),
@@ -369,7 +394,10 @@ export const algebraicFractions: Course = {
                 'Cover-up is the same thing done by eye: cover one bracket in the fraction and put in the $x$ that makes it zero. What comes out is that bracket’s numerator.',
               ),
               maths('A = \\frac{5(-1) - 1}{-1 - 2} = 2'),
-              prose('A bottom given multiplied out has to be factorised first: $x^{2} - x - 2 = (x + 1)(x - 2)$.'),
+              prose(
+                'A bottom given multiplied out has to be factorised first. For $x^{2} - x - 2$, find two numbers that multiply to $-2$ and add to $-1$: $1$ and $-2$. They go straight into the brackets:',
+              ),
+              working('&x^{2} - x - 2', '=\\;&(x + 1)(x - 2)'),
             ),
             ask('frac-split-tiles'),
             ask('frac-cover+choice', 2),
@@ -477,7 +505,16 @@ export const algebraicFractions: Course = {
                 '&\\frac{2x^{2} + x - 7}{(x + 1)(x - 2)}',
                 '=\\;&2 + \\frac{3x - 3}{(x + 1)(x - 2)}',
               ),
-              prose('The bottom is $x^{2} - x - 2$, and taking $2$ lots of it from the top leaves $3x - 3$.'),
+              prose(
+                'Multiply the bottom out, then take $2$ lots of it from the top. The minus reaches every term of the bracket:',
+              ),
+              working(
+                '&(x + 1)(x - 2) = x^{2} - x - 2',
+                '&2x^{2} + x - 7',
+                '&- (2x^{2} - 2x - 4)',
+                '=\\;&2x^{2} + x - 7 - 2x^{2} + 2x + 4',
+                '=\\;&3x - 3',
+              ),
             ),
             ask('frac-improper-flow'),
             ask('frac-improper-quotient'),
@@ -504,6 +541,17 @@ export const algebraicFractions: Course = {
               prose(
                 'So the whole part is $x + 1$, and $-4x - 7$ is left over. $m$ is $1$, not the top’s next coefficient $4$: $x$ times the bottom brought $3x^{2}$ of its own, and $4 - 3 = 1$.',
               ),
+              prose(
+                'When the top starts $2x^{3}$, the whole part starts $2x$, since $2x$ times $x^{2}$ makes $2x^{3}$. For $2x^{3} + 7x^{2} + x - 1$ over $x^{2} + 2x - 3$:',
+              ),
+              working(
+                '&2x^{3} + 7x^{2} + x - 1',
+                '&- 2x(x^{2} + 2x - 3)',
+                '=\\;&3x^{2} + 7x - 1',
+                '&- 3(x^{2} + 2x - 3)',
+                '=\\;&x + 8',
+              ),
+              prose('The whole part is $2x + 3$, and $x + 8$ is left over.'),
             ),
             ask('frac-improper-flow', 2),
             ask('frac-improper-quotient+choice', 2),
@@ -539,6 +587,13 @@ export const algebraicFractions: Course = {
                 '=\\;&3 + 6x + 12x^{2} + \\dots',
               ),
               prose('The Binomial Expansion course derives this series, and when it is valid, in a later level. Here it is given.'),
+              prose('For a fraction split into two parts, write each part’s series and add them power by power:'),
+              working(
+                '&\\frac{2}{1 - x} + \\frac{3}{1 - 2x}',
+                '=\\;&2(1 + x + x^{2}) + 3(1 + 2x + 4x^{2}) + \\dots',
+                '=\\;&(2 + 3) + (2 + 6)x + (2 + 12)x^{2} + \\dots',
+                '=\\;&5 + 8x + 14x^{2} + \\dots',
+              ),
             ),
             ask('frac-series-tiles'),
             ask('frac-series-coefficient'),
@@ -603,7 +658,10 @@ export const algebraicFractions: Course = {
                 'For any quadratic $ax^{2} + bx + c$, the discriminant $b^{2} - 4ac$ settles it. Negative means no real roots, so it stays whole. A square means it factorises into brackets with whole numbers in.',
               ),
               working('x^{2} + 2x + 5: &\\quad 4 - 20 = -16', 'x^{2} + x - 6: &\\quad 1 + 24 = 25'),
-              prose('So $x^{2} + 2x + 5$ stays whole, and $x^{2} + x - 6 = (x - 2)(x + 3)$ splits.'),
+              prose(
+                'So $x^{2} + 2x + 5$ stays whole, and $x^{2} + x - 6$ splits. To find its brackets, look for two numbers that multiply to $-6$ and add to $1$: $-2$ and $3$.',
+              ),
+              working('&x^{2} + x - 6', '=\\;&(x - 2)(x + 3)'),
             ),
             ask('frac-discriminant-tree'),
             ask('frac-quad-factorise-flow', 2),
@@ -730,6 +788,13 @@ export const algebraicFractions: Course = {
                 'A cubic over $(x + 1)(x^{2} + 4)$ is improper, since the bottom multiplies out to a cubic too, $x^{3} + x^{2} + 4x + 4$. Divide first: the $x^{3}$ terms give the whole number.',
               ),
               working('&\\frac{2x^{3} + 7x^{2} + 11x + 21}{(x + 1)(x^{2} + 4)}', '=\\;&2 + \\frac{5x^{2} + 3x + 13}{(x + 1)(x^{2} + 4)}'),
+              prose('Multiply the bottom out, then take $2$ lots of it off the top, every term of the bottom doubled:'),
+              working(
+                '&(x + 1)(x^{2} + 4) = x^{3} + 4x + x^{2} + 4',
+                '&2x^{3} + 7x^{2} + 11x + 21',
+                '&- (2x^{3} + 2x^{2} + 8x + 8)',
+                '=\\;&5x^{2} + 3x + 13',
+              ),
               prose('Then split what is left exactly as before: $2 + \\frac{2x + 1}{x^{2} + 4} + \\frac{3}{x + 1}$.'),
             ),
             ask('frac-quad-degree-flow'),
@@ -796,7 +861,19 @@ export const algebraicFractions: Course = {
               ),
             ),
             ask('frac-ineq-cases-flow'),
-            ask('frac-ineq-slip-which'),
+            askAfter(
+              'frac-ineq-slip-which',
+              1,
+              prose(
+                'A second safe route: take the number over and write the left side as one fraction, writing $2$ as $\\frac{2(x - 3)}{x - 3}$ so both have one bottom:',
+              ),
+              working(
+                '&\\frac{x + 1}{x - 3} - 2',
+                '=\\;&\\frac{x + 1 - 2(x - 3)}{x - 3}',
+                '=\\;&\\frac{x + 1 - 2x + 6}{x - 3} = \\frac{-x + 7}{x - 3}',
+              ),
+              prose('The answer can only change at $3$ and $7$, so test one value either side of each.'),
+            ),
             ask('frac-ineq-test-tree', 2),
             teach(
               prose(
@@ -823,6 +900,10 @@ export const algebraicFractions: Course = {
               prose(
                 'Now it is a fraction against zero, which a sign table reads, as in the first level of Inequalities & the Modulus Function.',
               ),
+              prose('The minus in front multiplies both terms of the bracket, so $-4(x + 2)$ is $-4x - 8$:'),
+              working('&x + 14 - 4(x + 2)', '=\\;&x + 14 - 4x - 8', '=\\;&-3x + 6'),
+              prose('A negative number on the right is added when it comes over. For $\\frac{x - 13}{x + 2} \\ge -2$ the left becomes $\\frac{x - 13}{x + 2} + 2$, with top'),
+              working('&x - 13 + 2(x + 2)', '=\\;&x - 13 + 2x + 4', '=\\;&3x - 9'),
             ),
             ask('frac-ineq-one-side-steps'),
             ask('frac-ineq-new-top-tiles'),
@@ -859,9 +940,28 @@ export const algebraicFractions: Course = {
               working('\\frac{x + 4}{x - 2} &< 3', '(x + 4)(x - 2) &< 3(x - 2)^{2}'),
               prose('Bring everything to the left and take out the common bracket:'),
               working('(x - 2)[x + 4 - 3(x - 2)] &< 0', '(x - 2)(-2x + 10) &< 0'),
+              prose('Clear the inner bracket with its sign, collect, then take out the number so each bracket starts with $x$:'),
+              working(
+                '&(x + 3)[x + 21 - 4(x + 3)]',
+                '=\\;&(x + 3)(x + 21 - 4x - 12)',
+                '=\\;&(x + 3)(-3x + 9)',
+                '=\\;&-3(x + 3)(x - 3)',
+              ),
             ),
             ask('frac-ineq-square-steps'),
-            ask('frac-ineq-square-tiles'),
+            askAfter(
+              'frac-ineq-square-tiles',
+              1,
+              prose('Multiplied out instead, every term of one bracket multiplies every term of the other, and a squared bracket is the bracket times itself:'),
+              working(
+                '(x + 3)(x + 1) &= x^{2} + x + 3x + 3',
+                '&= x^{2} + 4x + 3',
+                '2(x + 1)^{2} &= 2(x^{2} + 2x + 1)',
+                '&= 2x^{2} + 4x + 2',
+              ),
+              prose('Taking the second from the first, the minus reaches every term:'),
+              working('&x^{2} + 4x + 3 - (2x^{2} + 4x + 2)', '=\\;&-x^{2} + 1'),
+            ),
             teach(
               prose(
                 'That is $-2(x - 2)(x - 5) < 0$. Its $x^{2}$ coefficient is $-2$, so its graph opens **downwards**, like an n, with roots $2$ and $5$: positive between the roots, negative outside them. We want negative, so $x < 2$ or $x > 5$, the same answer as before.',
@@ -899,6 +999,13 @@ export const algebraicFractions: Course = {
               ),
               working('&x^{2} + 3x + 2', '-\\;&(x^{2} + 2x - 3)', '=\\;&x + 5'),
               prose('The $x^{2}$ terms cancel, so the top is linear.'),
+              prose('Each product comes from multiplying every term by every term:'),
+              working(
+                '(x + 1)(x + 2) &= x^{2} + 2x + x + 2',
+                '&= x^{2} + 3x + 2',
+                '(x + 3)(x - 1) &= x^{2} - x + 3x - 3',
+                '&= x^{2} + 2x - 3',
+              ),
             ),
             ask('frac-ineq-two-steps'),
             ask('frac-ineq-two-top-tree'),
@@ -947,6 +1054,8 @@ export const algebraicFractions: Course = {
               prose(
                 'On a graph, $\\frac{x + 4}{x - 2} < 3$ is where the curve is below the line $y = 3$. The curve gets from one side of the line to the other only where it meets the line, at $x = 5$, or where it shoots off, at the pole $x = 2$.',
               ),
+              prose('The meeting point comes from the equation. Multiplying by the bottom is safe in an equation:'),
+              working('\\frac{x + 4}{x - 2} &= 3', 'x + 4 &= 3x - 6', '-2x &= -10', 'x &= 5'),
             ),
             ask('frac-ineq-graph-slider'),
             ask('frac-ineq-table-line', 2),
@@ -963,7 +1072,17 @@ export const algebraicFractions: Course = {
                 'Critical values $-5$, $-2$ and $1$. Test each region: $x = -6$ negative, $x = -3$ positive, $x = 0$ negative, $x = 2$ positive. So $x \\le -5$ or $-2 < x < 1$. The greatest whole number is $0$, since the pole $1$ is left out.',
               ),
             ),
-            ask('frac-ineq-least-whole', 2),
+            askAfter(
+              'frac-ineq-least-whole',
+              2,
+              prose('Those products multiply every term of one bracket by every term of the other:'),
+              working(
+                '(x + 1)(x + 2) &= x^{2} + 2x + x + 2',
+                '&= x^{2} + 3x + 2',
+                '(x + 3)(x - 1) &= x^{2} - x + 3x - 3',
+                '&= x^{2} + 2x - 3',
+              ),
+            ),
             ask('frac-ineq-graph-slider', 2),
           ],
           skillCheck: [ask('frac-ineq-table-line', 2), ask('frac-ineq-least-whole', 2), ask('frac-ineq-member-flow', 2)],
@@ -1008,6 +1127,8 @@ export const algebraicFractions: Course = {
               prose(
                 'So the vertical asymptotes are where the bottom is zero, here $x = 2$ and $x = -3$. Factorise first, and check nothing cancels: a factor on the top as well is a hole, which comes later in this level.',
               ),
+              working('&\\frac{(x - 3)(x + 6)}{(x - 2)(x - 3)}', '=\\;&\\frac{x + 6}{x - 2}, \\quad x \\neq 3'),
+              prose('That bottom is zero at $x = 2$ and $x = 3$, but $(x - 3)$ cancels, so $x = 3$ is a hole and only $x = 2$ is an asymptote.'),
             ),
             ask('frac-va-which'),
             teach(
@@ -1020,7 +1141,14 @@ export const algebraicFractions: Course = {
             ask('frac-va-slider'),
             ask('frac-va-side-flow'),
             ask('frac-va-arms-tiles'),
-            ask('frac-va-which', 2),
+            askAfter(
+              'frac-va-which',
+              2,
+              prose(
+                'Given multiplied out, factorise first: take out any common number, then find two numbers that multiply to the number term and add to the $x$ coefficient, here $1$ and $3$:',
+              ),
+              working('&3x^{2} + 12x + 9', '=\\;&3(x^{2} + 4x + 3)', '=\\;&3(x + 1)(x + 3)'),
+            ),
             teach(
               prose(
                 'The same test at $x = -3$: everything but $(x + 3)$ gives $\\frac{-2}{-5}$, which is positive. So $y \\to +\\infty$ as $x \\to -3^{+}$, and $y \\to -\\infty$ as $x \\to -3^{-}$.',
@@ -1097,6 +1225,10 @@ export const algebraicFractions: Course = {
               prose('The hole’s height comes from the simplified form, which is defined there:'),
               maths('\\frac{1 + 3}{1 - 3} = -2'),
               prose('So the hole is at $(1, -2)$. A drawing cannot show one missing point, so it is marked with a ring.'),
+              prose(
+                'Given multiplied out, factorise first: take out a common number or a minus sign, then find two numbers that multiply to the number term and add to the $x$ coefficient.',
+              ),
+              working('&2x^{2} - 16x + 24', '=\\;&2(x^{2} - 8x + 12)', '=\\;&2(x - 2)(x - 6)', '&-x^{2} + 36', '=\\;&-(x^{2} - 36)', '=\\;&-(x - 6)(x + 6)'),
             ),
             ask('frac-hole-tree'),
             ask('frac-hole-tiles'),
@@ -1122,6 +1254,11 @@ export const algebraicFractions: Course = {
               ),
               maths('\\frac{(x + 2)(x - 1)}{(x - 1)(x - 4)}'),
               prose('This one crosses the $x$-axis only at $x = -2$. At $x = 1$ it has a hole.'),
+              prose(
+                'A top given multiplied out is factorised first. Take out the common number, then find two numbers that multiply to $-6$ and add to $-1$: $-3$ and $2$.',
+              ),
+              working('&2x^{2} - 2x - 12', '=\\;&2(x^{2} - x - 6)', '=\\;&2(x - 3)(x + 2)'),
+              prose('So that top is zero at $x = 3$ and $x = -2$.'),
             ),
             ask('frac-x-int-which'),
             teach(
@@ -1184,6 +1321,9 @@ export const algebraicFractions: Course = {
               prose('For $\\frac{(x - 1)(x - 5)}{(x + 1)(x - 3)} = 1$, multiply both sides by the bottom:'),
               working('x^2 - 6x + 5 &= x^2 - 2x - 3', '-4x &= -8'),
               prose('So it crosses $y = 1$ at $x = 2$. If the $x$ terms cancel too, nothing is left to solve, and it never crosses.'),
+              prose('At a level other than $1$, that number multiplies every term of the bottom. For $\\frac{2x^{2} + 4x + 10}{x^{2} + 5x + 2} = 2$:'),
+              working('2x^2 + 4x + 10 &= 2(x^2 + 5x + 2)', '2x^2 + 4x + 10 &= 2x^2 + 10x + 4', '-6x &= -6'),
+              prose('So it crosses $y = 2$ at $x = 1$.'),
             ),
             ask('frac-cross-ha'),
             teach(
@@ -1195,7 +1335,15 @@ export const algebraicFractions: Course = {
               ),
             ),
             ask('frac-sketch-flow'),
-            ask('frac-features-table', 2),
+            askAfter(
+              'frac-features-table',
+              2,
+              prose(
+                'Given multiplied out, factorise both lines first. For $x^{2} - 7x + 12$, two numbers multiply to $12$ and add to $-7$: $-3$ and $-4$. Take out a common number before looking:',
+              ),
+              working('&x^{2} - 7x + 12 = (x - 3)(x - 4)', '&3x^{2} - 15x + 12', '=\\;&3(x^{2} - 5x + 4)', '=\\;&3(x - 1)(x - 4)'),
+              prose('A bracket on both lines, here $(x - 4)$, cancels to a hole.'),
+            ),
             ask('frac-sketch-which', 2),
             ask('frac-cross-ha', 2),
             ask('frac-sketch-flow', 2),
@@ -1256,6 +1404,10 @@ export const algebraicFractions: Course = {
                 '=\\;&\\frac{1}{3} - \\frac{1}{n + 3}',
               ),
               prose('When the bottom comes multiplied out, factorise it first: $r^2 + 5r + 6 = (r + 2)(r + 3)$, two numbers that add to $5$ and multiply to $6$.'),
+              prose(
+                'For a partial sum, simplify the front piece, put in $n$, and subtract over a common bottom. $\\sum_{r=1}^{n} \\frac{2}{(r + 5)(r + 6)}$ splits into $\\frac{2}{r + 5} - \\frac{2}{r + 6}$:',
+              ),
+              working('S_n &= \\frac{2}{6} - \\frac{2}{n + 6} = \\frac{1}{3} - \\frac{2}{n + 6}', 'S_2 &= \\frac{1}{3} - \\frac{2}{8}', '&= \\frac{4}{12} - \\frac{3}{12} = \\frac{1}{12}'),
             ),
             ask('frac-diff-partial-table'),
             ask('frac-diff-split-tiles', 2),
@@ -1285,6 +1437,10 @@ export const algebraicFractions: Course = {
                 '&- \\frac{1}{2}\\left(\\frac{1}{n + 1} + \\frac{1}{n + 2}\\right)',
               ),
               prose('The number in front is the top over the gap between the brackets. So $\\frac{5}{(r + 1)(r + 4)}$ has $\\frac{5}{3}$ in front, and three survive at each end.'),
+              prose(
+                'To give the front as one number, add its fractions over a common bottom, then multiply by the number in front and cancel. For $\\frac{4}{(r + 1)(r + 3)}$ the front is $2\\left(\\frac{1}{2} + \\frac{1}{3}\\right)$:',
+              ),
+              working('&2\\left(\\frac{3}{6} + \\frac{2}{6}\\right)', '=\\;&2 \\times \\frac{5}{6}', '=\\;&\\frac{10}{6} = \\frac{5}{3}'),
             ),
             ask('frac-gap-ends-tiles'),
             ask('frac-gap-flow'),
@@ -1334,6 +1490,10 @@ export const algebraicFractions: Course = {
                 '&\\sum_{r=1}^{n} \\frac{1}{r(r + 1)(r + 2)}',
                 '=\\;&\\frac{1}{2}\\left(\\frac{1}{2} - \\frac{1}{(n + 1)(n + 2)}\\right)',
               ),
+              prose(
+                'To give a front piece as one fraction, multiply the tops and the bottoms, then cancel. $\\frac{3}{(r + 1)(r + 2)(r + 3)}$ is $\\frac{3}{2}$ of the difference, so its front piece, at $r = 1$, is:',
+              ),
+              working('&\\frac{3}{2} \\times \\frac{1}{2 \\times 3}', '=\\;&\\frac{3}{2} \\times \\frac{1}{6}', '=\\;&\\frac{3}{12} = \\frac{1}{4}'),
             ),
             ask('frac-triple-sum-which'),
             askAfter(
@@ -1356,6 +1516,8 @@ export const algebraicFractions: Course = {
               prose('A sum need not start at $r = 1$. From $r = 4$, the fraction that survives at the front is the term at $r = 4$:'),
               working('&\\sum_{r=4}^{n} \\left(\\frac{1}{r} - \\frac{1}{r + 1}\\right)', '=\\;&\\frac{1}{4} - \\frac{1}{n + 1}'),
               prose('Given the sum, the far piece gives $n$: if it comes to $\\frac{1}{4} - \\frac{1}{n + 1} = \\frac{3}{20}$, then $\\frac{1}{n + 1} = \\frac{1}{10}$ and $n = 9$.'),
+              prose('To get there, subtract over a common bottom:'),
+              working('\\frac{1}{n + 1} &= \\frac{1}{4} - \\frac{3}{20}', '&= \\frac{5}{20} - \\frac{3}{20}', '&= \\frac{2}{20} = \\frac{1}{10}'),
             ),
             ask('frac-from-m-table'),
             ask('frac-find-n'),
@@ -1363,6 +1525,11 @@ export const algebraicFractions: Course = {
               prose('A top with $r$ in it can still cancel. Two squares side by side differ by $(r + 1)^2 - r^2 = 2r + 1$, so:'),
               maths('\\frac{2r + 1}{r^2(r + 1)^2} = \\frac{1}{r^2} - \\frac{1}{(r + 1)^2}'),
               prose('Check the top is the difference of the two squares; then it cancels like a split one apart.'),
+              prose('For brackets further along, multiply both squares out and subtract. A top that is a multiple of the difference puts that number on each fraction:'),
+              working('&(r + 4)^2 - (r + 3)^2', '=\\;&(r^2 + 8r + 16) - (r^2 + 6r + 9)', '=\\;&2r + 7'),
+              maths('\\frac{6r + 21}{(r + 3)^2(r + 4)^2} = \\frac{3}{(r + 3)^2} - \\frac{3}{(r + 4)^2}'),
+              prose('A bottom given as a squared quadratic is factorised inside first, since $3$ and $4$ multiply to $12$ and add to $7$:'),
+              maths('(r^{2} + 7r + 12)^{2} = (r + 3)^2(r + 4)^2'),
             ),
             ask('frac-square-split-tiles'),
             ask('frac-square-which'),
@@ -1386,6 +1553,10 @@ export const algebraicFractions: Course = {
                 'As $n$ grows, every piece with $n$ in it tends to $0$, so the sum to infinity is what survives at the front:',
               ),
               working('&\\sum_{r=1}^{\\infty} \\frac{1}{r(r + 2)}', '=\\;&\\frac{1}{2}\\left(1 + \\frac{1}{2}\\right) = \\frac{3}{4}'),
+              prose(
+                'Add the front pieces over a common bottom, then multiply by the number in front and cancel. For $\\sum_{r=1}^{\\infty} \\frac{4}{(r + 2)(r + 4)}$ the front is $2\\left(\\frac{1}{3} + \\frac{1}{4}\\right)$:',
+              ),
+              working('&2\\left(\\frac{4}{12} + \\frac{3}{12}\\right)', '=\\;&2 \\times \\frac{7}{12}', '=\\;&\\frac{14}{12} = \\frac{7}{6}'),
             ),
             ask('frac-infinite-flow'),
             ask('frac-infinite-tree'),
@@ -1403,6 +1574,16 @@ export const algebraicFractions: Course = {
               ),
               working('\\frac{1}{n + 1} &< 0.01', 'n + 1 &> 100'),
               prose('At $n = 99$ the gap is exactly $0.01$, not less; at $n = 100$ it is $\\frac{1}{101}$. So $n = 100$.'),
+              prose('A number on top is divided by the target. For a gap of $\\frac{3}{n + 1}$ and a target of $0.02$:'),
+              working('n + 1 &> \\frac{3}{0.02} = 150', 'n &> 149'),
+              prose(
+                'So $n = 150$. With two far pieces, such as a gap of $\\frac{1}{2}\\left(\\frac{1}{n + 1} + \\frac{1}{n + 2}\\right)$ and a target of $0.1$, both pieces are close to $\\frac{1}{n + 1}$, so start near $n = 9$ and work the gap out either side:',
+              ),
+              working(
+                'n = 8: &\\quad \\tfrac{1}{2}\\left(\\tfrac{1}{9} + \\tfrac{1}{10}\\right) \\approx 0.106',
+                'n = 9: &\\quad \\tfrac{1}{2}\\left(\\tfrac{1}{10} + \\tfrac{1}{11}\\right) \\approx 0.095',
+              ),
+              prose('It first drops below $0.1$ at $n = 9$.'),
             ),
             ask('frac-within'),
             ask('frac-infinite-tree', 2),

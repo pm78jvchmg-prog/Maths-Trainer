@@ -64,6 +64,13 @@ const standardMirrors = maths(
 const standardRecap = prose(
   'The standard matrices, each rebuilt from where $\\mathbf{i}$ and $\\mathbf{j}$ go. A quarter turn clockwise, which is $270^\\circ$ anticlockwise, sends $\\mathbf{i}$ down to $(0, -1)$ and $\\mathbf{j}$ across to $(1, 0)$, and those are its columns. A mirror keeps what lies on it and flips the rest.',
 );
+/** A mirror named by its equation: `x = 0` is the y-axis, `y = 0` the x-axis. */
+const mirrorByEquation = prose(
+  'A mirror may be named by its equation. Every point on the $y$-axis has $x = 0$, so the line $x = 0$ is the $y$-axis, and the line $y = 0$ is the $x$-axis. Reflecting $(3, 4)$ in the line $y = 0$:',
+);
+const mirrorByEquationWorked = maths(
+  '\\begin{pmatrix} 1 & 0 \\\\ 0 & -1 \\end{pmatrix} \\begin{pmatrix} 3 \\\\ 4 \\end{pmatrix} = \\begin{pmatrix} 3 \\\\ -4 \\end{pmatrix}',
+);
 const scalingRecap = prose(
   'An enlargement about $O$ with scale factor $k$ is $\\begin{pmatrix} k & 0 \\\\ 0 & k \\end{pmatrix}$. A stretch parallel to the $x$-axis is $\\begin{pmatrix} k & 0 \\\\ 0 & 1 \\end{pmatrix}$, and parallel to the $y$-axis $\\begin{pmatrix} 1 & 0 \\\\ 0 & k \\end{pmatrix}$.',
 );
@@ -311,6 +318,11 @@ export const matrices: Course = {
               maths('\\left(3 \\times 4\\right)\\left(4 \\times 2\\right) \\implies 3 \\times 2'),
               maths('\\left(3 \\times 4\\right)\\left(6 \\times 4\\right): \\; 4 \\neq 6'),
               prose('The inner pair disagree there, so that product does not exist.'),
+              prose(
+                'The **scalar product** of two vectors is that row-times-column pairing on its own: multiply the matching components and add. The answer is one number, not a vector.',
+              ),
+              maths('\\begin{pmatrix} 2 \\\\ 3 \\end{pmatrix} \\cdot \\begin{pmatrix} 4 \\\\ -1 \\end{pmatrix} = \\left(2\\right)\\left(4\\right) + \\left(3\\right)\\left(-1\\right)'),
+              maths('= 8 - 3 = 5'),
             ),
             ask('mat-vector'),
             ask('vec-dot-steps'),
@@ -872,6 +884,12 @@ export const matrices: Course = {
               prose(
                 'The four to keep apart are the quarter turns and the diagonal mirrors. All four swap the coordinates over, and only the signs tell them apart.',
               ),
+              prose(
+                'A mirror can be named by its equation instead. Every point on the $y$-axis has $x = 0$, so the line $x = 0$ is the $y$-axis and uses its matrix; likewise $y = 0$ is the $x$-axis. Reflecting $(5, 2)$ in the line $x = 0$:',
+              ),
+              maths(
+                '\\begin{pmatrix} -1 & 0 \\\\ 0 & 1 \\end{pmatrix} \\begin{pmatrix} 5 \\\\ 2 \\end{pmatrix} = \\begin{pmatrix} -5 \\\\ 2 \\end{pmatrix}',
+              ),
             ),
             ask('mat-standard-image+choice'),
             ask('mat-standard-locate'),
@@ -1081,6 +1099,8 @@ export const matrices: Course = {
               standardRecap,
               standardTurns,
               standardMirrors,
+              mirrorByEquation,
+              mirrorByEquationWorked,
             ),
             ask('mat-compose-order'),
             ask('mat-compose-point'),
@@ -1208,6 +1228,8 @@ export const matrices: Course = {
               standardRecap,
               standardTurns,
               standardMirrors,
+              mirrorByEquation,
+              mirrorByEquationWorked,
             ),
             ask('mat-compose-standard'),
             ask('mat-compose-name'),
@@ -1472,6 +1494,9 @@ export const matrices: Course = {
               ),
               maths('\\mathbf{A} = \\begin{pmatrix} 2 & 1 & 3 \\\\ 0 & 4 & 1 \\\\ 5 & 2 & 1 \\end{pmatrix}'),
               maths('M_1 = \\begin{vmatrix} 4 & 1 \\\\ 2 & 1 \\end{vmatrix} = 2'),
+              prose('For $M_2$ cross out row 1 and column 2, and for $M_3$ column 3. The entries left close up in their own order, even when the crossed-out column was in the middle:'),
+              maths('M_2 = \\begin{vmatrix} 0 & 1 \\\\ 5 & 1 \\end{vmatrix} = (0)(1) - (1)(5) = -5'),
+              maths('M_3 = \\begin{vmatrix} 0 & 4 \\\\ 5 & 2 \\end{vmatrix} = (0)(2) - (4)(5) = -20'),
               prose('Multiply each entry of the first row by its minor, and combine them with the signs $+ \\; - \\; +$.'),
               maths('\\det \\mathbf{A} = 2M_1 - 1M_2 + 3M_3'),
               prose('Here $M_2 = -5$ and $M_3 = -20$, so $\\det \\mathbf{A} = 2(2) - 1(-5) + 3(-20) = -51$.'),
@@ -1666,7 +1691,9 @@ export const matrices: Course = {
             ask('mat-sys-param-det', 2),
             teach(
               prose('When $k$ appears twice the determinant can be a quadratic, with two bad values.'),
-              maths('\\det \\begin{pmatrix} k & 2 \\\\ 3 & k - 1 \\end{pmatrix} = k^2 - k - 6'),
+              maths('\\det \\begin{pmatrix} k & 2 \\\\ 3 & k - 1 \\end{pmatrix} = k(k - 1) - (2)(3)'),
+              maths('= k^2 - k - 6'),
+              prose('Expand the bracket first, then look for the pair of numbers whose product is the number term and whose sum is the $k$ coefficient: $-3$ and $2$ multiply to $-6$ and add to $-1$.'),
               maths('= (k - 3)(k + 2)'),
               prose(
                 'Both $k = 3$ and $k = -2$ make it zero, so a unique solution needs $k \\neq 3$ and $k \\neq -2$. Leaving one of them out is the usual slip.',
@@ -1777,6 +1804,14 @@ export const matrices: Course = {
               ),
               maths('(m - 1)(m + 2) = 0'),
               prose('So $m = 1$ or $m = -2$: the invariant lines through $O$ are $y = x$ and $y = -2x$.'),
+              prose(
+                'Take out any common factor before looking for the pair, and with a negative $m^2$ take the minus out first. For $\\begin{pmatrix} -2 & 2 \\\\ 0 & -4 \\end{pmatrix}$, $(1, m)$ goes to $(-2 + 2m, \\; -4m)$:',
+              ),
+              maths(
+                '\\begin{gathered} -4m = m(-2 + 2m) \\\\ 2m^2 + 2m = 0 \\\\ 2m(m + 1) = 0 \\end{gathered}',
+              ),
+              prose('So $m = 0$ or $m = -1$. A negative square term works the same way:'),
+              maths('-m^2 - 5m - 6 = -(m^2 + 5m + 6) = -(m + 2)(m + 3)'),
             ),
             ask('mat-inv-line-quad'),
             ask('mat-inv-line-gradients'),
@@ -1890,6 +1925,8 @@ export const matrices: Course = {
                 'A quicker route to the image of such a line. A line parallel to an invariant line $y = mx$ maps to another line of gradient $m$, so only its intercept is unknown, and one point finds it.',
               ),
               maths('\\begin{pmatrix} 3 & 1 \\\\ 2 & 2 \\end{pmatrix} \\begin{pmatrix} 0 \\\\ 3 \\end{pmatrix} = \\begin{pmatrix} 3 \\\\ 6 \\end{pmatrix}'),
+              prose('To find the intercept, put the mapped point into $y = mx + c$ and solve for $c$:'),
+              maths('\\begin{aligned} 6 &= -2(3) + c \\\\ 6 &= -6 + c \\\\ c &= 12 \\end{aligned}'),
               prose(
                 'So $y = -2x + 3$ goes to the line of gradient $-2$ through $(3, 6)$, which is $y = -2x + 12$. It moved: of the lines with gradient $-2$, only $y = -2x$ is invariant.',
               ),

@@ -36,6 +36,8 @@ export const inequalities: Level = {
           maths('2 < x < \\frac{31}{3}'),
           prose('So $x$ runs from $3$ to $10$:'),
           maths('10 - 3 + 1 = 8'),
+          prose('Above a negative fraction means towards zero. For $-\\tfrac{10}{3} < x < \\tfrac{9}{2}$, $-\\tfrac{10}{3}$ is about $-3.33$, so the first whole number is $-3$, not $-4$, and the last is $4$:'),
+          maths('4 - (-3) + 1 = 8'),
         ),
         askAfter(
           'cm-in-count-integers+choice',
@@ -129,7 +131,8 @@ export const inequalities: Level = {
         askAfter(
           'cm-in-amgm-min+choice',
           2,
-          prose('Sometimes the fixed product is hidden. Split the fraction first:'),
+          prose('Sometimes the fixed product is hidden. Multiply out the top, every term by every term, then split the fraction term by term:'),
+          maths('(x + 2)(x + 8) = x^2 + 8x + 2x + 16 = x^2 + 10x + 16'),
           maths('\\frac{(x + 2)(x + 8)}{x} = x + \\frac{16}{x} + 10'),
           maths('x + \\frac{16}{x} \\ge 2\\sqrt{16} = 8'),
           prose('with equality at $x = 4$. Add the $10$ back:'),

@@ -23,6 +23,10 @@ export const probability: Level = {
           prose('A total of $7$ runs from $(1, 6)$ to $(6, 1)$, which is $6$ outcomes:'),
           maths('P(7) = \\frac{6}{36} = \\frac{1}{6}'),
           prose('The trap is to say there are $11$ totals, $2$ to $12$, so each has probability $\\tfrac{1}{11}$. The totals are not equally likely: $2$ is only $(1, 1)$. Count outcomes, never totals. Two $8$-sided dice work the same way, with $64$ outcomes.'),
+          prose('Above the middle total the first die cannot be small, since the second is at most $6$. A total of $9$ needs the first to be at least $3$:'),
+          maths('9 - 6 = 3'),
+          maths('(3, 6), \\; (4, 5), \\; (5, 4), \\; (6, 3)'),
+          maths('P(9) = \\frac{4}{36} = \\frac{1}{9}'),
         ),
         ask('cm-pr-dice-sum'),
         askAfter(
@@ -156,6 +160,9 @@ export const probability: Level = {
           maths('4 \\times 3 = 12'),
           maths('P = \\frac{12}{21} = \\frac{4}{7}'),
           prose('The trap is $\\left(\\tfrac{4}{7}\\right)^2$ for both girls: that puts the first girl back before choosing the second.'),
+          prose('For $\\binom{n}{k}$, multiply $k$ numbers counting down from $n$ and divide by $k!$. Choosing $10$ of $12$ is choosing the $2$ left out:'),
+          maths('\\binom{10}{3} = \\frac{10 \\times 9 \\times 8}{3 \\times 2 \\times 1} = \\frac{720}{6} = 120'),
+          maths('\\binom{12}{10} = \\binom{12}{2} = \\frac{12 \\times 11}{2} = 66'),
         ),
         ask('cm-pr-committee'),
         askAfter(
@@ -271,6 +278,9 @@ export const probability: Level = {
           maths('P(B \\cap R) = \\frac{1}{2} \\times \\frac{1}{4} = \\frac{1}{8}'),
           prose('Given red, keep only those two paths. Bag A is its share of them:'),
           maths('P(A \\mid R) = \\frac{3}{8} \\div \\left(\\frac{3}{8} + \\frac{1}{8}\\right) = \\frac{3}{4}'),
+          prose('When the paths have different bottoms, add over a shared bottom, and divide by turning the second fraction over. With paths $\\tfrac{1}{4}$ and $\\tfrac{1}{6}$:'),
+          maths('\\frac{1}{4} + \\frac{1}{6} = \\frac{3}{12} + \\frac{2}{12} = \\frac{5}{12}'),
+          maths('\\frac{1}{4} \\div \\frac{5}{12} = \\frac{1}{4} \\times \\frac{12}{5} = \\frac{3}{5}'),
         ),
         askAfter(
           'cm-pr-cond-dice+choice',

@@ -385,9 +385,28 @@ export const seriesExpansions: Course = {
               prose(
                 "For $\\sqrt{4.2}$, expand $\\sqrt{x}$ about $4$: $f(4) = 2$ and $f'(x) = \\frac{1}{2\\sqrt{x}}$ gives $f'(4) = \\frac{1}{4}$. So $\\sqrt{4.2} \\approx 2 + \\frac{1}{4} \\times 0.2 = 2.05$.",
               ),
+              prose('For $\\sin x$ about $\\pi$, run the usual derivative cycle, then put in $\\sin \\pi = 0$ and $\\cos \\pi = -1$:'),
+              working(
+                'f(\\pi) &= \\sin \\pi = 0',
+                "f'(\\pi) &= \\cos \\pi = -1",
+                "f''(\\pi) &= -\\sin \\pi = 0",
+                "f'''(\\pi) &= -\\cos \\pi = 1",
+              ),
+              working('\\sin x &= -(x - \\pi)', '&\\quad + \\tfrac{1}{6}(x - \\pi)^{3} - \\cdots'),
             ),
             ask('ser-taylor-centre'),
-            ask('ser-taylor-tree', 2),
+            asking(
+              'ser-taylor-tree',
+              2,
+              prose('Differentiating a fractional power again and again: bring the power down and lower it by one each time. A negative fractional power is one over the root, raised. For $f(x) = x^{1/2}$ at $x = 4$:'),
+              working("f'(x) &= \\tfrac{1}{2}x^{-1/2}", "f''(x) &= -\\tfrac{1}{4}x^{-3/2}", "f'''(x) &= \\tfrac{3}{8}x^{-5/2}"),
+              prose('At $x = 4$ the powers are $4^{-1/2} = \\frac{1}{2}$, $4^{-3/2} = \\frac{1}{8}$ and $4^{-5/2} = \\frac{1}{32}$:'),
+              working(
+                "f'(4) &= \\tfrac{1}{2} \\times \\tfrac{1}{2} = \\tfrac{1}{4}",
+                "f''(4) &= -\\tfrac{1}{4} \\times \\tfrac{1}{8} = -\\tfrac{1}{32}",
+                "f'''(4) &= \\tfrac{3}{8} \\times \\tfrac{1}{32} = \\tfrac{3}{256}",
+              ),
+            ),
             ask('ser-taylor-tiles', 2),
             teach(
               prose('Keep $(x - a)$ as one bracket rather than multiplying it out. About $x = -3$ the bracket is $x + 3$:'),
@@ -406,6 +425,8 @@ export const seriesExpansions: Course = {
             teach(
               prose('Put a small $x$ into the first few terms and you have an estimate. With $x = \\frac{1}{2}$ in the series for $\\ln(1 + x)$:'),
               display('\\ln \\tfrac{3}{2} \\approx \\frac{1}{2} - \\frac{1}{8} + \\frac{1}{24} = \\frac{5}{12}'),
+              prose('To add the terms, put every one over the lowest common denominator, here $24$, add the tops, then simplify:'),
+              working('&\\frac{12}{24} - \\frac{3}{24} + \\frac{1}{24}', '&= \\frac{10}{24} = \\frac{5}{12}'),
               prose(
                 'The first term **left out**, here $-\\frac{1}{64}$, estimates the error. When the signs alternate and the terms shrink, the error is smaller than it.',
               ),
@@ -451,6 +472,12 @@ export const seriesExpansions: Course = {
               1,
               prose('Terms taken off the top cancel the start of its series. For $\\frac{e^{2x} - 1}{x}$, put $u = 2x$ into $e^{u}$:'),
               working('e^{2x} - 1 &= 2x + 2x^{2} + \\cdots', '\\frac{e^{2x} - 1}{x} &= 2 + 2x + \\cdots \\to 2'),
+              prose('A series taken away from $1$ goes term by term: the $1$s cancel and every other sign turns over. For $\\frac{1 - \\cos x}{x^{2}}$:'),
+              working(
+                '1 - \\cos x &= 1 - \\left(1 - \\tfrac{1}{2}x^{2} + \\tfrac{1}{24}x^{4} - \\cdots\\right)',
+                '&= \\tfrac{1}{2}x^{2} - \\tfrac{1}{24}x^{4} + \\cdots',
+                '\\frac{1 - \\cos x}{x^{2}} &= \\tfrac{1}{2} - \\tfrac{1}{24}x^{2} + \\cdots \\to \\tfrac{1}{2}',
+              ),
             ),
             teach(
               prose('What matters is the first power the top starts with. Expand $\\cos 2x$ with $u = 2x$:'),
@@ -498,6 +525,8 @@ export const seriesExpansions: Course = {
                 'This is how to integrate what has no antiderivative in the usual functions, such as $e^{-t^{2}}$. Put $u = -t^{2}$ into the series for $e^{u}$, integrate, then put a number in:',
               ),
               working('\\int_0^x e^{-t^{2}}\\,dt &= x - \\frac{1}{3}x^{3}', '&\\quad + \\frac{1}{10}x^{5} - \\cdots'),
+              prose('Once a number is in, add the terms over their lowest common denominator. Three terms worth $\\frac{1}{2}$, $-\\frac{1}{6}$ and $\\frac{1}{20}$:'),
+              working('&\\frac{30}{60} - \\frac{10}{60} + \\frac{3}{60}', '&= \\frac{23}{60}'),
             ),
             ask('ser-int-steps'),
             ask('ser-int-terms-tree', 2),
@@ -594,6 +623,14 @@ export const seriesExpansions: Course = {
               prose("For $\\sin x$ after $P_{2}$, the next derivative is $f'''(x) = -\\cos x$:"),
               display('R_{2}(x) = \\frac{-\\cos c}{3!}x^{3}'),
               prose('Nobody knows $c$ exactly. Knowing it lies between $0$ and $x$ is enough to put a bound on the error, which is the next lesson.'),
+              prose('With a number in front and $3x$ inside, the number stays and each derivative brings out another $3$ by the chain rule. For $2\\cos 3x$ after $P_{3}$:'),
+              working(
+                "f'(x) &= -6\\sin 3x",
+                "f''(x) &= -18\\cos 3x",
+                "f'''(x) &= 54\\sin 3x",
+                "f''''(x) &= 162\\cos 3x",
+                'R_{3}(x) &= \\frac{162\\cos 3c}{4!}x^{4}',
+              ),
             ),
             ask('ser-rem-pick'),
             ask('ser-rem-tiles', 2),
@@ -602,6 +639,13 @@ export const seriesExpansions: Course = {
               prose('A polynomial such as $(1 + x)^{4}$ is its own series, so its remainder is exact: just the terms after $x^{n}$.'),
               working('(1 + x)^{4} &= 1 + 4x + 6x^{2}', '&\\quad + 4x^{3} + x^{4}', 'R_{2}(x) &= 4x^{3} + x^{4}'),
               prose('At $x = \\frac{1}{2}$ that is $\\frac{1}{2} + \\frac{1}{16} = \\frac{9}{16}$.'),
+              prose('With a number in front of $x$, raise it to each power along with the $x$. After $P_{1}$:'),
+              working(
+                '(1 + 3x)^{3} &= 1 + 3(3x) + 3(3x)^{2}',
+                '&\\quad + (3x)^{3}',
+                '&= 1 + 9x + 27x^{2} + 27x^{3}',
+                'R_{1}(x) &= 27x^{2} + 27x^{3}',
+              ),
             ),
             ask('ser-rem-exact'),
             ask('ser-rem-exact+choice', 2),
@@ -711,6 +755,13 @@ export const seriesExpansions: Course = {
             teach(
               prose('For $e^{x}$ with $x > 0$, $M = e^{x}$ grows along with the power, so the bound $\\frac{e^{x}x^{n+1}}{(n+1)!}$ rises faster and the reach is shorter.'),
               prose('A multiplier or a $k$ in the function raises $M$ and shortens the reach too.'),
+              prose('The multiplier stays and each derivative brings out one more $k$. For $3\\sin 2x$ with $P_{2}$ and a tolerance of $0.001$:'),
+              working(
+                "f'''(x) &= -24\\cos 2x",
+                'M &= 3 \\times 2^{3} = 24',
+                '24 \\times \\frac{x^{3}}{3!} &= 4x^{3} \\le 0.001',
+                'x^{3} &\\le 0.00025, \\quad x \\le 0.063',
+              ),
             ),
             ask('ser-degree-slider', 2),
             ask('ser-degree-reach', 2),
@@ -918,6 +969,8 @@ export const seriesExpansions: Course = {
               ),
               display('a - R < x < a + R'),
               prose('So $\\sum \\frac{(x - 3)^{n}}{2^{n}}$, with $R = 2$, converges for $1 < x < 5$.'),
+              prose('A plus in the bracket means the centre is negative. $\\sum \\frac{(x + 2)^{n}}{3^{n}}$ has $R = 3$, and $x + 2$ is $x - (-2)$:'),
+              working('a &= -2', '-2 - 3 < x &< -2 + 3', '-5 < x &< 1'),
             ),
             ask('ser-shift-tree'),
             teach(
@@ -945,6 +998,10 @@ export const seriesExpansions: Course = {
               prose(
                 '$\\frac{1}{1 - x}$ breaks at $x = 1$, so its Maclaurin series has $R = 1$. $\\ln(1 + x)$ breaks at $x = -1$: $R = 1$ again. Both agree with the ratio test.',
               ),
+              prose(
+                'A fraction breaks where its bottom is $0$. For a quadratic bottom, factorise it: each bracket gives a break. For $x^{2} - x - 6$, the numbers multiplying to $-6$ and adding to $-1$ are $-3$ and $2$:',
+              ),
+              working('x^{2} - x - 6 &= (x - 3)(x + 2)', 'x &= 3 \\text{ or } x = -2'),
             ),
             ask('ser-singular-flow'),
             ask('ser-singular-typed'),
@@ -964,6 +1021,8 @@ export const seriesExpansions: Course = {
               prose(
                 'A power series converges inside a circle in the complex plane, centred on its centre. The circle grows until it meets a singularity, real or complex, and $i$ is a distance $1$ from $0$.',
               ),
+              prose('With a number in front of $x^{2}$, divide by it first; the square root of a negative is $i$ times the root of its size. For $\\frac{1}{4 + 9x^{2}}$:'),
+              working('4 + 9x^{2} &= 0', 'x^{2} &= -\\tfrac{4}{9}', 'x &= \\pm \\tfrac{2}{3}i, \\quad R = \\tfrac{2}{3}'),
             ),
             ask('ser-complex-pick'),
             ask('ser-complex-pick', 2),
@@ -1120,7 +1179,11 @@ export const seriesExpansions: Course = {
               1,
               prose('Any bracket $(1 + ct^{2})^{n}$ goes the same way, since each power integrates as'),
               display('\\int_{0}^{x} t^{2k}\\,dt = \\frac{x^{2k + 1}}{2k + 1}'),
-              prose('For $(1 - 2t^{2})^{-1/2}$:'),
+              prose('For $(1 - 2t^{2})^{-1/2}$, put the whole of $u = -2t^{2}$ into the series for $(1 + u)^{-1/2}$, so the $-2$ is raised to each power too:'),
+              working(
+                '&1 + (-\\tfrac{1}{2})u + \\tfrac{(-\\frac{1}{2})(-\\frac{3}{2})}{2!}u^{2}',
+                '&= 1 + (-\\tfrac{1}{2})(-2t^{2}) + \\tfrac{3}{8}(4t^{4})',
+              ),
               display('(1 - 2t^{2})^{-1/2} = 1 + t^{2} + \\tfrac{3}{2}t^{4} + \\cdots'),
               prose('so its integral from $0$ to $x$ is'),
               display('x + \\tfrac{1}{3}x^{3} + \\tfrac{3}{10}x^{5} + \\cdots'),

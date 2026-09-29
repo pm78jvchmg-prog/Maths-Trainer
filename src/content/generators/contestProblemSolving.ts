@@ -265,7 +265,7 @@ const cmWorkRate: Generator<RateParams> = {
     const t = hoursFor(p.m, p.w, p.n);
     return typed(
       [
-        say(`${p.w} ${c.who} ${c.make} ${p.n} ${c.things} in ${t} hours.`),
+        say(`${p.w} ${c.who} ${c.make} ${p.n} ${c.things} in ${t} ${t === 1 ? 'hour' : 'hours'}.`),
         say(`Working at the same rate, how many hours do ${p.W} ${c.who} take to ${c.make} ${p.N} ${c.things}?`),
       ],
       hoursFor(p.m, p.W, p.N),

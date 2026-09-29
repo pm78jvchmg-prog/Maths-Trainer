@@ -564,7 +564,8 @@ const cmMapArea: Generator<MapParams> = {
     }
   },
   render(p) {
-    const place = PLACES[(p.mapArea + p.scale / 10000) % PLACES.length];
+    // A whole index: 1 : 25 000 gave 2.5 once, and the place printed as "undefined".
+    const place = PLACES[(p.mapArea + Math.floor(p.scale / 5000)) % PLACES.length];
     const intro = say(`A map has a scale of $1 : ${big(p.scale)}$.`);
     if (p.back) {
       return typed(

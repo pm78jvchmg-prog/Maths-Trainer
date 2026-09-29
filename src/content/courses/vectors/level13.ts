@@ -189,6 +189,8 @@ export const level13: Level = {
           prose(
             'Typing $\\sqrt{32}$ as sqrt(32) is fine. Adding the two lengths $\\left| \\mathbf{a} \\right| + \\left| \\mathbf{b} \\right|$ is not: two sides of a triangle are always longer than the third.',
           ),
+          prose('To simplify a surd, split off the largest square factor and take its root outside. For a resultant of $\\left(2, 4\\right)$:'),
+          stacked('\\sqrt{2^{2} + 4^{2}} = \\sqrt{20}', '= \\sqrt{4 \\times 5} = \\sqrt{4} \\times \\sqrt{5}', '= 2\\sqrt{5}'),
         ),
         ask('vadd-resultant-length'),
         ask('vadd-resultant-length+choice', 2),
@@ -368,6 +370,12 @@ export const level13: Level = {
           stacked('2p + q = 7', '2p + 6q = 22'),
           prose('Take the second from the first, then put $q$ back in:'),
           stacked('-5q = -15', 'q = 3', '2p + 3 = 7', 'p = 2'),
+          prose(
+            'When neither coefficient divides the other, scale both. For $3p - 2q = 5$ and $2p + 3q = 12$, multiply the first by 2 and the second by 3:',
+          ),
+          stacked('6p - 4q = 10', '6p + 9q = 36'),
+          prose('Take the second from the first, then put $q$ back in:'),
+          stacked('-13q = -26', 'q = 2', '3p - 4 = 5', 'p = 3'),
         ),
         ask('vadd-pq'),
         ask('vadd-pq+choice', 2),

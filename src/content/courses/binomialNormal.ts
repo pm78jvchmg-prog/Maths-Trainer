@@ -137,6 +137,8 @@ export const binomialNormal: Course = {
               prose('For $X \\sim B(n, p)$, exactly $r$ successes means $r$ successes and $n - r$ failures, in some order.'),
               prose('One order has probability $p^r (1 - p)^{n - r}$, and there are $\\tbinom{n}{r}$ orders (that is ${}^{n}C_{r}$, from Binomial Expansion, nCr and the General Term).'),
               maths('P(X = r) = \\tbinom{n}{r} p^r (1 - p)^{n - r}'),
+              prose('To work out $\\tbinom{n}{r}$, multiply $r$ numbers counting down from $n$, then divide by $r!$:'),
+              working('\\tbinom{4}{2} &= \\frac{4 \\times 3}{2 \\times 1} = 6', '\\tbinom{5}{3} &= \\frac{5 \\times 4 \\times 3}{3 \\times 2 \\times 1} = 10', '\\tbinom{3}{1} &= \\frac{3}{1} = 3'),
               prose('$X \\sim B(4, 0.3)$: $P(X = 2)$ is $2$ successes and $2$ failures, in $\\tbinom{4}{2} = 6$ orders.'),
               working('& P(X = 2)', '&= \\tbinom{4}{2} \\times 0.3^2 \\times 0.7^2', '&= 6 \\times 0.09 \\times 0.49', '&= 0.2646'),
             ),
@@ -172,6 +174,8 @@ export const binomialNormal: Course = {
                 ['2', '0.189'],
                 ['3', '0.027'],
               ]),
+              prose('Each entry is $\\tbinom{n}{r} p^r (1 - p)^{n - r}$, from The Binomial Formula:'),
+              working('P(X = 0) &= 0.7^3 = 0.343', 'P(X = 1) &= 3 \\times 0.3 \\times 0.7^2 = 0.441', 'P(X = 2) &= 3 \\times 0.3^2 \\times 0.7 = 0.189'),
               prose('Every possible value is in the table, so the probabilities add up to $1$.'),
             ),
             ask('dist-table-fill'),
@@ -408,6 +412,8 @@ export const binomialNormal: Course = {
               working('& P(0.5 < Z < 1.5)', '&= 0.9332 - 0.6915', '&= 0.2417'),
               prose('A negative bottom end is found by symmetry first, $P(Z < -0.5) = 1 - 0.6915 = 0.3085$:'),
               working('& P(-0.5 < Z < 1.5)', '&= 0.9332 - 0.3085', '&= 0.6247'),
+              prose('In symbols, the bottom end is a bracket taken away, and taking it away flips the sign of both terms inside it:'),
+              working('& P(-0.5 < Z < 1.5)', '&= \\Phi(1.5) - (1 - \\Phi(0.5))', '&= \\Phi(1.5) + \\Phi(0.5) - 1'),
             ),
             ask('dist-normal-between-form'),
             ask('dist-tail-flow', 2),
@@ -516,7 +522,9 @@ export const binomialNormal: Course = {
             teach(
               prose('In The Normal Distribution one probability was enough, because only one of $\\mu$ and $\\sigma$ was missing. Standardising gave one equation, and one equation fixes one unknown:'),
               maths('\\frac{x - \\mu}{\\sigma} = z'),
-              prose('With both missing, that same equation has two unknowns in it.'),
+              prose('With $\\sigma$ known, multiply out the $\\sigma$, then move $\\mu$ across. $X \\sim N(\\mu, 16)$, so $\\sigma = 4$, and $P(X > 44) = 0.9772$: then $P(X < 44) = 0.0228$, under a half, so with $\\Phi(2) = 0.9772$, $z = -2$:'),
+              working('\\frac{44 - \\mu}{4} &= -2', '44 - \\mu &= -8', '\\mu &= 44 + 8 = 52'),
+              prose('The negative $z$ puts the mean above $44$. With both missing, that same equation has two unknowns in it.'),
             ),
             ask('dist-find-equation', 2),
             asking(
@@ -552,7 +560,10 @@ export const binomialNormal: Course = {
           title: 'Two Probabilities, Two Equations',
           slides: [
             teach(
-              prose('A second probability gives a second equation. Write each one as $x = \\mu + z\\sigma$. With $P(X < 41) = 0.0668$, $P(X > 81) = 0.3085$, $\\Phi(1.5) = 0.9332$ and $\\Phi(0.5) = 0.6915$:'),
+              prose('A second probability gives a second equation. Write each one as $x = \\mu + z\\sigma$. With $P(X < 41) = 0.0668$, $P(X > 81) = 0.3085$, $\\Phi(1.5) = 0.9332$ and $\\Phi(0.5) = 0.6915$, turn each into a below probability, then read the side of the mean from whether it is over a half:'),
+              working('P(X < 41) &= 0.0668 < 0.5', '1 - 0.0668 &= 0.9332 = \\Phi(1.5)', 'z &= -1.5'),
+              working('P(X < 81) &= 1 - 0.3085', '&= 0.6915 = \\Phi(0.5)', 'z &= 0.5'),
+              prose('So the two equations are:'),
               working('41 &= \\mu - 1.5\\sigma', '81 &= \\mu + 0.5\\sigma'),
               prose('Two equations in two unknowns: enough to find both.'),
             ),
@@ -584,7 +595,9 @@ export const binomialNormal: Course = {
           title: 'Solving Simultaneously',
           slides: [
             teach(
-              prose('Take one equation from the other and $\\mu$ cancels:'),
+              prose('First build the two equations, as in Two Probabilities, Two Equations. $P(X < 41) = 0.0668$ is under a half, so $41$ is below the mean; $P(X > 81) = 0.3085$ is turned round first:'),
+              working('1 - 0.0668 &= 0.9332 = \\Phi(1.5)', '\\text{so at } 41, \\; z &= -1.5', 'P(X < 81) &= 0.6915 = \\Phi(0.5)', '\\text{so at } 81, \\; z &= 0.5'),
+              prose('Then take one equation from the other and $\\mu$ cancels:'),
               working('81 &= \\mu + 0.5\\sigma', '41 &= \\mu - 1.5\\sigma', '40 &= 2\\sigma'),
               prose('So $\\sigma = 20$, and then $\\mu = 41 + 1.5 \\times 20 = 71$.'),
             ),
@@ -641,6 +654,8 @@ export const binomialNormal: Course = {
           title: 'Checking and Using the Result',
           slides: [
             teach(
+              prose('First find $\\mu$ and $\\sigma$ as in Solving Simultaneously. $P(X < 41) = 0.0668$ gives $z = -1.5$ and $P(X > 81) = 0.3085$ gives $z = 0.5$:'),
+              working('81 &= \\mu + 0.5\\sigma', '41 &= \\mu - 1.5\\sigma', '40 &= 2\\sigma, \\; \\sigma = 20', '\\mu &= 41 + 1.5 \\times 20 = 71'),
               prose('Check by putting $\\mu$ and $\\sigma$ back. With $\\mu = 71$ and $\\sigma = 20$:'),
               working('z &= \\frac{41 - 71}{20}', '&= -1.5'),
               working('P(X < 41) &= 1 - 0.9332', '&= 0.0668'),
@@ -825,12 +840,16 @@ export const binomialNormal: Course = {
             teach(
               prose('To approximate a binomial probability:'),
               prose('**1.** Check $np$ and $n(1 - p)$ are both above $5$. **2.** Write $Y \\sim N(np, np(1 - p))$ and find $\\sigma$. **3.** Apply the continuity correction. **4.** Standardise the boundary. **5.** Read $\\Phi$, taking the complement or a difference as needed.'),
+              prose('For $X \\sim B(16, 0.5)$ and $P(X \\le 6)$: $np$ and $n(1 - p)$ are both $8$, above $5$, so $Y \\sim N(8, 4)$ with $\\sigma = 2$. With $\\Phi(0.75) = 0.7734$:'),
+              working('P(X \\le 6) &\\approx P(Y < 6.5)', 'z &= \\frac{6.5 - 8}{2} = -0.75', 'P(Z < -0.75) &= 1 - 0.7734', '&= 0.2266'),
             ),
             ask('dist-approx-plan'),
             teach(
               prose('$X \\sim B(100, 0.5)$: find $P(X \\le 45)$. $np = 50$ and $n(1 - p) = 50$ are both above $5$. $\\mu = 50$, $\\sigma^2 = 50 \\times 0.5 = 25$, so $\\sigma = 5$, and $\\Phi(0.9) = 0.8159$.'),
               working('P(X \\le 45) &\\approx P(Y < 45.5)', 'z &= \\frac{45.5 - 50}{5}', '&= -0.9', 'P(Z < -0.9) &= 1 - 0.8159', '&= 0.1841'),
               prose('At least is the other side. $P(X \\ge 55) \\approx P(Y > 54.5)$, and $z = \\frac{54.5 - 50}{5} = 0.9$, so it is $1 - 0.8159 = 0.1841$.'),
+              prose('An above event can have its boundary below the mean. Above a negative $z$ is the same area as below the positive one:'),
+              working('P(X > 45) &\\approx P(Y > 45.5)', 'z &= \\frac{45.5 - 50}{5} = -0.9', 'P(Z > -0.9) &= \\Phi(0.9) = 0.8159'),
             ),
             ask('dist-approx-route-tree'),
             ask('dist-approx-prob'),
@@ -1008,6 +1027,8 @@ export const binomialNormal: Course = {
               prose('Once a combination has its normal, a probability is found as in The Normal Distribution: standardise with its own mean and $\\sigma$, then read $\\Phi$.'),
               prose('$X \\sim N(40, 9)$ and $Y \\sim N(30, 16)$ are independent, so $X + Y \\sim N(70, 25)$ and $\\sigma = 5$. With $\\Phi(1) = 0.8413$:'),
               working('z &= \\frac{75 - 70}{5} = 1', '& P(X + Y > 75)', '&= 1 - \\Phi(1)', '&= 0.1587'),
+              prose('Tables give only positive $z$, so a negative one is turned round by symmetry. With $D \\sim N(10, 25)$, $\\sigma = 5$ and $\\Phi(2) = 0.9772$:'),
+              working('z &= \\frac{0 - 10}{5} = -2', 'P(D > 0) &= P(Z > -2)', '&= \\Phi(2) = 0.9772', 'P(D < 0) &= P(Z < -2)', '&= 1 - \\Phi(2) = 0.0228'),
             ),
             ask('dist-combo-prob'),
             teach(
@@ -1159,6 +1180,8 @@ export const binomialNormal: Course = {
               maths('z = \\frac{\\bar{x} - \\mu}{\\sigma / \\sqrt{n}}'),
               prose('$X \\sim N(50, 36)$ and $n = 9$, so $\\sigma_{\\bar{X}} = 2$. With $\\Phi(1.5) = 0.9332$:'),
               working('z &= \\frac{53 - 50}{2} = 1.5', 'P(\\bar{X} > 53) &= 1 - 0.9332', '&= 0.0668'),
+              prose('Below the mean, $z$ is negative: turn it round by symmetry.'),
+              working('z &= \\frac{47 - 50}{2} = -1.5', 'P(\\bar{X} < 47) &= 1 - \\Phi(1.5) = 0.0668', 'P(\\bar{X} > 47) &= \\Phi(1.5) = 0.9332'),
             ),
             ask('dist-xbar-prob'),
             ask('dist-xbar-route-tree'),
@@ -1188,6 +1211,8 @@ export const binomialNormal: Course = {
               prose('Working back is done as in The Normal Distribution, "Working Back from a Probability", with $\\sigma_{\\bar{X}}$. $\\bar{X} \\sim N(50, 4)$, so $\\sigma_{\\bar{X}} = 2$.'),
               prose('For $P(\\bar{X} > k) = 0.05$, $k$ sits $1.645$ standard deviations above the mean:'),
               working('k &= 50 + 1.645 \\times 2', '&= 53.29'),
+              prose('A bottom tail uses the same table value with a minus sign. For $P(\\bar{X} < k) = 0.05$, $z = -1.645$ and $k$ is below the mean:'),
+              working('k &= 50 - 1.645 \\times 2', '&= 46.71'),
             ),
             ask('dist-xbar-critical'),
             ask('dist-xbar-cutoff-tree'),

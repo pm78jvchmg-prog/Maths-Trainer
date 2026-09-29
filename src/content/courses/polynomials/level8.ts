@@ -137,6 +137,8 @@ export const rootsOfQuartics: Level = {
           prose('$\\gamma$ and $\\delta$ have sum $-4$ and product $3$, so they are the roots of'),
           working('x^{2} + 4x + 3 &= 0', '(x + 1)(x + 3) &= 0'),
           prose('They are $-1$ and $-3$. All four roots, found from two.'),
+          prose('To factorise, look for two numbers with the product and the sum; they are the roots. With $\\gamma + \\delta = -1$ and $\\gamma\\delta = -6$, the numbers multiplying to $-6$ and adding to $-1$ are $-3$ and $2$:'),
+          working('x^{2} + x - 6 &= 0', '(x + 3)(x - 2) &= 0'),
         ),
         ask('poly-q4-other-roots-flow'),
         teach(

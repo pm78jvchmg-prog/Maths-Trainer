@@ -1157,8 +1157,19 @@ export const differentiation: Course = {
                 tex: '\\begin{aligned} \\frac{dy}{dx} &= 6x^{2} - 24x - 30 \\\\ &= 6(x^{2} - 4x - 5) \\\\ &= 6(x - 5)(x + 1) = 0 \\end{aligned}',
               },
               prose(
+                'To factorise $x^{2} - 4x - 5$, find two numbers that multiply to $-5$ and add to $-4$: they are $-5$ and $+1$, and they go into the brackets with their own signs. Multiplying back checks it:',
+              ),
+              { kind: 'display', tex: '(x - 5)(x + 1) = x^{2} + x - 5x - 5 = x^{2} - 4x - 5' },
+              prose(
                 'A product is zero only when one of its factors is, so $x = 5$ or $x = -1$: each bracket\'s number with its sign flipped.',
               ),
+              prose(
+                'When every term contains $x$, take $x$ out as well, and its factor gives $x = 0$. Taking out a negative number flips every sign inside the bracket:',
+              ),
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} 6x^{2} + 6x &= 6x(x + 1) \\\\ -6x^{2} + 18x - 12 &= -6(x^{2} - 3x + 2) \\\\ &= -6(x - 1)(x - 2) \\end{aligned}',
+              },
             ),
             ask('df-sp-roots'),
             ask('df-sp-roots', 2),
@@ -1174,6 +1185,13 @@ export const differentiation: Course = {
               prose(
                 'The heights also say which point is which. A cubic\'s hump is always higher than its dip, so of $(-1, 10)$ and $(3, -22)$ the **local maximum** is at $x = -1$ and the **local minimum** at $x = 3$ — just as the graph above shows.',
               ),
+              prose(
+                'Differentiating again also tells them apart, as The Second Derivative explains: where $f\'\'(x)$ is negative the curve bends down over a hump, and where it is positive it bends up into a dip.',
+              ),
+              {
+                kind: 'display',
+                tex: "\\begin{aligned} f'(x) &= 3x^{2} - 6x - 9 \\\\ f''(x) &= 6x - 6 \\\\ f''(-1) &= -12 < 0, \\text{ maximum} \\\\ f''(3) &= 12 > 0, \\text{ minimum} \\end{aligned}",
+              },
             ),
             ask('df-sp-y'),
             ask('df-sp-y-tree'),
@@ -1225,7 +1243,18 @@ export const differentiation: Course = {
               },
             ),
             ask('df-second-derivative'),
-            ask('df-sp-roots'),
+            askAfter(
+              [
+                prose(
+                  'Stationary points again, as in Finding Stationary Points: take out the common factor, then find the pair that multiplies to the number term and adds to the $x$ coefficient. For $6x^{2} - 30x + 36 = 0$, that pair is $-2$ and $-3$:',
+                ),
+                {
+                  kind: 'display',
+                  tex: '\\begin{aligned} 6(x^{2} - 5x + 6) &= 0 \\\\ 6(x - 2)(x - 3) &= 0 \\\\ x = 2 &\\text{ or } x = 3 \\end{aligned}',
+                },
+              ],
+              'df-sp-roots',
+            ),
             teach(
               prose(
                 'At a stationary point the gradient is zero, and the second derivative says which way it is heading as it passes through.',
@@ -1313,6 +1342,13 @@ export const differentiation: Course = {
               prose(
                 'To know which way it flips, put the root into every *other* factor. Near $x = -1$, $(x - 2)^{2}$ is about $(-3)^{2} = 9$, positive, so the gradient has the sign of $(x + 1)$: negative, then positive. A cubed bracket such as $(x - 4)^{3}$ flips just as a single one does.',
               ),
+              prose(
+                'A derivative that is not yet factorised needs factorising first: the common factor, then the pair that multiplies to the number term and adds to the $x$ coefficient. For $y = 2x^{3} - 3x^{2} - 36x$, $-3$ and $+2$ multiply to $-6$ and add to $-1$:',
+              ),
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} \\frac{dy}{dx} &= 6x^{2} - 6x - 36 \\\\ &= 6(x^{2} - x - 6) \\\\ &= 6(x - 3)(x + 2) \\end{aligned}',
+              },
             ),
             ask('df-factored-nature'),
             ask('df-factored-nature', 2),
@@ -1378,10 +1414,17 @@ export const differentiation: Course = {
               prose(
                 'A smooth function can only switch direction where its gradient is zero. So the stationary points cut the number line into stretches, and the gradient keeps one sign along each.',
               ),
-              { kind: 'display', tex: 'f\'(x) = 3(x + 1)(x - 3)' },
+              prose(
+                'For $f(x) = x^{3} - 3x^{2} - 9x$, factorise the derivative: take out the $3$, then $+1$ and $-3$ multiply to $-3$ and add to $-2$.',
+              ),
+              { kind: 'display', tex: "\\begin{aligned} f'(x) &= 3x^{2} - 6x - 9 \\\\ &= 3(x^{2} - 2x - 3) \\\\ &= 3(x + 1)(x - 3) \\end{aligned}" },
               prose(
                 'This is positive for $x < -1$ and for $x > 3$, and negative for $-1 < x < 3$. The function rises, falls, then rises again.',
               ),
+              prose(
+                'Taking out a negative factor flips every sign inside, then the bracket factorises as usual: $-4$ and $+2$ multiply to $-8$ and add to $-2$.',
+              ),
+              { kind: 'display', tex: "\\begin{aligned} f'(x) &= -3x^{2} + 6x + 24 \\\\ &= -3(x^{2} - 2x - 8) \\\\ &= -3(x - 4)(x + 2) \\end{aligned}" },
             ),
             ask('df-sp-roots'),
             ask('df-increasing-tiles'),
@@ -1459,6 +1502,10 @@ export const differentiation: Course = {
               prose(
                 'Each bracket is a single power, so $f\'\'$ changes sign at both roots: inflections at $x = 4$ and $x = -3$.',
               ),
+              prose(
+                'The bracket came from the pair that multiplies to $-12$ and adds to $-1$: $-4$ and $+3$. With no number term, $x$ comes out too, giving $x = 0$ as one root:',
+              ),
+              { kind: 'display', tex: '\\begin{aligned} 12x^{2} + 24x &= 12x(x + 2) \\\\ x = 0 &\\text{ or } x = -2 \\end{aligned}' },
             ),
             ask('df-inflection-x'),
             ask('df-inflection-flow'),
@@ -1595,10 +1642,15 @@ export const differentiation: Course = {
                 'The roots are the skeleton of a sketch; the turning points are its humps. Find them as before: solve $f\'(x) = 0$, then let $f\'\'(x)$ say which is which.',
               ),
               { kind: 'display', tex: 'y = x^{3} - 6x^{2} + 9x + 1' },
-              { kind: 'display', tex: 'f\'(x) = 3(x - 1)(x - 3)' },
+              prose(
+                'Take out the common factor, then find the pair that multiplies to the number term and adds to the $x$ coefficient: $-1$ and $-3$ multiply to $3$ and add to $-4$.',
+              ),
+              { kind: 'display', tex: "\\begin{aligned} f'(x) &= 3x^{2} - 12x + 9 \\\\ &= 3(x^{2} - 4x + 3) \\\\ &= 3(x - 1)(x - 3) \\end{aligned}" },
               prose(
                 'So the curve is flat at $x = 1$ and $x = 3$. Putting those back into $y$ gives the points $(1, 5)$ and $(3, 1)$, and $f\'\'(1) = -6$ makes the first a maximum.',
               ),
+              prose('When the derivative has no number term, $x$ comes out too, and one turning point is at $x = 0$:'),
+              { kind: 'display', tex: '6x^{2} - 18x = 6x(x - 3)' },
             ),
             ask('df-cs-turn'),
             ask('df-sp-y'),
@@ -1756,6 +1808,13 @@ export const differentiation: Course = {
               prose(
                 'A touch is a turning point already, sitting on the axis. A flattened crossing is a stationary point of inflection, which is not a turn at all.',
               ),
+              prose(
+                'To place a turning point exactly, factorise $f\'(x)$ and set it to zero, then let $f\'\'(x)$ say which is which. For $y = 2x^{3} - 3x^{2} + 1$:',
+              ),
+              {
+                kind: 'display',
+                tex: "\\begin{aligned} f'(x) &= 6x^{2} - 6x = 6x(x - 1) \\\\ f''(x) &= 12x - 6 \\\\ f''(0) &= -6 < 0, \\text{ maximum at } x = 0 \\\\ f''(1) &= 6 > 0, \\text{ minimum at } x = 1 \\end{aligned}",
+              },
             ),
             ask('df-cs-touch', 2),
             ask('df-cs-spot-error'),
@@ -1960,6 +2019,11 @@ export const differentiation: Course = {
                 kind: 'display',
                 tex: '\\begin{aligned} \\frac{dx}{dt} &= \\frac{dV}{dt} \\div \\frac{dV}{dx} \\\\ &= 150 \\div 3(5)^{2} \\\\ &= 150 \\div 75 = 2 \\end{aligned}',
               },
+              prose(
+                'Something shrinking or decreasing has a negative rate, so it goes in with a minus sign. An edge of $3$ cm shrinking at $2$ cm per second has $\\frac{dx}{dt} = -2$:',
+              ),
+              { kind: 'display', tex: '\\frac{dV}{dt} = 3(3)^{2} \\times (-2) = 27 \\times (-2) = -54' },
+              prose('The volume is shrinking at $54$ $\\text{cm}^{3}$ per second.'),
             ),
             ask('df-rc-chain-tiles'),
             ask('df-rc-which-rate'),
@@ -2038,7 +2102,8 @@ export const differentiation: Course = {
                 'The **sign** of a rate says which way a quantity is going: positive, increasing; negative, decreasing; zero, still for an instant.',
               ),
               { kind: 'display', tex: 'V = -t^{3} + 6t^{2} + 20' },
-              { kind: 'display', tex: '\\frac{dV}{dt} = 3t(4 - t)' },
+              prose('Differentiate, then take out the common factor, $t$ as well since there is no number term:'),
+              { kind: 'display', tex: '\\frac{dV}{dt} = -3t^{2} + 12t = 3t(4 - t)' },
               graph({
                 xMin: -0.3,
                 xMax: 6.2,
@@ -2052,6 +2117,10 @@ export const differentiation: Course = {
               prose(
                 'Between $t = 0$ and $t = 4$ both factors are positive, so $V$ rises. At $t = 4$ the rate is zero and $V$ stops increasing; after that it falls.',
               ),
+              prose(
+                'With three terms, take out the common factor, then find the pair that multiplies to the number term and adds to the $t$ coefficient: $-2$ and $-6$.',
+              ),
+              { kind: 'display', tex: '\\begin{aligned} -3t^{2} + 24t - 36 &= -3(t^{2} - 8t + 12) \\\\ &= -3(t - 2)(t - 6) \\end{aligned}' },
             ),
             ask('df-rc-sign'),
             ask('df-rc-sign', 2),
@@ -2220,11 +2289,16 @@ export const differentiation: Course = {
               ),
               { kind: 'display', tex: '\\frac{dA}{dx} = 20 - 2x = 0' },
               prose('So $x = 10$ and $A = 10 \\times 10 = 100$: the best rectangle is a square.'),
-              prose('For the box $V = x(30 - 2x)^{2}$, square the bracket, multiply by $x$, then differentiate:'),
+              prose(
+                'For the box $V = x(30 - 2x)^{2}$, square the bracket, multiply by $x$, then differentiate. A squared bracket is the bracket times itself, so every term meets every term and the middle term appears twice:',
+              ),
               {
                 kind: 'display',
-                tex: '\\begin{aligned} &(30 - 2x)^{2} \\\\ &\\quad = 900 - 120x + 4x^{2} \\\\ &V = 4x^{3} - 120x^{2} + 900x \\\\ &\\frac{dV}{dx} = 12x^{2} - 240x + 900 \\\\ &\\phantom{\\frac{dV}{dx}} = 12(x^{2} - 20x + 75) \\\\ &\\phantom{\\frac{dV}{dx}} = 12(x - 5)(x - 15) \\end{aligned}',
+                tex: '\\begin{aligned} &(30 - 2x)^{2} = (30 - 2x)(30 - 2x) \\\\ &\\quad = 900 - 60x - 60x + 4x^{2} \\\\ &\\quad = 900 - 120x + 4x^{2} \\\\ &V = 4x^{3} - 120x^{2} + 900x \\\\ &\\frac{dV}{dx} = 12x^{2} - 240x + 900 \\\\ &\\phantom{\\frac{dV}{dx}} = 12(x^{2} - 20x + 75) \\\\ &\\phantom{\\frac{dV}{dx}} = 12(x - 5)(x - 15) \\end{aligned}',
               },
+              prose(
+                'The last line takes out the common factor $12$, then finds the pair that multiplies to $75$ and adds to $-20$: $-5$ and $-15$.',
+              ),
               prose(
                 'At $x = 15$ the base is $0$ wide and there is no box, so the best is $x = 5$: a base $20$ cm wide and $V = 5 \\times 20^{2} = 2000$ $\\text{cm}^{3}$.',
               ),
@@ -2315,6 +2389,13 @@ export const differentiation: Course = {
               prose(
                 'So for $y = 2x^{3} - 15x^{2} + 36x$, whose derivative is $6(x - 2)(x - 3)$, the maximum is at $x = 2$ and the minimum at $x = 3$. The second derivative confirms it: $-6$ at $x = 2$ and $6$ at $x = 3$.',
               ),
+              prose(
+                'Factorise the derivative as usual. With a negative $x^{3}$ term, take out a negative factor, which flips every sign inside; then $-2$ and $-3$ multiply to $6$ and add to $-5$. For $N = -2x^{3} + 15x^{2} - 36x$:',
+              ),
+              {
+                kind: 'display',
+                tex: '\\begin{aligned} \\frac{dN}{dx} &= -6x^{2} + 30x - 36 \\\\ &= -6(x^{2} - 5x + 6) \\\\ &= -6(x - 2)(x - 3) \\end{aligned}',
+              },
             ),
             ask('df-op-cubic-best'),
             ask('df-op-nature-flow', 2),

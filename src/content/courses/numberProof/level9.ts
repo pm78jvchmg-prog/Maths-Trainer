@@ -80,8 +80,8 @@ export const npL9: Level = {
         teach(
           prose('The number beside $a$ can come out negative. For $10$ modulo $37$ the run takes three divisions:'),
           maths('\\begin{aligned} 37 &= 3 \\times 10 + 7 \\\\ 10 &= 1 \\times 7 + 3 \\\\ 7 &= 2 \\times 3 + 1 \\end{aligned}'),
-          prose('and working back gives'),
-          maths('1 = 3 \\times 37 - 11 \\times 10'),
+          prose('and working back gives, putting in one remainder at a time from the bottom up and collecting after each,'),
+          maths('\\begin{aligned} 1 &= 7 - 2 \\times 3 \\\\ &= 7 - 2(10 - 7) \\\\ &= 3 \\times 7 - 2 \\times 10 \\\\ &= 3(37 - 3 \\times 10) - 2 \\times 10 \\\\ &= 3 \\times 37 - 11 \\times 10 \\end{aligned}'),
           prose(
             'So $-11 \\times 10 \\equiv 1$. An inverse is given from $1$ to $n - 1$, so add $37$: $-11 + 37 = 26$. Check: $26 \\times 10 = 260 = 7 \\times 37 + 1$.',
           ),

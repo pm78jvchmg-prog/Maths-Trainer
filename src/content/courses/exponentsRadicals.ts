@@ -301,6 +301,12 @@ export const exponentsRadicals: Course = {
               prose(
                 'The rule runs both ways, which is how an index is lifted off the bottom of a fraction: $\\frac{1}{x^{4}} = x^{-4}$.',
               ),
+              prose('To multiply two such fractions, write each as a negative power, then add the indices as usual, signs included.'),
+              working(
+                '\\frac{1}{x^{4}} \\times \\frac{1}{x^{2}} &= x^{-4} \\times x^{-2}',
+                '&= x^{-4 + (-2)}',
+                '&= x^{-6}',
+              ),
             ),
             asking(
               'idx-negative',
@@ -632,7 +638,12 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('rad-multiply'),
-            ask('rad-fill-simplify'),
+            asking(
+              'rad-fill-simplify',
+              1,
+              prose('The law backwards simplifies a surd: find the largest square that divides the number, and it comes out as its root.'),
+              working('\\sqrt{75} &= \\sqrt{25 \\times 3}', '&= \\sqrt{25} \\times \\sqrt{3}', '&= 5\\sqrt{3}'),
+            ),
             ask('rad-multiply+choice'),
             teach(
               prose('A root multiplied by itself undoes itself, which is what a root means.'),
@@ -767,6 +778,8 @@ export const exponentsRadicals: Course = {
               prose(
                 'Both halves have to be multiplied, because that is the only thing that makes the factor equal to 1.',
               ),
+              prose('A reminder of simplifying a surd: find the largest square that divides the number, and it comes out as its root.'),
+              working('\\sqrt{45} &= \\sqrt{9 \\times 5}', '&= \\sqrt{9} \\times \\sqrt{5}', '&= 3\\sqrt{5}'),
             ),
             ask('rad-simplify'),
             ask('rad-fill-rationalise', 2),
@@ -1190,6 +1203,10 @@ export const exponentsRadicals: Course = {
                 'The last product is $\\sqrt{2} \\times \\sqrt{2} = 2$, a whole number, so it joins the 12. The two middle terms are like surds and collect.',
               ),
               maths('= 14 + 7\\sqrt{2}'),
+              prose(
+                'A minus belongs to the term after it, so each product with that term is negative. The last one here is $\\sqrt{5} \\times (-\\sqrt{5})$, which is $-5$.',
+              ),
+              working('&(2 + \\sqrt{5})(3 - \\sqrt{5})', '&= 6 - 2\\sqrt{5} + 3\\sqrt{5} - 5', '&= 1 + \\sqrt{5}'),
             ),
             ask('rad-expand-double'),
             ask('rad-product-flow'),
@@ -1402,6 +1419,14 @@ export const exponentsRadicals: Course = {
               prose(
                 'A square is a bracket squared, so remember the doubled middle term. A triangle is half the base times the height, and a 2 in the base cancels the half.',
               ),
+              prose(
+                'A square of side $3 + 2\\sqrt{2}$ has that bracket squared for its area. The last product, $2\\sqrt{2} \\times 2\\sqrt{2}$, is $4 \\times 2$, which is $8$:',
+              ),
+              working(
+                '&(3 + 2\\sqrt{2})^{2}',
+                '&= 9 + 6\\sqrt{2} + 6\\sqrt{2} + 8',
+                '&= 17 + 12\\sqrt{2}',
+              ),
             ),
             ask('rad-rect-area'),
             ask('rad-rect-area', 2),
@@ -1466,6 +1491,10 @@ export const exponentsRadicals: Course = {
               ),
               working('2^{x + 1} &= 8^{x - 1}', '2^{x + 1} &= 2^{3x - 3}', 'x + 1 &= 3x - 3', 'x &= 2'),
               prose('The 3 multiplies **both** terms of $x - 1$. Check: $2^{3} = 8$ and $8^{1} = 8$.'),
+              prose(
+                'To finish a linear equation like that, gather the $x$ terms on the side with more of them, then divide:',
+              ),
+              working('3^{5x} &= 3^{8x - 8}', '5x &= 8x - 8', '8 &= 3x', 'x &= \\frac{8}{3}'),
             ),
             ask('ieq-base-tiles', 2),
             ask('ieq-equate-tree', 2),
@@ -1524,6 +1553,9 @@ export const exponentsRadicals: Course = {
             teach(
               prose(
                 'Some index equations are quadratics in disguise. In $9^{x} - 2(3^{x}) - 3 = 0$ the first term is $(3^{2})^{x} = (3^{x})^{2}$, so put $y = 3^{x}$.',
+              ),
+              prose(
+                'To factorise, find two numbers that multiply to the constant, $-3$, and add to the $y$ coefficient, $-2$. They are $-3$ and $+1$. (For $y^{2} - 26y + 25$ both are negative: $-25$ and $-1$.)',
               ),
               working('y^{2} - 2y - 3 &= 0', '(y - 3)(y + 1) &= 0'),
               prose(
@@ -1586,6 +1618,8 @@ export const exponentsRadicals: Course = {
               prose('A negative index makes a fraction, not a negative number: $4^{-\\frac{1}{2}} = \\frac{1}{\\sqrt{4}} = \\frac{1}{2}$.'),
               working('3x^{\\frac{3}{2}} - x^{-\\frac{1}{2}} &= 24 - \\frac{1}{2}', '&= \\frac{47}{2}'),
               prose('Work each term out on its own, then combine them.'),
+              prose('To combine a whole number with a fraction, write the whole number over the same bottom, then add the tops:'),
+              working('32 + \\frac{3}{2} &= \\frac{64}{2} + \\frac{3}{2}', '&= \\frac{67}{2}'),
             ),
             ask('ieq-term-steps', 2),
             ask('ieq-evaluate+choice', 2),

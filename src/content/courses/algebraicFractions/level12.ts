@@ -62,8 +62,10 @@ export const level12: Level = {
           prose('To test every height at once, write $k$ for the height instead of $3$:'),
           working('&x^2 + x + 2 = k(x - 1)', '&x^2 + (1 - k)x + (2 + k) = 0'),
           prose('The curve reaches $k$ exactly when this quadratic in $x$ has a real root: when its discriminant is at least $0$.'),
-          working('&(1 - k)^2 - 4(2 + k)', '=\\;&k^2 - 6k - 7', '=\\;&(k + 1)(k - 7)'),
-          prose('So the condition on $k$ is $(k + 1)(k - 7) \\geq 0$.'),
+          working('&(1 - k)^2 - 4(2 + k)', '=\\;&1 - 2k + k^2 - 8 - 4k', '=\\;&k^2 - 6k - 7', '=\\;&(k + 1)(k - 7)'),
+          prose(
+            'Square the first bracket, and let the $-4$ multiply both terms of the second. To factorise, $1$ and $-7$ multiply to $-7$ and add to $-6$. So the condition on $k$ is $(k + 1)(k - 7) \\geq 0$.',
+          ),
         ),
         ask('af12-k-quadratic'),
         ask('af12-k-disc'),
@@ -141,6 +143,10 @@ export const level12: Level = {
         teach(
           prose('When the top is one degree higher than the bottom there is no horizontal asymptote. Divide instead: write the top as the bottom times a line, plus what is left over.'),
           working('&x^2 + x + 2', '=\\;&(x + 2)(x - 1) + 4'),
+          prose(
+            'To find the line, start it with $x$, to make the $x^2$. That gives $x^2 - x$, and the top has $2x$ more, so add $2$. Multiply back and see what is left over:',
+          ),
+          working('&x(x - 1) = x^2 - x', '&(x + 2)(x - 1) = x^2 + x - 2', '&x^2 + x + 2 - (x^2 + x - 2) = 4'),
           maths('y = x + 2 + \\frac{4}{x - 1}'),
           prose('As $x$ grows either way, $\\frac{4}{x - 1}$ shrinks to $0$, so the curve closes in on the slanted line $y = x + 2$: an **oblique asymptote**.'),
           exampleGraph('The curve closing in on the dashed slant line y = x + 2 far out on both sides, with the vertical asymptote x = 1 dashed'),

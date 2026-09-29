@@ -169,6 +169,9 @@ export const countingFactors: Level = {
           maths('1 \\times 36, \\qquad 2 \\times 18, \\qquad 3 \\times 12, \\qquad 4 \\times 9, \\qquad 6 \\times 6'),
           prose('Only $6$ pairs with itself, so $36$ has $9$ divisors, an odd number. A number has an odd count of divisors exactly when it is a perfect square.'),
           prose('So from 1 to 50 the numbers with an odd count are the squares $1^{2}$ to $7^{2}$: $7$ of them, not the $25$ odd numbers.'),
+          prose('To count divisors without listing them, use the primes. $18$ is $2 \\times 3^{2}$, so a divisor of it takes the $2$ zero or one time ($2$ choices) and the $3$ zero, one or two times ($3$ choices):'),
+          maths('(1 + 1)(2 + 1) = 6'),
+          prose('They are $1, 2, 3, 6, 9, 18$. Add one to each power and multiply.'),
         ),
         ask('cm-fc-few-divisors'),
         askAfter(

@@ -59,6 +59,9 @@ export const level10: Level = {
           prose('With two quantities, find each power from a base the other lacks, then check the last base. Can $m^{a}v^{b}$ be an energy, $\\mathsf{M}\\,\\mathsf{L}^{2}\\,\\mathsf{T}^{-2}$?'),
           stacked('\\mathsf{M}\\colon \\ a = 1', '\\mathsf{T}\\colon \\ {-b} = -2 \\qquad b = 2', '\\mathsf{L}\\colon \\ b = 2'),
           prose('The last base matches, so it can. A formula also says how things scale: with $T \\propto \\ell^{0.5}$, four times the length gives $4^{0.5} = 2$ times the period.'),
+          prose('A quantity on the bottom of the fraction has a negative power, so making it bigger shrinks the result. With $T \\propto g^{-0.5}$ and four times the $g$, the factor is:'),
+          stacked('4^{-0.5} = \\frac{1}{\\sqrt{4}} = \\frac{1}{2} = 0.5'),
+          prose('So the period halves.'),
         ),
         ask('clm-rayleigh-flow'),
         ask('clm-dim-scale'),
@@ -128,6 +131,8 @@ export const level10: Level = {
         teach(
           prose('The motion follows from $L$ alone, through the **Euler-Lagrange equation**:'),
           display('\\frac{d}{dt}\\frac{\\partial L}{\\partial \\dot{x}} = \\frac{\\partial L}{\\partial x}'),
+          prose('Each $\\partial$ differentiates in one variable and treats the other as a fixed number, so a term without that variable gives $0$. For $L = \\tfrac{1}{2}(2)\\dot{x}^{2} - \\tfrac{1}{2}(8)x^{2} + 6x$, first in $\\dot{x}$ with $x$ fixed, then in $x$ with $\\dot{x}$ fixed:'),
+          stacked('\\frac{\\partial L}{\\partial \\dot{x}} = \\tfrac{1}{2}(2) \\times 2\\dot{x} = 2\\dot{x}', '\\frac{\\partial L}{\\partial x} = -\\tfrac{1}{2}(8) \\times 2x + 6 = -8x + 6'),
           prose('With $T = \\tfrac{1}{2}m\\dot{x}^{2}$, the left side is the rate of change of the momentum $m\\dot{x}$ and the right side is the force, so this is Newton’s second law. At $x = 0.5$, a mass of $2$ on a spring of $8$ gives:'),
           stacked('L = \\tfrac{1}{2}(2)\\dot{x}^{2} - \\tfrac{1}{2}(8)x^{2}', '\\frac{\\partial L}{\\partial x} = -8x = -4', '2\\ddot{x} = -4 \\qquad \\ddot{x} = -2'),
           prose('A steady push adds a term such as $+6x$ to $L$ and $6$ to the force, giving $\\ddot{x} = 1$.'),

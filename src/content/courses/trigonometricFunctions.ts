@@ -590,6 +590,10 @@ export const trigonometricFunctions: Course = {
               prose(
                 'Giving the full swing instead of half of it is by far the most common mistake here. Amplitude is measured from the middle, not from the bottom.',
               ),
+              prose(
+                'The midline is halfway between the highest and lowest values, so add them and halve. Between $9$ m and $3$ m, and between $14$ m and $-4$ m:',
+              ),
+              maths('\\frac{9 + 3}{2} = \\frac{12}{2} = 6 \\qquad \\frac{14 + (-4)}{2} = \\frac{10}{2} = 5'),
             ),
             ask('trig-amplitude'),
             ask('trig-describe-wave'),
@@ -822,6 +826,11 @@ export const trigonometricFunctions: Course = {
               prose(
                 'Signs come straight from the picture. Sine is the height, so it is positive whenever the point is above the centre; cosine is the displacement, positive whenever the point is to the right. After $120^{\\circ}$ the point is above the centre and to its left, so $\\sin(120^{\\circ})$ is positive and $\\cos(120^{\\circ})$ is negative.',
               ),
+              prose(
+                'At a quarter turn one coordinate is the whole radius, signed, and the other is $0$. On a circle of radius $8$, after $270^{\\circ}$ the point is straight below the centre:',
+              ),
+              maths('\\begin{aligned} 8\\sin(270^{\\circ}) &= 8 \\times (-1) = -8 \\\\ 8\\cos(270^{\\circ}) &= 8 \\times 0 = 0 \\end{aligned}'),
+              prose('After $180^{\\circ}$ it is at the far left: height $0$, displacement $-8$.'),
             ),
             ask('trig-quadrant-flow'),
             ask('trig-circle-coords'),
@@ -954,6 +963,19 @@ export const trigonometricFunctions: Course = {
               prose(
                 'Between $90^{\\circ}$ and $180^{\\circ}$ the point is above the centre and to its left, so the sine is positive and the cosine negative; the quarter of the circle the angle lies in is the only extra information needed.',
               ),
+              prose(
+                'A negative given value squares to a positive, and $1$ is written over the same bottom so the tops can be subtracted. With $\\cos(\\theta) = -\\tfrac{3}{5}$:',
+              ),
+              maths(
+                '\\begin{aligned} \\sin^2(\\theta) &= 1 - \\left(-\\tfrac{3}{5}\\right)^2 \\\\ &= \\tfrac{25}{25} - \\tfrac{9}{25} = \\tfrac{16}{25} \\end{aligned}',
+              ),
+              prose(
+                'So $\\sin(\\theta)$ is $\\tfrac{4}{5}$ or $-\\tfrac{4}{5}$; between $90^{\\circ}$ and $180^{\\circ}$ the point is above the centre, so it is $\\tfrac{4}{5}$.',
+              ),
+              prose(
+                'At the quarter turns the values are $0$, $1$ or $-1$: at $0^{\\circ}$ the point is at the far right, so $\\sin(0^{\\circ}) = 0$ and $\\cos(0^{\\circ}) = 1$; at $270^{\\circ}$ it is at the bottom, so $\\sin(270^{\\circ}) = -1$ and $\\cos(270^{\\circ}) = 0$. Take the sine or cosine first, then multiply, then add:',
+              ),
+              maths('\\begin{aligned} 5\\cos(0^{\\circ}) + 6 &= 5 \\times 1 + 6 = 11 \\\\ 2\\sin(270^{\\circ}) &= 2 \\times (-1) = -2 \\end{aligned}'),
             ),
             ask('trig-pythagorean'),
             ask('trig-quadrant-flow'),
@@ -1107,6 +1129,13 @@ export const trigonometricFunctions: Course = {
               prose(
                 'Since $\\sin(t)$ runs between $-1$ and $1$, multiplying by $a$ makes it run between $-a$ and $a$, and adding $d$ lifts that to between $d - a$ and $d + a$.',
               ),
+              prose(
+                'A cosine curve is told apart from a sine by where it starts. Put in $t = 0$, where $\\cos(0) = 1$ and $\\sin(0) = 0$:',
+              ),
+              maths('\\begin{aligned} 3\\cos(0) + 2 &= 3 \\times 1 + 2 = 5 \\\\ 3\\sin(0) + 2 &= 3 \\times 0 + 2 = 2 \\end{aligned}'),
+              prose(
+                'So $3\\cos(t) + 2$ starts at its peak, $5$, and $3\\sin(t) + 2$ starts on its midline, $2$, heading up.',
+              ),
             ),
             ask('trig-read-parameters'),
             ask('trig-wave-range'),
@@ -1157,6 +1186,16 @@ export const trigonometricFunctions: Course = {
               ),
               prose(
                 'Writing it with $b$ outside the inner bracket is deliberate. It makes $c$ a genuine shift in $t$; in the expanded form $\\sin(bt - bc)$ the shift is much harder to see.',
+              ),
+              prose(
+                'A period can also come from a count of turns: share the time equally between them. $2$ turns in $28$ seconds, and $7$ turns in $8$ seconds:',
+              ),
+              maths('28 \\div 2 = 14 \\text{ s} \\qquad 8 \\div 7 = \\tfrac{8}{7} \\approx 1.14 \\text{ s}'),
+              prose(
+                'The number in front of the sine or cosine is still the amplitude, and the number added on is still the midline; the added number never changes the amplitude:',
+              ),
+              maths(
+                '\\begin{gathered} y = 5\\cos(t) + 3 \\qquad \\text{amplitude } 5, \\text{ midline } 3 \\\\ y = 4\\cos(t) - 6 \\qquad \\text{amplitude } 4, \\text{ midline } -6 \\end{gathered}',
               ),
             ),
             ask('trig-horizontal-shift'),
@@ -1223,6 +1262,17 @@ export const trigonometricFunctions: Course = {
                 'The dashed curve is $\\sin(t)$ and the solid one is $\\sin(3t)$; three complete cycles of the solid curve fit into one cycle of the dashed one, so each is a third as long: $360^{\\circ} \\div 3 = 120^{\\circ}$, and the dashed verticals mark where each cycle ends.',
               ),
               prose('Read $b$ as a count: how many cycles fit into one turn.'),
+              prose(
+                'The height is read as before. A curve with top $6$ and bottom $-2$ has its midline halfway and its amplitude half the gap:',
+              ),
+              maths('\\frac{6 + (-2)}{2} = 2 \\qquad \\frac{6 - (-2)}{2} = 4'),
+              prose('It starts at its peak, so it is a cosine; starting on the midline heading up would make it a sine:'),
+              maths('y = 4\\cos(t) + 2'),
+              prose('For the greatest and least values, $\\sin(t)$ runs from $-1$ to $1$, so $2\\sin(t)$ runs from $-2$ to $2$, and $2\\sin(t) + 5$ runs between'),
+              maths('5 - 2 = 3 \\qquad \\text{and} \\qquad 5 + 2 = 7'),
+              prose(
+                'A period from a count of turns shares the time between them: $2$ turns in $28$ seconds is $14$ seconds each.',
+              ),
             ),
             ask('trig-period-from-b'),
             ask('trig-match-graph'),
@@ -1275,6 +1325,14 @@ export const trigonometricFunctions: Course = {
               prose(
                 'Inside also means reversed: a larger $b$ gives a shorter period, and subtracting $c$ moves the graph right.',
               ),
+              prose(
+                'At the quarter turns the values are whole: at $0^{\\circ}$, $\\sin = 0$ and $\\cos = 1$; at $90^{\\circ}$, $\\sin = 1$ and $\\cos = 0$; at $180^{\\circ}$, $\\sin = 0$ and $\\cos = -1$; at $270^{\\circ}$, $\\sin = -1$ and $\\cos = 0$. To evaluate, take the sine first, multiply by the amplitude, and add the shift last:',
+              ),
+              maths('\\begin{aligned} 3\\sin(90^{\\circ}) + 1 &= 3 \\times 1 + 1 = 4 \\\\ 6\\cos(90^{\\circ}) + 2 &= 6 \\times 0 + 2 = 2 \\end{aligned}'),
+              prose(
+                'The greatest and least values come the same way: $\\sin(t)$ runs from $-1$ to $1$, so $7\\sin(t)$ runs from $-7$ to $7$, and $7\\sin(t) + 1$ runs between',
+              ),
+              maths('1 - 7 = -6 \\qquad \\text{and} \\qquad 1 + 7 = 8'),
             ),
             ask('trig-evaluate-wave'),
             ask('trig-read-parameters', 2),
@@ -1289,6 +1347,12 @@ export const trigonometricFunctions: Course = {
               maths('4\\sin(30^{\\circ}) + 5 = 4 \\times 0.5 + 5 = 7'),
               prose(
                 'Adding before multiplying is the usual slip and gives $4 \\times 5.5 = 22$, which is not even within reach of the curve — its maximum is $9$.',
+              ),
+              prose(
+                'With two trig terms, settle each value, then each product, and only then the minus; taking away a negative adds:',
+              ),
+              maths(
+                '\\begin{aligned} &4\\sin(180^{\\circ}) - 8\\cos(180^{\\circ}) \\\\ &= 4 \\times 0 - 8 \\times (-1) \\\\ &= 0 - (-8) = 8 \\end{aligned}',
               ),
             ),
             ask('trig-evaluate-exact'),
@@ -1547,6 +1611,10 @@ export const trigonometricFunctions: Course = {
               prose(
                 'Written with the arc it is $A = \\frac{1}{2}rs$: a triangle with the arc as its base and the radius as its height. A thin sector nearly is one, which makes the half easy to remember.',
               ),
+              prose('For a radius of $6$ and an angle of $\\frac{\\pi}{3}$, either way gives the same area:'),
+              maths(
+                '\\begin{aligned} A &= \\tfrac{1}{2} \\times 6^2 \\times \\tfrac{\\pi}{3} \\\\ &= \\tfrac{1}{2} \\times 36 \\times \\tfrac{\\pi}{3} = 6\\pi \\\\ s &= 6 \\times \\tfrac{\\pi}{3} = 2\\pi \\\\ A &= \\tfrac{1}{2} \\times 6 \\times 2\\pi = 6\\pi \\end{aligned}',
+              ),
             ),
             ask('trig-rad-sector-area'),
             ask('trig-rad-sector-tree'),
@@ -1608,6 +1676,12 @@ export const trigonometricFunctions: Course = {
               prose(
                 'The coordinates keep their signs, so a point to the left of the centre has a negative $x$, and the fraction carries that minus sign.',
               ),
+              prose('Cancel as with any fraction; two negatives divide to a positive:'),
+              maths(
+                '\\begin{aligned} (6, 8){:} \\quad \\tan(\\theta) &= \\tfrac{8}{6} = \\tfrac{4}{3} \\\\ (-6, -8){:} \\quad \\tan(\\theta) &= \\tfrac{-8}{-6} = \\tfrac{4}{3} \\\\ (-6, 8){:} \\quad \\tan(\\theta) &= \\tfrac{8}{-6} = -\\tfrac{4}{3} \\end{aligned}',
+              ),
+              prose('From sine and cosine over the same bottom, the bottoms cancel and only the tops divide. With $\\sin(\\theta) = \\tfrac{3}{5}$ and $\\cos(\\theta) = -\\tfrac{4}{5}$:'),
+              maths('\\tan(\\theta) = \\tfrac{3}{5} \\div \\left(-\\tfrac{4}{5}\\right) = \\tfrac{3}{-4} = -\\tfrac{3}{4}'),
             ),
             ask('trig-tan-from-point'),
             ask('trig-tan-quotient-tiles'),
@@ -1620,6 +1694,11 @@ export const trigonometricFunctions: Course = {
               prose(
                 'Zero on *top* is different. At $0^{\\circ}$ and $180^{\\circ}$ the sine is zero, the radius lies flat, and $\\tan$ is simply $0$.',
               ),
+              prose(
+                'An angle in radians, a negative one, or one past a full turn is placed first. $\\frac{3\\pi}{2}$ is $270^{\\circ}$ and $-\\frac{\\pi}{2}$ is $-90^{\\circ}$, the same place straight below the centre, so $\\tan$ is undefined at both. Past a full turn, take off $360^{\\circ}$:',
+              ),
+              maths('690^{\\circ} - 360^{\\circ} = 330^{\\circ}'),
+              prose('$330^{\\circ}$ is between $270^{\\circ}$ and $360^{\\circ}$, below and to the right: sine negative, cosine positive, so $\\tan$ is negative.'),
             ),
             ask('trig-tan-undefined'),
             ask('trig-tan-quotient-tiles', 2),
@@ -1736,6 +1815,13 @@ export const trigonometricFunctions: Course = {
               prose(
                 'Any other special angle has the same size of tangent as its **reference angle**, the acute angle between its radius and the horizontal axis, with the sign of its quarter. $\\tan(240^{\\circ})$ has reference angle $60^{\\circ}$ and lies in the third quarter, so it is $\\sqrt{3}$.',
               ),
+              prose('A negative angle, or one past a full turn, first has $2\\pi$ added or taken off:'),
+              maths(
+                '\\begin{aligned} -\\tfrac{5\\pi}{3} + 2\\pi &= \\tfrac{\\pi}{3} = 60^{\\circ} \\\\ \\tfrac{11\\pi}{4} - 2\\pi &= \\tfrac{3\\pi}{4} = 135^{\\circ} \\end{aligned}',
+              ),
+              prose(
+                'So $\\tan\\left(-\\tfrac{5\\pi}{3}\\right) = \\sqrt{3}$. $135^{\\circ}$ has reference angle $45^{\\circ}$ in the second quarter, so $\\tan\\left(\\tfrac{11\\pi}{4}\\right) = -1$.',
+              ),
             ),
             ask('trig-tan-exact'),
             ask('trig-tan-value-tree'),
@@ -1804,6 +1890,12 @@ export const trigonometricFunctions: Course = {
               prose(
                 'Where $\\tan$ has no value, use cosine over sine: $\\cot(90^{\\circ}) = \\frac{\\cos(90^{\\circ})}{\\sin(90^{\\circ})} = \\frac{0}{1} = 0$.',
               ),
+              prose(
+                'At any other angle, find the ratio underneath from the reference angle and the quarter first. $300^{\\circ}$ is $60^{\\circ}$ short of a full turn, below and to the right; $\\frac{5\\pi}{3}$ is the same angle; and $630^{\\circ}$ is $270^{\\circ}$ once a full turn is taken off:',
+              ),
+              maths(
+                '\\begin{aligned} \\sec(300^{\\circ}) &= 1 \\div \\cos(60^{\\circ}) \\\\ &= 1 \\div \\tfrac{1}{2} = 2 \\\\ \\operatorname{cosec}\\left(\\tfrac{5\\pi}{3}\\right) &= 1 \\div \\left(-\\tfrac{\\sqrt{3}}{2}\\right) \\\\ &= -\\tfrac{2}{\\sqrt{3}} \\\\ \\sin(630^{\\circ}) &= \\sin(270^{\\circ}) = -1 \\end{aligned}',
+              ),
             ),
             ask('trig-recip-exact'),
             ask('trig-recip-tree'),
@@ -1862,6 +1954,10 @@ export const trigonometricFunctions: Course = {
               prose(
                 'So $\\sec(x)$ is a chain of U shapes that never gets between $-1$ and $1$. $\\operatorname{cosec}(x)$ is the same shape following sine instead, with asymptotes at $0^{\\circ}$, $180^{\\circ}$ and $360^{\\circ}$, and $\\cot(x)$ falls from one asymptote to the next where $\\tan(x)$ rises.',
               ),
+              prose('An angle in radians past a full turn has $2\\pi$ taken off first. For $\\sec\\left(\\frac{23\\pi}{6}\\right)$:'),
+              maths(
+                '\\begin{aligned} \\tfrac{23\\pi}{6} - \\tfrac{12\\pi}{6} &= \\tfrac{11\\pi}{6} = 330^{\\circ} \\\\ \\cos(330^{\\circ}) &= \\tfrac{\\sqrt{3}}{2}, \\text{ so } \\sec = \\tfrac{2}{\\sqrt{3}} \\end{aligned}',
+              ),
             ),
             ask('trig-recip-graph-match'),
             ask('trig-recip-undefined-flow', 2),
@@ -1895,6 +1991,11 @@ export const trigonometricFunctions: Course = {
               prose(
                 'Between $90^{\\circ}$ and $180^{\\circ}$ the point is above the centre, so sine is positive, and so is $\\operatorname{cosec}$: it is $\\frac{37}{35}$. Going the other way, from $\\operatorname{cosec}$ to $\\cot$, subtract the $1$ instead of adding it.',
               ),
+              prose('From $\\sec(\\theta) = \\frac{5}{4}$ in the first quarter, write the $1$ over the same bottom before subtracting:'),
+              maths(
+                '\\begin{aligned} \\tan^2(\\theta) &= \\tfrac{25}{16} - 1 = \\tfrac{25}{16} - \\tfrac{16}{16} = \\tfrac{9}{16} \\\\ \\tan(\\theta) &= \\pm\\tfrac{3}{4} \\end{aligned}',
+              ),
+              prose('In the first quarter everything is positive, so $\\tan(\\theta) = \\frac{3}{4}$.'),
             ),
             ask('trig-identity-find'),
             ask('trig-identity-flow'),
@@ -1959,6 +2060,12 @@ export const trigonometricFunctions: Course = {
               prose(
                 'That answer is the **principal value**; $150^{\\circ}$, ringed, is not it. $\\sin^{-1}$ is also written $\\arcsin$, and the $-1$ is not a power: $\\sin^{-1}(x)$ is not $\\frac{1}{\\sin(x)}$.',
               ),
+              prose(
+                'Other values come from the table read backwards, checking the angle is between $-90^{\\circ}$ and $90^{\\circ}$. Since $\\sin(60^{\\circ}) = \\frac{\\sqrt{3}}{2}$ and $\\sin(45^{\\circ}) = \\frac{\\sqrt{2}}{2}$:',
+              ),
+              maths(
+                '\\begin{aligned} \\sin^{-1}\\left(\\tfrac{\\sqrt{3}}{2}\\right) &= 60^{\\circ} \\\\ \\sin^{-1}\\left(\\tfrac{\\sqrt{2}}{2}\\right) &= 45^{\\circ} \\end{aligned}',
+              ),
             ),
             ask('trig-inv-sin-exact'),
             ask('trig-inv-sin-tiles'),
@@ -2009,6 +2116,12 @@ export const trigonometricFunctions: Course = {
               prose(
                 'The positive values come straight from the tables: $\\cos^{-1}\\left(\\frac{1}{2}\\right) = 60^{\\circ}$, $\\tan^{-1}(1) = 45^{\\circ}$ and $\\tan^{-1}\\left(\\sqrt{3}\\right) = 60^{\\circ}$, or $\\frac{\\pi}{3}$, $\\frac{\\pi}{4}$ and $\\frac{\\pi}{3}$ in radians. Like $\\arcsin$, these are also written $\\arccos$ and $\\arctan$.',
               ),
+              prose(
+                'The rest of the table works the same way, with a negative input placed by the range. Since $\\tan\\left(\\frac{\\pi}{6}\\right) = \\frac{1}{\\sqrt{3}}$, $\\cos\\left(\\frac{\\pi}{4}\\right) = \\frac{\\sqrt{2}}{2}$ and $\\sin\\left(\\frac{\\pi}{3}\\right) = \\frac{\\sqrt{3}}{2}$:',
+              ),
+              maths(
+                '\\begin{aligned} \\tan^{-1}\\left(\\tfrac{1}{\\sqrt{3}}\\right) &= \\tfrac{\\pi}{6} \\\\ \\cos^{-1}\\left(-\\tfrac{\\sqrt{2}}{2}\\right) &= \\pi - \\tfrac{\\pi}{4} = \\tfrac{3\\pi}{4} \\\\ \\sin^{-1}\\left(-\\tfrac{\\sqrt{3}}{2}\\right) &= -\\tfrac{\\pi}{3} \\end{aligned}',
+              ),
             ),
             ask('trig-inv-exact'),
             ask('trig-inv-exact+choice'),
@@ -2058,6 +2171,10 @@ export const trigonometricFunctions: Course = {
               { kind: 'diagram', svg: reflectionSvg() },
               prose(
                 'The dashed curve is sine on its restricted domain, and the solid one is $y = \\sin^{-1}(x)$. Its **domain**, the inputs allowed, is $-1 \\le x \\le 1$; its **range**, the values it gives, is $-\\frac{\\pi}{2} \\le y \\le \\frac{\\pi}{2}$. $y = \\cos^{-1}(x)$ has the same domain and the range $0 \\le y \\le \\pi$. A number in front, as in $y = 2\\sin^{-1}(x)$, doubles every height and so the range, and leaves the domain alone.',
+              ),
+              prose('A height on these curves is an exact value read backwards:'),
+              maths(
+                '\\begin{aligned} \\sin^{-1}\\left(\\tfrac{\\sqrt{3}}{2}\\right) &= \\tfrac{\\pi}{3} \\approx 1.05 \\\\ \\cos^{-1}\\left(-\\tfrac{1}{2}\\right) &= \\pi - \\tfrac{\\pi}{3} = \\tfrac{2\\pi}{3} \\approx 2.09 \\end{aligned}',
               ),
             ),
             ask('trig-inv-domain-range'),
@@ -2391,6 +2508,12 @@ export const trigonometricFunctions: Course = {
               prose(
                 'A time in the second cycle gives an angle past $360^{\\circ}$. Take a full turn off: $\\sin(30 \\times 13) = \\sin(390^{\\circ}) = \\sin(30^{\\circ})$, because the model repeats every cycle.',
               ),
+              prose(
+                'An angle past a half turn gives a negative sine. Below, at $t = 14$ the angle is $210^{\\circ}$, which is $30^{\\circ}$ past a half turn, so $\\sin(210^{\\circ}) = -\\frac{1}{2}$:',
+              ),
+              maths(
+                '\\begin{aligned} h &= 29 + 14\\sin(15 \\times 14) \\\\ &= 29 + 14 \\times \\left(-\\tfrac{1}{2}\\right) \\\\ &= 29 - 7 = 22 \\end{aligned}',
+              ),
             ),
             ask('trig-model-value-tree'),
             ask('trig-model-value-tree', 2),
@@ -2426,6 +2549,12 @@ export const trigonometricFunctions: Course = {
                 yMax: 42,
                 label: 'h = 20 - 18 cos(10t) over two turns of the wheel, starting at its lowest point',
               }),
+              prose(
+                'For a value, work out the angle, then its sine or cosine, then the model. At $180^{\\circ}$ cosine is $-1$, and an angle past a full turn has $360^{\\circ}$ taken off, so $\\sin(450^{\\circ})$ is $\\sin(90^{\\circ})$, which is $1$. A temperature model $-20 + 2\\cos(30t)$ at $t = 6$:',
+              ),
+              maths(
+                '\\begin{aligned} T &= -20 + 2\\cos(30 \\times 6) \\\\ &= -20 + 2\\cos(180^{\\circ}) \\\\ &= -20 + 2 \\times (-1) = -22 \\end{aligned}',
+              ),
             ),
             ask('trig-model-start-flow'),
             ask('trig-model-graph-match'),
@@ -2494,6 +2623,9 @@ export const trigonometricFunctions: Course = {
               prose(
                 'Below the centre that happens at $180^{\\circ} + 30^{\\circ} = 210^{\\circ}$ and $360^{\\circ} - 30^{\\circ} = 330^{\\circ}$, so $t = \\frac{210}{15} = 14$ or $t = \\frac{330}{15} = 22$. A cosine model works the same way with its own angles: $\\cos = \\tfrac{1}{2}$ at $60^{\\circ}$ and $300^{\\circ}$, $\\cos = -\\tfrac{1}{2}$ at $120^{\\circ}$ and $240^{\\circ}$.',
               ),
+              prose('A minus in front of the amplitude flips the sign when you divide by it. When is $7 - 2\\sin(30t)$ equal to $8$?'),
+              maths('\\begin{aligned} -2\\sin(30t) &= 1 \\\\ \\sin(30t) &= -\\tfrac{1}{2} \\end{aligned}'),
+              prose('So $30t = 210$ or $330$, and $t = 7$ or $t = 11$.'),
             ),
             ask('trig-model-when-tree'),
             ask('trig-model-when-tiles'),

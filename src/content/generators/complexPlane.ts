@@ -7962,7 +7962,7 @@ export const trigidSeriesValue: Generator<SeriesValueParams> = {
     kind: 'expression',
     prompt: [{ kind: 'prose', text: 'Find the exact value of this sum.' }],
     lead: `\\sum_{k=1}^{${params.n}} \\${params.fn} ${kAngleTex(params.q, params.e)} =`,
-    keypad: [{ insert: '/' }, { insert: 'sqrt(', label: '√(' }],
+    keypad: [{ insert: '/' }, { insert: 'sqrt(', label: '√(' }, { insert: 'pi', label: 'π' }],
     answer: exactAnswer(seriesSum(params)),
     domain: 'real',
     mode: 'exact',

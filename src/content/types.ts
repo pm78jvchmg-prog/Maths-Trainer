@@ -54,6 +54,12 @@ export interface KeypadKey {
   fn?: 'degrees' | 'radians';
 }
 
+/**
+ * A notation a typed answer is held to: standard form (or the number written
+ * out), or one whole number and one multiple of a single surd.
+ */
+export type AnswerForm = { kind: 'standardForm' } | { kind: 'surd'; radicand: number };
+
 interface Prompted {
   /** The question, shown above the answer area. */
   prompt: Block[];
@@ -130,6 +136,12 @@ export type Slide =
        * anything rounding to it is accepted, the unrounded working included.
        */
       precision?: Precision;
+      /**
+       * The notation the answer must be written in, where the keypad could
+       * otherwise type the question back (see `src/engine/answerForm.ts`). An
+       * answer in any other notation is `invalid`, not wrong.
+       */
+      form?: AnswerForm;
     })
   /** Tap a lattice point on the complex plane. */
   | ({ kind: 'plot' } & Prompted & {

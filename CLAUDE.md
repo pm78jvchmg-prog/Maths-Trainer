@@ -210,6 +210,16 @@ Consequences worth knowing before changing anything here:
   the principal branch: `log(z^2)` vs `2log(z)` is correctly marked different.
 - Unreadable input returns `invalid`, which is surfaced distinctly from a wrong
   answer and does not cost the learner their first-try credit.
+- Where the notation is the skill, a slide declares `form`
+  (`src/engine/answerForm.ts`): standard form, or `p + q√d`. The keypad then
+  offers `× 10ⁿ` or `√` and the reducer refuses any other notation as
+  `invalid` *before* comparing values, so the question typed back is never
+  graded and being told to rewrite says nothing about the value. The owner
+  asked to answer in the question's own notation; before this those questions
+  took a bare number on a keypad with nothing else on it.
+- Questions in a deck are shown in rising `difficulty` (`src/engine/ramp.ts`),
+  sorted within each stretch between teaching (a teach slide, a literal slide or
+  a lead-in), so a lesson climbs whatever order it was written in.
 - `ln` is aliased to natural log in the mathjs instance (`src/engine/expression.ts`),
   and an unknown function name is reported as invalid input rather than failing
   silently at every sample point.

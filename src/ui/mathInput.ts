@@ -428,6 +428,12 @@ export function applyKey(doc: Doc, key: KeypadKey): Doc {
   if (key.insert === '/') return insertFraction(doc);
   if (key.insert === 'sqrt(') return insertRoot(doc);
   if (key.insert === '^') return insertSup(doc);
+  // Standard form's `× 10ⁿ`: three atoms and a power, the caret left in the
+  // power, so it reads and deletes like the same thing typed by hand.
+  if (key.insert === '*10^') {
+    const ten = ['*', '1', '0'].reduce((d, k) => insertAtom(d, ATOM_TEX[k] ?? k, k), doc);
+    return insertSup(ten);
+  }
   const letter = BRACKETED_LETTER.exec(key.insert)?.[1];
   if (letter) return insertAtom(doc, letter === 'pi' ? '\\pi ' : letter, key.insert);
   return insertAtom(doc, ATOM_TEX[key.insert] ?? key.insert, key.insert);

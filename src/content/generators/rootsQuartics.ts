@@ -756,7 +756,7 @@ const q4Symmetric: Generator<SymParams> = {
       kind: 'expression',
       prompt: rootsOfPrompt(p, `Find $${SYM_LABELS[params.ask]}$.`),
       lead: `${SYM_LABELS[params.ask]} =`,
-      keypad: [],
+      keypad: [{ insert: '/' }],
       answer: d === 1 ? String(n) : fracAnswer(n, d),
       domain: 'real',
       mode: 'exact',

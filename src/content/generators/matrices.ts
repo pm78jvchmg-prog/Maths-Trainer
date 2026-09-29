@@ -146,7 +146,7 @@ const combineMatrices: Generator<MatrixCombineParams> = {
         { kind: 'prose', text: 'Work out the four entries of the result.' },
         {
           kind: 'display',
-          tex: `${m.p === 1 ? '' : m.p}${matrixTex(m.a, m.b, m.c, m.d)} ${m.q < 0 ? '-' : '+'} ${Math.abs(m.q) === 1 ? '' : Math.abs(m.q)}${matrixTex(m.e, m.f, m.g, m.h)}`,
+          tex: `${m.p === 1 ? '' : m.p === -1 ? '-' : m.p}${matrixTex(m.a, m.b, m.c, m.d)} ${m.q < 0 ? '-' : '+'} ${Math.abs(m.q) === 1 ? '' : Math.abs(m.q)}${matrixTex(m.e, m.f, m.g, m.h)}`,
         },
       ],
       template: MATRIX_TEMPLATE,
@@ -920,7 +920,7 @@ const sumEntry: Generator<EntryParams> = {
       prompt: entryPrompt(
         m.row,
         m.col,
-        `${m.p === 1 ? '' : m.p}${matrixTex(m.a, m.b, m.c, m.d)} ${m.q < 0 ? '-' : '+'} ${Math.abs(m.q) === 1 ? '' : Math.abs(m.q)}${matrixTex(m.e, m.f, m.g, m.h)}`,
+        `${m.p === 1 ? '' : m.p === -1 ? '-' : m.p}${matrixTex(m.a, m.b, m.c, m.d)} ${m.q < 0 ? '-' : '+'} ${Math.abs(m.q) === 1 ? '' : Math.abs(m.q)}${matrixTex(m.e, m.f, m.g, m.h)}`,
       ),
       lead: `\\text{row } ${m.row}, \\text{ column } ${m.col} =`,
       keypad: [],
@@ -940,7 +940,7 @@ const sumEntry: Generator<EntryParams> = {
       {
         text: 'Adding and scaling happen entry by entry, so one entry of the answer needs only the matching entry of each matrix. There is no need to work out the other three.',
       },
-      { tex: `\\text{row } ${m.row}, \\text{ column } ${m.col}: \\quad ${first} \\text{ and } ${second}` },
+      { tex: `\\text{row } ${m.row}, \\text{ column } ${m.col}: \\quad ${first} \\text{ and } {${second}}` },
       {
         tex: `${m.p < 0 ? '-' : ''}${scaled(m.p, first)} ${m.q < 0 ? '-' : '+'} ${scaled(m.q, second)} = ${m.p * first + m.q * second}`,
       },

@@ -509,7 +509,7 @@ const factoriseRoute: Generator<RouteParams> = {
         {
           text: `Every term has an $x$ or a constant of its own, and there is an $x$ term, so the first two checks fail. Two whole numbers multiplying to $${c}$ and adding to $${b}$ is the thing to look for.`,
         },
-        { tex: `b^{2} - 4ac = \\left(${b}\\right)^{2} - 4 \\times ${c} = ${disc}` },
+        { tex: `b^{2} - 4ac = \\left(${b}\\right)^{2} - 4 \\times ${c < 0 ? `\\left(${c}\\right)` : c} = ${disc}` },
         {
           text: `The discriminant is $${disc}$, a perfect square, which is precisely the condition for that pair to exist. Spotting the pair by eye is quicker; this is the check when it will not come.`,
         },
@@ -519,7 +519,7 @@ const factoriseRoute: Generator<RouteParams> = {
       {
         text: `No common factor, an $x$ term so not a difference of two squares, and no pair of whole numbers multiplies to $${c}$ while adding to $${b}$.`,
       },
-      { tex: `b^{2} - 4ac = \\left(${b}\\right)^{2} - 4 \\times ${c} = ${disc}` },
+      { tex: `b^{2} - 4ac = \\left(${b}\\right)^{2} - 4 \\times ${c < 0 ? `\\left(${c}\\right)` : c} = ${disc}` },
       {
         text: `$${disc}$ is not a perfect square, so no whole-number brackets exist. It can still be solved with the formula — it just cannot be factorised.`,
       },
@@ -1155,7 +1155,7 @@ const discriminantTree: Generator<DiscriminantParams> = {
         text: `Read the coefficients off with their signs: $a = ${a}$, $b = ${b}$, $c = ${c}$.`,
       },
       {
-        tex: `b^{2} = \\left(${b}\\right)^{2} = ${bSquared} \\qquad 4ac = 4 \\times ${a} \\times \\left(${c}\\right) = ${product}`,
+        tex: `b^{2} = \\left(${b}\\right)^{2} = ${bSquared} \\qquad 4ac = 4 \\times ${a < 0 ? `\\left(${a}\\right)` : a} \\times \\left(${c}\\right) = ${product}`,
       },
       { tex: `b^{2} - 4ac = ${bSquared} - \\left(${product}\\right) = ${bSquared - product}` },
       {

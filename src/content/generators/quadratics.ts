@@ -727,7 +727,7 @@ const discriminantSteps: Generator<FormulaParams> = {
         text: 'Work the two halves out separately: $b^{2}$ first, then $4ac$, before combining them.',
       },
       {
-        tex: `b^{2} = ${b}^{2} = ${bSquared} \\qquad 4ac = 4 \\times ${a} \\times \\left(${c}\\right) = ${product}`,
+        tex: `b^{2} = ${b < 0 ? `\\left(${b}\\right)` : b}^{2} = ${bSquared} \\qquad 4ac = 4 \\times ${a < 0 ? `\\left(${a}\\right)` : a} \\times \\left(${c}\\right) = ${product}`,
       },
       {
         text:
@@ -905,7 +905,7 @@ const lineOfSymmetry: Generator<SymmetryParams> = {
       text: 'A parabola is symmetric about the vertical line through its turning point, and completing the square puts that value in plain sight.',
     },
     { tex: 'x = -\\frac{b}{2a}' },
-    { tex: `x = -\\frac{${b}}{2 \\times ${a}} = ${fracTex(-b, 2 * a)}` },
+    { tex: `x = -\\frac{${b}}{2 \\times ${a < 0 ? `\\left(${a}\\right)` : a}} = ${fracTex(-b, 2 * a)}` },
     {
       text: 'The two roots, when they exist, sit at equal distances either side of this line. That is often the quickest way to find a second root once the first is known.',
     },
@@ -957,7 +957,7 @@ const symmetrySlider: Generator<FormulaParams> = {
       text: 'The line of symmetry runs vertically through the turning point, and its position depends only on $a$ and $b$ — moving $c$ slides the whole curve up or down without moving the line.',
     },
     { tex: 'x = -\\frac{b}{2a}' },
-    { tex: `x = -\\frac{${b}}{2 \\times ${a}} = ${-b / (2 * a)}` },
+    { tex: `x = -\\frac{${b}}{2 \\times ${a < 0 ? `\\left(${a}\\right)` : a}} = ${-b / (2 * a)}` },
     {
       text: `Here $b = ${b}$, so the line sits at $x = ${-b / (2 * a)}$. A negative $b$ puts it on the positive side, which is the sign slip to watch for.`,
     },
@@ -1115,7 +1115,7 @@ const chooseMethod: Generator<MethodParams> = {
         {
           text: `Look for two whole numbers multiplying to $${c}$ and adding to $${b}$. They exist here, so the brackets can be written down directly.`,
         },
-        { tex: `b^{2} - 4ac = ${b < 0 ? `\\left(${b}\\right)` : b}^{2} - 4 \\times ${c} = ${disc}` },
+        { tex: `b^{2} - 4ac = ${b < 0 ? `\\left(${b}\\right)` : b}^{2} - 4 \\times ${c < 0 ? `\\left(${c}\\right)` : c} = ${disc}` },
         {
           text: `The discriminant is $${disc}$, a perfect square, which is exactly the condition for whole-number factors to exist. Spotting them by eye is quicker, but this is the check when they will not come.`,
         },
@@ -1125,7 +1125,7 @@ const chooseMethod: Generator<MethodParams> = {
       {
         text: `No pair of whole numbers multiplies to $${c}$ and adds to $${b}$, so the brackets will not come out by inspection.`,
       },
-      { tex: `b^{2} - 4ac = ${b < 0 ? `\\left(${b}\\right)` : b}^{2} - 4 \\times ${c} = ${disc}` },
+      { tex: `b^{2} - 4ac = ${b < 0 ? `\\left(${b}\\right)` : b}^{2} - 4 \\times ${c < 0 ? `\\left(${c}\\right)` : c} = ${disc}` },
       {
         text: `The discriminant is $${disc}$ — positive, so there are two real roots, but not a perfect square, so they are irrational. That is precisely the case the formula exists for.`,
       },

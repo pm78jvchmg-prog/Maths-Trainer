@@ -106,6 +106,10 @@ export const qAns = (a: Q): string => (a.d === 1 ? `${a.n}` : `((${a.n})/(${a.d}
 /** A fraction that follows an operator: negatives are bracketed. */
 const inLine = (a: Q): string => (a.n < 0 ? `(${qTex(a)})` : qTex(a));
 
+/** Values added up as a line is written: `1 - 1 + \\frac{2}{3}`, never `1 + (-1)`. */
+const sumLine = (values: Q[]): string =>
+  values.map((v, i) => (i === 0 ? qTex(v) : `${v.n < 0 ? '-' : '+'} ${qTex(abs(v))}`)).join(' ');
+
 /** A number the learner reads as a decimal, as JavaScript prints it. */
 const dec = (x: number): string => `${Math.round(x * 1e6) / 1e6}`;
 
@@ -995,7 +999,7 @@ const expSlider: Generator<ExpSliderParams> = {
     const x = q(Math.round(a * 2), 2);
     return [
       { text: `Put $x = ${dec(a)}$ into each term of $P$:` },
-      { tex: `P(${dec(a)}) = ${terms.map((t) => inLine(mul(t.c, pow(x, t.p)))).join(' + ')} = ${qTex(expPolyAt(params))}` },
+      { tex: `P(${dec(a)}) = ${sumLine(terms.map((t) => mul(t.c, pow(x, t.p))))} = ${qTex(expPolyAt(params))}` },
       { text: `The curve itself is at $${fnTex(fnOf('exp', k))} \\approx ${dec(Math.round(Math.exp(k * a) * 100) / 100)}$ there: the gap is what the missing terms add up to.` },
     ];
   },
@@ -2757,13 +2761,13 @@ interface IntStepsParams {
 }
 
 /**
- * A term's value at h, written unworked: `\frac{1}{10}(\frac{1}{2})^{5}`. A
- * whole h is bracketed too once a coefficient stands in front, so `\frac{1}{3}(1)^{4}`
- * and `-(1)^{2}` rather than `\frac{1}{3}1^{4}` and `-1^{2}`; alone it is `1^{2}`.
+ * A term's value at h, written unworked: `\frac{1}{10}(\frac{1}{2})^{5}`. h is
+ * bracketed under every power, so the terms on one line read alike: `(1)^{2}`
+ * beside `\frac{1}{3}(1)^{4}` and `-(1)^{2}`, never a bare `1^{2}` among them.
  */
 function atTex(c: Q, p: number, h: Q): string {
   const at = (x: string) => (p === 1 ? x : `${x}^{${p}}`);
-  if (eq(c, ONE)) return at(h.d === 1 && h.n > 0 ? `${h.n}` : `(${qTex(h)})`);
+  if (eq(c, ONE)) return p === 1 ? qTex(h) : at(`(${qTex(h)})`);
   const power = at(`(${qTex(h)})`);
   return eq(c, neg(ONE)) ? `-${power}` : `${qTex(c)}${power}`;
 }
@@ -2815,7 +2819,7 @@ const intSteps: Generator<IntStepsParams> = {
     const total = values.reduce(add, ZERO);
     return [
       { text: `Put $x = ${qTex(h)}$ into each term of the integrated series:` },
-      { tex: values.map((v, i) => (i === 0 ? qTex(v) : inLine(v))).join(' + ') + ` = ${qTex(total)}` },
+      { tex: `${sumLine(values)} = ${qTex(total)}` },
       { text: `So the integral is about $${qTex(total)} \\approx ${dec(val(total))}$, although the integrand itself has no antiderivative you could write down.` },
     ];
   },

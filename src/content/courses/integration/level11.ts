@@ -98,8 +98,10 @@ export const inverseIntegrals: Level = {
         ),
         ask('int-inv-square-typed'),
         teach(
-          prose('With a minus in front of $x^{2}$, complete the square the other way round:'),
-          maths('7 + 6x - x^{2} = 16 - (x - 3)^{2}'),
+          prose(
+            'With a minus in front of $x^{2}$, complete the square the other way round: take the minus out of the $x$ terms, complete the square inside, then multiply the minus back through.',
+          ),
+          maths('\\begin{aligned} 7 + 6x - x^{2} &= 7 - (x^{2} - 6x) \\\\ &= 7 - \\left((x - 3)^{2} - 9\\right) \\\\ &= 16 - (x - 3)^{2} \\end{aligned}'),
           prose('That is $\\frac{1}{\\sqrt{a^{2} - u^{2}}}$ with $u = x - 3$ and $a = 4$:'),
           maths('\\int \\frac{1}{\\sqrt{7 + 6x - x^{2}}} \\, dx = \\arcsin\\frac{x - 3}{4} + C'),
         ),

@@ -474,6 +474,8 @@ export const dataAveragesSpread: Course = {
               prose(
                 '$\\sum x^2$ squares every value and then adds. It is not $(\\sum x)^2$, which adds first and squares the total. For $1, 2, 3$: $\\sum x^2 = 1 + 4 + 9 = 14$, but $(\\sum x)^2 = 36$.',
               ),
+              prose('Given $n = 5$, $\\sum x = 30$ and $\\sum x^2 = 200$: find the mean, then the mean of the squares, then take the square of the mean from it.'),
+              working('\\bar{x} &= 30 \\div 5 = 6', '\\frac{\\sum x^2}{n} &= 200 \\div 5 = 40', '\\sigma^2 &= 40 - 6^2', '&= 40 - 36 = 4'),
             ),
             ask('dat-x2-table'),
             ask('dat-var-tree'),
@@ -724,6 +726,8 @@ export const dataAveragesSpread: Course = {
               prose(
                 'On a finer scale, count the lines. With a number at every $1$ and five lines to each, a line is worth $0.2$, so a bar reaching two lines past $2$ is $2.4$ high.',
               ),
+              prose('A range spanning two bars: find each bar\'s area, then add. With bars $10 \\le x < 15$ at density $4$ and $15 \\le x < 30$ at density $1.2$, the values between $10$ and $30$ are'),
+              working('4 \\times 5 &= 20', '1.2 \\times 15 &= 18', '20 + 18 &= 38'),
             ),
             ask('dat-fd-slider', 2),
             ask('dat-fd-area', 2),
@@ -876,6 +880,8 @@ export const dataAveragesSpread: Course = {
               prose(
                 'The median is $25$ minutes. On a curve the position is $\\frac{n}{2}$, not $\\frac{n + 1}{2}$: the $4k + 3$ rule of Measures of Spread counts places along a list, and a curve has no places to count.',
               ),
+              prose('To work it out rather than read it, go the same share across the class as up it. $14$ journeys are counted by $20$ minutes and $26$ by $30$, so $20$ is $6$ of that class\'s $12$ values in:'),
+              working('20 + \\tfrac{6}{12} \\times 10 &= 25'),
             ),
             ask('dat-cf-quartile-slider'),
             teach(
@@ -912,6 +918,8 @@ export const dataAveragesSpread: Course = {
               prose(
                 'For the journeys, $P_{20}$ is read at $\\frac{20}{100} \\times 40 = 8$, which is $14$ minutes. The median is $P_{50}$ and the quartiles are $P_{25}$ and $P_{75}$.',
               ),
+              prose('Worked out, it is the same share across the class as up it. $4$ journeys are counted by $10$ minutes and $14$ by $20$, so $8$ is $4$ of that class\'s $10$ values in:'),
+              working('10 + \\tfrac{4}{10} \\times 10 &= 14'),
             ),
             ask('dat-pct-position'),
             ask('dat-pct-slider'),

@@ -76,6 +76,8 @@ export const npL11: Level = {
           prose(
             '$360 \\times 10 = 2^4 \\times 3^2 \\times 5^2 = 60^2$. To make a square by **dividing** instead, take one of each of those primes away: $360 \\div 10 = 36 = 6^2$.',
           ),
+          prose('To factorise, divide by the smallest prime that goes, as often as it goes, then try the next; a digit sum divisible by $3$ spots a $3$. For $540$:'),
+          maths('\\begin{gathered} 540 \\to 270 \\to 135 \\to 45 \\to 15 \\to 5 \\\\ \\div 2, \\; \\div 2, \\; \\div 3, \\; \\div 3, \\; \\div 3 \\\\ 540 = 2^2 \\times 3^3 \\times 5 \\end{gathered}'),
         ),
         ask('dvf-multiplier'),
         ask('dvf-power-table'),
@@ -126,6 +128,9 @@ export const npL11: Level = {
           prose(
             'Not otherwise: $\\sigma(4) = 7$, but $\\sigma(2) \\times \\sigma(2) = 9$. Multiplying the brackets of $2$ by themselves counts the divisor $2$ twice.',
           ),
+          prose('So factorise first, dividing by each prime as often as it goes, then write one bracket per prime. For $180$:'),
+          maths('\\begin{gathered} 180 \\to 90 \\to 45 \\to 15 \\to 5 \\\\ \\div 2, \\; \\div 2, \\; \\div 3, \\; \\div 3 \\end{gathered}'),
+          maths('\\begin{aligned} 180 &= 2^2 \\times 3^2 \\times 5 \\\\ \\sigma(180) &= (1 + 2 + 4)(1 + 3 + 9)(1 + 5) \\\\ &= 7 \\times 13 \\times 6 = 546 \\end{aligned}'),
         ),
         ask('dvf-sigma-tiles'),
         ask('dvf-sigma+choice', 2),
@@ -154,6 +159,10 @@ export const npL11: Level = {
           prose(
             'For a bigger number, use the brackets from Sum of Divisors: $\\sigma(100) = 7 \\times 31 = 217$, so the proper divisors of $100$ add to $117$ and $100$ is abundant.',
           ),
+          prose('Factorise by repeated division first. For $150$:'),
+          maths('\\begin{gathered} 150 \\to 75 \\to 25 \\to 5 \\\\ \\div 2, \\; \\div 3, \\; \\div 5 \\end{gathered}'),
+          maths('\\begin{aligned} 150 &= 2 \\times 3 \\times 5^2 \\\\ \\sigma(150) &= 3 \\times 4 \\times 31 = 372 \\\\ 372 - 150 &= 222 > 150 \\end{aligned}'),
+          prose('So $150$ is abundant.'),
         ),
         ask('dvf-proper-sum+choice', 2),
         ask('dvf-which-abundant'),

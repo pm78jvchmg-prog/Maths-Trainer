@@ -25,6 +25,8 @@ export const level9: Level = {
           stacked('\\mu = \\frac{2 \\times 3}{2 + 3} = 1.2', '\\omega = \\sqrt{\\frac{30}{1.2}} = 5\\text{ rad s}^{-1}'),
           prose('Backwards, from $\\mu = 1.2$ and one mass of $2$:'),
           stacked('\\frac{1}{m_{2}} = \\frac{1}{1.2} - \\frac{1}{2} = \\frac{1}{3}', 'm_{2} = 3'),
+          prose('To subtract, clear the decimal first: $\\frac{1}{1.2} = \\frac{10}{12}$, and $\\frac{1}{2} = \\frac{6}{12}$ over the same denominator:'),
+          stacked('\\frac{10}{12} - \\frac{6}{12} = \\frac{4}{12} = \\frac{1}{3}'),
         ),
         ask('clm-reduced-mass'),
         ask('clm-reduced-table'),

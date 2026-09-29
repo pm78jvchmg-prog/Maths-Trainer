@@ -313,6 +313,10 @@ export const integration: Course = {
               prose(
                 'Trying to integrate $\\frac{1}{x^{4}}$ while it is still written as a fraction is what leads to guessing. Convert, integrate, then convert back if a fraction is wanted.',
               ),
+              prose(
+                'A number in front stays in front and is divided by the new index too, so dividing by a negative index makes it negative:',
+              ),
+              maths('\\int 6x^{-3} \\, dx = \\frac{6x^{-2}}{-2} + C = -3x^{-2} + C'),
             ),
             ask('int-power', 2),
             ask('int-rewrite-power'),
@@ -974,6 +978,12 @@ export const integration: Course = {
               prose(
                 'Here $u = \\sin(x)$, because $\\cos(x)$ is its derivative, and a power of $\\sin(x)$ integrates like a power of $u$; with the roles swapped, $u = \\cos(x)$ has derivative $-\\sin(x)$, so a minus sign appears in the answer.',
               ),
+              prose(
+                'For $\\int 3\\sin(x)\\cos^{2}(x) \\, dx$, put $u = \\cos(x)$: $\\frac{du}{dx} = -\\sin(x)$, so $\\sin(x) \\, dx = -du$ and the minus comes outside:',
+              ),
+              maths(
+                '\\begin{aligned} -3\\int u^{2} \\, du &= -u^{3} + C \\\\ &= -\\cos^{3}(x) + C \\end{aligned}',
+              ),
             ),
             ask('int-substitution-general+choice', 2),
             ask('int-substitution', 2),
@@ -1107,6 +1117,12 @@ export const integration: Course = {
               maths(
                 '\\begin{aligned} & \\int x\\sin(3x) \\, dx \\\\ &= -\\frac{x\\cos(3x)}{3} + \\int \\frac{\\cos(3x)}{3} \\, dx \\\\ &= -\\frac{x\\cos(3x)}{3} + \\frac{\\sin(3x)}{9} + C \\end{aligned}',
               ),
+              prose(
+                'A negative number in front of $x$ changes nothing: integrating $e^{kx}$ still divides by $k$, so $v$ picks up a minus sign, and the minus in the formula then turns into a plus. With $u = x$ and $\\frac{dv}{dx} = e^{-2x}$, $v = -\\frac{1}{2}e^{-2x}$:',
+              ),
+              maths(
+                '\\begin{aligned} & \\int xe^{-2x} \\, dx \\\\ &= -\\frac{1}{2}xe^{-2x} + \\frac{1}{2}\\int e^{-2x} \\, dx \\\\ &= -\\frac{1}{2}xe^{-2x} - \\frac{1}{4}e^{-2x} + C \\end{aligned}',
+              ),
             ),
             ask('int-by-parts+choice', 2),
             ask('int-choose-method', 2),
@@ -1163,6 +1179,12 @@ export const integration: Course = {
                 'So the choice of $u$ has two rules, not one: a polynomial is $u$ against an exponential or a trigonometric function; a logarithm is $u$ against anything; both say the same thing, choose the factor that differentiates into something simpler.',
               ),
               prose('These questions are only posed for $x > 0$, where $\\ln x$ is defined.'),
+              prose(
+                'Back to a polynomial times an exponential, with a negative number in front of $x$: $v$ still divides by that number, so it picks up a minus sign. For $\\int xe^{-3x} \\, dx$, $u = x$ and $v = -\\frac{1}{3}e^{-3x}$:',
+              ),
+              maths(
+                '\\begin{aligned} & \\int xe^{-3x} \\, dx \\\\ &= -\\frac{1}{3}xe^{-3x} + \\frac{1}{3}\\int e^{-3x} \\, dx \\\\ &= -\\frac{1}{3}xe^{-3x} - \\frac{1}{9}e^{-3x} + C \\end{aligned}',
+              ),
             ),
             ask('int-by-parts', 2),
             ask('int-choose-method', 2),
@@ -1254,6 +1276,10 @@ export const integration: Course = {
               ),
               maths('\\begin{aligned} &(x^{2} + 1) - (2x + 4) \\\\ &= x^{2} - 2x - 3 \\\\ &= (x - 3)(x + 1) \\end{aligned}'),
               prose(
+                'To factorise, find the pair that multiplies to the number term and adds to the $x$ coefficient: $-3$ and $+1$ multiply to $-3$ and add to $-2$. With a minus in front of $x^{2}$, take it out first:',
+              ),
+              maths('\\begin{aligned} -x^{2} + x + 6 &= -(x^{2} - x - 6) \\\\ &= -(x - 3)(x + 2) \\end{aligned}'),
+              prose(
                 'The difference is zero only at $x = 3$ and $x = -1$. Neither lies between $4$ and $5$, so the curves do not cross there. At $x = 4.5$ the difference is $1.5 \\times 5.5 = 8.25$, positive, so $y = x^{2} + 1$ is higher all the way across. Had a zero lain between $4$ and $5$, the curves would cross there.',
               ),
               prose(
@@ -1302,8 +1328,14 @@ export const integration: Course = {
               prose('Where the curves meet they have the same $y$, so the limits come from setting them equal.'),
               maths('2x^{2} - 3 = 2x + 1'),
               maths('2x^{2} - 2x - 4 = 0'),
+              prose(
+                'Take out the common number first (a minus sign too, when the $x^{2}$ term is negative), then find the pair that multiplies to the number term and adds to the $x$ coefficient: $+1$ and $-2$ multiply to $-2$ and add to $-1$.',
+              ),
+              maths('2(x^{2} - x - 2) = 0'),
               maths('2(x + 1)(x - 2) = 0'),
               prose('So they meet at $x = -1$ and $x = 2$, and those are the limits.'),
+              prose('With no number term, $x$ is a common factor, so one meeting point is always $x = 0$:'),
+              maths('-3x^{2} + 12x = -3x(x - 4) = 0 \\qquad x = 0 \\text{ or } x = 4'),
             ),
             askAfter(
               [prose('Find the limits first. Set the curves equal, gather everything on one side, and factorise.')],
@@ -1375,6 +1407,12 @@ export const integration: Course = {
               maths('2x^{2} = 3 - x^{2}, \\quad x = \\pm 1'),
               maths('\\int_{-1}^{1} \\left(3 - 3x^{2}\\right) dx'),
               maths('= \\left[3x - x^{3}\\right]_{-1}^{1} = 4'),
+              prose(
+                'When the meeting equation has three terms, take out the common number with its sign, then find the pair that multiplies to the number term and adds to the $x$ coefficient: here $+3$ and $-1$.',
+              ),
+              maths('\\begin{aligned} -3x^{2} - 6x + 9 &= -3(x^{2} + 2x - 3) \\\\ &= -3(x + 3)(x - 1) = 0 \\end{aligned}'),
+              prose('So $x = -3$ or $x = 1$. With no number term, $x$ comes out too, and one meeting point is $x = 0$:'),
+              maths('-2x^{2} - 6x = -2x(x + 3) = 0 \\qquad x = 0 \\text{ or } x = -3'),
             ),
             ask('int-meet-points', 2),
             ask('int-parabolas-area'),
@@ -1468,7 +1506,13 @@ export const integration: Course = {
             askAfter(
               [
                 prose(
-                  'When the difference is a quadratic, factorise it to find the zeros. Say it is $x^{2} - 2x - 3 = (x - 3)(x + 1)$, zero at $x = 3$ and $x = -1$. From $x = 0$ to $x = 4$ the zero at $3$ is inside, so split there; from $x = 4$ to $x = 5$ neither is, so one integral does.',
+                  'When the difference is a quadratic, factorise it to find the zeros: the pair that multiplies to the number term and adds to the $x$ coefficient fills the brackets. For $x^{2} - 2x - 3$ that pair is $-3$ and $+1$. With a minus in front, take it out first; with no number term, take out $x$:',
+                ),
+                maths(
+                  '\\begin{aligned} x^{2} - 2x - 3 &= (x - 3)(x + 1) \\\\ -x^{2} - 5x - 4 &= -(x^{2} + 5x + 4) \\\\ &= -(x + 4)(x + 1) \\\\ x^{2} + 4x &= x(x + 4) \\end{aligned}',
+                ),
+                prose(
+                  'Each bracket set to zero gives one crossing: the first is zero at $x = 3$ and $x = -1$. From $x = 0$ to $x = 4$ the zero at $3$ is inside, so split there; from $x = 4$ to $x = 5$ neither is, so one integral does.',
                 ),
               ],
               'int-region-flow',
@@ -1558,6 +1602,10 @@ export const integration: Course = {
               maths('V \\approx \\sum \\pi y^{2} \\, \\delta x'),
               prose('As the slices get thinner the sum becomes an integral, exactly as a sum of thin strips became an area.'),
               maths('V = \\pi \\int_{a}^{b} y^{2} \\, dx'),
+              prose(
+                'To square $y$, square every factor of a product; for a bracket, take the first squared, twice the product with its sign, and the last squared:',
+              ),
+              maths('\\begin{aligned} (2\\sqrt{x})^{2} &= 2^{2}(\\sqrt{x})^{2} = 4x \\\\ (2x - 3)^{2} &= (2x)^{2} - 2(2x)(3) + 3^{2} \\\\ &= 4x^{2} - 12x + 9 \\end{aligned}'),
             ),
             ask('int-vol-setup'),
             ask('int-vol-integrand'),
@@ -1609,6 +1657,10 @@ export const integration: Course = {
               maths('= \\pi \\int_{0}^{2} \\left(x^{2} + 2x + 1\\right) dx'),
               maths('= \\pi \\left[\\frac{x^{3}}{3} + x^{2} + x\\right]_{0}^{2}'),
               maths('= \\frac{26\\pi}{3}'),
+              prose(
+                'The bracket was squared term by term: the first squared, twice the product of the two keeping its sign, the last squared. With a number in front of $x$ and a minus:',
+              ),
+              maths('\\begin{aligned} (3x - 2)^{2} &= (3x)^{2} + 2(3x)(-2) \\\\ &\\quad + (-2)^{2} \\\\ &= 9x^{2} - 12x + 4 \\end{aligned}'),
             ),
             ask('int-vol-square'),
             ask('int-vol-x-axis'),
@@ -1795,6 +1847,12 @@ export const integration: Course = {
               prose(
                 'Here $y_1 = 3$ and $y_2 = x$: a cylinder with a cone taken out of it, $27\\pi - 9\\pi = 18\\pi$.',
               ),
+              prose(
+                'A curve with three terms is squared the same way: multiply every term of the bracket by every term, then collect like powers.',
+              ),
+              maths(
+                '\\begin{aligned} &(x^{2} + x + 2)^{2} \\\\ &= x^{4} + x^{3} + 2x^{2} + x^{3} + x^{2} + 2x \\\\ &\\quad + 2x^{2} + 2x + 4 \\\\ &= x^{4} + 2x^{3} + 5x^{2} + 4x + 4 \\end{aligned}',
+              ),
             ),
             ask('int-vol-outer-inner'),
             ask('int-vol-washer'),
@@ -1843,9 +1901,13 @@ export const integration: Course = {
           title: 'Splitting a Fraction',
           slides: [
             teach(
-              prose('Adding two fractions puts them over a common bottom:'),
+              prose('Adding two fractions puts them over a common bottom. Each top is multiplied by the bracket it is missing:'),
               maths('\\frac{2}{x + 1} + \\frac{3}{x + 2}'),
+              maths('= \\frac{2(x + 2) + 3(x + 1)}{(x + 1)(x + 2)}'),
+              maths('= \\frac{2x + 4 + 3x + 3}{(x + 1)(x + 2)}'),
               maths('= \\frac{5x + 7}{(x + 1)(x + 2)}'),
+              prose('When the second fraction is subtracted, the minus applies to every term of its expanded top:'),
+              maths('2(x + 2) - 3(x + 1) = 2x + 4 - 3x - 3 = -x + 1'),
               prose(
                 '**Partial fractions** runs this backwards. The single fraction has no standard integral, but the two simple ones each have one.',
               ),
@@ -1878,6 +1940,11 @@ export const integration: Course = {
               maths('\\frac{2}{(x + 1)(x + 3)}'),
               maths('= \\frac{1}{x + 1} - \\frac{1}{x + 3}'),
               prose('Adding the two back up is always a quick check.'),
+              prose(
+                'A bottom not yet in brackets is factorised first: find the pair that multiplies to the number term and adds to the $x$ coefficient. For $x^{2} + x - 6$ that pair is $+3$ and $-2$:',
+              ),
+              maths('x^{2} + x - 6 = (x + 3)(x - 2)'),
+              prose('so a fraction over it splits as $\\frac{A}{x + 3} + \\frac{B}{x - 2}$.'),
             ),
             ask('int-pf-pole-slider', 2),
             ask('int-pf-coefficients', 2),
@@ -1998,6 +2065,13 @@ export const integration: Course = {
               prose(
                 'The bottom, $x^{2} + 3x + 2$, goes into the top once with $3$ left over, and only the leftover is split. The $1$ integrates to $x$.',
               ),
+              prose(
+                'The bottom may go in more than once, and leave an $x$ term. Subtract the whole multiple of the bottom, every term, and split whatever is left. For $\\frac{2x^{2} + 9x + 1}{(x + 1)(x + 2)}$ it goes in $2$ times:',
+              ),
+              maths(
+                '\\begin{aligned} & 2x^{2} + 9x + 1 - 2(x^{2} + 3x + 2) \\\\ &= 2x^{2} + 9x + 1 - 2x^{2} - 6x - 4 \\\\ &= 3x - 3 \\end{aligned}',
+              ),
+              maths('\\frac{2x^{2} + 9x + 1}{(x + 1)(x + 2)} = 2 + \\frac{3x - 3}{(x + 1)(x + 2)} = 2 - \\frac{6}{x + 1} + \\frac{9}{x + 2}'),
             ),
             ask('int-pf-divide'),
             ask('int-pf-top-heavy'),
@@ -2160,6 +2234,9 @@ export const integration: Course = {
               maths('p \\le 1: \\text{ diverges}'),
               prose('With $p = 2$, for instance:'),
               maths('\\begin{aligned} \\int_{1}^{t} 3x^{-2} \\, dx &= \\left[-3x^{-1}\\right]_{1}^{t} \\\\ &= 3 - \\frac{3}{t} \\to 3 \\end{aligned}'),
+              prose('Write the bottom as a single power of $x$ first to read off $p$. Multiplying powers of $x$ adds the indices:'),
+              maths('x\\sqrt{x} = x^{1} \\times x^{\\frac{1}{2}} = x^{\\frac{3}{2}} \\qquad \\frac{1}{x\\sqrt{x}} = x^{-\\frac{3}{2}}'),
+              prose('So $p = \\frac{3}{2}$.'),
             ),
             ask('int-imp-p-flow'),
             ask('int-imp-power-tail'),
@@ -2220,6 +2297,13 @@ export const integration: Course = {
               prose(
                 '$\\int_{t}^{1} \\frac{1}{x} \\, dx = -\\ln t$, which grows without limit as $t \\to 0$, so $\\frac{1}{x}$ diverges at $0$ just as it does at infinity.',
               ),
+              prose(
+                'A shifted root, $\\frac{1}{\\sqrt{x + 2}}$, has its pole where the bracket is zero, at $x = -2$. Integrate as if $x + 2$ were $x$; the term at $t$ goes to $0$ because the bracket does:',
+              ),
+              maths(
+                '\\begin{aligned} \\int_{t}^{7} \\frac{1}{\\sqrt{x + 2}} \\, dx &= \\left[2\\sqrt{x + 2}\\right]_{t}^{7} \\\\ &= 6 - 2\\sqrt{t + 2} \\to 6 \\end{aligned}',
+              ),
+              prose('as $t \\to -2^{+}$.'),
             ),
             ask('int-imp-p-flow', 2),
             ask('int-imp-root-pole+choice', 2),
@@ -2250,6 +2334,13 @@ export const integration: Course = {
               maths('\\int_{-\\infty}^{0} e^{x} \\, dx'),
               maths('+ \\int_{0}^{\\infty} e^{-x} \\, dx'),
               prose('Each half is $1$, so the whole is $2$.'),
+              prose(
+                'With a shifted modulus, split where the inside of the modulus is zero, not at $0$. For $e^{-|x - 1|}$, split at $x = 1$:',
+              ),
+              maths(
+                '\\begin{aligned} \\int_{1}^{\\infty} e^{-(x - 1)} \\, dx &= \\left[-e^{-(x - 1)}\\right]_{1}^{\\infty} \\\\ &= 0 - (-1) = 1 \\end{aligned}',
+              ),
+              prose('The left half is its mirror image, also $1$, so the whole is $2$.'),
             ),
             ask('int-imp-two-sided'),
             teach(

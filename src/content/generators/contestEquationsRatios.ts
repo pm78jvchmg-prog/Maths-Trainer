@@ -301,8 +301,9 @@ interface ScoresParams {
   context: number;
 }
 
-const SCORES = [
-  { who: 'gymnasts', what: 'points', first: 'first-placed gymnast', second: 'second', third: 'third' },
+/** Every field is required, so a story missing its verb cannot print "undefined". */
+const SCORES: { who: string; what: string; verb: string; base: string; first: string; second: string; third: string }[] = [
+  { who: 'gymnasts', what: 'points', verb: 'scored', base: 'score', first: 'first-placed gymnast', second: 'second', third: 'third' },
   { who: 'runners', what: 'laps', verb: 'ran', base: 'run', first: 'fastest runner', second: 'second-fastest', third: 'third-fastest' },
   { who: 'bakers', what: 'cakes', verb: 'sold', base: 'sell', first: 'top baker', second: 'second baker', third: 'third baker' },
 ];

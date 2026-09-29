@@ -59,7 +59,8 @@ export const level7: Level = {
         teach(
           prose('Unlike blocks: a $1\\text{ kg}$ block $20\\text{ cm}$ long on a $2\\text{ kg}$ block $30\\text{ cm}$ long. The top one overhangs the lower by half its length, $a = 10\\text{ cm}$, putting its centre over the lower block’s edge.'),
           prose('The lower block overhangs the table by $d$. Its centre is $15 - d$ inside the edge and the top block’s is $d$ beyond, so for the pair to balance on the edge:'),
-          stacked('2(15 - d) = 1 \\times d', 'd = 10\\text{ cm}'),
+          stacked('2(15 - d) = 1 \\times d', '30 - 2d = d', '30 = 3d', 'd = 10\\text{ cm}'),
+          prose('Expand the bracket, add $2d$ to both sides to collect the $d$ terms, then divide by $3$.'),
           prose('The reach is $a + d = 20\\text{ cm}$.'),
         ),
         ask('clm-stack-tree'),

@@ -159,6 +159,11 @@ export const vectors: Course = {
               prose(
                 'So "destination minus start" is worth remembering. Nearly every vector geometry question begins with it.',
               ),
+              prose('With numbers, subtract component by component, bracketing each number being taken away: taking away $-5$ adds $5$.'),
+              maths(
+                '\\begin{pmatrix} 4 \\\\ -2 \\end{pmatrix} - \\begin{pmatrix} 1 \\\\ -5 \\end{pmatrix} = \\begin{pmatrix} 4 - 1 \\\\ -2 - (-5) \\end{pmatrix}',
+              ),
+              maths('= \\begin{pmatrix} 3 \\\\ 3 \\end{pmatrix}'),
             ),
             ask('vec-add+choice'),
             ask('vec-journey+choice'),
@@ -361,6 +366,11 @@ export const vectors: Course = {
                 'The same equation run the other way finds a point. Knowing one end and the journey between them gives the other end.',
               ),
               maths('\\mathbf{b} = \\mathbf{a} + \\overrightarrow{AB} \\qquad \\mathbf{a} = \\mathbf{b} - \\overrightarrow{AB}'),
+              prose('To find the start, take the journey off the end. With $B(5, 1)$ and a journey of $2$ across and $3$ down:'),
+              maths(
+                '\\mathbf{a} = \\begin{pmatrix} 5 \\\\ 1 \\end{pmatrix} - \\begin{pmatrix} 2 \\\\ -3 \\end{pmatrix} = \\begin{pmatrix} 5 - 2 \\\\ 1 - \\left(-3\\right) \\end{pmatrix} = \\begin{pmatrix} 3 \\\\ 4 \\end{pmatrix}',
+              ),
+              prose('So $A$ is $(3, 4)$. Check: $(3, 4)$ moved $2$ across and $3$ down lands on $(5, 1)$.'),
             ),
             ask('vec-endpoint'),
             ask('vec-between+choice'),
@@ -530,6 +540,9 @@ export const vectors: Course = {
               prose(
                 'Any corner can be the missing one. Each is its neighbour plus the side opposite, written in the same direction round the shape.',
               ),
+              prose('Say $A$ is missing, with $B(5, 2)$, $C(6, 5)$ and $D(2, 4)$. $\\overrightarrow{AB}$ equals $\\overrightarrow{DC}$ and ends at $B$, so take it off $B$:'),
+              maths('\\overrightarrow{AB} = \\overrightarrow{DC} = \\begin{pmatrix} 6 - 2 \\\\ 5 - 4 \\end{pmatrix} = \\begin{pmatrix} 4 \\\\ 1 \\end{pmatrix}'),
+              maths('A = \\left(5 - 4, \\; 2 - 1\\right) = \\left(1, 1\\right)'),
             ),
             ask('vec-quad-flow'),
             ask('vec-between'),
@@ -614,6 +627,9 @@ export const vectors: Course = {
               prose(
                 'So those two are parallel. If they also share a point, the points are collinear, exactly as with numbers.',
               ),
+              prose('The multiple need not be whole. Divide matching coefficients; if both give the same number, the vectors are parallel. For $6\\mathbf{a} - 9\\mathbf{b}$ against $4\\mathbf{a} - 6\\mathbf{b}$:'),
+              maths('6 \\div 4 = \\tfrac{3}{2} \\qquad -9 \\div \\left(-6\\right) = \\tfrac{3}{2}'),
+              maths('6\\mathbf{a} - 9\\mathbf{b} = \\tfrac{3}{2}\\left(4\\mathbf{a} - 6\\mathbf{b}\\right)'),
             ),
             ask('vec-path-parallel'),
             ask('vec-line-test'),
@@ -696,6 +712,10 @@ export const vectors: Course = {
               prose(
                 'That is the line above again: $\\left(7, 0\\right)$ is its point at $t = 2$, and the new direction is $-2$ times the old one. A new letter, $s$, is a reminder that the two parameters count differently.',
               ),
+              prose('To test a new start, solve one component for $t$, then check the other: one value of $t$ must fit both. Is $\\left(-5, 4\\right)$ on the line above?'),
+              maths('1 + 3t = -5 \\implies t = -2'),
+              maths('2 - \\left(-2\\right) = 4'),
+              prose('The up component matches, so $\\left(-5, 4\\right)$ is on the line, at $t = -2$.'),
             ),
             ask('line-same'),
             ask('line-direction'),
@@ -737,6 +757,10 @@ export const vectors: Course = {
               prose(
                 '$\\left(3, 1\\right)$ is $B$, the point at $t = 1$, and $\\begin{pmatrix} -2 \\\\ 3 \\end{pmatrix} = -1\\begin{pmatrix} 2 \\\\ -3 \\end{pmatrix}$. Both pass, so it is the same line.',
               ),
+              prose('A start other than $A$ or $B$ is tested the same way: solve one component for $t$, then check the other. Is $\\left(5, -5\\right)$ on the line?'),
+              maths('1 + 2t = 5 \\implies t = 2'),
+              maths('4 - 3 \\times 2 = -2 \\ne -5'),
+              prose('The up component disagrees, so $\\left(5, -5\\right)$ is not on the line, and an equation starting there is a different line.'),
             ),
             ask('line-same'),
             ask('line-two-points-at-tree'),
@@ -824,6 +848,17 @@ export const vectors: Course = {
               prose(
                 'Parallel lines may still be one line written twice. Test whether a point of one lies on the other: if it does, they are the same line; if not, they never meet.',
               ),
+              maths(
+                '\\mathbf{r} = \\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix} + \\lambda\\begin{pmatrix} 2 \\\\ 1 \\end{pmatrix} \\qquad \\mathbf{r} = \\begin{pmatrix} 5 \\\\ 4 \\end{pmatrix} + \\mu\\begin{pmatrix} 4 \\\\ 2 \\end{pmatrix}',
+              ),
+              prose('The directions are parallel. The journey between the starts is a multiple of the direction as well, so the second start is on the first line: they are the same line.'),
+              maths(
+                '\\begin{pmatrix} 5 \\\\ 4 \\end{pmatrix} - \\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix} = \\begin{pmatrix} 4 \\\\ 2 \\end{pmatrix} = 2\\begin{pmatrix} 2 \\\\ 1 \\end{pmatrix}',
+              ),
+              prose('Had the journey been $\\begin{pmatrix} 4 \\\\ 3 \\end{pmatrix}$, the lines would be parallel and separate.'),
+              prose('The multiple need not be whole. For $\\begin{pmatrix} 6 \\\\ k \\end{pmatrix}$ parallel to $\\begin{pmatrix} -4 \\\\ 2 \\end{pmatrix}$, the components you know give it:'),
+              maths('6 \\div \\left(-4\\right) = -\\tfrac{3}{2}'),
+              maths('k = -\\tfrac{3}{2} \\times 2 = -3'),
             ),
             ask('lines-parallel-k'),
             ask('line-contains'),
@@ -850,6 +885,10 @@ export const vectors: Course = {
               prose(
                 'In $x$, $1 + \\lambda = 3$, so $\\lambda = 2$. In $y$, $2 + \\lambda = \\mu$, so $\\mu = 4$. Then in $z$, $\\ell_1$ reaches $2 \\times 2 = 4$ but $\\ell_2$ reaches $1 + 4 = 5$. The third component disagrees, so these lines are skew.',
               ),
+              prose('Often both letters appear in both equations. Then add or subtract the equations to remove one letter, or make one the subject and substitute:'),
+              maths('\\begin{aligned} 1 + \\lambda &= 6 - \\mu \\\\ 2\\lambda &= 4 + \\mu \\end{aligned}'),
+              prose('Adding them removes $\\mu$:'),
+              maths('\\begin{aligned} 1 + 3\\lambda &= 10 \\\\ \\lambda &= 3 \\\\ \\mu &= 6 - 1 - 3 = 2 \\end{aligned}'),
             ),
             ask('lines-third-tree'),
             ask('lines-relation+choice', 2),
@@ -890,6 +929,9 @@ export const vectors: Course = {
               prose(
                 'Putting $\\mu = 3$ into the second line lands on $\\left(5, 3\\right)$ too, which is a free check. Each parameter belongs to its own line: $\\lambda$ in the second equation is the slip to avoid.',
               ),
+              prose('When both parameters appear in both component equations, eliminate one before solving. Here adding removes $\\mu$:'),
+              maths('\\begin{aligned} 3 + \\lambda &= 8 - \\mu \\\\ 2\\lambda &= 1 + \\mu \\end{aligned}'),
+              maths('\\begin{aligned} 3 + 3\\lambda &= 9 \\\\ \\lambda &= 2 \\\\ \\mu &= 8 - 3 - 2 = 3 \\end{aligned}'),
             ),
             ask('lines-meet'),
             ask('lines-meet-tree'),
@@ -1094,6 +1136,10 @@ export const vectors: Course = {
               prose(
                 'For $\\left(1, 1, 0\\right)$ and $\\left(0, 1, 1\\right)$ the scalar product is $1$ and both lengths are $\\sqrt{2}$, so $\\cos\\theta = \\tfrac{1}{2}$ and $\\theta = 60^\\circ$.',
               ),
+              prose('Tidy a surd cosine before reading it off: cancel what you can, then multiply top and bottom by the root left underneath.'),
+              maths('\\cos\\theta = \\frac{-3}{\\sqrt{2} \\times 3} = -\\frac{1}{\\sqrt{2}} = -\\frac{\\sqrt{2}}{2}'),
+              prose('That is the obtuse partner of $45^\\circ$, so $\\theta = 135^\\circ$. Roots multiply under one sign, and a square factor comes out:'),
+              maths('\\sqrt{5} \\times \\sqrt{10} = \\sqrt{50} = \\sqrt{25 \\times 2} = 5\\sqrt{2}'),
             ),
             ask('angle-degrees'),
             ask('angle-degrees+choice'),
@@ -1220,6 +1266,11 @@ export const vectors: Course = {
               prose(
                 'For $A\\left(1, 2, 0\\right)$ and $B\\left(3, 1, 4\\right)$ that is $\\left(2, -1, 4\\right)$. Going from $B$ to $A$ instead reverses it, which changes no angle.',
               ),
+              prose('When the cosine comes out exact, read the angle from the known values:'),
+              maths('\\cos 60^\\circ = \\tfrac{1}{2} \\qquad \\cos 45^\\circ = \\tfrac{\\sqrt{2}}{2} \\qquad \\cos 30^\\circ = \\tfrac{\\sqrt{3}}{2}'),
+              prose('Directions $\\left(1, 0, 1\\right)$ and $\\left(-1, 2, -2\\right)$ have lengths $\\sqrt{2}$ and $3$, and the scalar product is $-1 + 0 - 2 = -3$:'),
+              maths('\\cos\\theta = \\frac{|-3|}{3\\sqrt{2}} = \\frac{1}{\\sqrt{2}} = \\frac{\\sqrt{2}}{2}'),
+              prose('So $\\theta = 45^\\circ$.'),
             ),
             ask('angle-lines+choice'),
             ask('angle-line-direction', 2),
@@ -1319,6 +1370,10 @@ export const vectors: Course = {
               prose(
                 'The cross product $\\mathbf{a} \\times \\mathbf{b}$ is **perpendicular to both** $\\mathbf{a}$ and $\\mathbf{b}$. That is what it is for: given two directions, it finds a third at right angles to both.',
               ),
+              prose(
+                'As a reminder of how it is worked: each component uses the other two entries of each vector, following the cycle $x \\to y \\to z$. For $\\left(1, 2, 3\\right) \\times \\left(4, 0, -1\\right)$:',
+              ),
+              maths('\\begin{aligned} x&\\colon \\; 2(-1) - 3(0) = -2 \\\\ y&\\colon \\; 3(4) - 1(-1) = 13 \\\\ z&\\colon \\; 1(0) - 2(4) = -8 \\end{aligned}'),
               prose(
                 'The dot product checks it, since perpendicular vectors have a dot product of zero. With the example from the last lesson:',
               ),
@@ -1522,6 +1577,10 @@ export const vectors: Course = {
               ),
               maths('\\begin{aligned} \\mathbf{b} \\cdot \\mathbf{n} &= 0 - 1 + 0 = -1 \\\\ |\\mathbf{b}| &= \\sqrt{2} \\\\ |\\mathbf{n}| &= \\sqrt{2} \\end{aligned}'),
               maths('\\sin\\theta = \\frac{|-1|}{\\sqrt{2}\\sqrt{2}} = \\frac{1}{2}'), prose('So $\\theta = 30^\\circ$.'),
+              prose('Often a surd needs tidying first. Take the square factor out of the root, cancel, then multiply top and bottom by the root left underneath:'),
+              maths('\\sqrt{8} = \\sqrt{4 \\times 2} = 2\\sqrt{2}'),
+              maths('\\sin\\theta = \\frac{6}{2\\sqrt{2} \\times 3} = \\frac{1}{\\sqrt{2}} = \\frac{\\sqrt{2}}{2}'),
+              prose('So that angle is $45^\\circ$.'),
             ),
             ask('angle-line-plane'),
             ask('angle-line-plane-tree'),
@@ -1808,7 +1867,8 @@ export const vectors: Course = {
               prose(
                 'So solve one component for $t$, then check the other at that time. For $\\mathbf{r}_A = (\\mathbf{i} + 2\\mathbf{j}) + (3\\mathbf{i} + \\mathbf{j})t$ and $\\mathbf{r}_B = (9\\mathbf{i} + 4\\mathbf{j}) + (-\\mathbf{i} + 2\\mathbf{j})t$:',
               ),
-              maths('1 + 3t = 9 - t \\implies t = 2'),
+              maths('\\begin{aligned} 1 + 3t &= 9 - t \\\\ 1 + 4t &= 9 \\\\ 4t &= 8 \\\\ t &= 2 \\end{aligned}'),
+              prose('That sets the $\\mathbf{i}$ components equal, then gathers the $t$ terms on one side and the numbers on the other: add $t$ to both sides, take $1$ away, then divide by $4$.'),
               prose(
                 'At $t = 2$ both $\\mathbf{j}$ components are $4$, so they collide, at $7\\mathbf{i} + 4\\mathbf{j}$.',
               ),

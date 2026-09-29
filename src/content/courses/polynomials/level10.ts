@@ -94,8 +94,9 @@ export const conjugateRoots: Level = {
         teach(
           prose('Then solve the other factor:'),
           maths('x^{2} - x - 2 = (x - 2)(x + 1)'),
-          prose('So the four roots are ${1 \\pm 2i}$, $2$ and $-1$.'),
+          prose('The numbers $-2$ and $1$ multiply to $-2$ and add to $-1$, and each gives a bracket. So the four roots are ${1 \\pm 2i}$, $2$ and $-1$.'),
           prose('It may not factorise. If the other factor were $x^{2} + 2x + 10$, its discriminant is $-36$, so its roots are another pair:'),
+          working('b^{2} - 4ac &= 4 - 40 = -36', '\\sqrt{-36} &= 6i'),
           maths('\\frac{-2 \\pm 6i}{2} = -1 \\pm 3i'),
         ),
         ask('poly-conj-quartic-flow'),

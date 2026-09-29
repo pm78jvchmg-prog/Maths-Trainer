@@ -642,7 +642,8 @@ const cmInFixedSum: Generator<SumParams> = {
         { text: `Equality at $2x = y = ${total / 2}$, so $x = ${p.k}$ and the pen is twice as long as it is deep. Treating the ${total} m as a full perimeter gives a square of area ${p.k * p.k}, the trap.` },
       ];
     }
-    const half = total / 2;
+    // Two numbers share the whole total; a length and a width only half the perimeter.
+    const half = p.kind === 0 ? total : total / 2;
     const pair = p.kind === 0 ? 'the two numbers' : 'a length and a width';
     const steps: SolutionStep[] = [];
     if (p.kind === 1) steps.push({ text: `A length and a width make half the perimeter, ${half}.` });

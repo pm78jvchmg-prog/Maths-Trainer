@@ -133,6 +133,8 @@ export const areas: Level = {
           diagram(sectorSvg(120, { angle: '120°', radius: '6 cm' })),
           display('\\pi \\times 6^2 = 36\\pi'),
           display('A = \\frac{120}{360} \\times 36\\pi = 12\\pi'),
+          prose('When the fraction does not simplify to $1$ over something, divide by the bottom, then times by the top. For $240^\\circ$ with $r = 9$, $\\frac{240}{360} = \\frac{2}{3}$ and $\\pi \\times 9^2 = 81\\pi$:'),
+          display('81\\pi \\div 3 = 27\\pi \\qquad 27\\pi \\times 2 = 54\\pi'),
           prose('Every area formula so far:'),
           display('\\text{rectangle } A = lw \\qquad \\text{triangle } A = \\tfrac{1}{2}bh'),
           display('\\text{parallelogram } A = bh \\qquad \\text{trapezium } A = \\tfrac{1}{2}(a + b)h'),

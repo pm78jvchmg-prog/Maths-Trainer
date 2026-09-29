@@ -22,6 +22,8 @@ export const advancedCombinatorics: Level = {
           maths('5 + 1 = 6'),
           prose('Any $3$ of those $6$ gaps keep the chosen chairs apart, and every good choice is one of them:'),
           maths('\\binom{6}{3} = 20'),
+          prose('To work out $\\binom{n}{k}$, multiply $k$ numbers counting down from $n$, then divide by $k!$:'),
+          maths('\\binom{6}{3} = \\frac{6 \\times 5 \\times 4}{3 \\times 2 \\times 1} = \\frac{120}{6} = 20'),
           prose('Choosing $3$ of all $8$ chairs, $56$ ways, is the trap: it counts chairs side by side.'),
         ),
         ask('cm-ac-no-adjacent'),

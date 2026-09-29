@@ -1307,7 +1307,9 @@ export const logarithms: Course = {
               prose('Where two curves meet their heights are equal, so set the two right-hand sides equal.'),
               maths('\\log_{2} x = \\log_{2}\\left(x - 3\\right) + 1'),
               maths('\\log_{2}\\left(\\frac{x}{x - 3}\\right) = 1'),
-              maths('\\frac{x}{x - 3} = 2 \\implies x = 6'),
+              maths('\\frac{x}{x - 3} = 2'),
+              prose('Multiply both sides by the bottom, expand the bracket, then collect the $x$ terms on one side:'),
+              maths('\\begin{gathered} x = 2(x - 3) \\\\ x = 2x - 6 \\\\ x = 6 \\end{gathered}'),
               prose(
                 'Curves with different bases are simpler: they meet only at $(1, 0)$, and right of it the smaller base is higher.',
               ),
@@ -1546,6 +1548,11 @@ export const logarithms: Course = {
               prose(
                 'A model with a term added on, like $y = 3x^{2} + 5$, is straightened by neither. The log of a sum does not split.',
               ),
+              prose(
+                'Dividing by a power of $x$ is multiplying by a negative power, so it is still a power model, straight against $\\log x$:',
+              ),
+              maths('\\begin{gathered} y = \\frac{3}{x^{2}} = 3x^{-2} \\\\ \\log y = \\log 3 - 2\\log x \\end{gathered}'),
+              prose('The gradient is $-2$.'),
             ),
             ask('log-lin-axes-flow'),
             ask('log-lin-straight-choice'),
@@ -1612,6 +1619,10 @@ export const logarithms: Course = {
               prose('Then, with one logarithm each side and the same base, drop them: the arguments are equal.'),
               maths('\\log A = \\log B \\implies A = B'),
               prose('$\\log$ with no base means $\\log_{10}$, as in the last level.'),
+              prose(
+                'When that leaves a fraction, multiply both sides by the bottom bracket, expand, then gather the $x$ terms on the side with more of them:',
+              ),
+              maths('\\begin{gathered} \\frac{x + 1}{x - 2} = 4 \\\\ x + 1 = 4(x - 2) \\\\ x + 1 = 4x - 8 \\\\ 9 = 3x \\\\ x = 3 \\end{gathered}'),
             ),
             ask('log-cmp-combine-tiles'),
             ask('log-cmp-quotient-tree'),
@@ -1619,7 +1630,14 @@ export const logarithms: Course = {
               prose('A sum collapses by the product law, and that gives a quadratic.'),
               maths('\\begin{aligned} &\\log(x + 3) + \\log(x - 1) \\\\ &\\quad = \\log 5 \\end{aligned}'),
               maths('(x + 3)(x - 1) = 5'),
-              maths('x^2 + 2x - 8 = 0'),
+              prose(
+                'Each term in the first bracket multiplies each term in the second; collect like terms, then take $5$ from both sides:',
+              ),
+              maths('\\begin{gathered} x^2 - x + 3x - 3 = 5 \\\\ x^2 + 2x - 8 = 0 \\end{gathered}'),
+              prose(
+                'To factorise, find two numbers that multiply to $-8$ and add to $2$: $4$ and $-2$. Each root is the number in its bracket with the sign flipped:',
+              ),
+              maths('(x + 4)(x - 2) = 0'),
               prose(
                 'So $x = 2$ or $x = -4$. But at $x = -4$, $x + 3 = -1$, and a negative number has no logarithm. $x = -4$ is rejected.',
               ),
@@ -1652,6 +1670,11 @@ export const logarithms: Course = {
               maths('\\log_{b} A = k \\implies A = b^{k}'),
               maths('\\log_{2} x + \\log_{2}(x - 2) = 3'),
               maths('x(x - 2) = 2^{3} = 8'),
+              prose(
+                'That is a quadratic. Rearrange it to $0$, then factorise: find two numbers that multiply to the constant and add to the $x$ coefficient. Here they are $-5$ and $2$:',
+              ),
+              maths('\\begin{gathered} x(x - 3) = 10 \\\\ x^2 - 3x - 10 = 0 \\\\ (x - 5)(x + 2) = 0 \\end{gathered}'),
+              prose('So $x = 5$ or $x = -2$.'),
             ),
             ask('log-cmp-index-tiles'),
             ask('log-cmp-number'),
@@ -1661,6 +1684,12 @@ export const logarithms: Course = {
               maths('x^2 - 2x - 8 = 0'),
               maths('(x - 4)(x + 2) = 0'),
               prose('At $x = -2$ the argument $x$ is negative, so $x = 4$ is the solution.'),
+              prose(
+                'Two brackets expand term by term: each term in the first times each in the second. Then take the number across:',
+              ),
+              maths('\\begin{gathered} (x - 2)(x + 5) = 8 \\\\ x^2 + 5x - 2x - 10 = 8 \\\\ x^2 + 3x - 18 = 0 \\end{gathered}'),
+              prose('A quotient leaves a fraction: multiply by the bottom bracket, expand, and collect the $x$ terms.'),
+              maths('\\begin{gathered} \\frac{x + 9}{x + 1} = 3 \\\\ x + 9 = 3(x + 1) \\\\ x + 9 = 3x + 3 \\\\ 6 = 2x \\\\ x = 3 \\end{gathered}'),
             ),
             ask('log-cmp-quad-tiles'),
             ask('log-cmp-number+choice'),
@@ -1699,6 +1728,13 @@ export const logarithms: Course = {
                 'Dropping the logarithms can create a root the original equation cannot take. Test each root by putting it into every argument; if any is zero or negative, reject it.',
               ),
               maths('\\log_{2}(x - 3) + \\log_{2}(x - 2) = 1'),
+              prose(
+                'Drop the logarithms, expand, rearrange to $0$, and factorise with two numbers that multiply to $4$ and add to $-5$:',
+              ),
+              maths('\\begin{gathered} (x - 3)(x - 2) = 2 \\\\ x^2 - 5x + 6 = 2 \\\\ x^2 - 5x + 4 = 0 \\\\ (x - 1)(x - 4) = 0 \\end{gathered}'),
+              prose(
+                'A squared bracket is the bracket times itself, so its middle term comes twice: $(x + 3)^2$ is $x^2 + 3x + 3x + 9$, or $x^2 + 6x + 9$. With no $x$ term, $x^2 - 4$ factorises as $(x - 2)(x + 2)$.',
+              ),
               prose(
                 'This gives $x = 1$ or $x = 4$. Both are positive, but at $x = 1$, $x - 3 = -2$. Only $x = 4$ solves it: the arguments must be positive, not $x$.',
               ),
@@ -1739,7 +1775,12 @@ export const logarithms: Course = {
               prose('A logarithm can play the part of the unknown. With $u = \\log x$ this is a quadratic in $u$:'),
               maths('(\\log x)^2 - 3\\log x + 2 = 0'),
               maths('u^2 - 3u + 2 = 0'),
+              prose(
+                'Factorise with two numbers that multiply to the constant, $2$, and add to the $u$ coefficient, $-3$. They are $-1$ and $-2$:',
+              ),
+              maths('(u - 1)(u - 2) = 0'),
               prose('So $u = 1$ or $u = 2$. Each is a value of $\\log x$, so undo it: $x = 10$ or $x = 100$.'),
+              prose('With a negative constant the two numbers have opposite signs: $u^2 - 3u - 4$ is $(u - 4)(u + 1)$.'),
             ),
             ask('log-cmp-sub-steps'),
             teach(

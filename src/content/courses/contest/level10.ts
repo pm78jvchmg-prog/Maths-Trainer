@@ -21,6 +21,10 @@ export const factorization: Level = {
         teach(
           prose('Every whole number above 1 is a product of primes in exactly one way. Problems about factors start by writing it down:'),
           maths('360 = 2^{3} \\times 3^{2} \\times 5'),
+          prose('To find it, divide by the smallest prime that goes, again and again, and count how often each prime went. For $162$:'),
+          maths('162 \\div 2 = 81'),
+          maths('81 \\div 3 = 27, \\quad 27 \\div 3 = 9, \\quad 9 \\div 3 = 3, \\quad 3 \\div 3 = 1'),
+          maths('162 = 2 \\times 3^{4}'),
           prose('In a **perfect square** every prime has an even power. To make $360k$ a perfect square, give each odd power one more of its prime:'),
           maths('k = 2 \\times 5 = 10'),
           maths('360 \\times 10 = 3600 = 60^2'),
@@ -80,6 +84,10 @@ export const factorization: Level = {
           prose('A divisor of $72 = 2^{3} \\times 3^{2}$ is $2^a \\times 3^b$, with $a$ from $0$ to $3$ and $b$ from $0$ to $2$. That is $4$ choices for $a$ and $3$ for $b$:'),
           maths('(3 + 1)(2 + 1) = 12'),
           prose('So add one to each power and multiply. Multiplying the powers themselves, $3 \\times 2 = 6$, forgets the choice of none at all.'),
+          prose('If the number is not yet factorised, divide by the smallest prime until it stops going, then the next. For $288$, halve five times, then divide by $3$ twice:'),
+          maths('288 \\to 144 \\to 72 \\to 36 \\to 18 \\to 9 \\to 3 \\to 1'),
+          maths('288 = 2^{5} \\times 3^{2}'),
+          maths('(5 + 1)(2 + 1) = 18'),
         ),
         ask('cm-fz-divisor-count'),
         askAfter(
@@ -135,6 +143,9 @@ export const factorization: Level = {
           prose('The HCF divides both, so it keeps only the shared primes, each to the lower power. The LCM is a multiple of both, so it takes every prime, each to the higher power:'),
           maths('\\text{HCF} = 2 \\times 3'),
           maths('\\text{LCM} = 2^{3} \\times 3^{2} \\times 5^{2} \\times 7'),
+          prose('With plain numbers, factorise each first by dividing down by small primes. $108$ halves twice to $27$, and $120$ halves three times to $15$:'),
+          maths('108 = 2^{2} \\times 3^{3}, \\quad 120 = 2^{3} \\times 3 \\times 5'),
+          maths('\\text{HCF} = 2^{2} \\times 3 = 12'),
         ),
         ask('cm-fz-hcf-lcm-tiles'),
         askAfter(
@@ -280,6 +291,9 @@ export const factorization: Level = {
           maths('3 + A + 5 + 1 + 2 = 11 + A'),
           prose('which is a multiple of 9 only for $A = 7$: the number is $37512 = 72 \\times 521$.'),
           prose('Splitting 72 as $4 \\times 18$ does not work: $36$ is a multiple of both but not of 72. The two parts must share no factor.'),
+          prose('$88$ is $8 \\times 11$, so it needs the test for 11: give the digits signs $+, -, +, -, +$ from the left, and the total must be a multiple of 11. For $21736$:'),
+          maths('2 - 1 + 7 - 3 + 6 = 11'),
+          prose('so $21736$ is a multiple of 11.'),
         ),
         ask('cm-fz-crypt-divisible'),
         askAfter(

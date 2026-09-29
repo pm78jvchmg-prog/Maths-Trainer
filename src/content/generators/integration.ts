@@ -999,7 +999,7 @@ const substitution: Generator<SubstitutionParams> = {
     return {
       kind: 'expression',
       prompt: [
-        { kind: 'prose', text: 'Integrate, using the substitution $u = x^{2} + c$.' },
+        { kind: 'prose', text: `Integrate, using the substitution $u = x^{2} ${b < 0 ? '-' : '+'} ${Math.abs(b)}$.` },
       ],
       lead: `${integralTex(`${termTex(a, 1)}${bracket}^{${power}}`)} =`,
       keypad: INTEGRAL_KEYS,
@@ -1404,7 +1404,7 @@ const definiteSubstitution: Generator<DefiniteSubstitutionParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: 'Evaluate, using the substitution $u = x^{2} + c$. The answer is a whole number.',
+          text: `Evaluate, using the substitution $u = x^{2} ${b < 0 ? '-' : '+'} ${Math.abs(b)}$. The answer is a whole number.`,
         },
       ],
       lead: `${definiteTex(`${termTex(a, 1)}\\left(x^{2} ${b < 0 ? '-' : '+'} ${Math.abs(b)}\\right)^{${n}}`, lower, upper)} =`,

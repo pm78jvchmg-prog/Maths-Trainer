@@ -452,6 +452,10 @@ export const quadratics: Course = {
               prose(
                 'Solving a quadratic means finding the values of $x$ that make it zero. Factorising first turns one hard equation into two easy ones.',
               ),
+              prose(
+                'To factorise $x^{2} - 2x - 15$, look for two numbers that multiply to the constant, $-15$, and add to the coefficient of $x$, $-2$. Test the factor pairs of $-15$: $3$ and $-5$ work.',
+              ),
+              maths('\\begin{aligned} 3 \\times \\left(-5\\right) &= -15 \\\\ 3 + \\left(-5\\right) &= -2 \\end{aligned}'),
               maths('x^{2} - 2x - 15 = 0 \\implies \\left(x + 3\\right)\\left(x - 5\\right) = 0'),
               prose(
                 'If a product of two things is zero then at least one of them is zero. There is no other way for a product to vanish.',
@@ -521,6 +525,12 @@ export const quadratics: Course = {
                 'But $\\left(x + 3\\right)^{2}$ expands to $x^{2} + 6x + 9$, whose constant is 9 rather than 11. The difference, $11 - 9 = 2$, is added on outside.',
               ),
               maths('\\left(x + 3\\right)^{2} + 2 = x^{2} + 6x + 9 + 2'),
+              prose(
+                'A negative coefficient halves to a negative number. For $x^{2} - 8x + 10$, half of $-8$ is $-4$, and the correction can come out negative too:',
+              ),
+              maths(
+                '\\begin{aligned} \\left(x - 4\\right)^{2} &= x^{2} - 8x + 16 \\\\ x^{2} - 8x + 10 &= \\left(x - 4\\right)^{2} + 10 - 16 \\\\ &= \\left(x - 4\\right)^{2} - 6 \\end{aligned}',
+              ),
             ),
             ask('quad-complete-square'),
             askWith(
@@ -583,6 +593,9 @@ export const quadratics: Course = {
               prose(
                 'Write down $a$, $b$ and $c$ with their signs before substituting anything. Most errors here are sign errors made while reading the equation.',
               ),
+              prose('Read them only once one side is zero. Take 2 from both sides first:'),
+              maths('3x^{2} + 5x = 2 \\implies 3x^{2} + 5x - 2 = 0'),
+              prose('So $a = 3$, $b = 5$ and $c = -2$.'),
             ),
             askWith('quad-formula-values', 'Start where the errors start. Name the three coefficients, with their signs, before anything goes into the formula.'),
             askWith(
@@ -599,6 +612,12 @@ export const quadratics: Course = {
               ),
               prose(
                 '29 is not a perfect square, so the roots are irrational. Leaving the surd in place keeps the answer exact; turning it into a decimal rounds it.',
+              ),
+              prose(
+                'With a negative $b$ and a number on $x^{2}$, as in $2x^{2} - 5x - 1 = 0$, take $a = 2$, $b = -5$, $c = -1$. The $-b$ turns $-5$ into $5$, and the whole top sits over $2a$, which is 4:',
+              ),
+              maths(
+                '\\begin{aligned} b^{2} - 4ac &= 25 + 8 = 33 \\\\ x &= \\frac{5 \\pm \\sqrt{33}}{4} \\end{aligned}',
               ),
             ),
             ask('quad-formula'),
@@ -931,6 +950,10 @@ export const quadratics: Course = {
               prose(
                 'When the roots are not whole numbers, or there are none, use $x = -\\frac{b}{2a}$ and complete the square. For $y = x^{2} + 6x + 11$ the line is $x = -\\frac{6}{2} = -3$, and $x^{2} + 6x + 11 = \\left(x + 3\\right)^{2} + 2$, so the turning point is $\\left(-3, 2\\right)$.',
               ),
+              prose('That square is completed by halving the 6, then correcting the constant:'),
+              maths(
+                '\\begin{aligned} \\left(x + 3\\right)^{2} &= x^{2} + 6x + 9 \\\\ x^{2} + 6x + 11 &= \\left(x + 3\\right)^{2} + 11 - 9 \\\\ &= \\left(x + 3\\right)^{2} + 2 \\end{aligned}',
+              ),
             ),
             ask('quad-symmetry'),
             ask('quad-turning-point'),
@@ -1066,6 +1089,10 @@ export const quadratics: Course = {
                 'Substituting leaves an ordinary quadratic, and everything from the level on solving applies. Factorise if you can. For $y = x^{2} - 2x - 1$ and $y = x + 3$:',
               ),
               maths('\\begin{aligned} x^{2} - 2x - 1 &= x + 3 \\\\ x^{2} - 3x - 4 &= 0 \\end{aligned}'),
+              prose(
+                'Two numbers multiplying to $-4$ and adding to $-3$ are $-4$ and $1$. The constant is negative, so their signs differ, and the larger carries the sign of the middle term.',
+              ),
+              maths('\\begin{aligned} -4 \\times 1 &= -4 \\\\ -4 + 1 &= -3 \\end{aligned}'),
               maths('\\left(x - 4\\right)\\left(x + 1\\right) = 0'),
               prose(
                 'So $x = 4$ or $x = -1$. Those are the $x$-coordinates of the two places the line crosses the curve — not the points themselves yet, which is the next lesson.',
@@ -1141,6 +1168,10 @@ export const quadratics: Course = {
                 'Finding the $x$ values in the first place is the substitution from before: set the curve equal to the line, collect, and factorise.',
               ),
               maths('\\begin{aligned} x^{2} - 2x - 1 &= x + 3 \\\\ x^{2} - 3x - 4 &= 0 \\end{aligned}'),
+              prose(
+                'Search the factor pairs of the constant, $-4$, for the one that adds to the middle coefficient, $-3$: that is $-4$ and $1$.',
+              ),
+              maths('\\begin{aligned} -4 \\times 1 &= -4 \\\\ -4 + 1 &= -3 \\end{aligned}'),
               maths('\\left(x - 4\\right)\\left(x + 1\\right) = 0'),
               prose('So $x = 4$ or $x = -1$, the two values used above.'),
             ),
@@ -1183,6 +1214,8 @@ export const quadratics: Course = {
                 'The algebra: set the curve $y = x^{2} - 2x - 1$ equal to the line $y = x + 3$, collect, and factorise.',
               ),
               maths('\\begin{aligned} x^{2} - 2x - 1 &= x + 3 \\\\ x^{2} - 3x - 4 &= 0 \\end{aligned}'),
+              prose('Find the pair from the constant first, then check its sum against the middle coefficient: $-4$ and $1$.'),
+              maths('\\begin{aligned} -4 \\times 1 &= -4 \\\\ -4 + 1 &= -3 \\end{aligned}'),
               maths('\\left(x - 4\\right)\\left(x + 1\\right) = 0'),
               maths('x = 4 \\text{ or } x = -1'),
               prose(
@@ -1264,6 +1297,12 @@ export const quadratics: Course = {
               ),
               prose(
                 'The sign inside the bracket is where this goes wrong: $c$ is $-k$ here, not $k$, because $k$ crossed the equals sign.',
+              ),
+              prose(
+                'When the curve has a constant of its own, it joins $-k$ to make $c$, and the minus in front of $4ac$ multiplies the whole bracket. For $y = x^{2} + 2x + 3$ and $y = 4x + k$:',
+              ),
+              maths(
+                '\\begin{aligned} x^{2} - 2x + \\left(3 - k\\right) &= 0 \\\\ \\left(-2\\right)^{2} - 4\\left(3 - k\\right) &= 0 \\\\ 4 - 12 + 4k &= 0 \\\\ k &= 2 \\end{aligned}',
               ),
             ),
             ask('quad-sim-tangent-k'),
@@ -1371,6 +1410,8 @@ export const quadratics: Course = {
                 'Given no graph and no brackets, take out any common factor and factorise first. For $2x^{2} + 2x - 12 < 0$:',
               ),
               maths('\\begin{aligned} & 2x^{2} + 2x - 12 \\\\ &= 2\\left(x^{2} + x - 6\\right) \\\\ &= 2\\left(x + 3\\right)\\left(x - 2\\right) \\end{aligned}'),
+              prose('The bracket factorises with two numbers that multiply to $-6$ and add to $1$, the coefficient of $x$: $3$ and $-2$.'),
+              maths('\\begin{aligned} 3 \\times \\left(-2\\right) &= -6 \\\\ 3 + \\left(-2\\right) &= 1 \\end{aligned}'),
               prose(
                 'The 2 is positive, so the curve is still U-shaped, and the answer is $-3 < x < 2$. Its largest whole number is 1.',
               ),
@@ -1393,9 +1434,11 @@ export const quadratics: Course = {
                 'Without a picture, solve in three moves: factorise to find the roots, think which way up the curve is, then read off the side the inequality asks for.',
               ),
               maths('x^{2} - x - 6 < 0'),
+              prose('Two numbers multiplying to $-6$ and adding to $-1$ are $2$ and $-3$:'),
+              maths('\\begin{aligned} 2 \\times \\left(-3\\right) &= -6 \\\\ 2 + \\left(-3\\right) &= -1 \\end{aligned}'),
               maths('\\left(x + 2\\right)\\left(x - 3\\right) < 0'),
               prose(
-                'The roots are $-2$ and $3$, the curve is U-shaped, and $< 0$ asks for below the axis: the piece **between** the roots.',
+                'The roots are $-2$ and $3$, each bracket\'s number with its sign flipped. The curve is U-shaped, and $< 0$ asks for below the axis: the piece **between** the roots.',
               ),
               maths('-2 < x < 3'),
               prose(
@@ -1458,6 +1501,10 @@ export const quadratics: Course = {
               ),
               prose('A full one, start to finish, with a common factor taken out first:'),
               maths('2x^{2} - 10x + 8 \\le 0'),
+              prose('Take out the 2, then find two numbers multiplying to $4$ and adding to $-5$: $-1$ and $-4$.'),
+              maths(
+                '\\begin{aligned} 2x^{2} - 10x + 8 &= 2\\left(x^{2} - 5x + 4\\right) \\\\ &= 2\\left(x - 1\\right)\\left(x - 4\\right) \\end{aligned}',
+              ),
               maths('2\\left(x - 1\\right)\\left(x - 4\\right) \\le 0'),
               prose(
                 'U-shaped, and $\\le 0$ asks for on or below the axis: one piece, roots included, $1 \\le x \\le 4$.',
@@ -1515,6 +1562,8 @@ export const quadratics: Course = {
               ),
               maths('x^{2} > 3x + 4'),
               maths('x^{2} - 3x - 4 > 0'),
+              prose('Two numbers multiplying to $-4$ and adding to $-3$ are $1$ and $-4$, so the critical values are $-1$ and $4$:'),
+              maths('\\begin{aligned} 1 \\times \\left(-4\\right) &= -4 \\\\ 1 + \\left(-4\\right) &= -3 \\end{aligned}'),
               maths('\\left(x + 1\\right)\\left(x - 4\\right) > 0'),
               prose(
                 'U-shaped and asking for above the axis, so $x < -1$ or $x > 4$. Reading a direction off $x^{2} > 3x + 4$ as it stands is where this goes wrong.',
@@ -1570,10 +1619,25 @@ export const quadratics: Course = {
               ),
             ),
             ask('quad-ineq-param-critical'),
-            askWith(
-              'quad-sim-tangent-k',
-              'A tangent is the one-root case, $\\Delta = 0$. For $y = x^{2}$ and $y = 2x + k$: $x^{2} - 2x - k = 0$, so $\\left(-2\\right)^{2} - 4 \\times 1 \\times \\left(-k\\right) = 4 + 4k = 0$, and $k = -1$.',
-            ),
+            {
+              type: 'generated',
+              generatorId: 'quad-sim-tangent-k',
+              difficulty: 1,
+              leadIn: [
+                prose(
+                  'A tangent is the one-root case, $\\Delta = 0$. For $y = x^{2}$ and $y = 2x + k$:',
+                ),
+                maths(
+                  '\\begin{aligned} x^{2} - 2x - k &= 0 \\\\ \\left(-2\\right)^{2} - 4 \\times 1 \\times \\left(-k\\right) &= 0 \\\\ 4 + 4k &= 0 \\\\ k &= -1 \\end{aligned}',
+                ),
+                prose(
+                  'When the curve has its own constant, it joins $-k$ to make $c$. For $y = x^{2} + 4x + 3$ and $y = 2x + k$:',
+                ),
+                maths(
+                  '\\begin{aligned} x^{2} + 2x + \\left(3 - k\\right) &= 0 \\\\ 2^{2} - 4\\left(3 - k\\right) &= 0 \\\\ 4 - 12 + 4k &= 0 \\\\ k &= 2 \\end{aligned}',
+                ),
+              ],
+            },
             ask('quad-ineq-param-critical+choice'),
             teach(
               prose(
@@ -1704,6 +1768,10 @@ export const quadratics: Course = {
               ),
               prose('The landing is where $h = 0$. Divide $25 + 20t - 5t^{2} = 0$ by $-5$ and factorise:'),
               maths('t^{2} - 4t - 5 = 0'),
+              prose(
+                'Dividing by $-5$ flips every sign: $-5t^{2}$ becomes $t^{2}$, $20t$ becomes $-4t$ and $25$ becomes $-5$. Then find two numbers multiplying to $-5$ and adding to $-4$: $-5$ and $1$.',
+              ),
+              maths('\\begin{aligned} -5 \\times 1 &= -5 \\\\ -5 + 1 &= -4 \\end{aligned}'),
               maths('(t - 5)(t + 1) = 0'),
               prose('$t = -1$ is before the throw, so it is thrown away: the ball lands after 5 seconds.'),
             ),
@@ -1796,8 +1864,14 @@ export const quadratics: Course = {
                 'When is the ball from $h = 20t - 5t^{2}$ at 15 m? Set $h = 15$ and bring everything to one side:',
               ),
               maths('20t - 5t^{2} = 15'),
+              prose('Take 15 from both sides, then divide every term by $-5$:'),
+              maths('-5t^{2} + 20t - 15 = 0'),
               maths('t^{2} - 4t + 3 = 0'),
               prose('Dividing by $-5$ changes every sign. It factorises as $(t - 1)(t - 3) = 0$.'),
+              prose(
+                'The pair multiplies to $3$ and adds to $-4$: $-1$ and $-3$. Both are negative because the constant is positive and the middle term negative.',
+              ),
+              maths('\\begin{aligned} -1 \\times \\left(-3\\right) &= 3 \\\\ -1 + \\left(-3\\right) &= -4 \\end{aligned}'),
               flightGraph(0, 20, {
                 horizontal: 15,
                 marks: [
@@ -1917,6 +1991,10 @@ export const quadratics: Course = {
               prose('The same test finds some other disguises:'),
               prose('$\\frac{6}{x^{2}} - \\frac{5}{x} + 1 = 0$ is a quadratic in $u = \\frac{1}{x}$, and $x^{6} - 9x^{3} + 8 = 0$ is one in $u = x^{3}$.'),
               prose('$(x + 1)^{2} - 5(x + 1) + 6 = 0$ is a quadratic in $u = x + 1$. Solving in $u$:'),
+              prose(
+                'Once it is in $u$ it factorises like any other quadratic: two numbers multiplying to $6$ and adding to $-5$ are $-2$ and $-3$.',
+              ),
+              maths('\\begin{aligned} -2 \\times \\left(-3\\right) &= 6 \\\\ -2 + \\left(-3\\right) &= -5 \\end{aligned}'),
               maths('u^{2} - 5u + 6 = (u - 2)(u - 3) = 0'),
               prose('So $u = 2$ or $u = 3$.'),
             ),
@@ -1946,6 +2024,11 @@ export const quadratics: Course = {
           slides: [
             teach(
               prose('Solve $x^{4} - 5x^{2} + 4 = 0$. With $u = x^{2}$:'),
+              maths('u^{2} - 5u + 4 = 0'),
+              prose(
+                'Two numbers multiplying to $4$ and adding to $-5$ are $-1$ and $-4$. With a negative constant the pair has opposite signs: for $u^{2} + 3u - 4$ it is $4$ and $-1$, giving $(u + 4)(u - 1)$.',
+              ),
+              maths('\\begin{aligned} -1 \\times \\left(-4\\right) &= 4 \\\\ -1 + \\left(-4\\right) &= -5 \\end{aligned}'),
               maths('(u - 1)(u - 4) = 0'),
               prose(
                 'So $u = 1$ or $u = 4$. Now go back: $x^{2} = 1$ gives $x = \\pm 1$, and $x^{2} = 4$ gives $x = \\pm 2$. Four solutions, one for each crossing:',
@@ -2000,6 +2083,8 @@ export const quadratics: Course = {
             teach(
               prose('In $x - 5\\sqrt{x} + 6 = 0$, $x$ is the square of $\\sqrt{x}$. Put $u = \\sqrt{x}$:'),
               maths('u^{2} - 5u + 6 = 0'),
+              prose('Two numbers multiplying to $6$ and adding to $-5$ are $-2$ and $-3$, so $u = 2$ or $u = 3$:'),
+              maths('\\begin{aligned} -2 \\times \\left(-3\\right) &= 6 \\\\ -2 + \\left(-3\\right) &= -5 \\end{aligned}'),
               maths('(u - 2)(u - 3) = 0'),
               prose('Going back means squaring: $\\sqrt{x} = 2$ gives $x = 4$, and $\\sqrt{x} = 3$ gives $x = 9$.'),
               prose('A square root is never negative, so a negative $u$ is thrown away: $\\sqrt{x} = -4$ gives no $x$.'),
@@ -2044,6 +2129,10 @@ export const quadratics: Course = {
                 'In $\\frac{6}{x^{2}} - \\frac{5}{x} + 1 = 0$, $\\frac{1}{x^{2}}$ is the square of $\\frac{1}{x}$. Put $u = \\frac{1}{x}$:',
               ),
               maths('6u^{2} - 5u + 1 = 0'),
+              prose(
+                'With a number on $u^{2}$, split it between the brackets and test. $6$ splits as $2u$ and $3u$; the constants multiply to $1$ and the middle term is negative, so both are $-1$. Check the middle term:',
+              ),
+              maths('\\begin{aligned} (2u - 1)(3u - 1) &= 6u^{2} - 2u - 3u + 1 \\\\ &= 6u^{2} - 5u + 1 \\end{aligned}'),
               maths('(2u - 1)(3u - 1) = 0'),
               prose('So $u = \\frac{1}{2}$ or $u = \\frac{1}{3}$. Flip each one to go back: $x = 2$ or $x = 3$.'),
             ),
@@ -2084,6 +2173,8 @@ export const quadratics: Course = {
                 '$(x + 1)^{2} - 5(x + 1) + 6 = 0$ could be expanded, but the bracket appears squared and on its own. Put $u = x + 1$:',
               ),
               maths('u^{2} - 5u + 6 = 0'),
+              prose('Two numbers multiplying to $6$ and adding to $-5$ are $-2$ and $-3$:'),
+              maths('\\begin{aligned} -2 \\times \\left(-3\\right) &= 6 \\\\ -2 + \\left(-3\\right) &= -5 \\end{aligned}'),
               maths('(u - 2)(u - 3) = 0'),
               prose('So $x + 1 = 2$ or $x + 1 = 3$, giving $x = 1$ or $x = 2$. Take the 1 away; do not add it.'),
             ),

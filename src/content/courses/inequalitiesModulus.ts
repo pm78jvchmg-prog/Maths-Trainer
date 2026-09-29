@@ -338,6 +338,8 @@ export const inequalitiesModulus: Course = {
               ),
               line(-4, 7, [piece(-2, 5, false, true)], 'The interval from -2, left out, to 5, included'),
               prose('Beside $\\infty$ the bracket is always round, since infinity is never reached: $x \\ge 3$ is $[3, \\infty)$.'),
+              prose('A set that runs left for ever starts at $-\\infty$, round beside it, with the usual bracket at the other end:'),
+              maths('\\begin{aligned} x \\le 3 &\\;\\text{ is }\\; (-\\infty, 3] \\\\ x < -2 &\\;\\text{ is }\\; (-\\infty, -2) \\end{aligned}'),
             ),
             ask('ineq-interval-tiles'),
             ask('ineq-read-region'),
@@ -413,6 +415,10 @@ export const inequalitiesModulus: Course = {
               line(-3, 6, [piece(-1, -1, true, true), piece(5, 5, true, true)], 'The two points -1 and 5, each 3 away from 2'),
               prose(
                 'Watch the sign: $\\lvert x + 4 \\rvert$ is $\\lvert x - (-4) \\rvert$, the distance from $-4$. So "$x$ is at least $1$ away from $-4$" is $\\lvert x + 4 \\rvert \\ge 1$, and $\\lvert x + 4 \\rvert = 2$ gives $x = -4 + 2 = -2$ or $x = -4 - 2 = -6$.',
+              ),
+              prose('A number outside the bars moves across first; only then is the modulus a distance:'),
+              maths(
+                '\\begin{gathered} \\lvert x - 1 \\rvert + 2 = 5 \\\\ \\lvert x - 1 \\rvert = 3 \\\\ x = 1 + 3 = 4 \\;\\text{ or }\\; x = 1 - 3 = -2 \\end{gathered}',
               ),
             ),
             ask('mod-points-tiles'),
@@ -572,6 +578,12 @@ export const inequalitiesModulus: Course = {
                   { x: 4, y: 5 },
                 ],
               ),
+              prose('A number outside the bars moves across before you split:'),
+              maths('\\begin{gathered} \\lvert 2x - 1 \\rvert + 3 \\le 8 \\\\ \\lvert 2x - 1 \\rvert \\le 5 \\\\ -5 \\le 2x - 1 \\le 5 \\end{gathered}'),
+              prose('A minus on the $x$ inside can come out, since the modulus drops the sign:'),
+              maths(
+                '\\begin{gathered} \\lvert -2x - 8 \\rvert = \\lvert -(2x + 8) \\rvert = \\lvert 2x + 8 \\rvert \\\\ \\lvert 2x + 8 \\rvert > 6 \\\\ 2x + 8 < -6 \\;\\text{ or }\\; 2x + 8 > 6 \\\\ x < -7 \\;\\text{ or }\\; x > -1 \\end{gathered}',
+              ),
             ),
             ask('mod-ineq-split', 2),
             ask('mod-ineq-tiles', 2),
@@ -711,14 +723,24 @@ export const inequalitiesModulus: Course = {
               prose(
                 'For $\\lvert 2x + 1 \\rvert = \\lvert x - 4 \\rvert$: the difference is $x + 5$ and the sum $3x - 3$, so $(x + 5)(3x - 3) = 0$. That is $x = -5$ or $x = 1$, with no cases.',
               ),
+              prose('Work the difference and sum out in brackets. The minus in the difference reaches both terms of the second inside:'),
+              maths(
+                '\\begin{aligned} (2x + 1) - (x - 4) &= 2x + 1 - x + 4 \\\\ &= x + 5 \\\\ (2x + 1) + (x - 4) &= 3x - 3 \\end{aligned}',
+              ),
             ),
             ask('mod-square-factor'),
             ask('mod-square-tree'),
             ask('mod-square-root'),
             teach(
+              prose('A squared bracket is the bracket times itself: every term times every term.'),
+              maths('\\begin{aligned} (x - 4)^2 &= (x - 4)(x - 4) \\\\ &= x^2 - 4x - 4x + 16 \\\\ &= x^2 - 8x + 16 \\end{aligned}'),
               prose('Multiplying the squares out works too, and lands on the same roots with more arithmetic. $(2x + 1)^2 = (x - 4)^2$ becomes'),
               maths('\\begin{aligned} & 4x^2 + 4x + 1 \\\\ & \\quad = x^2 - 8x + 16 \\\\ & 3x^2 + 12x - 15 = 0 \\\\ & 3(x^2 + 4x - 5) = 0 \\\\ & 3(x + 5)(x - 1) = 0 \\end{aligned}'),
               prose('Watch the middle terms: $(x - 4)^2$ has $-8x$ in it. Forgetting it is the usual slip.'),
+              prose(
+                'To factorise, take out the common factor $3$ first, then find two numbers that multiply to $-5$ and add to $4$: $5$ and $-1$.',
+              ),
+              maths('\\begin{aligned} x^2 + 4x - 5 &= (x + 5)(x - 1) \\\\ x = -5 &\\;\\text{ or }\\; x = 1 \\end{aligned}'),
             ),
             ask('mod-expand-steps'),
             ask('mod-square-factor', 2),
@@ -811,6 +833,10 @@ export const inequalitiesModulus: Course = {
               prose(
                 'To test a point, work out both insides, then their difference and sum. At $x = 0$: $2x + 1 = 1$ and $x - 4 = -4$; difference $5$, sum $-3$, product $-15$. Negative, so $\\lvert 1 \\rvert < \\lvert -4 \\rvert$ and $0$ is in the set.',
               ),
+              prose('The two brackets are the difference and the sum of the insides. The minus in the difference reaches both terms:'),
+              maths(
+                '\\begin{aligned} (2x + 1) - (x - 4) &= 2x + 1 - x + 4 \\\\ &= x + 5 \\\\ (2x + 1) + (x - 4) &= 3x - 3 \\end{aligned}',
+              ),
             ),
             ask('mod-test-tree'),
             teach(
@@ -873,6 +899,10 @@ export const inequalitiesModulus: Course = {
                 'Square $\\lvert x - 1 \\rvert = 2x + 5$ from The Modulus Function and factorise the difference of two squares:',
               ),
               maths('\\begin{gathered} (x - 1)^2 = (2x + 5)^2 \\\\ (-x - 6)(3x + 4) = 0 \\\\ x = -6 \\text{ or } x = -\\tfrac{4}{3} \\end{gathered}'),
+              prose('The brackets are the difference and the sum of the two sides, the minus reaching both terms:'),
+              maths(
+                '\\begin{aligned} (x - 1) - (2x + 5) &= x - 1 - 2x - 5 \\\\ &= -x - 6 \\\\ (x - 1) + (2x + 5) &= 3x + 4 \\end{aligned}',
+              ),
               prose(
                 'At $x = -6$ the right-hand side is $-7$, so it is rejected: the same root the two cases rejected. Squaring is quicker, but the check is still needed.',
               ),
@@ -940,6 +970,8 @@ export const inequalitiesModulus: Course = {
               prose(
                 'For $y = \\lvert x^2 - 2x - 3 \\rvert$ the roots $x = -1$ and $x = 3$ stay put, and the dip between them flips up: the vertex $(1, -4)$ becomes $(1, 4)$.',
               ),
+              prose('The roots come from factorising: two numbers that multiply to $-3$ and add to $-2$ are $-3$ and $1$.'),
+              maths('\\begin{aligned} x^2 - 2x - 3 &= (x - 3)(x + 1) \\\\ x = 3 &\\;\\text{ or }\\; x = -1 \\end{aligned}'),
             ),
             ask('mod-abs-quad-match'),
             ask('mod-abs-vertex-slider'),
@@ -973,6 +1005,13 @@ export const inequalitiesModulus: Course = {
               prose(
                 'Written out in full, complete the square to find the vertex first. $x^2 - 6x + 5 = (x - 3)^2 - 4$, so the vertex $(3, -4)$ is below the axis and $y = \\lvert x^2 - 6x + 5 \\rvert$ has its vertex at $(3, 4)$.',
               ),
+              prose(
+                'To complete the square, halve the $x$ coefficient for the bracket, then take off the extra its square brings. With $-x^2$, take the minus out first and put it back at the end:',
+              ),
+              maths(
+                '\\begin{aligned} x^2 - 6x + 5 &= (x - 3)^2 - 9 + 5 \\\\ &= (x - 3)^2 - 4 \\\\ -x^2 + 6x - 8 &= -(x^2 - 6x + 8) \\\\ &= -\\left((x - 3)^2 - 1\\right) \\\\ &= -(x - 3)^2 + 1 \\end{aligned}',
+              ),
+              prose('So $y = -x^2 + 6x - 8$ has its vertex at $(3, 1)$.'),
             ),
             ask('mod-abs-values-tree', 2),
             ask('mod-abs-sketch-flow', 2),
@@ -1005,6 +1044,8 @@ export const inequalitiesModulus: Course = {
               prose(
                 'To write the left arm, put $-x$ for $\\lvert x \\rvert$, since $\\lvert x \\rvert = -x$ when $x < 0$. For $x^2 - 4\\lvert x \\rvert + 3$: $x^2 - 4(-x) + 3 = x^2 + 4x + 3$. Only the $x$ term changes sign; $x^2$ and the number stay.',
               ),
+              prose('With $f$ in brackets, take a minus out of each bracket; the two minus signs cancel. For $(\\lvert x \\rvert + 4)(\\lvert x \\rvert + 1)$:'),
+              maths('\\begin{aligned} &(-x + 4)(-x + 1) \\\\ &= \\left(-(x - 4)\\right)\\left(-(x - 1)\\right) \\\\ &= (x - 4)(x - 1) \\end{aligned}'),
             ),
             ask('mod-fabs-match'),
             ask('mod-fabs-arm-tiles'),
@@ -1015,6 +1056,8 @@ export const inequalitiesModulus: Course = {
               prose(
                 '$f(\\lvert x \\rvert)$: inside first, $\\lvert -2 \\rvert = 2$, then $f(2) = 4 - 8 + 3 = -1$. $\\lvert f(x) \\rvert$: $f(-2) = 4 + 8 + 3 = 15$ first, then $\\lvert 15 \\rvert = 15$. Different curves.',
               ),
+              prose('To find the roots of a quadratic $f$, factorise it. For $x^2 + 7x + 10$, two numbers that multiply to $10$ and add to $7$ are $5$ and $2$:'),
+              maths('\\begin{aligned} x^2 + 7x + 10 &= (x + 5)(x + 2) \\\\ x = -5 &\\;\\text{ or }\\; x = -2 \\end{aligned}'),
             ),
             ask('mod-inside-out-tree'),
             ask('mod-fabs-match', 2),
@@ -1342,6 +1385,10 @@ export const inequalitiesModulus: Course = {
               region([vee(1, -3, '>='), cap(-1, 3, '<=')], 'A solid V with its vertex at (1, -3) and a solid upside-down V with its vertex at (-1, 3), the rectangle between them shaded'),
               maths('\\begin{gathered} x - 4 = 2 - x \\\\ x = 3, \\quad y = -1 \\end{gathered}'),
               prose('The left arms, $y = -x - 2$ and $y = x + 4$, meet at $(-3, 1)$. The other two corners are the vertices, $(1, -3)$ and $(-1, 3)$.'),
+              prose('Each arm drops the bars: on the right the inside is positive and stays; on the left it is negative, so it changes sign:'),
+              maths(
+                '\\begin{aligned} \\text{right: } \\lvert x - 1 \\rvert - 3 &= (x - 1) - 3 = x - 4 \\\\ \\text{left: } \\lvert x - 1 \\rvert - 3 &= (1 - x) - 3 = -x - 2 \\end{aligned}',
+              ),
             ),
             ask('mod-between-corners-tiles'),
             ask('mod-between-corner-slider'),
@@ -1433,6 +1480,10 @@ export const inequalitiesModulus: Course = {
               ),
               maths('\\begin{gathered} \\lvert x - 1 \\rvert \\le 2: \\; -1 \\le x \\le 3 \\\\ \\lvert x + 1 \\rvert \\le 4: \\; -5 \\le x \\le 3 \\end{gathered}'),
               prose('Both hold from $-1$ to $3$, a width of $4$.'),
+              prose('Each stretch comes from putting the height in, then moving the modulus to the side where it is positive:'),
+              maths(
+                '\\begin{gathered} 0 \\ge \\lvert x - 1 \\rvert - 2 \\;\\Rightarrow\\; \\lvert x - 1 \\rvert \\le 2 \\\\ 0 \\le 4 - \\lvert x + 1 \\rvert \\;\\Rightarrow\\; \\lvert x + 1 \\rvert \\le 4 \\end{gathered}',
+              ),
             ),
             ask('mod-region-width'),
             ask('mod-pair-point-choice', 2),
@@ -1524,6 +1575,10 @@ export const inequalitiesModulus: Course = {
               prose(
                 'The split is where the inside is zero: $2x - 6 = 0$ at $x = 3$, and $x = -\\frac{b}{a}$ for $\\lvert ax + b \\rvert$ in general. The negative side is minus the **whole** inside, $-(2x - 6) = 6 - 2x$, never $-2x - 6$.',
               ),
+              prose(
+                'With a minus on the $x$, the inside is positive on the **left**. Test a value: $8 - 4x$ is zero at $x = 2$ and is $8$ at $x = 0$, so',
+              ),
+              maths('\\lvert 8 - 4x \\rvert = \\begin{cases} 8 - 4x & x < 2 \\\\ 4x - 8 & x \\ge 2 \\end{cases}'),
             ),
             ask('mod-split-sign-flow'),
             ask('mod-split-tiles'),
@@ -1547,6 +1602,8 @@ export const inequalitiesModulus: Course = {
               prose(
                 'For a **difference** of two moduli the $x$ terms cancel on the outside instead: $\\lvert x - 1 \\rvert - \\lvert x - 4 \\rvert$ is level at $-3$ on the left and at $3$ on the right, and $2x - 5$ in between.',
               ),
+              prose('In between, $x - 1$ is positive and $x - 4$ negative. The minus in front of the second modulus reaches its whole piece:'),
+              maths('\\begin{aligned} (x - 1) - (4 - x) &= x - 1 - 4 + x \\\\ &= 2x - 5 \\end{aligned}'),
             ),
             ask('mod-two-abs-tiles', 2),
             ask('mod-abs-cases-choice', 2),

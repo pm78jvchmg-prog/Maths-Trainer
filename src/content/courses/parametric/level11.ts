@@ -124,6 +124,12 @@ export const level11: Level = {
             ],
             label: 'A tilted oval crossing the x-axis at 4 and -2 and the y-axis at 2 and -4',
           }),
+          prose(
+            'To factorise, find two numbers that multiply to the constant and add to the middle coefficient: for $x^{2} - 2x - 8$ they are $-4$ and $2$. With a number in front of the square, take it out first:',
+          ),
+          display(
+            '\\begin{aligned} 2y^{2} - 6y + 4 &= 2(y^{2} - 3y + 2) \\\\ &= 2(y - 1)(y - 2) \\end{aligned}',
+          ),
         ),
         ask('isk-intercepts'),
         ask('isk-meet-flow'),

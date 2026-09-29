@@ -6757,7 +6757,9 @@ function logRateSolution(params: LogRateParams): SolutionStep[] {
       text:
         2 * value < l
           ? `$${value}$ is below half the ceiling, so the growth is still speeding up.`
-          : `$${value}$ is above half the ceiling, so the growth is slowing down.`,
+          : 2 * value === l
+            ? `$${value}$ is exactly half the ceiling, where the growth is at its fastest.`
+            : `$${value}$ is above half the ceiling, so the growth is slowing down.`,
     },
   ];
 }

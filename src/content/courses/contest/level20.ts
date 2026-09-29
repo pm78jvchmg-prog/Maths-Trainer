@@ -40,6 +40,9 @@ export const contestTrig: Level = {
           maths('\\sin 150^\\circ = \\sin 30^\\circ = \\frac{1}{2}'),
           maths('\\cos 150^\\circ = -\\cos 30^\\circ = -\\frac{\\sqrt{3}}{2}'),
           prose('The sines of $30^\\circ$, $45^\\circ$ and $60^\\circ$ are $\\frac{1}{2}$, $\\frac{\\sqrt{2}}{2}$ and $\\frac{\\sqrt{3}}{2}$, and their cosines are the same three the other way round.'),
+          prose('The tangent is the sine over the cosine, so it is negative where exactly one of them is:'),
+          maths('\\tan 30^\\circ = \\frac{1}{2} \\div \\frac{\\sqrt{3}}{2} = \\frac{1}{\\sqrt{3}} = \\frac{\\sqrt{3}}{3}'),
+          maths('\\tan 45^\\circ = 1, \\qquad \\tan 60^\\circ = \\frac{\\sqrt{3}}{2} \\div \\frac{1}{2} = \\sqrt{3}'),
         ),
         teach(
           prose('Whole turns change nothing: $360^\\circ$ brings the point back where it started. For $\\sin 1110^\\circ$, take off whole turns:'),
@@ -93,6 +96,9 @@ export const contestTrig: Level = {
           maths('\\cos\\theta = \\frac{5^{2} + 8^{2} - 7^{2}}{2 \\times 5 \\times 8}'),
           maths('\\cos\\theta = \\frac{40}{80} = \\frac{1}{2}'),
           prose('So $\\theta = 60^\\circ$. A cosine of $-\\frac{1}{2}$ would mean $120^\\circ$.'),
+          prose('A negative cosine means $180^\\circ$ less the acute angle with that cosine. From the cosines of $30^\\circ$ and $45^\\circ$:'),
+          maths('\\cos 150^\\circ = -\\cos 30^\\circ = -\\frac{\\sqrt{3}}{2}'),
+          maths('\\cos 135^\\circ = -\\cos 45^\\circ = -\\frac{\\sqrt{2}}{2}'),
         ),
         ask('cm-tr-cos-table'),
         askAfter(
@@ -120,6 +126,8 @@ export const contestTrig: Level = {
           maths('(a + b + c)(a + b - c) = 3ab'),
           prose('The brackets are a sum and a difference:'),
           maths('(a + b)^{2} - c^{2} = 3ab'),
+          prose('Expand the square, then take the $2ab$ to the other side:'),
+          maths('a^{2} + 2ab + b^{2} - c^{2} = 3ab'),
           maths('a^{2} + b^{2} - c^{2} = ab'),
           prose('That is the top of the law of cosines, so'),
           maths('\\cos C = \\frac{ab}{2ab} = \\frac{1}{2}'),
@@ -168,6 +176,9 @@ export const contestTrig: Level = {
           2,
           prose('With a root in the sine, clear it from the bottom. $BC = 9$ and $\\angle A = 60^\\circ$:'),
           maths('2R = 9 \\div \\frac{\\sqrt{3}}{2} = \\frac{18}{\\sqrt{3}} = 6\\sqrt{3}'),
+          prose('To clear the root, multiply top and bottom by it. Roots multiply under one sign:'),
+          maths('\\frac{18}{\\sqrt{3}} = \\frac{18 \\times \\sqrt{3}}{\\sqrt{3} \\times \\sqrt{3}} = \\frac{18\\sqrt{3}}{3} = 6\\sqrt{3}'),
+          maths('\\sqrt{2} \\times \\sqrt{3} = \\sqrt{6}'),
           prose('so $R = 3\\sqrt{3}$. $120^\\circ$ has the same sine as $60^\\circ$, and $135^\\circ$ the same as $45^\\circ$.'),
         ),
         teach(
@@ -295,6 +306,9 @@ export const contestTrig: Level = {
           maths('|z|^{2} = 3'),
           prose('They make a square: $4$ triangles from the centre, each with two sides $|z|$ and $90^\\circ$ between them. In general there are $n$ triangles with $\\frac{360^\\circ}{n}$ at the centre.'),
           maths('\\text{area} = 4 \\times \\frac{1}{2} \\times 3 \\times \\sin 90^\\circ = 6'),
+          prose('Eight solutions put $45^\\circ$ at the centre. Half a square with legs $1$ has hypotenuse $\\sqrt{2}$, so for $z^{8} = 16$, where $|z|^{2}$ is $2$:'),
+          maths('\\sin 45^\\circ = \\frac{1}{\\sqrt{2}} = \\frac{\\sqrt{2}}{2}'),
+          maths('\\text{area} = 8 \\times \\frac{1}{2} \\times 2 \\times \\frac{\\sqrt{2}}{2} = 4\\sqrt{2}'),
         ),
         askAfter(
           'cm-tr-common-roots+choice',

@@ -140,6 +140,12 @@ export const trigIdentities: Course = {
               ),
               maths('\\cos^2 \\theta = 1 - \\left(\\frac{2}{3}\\right)^2 = \\frac{5}{9}'),
               prose('No calculator, and no rounding: the answer comes out exact.'),
+              prose(
+                'With a number in front, take it out first so the identity shows inside the bracket. Given $\\cos A = \\frac{2}{3}$:',
+              ),
+              maths(
+                '\\begin{aligned} 3 - 3\\sin^2 A &= 3(1 - \\sin^2 A) \\\\ &= 3\\cos^2 A \\\\ &= 3 \\times \\frac{4}{9} = \\frac{4}{3} \\end{aligned}',
+              ),
             ),
             ask('tid-value-from-identity'),
             ask('tid-value-from-identity+choice'),
@@ -161,6 +167,10 @@ export const trigIdentities: Course = {
               ),
               prose(
                 '$\\sec^2 x - 1$ is $\\tan^2 x$, and $\\operatorname{cosec}^2 x - 1$ is $\\cot^2 x$, from the two identities with the reciprocal functions.',
+              ),
+              prose('A tangent beside a cosine: write the tangent as sine over cosine, and the cosine cancels:'),
+              maths(
+                '\\begin{aligned} 5\\tan x\\cos x &= 5 \\times \\frac{\\sin x}{\\cos x} \\times \\cos x \\\\ &= 5\\sin x \\end{aligned}',
               ),
             ),
             ask('tid-which-identity-flow'),
@@ -226,8 +236,23 @@ export const trigIdentities: Course = {
               prose(
                 'Sine never goes beyond $1$ or below $-1$, so a factor such as $\\sin x - 3$ gives no angle at all.',
               ),
+              prose(
+                'The angles come from the table angle and the quadrant. $\\cos x = -\\frac{1}{2}$ uses $60^{\\circ}$, and cosine is negative in the second and third quadrants:',
+              ),
+              maths('\\begin{aligned} x &= 180^{\\circ} - 60^{\\circ} = 120^{\\circ} \\\\ x &= 180^{\\circ} + 60^{\\circ} = 240^{\\circ} \\end{aligned}'),
             ),
-            ask('tid-quadratic-tree'),
+            lead(
+              'tid-quadratic-tree',
+              1,
+              prose(
+                'To factorise, write $s$ for $\\sin x$. For $2s^2 - 3s + 1$, find two numbers with product $2 \\times 1$, which is $2$, and sum $-3$: $-2$ and $-1$. Split the middle term with them:',
+              ),
+              maths(
+                '\\begin{aligned} &2s^2 - 2s - s + 1 \\\\ &= 2s(s - 1) - (s - 1) \\\\ &= (2s - 1)(s - 1) \\end{aligned}',
+              ),
+              prose('With no number term, take out the common factor; with no middle term, use the difference of two squares:'),
+              maths('\\begin{aligned} s^2 + 3s &= s(s + 3) \\\\ c^2 - 1 &= (c - 1)(c + 1) \\end{aligned}'),
+            ),
             ask('tid-solution-count'),
             ask('tid-solution-slider'),
             teach(
@@ -282,6 +307,11 @@ export const trigIdentities: Course = {
               ),
               prose(
                 'Tangent repeats every $180^{\\circ}$, so from $0^{\\circ}$ to $360^{\\circ}$ there are two answers, $180^{\\circ}$ apart: $60^{\\circ}$ and $240^{\\circ}$.',
+              ),
+              prose('The other tangent from the table is $\\tan 30^{\\circ}$, sine over cosine:'),
+              maths('\\tan 30^{\\circ} = \\frac{\\frac{1}{2}}{\\frac{\\sqrt{3}}{2}} = \\frac{1}{\\sqrt{3}}'),
+              prose(
+                'So $\\tan x = \\frac{1}{\\sqrt{3}}$ gives $x = 30^{\\circ}$ or $210^{\\circ}$. Cancel a common number first: $\\frac{3}{3\\sqrt{3}} = \\frac{1}{\\sqrt{3}}$.',
               ),
             ),
             lead(
@@ -408,6 +438,12 @@ export const trigIdentities: Course = {
               ),
               maths('\\cos A = \\sqrt{1 - \\tfrac{9}{25}} = \\frac{4}{5}'),
               prose('Acute means the positive root; the 3, 4, 5 triangle is doing the work.'),
+              prose(
+                'Then put all four in. With $\\cos B = \\frac{5}{13}$ and $B$ acute, $\\sin B = \\frac{12}{13}$. Multiply tops and bottoms; the bottoms match, so the tops subtract:',
+              ),
+              maths(
+                '\\begin{aligned} \\cos(A + B) &= \\tfrac{4}{5} \\times \\tfrac{5}{13} - \\tfrac{3}{5} \\times \\tfrac{12}{13} \\\\ &= \\tfrac{20}{65} - \\tfrac{36}{65} = -\\tfrac{16}{65} \\end{aligned}',
+              ),
             ),
             ask('tid-compound-tree'),
             ask('tid-compound-tree', 2),
@@ -427,6 +463,12 @@ export const trigIdentities: Course = {
               maths('\\begin{aligned} &\\tan(A \\pm B) \\\\ &= \\frac{\\tan A \\pm \\tan B}{1 \\mp \\tan A\\tan B} \\end{aligned}'),
               prose(
                 'The top keeps the sign, the bottom flips it. With $\\tan A = 2$ and $\\tan B = 3$, $\\tan(A + B) = \\frac{5}{1 - 6} = -1$.',
+              ),
+              prose(
+                'With a fraction, write the whole numbers over the same bottom, then divide the top fraction by the bottom one. With $\\tan A = 2$ and $\\tan B = \\frac{1}{3}$:',
+              ),
+              maths(
+                '\\begin{aligned} \\tan(A - B) &= \\frac{2 - \\frac{1}{3}}{1 + 2 \\times \\frac{1}{3}} \\\\ &= \\frac{\\frac{5}{3}}{\\frac{5}{3}} = 1 \\end{aligned}',
               ),
             ),
             ask('tid-tan-compound-tree'),
@@ -470,6 +512,10 @@ export const trigIdentities: Course = {
               prose('Run the formula backwards to solve. Write $t$ for $\\tan x$:'),
               maths('\\begin{aligned} \\tan(x + 45^{\\circ}) &= 3 \\\\ \\frac{t + 1}{1 - t} &= 3 \\end{aligned}'),
               prose('Multiply out: $t + 1 = 3 - 3t$, so $4t = 2$ and $\\tan x = \\frac{1}{2}$.'),
+              prose('A fraction on the right is cleared the same way. For $\\frac{t + 1}{1 - t} = \\frac{1}{3}$, multiply both sides by $3(1 - t)$:'),
+              maths(
+                '\\begin{aligned} 3(t + 1) &= 1 - t \\\\ 3t + 3 &= 1 - t \\\\ 4t &= -2, \\quad \\tan x = -\\tfrac{1}{2} \\end{aligned}',
+              ),
             ),
             ask('tid-tan-shift-solve'),
             ask('tid-tan-shift-solve+choice', 2),
@@ -519,6 +565,12 @@ export const trigIdentities: Course = {
               prose('Past $90^{\\circ}$ some table values are negative. With $\\cos 120^{\\circ} = -\\frac{1}{2}$:'),
               maths(
                 '\\begin{aligned} \\cos 165^{\\circ} &= \\cos 120^{\\circ}\\cos 45^{\\circ} \\\\ &\\quad - \\sin 120^{\\circ}\\sin 45^{\\circ} \\\\ &= -\\frac{1}{2} \\cdot \\frac{\\sqrt{2}}{2} \\\\ &\\quad - \\frac{\\sqrt{3}}{2} \\cdot \\frac{\\sqrt{2}}{2} \\\\ &= -\\frac{\\sqrt{2}}{4} - \\frac{\\sqrt{6}}{4} \\end{aligned}',
+              ),
+              prose(
+                'Each value past $90^{\\circ}$ is a table value with its quadrant\'s sign. $300^{\\circ}$, which is $60^{\\circ}$ short of $360^{\\circ}$, is in the fourth quadrant, where sine is negative; $135^{\\circ}$, which is $45^{\\circ}$ short of $180^{\\circ}$, is in the second, where cosine is negative:',
+              ),
+              maths(
+                '\\begin{aligned} \\sin 300^{\\circ} &= -\\sin 60^{\\circ} = -\\tfrac{\\sqrt{3}}{2} \\\\ \\cos 135^{\\circ} &= -\\cos 45^{\\circ} = -\\tfrac{\\sqrt{2}}{2} \\end{aligned}',
               ),
             ),
             ask('tid-exact-tiles+choice', 2),
@@ -589,6 +641,10 @@ export const trigIdentities: Course = {
               maths(
                 '\\begin{aligned} 2\\sin \\tfrac{\\pi}{12}\\cos \\tfrac{\\pi}{12} &= \\sin \\left(2 \\times \\tfrac{\\pi}{12}\\right) \\\\ &= \\sin \\tfrac{\\pi}{6} = \\frac{1}{2} \\end{aligned}',
               ),
+              prose(
+                'Past $\\frac{\\pi}{2}$, turn the angle into degrees and use the quadrant. $\\frac{3\\pi}{4}$ is $135^{\\circ}$, which is $45^{\\circ}$ short of $180^{\\circ}$, in the second quadrant, where sine is positive:',
+              ),
+              maths('\\sin \\tfrac{3\\pi}{4} = \\sin 45^{\\circ} = \\tfrac{\\sqrt{2}}{2}'),
             ),
             ask('tid-double-tiles', 2),
             teach(
@@ -636,6 +692,10 @@ export const trigIdentities: Course = {
               prose(
                 'So $\\sin x = 0$ or $\\cos x = \\frac{1}{2}$. Dividing by $\\sin x$ instead would have lost every angle where $\\sin x = 0$.',
               ),
+              prose(
+                'A negative value comes from the table angle and the quadrant. $\\cos x = -\\frac{1}{2}$ uses $60^{\\circ}$, and cosine is negative in the second and third quadrants:',
+              ),
+              maths('\\begin{aligned} x &= 180^{\\circ} - 60^{\\circ} = 120^{\\circ} \\\\ x &= 180^{\\circ} + 60^{\\circ} = 240^{\\circ} \\end{aligned}'),
             ),
             ask('tid-double-eq-slider'),
             teach(
@@ -658,6 +718,12 @@ export const trigIdentities: Course = {
               ),
               maths('\\begin{aligned} \\sin 2x &= \\tfrac{1}{2} \\\\ 2x &= 30^{\\circ}, 150^{\\circ}, 390^{\\circ}, 510^{\\circ} \\end{aligned}'),
               prose('So $x = 15^{\\circ}, 75^{\\circ}, 195^{\\circ}, 255^{\\circ}$: twice as many solutions as $\\sin x = \\frac{1}{2}$ has.'),
+              prose(
+                'In radians, and with a tangent, it is the same. For $0 \\le x < \\pi$, $2x$ runs from $0$ to $2\\pi$, and tangent repeats every $\\pi$:',
+              ),
+              maths(
+                '\\begin{aligned} \\tan 2x &= 1 \\\\ 2x &= \\tfrac{\\pi}{4}, \\; \\tfrac{\\pi}{4} + \\pi = \\tfrac{5\\pi}{4} \\\\ x &= \\tfrac{\\pi}{8}, \\; \\tfrac{5\\pi}{8} \\end{aligned}',
+              ),
             ),
             ask('tid-double-eq-tree'),
             ask('tid-double-eq-tree', 2),
@@ -738,6 +804,8 @@ export const trigIdentities: Course = {
               prose('Square both and add. Since $\\cos^2\\alpha + \\sin^2\\alpha = 1$, the $\\alpha$ drops out:'),
               maths('\\begin{aligned} R^2 &= 3^2 + 4^2 = 25 \\\\ R &= 5 \\end{aligned}'),
               prose('Divide one by the other and $R$ drops out instead: $\\tan\\alpha = \\frac{4}{3}$.'),
+              prose('When $R^2$ is not a perfect square, split off its largest square factor and take that root outside:'),
+              maths('\\begin{aligned} R^2 &= 3^2 + 3^2 = 18 \\\\ R &= \\sqrt{9 \\times 2} = 3\\sqrt{2} \\end{aligned}'),
             ),
             ask('tid-r-squared-tree'),
             ask('tid-r-squared-tree', 2),
@@ -768,7 +836,16 @@ export const trigIdentities: Course = {
               maths('\\begin{aligned} &3\\sin x + 4\\cos x \\\\ &= 5\\sin(x + 53.1^{\\circ}) \\end{aligned}'),
               prose('Flip the fraction and you get $36.9^{\\circ}$, the other angle of the 3, 4, 5 triangle: the commonest slip here.'),
             ),
-            ask('tid-r-alpha-steps'),
+            lead(
+              'tid-r-alpha-steps',
+              1,
+              prose(
+                'For $R\\cos(x - \\alpha)$, match against its own expansion instead. The number with $\\sin x$ goes on top of $\\tan\\alpha$:',
+              ),
+              maths(
+                '\\begin{aligned} &12\\cos x + 5\\sin x \\\\ &= R\\cos\\alpha\\,\\cos x + R\\sin\\alpha\\,\\sin x \\\\ &R\\cos\\alpha = 12, \\quad R\\sin\\alpha = 5 \\\\ &\\tan\\alpha = \\tfrac{5}{12}, \\quad \\alpha = 22.6^{\\circ} \\end{aligned}',
+              ),
+            ),
             ask('tid-r-tan-alpha'),
             ask('tid-r-convert-choice'),
             ask('tid-r-alpha-steps', 2),
@@ -807,6 +884,12 @@ export const trigIdentities: Course = {
               prose('When the two numbers are equal, $\\tan\\alpha = 1$ and $\\alpha = 45^{\\circ}$ exactly. $R$ is then a surd:'),
               maths('\\begin{aligned} &\\sin x + \\cos x \\\\ &= \\sqrt{2}\\sin(x + 45^{\\circ}) \\end{aligned}'),
               prose('Here $R = \\sqrt{1^2 + 1^2} = \\sqrt{2}$. Keep it as a surd: that is exact, and a decimal is not.'),
+              prose(
+                'Square a number and a root separately, and take the largest square factor out of a root. For $2\\cos x - 2\\sqrt{3}\\sin x$:',
+              ),
+              maths(
+                '\\begin{aligned} (2\\sqrt{3})^2 &= 2^2 \\times 3 = 12 \\\\ R &= \\sqrt{4 + 12} = 4 \\\\ \\sqrt{32} &= \\sqrt{16 \\times 2} = 4\\sqrt{2} \\end{aligned}',
+              ),
             ),
             lead(
               'tid-r-exact-alpha',
@@ -972,6 +1055,12 @@ export const trigIdentities: Course = {
               prose(
                 'For an answer in radians, solve in degrees, then multiply by $\\frac{\\pi}{180^{\\circ}}$: $60^{\\circ} = \\frac{60}{180}\\pi = \\frac{\\pi}{3}$, and $165^{\\circ} = \\frac{165}{180}\\pi = \\frac{11\\pi}{12}$.',
               ),
+              prose(
+                'A negative cosine uses the table angle and the quadrants where cosine is negative, the second and third. For $\\cos(x + 30^{\\circ}) = -\\frac{1}{2}$ the table angle is $60^{\\circ}$:',
+              ),
+              maths(
+                '\\begin{aligned} x + 30^{\\circ} &= 180^{\\circ} - 60^{\\circ}, \\; 180^{\\circ} + 60^{\\circ} \\\\ &= 120^{\\circ}, \\; 240^{\\circ} \\\\ x &= 90^{\\circ}, \\; 210^{\\circ} \\end{aligned}',
+              ),
             ),
             ask('tid-r-count-flow', 2),
             ask('tid-r-solve-slider', 2),
@@ -1023,6 +1112,8 @@ export const trigIdentities: Course = {
               maths(
                 '\\begin{aligned} 3 - 3\\cos x &= 3(1 - \\cos x) \\\\ &= 6\\sin^2 \\tfrac{x}{2} \\\\ \\frac{1 - \\cos x}{\\sin x} &= \\frac{2\\sin^2 \\frac{x}{2}}{2\\sin \\frac{x}{2}\\cos \\frac{x}{2}} \\\\ &= \\tan \\tfrac{x}{2} \\end{aligned}',
               ),
+              prose('With the cosine first, take out a negative number so the bracket is $1 - \\cos x$:'),
+              maths('\\begin{aligned} 3\\cos x - 3 &= -3(1 - \\cos x) \\\\ &= -6\\sin^2 \\tfrac{x}{2} \\end{aligned}'),
             ),
             lead(
               'tid-half-simplify-steps',
@@ -1044,6 +1135,10 @@ export const trigIdentities: Course = {
               ),
               prose(
                 'Check at $x = 60^{\\circ}$: $\\frac{\\sqrt{3}/2}{1 + 1/2} = \\frac{1}{\\sqrt{3}}$, which is $\\tan 30^{\\circ}$.',
+              ),
+              prose('Divide the $\\sin^2$ form by the $\\cos^2$ form and the halves cancel:'),
+              maths(
+                '\\begin{aligned} \\tan^2 \\tfrac{x}{2} &= \\tfrac{1}{2}(1 - \\cos x) \\div \\tfrac{1}{2}(1 + \\cos x) \\\\ &= \\frac{1 - \\cos x}{1 + \\cos x} \\end{aligned}',
               ),
             ),
             ask('tid-half-simplify-steps', 2),
@@ -1073,6 +1168,13 @@ export const trigIdentities: Course = {
               prose('Knowing $\\cos x$ is enough for every ratio of $\\tfrac{x}{2}$. With $\\cos x = \\tfrac{7}{25}$ and $0^{\\circ} < x < 90^{\\circ}$:'),
               maths('\\begin{aligned} \\sin^2 \\tfrac{x}{2} &= \\tfrac{1 - \\frac{7}{25}}{2} = \\tfrac{9}{25} \\\\ \\cos^2 \\tfrac{x}{2} &= \\tfrac{1 + \\frac{7}{25}}{2} = \\tfrac{16}{25} \\end{aligned}'),
               prose('So $\\sin \\tfrac{x}{2} = \\tfrac{3}{5}$, $\\cos \\tfrac{x}{2} = \\tfrac{4}{5}$ and $\\tan \\tfrac{x}{2} = \\tfrac{3}{4}$.'),
+              prose(
+                'A negative $\\cos x$ goes in with its sign. Work out the top, then halve. With $\\cos x = -\\tfrac{1}{9}$ and $0^{\\circ} < x < 180^{\\circ}$:',
+              ),
+              maths(
+                '\\begin{aligned} \\cos^2 \\tfrac{x}{2} &= \\tfrac{1 + (-\\frac{1}{9})}{2} = \\tfrac{8}{9} \\div 2 = \\tfrac{4}{9} \\\\ \\cos \\tfrac{x}{2} &= \\tfrac{2}{3} \\end{aligned}',
+              ),
+              prose('The root is positive because $\\tfrac{x}{2}$ is acute.'),
             ),
             ask('tid-half-value'),
             ask('tid-half-root-steps'),
@@ -1140,7 +1242,16 @@ export const trigIdentities: Course = {
               maths('\\begin{aligned} \\cos^2 157.5^{\\circ} &= \\tfrac{1 + \\frac{\\sqrt{2}}{2}}{2} = \\tfrac{2 + \\sqrt{2}}{4} \\\\ \\cos 157.5^{\\circ} &= -\\tfrac{1}{2}\\sqrt{2 + \\sqrt{2}} \\end{aligned}'),
             ),
             ask('tid-half-exact-tiles', 2),
-            ask('tid-half-surd-tree', 2),
+            lead(
+              'tid-half-surd-tree',
+              2,
+              prose(
+                'A whole angle past $\\frac{\\pi}{2}$ in radians: turn it into degrees, then use the table angle and the quadrant. $\\frac{7\\pi}{6}$ is $210^{\\circ}$, which is $30^{\\circ}$ past $180^{\\circ}$, in the third quadrant, where cosine and sine are both negative:',
+              ),
+              maths(
+                '\\begin{aligned} \\cos \\tfrac{7\\pi}{6} &= -\\cos 30^{\\circ} = -\\tfrac{\\sqrt{3}}{2} \\\\ \\sin \\tfrac{5\\pi}{4} &= \\sin 225^{\\circ} \\\\ &= -\\sin 45^{\\circ} = -\\tfrac{\\sqrt{2}}{2} \\end{aligned}',
+              ),
+            ),
             lead(
               'tid-half-exact-choice',
               2,
@@ -1149,6 +1260,12 @@ export const trigIdentities: Course = {
                 '\\begin{aligned} \\sin^2 \\theta &= \\tfrac{2 - \\sqrt{3}}{4} = \\tfrac{1 - \\frac{\\sqrt{3}}{2}}{2} \\\\ &= \\tfrac{1 - \\cos 30^{\\circ}}{2} = \\sin^2 15^{\\circ} \\end{aligned}',
               ),
               prose('So $\\theta = 15^{\\circ}$: the whole angle is $30^{\\circ}$, and the angle asked for is half of it.'),
+              prose(
+                'A tangent can use $\\tan \\tfrac{x}{2} = \\frac{\\sin x}{1 + \\cos x}$. For $67.5^{\\circ}$, half of $135^{\\circ}$, put in $\\sin 135^{\\circ} = \\frac{\\sqrt{2}}{2}$ and $\\cos 135^{\\circ} = -\\frac{\\sqrt{2}}{2}$. Double top and bottom, then multiply both by the bottom with its sign flipped:',
+              ),
+              maths(
+                '\\begin{aligned} \\tan 67.5^{\\circ} &= \\frac{\\frac{\\sqrt{2}}{2}}{1 - \\frac{\\sqrt{2}}{2}} = \\frac{\\sqrt{2}}{2 - \\sqrt{2}} \\\\ &= \\frac{\\sqrt{2}(2 + \\sqrt{2})}{(2 - \\sqrt{2})(2 + \\sqrt{2})} \\\\ &= \\frac{2\\sqrt{2} + 2}{4 - 2} = \\sqrt{2} + 1 \\end{aligned}',
+              ),
             ),
             teach(
               prose('A tangent needs no root at all:'),
@@ -1196,6 +1313,8 @@ export const trigIdentities: Course = {
               ),
               prose('In the same way $4\\cos^3 x = \\cos 3x + 3\\cos x$. Divided by the single angle, each term loses one power:'),
               maths('\\begin{aligned} \\frac{\\sin 3x}{\\sin x} &= \\frac{3\\sin x - 4\\sin^3 x}{\\sin x} \\\\ &= 3 - 4\\sin^2 x \\end{aligned}'),
+              prose('To write that in cosines, the minus in front reaches both terms of the bracket:'),
+              maths('\\begin{aligned} 3 - 4\\sin^2 x &= 3 - 4(1 - \\cos^2 x) \\\\ &= 3 - 4 + 4\\cos^2 x \\\\ &= 4\\cos^2 x - 1 \\end{aligned}'),
             ),
             ask('tid-triple-tiles'),
             lead(
@@ -1259,6 +1378,12 @@ export const trigIdentities: Course = {
               prose('Count before listing: $3x$ meets each level three times as often as $x$, and a tangent repeats every $180^{\\circ}$. For $0^{\\circ} \\le x < 180^{\\circ}$, $3x$ runs up to $540^{\\circ}$:'),
               maths('\\begin{aligned} \\tan 3x &= 1 \\\\ 3x &= 45^{\\circ}, 225^{\\circ}, 405^{\\circ} \\\\ x &= 15^{\\circ}, 75^{\\circ}, 135^{\\circ} \\end{aligned}'),
               prose('A wider range for $x$ widens the bracket\'s too: for $0^{\\circ} \\le x < 720^{\\circ}$, $\\tfrac{x}{2}$ runs over a whole turn.'),
+              prose(
+                'So $\\cos \\tfrac{x}{2} = -\\tfrac{\\sqrt{2}}{2}$ there has two solutions: the table angle is $45^{\\circ}$, and cosine is negative in the second and third quadrants:',
+              ),
+              maths(
+                '\\begin{aligned} \\tfrac{x}{2} &= 180^{\\circ} - 45^{\\circ}, \\; 180^{\\circ} + 45^{\\circ} \\\\ &= 135^{\\circ}, \\; 225^{\\circ} \\\\ x &= 270^{\\circ}, \\; 450^{\\circ} \\end{aligned}',
+              ),
             ),
             ask('tid-multi-eq-angle'),
             ask('tid-multi-eq-flow', 2),
@@ -1441,6 +1566,12 @@ export const trigIdentities: Course = {
               prose('A double angle on one side and single angles on the other: swap the double ones out first.'),
               maths('\\begin{aligned} \\sin 2x &= 2\\sin x \\cos x \\\\ \\cos 2x &= 1 - 2\\sin^2 x \\\\ &= 2\\cos^2 x - 1 \\end{aligned}'),
               prose('Of the forms of $\\cos 2x$, pick the one that cancels the $1$ beside it.'),
+              prose(
+                'To check a side at an angle past $90^{\\circ}$, use the table angle and the quadrant\'s sign. At $\\theta = 120^{\\circ}$, $2\\theta = 240^{\\circ}$ is in the third quadrant and $120^{\\circ}$ in the second:',
+              ),
+              maths(
+                '\\begin{aligned} \\sin 240^{\\circ} &= -\\sin 60^{\\circ} = -\\tfrac{\\sqrt{3}}{2} \\\\ \\cos 120^{\\circ} &= -\\cos 60^{\\circ} = -\\tfrac{1}{2} \\end{aligned}',
+              ),
             ),
             ask('tid-proof-double-steps'),
             ask('tid-proof-double-choice'),
@@ -1502,6 +1633,12 @@ export const trigIdentities: Course = {
               ),
               prose(
                 'So test an angle first. If the sides differ there, it is not an identity; then ask whether any angle makes them agree.',
+              ),
+              prose(
+                'Past $360^{\\circ}$, take off a full turn; past $90^{\\circ}$, use the table angle with the quadrant\'s sign. At $\\theta = 210^{\\circ}$:',
+              ),
+              maths(
+                '\\begin{aligned} \\cos 420^{\\circ} &= \\cos 60^{\\circ} = \\tfrac{1}{2} \\\\ \\sin 210^{\\circ} &= -\\sin 30^{\\circ} = -\\tfrac{1}{2} \\end{aligned}',
               ),
             ),
             ask('tid-proof-verdict-flow'),
@@ -1675,6 +1812,12 @@ export const trigIdentities: Course = {
               prose('When $B$ is the larger angle, $A - B$ is negative. That is fine: $\\sin(-60^{\\circ}) = -\\sin 60^{\\circ}$.'),
               maths('\\begin{aligned} & 2\\sin 15^{\\circ} \\cos 75^{\\circ} \\\\ &= \\sin 90^{\\circ} + \\sin(-60^{\\circ}) \\\\ &= 1 - \\frac{\\sqrt{3}}{2} \\end{aligned}'),
               prose('An angle past $360^{\\circ}$ is fine too: take a whole turn off, so $\\cos 450^{\\circ} = \\cos 90^{\\circ} = 0$.'),
+              prose(
+                'An angle past $90^{\\circ}$ is a table angle with its quadrant\'s sign. $210^{\\circ}$, which is $30^{\\circ}$ past $180^{\\circ}$, is in the third quadrant, where sine is negative; $120^{\\circ}$, which is $60^{\\circ}$ short of $180^{\\circ}$, is in the second, where it is positive:',
+              ),
+              maths(
+                '\\begin{aligned} \\sin 210^{\\circ} &= -\\sin 30^{\\circ} = -\\tfrac{1}{2} \\\\ \\sin 120^{\\circ} &= \\sin 60^{\\circ} = \\tfrac{\\sqrt{3}}{2} \\end{aligned}',
+              ),
             ),
             ask('tid-factor-product-steps'),
             ask('tid-factor-product-value+choice', 2),
@@ -1694,6 +1837,12 @@ export const trigIdentities: Course = {
               prose('Two angles off the table can have a half sum and a half difference on it. For $\\sin 75^{\\circ} + \\sin 15^{\\circ}$ they are $45^{\\circ}$ and $30^{\\circ}$:'),
               maths(
                 '\\begin{aligned} & \\sin 75^{\\circ} + \\sin 15^{\\circ} \\\\ &= 2\\sin 45^{\\circ} \\cos 30^{\\circ} \\\\ &= 2 \\times \\frac{\\sqrt{2}}{2} \\times \\frac{\\sqrt{3}}{2} = \\frac{\\sqrt{6}}{2} \\end{aligned}',
+              ),
+              prose(
+                'A half sum past $90^{\\circ}$ is a table angle with its quadrant\'s sign: sine is positive in the second quadrant and negative in the third, cosine negative in both:',
+              ),
+              maths(
+                '\\begin{aligned} \\sin 135^{\\circ} &= \\sin(180^{\\circ} - 45^{\\circ}) = \\tfrac{\\sqrt{2}}{2} \\\\ \\sin 225^{\\circ} &= -\\sin 45^{\\circ} = -\\tfrac{\\sqrt{2}}{2} \\\\ \\cos 135^{\\circ} &= -\\cos 45^{\\circ} = -\\tfrac{\\sqrt{2}}{2} \\end{aligned}',
               ),
             ),
             lead(
@@ -1863,6 +2012,9 @@ export const trigIdentities: Course = {
               prose('A tangent repeats every half turn, so its principal value alone gives every solution:'),
               maths('\\begin{aligned} \\tan x &= k \\\\ \\Rightarrow \\quad x &= \\alpha + 180^{\\circ} n \\end{aligned}'),
               prose('For $\\tan x = -1$ the principal value is $-45^{\\circ}$, so $x = -45^{\\circ} + 180^{\\circ} n$: that is $135^{\\circ}$, $315^{\\circ}$, and so on. Doubling the turn to $360^{\\circ}$ would lose half of them.'),
+              prose('The other table tangent is $\\tan 30^{\\circ}$, sine over cosine:'),
+              maths('\\tan 30^{\\circ} = \\frac{\\frac{1}{2}}{\\frac{\\sqrt{3}}{2}} = \\frac{1}{\\sqrt{3}}'),
+              prose('So $\\sqrt{3}\\tan x = 1$ gives $\\tan x = \\frac{1}{\\sqrt{3}}$, principal value $30^{\\circ}$, and $x = 30^{\\circ} + 180^{\\circ} n$.'),
             ),
             ask('tid-general-tan-tiles'),
             ask('tid-tan-solve'),
@@ -1945,6 +2097,10 @@ export const trigIdentities: Course = {
             teach(
               prose('A harder equation needs an identity before it can be solved. In $2\\cos^2 x + 3\\sin x - 3 = 0$, write $\\cos^2 x = 1 - \\sin^2 x$ and it becomes a quadratic in $\\sin x$:'),
               maths('\\begin{aligned} 2\\sin^2 x - 3\\sin x + 1 &= 0 \\\\ (2\\sin x - 1)(\\sin x - 1) &= 0 \\end{aligned}'),
+              prose(
+                'To factorise, write $s$ for $\\sin x$. Two numbers with product $2 \\times 1$, which is $2$, and sum $-3$ are $-2$ and $-1$, so split the middle term with them:',
+              ),
+              maths('\\begin{aligned} &2s^2 - 2s - s + 1 \\\\ &= 2s(s - 1) - (s - 1) \\\\ &= (2s - 1)(s - 1) \\end{aligned}'),
               prose('Then each factor gives its own families: $x = 30^{\\circ} + 360^{\\circ} n$ or $150^{\\circ} + 360^{\\circ} n$ from the first, and $x = 90^{\\circ} + 360^{\\circ} n$ from the second. A factor such as $\\sin x = 2$ gives nothing.'),
             ),
             ask('tid-general-factor-flow'),
@@ -2026,6 +2182,10 @@ export const trigIdentities: Course = {
               2,
               prose('The quadratic route, finished and counted over $-180^{\\circ} < x \\le 180^{\\circ}$:'),
               maths('\\begin{aligned} 2\\sin^2 x - \\sin x - 1 &= 0 \\\\ (2\\sin x + 1)(\\sin x - 1) &= 0 \\end{aligned}'),
+              prose(
+                'The factors come from writing $s$ for $\\sin x$: product $2 \\times (-1)$, which is $-2$, and sum $-1$ give $-2$ and $1$, which split the middle term:',
+              ),
+              maths('\\begin{aligned} &2s^2 - 2s + s - 1 \\\\ &= 2s(s - 1) + (s - 1) \\\\ &= (2s + 1)(s - 1) \\end{aligned}'),
               prose(
                 '$\\sin x = -\\frac{1}{2}$ gives $-30^{\\circ} + 360^{\\circ} n$ or $210^{\\circ} + 360^{\\circ} n$; in range, $-30^{\\circ}$ and $210^{\\circ} - 360^{\\circ} = -150^{\\circ}$. $\\sin x = 1$ gives $90^{\\circ}$. Three solutions.',
               ),

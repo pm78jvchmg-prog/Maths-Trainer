@@ -7457,14 +7457,18 @@ function sampleWhen(rng: Rng, difficulty: number): WhenParams {
   };
 }
 
+/**
+ * Twice the value the function must take. The level is `d + sign × a × half / 2`,
+ * so taking `d` off and dividing by `sign × a` leaves `half / 2` whatever the
+ * sign: flipping it for a falling start once gave the times of the mirror level.
+ */
+const needed = (p: WhenParams): 1 | -1 => p.half;
+
 /** The times in one cycle, 0 <= t < period, when the model is at that level. */
 const whenTimes = (p: WhenParams): [number, number] =>
-  halfAngles(START_FN[p.start], START_SIGN[p.start] === 1 ? p.half : (-p.half as 1 | -1)).map(
+  halfAngles(START_FN[p.start], needed(p)).map(
     (angle) => (angle * p.period) / 360,
   ) as [number, number];
-
-/** The value the function must take once the level is moved across: the level's half, undone by the sign. */
-const needed = (p: WhenParams): 1 | -1 => (START_SIGN[p.start] === 1 ? p.half : (-p.half as 1 | -1));
 
 /** When is the model at a level? The value the function needs, both angles, both times, as a tree. */
 const modelWhenTree: Generator<WhenParams> = {

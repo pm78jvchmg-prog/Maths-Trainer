@@ -97,7 +97,7 @@ export const level7: Level = {
         ask('af7-journey-check-tree', 2),
         ask('af7-journey-quad-tiles', 2),
         teach(
-          prose('The quadratic factorises:'),
+          prose('The quadratic factorises. Find two numbers that multiply to $9$ and add to $-10$: $-9$ and $-1$.'),
           working('v^{2} - 10v + 9 &= 0', '(v - 9)(v - 1) &= 0'),
           prose(
             'So $v = 9$ or $v = 1$. Both solve the equation, but only one can be the boat. At $v = 1$ the upstream speed is $1 - 3 = -2$ km/h: the current would carry the boat backwards.',
@@ -122,6 +122,8 @@ export const level7: Level = {
             'Together they fill $\\frac{1}{4}$ of the tank each hour, so the whole tank takes 4 hours. If one takes $a$ hours alone, the other $b$ hours, and both together $t$ hours:',
           ),
           maths('\\frac{1}{a} + \\frac{1}{b} = \\frac{1}{t}'),
+          prose('When neither bottom divides the other, count up in the larger until the smaller divides too. For 4 and 6, count 6, 12, so use 12:'),
+          working('\\frac{1}{4} + \\frac{1}{6} &= \\frac{3}{12} + \\frac{2}{12}', '&= \\frac{5}{12}'),
         ),
         ask('af7-together-tree'),
         ask('af7-together-time'),
@@ -149,6 +151,7 @@ export const level7: Level = {
           maths('\\frac{1}{x} + \\frac{1}{x + 6} = \\frac{1}{4}'),
           prose('Multiply every term by ${4x(x + 6)}$:'),
           working('&4(x + 6) + 4x = x(x + 6)', '&8x + 24 = x^{2} + 6x', '&0 = x^{2} - 2x - 24', '&0 = (x - 6)(x + 4)'),
+          prose('The last line uses two numbers that multiply to $-24$ and add to $-2$: $-6$ and $4$.'),
           prose('A time cannot be negative, so reject $x = -4$. Pipe A takes 6 hours and pipe B 12.'),
         ),
         ask('af7-together-setup', 2),
@@ -168,6 +171,8 @@ export const level7: Level = {
           prose('For $6\\,\\Omega$ and $3\\,\\Omega$, add the fractions over a common bottom:'),
           working('\\frac{1}{R} &= \\frac{1}{6} + \\frac{1}{3}', '&= \\frac{1}{6} + \\frac{2}{6}', '&= \\frac{3}{6} = \\frac{1}{2}', 'R &= 2'),
           prose('So $R = 2\\,\\Omega$, less than either resistor.'),
+          prose('When no bottom divides another, count up in the largest until the others divide too. For 6, 10 and 15, count 15, 30, so use 30:'),
+          working('&\\frac{1}{6} + \\frac{1}{10} + \\frac{1}{15}', '=\\;&\\frac{5}{30} + \\frac{3}{30} + \\frac{2}{30}', '=\\;&\\frac{10}{30} = \\frac{1}{3}'),
         ),
         ask('af7-parallel-tree'),
         askAfter(
@@ -228,6 +233,7 @@ export const level7: Level = {
             '&0 = x^{2} + 2x - 48',
             '&0 = (x - 6)(x + 8)',
           ),
+          prose('The last line uses two numbers that multiply to $-48$ and add to $2$: $-6$ and $8$.'),
           prose('Dividing through by 5 kept the numbers small. A group cannot have $-8$ people, so $x = 6$.'),
         ),
         ask('af7-share-quad-tiles'),

@@ -117,8 +117,11 @@ export const harderProblems: Level = {
         teach(
           prose('In a geometric sequence the ratios agree, so the middle term squared is the product of the other two:'),
           maths('\\frac{u_2}{u_1} = \\frac{u_3}{u_2} \\qquad u_2^2 = u_1u_3'),
-          prose('With $k$ in the terms, that is usually a quadratic. For $k + 4$, $k$ and $2k - 15$:'),
+          prose('With $k$ in the terms, that is usually a quadratic. Multiply every term in one bracket by every term in the other, then collect:'),
+          maths('\\begin{aligned} (k + 4)(2k - 15) &= 2k^2 - 15k + 8k - 60 \\\\ &= 2k^2 - 7k - 60 \\\\ (k - 4)^2 &= (k - 4)(k - 4) \\\\ &= k^2 - 8k + 16 \\end{aligned}'),
+          prose('So for $k + 4$, $k$ and $2k - 15$:'),
           maths('\\begin{aligned} k^2 &= (k + 4)(2k - 15) \\\\ k^2 &= 2k^2 - 7k - 60 \\\\ 0 &= k^2 - 7k - 60 \\\\ 0 &= (k - 12)(k + 5) \\end{aligned}'),
+          prose('To factorise, look for two numbers whose product is $-60$ and whose sum is $-7$: they are $-12$ and $5$, so $k = 12$ or $k = -5$.'),
           prose(
             'Both roots make a geometric sequence. $k = 12$ gives $16, 12, 9$ with $r = \\frac{3}{4}$, and $k = -5$ gives $-1, -5, -25$ with $r = 5$. The question\'s condition picks one: "it has a sum to infinity" or "all its terms are positive" both mean $k = 12$.',
           ),
@@ -159,6 +162,10 @@ export const harderProblems: Level = {
           maths(
             '\\begin{aligned} -\\frac{6}{r(1 - r)} &= 8 \\\\ 8r - 8r^2 &= -6 \\\\ 4r^2 - 4r - 3 &= 0 \\\\ (2r + 1)(2r - 3) &= 0 \\end{aligned}',
           ),
+          prose(
+            'To factorise with $4$ in front, multiply $4$ by $-3$ to get $-12$ and find two numbers with product $-12$ and sum $-4$: $-6$ and $2$. Split the middle term with them, then factorise in two halves:',
+          ),
+          maths('\\begin{aligned} 4r^2 - 6r + 2r - 3 &= 0 \\\\ 2r(2r - 3) + (2r - 3) &= 0 \\\\ (2r + 1)(2r - 3) &= 0 \\end{aligned}'),
           prose('So $r = -\\frac{1}{2}$ or $r = \\frac{3}{2}$. Only $|r| < 1$ has a sum to infinity, so $r = -\\frac{1}{2}$ and $a = 12$.'),
           prose(
             'With a positive second term both roots can fit. $S_\\infty = 9$ and $u_2 = 2$ give $r = \\frac{1}{3}$ or $r = \\frac{2}{3}$: two different series, starting at $6$ and at $3$.',
@@ -212,8 +219,9 @@ export const harderProblems: Level = {
         teach(
           prose('An arithmetic sum is a quadratic in $n$. For $4 + 7 + 10 + \\dots$, the least $n$ with $S_n > 200$:'),
           maths('\\begin{gathered} \\tfrac{n}{2}(8 + 3(n - 1)) > 200 \\\\ n(3n + 5) > 400 \\\\ 3n^2 + 5n - 400 > 0 \\end{gathered}'),
-          prose('The quadratic is positive beyond its larger root, so find that root:'),
-          maths('\\begin{gathered} n = \\frac{-5 + \\sqrt{4825}}{6} \\\\ n \\approx 10.74 \\end{gathered}'),
+          prose('The quadratic is positive beyond its larger root, so find that root with the quadratic formula, taking the $+$ sign for the larger one. Here $a = 3$, $b = 5$ and $c = -400$:'),
+          maths('\\begin{aligned} b^2 - 4ac &= 25 + 4800 = 4825 \\\\ n &= \\frac{-b + \\sqrt{b^2 - 4ac}}{2a} \\end{aligned}'),
+          maths('\\begin{gathered} n = \\frac{-5 + \\sqrt{4825}}{6} = \\frac{-5 + 69.46}{6} \\\\ n \\approx 10.74 \\end{gathered}'),
           prose('Round up: $n = 11$. Check: $S_{10} = 175$ and $S_{11} = 209$.'),
         ),
         ask('seq-l7-least-ap'),

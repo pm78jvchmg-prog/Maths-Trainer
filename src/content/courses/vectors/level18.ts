@@ -101,6 +101,10 @@ export const level18: Level = {
           prose(
             'So $\\left(3, 1, 0\\right)$ is on both planes. Any coordinate can be set to zero; the question says which. An equation left with one unknown gives it straight away.',
           ),
+          prose(
+            'When neither coefficient divides the other, scale both equations. For $2x + 3z = 1$ and $3x - 2z = 8$, take $3$ times the first and $2$ times the second, then subtract:',
+          ),
+          stacked('6x + 9z = 3', '6x - 4z = 16', '13z = -13 \\implies z = -1', '2x - 3 = 1 \\implies x = 2'),
         ),
         ask('vplx-meet-solve-tree'),
         ask('vplx-meet-point'),
@@ -141,6 +145,12 @@ export const level18: Level = {
           prose(
             'so $\\theta = 30^\\circ$. A sine of $\\tfrac{\\sqrt{2}}{2}$ is $45^\\circ$ and $\\tfrac{\\sqrt{3}}{2}$ is $60^\\circ$; otherwise leave it as a fraction.',
           ),
+          prose('Tidy a surd sine before reading it: combine the roots, take out a square factor, then multiply top and bottom by the root left underneath.'),
+          stacked(
+            '\\sin\\theta = \\frac{3}{\\sqrt{2}\\sqrt{6}} = \\frac{3}{\\sqrt{12}} = \\frac{3}{2\\sqrt{3}}',
+            '= \\frac{3\\sqrt{3}}{6} = \\frac{\\sqrt{3}}{2}',
+          ),
+          prose('So that angle is $60^\\circ$.'),
         ),
         ask('vplx-meet-angle-tree'),
         ask('vplx-line-plane-sin'),
@@ -210,6 +220,10 @@ export const level18: Level = {
             'A letter in a normal can make the determinant zero. With',
           ),
           display('\\mathbf{n}_1 = \\left(k, 1, -1\\right) \\qquad \\mathbf{n}_2 \\times \\mathbf{n}_3 = \\left(-1, 5, 3\\right)'),
+          prose(
+            'That cross product comes from $\\mathbf{n}_2 = \\left(1, -1, 2\\right)$ and $\\mathbf{n}_3 = \\left(2, 1, -1\\right)$, one component at a time:',
+          ),
+          stacked('x\\colon \\; (-1)(-1) - 2(1) = -1', 'y\\colon \\; 2(2) - 1(-1) = 5', 'z\\colon \\; 1(1) - (-1)(2) = 3'),
           prose('the scalar product is set to zero:'),
           stacked('-k + 5(1) + 3(-1) = 0', '-k + 2 = 0 \\implies k = 2'),
         ),
@@ -228,6 +242,10 @@ export const level18: Level = {
           prose(
             'The $z$ components check: $2(-1) - 1(1) = -3$. Where a normal has a zero, that component gives $\\alpha$ or $\\beta$ on its own.',
           ),
+          prose(
+            'When neither coefficient divides the other, scale both. For $2\\alpha + 3\\beta = 7$ and $3\\alpha + 2\\beta = 8$, take $3$ times the first and $2$ times the second, then subtract:',
+          ),
+          stacked('6\\alpha + 9\\beta = 21', '6\\alpha + 4\\beta = 16', '5\\beta = 5 \\implies \\beta = 1', '2\\alpha + 3 = 7 \\implies \\alpha = 2'),
         ),
         ask('vplx-combo'),
         askAfter(

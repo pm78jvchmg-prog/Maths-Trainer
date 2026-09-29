@@ -200,6 +200,8 @@ export const numberProof: Course = {
               ),
               maths('n^2 + n = n(n + 1)'),
               prose('So $n^2 + n$ is always even, and so is $n^2 + n + 8$: an even number plus $8$.'),
+              prose('For a quadratic, find two numbers that multiply to the constant and add to the $n$ coefficient: for $n^2 - 7n + 12$ they are $-3$ and $-4$. Take out a common number first:'),
+              maths('\\begin{aligned} n^2 - 7n + 12 &= (n - 3)(n - 4) \\\\ 4n^2 + 20n + 24 &= 4(n^2 + 5n + 6) \\\\ &= 4(n + 2)(n + 3) \\end{aligned}'),
             ),
             ask('num-factorised'),
             teach(
@@ -211,6 +213,8 @@ export const numberProof: Course = {
               ),
               maths('\\begin{gathered} n = 1, 2, 3\\colon\\ 6, \\; 18, \\; 36 \\\\ \\text{HCF} = 6 \\end{gathered}'),
               prose('And $6$ always works: $n(n + 1)$ is even, and $3$ times an even number is a multiple of $6$. So the answer is $6$.'),
+              prose('Squaring a bracket gives the first squared, twice the product, then the last squared, so there is a middle term:'),
+              maths('\\begin{aligned} (2k + 3)^2 &= (2k + 3)(2k + 3) \\\\ &= 4k^2 + 12k + 9 \\end{aligned}'),
             ),
             ask('num-always-divides'),
             ask('num-order-multiples'),
@@ -234,8 +238,8 @@ export const numberProof: Course = {
             ask('num-order-multiples', 2),
             teach(
               prose('A difference of two squares hides a multiple too. Expand both brackets, subtract, then take out the common factor:'),
-              maths('\\begin{aligned} &(n + 5)^2 - (n + 3)^2 \\\\ &= 4n + 16 \\\\ &= 4(n + 4) \\end{aligned}'),
-              prose('The bracket is a whole number, so the result is always a multiple of $4$.'),
+              maths('\\begin{aligned} &(n + 5)^2 - (n + 3)^2 \\\\ &= n^2 + 10n + 25 - n^2 - 6n - 9 \\\\ &= 4n + 16 \\\\ &= 4(n + 4) \\end{aligned}'),
+              prose('Subtracting changes the sign of every term of the second square. The bracket is a whole number, so the result is always a multiple of $4$.'),
             ),
             ask('num-parity-steps'),
             ask('num-parity-steps', 2),
@@ -255,6 +259,9 @@ export const numberProof: Course = {
               ),
               prose('A repeating decimal gets a dot over the first and the last digit of the block that repeats:'),
               maths('\\frac{25}{37} = 0.675675\\ldots = 0.\\dot{6}7\\dot{5}'),
+              prose('To find the decimal, divide, carrying each remainder on as tens. For $7 \\div 30$:'),
+              maths('\\begin{aligned} 70 \\div 30 &= 2 \\text{ r } 10 \\\\ 100 \\div 30 &= 3 \\text{ r } 10 \\\\ 100 \\div 30 &= 3 \\text{ r } 10 \\end{aligned}'),
+              prose('The remainder $10$ came back, so the $3$ repeats from there: $0.2333\\ldots = 0.2\\dot{3}$.'),
             ),
             ask('num-rational-choice'),
             ask('num-decimal-tiles'),
@@ -502,7 +509,8 @@ export const numberProof: Course = {
               prose(
                 'Reading a proof means checking that each line follows from the one before. The usual faults are algebra that does not multiply out, a step that assumes what it sets out to prove, and examples passed off as proof.',
               ),
-              prose('Check every equals sign by expanding. $(2k + 1)^2$ is $4k^2 + 4k + 1$, not $4k^2 + 1$.'),
+              prose('Check every equals sign by expanding. $(2k + 1)^2$ is $4k^2 + 4k + 1$, not $4k^2 + 1$. With a minus in the bracket, the middle term takes the minus and the last term is still positive:'),
+              maths('\\begin{aligned} (n - 3)^2 &= (n - 3)(n - 3) \\\\ &= n^2 - 3n - 3n + 9 \\\\ &= n^2 - 6n + 9 \\end{aligned}'),
             ),
             ask('prf-find-flaw'),
             ask('prf-missing-line'),
@@ -650,6 +658,8 @@ export const numberProof: Course = {
               prose(
                 'The **contrapositive** says the same as the statement. If $Q$ is false, $P$ cannot have been true, since $P$ would have made $Q$ true. So $x = 3 \\Rightarrow x^2 = 9$ and $x^2 \\ne 9 \\Rightarrow x \\ne 3$ stand or fall together.',
               ),
+              prose('The opposite of $>$ is $\\le$, since equality falls on the "not" side. So the contrapositive of'),
+              maths('\\begin{aligned} x > 3 &\\Rightarrow 2x > 6 \\\\ \\text{is} \\quad 2x \\le 6 &\\Rightarrow x \\le 3 \\end{aligned}'),
             ),
             ask('prf-contrapositive'),
             ask('prf-name-relative'),
@@ -851,6 +861,10 @@ export const numberProof: Course = {
               prose(
                 'Take out the common factor $(k + 1)$ rather than multiplying out: it lands straight on the right side at $n = k + 1$.',
               ),
+              prose(
+                'A fraction comes out the same way: divide each term by it to see what is left in the bracket. Taking $\\tfrac{5}{2}$ out of $\\tfrac{5}{2}k + 5$ leaves $k + 2$, since $\\tfrac{5}{2}$ times $2$ is $5$:',
+              ),
+              maths('\\begin{aligned} &(k + 1)(\\tfrac{5}{2}k + 5) \\\\ &= \\tfrac{5}{2}(k + 1)(k + 2) \\end{aligned}'),
             ),
             ask('prf-ind-order-sum'),
             ask('prf-ind-sum-steps'),
@@ -863,6 +877,9 @@ export const numberProof: Course = {
               prose(
                 'A multiple of either sum works just the same: $3 + 9 + 15 + \\dots + (6n - 3) = 3n^2$ is three times the odd numbers. Sigma notation and other series are in Sequences & Series.',
               ),
+              prose('When the tidied sum is a number times a square, take out the common number first, then look for the square:'),
+              maths('\\begin{aligned} &5k^2 + 10k + 5 \\\\ &= 5(k^2 + 2k + 1) \\\\ &= 5(k + 1)^2 \\end{aligned}'),
+              prose('The last line works because $(k + 1)^2$ multiplies out to $k^2 + 2k + 1$.'),
             ),
             ask('prf-ind-order-sum', 2),
             ask('prf-ind-sum-steps', 2),
@@ -1108,6 +1125,9 @@ export const numberProof: Course = {
               ),
               maths('\\begin{aligned} 13 &= 52 - 39 \\\\ &= 52 - (247 - 4 \\times 52) \\\\ &= 5 \\times 52 - 247 \\end{aligned}'),
               prose('So $13 = 247x + 52y$ with $x = -1$ and $y = 5$. Check: $260 - 247 = 13$.'),
+              prose('With more lines, a number in front multiplies both terms of the bracket; collect before the next remainder goes in. For $94$ and $34$, the run ends $26 = 3 \\times 8 + 2$:'),
+              maths('\\begin{aligned} 2 &= 26 - 3 \\times 8 \\\\ &= 26 - 3(34 - 26) \\\\ &= 4 \\times 26 - 3 \\times 34 \\\\ &= 4(94 - 2 \\times 34) - 3 \\times 34 \\\\ &= 4 \\times 94 - 11 \\times 34 \\end{aligned}'),
+              prose('Check: $376 - 374 = 2$.'),
             ),
             ask('euc-back-order'),
             askAfter(

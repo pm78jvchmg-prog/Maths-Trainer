@@ -220,12 +220,14 @@ const magnitude: Generator<VectorParams> = {
       },
       { tex: `\\left| \\mathbf{v} \\right| = \\sqrt{x^{2} + y^{2}}` },
       {
-        tex: `\\sqrt{\\left(${x}\\right)^{2} + \\left(${y}\\right)^{2}} = \\sqrt{${x * x} + ${y * y}} = \\sqrt{${square}}${exact ? ` = ${root}` : ''}`,
+        tex: `\\sqrt{\\left(${x}\\right)^{2} + \\left(${y}\\right)^{2}} = \\sqrt{${x * x} + ${y * y}} = ${magnitudeTex(square)}`,
       },
       {
         text: exact
           ? `This one comes out whole: $\\sqrt{${square}} = ${root}$.`
-          : `$${square}$ is not a perfect square, so $\\sqrt{${square}}$ is the exact answer. A decimal would be a rounded one.`,
+          : surdTex(square) === `\\sqrt{${square}}`
+            ? `$${square}$ has no square factor, so $\\sqrt{${square}}$ is the exact answer. A decimal would be a rounded one.`
+            : `A square factor comes out of $${square}$, so the exact answer simplifies to $${surdTex(square)}$. A decimal would be a rounded one.`,
       },
       {
         text: 'Both components are squared, so both signs disappear. A magnitude can never be negative, which is a useful check on the arithmetic.',
@@ -1043,13 +1045,12 @@ const distance: Generator<DistanceParams> = {
     const dx = bx - ax;
     const dy = by - ay;
     const sq = dx * dx + dy * dy;
-    const size = Math.sqrt(sq);
     return [
       {
         text: 'Find the vector from $A$ to $B$ first — destination minus start — and then take its magnitude.',
       },
       { tex: `\\overrightarrow{AB} = ${columnTex(bx, by)} - ${columnTex(ax, ay)} = ${columnTex(dx, dy)}` },
-      { tex: `AB = \\sqrt{\\left(${dx}\\right)^{2} + \\left(${dy}\\right)^{2}} = \\sqrt{${sq}}${Number.isInteger(size) ? ` = ${size}` : ''}` },
+      { tex: `AB = \\sqrt{\\left(${dx}\\right)^{2} + \\left(${dy}\\right)^{2}} = ${magnitudeTex(sq)}` },
       {
         text: 'Taking $A$ minus $B$ instead gives the vector pointing the other way, but the same distance — both components change sign and the squaring removes it.',
       },
@@ -2644,12 +2645,14 @@ const fourthVertex: Generator<FourthVertexParams> = {
     const O = CORNERS[(i + 2) % 4];
     const prev = v[(i + 3) % 4];
     const opp = v[(i + 2) % 4];
-    const side = [opp[0] - v[(i + 1) % 4][0], opp[1] - v[(i + 1) % 4][1]];
+    const next = v[(i + 1) % 4];
+    // Going round in order, P to X runs the opposite way to N to O, so it is O to N.
+    const side = [next[0] - opp[0], next[1] - opp[1]];
     return [
       {
-        text: `Opposite sides of a parallelogram are equal and parallel, so they are the same vector. Going round in order, $${P}${X}$ is opposite $${N}${O}$, so $\\overrightarrow{${P}${X}} = \\overrightarrow{${N}${O}}$.`,
+        text: `Opposite sides of a parallelogram are equal and parallel. Going round in order, $${P}${X}$ is opposite $${N}${O}$ and runs the other way, so $\\overrightarrow{${P}${X}} = \\overrightarrow{${O}${N}}$.`,
       },
-      { tex: `\\overrightarrow{${N}${O}} = ${columnTex(opp[0], opp[1])} - ${columnTex(v[(i + 1) % 4][0], v[(i + 1) % 4][1])} = ${columnTex(side[0], side[1])}` },
+      { tex: `\\overrightarrow{${O}${N}} = ${columnTex(next[0], next[1])} - ${columnTex(opp[0], opp[1])} = ${columnTex(side[0], side[1])}` },
       { tex: `${X} = ${pointTex(prev[0], prev[1])} + ${columnTex(side[0], side[1])} = ${pointTex(v[i][0], v[i][1])}` },
       {
         text: 'Lettered in order matters: pairing the wrong two sides gives a corner of a different parallelogram, one whose letters do not go round in order.',

@@ -170,6 +170,9 @@ export const compositeFigures: Level = {
           prose('Going the other way, from a square of side $4$: a top corner is $2$ across and $4$ up from the centre, so'),
           maths('r^2 = 4^2 + 2^2 = 20'),
           maths('\\tfrac{1}{2}\\pi r^2 = 10\\pi'),
+          prose('An odd side makes the half-side a fraction, so work in quarters. Side $5$: a top corner is $\\tfrac{5}{2}$ across and $5$ up:'),
+          maths('r^2 = 5^2 + \\left(\\tfrac{5}{2}\\right)^2 = 25 + \\tfrac{25}{4} = \\tfrac{125}{4}'),
+          maths('\\tfrac{1}{2}\\pi r^2 = \\tfrac{125}{8}\\pi'),
         ),
         askAfter(
           'cm-ring-chord+choice',

@@ -227,6 +227,12 @@ export const level15: Level = {
             'With $\\sin 45^\\circ = \\frac{1}{\\sqrt{2}}$, a boat at $4\\sqrt{2}$ against a current of $4$ aims $45^\\circ$ upstream. A boat at $5 \\; \\text{m s}^{-1}$ against a current of $3 \\; \\text{m s}^{-1}$ crosses at',
           ),
           display('\\sqrt{5^2 - 3^2} = 4'),
+          prose(
+            'The bearing depends on which way the current flows and which way the boat crosses. A river flows west at $4 \\; \\text{m s}^{-1}$ and a boat moves at $8 \\; \\text{m s}^{-1}$. To go due south:',
+          ),
+          display('\\sin\\alpha = \\frac{4}{8} = \\frac{1}{2}, \\quad \\alpha = 30^\\circ'),
+          prose('Upstream is now east, so the boat aims $30^\\circ$ east of south. South is $180^\\circ$, and east of south is back towards east, so the bearing is'),
+          display('180^\\circ - 30^\\circ = 150^\\circ'),
         ),
         ask('vjour-steer'),
         ask('vjour-across'),

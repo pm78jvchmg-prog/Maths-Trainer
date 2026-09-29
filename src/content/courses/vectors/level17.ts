@@ -64,6 +64,15 @@ export const level17: Level = {
       slides: [
         teach(
           prose(
+            'First, a reminder of how the foot $F$ is found. For the line $\\mathbf{r} = \\left(1, 0, 2\\right) + t\\left(1, 2, 2\\right)$ and $P\\left(4, 1, 4\\right)$, the vector from $P$ to a general point of the line has a scalar product of zero with the direction at the foot:',
+          ),
+          stacked(
+            '\\overrightarrow{PR} = \\left(t - 3, \\, 2t - 1, \\, 2t - 2\\right)',
+            '(t - 3) + 2(2t - 1) + 2(2t - 2) = 0',
+            '9t - 9 = 0 \\implies t = 1',
+            'F = \\left(2, 2, 4\\right)',
+          ),
+          prose(
             'The shortest distance from $P$ to a line is the length of $\\overrightarrow{PF}$, the perpendicular to the foot. In the last example $\\overrightarrow{PF} = \\left(-2, 1, 0\\right)$:',
           ),
           stacked('\\left|\\overrightarrow{PF}\\right| = \\sqrt{(-2)^2 + 1^2 + 0^2}', '= \\sqrt{5}'),
@@ -88,6 +97,8 @@ export const level17: Level = {
             '|\\mathbf{d}| = \\sqrt{9} = 3',
             '\\text{distance} = \\frac{3\\sqrt{5}}{3} = \\sqrt{5}',
           ),
+          prose('To simplify a surd like $\\sqrt{45}$, find the largest square factor and take its root outside:'),
+          stacked('\\sqrt{45} = \\sqrt{9 \\times 5} = 3\\sqrt{5}', '\\sqrt{490} = \\sqrt{49 \\times 10} = 7\\sqrt{10}'),
         ),
         ask('vdist-ap-cross'),
         ask('vdist-line-cross-tree'),

@@ -241,6 +241,11 @@ export const level8: Level = {
           display('x = -t^{2} + 6t = -(t^{2} - 6t)'),
           display('x = -(t - 3)^{2} + 9'),
           prose('Minus a square is never positive, so $x$ is never more than $9$.'),
+          prose('With a constant as well, keep it outside the minus bracket. The $-9$ inside comes out as $+9$:'),
+          display(
+            '\\begin{aligned} x &= -t^{2} + 6t - 2 \\\\ &= -(t^{2} - 6t) - 2 \\\\ &= -[(t - 3)^{2} - 9] - 2 \\\\ &= -(t - 3)^{2} + 7 \\end{aligned}',
+          ),
+          prose('So the largest $x$ is $7$.'),
         ),
         ask('psk-square'),
         ask('psk-square+choice', 2),

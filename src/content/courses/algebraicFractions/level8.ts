@@ -118,6 +118,10 @@ export const level8: Level = {
           prose(
             'Here $ac = 2 \\times 3 = 6$, and $2$ and $3$ multiply to $6$ and add to $5$. Both pairs leave the same bracket, $(x + 1)$, and that is what lets it come out.',
           ),
+          prose(
+            'With a negative number, take the minus out of the second pair as well, so the same bracket is left. For $2x^{2} - x - 3$, $ac = -6$, and $2$ and $-3$ multiply to $-6$ and add to $-1$:',
+          ),
+          working('&2x^{2} - x - 3', '=\\;&2x^{2} + 2x - 3x - 3', '=\\;&2x(x + 1) - 3(x + 1)', '=\\;&(2x - 3)(x + 1)'),
         ),
         ask('af8-ac-tree'),
         ask('af8-ac-tiles'),

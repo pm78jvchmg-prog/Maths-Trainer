@@ -3,6 +3,22 @@
 A short, dated record of what landed and why. Newest first. Each entry names
 its pull request; the PR description holds the evidence.
 
+## 2026-09-29
+
+- **Textbook numbers everywhere (#296).** Word problems across every course now
+  use realistic values, such as 1 kg bags of flour, savings at a few percent and
+  towns of thousands, instead of numbers picked so the answer came out whole.
+  Where an answer does not come out exact, the question says how to round it.
+- **A worked example before every method (#295).** Every lesson now shows a
+  short worked example of any method a question uses before asking it (593
+  places across every course). Trig model questions with a minus in front now
+  accept the right times, and a few questions no longer print "undefined".
+- **Lessons climb, and answers in the question's notation (#294).** Questions in
+  each part of a lesson now go from easy to hard. Standard form sums take
+  `2.92 × 10⁵` as well as `292000`, and surd expansions take the whole
+  `p + q√d`. Every keypad has the keys its answer needs, and the √ key no
+  longer steals taps from the key above it.
+
 ## 2026-09-26
 
 - **Solid top bar (#292).** The home and course bars are solid rather than

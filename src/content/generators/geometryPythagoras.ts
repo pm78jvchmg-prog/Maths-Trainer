@@ -12,6 +12,7 @@
 import type { ChoiceOption, Generator, KeypadKey, Slide } from '../types';
 import { options } from '../choiceVariant';
 import { num, numberBank, numberOptions, say, typed } from './contestMath';
+import { roundedWell } from './classicalKit';
 import { type Pt, DASHED, SVG_CLOSE, centroid, choiceSlide, cornerAngle, dot, f1, fit, outline, seg, sideLabel, svgOpen, text, ticks } from './geometryKit';
 
 const diagram = (svg: string) => ({ kind: 'diagram' as const, svg });
@@ -667,53 +668,74 @@ interface LadderParams {
   ask: 'foot' | 'height' | 'len';
 }
 
-/** Ladder triangles as [foot, height, length]: steep, as a ladder stands. */
-const LADDERS_EASY: [number, number, number][] = [
-  ...[1, 1.5, 2, 2.5, 3, 3.5, 4].map((k): [number, number, number] => [3 * k, 4 * k, 5 * k]),
-  [2.5, 6, 6.5],
-  [5, 12, 13],
-  [4, 7.5, 8.5],
-  [8, 15, 17],
-];
-const LADDERS_HARD: [number, number, number][] = [
-  ...[4.5, 5, 5.5, 6].map((k): [number, number, number] => [3 * k, 4 * k, 5 * k]),
-  [3.5, 12, 12.5],
-  [7, 24, 25],
-  [7.5, 18, 19.5],
-  [10, 24, 26],
-  [12, 22.5, 25.5],
-  [4.5, 20, 20.5],
-];
+const LADDER_PRECISION = { dp: 2 };
+const twoDp = (v: number) => Number((Math.round(v * 100 + 1e-9) / 100).toFixed(2));
+
+/**
+ * A ladder as a textbook prints it: 3 to 10 m long in half metres, its foot 1
+ * to 3 m out from the wall so it stands steeply, the height up the wall to a
+ * tenth of a metre. Two of the three are given and the third worked out, so it
+ * is asked to 2 d.p.; never a Pythagorean triple scaled so it comes out whole.
+ * Difficulty 1 gives lengths in half metres, difficulty 2 in tenths.
+ */
+function sampleLadder(rng: Parameters<Generator['sample']>[0], difficulty: number): LadderParams {
+  const step = difficulty >= 2 ? 0.1 : 0.5;
+  const draw = (lo: number, hi: number) => Number((rng.int(Math.round(lo / step), Math.round(hi / step)) * step).toFixed(1));
+  for (;;) {
+    const ask = rng.pick(['foot', 'height', 'len'] as const);
+    const len = rng.int(6, 20) / 2;
+    const foot = draw(1, 3);
+    const height = draw(2.5, 9.8);
+    const params =
+      ask === 'len'
+        ? { foot, height, len: Math.hypot(foot, height), ask }
+        : ask === 'height'
+          ? { foot, len, height: Math.sqrt(len * len - foot * foot), ask }
+          : { height, len, foot: Math.sqrt(Math.max(0, len * len - height * height)), ask };
+    const ratio = params.foot / params.len;
+    // Steep, as a ladder stands: its foot a sixth to under half of its length out.
+    if (!(ratio >= 0.15 && ratio <= 0.45) || params.len < 3 || params.len > 10 || params.foot < 1 || params.foot > 3) continue;
+    if (!roundedWell(params[ask], LADDER_PRECISION)) continue;
+    return params;
+  }
+}
 
 const geoLadder: Generator<LadderParams> = {
   id: 'geo-ladder',
-  sample(rng, difficulty) {
-    const [foot, height, len] = rng.pick(difficulty >= 2 ? LADDERS_HARD : LADDERS_EASY);
-    return { foot, height, len, ask: rng.pick(['foot', 'height', 'len'] as const) };
-  },
+  sample: (rng, difficulty) => sampleLadder(rng, difficulty),
   render(p) {
     const labels = { foot: p.ask === 'foot' ? 'x' : m(p.foot), height: p.ask === 'height' ? 'x' : m(p.height), ladder: p.ask === 'len' ? 'x' : m(p.len) };
     const what = p.ask === 'foot' ? 'how far the foot of the ladder is from the wall' : p.ask === 'height' ? 'how far up the wall the ladder reaches' : 'the length of the ladder';
-    return typed([diagram(ladderSvg(p.foot, p.height, labels)), say(`A ladder leans against a wall on level ground. Find ${what}, $x$, in metres.`)], p[p.ask], 'x =');
+    const slide = typed(
+      [diagram(ladderSvg(p.foot, p.height, labels)), say(`A ladder leans against a wall on level ground. Find ${what}, $x$, in metres. Give your answer to 2 decimal places.`)],
+      num(twoDp(p[p.ask])),
+      'x =',
+    );
+    return { ...slide, precision: LADDER_PRECISION };
   },
   choices(p) {
-    const ans = p[p.ask];
-    const slips = p.ask === 'len' ? [p.foot + p.height, ans + 1] : [p.len - (p.ask === 'foot' ? p.height : p.foot), ans + 1];
-    return numberOptions(ans, slips, 0.5, 0.5);
+    const ans = twoDp(p[p.ask]);
+    const slips = p.ask === 'len' ? [p.foot + p.height, p.height, ans + 1] : [p.len - (p.ask === 'foot' ? p.height : p.foot), ans + 1, ans - 0.5];
+    return numberOptions(ans, slips.map(twoDp), 0.5, 0.5);
   },
   solution(p) {
+    const x = p[p.ask];
+    const exact = Math.abs(x * 1e4 - Math.round(x * 1e4)) < 1e-6;
+    const rounded = exact
+      ? `x = \\sqrt{${num(Number((x * x).toFixed(4)))}} = ${num(x)}`
+      : `x = \\sqrt{${num(Number((x * x).toFixed(4)))}} = ${x.toFixed(4)}\\ldots \\approx ${num(twoDp(x))} \\text{ (2 d.p.)}`;
     if (p.ask === 'len') {
       return [
         { text: 'The ladder is the hypotenuse:' },
-        { tex: chain('x^2', `${num(p.foot)}^2 + ${num(p.height)}^2`, `${num(p.foot ** 2)} + ${num(p.height ** 2)}`, num(p.len ** 2)) },
-        { tex: `x = \\sqrt{${num(p.len ** 2)}} = ${num(p.len)}` },
+        { tex: chain('x^2', `${num(p.foot)}^2 + ${num(p.height)}^2`, `${num(p.foot ** 2)} + ${num(p.height ** 2)}`, num(Number((x * x).toFixed(4)))) },
+        { tex: rounded },
       ];
     }
     const other = p.ask === 'foot' ? p.height : p.foot;
     return [
       { text: 'The ladder is the hypotenuse, so take away:' },
-      { tex: chain('x^2', `${num(p.len)}^2 - ${num(other)}^2`, `${num(p.len ** 2)} - ${num(other ** 2)}`, num(p[p.ask] ** 2)) },
-      { tex: `x = \\sqrt{${num(p[p.ask] ** 2)}} = ${num(p[p.ask])}` },
+      { tex: chain('x^2', `${num(p.len)}^2 - ${num(other)}^2`, `${num(p.len ** 2)} - ${num(other ** 2)}`, num(Number((x * x).toFixed(4)))) },
+      { tex: rounded },
     ];
   },
 };

@@ -4948,14 +4948,27 @@ export interface RateFnParams {
   coefficients: number[];
 }
 
-/** A quadratic or a cubic in t, with a positive constant: where the quantity starts. */
+/** The window every model is read over: no question asks past t = 5. */
+const RATE_WINDOW = 5;
+
+/**
+ * A quadratic or a cubic in t, with a positive constant: where the quantity
+ * starts. A volume, a height, a mass or a depth cannot go below nought, so a
+ * draw that does anywhere on 0 <= t <= 5 is drawn again; at difficulty 2 the
+ * random signs made about a quarter of the models do, a balloon at -171 m.
+ */
 function sampleRatePoly(rng: Rng, difficulty: number): number[] {
-  if (difficulty >= 2) {
-    return [rng.pick([1, 2, 3, 4]) * rng.sign(), rng.int(-6, 6), nonZero(rng.int(-12, 12), 5), rng.int(2, 12) * 5];
+  for (;;) {
+    const coefficients =
+      difficulty >= 2
+        ? [rng.pick([1, 2, 3, 4]) * rng.sign(), rng.int(-6, 6), nonZero(rng.int(-12, 12), 5), rng.int(2, 12) * 5]
+        : rng.chance(0.5)
+          ? [rng.int(1, 6), rng.int(1, 12), rng.int(1, 10) * 5]
+          : [rng.int(1, 4), 0, rng.int(1, 9), rng.int(1, 10) * 5];
+    let physical = true;
+    for (let i = 0; i <= 100 && physical; i += 1) physical = hornerAt(coefficients, (RATE_WINDOW * i) / 100) > 0;
+    if (physical) return coefficients;
   }
-  return rng.chance(0.5)
-    ? [rng.int(1, 6), rng.int(1, 12), rng.int(1, 10) * 5]
-    : [rng.int(1, 4), 0, rng.int(1, 9), rng.int(1, 10) * 5];
 }
 
 /**
@@ -7852,7 +7865,7 @@ const sumLeast: Generator<SumLeastParams> = {
           text:
             params.story === 0
               ? `Positive numbers $x$ and $y$ have $xy = ${k}$.`
-              : `A rectangular yard of $${k}$ $\\text{m}^{2}$ has sides $x$ m and $y$ m. Fencing costs £${params.p} a metre on the $x$ sides and £${params.qq} on the $y$ sides.`,
+              : `A rectangular yard of $${k}$ $\\text{m}^{2}$ has sides $x$ m and $y$ m. Fencing costs £${params.p} a metre on the $x$ sides and £${params.qq} a metre on the $y$ sides.`,
         },
         { kind: 'display', tex: `C = ${objective}` },
         { kind: 'prose', text: params.story === 0 ? 'Find the least value of $C$.' : 'Find the least possible cost $C$, in pounds.' },

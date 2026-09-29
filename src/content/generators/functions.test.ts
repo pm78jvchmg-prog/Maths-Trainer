@@ -572,7 +572,7 @@ const STORY_KINDS: Record<string, { kind: StoryKind; count?: boolean }> = {
   sandpit: { kind: 'area' },
   journey: { kind: 'recip' },
   bill: { kind: 'recip', count: true },
-  pool: { kind: 'recip' },
+  aquarium: { kind: 'recip' },
   card: { kind: 'recip' },
   sweets: { kind: 'recip', count: true },
   job: { kind: 'recip', count: true },
@@ -740,9 +740,14 @@ describe('fun-family-next', () => {
     for (const { slide, where } of draws('fun-family-next')) {
       if (slide.kind !== 'table') throw new Error(where);
       const story = storyIn(proseOf(slide).split(' In the table')[0]);
+      // A car's value is written to the nearest pound and a dose may be a half,
+      // so a row is the model's value rounded as the prompt says.
+      const toPound = /nearest pound/.test(proseOf(slide));
       for (const [x, y] of mergedRows(slide)) {
-        expect(Number(y), `${where}: row ${x}`).toBeCloseTo(story.f(Number(x)), 9);
-        expect(Number.isInteger(Number(y)), `${where}: ${y} is not whole`).toBe(true);
+        const exact = story.f(Number(x));
+        if (toPound) expect(Number(y), `${where}: row ${x}`).toBe(Math.round(exact));
+        else expect(Number(y), `${where}: row ${x}`).toBeCloseTo(exact, 9);
+        expect(Number.isInteger(Number(y) * 10), `${where}: ${y} has more than 1 decimal place`).toBe(true);
       }
     }
   });

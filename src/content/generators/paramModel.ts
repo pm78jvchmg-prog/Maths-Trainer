@@ -92,7 +92,7 @@ const who = (m: LineMotion): string => (m.obj === 'drone' ? 'A drone' : 'A boat'
 const lineBlocks = (m: LineMotion): Block[] => [display(`x = ${lineTex(m.x0, m.u)} \\qquad y = ${lineTex(m.y0, m.v)}`)];
 
 const lineIntro = (m: LineMotion): Block[] => [
-  prose(`${who(m)} moves so that after $t$ seconds it is at`),
+  prose(`${who(m)} moves so that after $t$ seconds its position, in metres, is`),
   ...lineBlocks(m),
 ];
 
@@ -939,7 +939,7 @@ function sampleLinePath(rng: Rng, difficulty: number): LinePathParams {
 }
 
 const linePathIntro = (p: LinePathParams): Block[] => [
-  prose('A boat moves so that after $t$ seconds it is at'),
+  prose('A boat moves so that after $t$ seconds its position, in metres, is'),
   display(`x = ${lineTex(p.x0, p.u)} \\qquad y = ${lineTex(p.y0, p.m * p.u)}`),
 ];
 

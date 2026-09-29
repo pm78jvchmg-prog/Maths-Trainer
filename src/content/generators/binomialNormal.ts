@@ -10,9 +10,11 @@
  * finds both: why one probability leaves a line of pairs, two probabilities
  * written as x = mu + z sigma, eliminating mu to get sigma and then mu, equal
  * tails putting mu at the midpoint, a proportion in context, and putting the
- * pair back to check it or to find a new probability. Level 3's values sit at
- * a table z (x whole) or a percentage point (x to two places), and every pair
- * of statements is refused unless its two z differ by at least a half. Level 4
+ * pair back to check it or to find a new probability. Level 3's values are
+ * whole: at a table z, or the whole value nearest a percentage point, where
+ * mu and sigma then run on and are asked for to one and two decimal places.
+ * Every pair of statements is refused unless its two z differ by at least a
+ * half. Level 4
  * is the normal approximation to the binomial: why a long binomial sum is
  * worth replacing and how the bars make a bell near p = 0.5, when np and
  * n(1 - p) are large enough, the matching N(np, np(1 - p)), the continuity
@@ -20,8 +22,10 @@
  * combines independent normals: aX + b, then X + Y and X - Y (means add or
  * subtract, variances always add), aX + bY in general, a total of n copies
  * against one copy multiplied by n, and a probability from the combination,
- * P(X > Y) among them. Level 5 builds every combination from a Pythagorean
- * triple, so its variance is a perfect square and sigma is whole. Level 6 is
+ * P(X > Y) among them. aX + bY in symbols is built from a Pythagorean
+ * triple, so its sigma is whole; two measurements in a story keep their own
+ * spreads, so a sum's or difference's sigma runs on and is written to two
+ * places, and z is read at two places. Level 6 is
  * the distribution of the sample mean: a total divided by n, Xbar ~ N(mu,
  * sigma^2 / n) and its standard deviation sigma / sqrt(n), how that spread
  * shrinks with n, a probability for Xbar against one value, and working back
@@ -33,7 +37,8 @@
  *
  * Three rules hold everywhere in this file.
  *
- * - Every typed answer is an exact decimal. A binomial p is a tenth (or a
+ * - Every typed answer is an exact decimal, or is rounded to a precision the
+ *   question states (a sigma or mu that runs on). A binomial p is a tenth (or a
  *   half) and n runs from 3 to 6 wherever a probability is computed, so
  *   P(X = r) has at most n decimal places and `fmt` keeps it whole; draws are
  *   still refused unless `terminates` agrees. A fraction p (a dice, a
@@ -42,11 +47,12 @@
  *   learner's back: the prompt quotes every Phi value the question needs,
  *   and the answer is one of them, its complement, or a difference of two.
  *   The quoted values are Phi to four places, from the series in `phi`,
- *   which `binomialNormal.test.ts` checks against Simpson's rule. mu is
- *   whole, sigma is drawn from `SIGMAS`, and z is refused unless it has at
- *   most two decimal places, so z, x and every answer terminate. Level 4
- *   draws n and p from `SQUARE_PAIRS`, whose variance is a square, and
- *   refuses a corrected boundary whose z has more than two places.
+ *   which `binomialNormal.test.ts` checks against Simpson's rule. In level 2
+ *   each quantity has its own mean and spread (`MEASURES`), sigma is one of
+ *   `SIGMAS`, and z is refused unless it has at most two decimal places.
+ *   Where natural values give a z that runs on (level 4's round n, level 5's
+ *   own spreads), the question says to round z to two places and quotes Phi
+ *   there, and a draw near a rounding edge is refused.
  * - The checker compares values (PITFALLS 3.4), so a form (the three
  *   factors of P(X = r), which cumulative probability, the standardising
  *   equation) goes through `tiles`, `flow` or `choice`. Only the number that
@@ -62,6 +68,8 @@ import { fmt } from './numericalMethods';
 import { fracTex, say } from './format';
 import { stepBank, tokenBank } from './parametricImplicit';
 import { canonicalSet } from '../numberLine';
+import { askPrecision, dots, fixed, roundedWell } from './classicalKit';
+import { roundTo, type Precision } from '../../engine/equivalence';
 
 /* ================================================================
  * Shared helpers
@@ -1440,14 +1448,38 @@ export const CRITICAL = [
 const CRITICAL_TABLE =
   '\\begin{array}{c|c} \\Phi(z) & z \\\\ \\hline 0.95 & 1.645 \\\\ 0.975 & 1.96 \\\\ 0.99 & 2.326 \\\\ 0.995 & 2.576 \\end{array}';
 
-const MEASURES = [
-  { what: 'The mass of a bag of flour', unit: 'grams' },
-  { what: 'The time taken to finish a puzzle', unit: 'seconds' },
-  { what: 'The height of a sunflower', unit: 'cm' },
-  { what: 'The lifetime of a light bulb', unit: 'hours' },
-  { what: 'The length of a phone call', unit: 'seconds' },
-  { what: 'The mark on a test', unit: 'marks' },
+/**
+ * The quantities a level 2 or 3 question is about, each with the standard
+ * deviations it may have (all from `SIGMAS`, so whole distances still give z
+ * to two places) and where its mean sits: `mean` is [lowest, highest, step].
+ * A bag of flour is about 1 kg with a spread of a few grams; a test mark is
+ * out of 100.
+ */
+const MEASURES: { what: string; unit: string; sigmas: number[]; mean: [number, number, number] }[] = [
+  { what: 'The mass of a bag of flour', unit: 'grams', sigmas: [4, 5, 8, 10], mean: [1000, 1020, 2] },
+  { what: 'The time taken to finish a puzzle', unit: 'seconds', sigmas: [20, 25, 50], mean: [240, 600, 10] },
+  { what: 'The height of a sunflower', unit: 'cm', sigmas: [10, 20, 25], mean: [150, 250, 5] },
+  { what: 'The lifetime of a light bulb', unit: 'hours', sigmas: [25, 50], mean: [800, 1500, 25] },
+  { what: 'The length of a phone call', unit: 'seconds', sigmas: [20, 25, 50], mean: [180, 400, 10] },
+  { what: 'The mark on a test', unit: 'marks', sigmas: [4, 5, 8, 10], mean: [45, 65, 1] },
 ];
+
+/** A mean for this measure, where its values sit. */
+function measureMu(rng: Rng, measure: number): number {
+  const [lo, hi, step] = MEASURES[measure].mean;
+  return lo + step * rng.int(0, Math.floor((hi - lo) / step));
+}
+
+/** A measure, one of its standard deviations, and a mean where it sits. */
+function drawMeasure(rng: Rng, sigmas?: number[]): { measure: number; mu: number; sigma: number } {
+  for (;;) {
+    const measure = rng.int(0, MEASURES.length - 1);
+    const allowed = sigmas ? MEASURES[measure].sigmas.filter((s) => sigmas.includes(s)) : MEASURES[measure].sigmas;
+    if (allowed.length === 0) continue;
+    const sigma = rng.pick(allowed);
+    return { measure, mu: measureMu(rng, measure), sigma };
+  }
+}
 
 const nTex = (mu: number | string, sigma: number): string => `X \\sim N(${mu}, ${sigma * sigma})`;
 
@@ -1519,15 +1551,10 @@ interface RuleSliderParams {
 
 const ruleSlider: Generator<RuleSliderParams> = {
   id: 'dist-rule-slider',
-  sample: (rng, difficulty) => {
-    const sigma = rng.pick(SIGMAS);
-    return {
-      measure: rng.int(0, MEASURES.length - 1),
-      mu: drawMu(rng, sigma),
-      sigma,
-      target: rng.int(0, difficulty > 1 ? RULE_TARGETS.length - 1 : 5),
-    };
-  },
+  sample: (rng, difficulty) => ({
+    ...drawMeasure(rng),
+    target: rng.int(0, difficulty > 1 ? RULE_TARGETS.length - 1 : 5),
+  }),
   render: ({ measure, mu, sigma, target }): Slide => {
     const min = mu - 4 * sigma;
     const max = mu + 4 * sigma;
@@ -1582,7 +1609,7 @@ function rulePercent({ form, a, b }: RulePercentParams): number {
 const rulePercentGen: Generator<RulePercentParams> = {
   id: 'dist-rule-percent',
   sample: (rng, difficulty) => {
-    const sigma = rng.pick(SIGMAS);
+    const drawn = drawMeasure(rng);
     const reach = difficulty > 1 ? 3 : 2;
     const form = difficulty > 1 ? rng.pick<RulePercentParams['form']>(['between', 'between', 'above', 'below']) : 'between';
     for (;;) {
@@ -1591,7 +1618,7 @@ const rulePercentGen: Generator<RulePercentParams> = {
       if (form === 'between' && a >= b) continue;
       if (form === 'above' && a === 0) continue;
       if (form === 'below' && b === 0) continue;
-      return { measure: rng.int(0, MEASURES.length - 1), mu: drawMu(rng, sigma), sigma, form, a, b };
+      return { ...drawn, form, a, b };
     }
   },
   render: (params): Slide => {
@@ -1631,15 +1658,10 @@ interface NotationParams {
 
 const normalNotation: Generator<NotationParams> = {
   id: 'dist-normal-notation',
-  sample: (rng, difficulty) => {
-    const sigma = rng.pick(SIGMAS);
-    return {
-      measure: rng.int(0, MEASURES.length - 1),
-      mu: drawMu(rng, sigma),
-      sigma,
-      mode: difficulty > 1 && rng.chance(0.6) ? 'sd' : rng.chance(0.4) ? 'sd' : 'write',
-    };
-  },
+  sample: (rng, difficulty) => ({
+    ...drawMeasure(rng),
+    mode: difficulty > 1 && rng.chance(0.6) ? 'sd' : rng.chance(0.4) ? 'sd' : 'write',
+  }),
   render: ({ measure, mu, sigma, mode }): Slide => {
     const v = sigma * sigma;
     if (mode === 'sd') {
@@ -1683,16 +1705,11 @@ const RULE_OPTIONS: Record<number, number[]> = { 1: [16, 34, 84], 2: [2.5, 47.5,
 
 const ruleFlow: Generator<RuleFlowParams> = {
   id: 'dist-rule-flow',
-  sample: (rng, difficulty) => {
-    const sigma = rng.pick(SIGMAS);
-    return {
-      measure: rng.int(0, MEASURES.length - 1),
-      mu: drawMu(rng, sigma),
-      sigma,
-      k: rng.int(1, difficulty > 1 ? 3 : 2) * rng.sign(),
-      dir: rng.pick<RuleFlowParams['dir']>(['above', 'below']),
-    };
-  },
+  sample: (rng, difficulty) => ({
+    ...drawMeasure(rng),
+    k: rng.int(1, difficulty > 1 ? 3 : 2) * rng.sign(),
+    dir: rng.pick<RuleFlowParams['dir']>(['above', 'below']),
+  }),
   render: (params): Slide => {
     const { measure, mu, sigma, k, dir } = params;
     const x = mu + k * sigma;
@@ -1752,10 +1769,10 @@ interface ZParams {
 }
 
 function sampleZ(rng: Rng, difficulty: number, words?: boolean): ZParams {
-  const sigma = rng.pick(SIGMAS);
+  const { measure, mu, sigma } = drawMeasure(rng);
   return {
-    measure: rng.int(0, MEASURES.length - 1),
-    mu: drawMu(rng, sigma),
+    measure,
+    mu,
     sigma,
     k: drawK(rng, sigma, difficulty > 1 ? 2.8 : 2),
     words: words ?? difficulty < 2,
@@ -1963,9 +1980,7 @@ const probValue = ({ mode, k1, k2, sigma }: ProbParams): number => {
 };
 
 function sampleProb(rng: Rng, difficulty: number): ProbParams {
-  const sigma = rng.pick(SIGMAS);
-  const measure = rng.int(0, MEASURES.length - 1);
-  const mu = drawMu(rng, sigma);
+  const { measure, mu, sigma } = drawMeasure(rng);
   if (difficulty > 1 && rng.chance(0.5)) {
     for (;;) {
       const k1 = drawK(rng, sigma, 2.5);
@@ -2062,12 +2077,10 @@ interface TailParams {
 const tailFlow: Generator<TailParams> = {
   id: 'dist-tail-flow',
   sample: (rng, difficulty) => {
-    const sigma = rng.pick(SIGMAS);
+    const drawn = drawMeasure(rng);
     return {
-      measure: rng.int(0, MEASURES.length - 1),
-      mu: drawMu(rng, sigma),
-      sigma,
-      k: drawK(rng, sigma, difficulty > 1 ? 2.8 : 2),
+      ...drawn,
+      k: drawK(rng, drawn.sigma, difficulty > 1 ? 2.8 : 2),
       dir: rng.pick<TailParams['dir']>(['below', 'above']),
     };
   },
@@ -2258,11 +2271,8 @@ function inverseCondition({ crit, form }: InverseParams): string {
 }
 
 function sampleInverse(rng: Rng, difficulty: number, sigmas = SIGMAS): InverseParams {
-  const sigma = rng.pick(sigmas);
   return {
-    measure: rng.int(0, MEASURES.length - 1),
-    mu: drawMu(rng, sigma),
-    sigma,
+    ...drawMeasure(rng, sigmas),
     crit: rng.int(0, CRITICAL.length - 1),
     form: difficulty > 1 ? rng.pick<InverseForm>(['top', 'bottom', 'below', 'upper', 'lower']) : rng.pick<InverseForm>(['top', 'bottom']),
   };
@@ -2460,24 +2470,23 @@ interface FindParams {
 }
 
 function sampleFind(rng: Rng, difficulty: number, ask?: FindParams['ask']): FindParams {
-  const measure = rng.int(0, MEASURES.length - 1);
   const want = ask ?? (difficulty > 1 && rng.chance(0.5) ? 'sigma' : 'mu');
   const dir = rng.pick<FindParams['dir']>(['below', 'above']);
   const sign = difficulty > 1 ? rng.sign() : 1;
   for (;;) {
-    const sigma = rng.pick(SIGMAS);
+    const { measure, mu: centre, sigma } = drawMeasure(rng);
     if (want === 'mu') {
+      // x is a whole value where the measure sits; mu is what the probability makes it.
       const crit = rng.chance(0.5);
       const z = sign * (crit ? rng.pick(CRITICAL).z : rng.pick(GRID_Z));
-      const x = drawMu(rng, sigma) + Math.round(z * sigma);
+      const x = centre + Math.round(z * sigma);
       const mu = clean(x - z * sigma);
       if (!terminates(mu, 3)) continue;
       return { measure, ask: want, mu, sigma, z, crit, dir, x };
     }
     const z = sign * rng.pick(GRID_Z);
     if (!Number.isInteger(z * sigma)) continue;
-    const mu = drawMu(rng, sigma);
-    return { measure, ask: want, mu, sigma, z, crit: false, dir, x: clean(mu + z * sigma) };
+    return { measure, ask: want, mu: centre, sigma, z, crit: false, dir, x: clean(centre + z * sigma) };
   }
 }
 
@@ -2655,12 +2664,16 @@ interface BothParams {
  */
 type BothShape = 'any' | 'straddle' | 'oneSide' | 'symmetric';
 
-/** A value at a table z (whole) or at a percentage point (two places at most), on the side `sign` says. */
+/**
+ * A whole value at a table z, or the whole value nearest a percentage point,
+ * on the side `sign` says. At a table z the value is exactly mu + z sigma; at
+ * a percentage point it is not, and the mu and sigma the statements then give
+ * run on (see `sampleBoth`).
+ */
 function drawAt(rng: Rng, mu: number, sigma: number, sign: number, critical: boolean): { z: number; x: number } | undefined {
   if (critical) {
     const z = sign * rng.pick(CRITICAL).z;
-    const x = clean(mu + z * sigma);
-    return terminates(x, 2) ? { z, x } : undefined;
+    return { z, x: Math.round(mu + z * sigma) };
   }
   const k = drawK(rng, sigma, 2.5, sign);
   const z = clean(k / sigma);
@@ -2669,33 +2682,104 @@ function drawAt(rng: Rng, mu: number, sigma: number, sign: number, critical: boo
 
 const SIDES: Known['dir'][] = ['below', 'above'];
 
-function sampleBoth(rng: Rng, difficulty: number, shape: BothShape = 'any'): BothParams {
-  const measure = rng.int(0, MEASURES.length - 1);
+/** The precision a sigma or a mu that runs on is asked to. */
+const SIGMA_DP: Precision = { dp: 2 };
+const MU_DP: Precision = { dp: 1 };
+
+/** Whether the two statements give a mu and sigma that end: always, unless one sits at a percentage point. */
+const exactPair = ({ mu, sigma }: { mu: number; sigma: number }): boolean => terminates(sigma, 3) && terminates(mu, 3);
+
+/**
+ * A pair that runs on is kept only when both round safely, and when mu worked
+ * from either equation with sigma already rounded comes out the same. The
+ * prompt says to carry sigma to two places; a learner carrying it to three
+ * significant figures instead, the usual default, must land on the same mu.
+ */
+function roundsWell({ mu, sigma, lo, hi }: Pick<BothParams, 'mu' | 'sigma' | 'lo' | 'hi'>): boolean {
+  if (!roundedWell(sigma, SIGMA_DP) || !roundedWell(mu, MU_DP)) return false;
+  const want = roundTo(mu, MU_DP);
+  return [roundTo(sigma, SIGMA_DP), roundTo(sigma, { sf: 3 })].every((carried) =>
+    [lo, hi].every((k) => roundTo(k.x - k.z * carried, MU_DP) === want),
+  );
+}
+
+/**
+ * Two statements about whole values. `critical` lets a value sit at a
+ * percentage point (5%, 2.5%, 1%, 0.5% in a tail), where x is still whole, so
+ * mu and sigma run on and a question asks for them rounded. Generators whose
+ * later steps compare exact tokens (the elimination tree, the check table, a
+ * new probability) draw with `critical` off, so every value is exact.
+ */
+function sampleBoth(rng: Rng, difficulty: number, shape: BothShape = 'any', critical = true): BothParams {
   const ask = rng.pick<BothParams['ask']>(['mu', 'sigma']);
   const which = rng.pick<BothParams['which']>(['lo', 'hi']);
   const form = shape !== 'any' ? shape : difficulty > 1 && rng.chance(0.4) ? 'oneSide' : 'straddle';
-  const critical = difficulty > 1 ? 0.4 : 0.25;
+  const chance = critical ? (difficulty > 1 ? 0.4 : 0.25) : 0;
   // Difficulty 1 mostly states the two tails (always, for equal tails); difficulty 2 either side of either value.
   const tails = difficulty < 2 ? form === 'symmetric' || rng.chance(0.7) : rng.chance(0.3);
   const dirs: Known['dir'][] = tails ? ['below', 'above'] : [rng.pick(SIDES), rng.pick(SIDES)];
   for (;;) {
-    const sigma = rng.pick(SIGMAS);
-    const mu = drawMu(rng, sigma);
+    const { measure, mu: centre, sigma: spread } = drawMeasure(rng);
     const side = rng.sign();
-    const first = drawAt(rng, mu, sigma, form === 'oneSide' ? side : -1, rng.chance(critical));
+    const first = drawAt(rng, centre, spread, form === 'oneSide' ? side : -1, rng.chance(chance));
     if (!first) continue;
     const second =
       form === 'symmetric'
-        ? { z: -first.z, x: clean(2 * mu - first.x) }
-        : drawAt(rng, mu, sigma, form === 'oneSide' ? side : 1, rng.chance(critical));
+        ? { z: -first.z, x: 2 * centre - first.x }
+        : drawAt(rng, centre, spread, form === 'oneSide' ? side : 1, rng.chance(chance));
     if (!second) continue;
     const [lo, hi] = first.z < second.z ? [first, second] : [second, first];
     if (hi.z - lo.z < 0.5) continue;
     // Equal |z| is the pattern lesson's case; elsewhere it would hand over the midpoint.
     if (form !== 'symmetric' && Math.abs(Math.abs(lo.z) - Math.abs(hi.z)) < 1e-9) continue;
-    return { measure, mu, sigma, lo: { ...lo, dir: dirs[0] }, hi: { ...hi, dir: dirs[1] }, ask, which };
+    // mu and sigma are what the two statements make them: at table z, the whole values drawn.
+    const sigma = clean((hi.x - lo.x) / (hi.z - lo.z));
+    const mu = form === 'symmetric' ? centre : clean(lo.x - lo.z * sigma);
+    const params = { measure, mu, sigma, lo: { ...lo, dir: dirs[0] }, hi: { ...hi, dir: dirs[1] }, ask, which };
+    if (!exactPair(params) && !roundsWell(params)) continue;
+    return params;
   }
 }
+
+/** A found mu or sigma in working: as it is when it ends, else its digits running on, then rounded. */
+function foundTex(value: number, precision: Precision): string {
+  return terminates(value, 3) ? fmt(value) : `${dots(value)} \\approx ${fixed(value, precision)}`;
+}
+
+/** sigma as a later line multiplies by it: exact, or its unrounded digits. */
+const carryTex = (value: number): string => (terminates(value, 3) ? fmt(value) : dots(value));
+
+/** The typed answer a solve question takes, rounded when the pair runs on. */
+function bothAnswer(params: BothParams): { value: number; precision?: Precision } {
+  const value = params.ask === 'mu' ? params.mu : params.sigma;
+  // Decided by the pair, not this value: a mu that ends is still reached through a sigma that may not.
+  if (exactPair(params)) return { value };
+  const precision = params.ask === 'mu' ? MU_DP : SIGMA_DP;
+  return { value: roundTo(value, precision), precision };
+}
+
+/** A typed mu or sigma, with its precision stated and set when it runs on. */
+function bothSlide(prompt: Block[], params: BothParams): Slide {
+  const { value, precision } = bothAnswer(params);
+  return {
+    kind: 'expression',
+    prompt,
+    lead: `\\${params.ask} =`,
+    keypad: [],
+    answer: fmt(value),
+    ...(precision ? { precision } : {}),
+    domain: 'real',
+    mode: 'exact',
+  };
+}
+
+/** The sentence a rounded solve question ends on, or nothing when the answer ends. */
+const bothAsk = (params: BothParams): string => {
+  const { precision } = bothAnswer(params);
+  if (!precision) return '';
+  const carry = params.ask === 'mu' && !terminates(params.sigma, 3) ? ' Take $\\sigma$ to 2 decimal places.' : '';
+  return ` ${askPrecision(precision)}${carry}`;
+};
 
 /** P(X < x), read from the quoted Phi alone. */
 const lowerOf = (k: Known): number => below(k.z);
@@ -2740,14 +2824,23 @@ function bothSolution(params: BothParams): SolutionStep[] {
   const { mu, sigma, lo, hi } = params;
   const d = clean(hi.x - lo.x);
   const dz = clean(hi.z - lo.z);
-  return [
+  const steps: SolutionStep[] = [
     { text: knownLine(lo) },
     { text: knownLine(hi) },
     { tex: aligned(eqTex(lo.x, lo.z), eqTex(hi.x, hi.z)) },
     { text: 'Take the first from the second and $\\mu$ cancels:' },
-    { tex: dz === 1 ? `\\sigma = ${fmt(d)}` : aligned(`${fmt(d)} &= ${coef(dz)}\\sigma`, `\\sigma &= ${fmt(d)} \\div ${fmt(dz)}`, `&= ${sigma}`) },
-    { tex: aligned(`\\mu &= ${fmt(lo.x)} ${lo.z < 0 ? '+' : '-'} ${fmt(Math.abs(lo.z))} \\times ${sigma}`, `&= ${fmt(mu)}`) },
+    {
+      tex:
+        dz === 1
+          ? `\\sigma = ${fmt(d)}`
+          : aligned(`${fmt(d)} &= ${coef(dz)}\\sigma`, `\\sigma &= ${fmt(d)} \\div ${fmt(dz)}`, `&= ${foundTex(sigma, SIGMA_DP)}`),
+    },
+    { tex: aligned(`\\mu &= ${fmt(lo.x)} ${lo.z < 0 ? '+' : '-'} ${fmt(Math.abs(lo.z))} \\times ${carryTex(sigma)}`, `&= ${foundTex(mu, MU_DP)}`) },
   ];
+  if (!exactPair(params)) {
+    steps.push({ text: `Rounded, $\\sigma = ${fixed(sigma, SIGMA_DP)}$ to 2 decimal places and $\\mu = ${fixed(mu, MU_DP)}$ to 1 decimal place.` });
+  }
+  return steps;
 }
 
 /** `\mu = 56, \; \sigma = 4`. */
@@ -2771,14 +2864,13 @@ interface OneParams {
 }
 
 function sampleOne(rng: Rng, difficulty: number): OneParams {
-  const measure = rng.int(0, MEASURES.length - 1);
   // Difficulty 1 states P(X < x); difficulty 2 either side, so it may need turning round first.
   const dir = difficulty > 1 ? rng.pick(SIDES) : 'below';
   for (;;) {
-    const sigma = rng.pick(SIGMAS);
-    const mu = drawMu(rng, sigma);
-    const at = drawAt(rng, mu, sigma, rng.sign(), rng.chance(difficulty > 1 ? 0.4 : 0.25));
-    if (at) return { measure, mu, sigma, known: { ...at, dir } };
+    const { measure, mu: centre, sigma } = drawMeasure(rng);
+    const at = drawAt(rng, centre, sigma, rng.sign(), rng.chance(difficulty > 1 ? 0.4 : 0.25));
+    // x is whole, so the mu that fits it with this sigma is x - z sigma, which ends within three places.
+    if (at) return { measure, mu: clean(at.x - at.z * sigma), sigma, known: { ...at, dir } };
   }
 }
 
@@ -2952,32 +3044,35 @@ const bothPair: Generator<BothParams> = {
 
 const exactOnly = (values: number[]): number[] => values.filter((v) => Number.isFinite(v) && terminates(v, 3));
 
+/**
+ * Distractors for a typed mu or sigma: the exact ones when the answer ends,
+ * else every slip rounded as the answer is, so each option is written alike.
+ */
+function bothSlips(params: BothParams, slips: number[]): number[] {
+  const { precision } = bothAnswer(params);
+  if (!precision) return exactOnly(slips);
+  return slips.filter((v) => Number.isFinite(v) && v > 0).map((v) => roundTo(v, precision));
+}
+
 const bothSolve: Generator<BothParams> = {
   id: 'dist-both-solve',
   sample: (rng, difficulty) => sampleBoth(rng, difficulty),
-  render: (params): Slide => ({
-    kind: 'expression',
-    prompt: bothPrompt(params, `Find $\\${params.ask}$.`),
-    lead: `\\${params.ask} =`,
-    keypad: [],
-    answer: fmt(params.ask === 'mu' ? params.mu : params.sigma),
-    domain: 'real',
-    mode: 'exact',
-  }),
+  render: (params): Slide => bothSlide(bothPrompt(params, `Find $\\${params.ask}$.${bothAsk(params)}`), params),
   solution: bothSolution,
   choices: (params) => {
-    const { mu, sigma, lo, hi, ask } = params;
+    const { sigma, lo, hi, ask } = params;
     const d = clean(hi.x - lo.x);
+    const { value } = bothAnswer(params);
     if (ask === 'sigma') {
-      return decimalChoices(sigma, exactOnly([d / Math.abs(hi.z), d / Math.abs(lo.z), d / (Math.abs(hi.z) + Math.abs(lo.z)), d / clean(hi.z + lo.z)]));
+      return decimalChoices(value, bothSlips(params, [d / Math.abs(hi.z), d / Math.abs(lo.z), d / (Math.abs(hi.z) + Math.abs(lo.z)), d / clean(hi.z + lo.z)]));
     }
-    return decimalChoices(mu, exactOnly([clean(lo.x + lo.z * sigma), clean(hi.x + hi.z * sigma), clean((lo.x + hi.x) / 2)]));
+    return decimalChoices(value, bothSlips(params, [clean(lo.x + lo.z * sigma), clean(hi.x + hi.z * sigma), clean((lo.x + hi.x) / 2)]));
   },
 };
 
 const bothWorking: Generator<BothParams> = {
   id: 'dist-both-working',
-  sample: (rng, difficulty) => sampleBoth(rng, difficulty),
+  sample: (rng, difficulty) => sampleBoth(rng, difficulty, 'any', false),
   render: (params): Slide => {
     const { sigma, lo, hi } = params;
     const d = clean(hi.x - lo.x);
@@ -3006,7 +3101,7 @@ const bothWorking: Generator<BothParams> = {
 
 const bothNodes: Generator<BothParams> = {
   id: 'dist-both-nodes-tree',
-  sample: (rng, difficulty) => sampleBoth(rng, difficulty),
+  sample: (rng, difficulty) => sampleBoth(rng, difficulty, 'any', false),
   render: (params): Slide => {
     const { mu, sigma, lo, hi } = params;
     const d = clean(hi.x - lo.x);
@@ -3044,29 +3139,22 @@ function symmetricSolution(params: BothParams): SolutionStep[] {
     { text: `$P(X < ${fmt(lo.x)}) = ${fmt(lowerOf(lo))}$ and $P(X > ${fmt(hi.x)}) = ${fmt(clean(1 - lowerOf(hi)))}$: the two tails match, so the values sit the same distance either side of the mean.` },
     { tex: `\\mu = \\frac{${fmt(lo.x)} + ${fmt(hi.x)}}{2} = ${fmt(mu)}` },
     { text: `$\\Phi(${u}) = ${fmt(lowerOf(hi))}$, so $${fmt(hi.x)}$ is $${u}$ standard deviations above the mean, and half the gap is $${fmt(half)}$.` },
-    { tex: `\\sigma = ${fmt(half)} \\div ${u} = ${sigma}` },
+    { tex: `\\sigma = ${fmt(half)} \\div ${u} = ${foundTex(sigma, SIGMA_DP)}` },
   ];
 }
 
 const bothSymmetric: Generator<BothParams> = {
   id: 'dist-both-symmetric',
   sample: (rng, difficulty) => sampleBoth(rng, difficulty, 'symmetric'),
-  render: (params): Slide => ({
-    kind: 'expression',
-    prompt: bothPrompt(params, `Find $\\${params.ask}$.`),
-    lead: `\\${params.ask} =`,
-    keypad: [],
-    answer: fmt(params.ask === 'mu' ? params.mu : params.sigma),
-    domain: 'real',
-    mode: 'exact',
-  }),
+  render: (params): Slide => bothSlide(bothPrompt(params, `Find $\\${params.ask}$.${bothAsk(params)}`), params),
   solution: symmetricSolution,
   choices: (params) => {
-    const { mu, sigma, lo, hi, ask } = params;
+    const { sigma, lo, hi, ask } = params;
     const d = clean(hi.x - lo.x);
     const u = Math.abs(hi.z);
-    if (ask === 'sigma') return decimalChoices(sigma, exactOnly([d / u, d / 2, clean(d / 2) * u]));
-    return decimalChoices(mu, exactOnly([d, clean(d / 2), clean(hi.x + u * sigma)]));
+    const { value } = bothAnswer(params);
+    if (ask === 'sigma') return decimalChoices(value, bothSlips(params, [d / u, d / 2, clean(d / 2) * u]));
+    return decimalChoices(value, bothSlips(params, [d, clean(d / 2), clean(hi.x + u * sigma)]));
   },
 };
 
@@ -3155,18 +3243,13 @@ const bothProportion: Generator<BothParams> = {
     const { what, unit } = MEASURES[measure];
     const words = PROPORTIONS[measure];
     const part = (k: Known) => `$${fmt(clean(statedOf(k) * 100))}\\%$ of ${words.who} ${words[k.dir]} $${fmt(k.x)}$ ${unit}`;
-    return {
-      kind: 'expression',
-      prompt: [
-        say(`${what}, in ${unit}, is normally distributed. ${part(lo)}, and ${part(hi)}. Find the ${ask === 'mu' ? 'mean' : 'standard deviation'}, $\\${ask}$. Use`),
+    return bothSlide(
+      [
+        say(`${what}, in ${unit}, is normally distributed. ${part(lo)}, and ${part(hi)}. Find the ${ask === 'mu' ? 'mean' : 'standard deviation'}, $\\${ask}$.${bothAsk(params)} Use`),
         show(quoteTex(quotesOf(lo, hi))),
       ],
-      lead: `\\${ask} =`,
-      keypad: [],
-      answer: fmt(ask === 'mu' ? params.mu : params.sigma),
-      domain: 'real',
-      mode: 'exact',
-    };
+      params,
+    );
   },
   solution: (params) => [
     { text: `As probabilities: $${knownTex(params.lo)}$ and $${knownTex(params.hi)}$.` },
@@ -3181,7 +3264,7 @@ const foundText = (params: BothParams): string =>
 
 const bothCheckTable: Generator<BothParams> = {
   id: 'dist-both-check-table',
-  sample: (rng, difficulty) => sampleBoth(rng, difficulty),
+  sample: (rng, difficulty) => sampleBoth(rng, difficulty, 'any', false),
   render: (params): Slide => {
     const { lo, hi } = params;
     const answer = [fmt(lo.z), fmt(lowerOf(lo)), fmt(hi.z), fmt(lowerOf(hi))];
@@ -3207,7 +3290,7 @@ const bothCheckTable: Generator<BothParams> = {
 
 const bothVerify: Generator<BothParams> = {
   id: 'dist-both-verify',
-  sample: (rng, difficulty) => sampleBoth(rng, difficulty),
+  sample: (rng, difficulty) => sampleBoth(rng, difficulty, 'any', false),
   render: (params): Slide => {
     const { mu, sigma, lo, hi } = params;
     const [up, down] = neighbours(sigma);
@@ -3236,7 +3319,7 @@ interface NewParams extends BothParams {
 }
 
 function sampleNew(rng: Rng, difficulty: number): NewParams {
-  const params = sampleBoth(rng, difficulty);
+  const params = sampleBoth(rng, difficulty, 'any', false);
   for (;;) {
     const k = drawK(rng, params.sigma, 2.5, difficulty > 1 ? undefined : 1);
     // A value already stated would answer itself.
@@ -3364,63 +3447,36 @@ const opening = (words: boolean, setting: number, n: number, p: number): string 
   words ? largeText(setting, n, p) : `$${bTex(n, p)}$.`;
 
 /**
- * The (n, p) pairs the matching normal is drawn from. Every one has a
- * variance np(1 - p) that is a perfect square, so sigma is whole and
- * N(np, np(1 - p)) is written in whole numbers.
+ * The (n, p) pairs the matching normal is drawn from: a round number of
+ * trials, as a survey or a batch would have, and p in hundredths. The
+ * variance np(1 - p) then ends within four places, but sigma is its square
+ * root and usually runs on, so it is written to two decimal places
+ * (`SD_DP`). A pair is kept only when its variance is at least 9, so the
+ * approximation is a fair one, and both np and n(1 - p) clear 5.
  */
-const SQUARE_PAIRS: [number, number][] = [
-  [36, 0.5],
-  [48, 0.25],
-  [48, 0.75],
-  [64, 0.5],
-  [100, 0.1],
-  [100, 0.2],
-  [100, 0.5],
-  [100, 0.8],
-  [100, 0.9],
-  [144, 0.5],
-  [150, 0.4],
-  [150, 0.6],
-  [192, 0.25],
-  [192, 0.75],
-  [196, 0.5],
-  [225, 0.2],
-  [225, 0.8],
-  [256, 0.5],
-  [324, 0.5],
-  [400, 0.1],
-  [400, 0.2],
-  [400, 0.5],
-  [400, 0.8],
-  [400, 0.9],
-  [625, 0.2],
-  [625, 0.8],
-  [900, 0.1],
-  [900, 0.5],
-  [900, 0.9],
-];
+const TRIAL_COUNTS = [50, 60, 80, 100, 120, 150, 200, 250, 300, 400];
+const TRIAL_PS = [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9];
 
-/** sigma for a pair, or undefined when np(1 - p) is not a square (such a draw is refused). */
-function wholeSigma(n: number, p: number): number | undefined {
-  const variance = varOf({ n, p });
-  const sigma = Math.round(Math.sqrt(variance));
-  return sigma * sigma === variance ? sigma : undefined;
-}
+/** The precision a matching normal's sigma, and every z worked from it, is written to. */
+const SD_DP: Precision = { dp: 2 };
+const Z_DP: Precision = { dp: 2 };
 
-/**
- * The pairs a whole-route question may use. A corrected boundary sits half
- * way between whole numbers, so z = (k + 0.5) / sigma, and that has at most
- * two decimal places only when sigma has at most one factor of 2. A sigma of
- * 4 or 8 never does, so those pairs would be refused at every boundary.
- */
-const ROUTE_PAIRS = SQUARE_PAIRS.filter(([n, p]) => (wholeSigma(n, p) ?? 4) % 4 !== 0);
+/** sigma as the learner writes it: exact when the variance is a square, else to two places. */
+const sdTex = (sigma: number): string => fmt(roundTo(sigma, SD_DP));
 
-/** Draw a pair from a table, refusing any whose sigma is not whole. */
-function drawPair(rng: Rng, pairs: [number, number][]): { n: number; p: number; sigma: number } {
+/** sigma in working: exact, or its digits running on and then rounded. */
+const sdWorking = (sigma: number): string => (terminates(sigma, 2) ? fmt(sigma) : `${dots(sigma)} \\approx ${fixed(sigma, SD_DP)}`);
+
+/** Draw a pair whose variance is at least 9, and a sigma that rounds safely. */
+function drawPair(rng: Rng): { n: number; p: number; sigma: number } {
   for (;;) {
-    const [n, p] = rng.pick(pairs);
-    const sigma = wholeSigma(n, p);
-    if (sigma !== undefined) return { n, p, sigma };
+    const n = rng.pick(TRIAL_COUNTS);
+    const p = rng.pick(TRIAL_PS);
+    const variance = varOf({ n, p });
+    if (variance < 9 || !approxOk(n, p)) continue;
+    const sigma = Math.sqrt(variance);
+    if (!terminates(sigma, 2) && !roundedWell(sigma, SD_DP)) continue;
+    return { n, p, sigma };
   }
 }
 
@@ -3940,7 +3996,7 @@ interface MatchNormalParams {
 function sampleMatch(rng: Rng, difficulty: number): MatchNormalParams {
   const hard = difficulty > 1;
   return {
-    ...drawPair(rng, SQUARE_PAIRS),
+    ...drawPair(rng),
     ask: rng.pick<MatchNormalParams['ask']>(hard ? ['var', 'sd'] : ['mean', 'var']),
     words: hard,
     setting: rng.int(0, LARGE_SETTINGS.length - 1),
@@ -3954,7 +4010,7 @@ function matchSolution({ n, p, sigma }: MatchNormalParams): SolutionStep[] {
   const v = varOf({ n, p });
   return [
     { tex: aligned(`\\mu &= np`, `&= ${n} \\times ${fmt(p)} = ${fmt(mu)}`, `\\sigma^2 &= np(1 - p)`, `&= ${fmt(mu)} \\times ${fmt(comp(p))} = ${fmt(v)}`) },
-    { tex: aligned(`\\sigma &= \\sqrt{${fmt(v)}} = ${sigma}`, `Y &\\sim N(${fmt(mu)}, ${fmt(v)})`) },
+    { tex: aligned(`\\sigma &= \\sqrt{${fmt(v)}}`, `&= ${sdWorking(sigma)}`, `Y &\\sim N(${fmt(mu)}, ${fmt(v)})`) },
   ];
 }
 
@@ -3964,12 +4020,14 @@ const approxParam: Generator<MatchNormalParams> = {
   render: (params): Slide => {
     const { n, p, sigma, ask, words, setting } = params;
     const wanted = { mean: 'its mean $\\mu$', var: 'its variance $\\sigma^2$', sd: 'its standard deviation $\\sigma$' }[ask];
+    const rounded = ask === 'sd' && !terminates(sigma, 2);
     return {
       kind: 'expression',
-      prompt: [say(`${opening(words, setting, n, p)} A normal distribution $Y \\sim N(\\mu, \\sigma^2)$ is to approximate $X$. Find ${wanted}.`)],
+      prompt: [say(`${opening(words, setting, n, p)} A normal distribution $Y \\sim N(\\mu, \\sigma^2)$ is to approximate $X$. Find ${wanted}.${rounded ? ` ${askPrecision(SD_DP)}` : ''}`)],
       lead: { mean: '\\mu =', var: '\\sigma^2 =', sd: '\\sigma =' }[ask],
       keypad: [],
-      answer: fmt(ask === 'mean' ? meanOf(params) : ask === 'var' ? varOf(params) : sigma),
+      answer: ask === 'mean' ? fmt(meanOf(params)) : ask === 'var' ? fmt(varOf(params)) : fmt(roundTo(sigma, SD_DP)),
+      ...(rounded ? { precision: SD_DP } : {}),
       domain: 'real',
       mode: 'exact',
     };
@@ -3988,7 +4046,7 @@ const approxNormal: Generator<MatchNormalParams> = {
       [say(`${opening(words, setting, n, p)} Which normal distribution approximates $X$?`)],
       options(
         { tex: nApprox(n, p) },
-        { tex: `Y \\sim N(${mu}, ${sigma})` },
+        { tex: `Y \\sim N(${mu}, ${sdTex(sigma)})` },
         { tex: `Y \\sim N(${mu}, ${mu})` },
         { tex: `Y \\sim N(${fmt(clean(n * comp(p)))}, ${v})` },
         { tex: `Y \\sim N(${v}, ${mu})` },
@@ -4006,12 +4064,13 @@ const approxBuild: Generator<MatchNormalParams> = {
   sample: sampleMatch,
   render: (params): Slide => {
     const { n, p, sigma, words, setting } = params;
-    const answer = [fmt(meanOf(params)), fmt(varOf(params)), String(sigma)];
+    const answer = [fmt(meanOf(params)), fmt(varOf(params)), sdTex(sigma)];
+    const toTwo = terminates(sigma, 2) ? '' : ' Give $\\sigma$ to 2 decimal places.';
     return {
       kind: 'tiles',
-      prompt: [say(`${opening(words, setting, n, p)} Build the normal distribution that approximates $X$, and its standard deviation.`)],
+      prompt: [say(`${opening(words, setting, n, p)} Build the normal distribution that approximates $X$, and its standard deviation.${toTwo}`)],
       template: 'Y \\sim N({0}, {1}), \\quad \\sigma = {2}',
-      bank: tokenBank(answer, [fmt(clean(n * comp(p))), String(n), fmt(clean(meanOf(params) * p)), String(sigma + 1), fmt(clean(varOf(params) * 2))], 3),
+      bank: tokenBank(answer, [fmt(clean(n * comp(p))), String(n), fmt(clean(meanOf(params) * p)), sdTex(sigma + 1), fmt(clean(varOf(params) * 2))], 3),
       answer,
     };
   },
@@ -4025,17 +4084,18 @@ const approxMomentsTree: Generator<MatchNormalParams> = {
     const { n, p, sigma, words, setting } = params;
     const mu = meanOf(params);
     const v = varOf(params);
-    const answer = [fmt(mu), fmt(v), String(sigma)];
+    const answer = [fmt(mu), fmt(v), sdTex(sigma)];
+    const toTwo = terminates(sigma, 2) ? '' : ' Give $\\sigma$ to 2 decimal places.';
     return {
       kind: 'tree',
-      prompt: [say(`${opening(words, setting, n, p)} From the top: the mean $np$, then the variance $np(1 - p)$, then the standard deviation $\\sigma$ of the matching normal.`)],
+      prompt: [say(`${opening(words, setting, n, p)} From the top: the mean $np$, then the variance $np(1 - p)$, then the standard deviation $\\sigma$ of the matching normal.${toTwo}`)],
       expression: 'Y \\sim N(np, np(1 - p))',
       nodes: [
         { id: 'mu', from: [] },
         { id: 'var', from: ['mu'] },
         { id: 'sd', from: ['var'] },
       ],
-      bank: decimalBank(answer, [clean(n * comp(p)), clean(mu * p), clean(v / 2), sigma + 1, clean(2 * sigma)], 3),
+      bank: decimalBank(answer, [clean(n * comp(p)), clean(mu * p), clean(v / 2), roundTo(sigma + 1, SD_DP), roundTo(2 * sigma, SD_DP)], 3),
       answer,
     };
   },
@@ -4304,32 +4364,54 @@ interface RouteParams {
   setting: number;
 }
 
-/** The z at each corrected boundary, lower first. */
-function routeZs({ n, p, sigma, event }: RouteParams): number[] {
+/** The z at each corrected boundary, lower first, unrounded. */
+function routeRawZs({ n, p, sigma, event }: RouteParams): number[] {
   const mu = meanOf({ n, p });
   const { lo, hi } = corrected(event);
-  return [lo, hi].filter((b): b is number => b !== undefined).map((b) => clean((b - mu) / sigma));
+  return [lo, hi].filter((b): b is number => b !== undefined).map((b) => (b - mu) / sigma);
 }
 
+/** The z at each corrected boundary, lower first, to two places: the z the table is read at. */
+const routeZs = (params: RouteParams): number[] => routeRawZs(params).map((z) => roundTo(z, Z_DP));
+
+/** Whether a route's z values ran on, so the question says to round them. */
+const routeRounds = (params: RouteParams): boolean => routeRawZs(params).some((z) => !terminates(z, 2));
+
 /**
- * A route question: a pair whose sigma is whole, an event near the mean, and
- * every corrected boundary at a z of at most two places and at most 2.5 from
- * the mean. Anything else is refused and drawn again.
+ * A route question: a pair from `drawPair`, an event near the mean, and every
+ * corrected boundary at most 2.5 from the mean. z usually runs on and is read
+ * at two places, so a draw is refused when z sits near a rounding edge, or
+ * when working it from sigma already rounded to two places would round it
+ * differently.
  */
 function sampleRoute(rng: Rng, difficulty: number, rels: CcRel[]): RouteParams {
   for (;;) {
-    const { n, p, sigma } = drawPair(rng, ROUTE_PAIRS);
+    const { n, p, sigma } = drawPair(rng);
     const mu = meanOf({ n, p });
     const rel = rng.pick(rels);
-    const r = mu + rng.int(-Math.floor(2.4 * sigma), Math.floor(2.4 * sigma));
-    const s = rel === 'between' ? r + rng.int(1, 2 * sigma) : r;
+    const r = Math.round(mu) + rng.int(-Math.floor(2.4 * sigma), Math.floor(2.4 * sigma));
+    const s = rel === 'between' ? r + rng.int(1, Math.max(1, Math.round(2 * sigma))) : r;
     if (r < 1 || s > n - 1) continue;
     const params: RouteParams = { n, p, sigma, event: { rel, r, s }, words: difficulty > 1, setting: rng.int(0, LARGE_SETTINGS.length - 1) };
-    const zs = routeZs(params);
-    if (zs.some((z) => !terminates(z, 2) || Math.abs(z) > 2.5 || Math.abs(z) < 0.05)) continue;
+    const raw = routeRawZs(params);
+    if (raw.some((z) => Math.abs(z) > 2.5 || Math.abs(z) < 0.05)) continue;
+    const { lo, hi } = corrected(params.event);
+    const bounds = [lo, hi].filter((b): b is number => b !== undefined);
+    // sigma carried at 2 decimal places, as the prompt says, or at 3 significant figures: z must not move.
+    const carries = [roundTo(sigma, SD_DP), roundTo(sigma, { sf: 3 })];
+    const safe = raw.every(
+      (z, i) => terminates(z, 2) || (roundedWell(z, Z_DP) && carries.every((c) => roundTo((bounds[i] - mu) / c, Z_DP) === roundTo(z, Z_DP))),
+    );
+    if (!safe) continue;
     return params;
   }
 }
+
+/** The sentence a route question uses before it quotes Phi. */
+const routeUse = (params: RouteParams): string => {
+  const sd = terminates(params.sigma, 2) ? '' : 'Take $\\sigma$ to 2 decimal places. ';
+  return `${sd}${routeRounds(params) ? 'Round each $z$ to 2 decimal places, then use' : 'Use'}`;
+};
 
 /** The probability, read from the quoted Phi values. */
 function routeValue(params: RouteParams): number {
@@ -4350,9 +4432,13 @@ function routeSolution(params: RouteParams): SolutionStep[] {
   const zs = routeZs(params);
   const bounds = [lo, hi].filter((b): b is number => b !== undefined);
   const steps: SolutionStep[] = [
-    { text: `$np = ${fmt(mu)}$ and $n(1 - p) = ${fmt(clean(n - mu))}$ are both above $5$, so approximate by $${nApprox(n, p)}$, with $\\sigma = ${sigma}$.` },
+    { text: `$np = ${fmt(mu)}$ and $n(1 - p) = ${fmt(clean(n - mu))}$ are both above $5$, so approximate by $${nApprox(n, p)}$, with $\\sigma = ${sdWorking(sigma)}$.` },
     { tex: aligned(`& ${xEventTex(event)}`, `&\\approx ${yEventTex({ lo, hi })}`) },
-    ...bounds.map((b, i) => ({ tex: aligned(`z &= \\frac{${fmt(b)} - ${paren(mu)}}{${sigma}}`, `&= ${fmt(zs[i])}`) })),
+    ...bounds.map((b, i) => {
+      const raw = (b - mu) / sigma;
+      const zLine = terminates(raw, 2) ? fmt(zs[i]) : `${dots(raw)} \\approx ${fmt(zs[i])}`;
+      return { tex: aligned(`z &= \\frac{${fmt(b)} - ${paren(mu)}}{${sdTex(sigma)}}`, `&= ${zLine}`) };
+    }),
   ];
   const lower = (z: number) => (z >= 0 ? `\\Phi(${fmt(z)})` : `1 - \\Phi(${fmt(-z)})`);
   if (bounds.length === 2) {
@@ -4375,7 +4461,7 @@ const approxProb: Generator<RouteParams> = {
     return {
       kind: 'expression',
       prompt: [
-        say(`${opening(words, setting, n, p)} Use a normal approximation, with a continuity correction, to find ${eventText(event, words)}. Use`),
+        say(`${opening(words, setting, n, p)} Use a normal approximation, with a continuity correction, to find ${eventText(event, words)}. ${routeUse(params)}`),
         show(quoteTex(routeQuotes(params))),
       ],
       lead: `${xEventTex(event)} \\approx`,
@@ -4405,11 +4491,12 @@ const approxRouteTree: Generator<RouteParams> = {
     const mu = meanOf({ n, p });
     const answer = [fmt(b), fmt(z), fmt(value)];
     const other = 2 * event.r - b;
+    const sdGiven = terminates(sigma, 2) ? `$\\sigma = ${fmt(sigma)}$` : `$\\sigma = ${sdTex(sigma)}$ to 2 decimal places`;
     return {
       kind: 'tree',
       prompt: [
         say(
-          `${opening(words, setting, n, p)} It is approximated by $${nApprox(n, p)}$, with $\\sigma = ${sigma}$. For ${eventText(event, words)}, from the top: the corrected boundary $b$, then its $z$, then the probability. Use`,
+          `${opening(words, setting, n, p)} It is approximated by $${nApprox(n, p)}$, with ${sdGiven}. For ${eventText(event, words)}, from the top: the corrected boundary $b$, then its $z$, then the probability. ${routeUse(params)}`,
         ),
         show(quoteTex(routeQuotes(params))),
       ],
@@ -4419,7 +4506,7 @@ const approxRouteTree: Generator<RouteParams> = {
         { id: 'z', from: ['b'] },
         { id: 'P', from: ['z'] },
       ],
-      bank: decimalBank(answer, [other, event.r, -z, clean((other - mu) / sigma), clean(1 - value)], 3, false),
+      bank: decimalBank(answer, [other, event.r, -z, roundTo((other - mu) / sigma, Z_DP), clean(1 - value)], 3, false),
       answer,
     };
   },
@@ -4438,15 +4525,17 @@ const approxStandardise: Generator<RouteParams> = {
     const [z] = routeZs(params);
     const up = event.rel === 'le' || event.rel === 'gt';
     const other = 2 * event.r - b;
-    const slip = clean(d / (sigma * sigma));
+    const slip = roundTo(d / (sigma * sigma), Z_DP);
+    const rounds = routeRounds(params);
+    const sdGiven = terminates(sigma, 2) ? '' : `, with $\\sigma = ${sdTex(sigma)}$ to 2 decimal places`;
     return {
       kind: 'steps',
       prompt: [
         say(
-          `${opening(words, setting, n, p)} It is approximated by $${nApprox(n, p)}$. For ${eventText(event, words)}, correct the boundary, then standardise it with $z = (b - \\mu) \\div \\sigma$. Tap the part to do next, then choose what it comes to.`,
+          `${opening(words, setting, n, p)} It is approximated by $${nApprox(n, p)}$${sdGiven}. For ${eventText(event, words)}, correct the boundary, then standardise it with $z = (b - \\mu) \\div \\sigma$${rounds ? ', giving $z$ to 2 decimal places' : ''}. Tap the part to do next, then choose what it comes to.`,
         ),
       ],
-      start: ['(', String(event.r), up ? '+' : '-', '0.5', '-', fmt(mu), ')', '\\div', String(sigma)],
+      start: ['(', String(event.r), up ? '+' : '-', '0.5', '-', fmt(mu), ')', '\\div', sdTex(sigma)],
       reductions: [
         { span: [1, 4], operator: 2, value: fmt(b), bank: stepBank(fmt(b), fmt(other), String(event.r), fmt(b + 1), fmt(b - 1)) },
         { span: [0, 5], operator: 2, value: fmt(d), bank: stepBank(fmt(d), fmt(-d), fmt(clean(b + mu)), fmt(clean(d + 1))) },
@@ -4454,7 +4543,7 @@ const approxStandardise: Generator<RouteParams> = {
           span: [0, 3],
           operator: 1,
           value: fmt(z),
-          bank: stepBank(fmt(z), fmt(-z), fmt(clean(d * sigma)), terminates(slip, 4) && slip !== z ? fmt(slip) : fmt(clean(z + 0.1))),
+          bank: stepBank(fmt(z), fmt(-z), fmt(roundTo(d * sigma, Z_DP)), slip !== z && slip !== -z ? fmt(slip) : fmt(clean(z + 0.1))),
         },
       ],
     };
@@ -4488,7 +4577,7 @@ const approxPlan: Generator<RouteParams> = {
         {
           id: 'normal',
           ask: 'Which normal distribution matches $X$?',
-          branches: turned([`$N(${mu}, ${v})$`, `$N(${mu}, ${sigma})$`, `$N(${mu}, ${mu})$`].map((label) => ({ label, to: 'cc' })), key),
+          branches: turned([`$N(${mu}, ${v})$`, `$N(${mu}, ${sdTex(sigma)})$`, `$N(${mu}, ${mu})$`].map((label) => ({ label, to: 'cc' })), key),
         },
         {
           id: 'cc',
@@ -4539,9 +4628,6 @@ const TRIPLES: [number, number, number][] = [
 /** The triples whose s divides 100, so every whole distance from the mean has a z of at most two places. */
 const ROUND_TRIPLES = TRIPLES.filter(([, , s]) => 100 % s === 0);
 
-/** The triples small enough for a context's means to sit well clear of zero. */
-const SMALL_TRIPLES = TRIPLES.filter(([, , s]) => s <= 25);
-
 /** A combination aX + bY + c of independent X ~ N(mx, sx^2) and Y ~ N(my, sy^2); b = 0 for one variable. */
 interface Combo {
   a: number;
@@ -4557,7 +4643,12 @@ const comboMean = (p: Combo): number => p.a * p.mx + p.b * p.my + p.c;
 const comboVar = (p: Combo): number => p.a * p.a * p.sx * p.sx + p.b * p.b * p.sy * p.sy;
 const isSquare = (value: number): boolean => Number.isInteger(Math.sqrt(value));
 /** Whole by construction: a draw whose variance is not a square is refused. */
-const comboSd = (p: Combo): number => Math.round(Math.sqrt(comboVar(p)));
+/**
+ * The standard deviation: whole for a combination built from a triple, and
+ * running on for two measurements with their own natural spreads, which a
+ * question then asks for to two places (`SD_DP`).
+ */
+const comboSd = (p: Combo): number => Math.sqrt(comboVar(p));
 
 /** aX + bY + c as the learner reads it: `2X - 3Y + 5`, `X + Y`, `-2X + 400`. */
 function comboTex({ a, b, c }: Pick<Combo, 'a' | 'b' | 'c'>): string {
@@ -4590,7 +4681,7 @@ function meanLines(p: Combo, name: string): string[] {
 function varLines(p: Combo, name: string): string[] {
   const lines = [`\\mathrm{Var}(${name}) &= ${sqTex(p.a)} \\times ${p.sx * p.sx}`];
   if (p.b !== 0) lines.push(`&\\; + ${sqTex(p.b)} \\times ${p.sy * p.sy}`);
-  return [...lines, `&= ${comboVar(p)}`, `\\sigma_{${name}} &= \\sqrt{${comboVar(p)}}`, `&= ${comboSd(p)}`];
+  return [...lines, `&= ${comboVar(p)}`, `\\sigma_{${name}} &= \\sqrt{${comboVar(p)}}`, `&= ${sdWorking(comboSd(p))}`];
 }
 
 function comboSolution(p: Combo, name = 'W'): SolutionStep[] {
@@ -4618,6 +4709,24 @@ const LEAD: Record<Ask, (name: string) => string> = {
 };
 
 const askValue = (p: Combo, ask: Ask): number => (ask === 'mean' ? comboMean(p) : ask === 'var' ? comboVar(p) : comboSd(p));
+
+/** Whether the value asked for runs on, so the question asks for it to two places. */
+const askRounds = (p: Combo, ask: Ask): boolean => !terminates(askValue(p, ask), 2);
+
+/** A typed mean, variance or standard deviation of a combination, rounded to two places when it runs on. */
+function askSlide(p: Combo, ask: Ask, prompt: string, lead: string): Slide {
+  const rounds = askRounds(p, ask);
+  return {
+    kind: 'expression',
+    prompt: [say(rounds ? `${prompt} ${askPrecision(SD_DP)}` : prompt)],
+    lead,
+    keypad: [],
+    answer: fmt(rounds ? roundTo(askValue(p, ask), SD_DP) : askValue(p, ask)),
+    ...(rounds ? { precision: SD_DP } : {}),
+    domain: 'real',
+    mode: 'exact',
+  };
+}
 
 /* ---------- Level 5, lesson 1: aX + b ---------- */
 
@@ -4728,7 +4837,7 @@ const linNormal: Generator<LinearParams> = {
       options(
         { tex: `W \\sim N(${e}, ${v})` },
         { tex: `W \\sim N(${e}, ${Math.abs(p.a) * p.sx * p.sx})` },
-        { tex: `W \\sim N(${e}, ${comboSd(p)})` },
+        { tex: `W \\sim N(${e}, ${sdTex(comboSd(p))})` },
         { tex: `W \\sim N(${fmt(p.a * p.mx)}, ${v})` },
         { tex: `W \\sim N(${e}, ${v + Math.abs(p.c)})` },
       ).slice(0, 4),
@@ -4796,17 +4905,23 @@ const linEffectFlow: Generator<LinearParams> = {
 /* ---------- Level 5, lesson 2: X + Y and X - Y ---------- */
 
 /**
- * Two independent measurements. `bx` and `by` are where their means sit, far
- * enough above 4 sigma for any triple with s up to 25.
+ * Two independent measurements, each with where its mean sits (`bx`, `by`,
+ * give or take 20) and the standard deviations it may have (`sxs`, `sys`):
+ * a man's height in mm spreads by 60 to 80, a machine-cut rod by a few mm.
+ * The two spreads are the story's own, so the standard deviation of a sum or
+ * difference usually runs on and is asked for to two places.
  */
-const PAIR_SETTINGS: { lead: string; bx: number; by: number; more: string; less: string }[] = [
-  { lead: "An apple's mass $X$ and an orange's mass $Y$, in grams,", bx: 160, by: 190, more: 'the apple is heavier than the orange', less: 'the apple is lighter than the orange' },
-  { lead: 'The time $X$ to walk to a bus stop and the time $Y$ spent on the bus, in seconds,', bx: 600, by: 640, more: 'the walk takes longer than the bus ride', less: 'the walk takes less time than the bus ride' },
-  { lead: "A man's height $X$ and a woman's height $Y$, in mm,", bx: 1760, by: 1690, more: 'the man is taller than the woman', less: 'the man is shorter than the woman' },
-  { lead: 'The length $X$ of a rod cut by machine A and the length $Y$ of a rod cut by machine B, in mm,', bx: 800, by: 780, more: 'the rod from A is the longer', less: 'the rod from A is the shorter' },
-  { lead: 'The mass $X$ of an empty jar and the mass $Y$ of the jam put in it, in grams,', bx: 300, by: 340, more: 'the jar weighs more than the jam', less: 'the jar weighs less than the jam' },
-  { lead: 'The lifetime $X$ of a brand A battery and the lifetime $Y$ of a brand B battery, in hours,', bx: 400, by: 380, more: 'the brand A battery lasts longer', less: 'the brand B battery lasts longer' },
+const PAIR_SETTINGS: { lead: string; bx: number; by: number; sxs: number[]; sys: number[]; more: string; less: string }[] = [
+  { lead: "An apple's mass $X$ and an orange's mass $Y$, in grams,", bx: 160, by: 190, sxs: [10, 12, 15, 20], sys: [12, 15, 18, 20], more: 'the apple is heavier than the orange', less: 'the apple is lighter than the orange' },
+  { lead: 'The time $X$ to walk to a bus stop and the time $Y$ spent on the bus, in seconds,', bx: 600, by: 640, sxs: [30, 40, 45, 60], sys: [40, 50, 60, 90], more: 'the walk takes longer than the bus ride', less: 'the walk takes less time than the bus ride' },
+  { lead: "A man's height $X$ and a woman's height $Y$, in mm,", bx: 1760, by: 1690, sxs: [60, 65, 70, 75, 80], sys: [55, 60, 65, 70], more: 'the man is taller than the woman', less: 'the man is shorter than the woman' },
+  { lead: 'The length $X$ of a rod cut by machine A and the length $Y$ of a rod cut by machine B, in mm,', bx: 800, by: 795, sxs: [2, 3, 4, 5], sys: [2, 3, 4, 5, 6], more: 'the rod from A is the longer', less: 'the rod from A is the shorter' },
+  { lead: 'The mass $X$ of an empty jar and the mass $Y$ of the jam put in it, in grams,', bx: 300, by: 340, sxs: [5, 6, 8, 10], sys: [8, 10, 12, 15], more: 'the jar weighs more than the jam', less: 'the jar weighs less than the jam' },
+  { lead: 'The lifetime $X$ of a brand A battery and the lifetime $Y$ of a brand B battery, in hours,', bx: 400, by: 380, sxs: [20, 25, 30, 40], sys: [15, 20, 25, 30], more: 'the brand A battery lasts longer', less: 'the brand B battery lasts longer' },
 ];
+
+/** Standard deviations for two measurements named only by letter. */
+const PLAIN_SIGMAS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 12];
 
 interface PairParams extends Combo {
   setting: number;
@@ -4820,15 +4935,29 @@ function tripleSigmas(rng: Rng, triples: [number, number, number][]): [number, n
   return rng.chance(0.5) ? [p, q] : [q, p];
 }
 
+/**
+ * Two measurements with their own spreads: a setting's in words, or two
+ * different plain ones. A standard deviation that runs on is kept only when
+ * it rounds safely to two places.
+ */
+function drawTwo(rng: Rng, words: boolean): { setting: number; mx: number; sx: number; my: number; sy: number } {
+  for (;;) {
+    const setting = rng.int(0, PAIR_SETTINGS.length - 1);
+    const { bx, by, sxs, sys } = PAIR_SETTINGS[setting];
+    const [sx, sy] = words ? [rng.pick(sxs), rng.pick(sys)] : rng.sample(PLAIN_SIGMAS, 2);
+    const sd = Math.sqrt(sx * sx + sy * sy);
+    if (!terminates(sd, 2) && !roundedWell(sd, SD_DP)) continue;
+    const mx = words ? bx + rng.int(-20, 20) : drawMu(rng, sx);
+    const my = words ? by + rng.int(-20, 20) : drawMu(rng, sy);
+    return { setting: words ? setting : 0, mx, sx, my, sy };
+  }
+}
+
 function samplePair(rng: Rng, difficulty: number): PairParams {
-  const [sx, sy] = tripleSigmas(rng, SMALL_TRIPLES);
   const words = difficulty > 1;
-  const setting = rng.int(0, PAIR_SETTINGS.length - 1);
-  const { bx, by } = PAIR_SETTINGS[setting];
-  const mx = words ? bx + rng.int(-20, 20) : drawMu(rng, sx);
-  const my = words ? by + rng.int(-20, 20) : drawMu(rng, sy);
+  const two = drawTwo(rng, words);
   const b = rng.pick([1, -1]);
-  return { a: 1, b, c: 0, mx, sx, my, sy, setting: words ? setting : 0, words, ask: rng.pick<Ask>(words ? ['var', 'sd'] : ['mean', 'var']) };
+  return { a: 1, b, c: 0, ...two, words, ask: rng.pick<Ask>(words ? ['var', 'sd'] : ['mean', 'var']) };
 }
 
 function pairOpening(p: { mx: number; sx: number; my: number; sy: number; setting: number; words: boolean }): string {
@@ -4852,24 +4981,20 @@ function pairSolution(p: PairParams): SolutionStep[] {
 const sumMoment: Generator<PairParams> = {
   id: 'dist-sum-moment',
   sample: samplePair,
-  render: (p): Slide => ({
-    kind: 'expression',
-    prompt: [say(`${pairOpening(p)} $${linearW(p)}$. Find ${WANTED[p.ask]('W')}.`)],
-    lead: LEAD[p.ask]('W'),
-    keypad: [],
-    answer: fmt(askValue(p, p.ask)),
-    domain: 'real',
-    mode: 'exact',
-  }),
+  render: (p): Slide => askSlide(p, p.ask, `${pairOpening(p)} $${linearW(p)}$. Find ${WANTED[p.ask]('W')}.`, LEAD[p.ask]('W')),
   solution: pairSolution,
   choices: (p) => {
     const { b, mx, sx, my, sy } = p;
     const slips: Record<Ask, number[]> = {
       mean: [mx - b * my, my - mx, mx],
       var: [Math.abs(sx * sx - sy * sy), sx + sy, (sx + sy) ** 2, sx * sx],
-      sd: [sx + sy, Math.abs(sx - sy), comboVar(p)],
+      sd: [sx + sy, Math.abs(sx - sy), comboVar(p), Math.sqrt(Math.abs(sx * sx - sy * sy))],
     };
-    return decimalChoices(askValue(p, p.ask), slips[p.ask], p.ask !== 'mean');
+    const rounds = askRounds(p, p.ask);
+    const value = askValue(p, p.ask);
+    return rounds
+      ? decimalChoices(roundTo(value, SD_DP), slips[p.ask].filter((v) => v > 0).map((v) => roundTo(v, SD_DP)))
+      : decimalChoices(value, slips[p.ask], p.ask !== 'mean');
   },
 };
 
@@ -4887,7 +5012,7 @@ const sumNormal: Generator<PairParams> = {
         { tex: `W \\sim N(${e}, ${Math.abs(sx * sx - sy * sy)})` },
         { tex: `W \\sim N(${e}, ${sx + sy})` },
         { tex: b < 0 ? `W \\sim N(${fmt(mx + my)}, ${v})` : `W \\sim N(${e}, ${(sx + sy) ** 2})` },
-        { tex: `W \\sim N(${e}, ${comboSd(p)})` },
+        { tex: `W \\sim N(${e}, ${sdTex(comboSd(p))})` },
       ).slice(0, 4),
     );
   },
@@ -4901,10 +5026,11 @@ const sumVarTiles: Generator<PairParams> = {
     const { sx, sy } = p;
     const vx = sx * sx;
     const vy = sy * sy;
-    const answer = [String(vx), '+', String(vy), String(vx + vy), String(comboSd(p))];
+    const answer = [String(vx), '+', String(vy), String(vx + vy), sdTex(comboSd(p))];
+    const toTwo = terminates(comboSd(p), 2) ? '' : ' Give $\\sigma_W$ to 2 decimal places.';
     return {
       kind: 'tiles',
-      prompt: [say(`${pairOpening(p)} $${linearW(p)}$. Build $\\mathrm{Var}(W)$ from $\\mathrm{Var}(X)$ and $\\mathrm{Var}(Y)$, in that order, then its standard deviation.`)],
+      prompt: [say(`${pairOpening(p)} $${linearW(p)}$. Build $\\mathrm{Var}(W)$ from $\\mathrm{Var}(X)$ and $\\mathrm{Var}(Y)$, in that order, then its standard deviation.${toTwo}`)],
       template: '\\mathrm{Var}(W) = {0} {1} {2} = {3}, \\quad \\sigma_W = {4}',
       bank: tokenBank(answer, ['-', String(Math.abs(vx - vy)), String(sx + sy), String(Math.abs(sx - sy)), String((sx + sy) ** 2)], 4),
       answer,
@@ -4931,7 +5057,7 @@ const sumTable: Generator<PairParams> = {
       prompt: [say(`${pairOpening(p)} Fill in the mean and the variance of each combination.`)],
       columns: ['', '\\mathrm{E}', '\\mathrm{Var}'],
       rows,
-      bank: decimalBank(answer, [hard ? mx : my - mx, Math.abs(sx * sx - sy * sy), sx + sy, comboSd({ ...p, b: 1 }), (sx + sy) ** 2], 3, false),
+      bank: decimalBank(answer, [hard ? mx : my - mx, Math.abs(sx * sx - sy * sy), sx + sy, roundTo(comboSd({ ...p, b: 1 }), SD_DP), (sx + sy) ** 2], 3, false),
       answer,
     };
   },
@@ -5022,7 +5148,7 @@ const comboNormal: Generator<ComboParams> = {
       options(
         { tex: `W \\sim N(${e}, ${v})` },
         { tex: `W \\sim N(${e}, ${Math.abs(a * vx + b * vy)})` },
-        { tex: `W \\sim N(${e}, ${comboSd(p)})` },
+        { tex: `W \\sim N(${e}, ${sdTex(comboSd(p))})` },
         { tex: `W \\sim N(${e}, ${Math.abs(a * a * vx - b * b * vy)})` },
         { tex: `W \\sim N(${fmt(a * mx - b * my + p.c)}, ${v})` },
         { tex: `W \\sim N(${e}, ${a * vx + Math.abs(b) * vy + 1})` },
@@ -5090,20 +5216,24 @@ const SQUARE_COUNTS = [4, 9, 16, 25];
 
 const TOTAL_SIGMAS = [2, 3, 4, 5, 6, 8, 10, 12, 15, 20];
 
-/** Separate items added up. None of these says "once"; every scaled setting does, which the test leans on. */
-const COPY_SETTINGS: { base: number; text: (n: number, name: string) => string }[] = [
-  { base: 1000, text: (n, name) => `A bag of flour has mass $X$ grams. A box holds ${n} bags, and $${name}$ is their total mass.` },
-  { base: 500, text: (n, name) => `A rod is $X$ mm long. ${n} rods are laid end to end, and $${name}$ is the length of the row.` },
-  { base: 210, text: (n, name) => `A song on a playlist lasts $X$ seconds. $${name}$ is the time ${n} different songs take, played one after another.` },
-  { base: 80, text: (n, name) => `A passenger has mass $X$ kg. $${name}$ is the total mass of ${n} passengers in a lift.` },
-  { base: 180, text: (n, name) => `A cashier takes $X$ seconds to serve a customer. $${name}$ is the time taken to serve ${n} customers.` },
+/**
+ * Separate items added up, each with where one item's mean sits and the
+ * standard deviations it may have. None of these says "once"; every scaled
+ * setting does, which the test leans on.
+ */
+const COPY_SETTINGS: { base: number; sigmas: number[]; text: (n: number, name: string) => string }[] = [
+  { base: 1000, sigmas: [5, 8, 10, 12, 15], text: (n, name) => `A bag of flour has mass $X$ grams. A box holds ${n} bags, and $${name}$ is their total mass.` },
+  { base: 500, sigmas: [2, 3, 4, 5], text: (n, name) => `A rod is $X$ mm long. ${n} rods are laid end to end, and $${name}$ is the length of the row.` },
+  { base: 210, sigmas: [20, 30, 40, 45], text: (n, name) => `A song on a playlist lasts $X$ seconds. $${name}$ is the time ${n} different songs take, played one after another.` },
+  { base: 80, sigmas: [8, 10, 12, 15], text: (n, name) => `A passenger has mass $X$ kg. $${name}$ is the total mass of ${n} passengers in a lift.` },
+  { base: 180, sigmas: [20, 30, 40, 45, 60], text: (n, name) => `A cashier takes $X$ seconds to serve a customer. $${name}$ is the time taken to serve ${n} customers.` },
 ];
 
-/** One measurement multiplied up. */
-const SCALED_SETTINGS: { base: number; text: (n: number, name: string) => string }[] = [
-  { base: 300, text: (n, name) => `A length on a plan is measured once, at $X$ mm, and multiplied by ${n} to give the real length $${name}$.` },
-  { base: 120, text: (n, name) => `A parcel is weighed once, at $X$ grams, and the postage in pence is $${name}$, ${n} times that reading.` },
-  { base: 40, text: (n, name) => `A cook weighs one spoonful of spice once, at $X$ grams, and a large batch uses ${n} times that mass, $${name}$.` },
+/** One measurement multiplied up: an estimate made from a single reading. */
+const SCALED_SETTINGS: { base: number; sigmas: number[]; text: (n: number, name: string) => string }[] = [
+  { base: 300, sigmas: [2, 3, 4, 5], text: (n, name) => `A length on a plan is measured once, at $X$ mm, and multiplied by ${n} to give the real length $${name}$.` },
+  { base: 180, sigmas: [2, 3, 4], text: (n, name) => `A joiner measures the height of one stair once, at $X$ mm, and multiplies it by ${n} to estimate the height $${name}$ of a staircase of ${n} stairs.` },
+  { base: 40, sigmas: [2, 3, 4, 5], text: (n, name) => `A cook weighs one spoonful of spice once, at $X$ grams, and a large batch uses ${n} times that mass, $${name}$.` },
 ];
 
 interface TotalParams {
@@ -5116,14 +5246,21 @@ interface TotalParams {
   ask: Ask;
 }
 
+/** A worded item's mean and spread, from its setting: near `base`, with one of its own standard deviations. */
+function settingDraw(rng: Rng, setting: { base: number; sigmas: number[] }): { mx: number; sx: number } {
+  const sx = rng.pick(setting.sigmas);
+  const wobble = Math.max(2, Math.round(setting.base / 20));
+  return { mx: setting.base + rng.int(-wobble, wobble), sx };
+}
+
 function sampleTotal(rng: Rng, difficulty: number, words = difficulty > 1): TotalParams {
   const hard = difficulty > 1;
-  const sx = rng.pick(TOTAL_SIGMAS);
   const n = rng.pick(hard ? SQUARE_COUNTS : SQUARE_COUNTS.slice(0, 2));
   const scaled = hard && rng.chance(0.5);
   const settings = scaled ? SCALED_SETTINGS : COPY_SETTINGS;
   const setting = rng.int(0, settings.length - 1);
-  const mx = words ? Math.max(settings[setting].base, 5 * sx) + rng.int(-20, 20) : drawMu(rng, sx);
+  const plainSx = rng.pick(TOTAL_SIGMAS);
+  const { mx, sx } = words ? settingDraw(rng, settings[setting]) : { mx: drawMu(rng, plainSx), sx: plainSx };
   return { n, mx, sx, scaled, setting, words, ask: rng.pick<Ask>(hard ? ['var', 'sd'] : ['mean', 'var']) };
 }
 
@@ -5243,7 +5380,7 @@ const totalFlow: Generator<TotalParams> = {
     const scaled = rng.chance(0.5);
     const settings = scaled ? SCALED_SETTINGS : COPY_SETTINGS;
     const setting = rng.int(0, settings.length - 1);
-    return { ...params, scaled, setting, mx: Math.max(settings[setting].base, 5 * params.sx) + rng.int(-20, 20) };
+    return { ...params, scaled, setting, ...settingDraw(rng, settings[setting]) };
   },
   render: (p): Slide => {
     const { n, mx, sx } = p;
@@ -5359,19 +5496,40 @@ interface BiggerParams extends Combo {
   dir: 'more' | 'less';
 }
 
+/**
+ * Two measurements from `drawTwo`, kept when D = X - Y has its z at D = 0
+ * between 0.05 and 2.5 from the mean. z usually runs on and is read at two
+ * places, so a draw near a rounding edge is refused, and so is one where z
+ * worked from the standard deviation already rounded would round differently.
+ */
 function sampleBigger(rng: Rng, difficulty: number): BiggerParams {
   const words = difficulty > 1;
-  const triples = ROUND_TRIPLES.filter(([, , s]) => s <= 25);
-  const [sx, sy] = tripleSigmas(rng, triples);
-  const s = Math.sqrt(sx * sx + sy * sy);
-  const setting = rng.int(0, PAIR_SETTINGS.length - 1);
-  const mx = words ? PAIR_SETTINGS[setting].bx + rng.int(-20, 20) : drawMu(rng, Math.max(sx, sy)) + 3 * s;
-  const d = drawOffset(rng, s);
-  return { a: 1, b: -1, c: 0, mx, sx, my: mx - d, sy, setting: words ? setting : 0, words, dir: words && rng.chance(0.5) ? 'less' : 'more' };
+  for (;;) {
+    const two = drawTwo(rng, words);
+    const s = Math.sqrt(two.sx * two.sx + two.sy * two.sy);
+    const raw = (two.my - two.mx) / s;
+    if (Math.abs(raw) < 0.05 || Math.abs(raw) > 2.5) continue;
+    // The prompt says to carry the standard deviation to 2 decimal places; carried to 3 significant figures instead, z must not move.
+    const carries = [roundTo(s, SD_DP), roundTo(s, { sf: 3 })];
+    if (!terminates(raw, 2) && !(roundedWell(raw, Z_DP) && carries.every((c) => roundTo((two.my - two.mx) / c, Z_DP) === roundTo(raw, Z_DP)))) continue;
+    return { a: 1, b: -1, c: 0, ...two, words, dir: words && rng.chance(0.5) ? 'less' : 'more' };
+  }
 }
 
-/** D = X - Y has its z at D = 0. */
-const biggerZ = (p: BiggerParams): number => clean(-comboMean(p) / comboSd(p));
+/** D = X - Y has its z at D = 0, unrounded. */
+const biggerRawZ = (p: BiggerParams): number => -comboMean(p) / comboSd(p);
+
+/** That z to two places, where the table is read. */
+const biggerZ = (p: BiggerParams): number => roundTo(biggerRawZ(p), Z_DP);
+
+/** "Round z to 2 decimal places, then use", or "use" when z ends. */
+const biggerUse = (p: BiggerParams): string => {
+  const sd = terminates(comboSd(p), 2) ? '' : 'taking the standard deviation of $X - Y$ to 2 decimal places, ';
+  return `${sd}${terminates(biggerRawZ(p), 2) ? 'using' : 'rounding $z$ to 2 decimal places and then using'}`;
+};
+
+/** z in working: exact, or its digits running on, then rounded. */
+const zRunning = (raw: number): string => (terminates(raw, 2) ? fmt(raw) : `${dots(raw)} \\approx ${fmt(roundTo(raw, Z_DP))}`);
 
 const biggerEvent = (p: BiggerParams): string => `P(X ${p.dir === 'more' ? '>' : '<'} Y)`;
 
@@ -5388,7 +5546,7 @@ function biggerSolution(p: BiggerParams): SolutionStep[] {
     { text: `Let $D = X - Y$. Then $${biggerEvent(p)}$ is $P(D ${p.dir === 'more' ? '>' : '<'} 0)$.` },
     { tex: aligned(...meanLines(p, 'D')) },
     { tex: aligned(...varLines(p, 'D')) },
-    { tex: aligned(`z &= \\frac{0 - ${paren(comboMean(p))}}{${comboSd(p)}}`, `&= ${fmt(z)}`) },
+    { tex: aligned(`z &= \\frac{0 - ${paren(comboMean(p))}}{${sdTex(comboSd(p))}}`, `&= ${zRunning(biggerRawZ(p))}`) },
     { tex: aligned(...sideLines(z, op, biggerValue(p))) },
   ];
 }
@@ -5398,7 +5556,7 @@ const biggerProb: Generator<BiggerParams> = {
   sample: sampleBigger,
   render: (p): Slide => ({
     kind: 'expression',
-    prompt: [say(`${pairOpening(p)} Find ${biggerAsk(p)}, using`), show(quoteTex([Math.abs(biggerZ(p))]))],
+    prompt: [say(`${pairOpening(p)} Find ${biggerAsk(p)}, ${biggerUse(p)}`), show(quoteTex([Math.abs(biggerZ(p))]))],
     lead: `${biggerEvent(p)} =`,
     keypad: [],
     answer: fmt(biggerValue(p)),
@@ -5421,12 +5579,13 @@ const diffRouteTree: Generator<BiggerParams> = {
     const s = comboSd(p);
     const z = biggerZ(p);
     const value = biggerValue(p);
-    const answer = [fmt(m), String(s), fmt(z), fmt(value)];
+    const answer = [fmt(m), sdTex(s), fmt(z), fmt(value)];
+    const toTwo = terminates(s, 2) ? '' : ' Give the standard deviation and $z$ to 2 decimal places.';
     return {
       kind: 'tree',
       prompt: [
         say(
-          `${pairOpening(p)} For ${biggerAsk(p)}, let $D = X - Y$. From the top: $\\mathrm{E}(D)$ and the standard deviation of $D$, then the $z$ of $D = 0$, then the probability. Use`,
+          `${pairOpening(p)} For ${biggerAsk(p)}, let $D = X - Y$. From the top: $\\mathrm{E}(D)$ and the standard deviation of $D$, then the $z$ of $D = 0$, then the probability.${toTwo} Use`,
         ),
         show(quoteTex([Math.abs(z)])),
       ],
@@ -5458,7 +5617,7 @@ const diffPlan: Generator<BiggerParams> = {
     // P(D > 0) is P(Z > z): Phi(|z|) when z is below zero, 1 - Phi(|z|) above it; P(D < 0) the other way round.
     const direct = (p.dir === 'more') === z < 0;
     const key = `${p.mx}|${sx}|${p.my}|${sy}|${p.dir}|${p.words}|${p.setting}`;
-    const normals = [`$N(${m}, ${sx * sx + sy * sy})$`, `$N(${m}, ${Math.abs(sx * sx - sy * sy)})$`, `$N(${m}, ${comboSd(p)})$`];
+    const normals = [`$N(${m}, ${sx * sx + sy * sy})$`, `$N(${m}, ${Math.abs(sx * sx - sy * sy)})$`, `$N(${m}, ${sdTex(comboSd(p))})$`];
     return {
       kind: 'flow',
       prompt: [say(`${pairOpening(p)} Plan how to find ${biggerAsk(p)}, with $D = X - Y$.`)],
@@ -5472,7 +5631,7 @@ const diffPlan: Generator<BiggerParams> = {
         },
         {
           id: 'phi',
-          ask: `Standardise $D = 0$, which gives $z = ${fmt(z)}$. Which gives the probability?`,
+          ask: `Standardise $D = 0$, which gives $z = ${fmt(z)}$${terminates(biggerRawZ(p), 2) ? '' : ' to 2 decimal places'}. Which gives the probability?`,
           branches: turned(forms.map((label) => ({ label, outcome: `So the probability is ${label}.` })), `${key}p`),
         },
       ],
@@ -5488,14 +5647,19 @@ const diffPlan: Generator<BiggerParams> = {
 
 const XBAR = '\\bar{X}';
 
-/** A measurement sampled n times. `base` keeps a worded mean well clear of zero. */
-const SAMPLE_SETTINGS: { lead: string; sample: (n: number) => string; base: number }[] = [
-  { lead: 'The mass of a bag of flour, in grams,', sample: (n) => `$\\bar{X}$ is the mean mass of a random sample of $${n}$ bags.`, base: 1000 },
-  { lead: 'The height of a sunflower, in cm,', sample: (n) => `$\\bar{X}$ is the mean height of a random sample of $${n}$ sunflowers.`, base: 180 },
-  { lead: 'The lifetime of a light bulb, in hours,', sample: (n) => `$\\bar{X}$ is the mean lifetime of a random sample of $${n}$ bulbs.`, base: 1200 },
-  { lead: 'The time a caller waits on a helpline, in seconds,', sample: (n) => `$\\bar{X}$ is the mean wait of a random sample of $${n}$ calls.`, base: 240 },
-  { lead: 'The length of a bolt cut by a machine, in mm,', sample: (n) => `$\\bar{X}$ is the mean length of a random sample of $${n}$ bolts.`, base: 120 },
-  { lead: 'The volume of juice in a carton, in ml,', sample: (n) => `$\\bar{X}$ is the mean volume of a random sample of $${n}$ cartons.`, base: 500 },
+/**
+ * A measurement sampled n times: where its mean sits (`base`, give or take
+ * 20) and the standard deviations it may have. Each list holds values a
+ * textbook would print for that quantity; the draw keeps those whose sigma
+ * over the square root of n is whole.
+ */
+const SAMPLE_SETTINGS: { lead: string; sample: (n: number) => string; base: number; sigmas: number[] }[] = [
+  { lead: 'The mass of a bag of flour, in grams,', sample: (n) => `$\\bar{X}$ is the mean mass of a random sample of $${n}$ bags.`, base: 1000, sigmas: [10, 12, 15, 20] },
+  { lead: 'The height of a sunflower, in cm,', sample: (n) => `$\\bar{X}$ is the mean height of a random sample of $${n}$ sunflowers.`, base: 180, sigmas: [10, 12, 15, 20] },
+  { lead: 'The lifetime of a light bulb, in hours,', sample: (n) => `$\\bar{X}$ is the mean lifetime of a random sample of $${n}$ bulbs.`, base: 1200, sigmas: [40, 50, 60, 80, 100, 120] },
+  { lead: 'The time a caller waits on a helpline, in seconds,', sample: (n) => `$\\bar{X}$ is the mean wait of a random sample of $${n}$ calls.`, base: 240, sigmas: [30, 40, 45, 60] },
+  { lead: 'The mass of a loaf from a bakery, in grams,', sample: (n) => `$\\bar{X}$ is the mean mass of a random sample of $${n}$ loaves.`, base: 800, sigmas: [12, 15, 20, 24, 30] },
+  { lead: 'The volume of juice in a carton, in ml,', sample: (n) => `$\\bar{X}$ is the mean volume of a random sample of $${n}$ cartons.`, base: 500, sigmas: [10, 12, 15, 20] },
 ];
 
 interface MeanParams {
@@ -5519,19 +5683,19 @@ const xbarVar = (p: { sigma: number; n: number }): number => seOf(p) ** 2;
 const meanValue = (p: MeanParams, ask: Ask): number => (ask === 'mean' ? p.mu : ask === 'var' ? xbarVar(p) : seOf(p));
 
 /** n and sigma with sigma / sqrt(n) whole and at least `least`, so Var(Xbar) and sigma_Xbar never coincide. */
-function drawSpread(rng: Rng, counts: number[], least = 2): { n: number; sigma: number } {
+function drawSpread(rng: Rng, counts: number[], least = 2, sigmas = TOTAL_SIGMAS): { n: number; sigma: number } {
   for (;;) {
     const n = rng.pick(counts);
-    const sigma = rng.pick(TOTAL_SIGMAS);
+    const sigma = rng.pick(sigmas);
     if (sigma % rootOf(n) === 0 && sigma / rootOf(n) >= least) return { n, sigma };
   }
 }
 
 function sampleMean(rng: Rng, difficulty: number, words = difficulty > 1): MeanParams {
   const hard = difficulty > 1;
-  const { n, sigma } = drawSpread(rng, hard ? SQUARE_COUNTS : SQUARE_COUNTS.slice(0, 2));
   const setting = rng.int(0, SAMPLE_SETTINGS.length - 1);
-  const mu = words ? Math.max(SAMPLE_SETTINGS[setting].base, 5 * sigma) + rng.int(-20, 20) : drawMu(rng, sigma);
+  const { n, sigma } = drawSpread(rng, hard ? SQUARE_COUNTS : SQUARE_COUNTS.slice(0, 2), 2, words ? SAMPLE_SETTINGS[setting].sigmas : TOTAL_SIGMAS);
+  const mu = words ? SAMPLE_SETTINGS[setting].base + rng.int(-20, 20) : drawMu(rng, sigma);
   return { mu, sigma, n, setting: words ? setting : 0, words, ask: rng.pick<Ask>(hard ? ['var', 'sd'] : ['mean', 'var']) };
 }
 

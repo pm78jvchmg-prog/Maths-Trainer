@@ -8,8 +8,12 @@
  * to the estimate, and profiles given by a formula, with a volume from a
  * cross-section.
  *
- * Readings are whole numbers and the spacings are 0.5, 1, 1.5, 2, 3 or 5, so
- * every estimate is an exact decimal. An estimate is not the integral, so no
+ * Readings are whole numbers, or one decimal place where the story measures
+ * finer (a river's depth, a heater's power), and the spacings are 0.5, 1,
+ * 1.5, 2, 3 or 5, so every estimate is an exact decimal. A set of readings is
+ * drawn along one smooth run, never each point on its own: a river rises from
+ * one bank to its deepest and falls to the other, and a car's speed changes by
+ * a few m/s between readings, as a real log does. An estimate is not the integral, so no
  * `expression` here declares `integrand` or `limits`: the oracle would grade
  * the estimate against the exact value.
  */
@@ -34,6 +38,7 @@ import {
   valueAt,
   type Poly,
 } from './numericalKit';
+import { smoothReadings } from './numericalMethods';
 
 /* ================================================================
  * Readings and their stories
@@ -50,6 +55,10 @@ interface Story {
   lo: number;
   hi: number;
   zeroEnds?: boolean;
+  /** Decimal places a reading is taken to. */
+  dp: number;
+  /** The most one reading moves from the one before it. */
+  step: number;
   /** Area stories estimate an area; rate stories integrate a rate over time. */
   kind: 'area' | 'rate';
 }
@@ -63,7 +72,9 @@ const STORIES: Story[] = [
     unit: 'square metres',
     hs: [0.5, 1, 2, 3],
     lo: 1,
-    hi: 9,
+    hi: 3,
+    dp: 1,
+    step: 2,
     zeroEnds: true,
     kind: 'area',
   },
@@ -76,6 +87,8 @@ const STORIES: Story[] = [
     hs: [1, 2, 5],
     lo: 2,
     hi: 20,
+    dp: 0,
+    step: 3,
     kind: 'area',
   },
   {
@@ -87,6 +100,8 @@ const STORIES: Story[] = [
     hs: [1.5, 2, 3],
     lo: 3,
     hi: 15,
+    dp: 0,
+    step: 2,
     kind: 'area',
   },
   {
@@ -98,6 +113,8 @@ const STORIES: Story[] = [
     hs: [1, 2, 5],
     lo: 4,
     hi: 30,
+    dp: 0,
+    step: 3,
     kind: 'rate',
   },
   {
@@ -109,6 +126,8 @@ const STORIES: Story[] = [
     hs: [1, 2, 5],
     lo: 5,
     hi: 40,
+    dp: 0,
+    step: 4,
     kind: 'rate',
   },
   {
@@ -120,6 +139,8 @@ const STORIES: Story[] = [
     hs: [0.5, 1, 2],
     lo: 2,
     hi: 20,
+    dp: 0,
+    step: 3,
     kind: 'rate',
   },
   {
@@ -129,8 +150,10 @@ const STORIES: Story[] = [
     what: 'the energy it uses',
     unit: 'kilowatt-hours',
     hs: [0.5, 1, 2],
-    lo: 1,
-    hi: 9,
+    lo: 0.5,
+    hi: 3,
+    dp: 1,
+    step: 0.4,
     kind: 'rate',
   },
 ];
@@ -146,8 +169,7 @@ interface Readings {
 function sampleReadings(rng: Rng, stories: number[], count: number): Readings {
   const story = rng.pick(stories);
   const s = STORIES[story];
-  const ys = Array.from({ length: count }, (_, i) => (s.zeroEnds && (i === 0 || i === count - 1) ? 0 : rng.int(s.lo, s.hi)));
-  return { story, h: rng.pick(s.hs), ys };
+  return { story, h: rng.pick(s.hs), ys: smoothReadings(rng, s, count) };
 }
 
 const xsOf = ({ h, ys }: Readings): number[] => ys.map((_, i) => clean(i * h));
@@ -852,8 +874,11 @@ function profileHeights(params: ProfileParams): { h: number; xs: number[]; ys: n
 function sampleProfile(rng: Rng, counts: (params: ProfileParams) => number[]): ProfileParams {
   for (;;) {
     const kind = rng.pick(['tunnel', 'riverbed'] as const);
-    const k = rng.pick([0.5, 1, 1.5, 2, 2.5, 3]);
-    const size = kind === 'tunnel' ? rng.pick([2, 3, 4, 5]) : rng.pick([4, 6, 8, 10]);
+    const k = rng.pick([0.1, 0.2, 0.25, 0.3, 0.4, 0.5, 1, 1.5, 2]);
+    const size = kind === 'tunnel' ? rng.pick([2, 3, 4, 5, 6]) : rng.pick([4, 6, 8, 10, 12]);
+    // A tunnel 3 to 8 m high at its peak, a channel 1.5 to 5 m deep at its deepest.
+    const peak = kind === 'tunnel' ? k * size * size : (k * size * size) / 4;
+    if (kind === 'tunnel' ? peak < 3 || peak > 8 : peak < 1.5 || peak > 5) continue;
     const base = { kind, k, size, n: 1 };
     const n = rng.pick(counts(base));
     const params = { ...base, n };

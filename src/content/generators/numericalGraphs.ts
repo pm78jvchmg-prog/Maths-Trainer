@@ -496,7 +496,11 @@ const meetValue: Generator<MeetValueParams> = {
   },
   render: (params): Slide => ({
     kind: 'expression',
-    prompt: [say(`To test $${rearrangeEq(params)}$ for a change of sign, write it as $h(x) = 0$. Find $h(${fmt(params.x)})$.`)],
+    prompt: [
+      say(
+        `To test $${rearrangeEq(params)}$ for a change of sign, write it as $h(x) = 0$, where $h(x)$ is the left side minus the right side: $h(x) = ${lhsTex(params)} - (${polyTex([params.m, params.c])})$. Find $h(${fmt(params.x)})$.`,
+      ),
+    ],
     lead: `h(${fmt(params.x)}) =`,
     keypad: [],
     answer: fmt(valueAt(hPoly(params), params.x)),

@@ -1797,7 +1797,7 @@ const relFreq: Generator<RelFreqParams> = {
     if (params.kind === 'one') {
       const ctx = EXPERIMENTS[params.context];
       return probSlide(
-        [say(`${ctx.setup(params.n, params.k)} Estimate the probability that ${ctx.next}.`)],
+        [say(`${ctx.setup(params.n, params.k)} Estimate the probability that ${ctx.next}. Give your answer as a fraction.`)],
         `P(\\text{${ctx.short}}) \\approx`,
         fans([top, bottom]),
       );
@@ -1809,7 +1809,7 @@ const relFreq: Generator<RelFreqParams> = {
         show(
           `\\begin{array}{l|c} \\text{Colour} & \\text{Frequency} \\\\ \\hline ${SPIN_COLOURS.map((c, i) => `\\text{${c}} & ${params.freqs[i]}`).join(' \\\\ ')} \\end{array}`,
         ),
-        say(`Estimate the probability that the next spin is ${params.not ? `**not** ${colour.toLowerCase()}` : colour.toLowerCase()}.`),
+        say(`Estimate the probability that the next spin is ${params.not ? `**not** ${colour.toLowerCase()}` : colour.toLowerCase()}. Give your answer as a fraction.`),
       ],
       `P(\\text{${params.not ? 'not ' : ''}${colour.toLowerCase()}}) \\approx`,
       fans([top, bottom]),
@@ -1822,7 +1822,9 @@ const relFreq: Generator<RelFreqParams> = {
       steps.push({ tex: `\\text{Trials} = ${params.freqs.join(' + ')} = ${bottom}` });
       if (params.not) steps.push({ tex: `${bottom} - ${params.freqs[params.ask]} = ${top}` });
     }
-    steps.push({ tex: `P \\approx ${rawTex([top, bottom])} ${aboutTex(top / bottom)}` });
+    // The answer is the fraction; a decimal that runs on is left out rather than shown rounded.
+    const exactDecimal = RECURRING.test(fmt(top / bottom)) ? '' : ` = ${fmt(top / bottom)}`;
+    steps.push({ tex: `P \\approx ${rawTex([top, bottom])}${exactDecimal}` });
     return steps;
   },
 };

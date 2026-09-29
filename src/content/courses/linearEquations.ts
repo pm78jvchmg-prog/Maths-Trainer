@@ -1629,6 +1629,9 @@ export const linearEquations: Course = {
               prose(
                 'The $3$ is what each cake makes over its own cost, and $12$ lots of £$3$ pay back the £$36$. On a graph, break-even is where the income line crosses the cost line.',
               ),
+              prose(
+                'The count need not come out whole. If the table costs £$40$, then $3n = 40$ and $n = 13.33\\ldots$. Thirteen cakes make only £$39$ over their costs, so the fewest that break even is $14$: round **up**, never down.',
+              ),
             ),
             ask('lin-even-count'),
             ask('lin-even-slider'),

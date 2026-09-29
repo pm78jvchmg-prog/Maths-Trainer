@@ -7,9 +7,10 @@
  * in the blood `dC/dt = -kC`, and a steady drip `dC/dt = R - kC`.
  *
  * Every number the learner meets is whole or an exact short decimal, by
- * construction. A percentage rate is a decimal such as 0.05, and the level a
- * model balances at is drawn first so the payment or harvest that makes it
- * comes out whole. Where a value at a later time is asked, the rate is a
+ * construction. A percentage rate is a decimal such as 0.05. A payout or an
+ * inflow is a round amount drawn first, with a rate that divides it into a
+ * whole level, never one worked back from a round level. Money doubles in 8
+ * to 15 years, as money at a few percent a year does. Where a value at a later time is asked, the rate is a
  * logarithm, `k = ln 2 / h` (the `LnRate` helpers of `differentialEquations.ts`),
  * so `e^{kt}` at a whole number of periods is a whole power of 2; yearly
  * compounding is `k = ln 1.05`, so `e^{kt}` is `1.05^t` and the start is drawn
@@ -195,7 +196,9 @@ function timesTree(id: string, grow: boolean): Generator<TimesParams> {
           const m = rng.int(1, b === 3 ? 3 : hard ? 4 : 3);
           const start = 100 * rng.int(1, 50);
           if (start * b ** m > 200000) continue;
-          return { ctx: rng.int(0, GROW_SUBJECTS.length - 1), start, b, h: rng.pick([2, 3, 4, 5, 6, 8, 10, 12, 15]), m, grow };
+          // Money doubles in 8 to 15 years (about 5% to 9% a year), or triples in 12 to 20.
+          const h = rng.pick(b === 2 ? [8, 9, 10, 12, 14, 15] : [12, 14, 15, 16, 18, 20]);
+          return { ctx: rng.int(0, GROW_SUBJECTS.length - 1), start, b, h, m, grow };
         }
         const m = rng.int(hard ? 2 : 1, hard ? 5 : 3);
         const start = rng.int(3, 25) * 5 * 2 ** m;
@@ -339,7 +342,8 @@ const deModelReachSlider: Generator<ReachParams> = {
     for (;;) {
       const grow = !(hard && rng.chance(0.4));
       const m = rng.int(1, hard ? 4 : 3);
-      const h = rng.int(2, 12);
+      // A savings pot doubles in 8 to 15 years; a van or a car halves in value in 3 to 6.
+      const h = grow ? rng.int(8, 15) : rng.int(3, 6);
       const extra = rng.int(1, 2);
       const start = grow ? 500 * rng.int(1, 10) : 1000 * 2 ** m * rng.int(1, 4);
       if (!grow && start > 40000) continue;
@@ -481,12 +485,16 @@ export const levelOut = ({ pct, L }: LevelParams): number => (L * pct) / 100;
 
 const deModelSaveLevel: Generator<LevelParams> = {
   id: 'de-model-save-level',
-  sample: (rng, difficulty) => ({
-    ctx: rng.int(0, FUND_SUBJECTS.length - 1),
-    pct: rng.pick([2, 3, 4, 5, 6, 8, 10]),
-    L: 1000 * rng.int(5, 150),
-    words: difficulty >= 2,
-  }),
+  // The payout is a round sum, £1,000 to £5,000 in £500s, at a rate that
+  // divides it into a whole pot; never a payout worked back from a round pot.
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const pct = rng.pick([2, 3, 4, 5, 6, 8, 10]);
+      const w = 500 * rng.int(2, 10);
+      const L = (100 * w) / pct;
+      if (Number.isInteger(L)) return { ctx: rng.int(0, FUND_SUBJECTS.length - 1), pct, L, words: difficulty >= 2 };
+    }
+  },
   choices: (params) => {
     const { pct, L } = params;
     const w = levelOut(params);
@@ -1137,6 +1145,8 @@ interface DripStory {
   per: string;
   /** What the letter measures, for a prompt that gives only the equation. */
   noun: string;
+  /** Round amounts coming in each unit of time. */
+  inflows: number[];
 }
 
 const DRIP_STORIES: DripStory[] = [
@@ -1146,6 +1156,7 @@ const DRIP_STORIES: DripStory[] = [
     unit: 'hour',
     per: 'an hour',
     noun: 'The amount $C$ mg of a drug in the blood after $t$ hours',
+    inflows: [5, 10, 15, 20, 25, 30, 40, 50],
   },
   {
     sym: 'P',
@@ -1153,6 +1164,7 @@ const DRIP_STORIES: DripStory[] = [
     unit: 'day',
     per: 'a day',
     noun: 'The amount $P$ kg of a chemical in a pond after $t$ days',
+    inflows: [2, 3, 4, 5, 6, 8, 10, 12, 15, 20],
   },
   {
     sym: 'N',
@@ -1160,6 +1172,7 @@ const DRIP_STORIES: DripStory[] = [
     unit: 'year',
     per: 'a year',
     noun: 'The number $N$ of fish in a lake after $t$ years',
+    inflows: [50, 60, 80, 100, 120, 150, 200, 250],
   },
   {
     sym: 'C',
@@ -1167,6 +1180,7 @@ const DRIP_STORIES: DripStory[] = [
     unit: 'hour',
     per: 'an hour',
     noun: 'The amount $C$ mg of caffeine in the body after $t$ hours',
+    inflows: [10, 15, 20, 25, 30, 40, 50],
   },
 ];
 
@@ -1181,16 +1195,23 @@ export interface DripParams {
 
 export const dripLevel = ({ R, pct }: DripParams): number => (R * 100) / pct;
 
+/**
+ * The inflow is drawn first, a round amount the story could print, then a
+ * percentage that divides it into a whole settling level; never an inflow
+ * worked back from a round level.
+ */
 function sampleDrip(rng: Rng, difficulty: number): DripParams {
   for (;;) {
+    const ctx = rng.int(0, DRIP_STORIES.length - 1);
     const pct = rng.pick([5, 10, 20, 25, 40, 50]);
-    const L = 10 * rng.int(2, 40);
-    const R = (L * pct) / 100;
-    if (!Number.isInteger(R)) continue;
+    const R = rng.pick(DRIP_STORIES[ctx].inflows);
+    const L = (R * 100) / pct;
+    if (!Number.isInteger(L)) continue;
     const hard = difficulty >= 2;
-    const C0 = hard ? L + (rng.chance(0.5) ? 1 : -1) * 10 * rng.int(1, 10) : 0;
+    const step = L >= 100 ? 10 : L >= 20 ? 5 : 1;
+    const C0 = hard ? L + (rng.chance(0.5) ? 1 : -1) * step * rng.int(1, 5) : 0;
     if (C0 < 0 || C0 === L) continue;
-    return { ctx: rng.int(0, DRIP_STORIES.length - 1), R, pct, hard, C0 };
+    return { ctx, R, pct, hard, C0 };
   }
 }
 

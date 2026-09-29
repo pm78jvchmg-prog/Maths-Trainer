@@ -5568,29 +5568,40 @@ function moveSlips(stat: CodeStat, v: number, b: number, c: number): number[] {
   return [b * v + c, v + c, b * b * v, v, v - c, v + b];
 }
 
-/** Things a set of data can be. Prose only, in the plural, so "have" follows. */
-const CODE_CONTEXTS = [
-  'The heights of some plants',
-  'The times some runners took',
-  'The masses of some parcels',
-  'The scores in a quiz',
-  'The lengths of some fish',
-  'The prices of some books',
-  'The daily sales at a café',
-  'The temperatures one week',
+/**
+ * Things a set of data can be, each with the unit its statistics are in and
+ * where its average sits. Prose only, in the plural, so "have" follows; the
+ * unit is named in the same sentence, since a bare mean of 45.3 says nothing.
+ * Every average range is one the story makes plausible (a 10 km run of 40 to
+ * 80 minutes, a quiz out of 100), and the spreads suit an average of that size.
+ */
+const CODE_CONTEXTS: { text: string; avg: [number, number]; spread?: number }[] = [
+  { text: 'The heights of some plants, in cm,', avg: [20, 80] },
+  { text: 'The times some runners took to run 10 km, in minutes,', avg: [40, 80] },
+  { text: 'The masses of some letters, in grams,', avg: [20, 80] },
+  { text: 'The scores in a quiz marked out of 100', avg: [20, 80] },
+  { text: 'The lengths of some fish, in cm,', avg: [20, 80] },
+  { text: 'The ages of the members of a club, in years,', avg: [20, 80] },
+  { text: 'The numbers of customers at a café each day', avg: [20, 80] },
+  { text: 'The midday temperatures one summer month, in degrees Celsius,', avg: [15, 30], spread: 0.4 },
 ];
 
 /** A whole number or one decimal place, from `lo` to `hi`. */
 const oneDp = (rng: Rng, lo: number, hi: number): number => rng.int(lo * 10, hi * 10) / 10;
 
-/** A value for a statistic that will read sensibly: averages larger than spreads. */
-function statValue(rng: Rng, stat: CodeStat, decimals: boolean): number {
+/** A value for a statistic that will read sensibly: averages larger than spreads, and inside `avg`. */
+function statValue(rng: Rng, stat: CodeStat, decimals: boolean, avg: [number, number] = [20, 80], spread = 1): number {
+  if (spread !== 1 && stat !== 'mean' && stat !== 'median' && stat !== 'mode') {
+    // A narrower story (a month's temperatures) keeps its spreads narrow too.
+    const v = statValue(rng, stat, decimals, avg);
+    return stat === 'sd' && decimals ? Math.max(0.5, Math.round(v * spread * 10) / 10) : Math.max(stat === 'variance' ? 2 : 1, Math.round(v * spread));
+  }
   switch (stat) {
     case 'mean':
     case 'median':
-      return decimals ? oneDp(rng, 20, 80) : rng.int(20, 80);
+      return decimals ? oneDp(rng, avg[0], avg[1]) : rng.int(avg[0], avg[1]);
     case 'mode':
-      return rng.int(20, 80);
+      return rng.int(avg[0], avg[1]);
     case 'range':
       return rng.int(8, 45);
     case 'iqr':
@@ -5625,7 +5636,7 @@ function moveAsk(id: string, sample: (rng: Rng, difficulty: number) => MoveAskPa
         kind: 'expression',
         prompt: [
           say(
-            `${CODE_CONTEXTS[context]} have ${article(CODE_STATS[s0].word)} of $${fmt(values[0])}$ and ${article(CODE_STATS[s1].word)} of $${fmt(values[1])}$. ${changeSentence(b, c)} Find the new ${w.word}.`,
+            `${CODE_CONTEXTS[context].text} have ${article(CODE_STATS[s0].word)} of $${fmt(values[0])}$ and ${article(CODE_STATS[s1].word)} of $${fmt(values[1])}$. ${changeSentence(b, c)} Find the new ${w.word}.`,
           ),
         ],
         lead: `${newStatTex(stats[ask])} =`,
@@ -5656,9 +5667,11 @@ const PAIRS: [CodeStat, CodeStat][] = [
 ];
 
 function sampleStatPair(rng: Rng, pairs: [CodeStat, CodeStat][], decimals: boolean) {
+  const context = rng.int(0, CODE_CONTEXTS.length - 1);
+  const { avg, spread } = CODE_CONTEXTS[context];
   const stats = rng.pick(pairs);
-  const values: [number, number] = [statValue(rng, stats[0], decimals), statValue(rng, stats[1], decimals)];
-  return { stats, values, ask: rng.pick<0 | 1>([0, 1]) };
+  const values: [number, number] = [statValue(rng, stats[0], decimals, avg, spread), statValue(rng, stats[1], decimals, avg, spread)];
+  return { context, stats, values, ask: rng.pick<0 | 1>([0, 1]) };
 }
 
 /**
@@ -5668,8 +5681,8 @@ function sampleStatPair(rng: Rng, pairs: [CodeStat, CodeStat][], decimals: boole
 const codeShift = moveAsk('dat-code-shift', (rng, difficulty) => {
   const hard = difficulty > 1;
   const c = hard ? -rng.int(2, 15) : rng.int(2, 20);
-  const { stats, values, ask } = sampleStatPair(rng, hard ? PAIRS : [['mean', 'sd']], true);
-  return { context: rng.int(0, CODE_CONTEXTS.length - 1), b: 1, c, stats, values, ask };
+  const { context, stats, values, ask } = sampleStatPair(rng, hard ? PAIRS : [['mean', 'sd']], true);
+  return { context, b: 1, c, stats, values, ask };
 });
 
 /**
@@ -5681,7 +5694,7 @@ const codeScale = moveAsk('dat-code-scale', (rng, difficulty) => {
   const hard = difficulty > 1;
   for (;;) {
     const b = rng.pick(hard ? [0.5, 1.5, 2.5, 3, 4, 10] : [2, 3, 4, 5, 10]);
-    const { stats, values, ask } = sampleStatPair(
+    const { context, stats, values, ask } = sampleStatPair(
       rng,
       hard
         ? [
@@ -5696,7 +5709,7 @@ const codeScale = moveAsk('dat-code-scale', (rng, difficulty) => {
       true,
     );
     if (!exact(movedStat(stats[ask], values[ask], b, 0), 2)) continue;
-    return { context: rng.int(0, CODE_CONTEXTS.length - 1), b, c: 0, stats, values, ask };
+    return { context, b, c: 0, stats, values, ask };
   }
 });
 
@@ -6680,12 +6693,28 @@ const codeChooseTiles: Generator<ChooseParams> = {
   },
 };
 
-const CODED_PAIRS: { intro: string; names: [string, string] }[] = [
-  { intro: 'Two farms weighed the eggs their hens laid, in grams.', names: ['Farm A', 'Farm B'] },
-  { intro: 'Two machines filled bags of rice, in grams.', names: ['Machine A', 'Machine B'] },
-  { intro: 'Two shops weighed their bags of flour, in grams.', names: ['Shop A', 'Shop B'] },
-  { intro: 'Two bakeries weighed their loaves, in grams.', names: ['Bakery A', 'Bakery B'] },
-  { intro: 'Two orchards weighed their apples, in grams.', names: ['Orchard A', 'Orchard B'] },
+/**
+ * Two sets of masses, each with the base a coding takes off drawn from where
+ * that thing's masses sit (`base`, in steps of `step`), the gaps between two
+ * codings' bases (`shifts`), the multipliers its coding may divide by (`bs`),
+ * and the largest coded mean and standard deviation. An egg's coded values
+ * stay small so a decoded egg is 50 to 80 g; a bag of rice sits near 1 kg.
+ */
+const CODED_PAIRS: {
+  intro: string;
+  names: [string, string];
+  base: [number, number];
+  step: number;
+  shifts: number[];
+  bs: number[];
+  my: number;
+  sy: number;
+}[] = [
+  { intro: 'Two farms weighed the eggs their hens laid, in grams.', names: ['Farm A', 'Farm B'], base: [50, 60], step: 5, shifts: [2, 4, 5], bs: [1, 2], my: 8, sy: 3 },
+  { intro: 'Two machines filled bags of rice, in grams.', names: ['Machine A', 'Machine B'], base: [980, 1010], step: 10, shifts: [10, 20, 30], bs: [1, 2, 4, 5], my: 12, sy: 6 },
+  { intro: 'Two shops weighed their bags of flour, in grams.', names: ['Shop A', 'Shop B'], base: [480, 510], step: 10, shifts: [10, 20, 30], bs: [1, 2, 4, 5], my: 12, sy: 6 },
+  { intro: 'Two bakeries weighed their loaves, in grams.', names: ['Bakery A', 'Bakery B'], base: [760, 820], step: 10, shifts: [10, 20, 30], bs: [1, 2, 4, 5], my: 12, sy: 6 },
+  { intro: 'Two orchards weighed their apples, in grams.', names: ['Orchard A', 'Orchard B'], base: [120, 160], step: 10, shifts: [10, 20, 30], bs: [1, 2, 4, 5], my: 12, sy: 5 },
 ];
 
 interface CompareCodedParams {
@@ -6707,12 +6736,14 @@ const decodedSds = ({ b, sy }: CompareCodedParams): [number, number] => [b[0] * 
 function sampleCompareCoded(rng: Rng, difficulty: number): CompareCodedParams {
   const hard = difficulty > 1;
   for (;;) {
-    const a0 = rng.int(5, 90) * 10;
-    const a: [number, number] = hard ? [a0, a0] : [a0, a0 + rng.pick([10, 20, 30]) * rng.sign()];
-    const b: [number, number] = hard ? (rng.sample([1, 2, 4, 5], 2) as [number, number]) : [1, 1];
-    const my: [number, number] = [oneDp(rng, 1, 12), oneDp(rng, 1, 12)];
-    const sy: [number, number] = [oneDp(rng, 1, 6), oneDp(rng, 1, 6)];
-    const p = { context: rng.int(0, CODED_PAIRS.length - 1), a, b, my, sy };
+    const context = rng.int(0, CODED_PAIRS.length - 1);
+    const ctx = CODED_PAIRS[context];
+    const a0 = rng.int(ctx.base[0] / ctx.step, ctx.base[1] / ctx.step) * ctx.step;
+    const a: [number, number] = hard ? [a0, a0] : [a0, a0 + rng.pick(ctx.shifts) * rng.sign()];
+    const b: [number, number] = hard ? (rng.sample(ctx.bs, 2) as [number, number]) : [1, 1];
+    const my: [number, number] = [oneDp(rng, 1, ctx.my), oneDp(rng, 1, ctx.my)];
+    const sy: [number, number] = [oneDp(rng, 1, ctx.sy), oneDp(rng, 1, ctx.sy)];
+    const p = { context, a, b, my, sy };
     const [m0, m1] = decodedMeans(p);
     const [s0, s1] = decodedSds(p);
     if (m0 === m1 || s0 === s1 || my[0] === my[1] || sy[0] === sy[1]) continue;

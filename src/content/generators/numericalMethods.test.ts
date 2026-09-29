@@ -406,16 +406,21 @@ describe('Numerical Methods level 3: bounds and errors, against independent arit
   });
 
   it('numer-rel-error divides the error by the exact value, never the estimate', () => {
-    type P = { exact: number; rel: number; percent: boolean };
+    // Told in measured values now, so the answer is the relative error to 3 s.f.
+    type P = { context: number; percent: boolean };
     for (const { params, slide, seed } of draws<P>('numer-rel-error')) {
       if (slide.kind !== 'expression') throw new Error('not an expression slide');
-      // The estimate is read back out of the prompt, as the learner reads it.
+      // Both values are read back out of the prompt, as the learner reads them:
+      // the rod story states the exact length first, the other two the estimate first.
       const prose = slide.prompt.map((b) => (b.kind === 'prose' ? b.text : '')).join(' ');
       const numbers = [...prose.matchAll(/\$(-?\d+(?:\.\d+)?)\$/g)].map((m) => Number(m[1]));
-      const estimate = numbers.find((n) => !close(n, params.exact))!;
-      const rel = (estimate - params.exact) / params.exact;
-      expect(Number(slide.answer), `seed ${seed}`).toBeCloseTo(params.percent ? 100 * rel : rel, 9);
+      const [exact, estimate] = params.context === 0 ? [numbers[0], numbers[1]] : [numbers[1], numbers[0]];
+      const rel = (estimate - exact) / exact;
+      const wanted = params.percent ? 100 * rel : rel;
+      expect(slide.precision, `seed ${seed}`).toEqual({ sf: 3 });
+      expect(Number(slide.answer), `seed ${seed}`).toBeCloseTo(Number(wanted.toPrecision(3)), 9);
       expect(verdict(slide, slide.answer), `seed ${seed}`).toBe('correct');
+      expect(verdict(slide, String(wanted)), `seed ${seed}: the unrounded value`).toBe('correct');
     }
   });
 

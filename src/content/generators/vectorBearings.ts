@@ -5,13 +5,14 @@
  * components and back again, journeys of several legs, and a velocity plus a
  * current or a wind.
  *
- * Every answer is exact. Components come from bearings whose angle to the
- * north-south line is 30, 45 or 60 degrees, so they are whole numbers or
- * surds; distances and speeds come from Pythagorean triples, so they are
- * whole; and a bearing asked for is a whole number of degrees. The one place
- * a rounded angle appears (`vjour-quadrant-flow`) states it in the question,
- * and the flow grades the route rather than a typed number, so no answer here
- * leans on a rounding tolerance.
+ * The early lessons are exact: components come from bearings whose angle to
+ * the north-south line is 30, 45 or 60 degrees, so they are whole numbers or
+ * surds, and the distance questions use Pythagorean triples. Where a journey
+ * is told in the numbers a real one has — a displacement read in km, a plane
+ * at a few hundred km/h in a wind of tens, a boat at a few m/s on a current
+ * of one or two — the answer does not come out whole, so the question states
+ * its precision (3 significant figures, or the nearest degree) and the answer
+ * is rounded to it, with draws near a rounding edge redrawn.
  *
  * Throughout, a vector written as a column is (east, north), and i is east
  * and j is north.
@@ -20,6 +21,7 @@ import type { Generator, KeypadKey, Slide, SolutionStep } from '../types';
 import { options } from '../choiceVariant';
 import { gcd } from './format';
 import { bankOf, columnTex, signedChoices, VECTOR_TEMPLATE } from './vectorFormat';
+import { askPrecision, fmt, roundedWell, roundTo, type Precision } from './classicalKit';
 
 type Draw = Parameters<Generator['sample']>[0];
 type Vec = [number, number];
@@ -77,7 +79,6 @@ const SIN_ROOT: Record<Acute, number> = { 30: 1, 45: 2, 60: 3 };
 const COS_ROOT: Record<Acute, number> = { 30: 3, 45: 2, 60: 1 };
 const SIN_TEX: Record<Acute, string> = { 30: '\\frac{1}{2}', 45: '\\frac{\\sqrt{2}}{2}', 60: '\\frac{\\sqrt{3}}{2}' };
 const COS_TEX: Record<Acute, string> = { 30: '\\frac{\\sqrt{3}}{2}', 45: '\\frac{\\sqrt{2}}{2}', 60: '\\frac{1}{2}' };
-const TAN_TEX: Record<Acute, string> = { 30: '\\frac{1}{\\sqrt{3}}', 45: '1', 60: '\\sqrt{3}' };
 
 /** Quadrants, clockwise from north-east: 0 NE, 1 SE, 2 SW, 3 NW. */
 type Quad = 0 | 1 | 2 | 3;
@@ -925,53 +926,71 @@ const alphaTan: Generator<TripleParams> = {
 
 interface ToBearingParams {
   who: number;
-  alpha: Acute;
-  q: Quad;
-  k: number;
+  /** East and north in tenths of a km, signed; whole km at difficulty 1. */
+  e: number;
+  n: number;
 }
 
-/** The bearing of a displacement with exact components, by quadrant. */
+const NEAREST_DEGREE: Precision = { dp: 0 };
+
+/** The acute angle to the north-south line, in degrees, unrounded. */
+const alphaOf = ({ e, n }: ToBearingParams) => (Math.atan(Math.abs(e) / Math.abs(n)) * 180) / Math.PI;
+/** The bearing to the nearest degree, by quadrant from the rounded angle. */
+const displacementBearing = (p: ToBearingParams) => bearingFrom(roundTo(alphaOf(p), NEAREST_DEGREE), quadOf(p.e, p.n));
+const km = (tenths: number) => fmt(Math.abs(tenths) / 10);
+
+/**
+ * The bearing of a displacement read in km, to the nearest degree. The
+ * components are whole km, or 1 d.p. at difficulty 2, never a surd chosen so
+ * the tangent is a special value.
+ */
 const toBearing: Generator<ToBearingParams> = {
   id: 'vjour-to-bearing',
-  choices: ({ alpha, q }) => {
-    const right = bearingFrom(alpha, q);
-    const all = QUADS.map((p) => bearingFrom(alpha, p));
+  choices: (p) => {
+    const alpha = roundTo(alphaOf(p), NEAREST_DEGREE);
+    const right = displacementBearing(p);
+    const all = QUADS.map((q) => bearingFrom(alpha, q));
     return options(
       { tex: brg(right), answer: `${right}` },
       ...all.filter((b) => b !== right).map((b) => ({ tex: brg(b), answer: `${b}` })),
     );
   },
-  sample: (rng) => ({
-    who: rng.int(0, WHO.length - 1),
-    alpha: rng.pick(ACUTES),
-    q: rng.pick(QUADS),
-    k: rng.int(1, 12),
-  }),
-  render: ({ who, alpha, q, k }): Slide => {
-    const { east, north } = componentsOf(alpha, q, k);
-    return {
-      kind: 'expression',
-      prompt: [
-        {
-          kind: 'prose',
-          text: `${Who(who)} ends up $${kmTex(east)}$ km ${ew(east.c)} and $${kmTex(north)}$ km ${ns(north.c)} of its start. Find the bearing of where it ends up from its start.`,
-        },
-      ],
-      lead: '\\text{bearing} =',
-      keypad: [],
-      answer: `${bearingFrom(alpha, q)}`,
-      domain: 'real',
-      mode: 'exact',
-    };
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const step = difficulty > 1 ? 1 : 10;
+      const e = rng.int(1, 250 / step) * step * rng.sign();
+      const n = rng.int(1, 250 / step) * step * rng.sign();
+      if (difficulty > 1 && (e % 10 === 0 || n % 10 === 0)) continue;
+      const params = { who: rng.int(0, WHO.length - 1), e, n };
+      const alpha = alphaOf(params);
+      // A clear angle, well away from a whole-and-a-half, and not 45 degrees on the nose.
+      if (alpha < 5 || alpha > 85 || e === n || e === -n || !roundedWell(alpha, NEAREST_DEGREE)) continue;
+      return params;
+    }
   },
-  solution: ({ alpha, q, k }) => {
-    const { east, north } = componentsOf(alpha, q, k);
-    const b = bearingFrom(alpha, q);
-    const ratio = `\\frac{${kmTex(east)}}{${kmTex(north)}}`;
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `${Who(p.who)} ends up $${km(p.e)}$ km ${ew(p.e)} and $${km(p.n)}$ km ${ns(p.n)} of its start. Find the bearing of where it ends up from its start. Give your answer to the nearest degree (0 decimal places).`,
+      },
+    ],
+    lead: '\\text{bearing} =',
+    keypad: [],
+    answer: `${displacementBearing(p)}`,
+    precision: NEAREST_DEGREE,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (p) => {
+    const q = quadOf(p.e, p.n);
+    const alpha = roundTo(alphaOf(p), NEAREST_DEGREE);
+    const b = displacementBearing(p);
     return [
       { text: '$\\alpha$ is the angle to the north-south line. Sizes only:' },
-      { tex: `\\tan\\alpha = ${ratio} = ${TAN_TEX[alpha]}` },
-      { tex: `\\alpha = ${alpha}^\\circ` },
+      { tex: `\\tan\\alpha = \\frac{${km(p.e)}}{${km(p.n)}}` },
+      { tex: `\\alpha = ${alphaOf(p).toFixed(2)}\\ldots^\\circ \\approx ${alpha}^\\circ` },
       { text: `It went ${SIGN_WORDS[q]}, so the bearing is $${RULE_TEX[q]}$:` },
       { tex: q === 0 ? `\\text{bearing} = ${pad(b)}^\\circ` : `${RULE_TEX[q].replace(/\\alpha/, `${alpha}^\\circ`)} = ${pad(b)}^\\circ` },
     ];
@@ -1263,6 +1282,9 @@ function ijTex([x, y]: Vec): string {
   return `${first} ${y < 0 ? '-' : '+'} ${term(y, '\\mathbf{j}')}`;
 }
 
+/** A sum of halves with the float dust taken off. */
+const fix = (v: number) => Number(v.toFixed(6));
+
 const withUnit = (v: Vec, unit: string) => `{(${ijTex(v)}) \\; ${unit}}`;
 
 interface CurrentParams {
@@ -1274,26 +1296,34 @@ interface CurrentParams {
 /** A velocity plus a current or a wind, component by component. */
 const current: Generator<CurrentParams> = {
   id: 'vjour-current',
+  // A plane at 150 to 500 km/h in a wind of 10 to 60 km/h; a boat at 2 to 8 m/s on a current of up to 3 m/s.
   sample: (rng, difficulty) => {
     const setting: Setting = rng.chance(0.5) ? 'boat' : 'plane';
-    const scale = setting === 'plane' ? 10 : 1;
+    const size = (v: Vec) => Math.hypot(v[0], v[1]);
     const nz = (lo: number, hi: number) => {
       const v = rng.int(lo, hi);
       return v === 0 ? hi : v;
     };
-    const own: Vec = [nz(-9, 9) * scale, nz(-9, 9) * scale];
-    const along = rng.int(1, 6) * rng.sign() * scale;
-    const flow: Vec =
-      difficulty > 1
-        ? [nz(-6, 6) * scale, nz(-6, 6) * scale]
-        : rng.chance(0.5)
-          ? [along, 0]
-          : [0, along];
-    return { setting, own, flow };
+    for (;;) {
+      // Planes in tens of km/h, winds in fives; boats in whole m/s, currents in halves.
+      const own: Vec = setting === 'plane' ? [nz(-50, 50) * 10, nz(-50, 50) * 10] : [nz(-8, 8), nz(-8, 8)];
+      const unit = setting === 'plane' ? 5 : 0.5;
+      const along = rng.int(1, setting === 'plane' ? 12 : 6) * unit * rng.sign();
+      const flow: Vec =
+        difficulty > 1
+          ? [nz(-12, 12) * unit, nz(-12, 12) * unit]
+          : rng.chance(0.5)
+            ? [along, 0]
+            : [0, along];
+      const [lo, hi] = setting === 'plane' ? [150, 500] : [2, 8];
+      const [wLo, wHi] = setting === 'plane' ? [10, 60] : [0.5, 3];
+      if (size(own) < lo || size(own) > hi || size(flow) < wLo || size(flow) > wHi) continue;
+      return { setting, own, flow };
+    }
   },
   render: ({ setting, own, flow }): Slide => {
     const unit = setting === 'plane' ? KMH : MS;
-    const total: Vec = [own[0] + flow[0], own[1] + flow[1]];
+    const total: Vec = [fix(own[0] + flow[0]), fix(own[1] + flow[1])];
     const answer = [`${total[0]}`, `${total[1]}`];
     return {
       kind: 'tiles',
@@ -1308,12 +1338,12 @@ const current: Generator<CurrentParams> = {
       ],
       template: VECTOR_TEMPLATE,
       // The current taken away, and the own velocity left alone.
-      bank: bankOf(answer, [`${own[0] - flow[0]}`, `${own[1] - flow[1]}`, `${own[0]}`, `${own[1]}`]),
+      bank: bankOf(answer, [`${fix(own[0] - flow[0])}`, `${fix(own[1] - flow[1])}`, `${own[0]}`, `${own[1]}`]),
       answer,
     };
   },
   solution: ({ setting, own, flow }) => {
-    const total: Vec = [own[0] + flow[0], own[1] + flow[1]];
+    const total: Vec = [fix(own[0] + flow[0]), fix(own[1] + flow[1])];
     return [
       {
         text: `The ${setting === 'boat' ? 'current carries the boat' : 'wind carries the plane'} along as well, so the resultant velocity is the sum:`,
@@ -1325,58 +1355,94 @@ const current: Generator<CurrentParams> = {
   },
 };
 
+const THREE_SF: Precision = { sf: 3 };
+
+/**
+ * Choices for a rounded answer: the right value and the slips, each written
+ * to the precision the question asks, with any that round to the same value
+ * as another dropped, topped up from values a tenth either side.
+ */
+function roundedChoices(right: number, wrong: number[], precision: Precision) {
+  const r = roundTo(right, precision);
+  const seen = new Set([r]);
+  const picked: number[] = [];
+  for (const value of [...wrong, right * 1.1, right * 0.9, right * 1.2]) {
+    if (picked.length === 3) break;
+    const v = roundTo(value, precision);
+    if (!Number.isFinite(v) || v <= 0 || seen.has(v)) continue;
+    seen.add(v);
+    picked.push(v);
+  }
+  return options({ tex: fmt(r), answer: fmt(r) }, ...picked.map((v) => ({ tex: fmt(v), answer: fmt(v) })));
+}
+
+/** A speed in its unit, for prose. */
+const speedTex = (v: number, unit: string) => `${fmt(v)} \\; ${unit}`;
+
 interface GroundParams {
   setting: Setting;
   /** Heading, as a compass line 0 N, 1 E, 2 S, 3 W. */
   head: number;
   /** Which side the current or wind pushes: +1 clockwise of the heading. */
   side: number;
+  /** Its own speed and the current's or wind's. */
   v: number;
   w: number;
-  c: number;
 }
+
+const groundOf = ({ v, w }: GroundParams) => Math.hypot(v, w);
 
 /** Speed over the ground, heading straight while the water or air pushes sideways. */
 const groundSpeed: Generator<GroundParams> = {
   id: 'vjour-ground-speed',
-  choices: ({ v, w, c }) => signedChoices(c, [v + w, c * c, Math.abs(v - w)]),
+  choices: (p) => roundedChoices(groundOf(p), [p.v + p.w, p.v * p.v + p.w * p.w, Math.abs(p.v - p.w)], THREE_SF),
+  // A plane at 150 to 500 km/h in a wind of 10 to 60 km/h; a boat at 2 to 8 m/s on a current of 1 to 3 m/s.
   sample: (rng, difficulty) => {
     const setting: Setting = rng.chance(0.5) ? 'boat' : 'plane';
-    const [a, b, c] = triple(rng, difficulty > 1 ? 30 : 15);
-    const scale = setting === 'plane' ? 10 : 1;
-    // The boat or plane is the faster: the longer leg is its own speed.
-    const [v, w] = a > b ? [a, b] : [b, a];
-    return { setting, head: rng.int(0, 3), side: rng.sign(), v: v * scale, w: w * scale, c: c * scale };
+    for (;;) {
+      const v = setting === 'plane' ? rng.int(15, 50) * 10 : difficulty > 1 ? rng.int(20, 80) / 10 : rng.int(2, 8);
+      const w = setting === 'plane' ? rng.int(2, 12) * 5 : difficulty > 1 ? rng.int(10, 30) / 10 : rng.int(1, 3);
+      const params = { setting, head: rng.int(0, 3), side: rng.sign(), v, w };
+      const c = groundOf(params);
+      if (Number.isInteger(c) || !roundedWell(c, THREE_SF)) continue;
+      return params;
+    }
   },
-  render: ({ setting, head, side, v, w, c }): Slide => {
-    const unit = setting === 'plane' ? KMH : MS;
-    const push = COMPASS[mod360(head * 90 + side * 90) / 90];
+  render: (p): Slide => {
+    const unit = p.setting === 'plane' ? KMH : MS;
+    const push = COMPASS[mod360(p.head * 90 + p.side * 90) / 90];
     return {
       kind: 'expression',
       prompt: [
         {
           kind: 'prose',
           text:
-            setting === 'boat'
-              ? `A boat heads due ${COMPASS[head]} at $${v} \\; ${unit}$ through the water. A current flows due ${push} at $${w} \\; ${unit}$. Find the boat's speed over the ground.`
-              : `A plane heads due ${COMPASS[head]} at $${v} \\; ${unit}$ through the air. A wind blows due ${push} at $${w} \\; ${unit}$. Find the plane's speed over the ground.`,
+            (p.setting === 'boat'
+              ? `A boat heads due ${COMPASS[p.head]} at $${speedTex(p.v, unit)}$ through the water. A current flows due ${push} at $${speedTex(p.w, unit)}$. Find the boat's speed over the ground.`
+              : `A plane heads due ${COMPASS[p.head]} at $${speedTex(p.v, unit)}$ through the air. A wind blows due ${push} at $${speedTex(p.w, unit)}$. Find the plane's speed over the ground.`) +
+            ` ${askPrecision(THREE_SF)}`,
         },
       ],
       lead: '\\text{speed} =',
       keypad: [{ insert: 'sqrt(', label: '√(' }],
-      answer: `${c}`,
+      answer: fmt(roundTo(groundOf(p), THREE_SF)),
+      precision: THREE_SF,
       domain: 'real',
       mode: 'exact',
     };
   },
-  solution: ({ setting, v, w, c }) => [
-    {
-      text: `The two velocities are at right angles, so the resultant is the hypotenuse of a right-angled triangle, and the ${setting === 'boat' ? 'boat' : 'plane'}'s speed over the ground is its length:`,
-    },
-    { tex: `\\sqrt{${v}^2 + ${w}^2}` },
-    { tex: `= \\sqrt{${v * v} + ${w * w}} = ${c}` },
-    { text: `The speed over the ground is $${c} \\; ${setting === 'plane' ? KMH : MS}$, faster than either on its own.` },
-  ],
+  solution: (p) => {
+    const c = groundOf(p);
+    const unit = p.setting === 'plane' ? KMH : MS;
+    return [
+      {
+        text: `The two velocities are at right angles, so the resultant is the hypotenuse of a right-angled triangle, and the ${p.setting === 'boat' ? 'boat' : 'plane'}'s speed over the ground is its length:`,
+      },
+      { tex: `\\sqrt{${fmt(p.v)}^2 + ${fmt(p.w)}^2}` },
+      { tex: `= \\sqrt{${fmt(p.v * p.v + p.w * p.w)}} = ${c.toPrecision(5)}\\ldots` },
+      { text: `To 3 significant figures the speed over the ground is $${speedTex(roundTo(c, THREE_SF), unit)}$, faster than either on its own.` },
+    ];
+  },
 };
 
 interface CrossParams {
@@ -1384,83 +1450,104 @@ interface CrossParams {
   across: number;
   /** The way the river flows: 1 east or 3 west. */
   flows: number;
+  /** The current's speed and the boat's through the water, in m/s. */
   c: number;
   v: number;
-  /** Speed across, from the triple. */
-  s: number;
+}
+
+const crossOf = ({ c, v }: CrossParams) => Math.sqrt(v * v - c * c);
+
+/**
+ * A current of 1 to 3 m/s and a boat of 2 to 6 m/s, clearly the faster: in
+ * half m/s at difficulty 1, 1 d.p. at 2. Never exactly twice the current, the
+ * one ratio that makes the steering angle a special one.
+ */
+function sampleRiver(rng: Draw, difficulty: number): Omit<CrossParams, 'across' | 'flows'> {
+  for (;;) {
+    const c = difficulty > 1 ? rng.int(10, 30) / 10 : rng.int(2, 6) / 2;
+    const v = difficulty > 1 ? rng.int(20, 60) / 10 : rng.int(4, 12) / 2;
+    if (v < 1.25 * c || v === 2 * c) continue;
+    return { c, v };
+  }
 }
 
 /** Speed straight across a river, steering upstream: the boat's speed is the hypotenuse. */
 const across: Generator<CrossParams> = {
   id: 'vjour-across',
-  choices: ({ c, v, s }) => signedChoices(s, [v - c, v + c, s * s]),
+  choices: (p) => roundedChoices(crossOf(p), [p.v - p.c, p.v + p.c, p.v * p.v - p.c * p.c], THREE_SF),
   sample: (rng, difficulty) => {
-    const [a, b, h] = triple(rng, difficulty > 1 ? 30 : 15);
-    return { across: rng.pick([0, 2]), flows: rng.pick([1, 3]), c: a, v: h, s: b };
+    for (;;) {
+      const params = { across: rng.pick([0, 2]), flows: rng.pick([1, 3]), ...sampleRiver(rng, difficulty) };
+      const s = crossOf(params);
+      if (Number.isInteger(s) || !roundedWell(s, THREE_SF)) continue;
+      return params;
+    }
   },
-  render: ({ across: way, flows, c, v, s }): Slide => ({
+  render: (p): Slide => ({
     kind: 'expression',
     prompt: [
       {
         kind: 'prose',
-        text: `A river flows due ${COMPASS[flows]} at $${c} \\; ${MS}$. A boat moves at $${v} \\; ${MS}$ through the water and steers upstream so that it travels due ${COMPASS[way]}, straight across. Find its speed across.`,
+        text: `A river flows due ${COMPASS[p.flows]} at $${speedTex(p.c, MS)}$. A boat moves at $${speedTex(p.v, MS)}$ through the water and steers upstream so that it travels due ${COMPASS[p.across]}, straight across. Find its speed across. ${askPrecision(THREE_SF)}`,
       },
     ],
     lead: '\\text{speed} =',
     keypad: [{ insert: 'sqrt(', label: '√(' }],
-    answer: `${s}`,
+    answer: fmt(roundTo(crossOf(p), THREE_SF)),
+    precision: THREE_SF,
     domain: 'real',
     mode: 'exact',
   }),
-  solution: ({ c, v, s }) => [
-    {
-      text: `The boat's own velocity is the hypotenuse, $${v}$. Its upstream part cancels the current, $${c}$, and what is left carries it across:`,
-    },
-    { tex: `\\sqrt{${v}^2 - ${c}^2}` },
-    { tex: `= \\sqrt{${v * v} - ${c * c}} = ${s}` },
-    { text: `It crosses at $${s} \\; ${MS}$, slower than $${v}$ because some of its effort goes on the current.` },
-  ],
+  solution: (p) => {
+    const s = crossOf(p);
+    return [
+      {
+        text: `The boat's own velocity is the hypotenuse, $${fmt(p.v)}$. Its upstream part cancels the current, $${fmt(p.c)}$, and what is left carries it across:`,
+      },
+      { tex: `\\sqrt{${fmt(p.v)}^2 - ${fmt(p.c)}^2}` },
+      { tex: `= \\sqrt{${fmt(p.v * p.v - p.c * p.c)}} = ${s.toPrecision(5)}\\ldots` },
+      {
+        text: `To 3 significant figures it crosses at $${speedTex(roundTo(s, THREE_SF), MS)}$, slower than $${fmt(p.v)}$ because some of its effort goes on the current.`,
+      },
+    ];
+  },
 };
 
-interface SteerParams {
-  across: number;
-  flows: number;
-  c: number;
-  /** 30: the boat is twice the current's speed; 45: root 2 times it. */
-  alpha: 30 | 45;
-}
+type SteerParams = CrossParams;
+
+/** The angle upstream of straight across, to the nearest degree: sin alpha = c / v. */
+const steerAlpha = ({ c, v }: SteerParams) => roundTo((Math.asin(c / v) * 180) / Math.PI, NEAREST_DEGREE);
 
 /** The heading upstream: 90 turned towards the current's source. */
-function steerOf({ across: way, flows, alpha }: SteerParams): number {
-  const base = way * 90;
+function steerOf(p: SteerParams): number {
+  const base = p.across * 90;
   // Upstream is against the flow: a river flowing east pushes the heading west.
-  const towards = flows === 1 ? -1 : 1;
-  return mod360(base + (way === 0 ? towards : -towards) * alpha);
+  const towards = p.flows === 1 ? -1 : 1;
+  return mod360(base + (p.across === 0 ? towards : -towards) * steerAlpha(p));
 }
 
-/** The bearing to steer so the resultant goes straight across. */
+/** The bearing to steer so the resultant goes straight across, to the nearest degree. */
 const steer: Generator<SteerParams> = {
   id: 'vjour-steer',
-  sample: (rng, difficulty) => ({
-    across: rng.pick([0, 2]),
-    flows: rng.pick([1, 3]),
-    c: rng.int(1, 15),
-    alpha: difficulty > 1 && rng.chance(0.5) ? 45 : 30,
-  }),
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = { across: rng.pick([0, 2]), flows: rng.pick([1, 3]), ...sampleRiver(rng, difficulty) };
+      if (!roundedWell((Math.asin(params.c / params.v) * 180) / Math.PI, NEAREST_DEGREE)) continue;
+      return params;
+    }
+  },
   render: (params): Slide => {
-    const { across: way, flows, c, alpha } = params;
     const right = steerOf(params);
-    const base = way * 90;
+    const base = params.across * 90;
     const mirror = mod360(2 * base - right);
-    const upstream = flows === 1 ? 270 : 90;
+    const upstream = params.flows === 1 ? 270 : 90;
     const values = byValue([right, mirror, base, upstream]);
-    const speed = alpha === 30 ? `${2 * c}` : c === 1 ? '\\sqrt{2}' : `${c}\\sqrt{2}`;
     return {
       kind: 'choice',
       prompt: [
         {
           kind: 'prose',
-          text: `A river flows due ${COMPASS[flows]} at $${c} \\; ${MS}$. A boat moves at $${speed} \\; ${MS}$ through the water. On what bearing should it steer to travel due ${COMPASS[way]}, straight across?`,
+          text: `A river flows due ${COMPASS[params.flows]} at $${speedTex(params.c, MS)}$. A boat moves at $${speedTex(params.v, MS)}$ through the water. On what bearing should it steer to travel due ${COMPASS[params.across]}, straight across? Give the bearing to the nearest degree.`,
         },
       ],
       options: values.map((v, i) => ({ id: `o${i}`, label: brg(v), tex: true })),
@@ -1468,17 +1555,16 @@ const steer: Generator<SteerParams> = {
     };
   },
   solution: (params) => {
-    const { across: way, flows, c, alpha } = params;
     const right = steerOf(params);
-    const speed = alpha === 30 ? `${2 * c}` : c === 1 ? '\\sqrt{2}' : `${c}\\sqrt{2}`;
-    const up = flows === 1 ? 'west' : 'east';
+    const up = params.flows === 1 ? 'west' : 'east';
+    const exact = (Math.asin(params.c / params.v) * 180) / Math.PI;
     return [
       {
-        text: `To go straight across, the boat's own velocity must have an upstream part that cancels the current. Aim ${up} of due ${COMPASS[way]} by an angle $\\alpha$, with`,
+        text: `To go straight across, the boat's own velocity must have an upstream part that cancels the current. Aim ${up} of due ${COMPASS[params.across]} by an angle $\\alpha$, with`,
       },
-      { tex: `\\sin\\alpha = \\frac{${c}}{${speed}} = ${alpha === 30 ? '\\frac{1}{2}' : '\\frac{1}{\\sqrt{2}}'}` },
-      { tex: `\\alpha = ${alpha}^\\circ` },
-      { text: `Turning from $${brg(way * 90)}$ towards the ${up}, the bearing is $${brg(right)}$.` },
+      { tex: `\\sin\\alpha = \\frac{${fmt(params.c)}}{${fmt(params.v)}}` },
+      { tex: `\\alpha = ${exact.toFixed(2)}\\ldots^\\circ \\approx ${steerAlpha(params)}^\\circ` },
+      { text: `Turning from $${brg(params.across * 90)}$ towards the ${up}, the bearing is $${brg(right)}$.` },
     ];
   },
 };

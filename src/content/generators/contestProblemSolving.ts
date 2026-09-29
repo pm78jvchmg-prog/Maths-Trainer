@@ -116,6 +116,12 @@ interface PairParams {
 
 const pairSums = ({ prices: [a, b, c] }: PairParams): [number, number, number] => [a + b, a + c, b + c];
 
+/** A price in pounds as a till prints it: `14.50`, not `14.5`; a whole number of pounds stays `14`. The answer stays a value, so 18.5 is accepted for 18.50. */
+const money = (value: number): string => (Number.isInteger(value) ? `${value}` : value.toFixed(2));
+
+/** Choice labels written as prices; the answers stay values. */
+const inPounds = (opts: ReturnType<typeof numberOptions>) => opts.map((o) => ({ ...o, tex: money(Number(o.answer)) }));
+
 const cmPairSums: Generator<PairParams> = {
   id: 'cm-pair-sums',
   sample(rng, difficulty) {
@@ -135,7 +141,7 @@ const cmPairSums: Generator<PairParams> = {
     return typed(
       [
         say(`${m.place}, $${x}$, $${y}$ and $${z}$ are the prices of ${m.items[0]}, ${m.items[1]} and ${m.items[2]}, in pounds.`),
-        show(`\\begin{aligned} ${x} + ${y} &= ${num(s1)} \\\\ ${x} + ${z} &= ${num(s2)} \\\\ ${y} + ${z} &= ${num(s3)} \\end{aligned}`),
+        show(`\\begin{aligned} ${x} + ${y} &= ${money(s1)} \\\\ ${x} + ${z} &= ${money(s2)} \\\\ ${y} + ${z} &= ${money(s3)} \\end{aligned}`),
         say(question),
       ],
       p.ask < 0 ? total : p.prices[p.ask] / 100,
@@ -145,9 +151,9 @@ const cmPairSums: Generator<PairParams> = {
   choices(p) {
     const sums = pairSums(p).map((v) => v / 100);
     const total = p.prices.reduce((t, v) => t + v, 0) / 100;
-    if (p.ask < 0) return numberOptions(total, [2 * total, sums[0] + sums[1], total + 1, total - 1], 0.5, 0.5);
+    if (p.ask < 0) return inPounds(numberOptions(total, [2 * total, sums[0] + sums[1], total + 1, total - 1], 0.5, 0.5));
     const own = p.prices[p.ask] / 100;
-    return numberOptions(own, [sums[2 - p.ask], total - own, total, own + 1], 0.5, 0.5);
+    return inPounds(numberOptions(own, [sums[2 - p.ask], total - own, total, own + 1], 0.5, 0.5));
   },
   solution(p) {
     const m = MENUS[p.menu];
@@ -156,16 +162,16 @@ const cmPairSums: Generator<PairParams> = {
     const total = p.prices.reduce((t, v) => t + v, 0) / 100;
     const steps: SolutionStep[] = [
       { text: 'Add all three lines. Each price appears in exactly two of them:' },
-      { tex: `2(${x} + ${y} + ${z}) = ${num(sums[0])} + ${num(sums[1])} + ${num(sums[2])}` },
-      { tex: `2(${x} + ${y} + ${z}) = ${num(2 * total)}` },
-      { tex: `${x} + ${y} + ${z} = ${num(total)}` },
+      { tex: `2(${x} + ${y} + ${z}) = ${money(sums[0])} + ${money(sums[1])} + ${money(sums[2])}` },
+      { tex: `2(${x} + ${y} + ${z}) = ${money(2 * total)}` },
+      { tex: `${x} + ${y} + ${z} = ${money(total)}` },
     ];
     if (p.ask >= 0) {
       const other = [0, 1, 2].filter((i) => i !== p.ask);
       const pairSum = (p.prices[other[0]] + p.prices[other[1]]) / 100;
       steps.push(
         { text: `The line without $${m.letters[p.ask]}$ gives the other two together, so take it away:` },
-        { tex: `${m.letters[p.ask]} = ${num(total)} - ${num(pairSum)} = ${num(p.prices[p.ask] / 100)}` },
+        { tex: `${m.letters[p.ask]} = ${money(total)} - ${money(pairSum)} = ${money(p.prices[p.ask] / 100)}` },
       );
     }
     return steps;

@@ -143,8 +143,19 @@ export function lastPlace(value: number, precision: Precision): number {
  * to that precision and labelled with its trailing zeros (3.50, as the
  * question asks for it), and near misses step by its last place.
  */
-export function numChoices(correct: number, wrong: number[], salt: number, precision?: Precision): ChoiceOption[] {
-  if (precision) return roundedChoices(correct, wrong, salt, precision);
+export function numChoices(
+  correct: number,
+  wrong: number[],
+  salt: number,
+  precision?: Precision,
+  /**
+   * False keeps near misses one place off the answer out of a rounded
+   * question whenever its own slips fill it, so the choice does not turn on
+   * the order of rounding. Slips beyond three become the spares.
+   */
+  nearMisses = true,
+): ChoiceOption[] {
+  if (precision) return roundedChoices(correct, wrong, salt, precision, nearMisses);
   const seen = new Set([fmt(correct)]);
   // An answer with four places would never meet a near miss of three, so they step finer for it.
   const places = [0, 1, 2, 3, 4].find((dp) => exact(correct, dp)) ?? 4;
@@ -169,21 +180,26 @@ export function numChoices(correct: number, wrong: number[], salt: number, preci
   return steered(options(as(correct), ...picked.map(as)), salt, spare.map(as));
 }
 
-function roundedChoices(correct: number, wrong: number[], salt: number, precision: Precision): ChoiceOption[] {
+function roundedChoices(correct: number, wrong: number[], salt: number, precision: Precision, nearMisses = true): ChoiceOption[] {
   const label = (v: number) => fixed(v, precision);
   const right = roundTo(correct, precision);
   const seen = new Set([label(right)]);
   const ok = (v: number) => Number.isFinite(v) && v !== 0 && !seen.has(label(v)) && (correct <= 0 || v > 0);
   const picked: number[] = [];
+  const spare: number[] = [];
   for (const raw of wrong) {
     const v = roundTo(raw, precision);
-    if (picked.length === 3 || !ok(v)) continue;
-    seen.add(label(v));
-    picked.push(v);
+    if (!ok(v)) continue;
+    if (picked.length < 3) {
+      seen.add(label(v));
+      picked.push(v);
+    } else if (!nearMisses) {
+      seen.add(label(v));
+      spare.push(v);
+    }
   }
   const unit = lastPlace(correct, precision);
-  const spare: number[] = [];
-  for (let step = 1; picked.length + spare.length < 7 && step < 1000; step += 1) {
+  for (let step = 1; (nearMisses ? picked.length + spare.length < 7 : picked.length < 3) && step < 1000; step += 1) {
     for (const raw of [right + step * unit, right - step * unit]) {
       const v = roundTo(raw, precision);
       if (!ok(v)) continue;

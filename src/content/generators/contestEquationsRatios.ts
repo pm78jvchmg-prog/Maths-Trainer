@@ -820,7 +820,8 @@ const cmAgeRatio: Generator<AgeParams> = {
       const years = rng.int(2, 30);
       const later = laterTimes({ child, now, years });
       if (!Number.isInteger(later) || later < 2 || later === now) continue;
-      if (child * now > 70) continue;
+      // A mother at least 18 years older than her son, and no older than 60 now.
+      if (child * now > 60 || child * (now - 1) < 18) continue;
       return { child, now, years };
     }
   },

@@ -1051,14 +1051,23 @@ interface PowerParams { re: number; im: number; n: number }
 export const complexPower: Generator<PowerParams> = {
   id: 'complex-power',
   choices: ({ re, im, n }) => {
-    const [ar, ai] = powersOf(re, im, n)[n - 1];
+    const powers = powersOf(re, im, n);
+    const [ar, ai] = powers[n - 1];
+    const [br, bi] = powers[n - 2];
     const opt = (x: number, y: number) => ({ tex: complexTex(x, y), answer: complexAnswer(x, y) });
+    // More slips than places, since a real or imaginary answer makes several
+    // of them coincide; the first three that differ are kept, so every draw
+    // offers four.
     return options(
       opt(ar, ai),
       opt(Math.pow(re, n), Math.pow(im, n)),
       opt(ar, -ai),
       opt(-ar, ai),
-    );
+      opt(-ar, -ai),
+      opt(br, bi),
+      opt(ai, ar),
+      opt(-br, -bi),
+    ).slice(0, 4);
   },
   sample: (rng, difficulty) => {
     // Bases whose powers stay small enough to type comfortably.
@@ -1089,7 +1098,7 @@ export const complexPower: Generator<PowerParams> = {
     // Only the first few steps are worth showing; the pattern is clear by then.
     ...powersOf(re, im, n)
       .map(([ar, ai], idx) => ({ ar, ai, power: idx + 1 }))
-      .filter(({ power }) => power <= 3 || power === n)
+      .filter(({ power }) => (power >= 2 && power <= 3) || power === n)
       .map(({ ar, ai, power }) => ({
         tex: `${bracketedTex(re, im)}^{${power}} = ${complexTex(ar, ai)}`,
       })),
@@ -3674,8 +3683,13 @@ interface HalfPointParams { p: number; q: number; index: number; k: number; ask:
  * since `+ (1)` or `+ 2(i)` reads like a placeholder.
  */
 function stepsAlongTex(p: number, q: number, k: number, re: number, im: number): string {
-  if (re !== 0 && im !== 0) return `${complexTex(p, q)} + ${coeffTex(k, `(${complexTex(re, im)})`)}`;
+  // From the origin there is nothing to start from: `4(1 + i)`, not `0 + 4(1 + i)`.
+  if (re !== 0 && im !== 0) {
+    const step = coeffTex(k, `(${complexTex(re, im)})`);
+    return p === 0 && q === 0 ? step : `${complexTex(p, q)} + ${step}`;
+  }
   const step = complexTex(k * re, k * im);
+  if (p === 0 && q === 0) return step;
   return step.startsWith('-') ? `${complexTex(p, q)} - ${step.slice(1)}` : `${complexTex(p, q)} + ${step}`;
 }
 

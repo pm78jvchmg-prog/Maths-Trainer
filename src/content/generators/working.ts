@@ -271,7 +271,7 @@ const quadraticTree: Generator<QuadraticTreeParams> = {
     { tex: `(${k})^{2} = ${k * k} \\implies ${a} \\times ${k * k} = ${a * k * k}` },
     { text: 'The $x$ term is its own strand, and the constant just joins at the end.' },
     {
-      tex: `${b} \\times ${k} = ${b * k} \\implies ${a * k * k} ${signed(b * k)} ${signed(c)} = ${a * k * k + b * k + c}`,
+      tex: `${b} \\times ${k < 0 ? `\\left(${k}\\right)` : k} = ${b * k} \\implies ${a * k * k} ${signed(b * k)} ${signed(c)} = ${a * k * k + b * k + c}`,
     },
     {
       text: `Squaring the $${a}x$ instead would give ${a * k * a * k}, which is the commonest way to get this wrong.`,
@@ -843,9 +843,10 @@ const surdAddSteps: Generator<SurdAddParams> = {
         ),
       ],
       start: [`\\sqrt{${left}}`, '+', `\\sqrt{${right}}`],
+      // A root with multiplier 1 is already simplest; a step turning it into itself is skipped.
       reductions: [
-        {
-          span: [0, 1],
+        ...(p === 1 ? [] : [{
+          span: [0, 1] as [number, number],
           value: surdTex(left),
           bank: stepBank(
             surdTex(left),
@@ -854,9 +855,9 @@ const surdAddSteps: Generator<SurdAddParams> = {
             swappedSurd(m, p),
             `\\sqrt{${p * m}}`,
           ),
-        },
-        {
-          span: [2, 3],
+        }]),
+        ...(q === 1 ? [] : [{
+          span: [2, 3] as [number, number],
           value: surdTex(right),
           bank: stepBank(
             surdTex(right),
@@ -865,7 +866,7 @@ const surdAddSteps: Generator<SurdAddParams> = {
             swappedSurd(m, q),
             `\\sqrt{${q * m}}`,
           ),
-        },
+        }]),
         {
           span: [0, 3],
           value: sum,
@@ -882,12 +883,12 @@ const surdAddSteps: Generator<SurdAddParams> = {
   },
   solution: ({ m, p, q }) => [
     { text: 'Pull the largest square out of each root.' },
-    {
-      tex: `\\sqrt{${p * p * m}} = \\sqrt{${p * p}} \\times \\sqrt{${m}} = ${surdTex(p * p * m)}`,
-    },
-    {
-      tex: `\\sqrt{${q * q * m}} = \\sqrt{${q * q}} \\times \\sqrt{${m}} = ${surdTex(q * q * m)}`,
-    },
+    // A multiplier of 1 has no square to pull out, and `\sqrt{1}` is not worth writing.
+    ...[p, q].map((k) =>
+      k === 1
+        ? { text: `$\\sqrt{${m}}$ has no square factor, so it stays as it is.` }
+        : { tex: `\\sqrt{${k * k * m}} = \\sqrt{${k * k}} \\times \\sqrt{${m}} = ${surdTex(k * k * m)}` },
+    ),
     {
       text: `Now both are multiples of $\\sqrt{${m}}$, so they add like anything else: $${p + q}\\sqrt{${m}}$.`,
     },

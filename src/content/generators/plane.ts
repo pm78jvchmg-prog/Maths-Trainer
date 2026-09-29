@@ -74,7 +74,7 @@ function grid(range: number): string {
     if (major) continue;
     lines.push(
       `<text x="${at}" y="${axis + 13}" fill="var(--text-dim)" font-size="9" text-anchor="middle">${n}</text>`,
-      `<text x="${axis - 6}" y="${SIZE - at + 3}" fill="var(--text-dim)" font-size="9" text-anchor="end">${n}i</text>`,
+      `<text x="${axis - 6}" y="${SIZE - at + 3}" fill="var(--text-dim)" font-size="9" text-anchor="end">${n === 1 ? '' : n === -1 ? '-' : n}i</text>`,
     );
   }
 

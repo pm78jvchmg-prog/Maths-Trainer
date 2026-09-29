@@ -696,7 +696,7 @@ function TableBody({
                       <button
                         type="button"
                         className={`answer-slot${token ? ' filled' : ''}${focus ? ' focus' : ''}`}
-                        aria-label={token ? `Clear ${texToSpeech(token)}` : 'Choose this blank'}
+                        aria-label={token ? `Clear ${texToSpeech(token)}` : `Empty blank, row ${r + 1}`}
                         disabled={locked}
                         onClick={() => tapBlank(slot)}
                       >

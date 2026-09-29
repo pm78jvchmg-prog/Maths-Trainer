@@ -73,6 +73,11 @@ function times(a: number): string {
   return `${a} \\times `;
 }
 
+/** As `times`, but `-1 \\times ` rather than a bare minus, for a number about to be squared: `-1 \\times 5^{2}`, never `-5^{2}`. */
+function timesSquare(a: number): string {
+  return a === -1 ? '-1 \\times ' : times(a);
+}
+
 /** an + b. */
 function linearTex(a: number, b: number): string {
   return sumTex([nTerm(a, 1), `${b}`]);
@@ -322,7 +327,7 @@ const ruleTable: Generator<RuleTableParams> = {
             ...blanks.map((i) =>
               mode === 'linear'
                 ? `u_{${i + 1}} &= ${a} \\times ${i + 1}${plusB(b)} = ${terms[i]}`
-                : `u_{${i + 1}} &= ${times(a)}${i + 1}^{2}${plusB(b)} = ${terms[i]}`,
+                : `u_{${i + 1}} &= ${timesSquare(a)}${i + 1}^{2}${plusB(b)} = ${terms[i]}`,
             ),
           ),
         },
@@ -557,7 +562,7 @@ const termOf: Generator<TermParams> = {
       {
         tex: chain(
           quad
-            ? `u_{${k}} &= ${times(a)}${k}^{2}${middle}${tail}`
+            ? `u_{${k}} &= ${timesSquare(a)}${k}^{2}${middle}${tail}`
             : `u_{${k}} &= ${a} \\times ${k}${tail}`,
           `&= ${termValue(params, k)}`,
         ),

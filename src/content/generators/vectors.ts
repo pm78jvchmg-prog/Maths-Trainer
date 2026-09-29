@@ -146,7 +146,7 @@ const combineVectors: Generator<CombineParams> = {
         { kind: 'prose', text: 'Work out the components of the result.' },
         {
           kind: 'display',
-          tex: `${p === 1 ? '' : p}${columnTex(ax, ay)} ${q < 0 ? '-' : '+'} ${Math.abs(q) === 1 ? '' : Math.abs(q)}${columnTex(bx, by)}`,
+          tex: `${p === 1 ? '' : p === -1 ? '-' : p}${columnTex(ax, ay)} ${q < 0 ? '-' : '+'} ${Math.abs(q) === 1 ? '' : Math.abs(q)}${columnTex(bx, by)}`,
         },
       ],
       template: VECTOR_TEMPLATE,
@@ -511,7 +511,9 @@ const parallel: Generator<ParallelParams> = {
       { id: 'one-component', label: ijTex(k * x, y), tex: true },
       { id: 'swapped', label: ijTex(y, x), tex: true },
       { id: 'flipped', label: ijTex(k * x, -k * y), tex: true },
-    ]);
+      // A spare for k = -1, where scaling one component and flipping one coincide.
+      { id: 'other-component', label: ijTex(x, k * y), tex: true },
+    ]).slice(0, 4);
     const turn = (Math.abs(x) + Math.abs(y) + Math.abs(k)) % options.length;
     return {
       kind: 'choice',

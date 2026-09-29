@@ -15,6 +15,7 @@
  */
 import type { Generator, SolutionStep } from '../types';
 import { gcd, num, numberBank, numberOptions, say, typed } from './contestMath';
+import { roundedWell, roundTo, type Precision } from './classicalKit';
 
 /* ================================================================
  * Figures. Plain SVG text only (KaTeX cannot render inside SVG), and
@@ -535,11 +536,16 @@ const cmStatueWeight: Generator<StatueParams> = {
 interface MapParams {
   /** The scale is 1 : scale. */
   scale: number;
-  /** Area on the map in cm². */
+  /** Area on the map in cm²: whole going forward, whatever the ground gives going back. */
   mapArea: number;
   /** Difficulty 2 goes from the ground back to the map. */
   back: boolean;
+  /** Going back, the real area in km² as a textbook prints it, to 1 d.p. */
+  real?: number;
 }
+
+/** Going back, the map area is asked to 1 d.p. */
+const MAP_BACK: Precision = { dp: 1 };
 
 // Not 1 : 100 000, where a centimetre is a kilometre and the square changes nothing.
 const MAP_SCALES = [10000, 20000, 25000, 50000, 200000, 250000];
@@ -547,7 +553,7 @@ const MAP_SCALES = [10000, 20000, 25000, 50000, 200000, 250000];
 /** Kilometres one map centimetre stands for. */
 const kmPerCm = (scale: number) => scale / 100000;
 
-const realArea = ({ scale, mapArea }: MapParams) => Number((mapArea * kmPerCm(scale) ** 2).toFixed(6));
+const realArea = ({ scale, mapArea, real }: MapParams) => real ?? Number((mapArea * kmPerCm(scale) ** 2).toFixed(6));
 
 const PLACES = ['lake', 'forest', 'park', 'farm', 'marsh'];
 
@@ -556,8 +562,15 @@ const cmMapArea: Generator<MapParams> = {
   sample(rng, difficulty) {
     for (;;) {
       const scale = rng.pick(MAP_SCALES);
+      if (difficulty >= 2) {
+        // Going back, the ground area is the given value, never one worked back from a whole map area.
+        const real = rng.int(2, 200) / 10;
+        const mapArea = real / kmPerCm(scale) ** 2;
+        if (mapArea < 1 || mapArea > 200 || !roundedWell(mapArea, MAP_BACK)) continue;
+        return { scale, mapArea, back: true, real };
+      }
       const mapArea = rng.int(2, 40);
-      const p = { scale, mapArea, back: difficulty >= 2 };
+      const p = { scale, mapArea, back: false };
       const area = realArea(p);
       if (area < 0.1 || area > 200) continue;
       return p;
@@ -565,14 +578,18 @@ const cmMapArea: Generator<MapParams> = {
   },
   render(p) {
     // A whole index: 1 : 25 000 gave 2.5 once, and the place printed as "undefined".
-    const place = PLACES[(p.mapArea + Math.floor(p.scale / 5000)) % PLACES.length];
+    const place = PLACES[(Math.floor(p.mapArea) + Math.floor(p.scale / 5000)) % PLACES.length];
     const intro = say(`A map has a scale of $1 : ${big(p.scale)}$.`);
     if (p.back) {
-      return typed(
-        [intro, say(`A ${place} has a real area of $${num(realArea(p))}\\text{ km}^2$. What area does it cover on the map, in $\\text{cm}^2$?`)],
-        p.mapArea,
+      const slide = typed(
+        [
+          intro,
+          say(`A ${place} has a real area of $${num(realArea(p))}\\text{ km}^2$. What area does it cover on the map, in $\\text{cm}^2$? Give your answer to 1 decimal place.`),
+        ],
+        num(roundTo(p.mapArea, MAP_BACK)),
         '\\text{cm}^2 =',
       );
+      return { ...slide, precision: MAP_BACK };
     }
     return typed(
       [intro, say(`A ${place} covers $${p.mapArea}\\text{ cm}^2$ on the map. What is its real area, in $\\text{km}^2$?`)],
@@ -584,7 +601,8 @@ const cmMapArea: Generator<MapParams> = {
     const r = kmPerCm(p.scale);
     if (p.back) {
       const K = realArea(p);
-      return numberOptions(p.mapArea, [K / r, K * r, p.mapArea * 10, p.mapArea * 100], 1, 1);
+      const one = (v: number) => roundTo(v, MAP_BACK);
+      return numberOptions(one(p.mapArea), [K / r, K * r, p.mapArea * 10, p.mapArea / 10].map(one), 1, 0.1);
     }
     const area = realArea(p);
     return numberOptions(area, [p.mapArea * r, area * 10, area / 10, area * 100], r * r, 0.001);
@@ -595,7 +613,14 @@ const cmMapArea: Generator<MapParams> = {
       { text: `1 cm on the map is ${big(p.scale).replace(/\\,/g, ' ')} cm on the ground, which is ${num(r)} km. So 1 cm² on the map stands for` },
       { tex: `${num(r)}^2 = ${num(r * r)}\\text{ km}^2` },
     ];
-    if (p.back) steps.push({ text: 'Going back, divide by it:' }, { tex: `${num(realArea(p))} \\div ${num(r * r)} = ${p.mapArea}` });
+    if (p.back) {
+      const exact = Number.isInteger(Number((p.mapArea * 1e4).toFixed(6)));
+      steps.push(
+        { text: 'Going back, divide by it:' },
+        { tex: `${num(realArea(p))} \\div ${num(r * r)} ${exact ? '=' : '\\approx'} ${exact ? num(p.mapArea) : `${p.mapArea.toFixed(3)}\\ldots`}` },
+        ...(exact && Number.isInteger(p.mapArea * 10) ? [] : [{ text: `To 1 decimal place that is $${num(roundTo(p.mapArea, MAP_BACK))}\\text{ cm}^2$.` }]),
+      );
+    }
     else steps.push({ tex: `${p.mapArea} \\times ${num(r * r)} = ${num(realArea(p))}` });
     steps.push({ text: `Using ${num(r)} instead of ${num(r * r)} is the trap: an area is two lengths, so the scale is applied twice.` });
     return steps;

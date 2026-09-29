@@ -1103,16 +1103,17 @@ export const sequencesSeries: Course = {
           title: 'Regular Savings',
           slides: [
             teach(
-              prose('Pay £1000 into an account at the start of each year, and $10\\%$ interest is added at the end of each year. Adding $10\\%$ is multiplying by $1.1$.'),
-              prose('Year 1 ends with $1000 \\times 1.1 = 1100$. Year 2 starts with $1100 + 1000 = 2100$ and ends with $2100 \\times 1.1 = 2310$.'),
+              prose('Pay £1000 into an account at the start of each year, and $3\\%$ interest is added at the end of each year, to the nearest penny. Adding $3\\%$ is multiplying by $1.03$.'),
+              maths('\\begin{aligned} B_1 &= 1000 \\times 1.03 = 1030 \\\\ B_2 &= (1030 + 1000) \\times 1.03 = 2090.90 \\\\ B_3 &= (2090.90 + 1000) \\times 1.03 = 3183.627 \\end{aligned}'),
+              prose('Round each year-end balance to the penny and carry that on: $B_3 = 3183.63$, and year 4 starts from $3183.63 + 1000$.'),
             ),
             ask('seq-save-table'),
             teach(
               prose('Follow each payment on its own instead. The last one grows for one year, the one before it for two, and the first for all $n$:'),
-              maths('\\begin{aligned} B_n = \\; &1000 \\times 1.1 \\\\ &+ 1000 \\times 1.1^2 \\\\ &+ \\dots + 1000 \\times 1.1^n \\end{aligned}'),
-              prose('That is a geometric series, with first term $1000 \\times 1.1$ and common ratio $1.1$. After two years, work each term out, then add:'),
-              maths('\\begin{aligned} B_2 &= 1000 \\times 1.1 + 1000 \\times 1.1^2 \\\\ &= 1100 + 1210 \\\\ &= 2310 \\end{aligned}'),
-              prose('The same $2310$ as running it year by year.'),
+              maths('\\begin{aligned} B_n = \\; &1000 \\times 1.03 \\\\ &+ 1000 \\times 1.03^2 \\\\ &+ \\dots + 1000 \\times 1.03^n \\end{aligned}'),
+              prose('That is a geometric series, with first term $1000 \\times 1.03$ and common ratio $1.03$. After two years, work each term out, then add:'),
+              maths('\\begin{aligned} B_2 &= 1000 \\times 1.03 + 1000 \\times 1.03^2 \\\\ &= 1030 + 1060.90 \\\\ &= 2090.90 \\end{aligned}'),
+              prose('The same $2090.90$ as running it year by year.'),
             ),
             ask('seq-save-series-tiles'),
             ask('seq-save-sum-steps'),
@@ -1121,8 +1122,8 @@ export const sequencesSeries: Course = {
             ask('seq-save-series-tiles', 2),
             teach(
               prose('Work each term out, then add. After three years:'),
-              maths('\\begin{aligned} B_3 &= 1100 + 1210 + 1331 \\\\ &= 3641 \\end{aligned}'),
-              prose('The sum formula agrees: $S_3 = \\frac{1100(1.1^3 - 1)}{1.1 - 1} = 3641$.'),
+              maths('\\begin{aligned} B_3 &= 1030 + 1060.90 + 1092.727 \\\\ &= 3183.627 \\\\ &\\approx 3183.63 \\end{aligned}'),
+              prose('The sum formula agrees: $S_3 = \\frac{1030(1.03^3 - 1)}{1.03 - 1} \\approx 3183.63$, the same penny as rounding year by year.'),
             ),
             ask('seq-save-sum-steps', 2),
             ask('seq-save-balance+choice', 2),
@@ -1170,17 +1171,17 @@ export const sequencesSeries: Course = {
           slides: [
             teach(
               prose('How many years until savings pass a target? Run the balance a year at a time and stop at the first one over it.'),
-              prose('£10 a year, doubled at the end of each year, ends the years on $20, 60, 140, 300$. A target of £200 is first passed in year $4$.'),
-              prose('Beside each balance, write how far it is above the target: $-180, -140, -60, 100$. The gap is negative until the target is passed, and the first positive gap marks the year.'),
+              prose('£1000 a year at $4\\%$, interest to the nearest penny, ends the years on $1040, 2121.60, 3246.46, 4416.32$. A target of £4000 is first passed in year $4$.'),
+              prose('Beside each balance, write how far it is above the target: $-2960, -1878.40, -753.54, 416.32$. The gap is negative until the target is passed, and the first positive gap marks the year.'),
             ),
             ask('seq-target-table'),
             ask('seq-target-year'),
             teach(
-              prose('To reach a target in a set number of years, use the fact that every balance is in proportion to the payment. Try £40 a year at $50\\%$:'),
+              prose('To reach a target in a set number of years, use the fact that every balance is in proportion to the payment. Try £100 a year at $5\\%$, interest to the nearest penny:'),
               maths(
-                '\\begin{aligned} B_1 &= 40 \\times 1.5 = 60 \\\\ B_2 &= (60 + 40) \\times 1.5 = 150 \\\\ B_3 &= (150 + 40) \\times 1.5 = 285 \\end{aligned}',
+                '\\begin{aligned} B_1 &= 100 \\times 1.05 = 105 \\\\ B_2 &= (105 + 100) \\times 1.05 = 215.25 \\\\ B_3 &= (215.25 + 100) \\times 1.05 = 331.0125 \\\\ &\\approx 331.01 \\end{aligned}',
               ),
-              prose('To have £1425 after three years, pay $1425 \\div 285 = 5$ times as much: $40 \\times 5 = 200$, so £200 a year.'),
+              prose('To have £2000 after three years, pay $2000 \\div 331.01 \\approx 6.0421$ times as much, to 4 decimal places: $100 \\times 6.0421 = 604.21$, so £604.21 a year.'),
             ),
             ask('seq-target-payment'),
             ask('seq-target-scale-tree'),
@@ -1223,15 +1224,15 @@ export const sequencesSeries: Course = {
           title: 'Two Plans Compared',
           slides: [
             teach(
-              prose('Plan A pays £500 in year 1 and £100 more each year. Plan B pays £320 in year 1 and $50\\%$ more each year.'),
-              maths('\\begin{aligned} A &: 500, 600, 700, 800 \\\\ B &: 320, 480, 720, 1080 \\end{aligned}'),
+              prose('Plan A pays £16,500 in year 1 and £500 more each year. Plan B pays £16,000 in year 1 and $5\\%$ more each year.'),
+              maths('\\begin{aligned} A &: 16500, 17000, 17500, 18000 \\\\ B &: 16000, 16800, 17640, 18522 \\end{aligned}'),
               prose('A fixed rise wins at first, but a percentage rise grows its own rises: B pays more from year 3 on.'),
             ),
             ask('seq-plans-table'),
             ask('seq-plans-overtake'),
             teach(
-              prose('Paying more in one year is not paying more overall. Over the first three years A pays $500 + 600 + 700 = 1800$ and B pays $320 + 480 + 720 = 1520$.'),
-              prose('B pays more in year 3, and A is still ahead in total, by $1800 - 1520 = 280$.'),
+              prose('Paying more in one year is not paying more overall. Over the first three years A pays $16500 + 17000 + 17500 = 51000$ and B pays $16000 + 16800 + 17640 = 50440$.'),
+              prose('B pays more in year 3, and A is still ahead in total, by $51000 - 50440 = 560$.'),
             ),
             ask('seq-plans-which'),
             ask('seq-plans-total-tree'),
@@ -1239,7 +1240,7 @@ export const sequencesSeries: Course = {
             ask('seq-plans-overtake', 2),
             teach(
               prose('Totals come from the sum formulae. Over five years:'),
-              maths('\\begin{aligned} S_A &= \\tfrac{5}{2}(1000 + 400) \\\\ &= 3500 \\\\ S_B &= \\frac{320(1.5^5 - 1)}{1.5 - 1} \\\\ &= 4220 \\end{aligned}'),
+              maths('\\begin{aligned} S_A &= \\tfrac{5}{2}(33000 + 2000) \\\\ &= 87500 \\\\ S_B &= \\frac{16000(1.05^5 - 1)}{1.05 - 1} \\\\ &= 88410.10 \\end{aligned}'),
               prose('By year 5 the percentage plan is ahead in total too.'),
             ),
             ask('seq-plans-which', 2),

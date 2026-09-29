@@ -25,6 +25,7 @@ import { markerWindow, plotSvg, plotFigure } from '../figures';
 import { canonicalSet } from '../numberLine';
 import { EXP_KEYS } from './calculus';
 import { aOrAn, gcd } from './format';
+import { roundTo, roundedWell, type Precision } from './classicalKit';
 // Where a slider's handle rests before it is touched, so no answer sits there.
 import { defaultSliderValue } from '../../ui/sliderValue';
 import type { Rng } from '../../engine/rng';
@@ -186,10 +187,16 @@ interface Story {
   of: string;
 }
 
+/*
+ * Only things that can double or triple in one unit of time and start from a
+ * handful: the models here multiply by 2 or 3 a step. A town or a savings
+ * balance does neither (a few percent a year), so money lives in level 6 and
+ * whole towns nowhere in this file.
+ */
 const GROW_STORIES: Story[] = [
   { sym: 'N', subject: 'The number of bacteria in a dish', unit: 'hour', of: 'bacteria' },
-  { sym: 'P', subject: 'The population of a town', unit: 'year', of: 'people' },
-  { sym: 'V', subject: 'The value of an investment, in pounds,', unit: 'year', of: 'pounds' },
+  { sym: 'W', subject: 'The number of weeds in a field', unit: 'year', of: 'weeds' },
+  { sym: 'V', subject: 'The number of views of a new video', unit: 'day', of: 'views' },
   { sym: 'F', subject: 'The number of followers of a new account', unit: 'week', of: 'followers' },
 ];
 
@@ -4207,9 +4214,9 @@ interface TwoStory {
 }
 
 const TWO_STORIES: TwoStory[] = [
-  { what: 'The populations of two towns', syms: ['P', 'Q'], unit: 'year' },
+  { what: 'The weeds in two fields', syms: ['W', 'X'], unit: 'year' },
   { what: 'Two cultures of bacteria', syms: ['M', 'N'], unit: 'hour' },
-  { what: 'Two savings accounts, in pounds,', syms: ['S', 'V'], unit: 'year' },
+  { what: 'The views of two new videos', syms: ['U', 'V'], unit: 'day' },
   { what: 'The followers of two new accounts', syms: ['F', 'G'], unit: 'week' },
 ];
 
@@ -5063,7 +5070,7 @@ const MEET_STORIES: MeetStory[] = [
   { syms: ['N', 'D'], lead: 'The users $N$ of a new app and $D$ of an old one', unit: 'week' },
   { syms: ['W', 'T'], lead: 'The bacteria $W$ in a warm dish and $T$ in a treated one', unit: 'hour' },
   { syms: ['S', 'R'], lead: 'The monthly sales $S$ of a new phone and $R$ of the one it replaces', unit: 'month' },
-  { syms: ['G', 'C'], lead: 'The values in pounds of a growing fund $G$ and of a car $C$ that loses value', unit: 'year' },
+  { syms: ['A', 'B'], lead: 'The subscribers $A$ of a new channel and $B$ of one that is closing down', unit: 'week' },
 ];
 
 interface MeetParams {
@@ -5294,8 +5301,8 @@ const expmMeetWhich: Generator<MeetParams> = {
 
 const SUM_STORIES: Story[] = [
   { sym: 'N', subject: 'The number of insects in a greenhouse', unit: 'week', of: 'insects' },
-  { sym: 'P', subject: 'The population of an island', unit: 'year', of: 'people' },
-  { sym: 'V', subject: 'The value of a portfolio, in pounds,', unit: 'year', of: 'pounds' },
+  { sym: 'P', subject: 'The number of plankton in a water sample', unit: 'day', of: 'plankton' },
+  { sym: 'B', subject: 'The number of bacteria in a jar', unit: 'hour', of: 'bacteria' },
   { sym: 'C', subject: 'The number of cells in a sample', unit: 'hour', of: 'cells' },
 ];
 
@@ -7129,9 +7136,29 @@ const ACCOUNTS = ['A savings account', 'A bond', 'A fixed-rate saver', 'A deposi
 /** Whole hundreds, so a year compounded twice lands on pounds and pence. */
 const SAVINGS = [...READ_STARTS.filter((a) => a % 100 === 0), 1000, 1500, 2000, 2500, 5000];
 
-/** Half-year rates as whole percentages: the easy ones square in the head. */
-const HALF_EASY = [1, 2, 3, 4, 5, 10];
-const HALF_HARD = [6, 7, 8, 9, 11, 12];
+/** Yearly rates a savings product pays, 1.5% to 8%. */
+const ACCOUNT_RATES = [1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8];
+
+/**
+ * Half-year rates, so 2% to 8% a year. The whole ones square in the head and
+ * land on the penny; the halves do not, and their balances are asked to the
+ * nearest penny.
+ */
+const HALF_EASY = [1, 2, 3, 4];
+const HALF_HARD = [1.5, 2.5, 3.5];
+
+/** Money is asked to the penny. */
+const PENNY: Precision = { dp: 2 };
+
+/** Whether an amount is already a whole number of pence. */
+function onPenny(x: number): boolean {
+  return Math.abs(x * 100 - Math.round(x * 100)) < 1e-6;
+}
+
+/** An amount to the penny, as a working line equates it: = when it lands there, \approx when rounded. */
+function toPenny(x: number): string {
+  return `${onPenny(x) ? '=' : '\\approx'} ${money(x)}`;
+}
 
 interface Schedule {
   n: number;
@@ -7201,12 +7228,12 @@ interface HalfParams {
   ctx: number;
 }
 
-function sampleHalf(rng: Rng, difficulty: number): HalfParams {
-  return {
-    a: rng.pick(SAVINGS),
-    q: rng.pick(difficulty > 1 ? HALF_HARD : HALF_EASY),
-    ctx: rng.int(0, ACCOUNTS.length - 1),
-  };
+function sampleHalf(rng: Rng, difficulty: number, rates = difficulty > 1 ? HALF_HARD : HALF_EASY): HalfParams {
+  for (;;) {
+    const params = { a: rng.pick(SAVINGS), q: rng.pick(rates), ctx: rng.int(0, ACCOUNTS.length - 1) };
+    // A balance near half a penny could round either way from a learner's working.
+    if (roundedWell(halfBalance(params), PENNY)) return params;
+  }
 }
 
 /** The whole year's multiplier, (1 + q/100)^2, exactly. */
@@ -7239,11 +7266,12 @@ function halfSolution(params: HalfParams): SolutionStep[] {
     {
       tex: chain(
         `${dec(1 + q / 100)}^{2} &= ${dec(yearFactor(q))}`,
-        `${texNum(a)} \\times ${dec(yearFactor(q))} &= ${money(balance)}`,
+        `${texNum(a)} \\times ${dec(yearFactor(q))} &${toPenny(balance)}`,
       ),
     },
+    ...(onPenny(balance) ? [] : [{ text: `That is ${pounds(balance)} to the nearest penny.` }]),
     {
-      text: `Paid once a year, ${2 * q}% would give ${pounds(yearly)}. The extra ${pounds(balance - yearly)} is interest earned on the first half year's interest.`,
+      text: `Paid once a year, ${2 * q}% would give ${pounds(yearly)}. The extra ${pounds(Math.round(balance * 100) / 100 - yearly)} is interest earned on the first half year's interest.`,
     },
   ];
 }
@@ -7293,7 +7321,7 @@ const expmStepWorkSteps: Generator<StepWorkParams> = {
   id: 'expm-step-work-steps',
   sample: (rng, difficulty) => {
     const back = difficulty > 1;
-    return { ...sampleHalf(rng, 1), q: rng.pick(back ? [...HALF_EASY, ...HALF_HARD] : HALF_EASY), back };
+    return { ...sampleHalf(rng, 1, back ? [...HALF_EASY, ...HALF_HARD] : HALF_EASY), back };
   },
   render: (params): Slide => {
     const { a, q, back } = params;
@@ -7388,7 +7416,7 @@ const expmStepWorkSteps: Generator<StepWorkParams> = {
         tex: chain(
           `P \\times ${f} &= ${money(halfBalance(params))}`,
           `P &= ${money(halfBalance(params))} \\div ${f}`,
-          `&= ${texNum(params.a)}`,
+          `&${onPenny(halfBalance(params)) ? '=' : '\\approx'} ${texNum(params.a)}`,
         ),
       },
       { text: 'Working backwards divides by the year\'s multiplier, the one step that undoes multiplying by it.' },
@@ -7402,8 +7430,7 @@ type StepAmountParams = HalfParams & { interest: boolean };
 const expmStepAmount: Generator<StepAmountParams> = {
   id: 'expm-step-amount',
   sample: (rng, difficulty) => ({
-    ...sampleHalf(rng, 1),
-    q: rng.pick(difficulty > 1 ? [...HALF_EASY, ...HALF_HARD] : HALF_EASY),
+    ...sampleHalf(rng, 1, difficulty > 1 ? [...HALF_EASY, ...HALF_HARD] : HALF_EASY),
     interest: difficulty > 1,
   }),
   render: (params): Slide => {
@@ -7413,10 +7440,11 @@ const expmStepAmount: Generator<StepAmountParams> = {
       : 'How much is in the account after one year, in pounds?';
     return {
       kind: 'expression',
-      prompt: [{ kind: 'prose', text: `${halfOpening(params)} ${ask}` }],
+      prompt: [{ kind: 'prose', text: `${halfOpening(params)} ${ask} Give your answer to 2 decimal places, to the nearest penny.` }],
       lead: params.interest ? '\\text{interest} =' : '\\text{balance} =',
       keypad: [],
-      answer: dec(params.interest ? balance - params.a : balance),
+      answer: dec(roundTo(params.interest ? balance - params.a : balance, PENNY)),
+      precision: PENNY,
       domain: 'real',
       mode: 'exact',
     };
@@ -7425,8 +7453,8 @@ const expmStepAmount: Generator<StepAmountParams> = {
     const steps = halfSolution(params);
     if (!params.interest) return steps;
     return [
-      ...steps.slice(0, 2),
-      { text: `The interest is what was added: ${pounds(halfBalance(params))} $-$ ${pounds(params.a)} $=$ ${pounds(halfBalance(params) - params.a)}.` },
+      ...steps.slice(0, -1),
+      { text: `The interest is what was added: ${pounds(halfBalance(params))} $-$ ${pounds(params.a)} $=$ ${pounds(Math.round(halfBalance(params) * 100) / 100 - params.a)}.` },
     ];
   },
 };
@@ -7445,8 +7473,8 @@ const expmStepCalc: Generator<CalcParams> = {
   sample: (rng, difficulty) => {
     const n = rng.pick(difficulty > 1 ? [4, 12, 365] : [2, 4]);
     return {
-      a: rng.pick(READ_STARTS),
-      r: rng.pick(READ_PERCENTS),
+      a: rng.pick(SAVINGS),
+      r: rng.pick(ACCOUNT_RATES),
       n,
       t: rng.int(2, n === 365 ? 3 : difficulty > 1 ? 8 : 5),
       ctx: rng.int(0, ACCOUNTS.length - 1),
@@ -7507,7 +7535,7 @@ const expmOftenFlow: Generator<OftenFlowParams> = {
   sample: (rng, difficulty) => {
     if (difficulty > 1) {
       return {
-        r: rng.pick(READ_PERCENTS.filter((p) => p <= 12)),
+        r: rng.pick(ACCOUNT_RATES),
         lo: 1,
         hi: rng.pick([4, 12, 365]),
         gap: rng.pick([1, 2]),
@@ -7515,7 +7543,7 @@ const expmOftenFlow: Generator<OftenFlowParams> = {
       };
     }
     const [lo, hi] = rng.sample(SCHEDULES, 2).map((s) => s.n).sort((x, y) => x - y);
-    return { r: rng.pick(READ_PERCENTS), lo, hi, gap: 0, ctx: rng.int(0, ACCOUNTS.length - 1) };
+    return { r: rng.pick(ACCOUNT_RATES), lo, hi, gap: 0, ctx: rng.int(0, ACCOUNTS.length - 1) };
   },
   render: ({ r, lo, hi, gap, ctx }): Slide => {
     const rare = scheduleOf(lo);
@@ -7649,9 +7677,9 @@ function offerLabel({ r, n }: { r: number; n: number }, mixed: boolean): string 
 const expmOftenOrder: Generator<OrderParams> = {
   id: 'expm-often-order',
   sample: (rng, difficulty) => {
-    const a = rng.pick(READ_STARTS);
+    const a = rng.pick(SAVINGS);
     if (difficulty > 1) {
-      const r = rng.pick([2, 3, 4, 5, 6, 8, 10]);
+      const r = rng.pick([2, 3, 4, 5, 6, 7]);
       const [n1, n2] = rng.sample(SCHEDULES, 2).map((s) => s.n);
       const [n3, n4] = rng.sample(SCHEDULES, 2).map((s) => s.n);
       return {
@@ -7664,7 +7692,7 @@ const expmOftenOrder: Generator<OrderParams> = {
         ],
       };
     }
-    const r = rng.pick(READ_PERCENTS);
+    const r = rng.pick(ACCOUNT_RATES);
     const picked = rng.sample(SCHEDULES, 4).map((s) => s.n);
     // Listed in a hashed order rather than smallest first, so the prompt does not give the answer.
     return { a, offers: turned(picked, `${a}-${r}-${picked.join('')}`).map((n) => ({ r, n })) };
@@ -7704,7 +7732,10 @@ const expmOftenOrder: Generator<OrderParams> = {
   solution: ({ offers }) => {
     const mixed = new Set(offers.map((o) => o.r)).size > 1;
     const sorted = [...offers].sort((x, y) => effectiveRate(x.r, x.n) - effectiveRate(y.r, y.n));
-    const paid = sorted.map((o) => `${offerLabel(o, true)} pays about ${dec(Math.round(effectiveRate(o.r, o.n) * 10000) / 100)}%`).join('; ');
+    // To 3 decimal places of a percent, more where two offers would still read the same.
+    const pct = (o: { r: number; n: number }, dp: number) => (effectiveRate(o.r, o.n) * 100).toFixed(dp);
+    const dp = [3, 4, 5, 6].find((d) => new Set(sorted.map((o) => pct(o, d))).size === sorted.length) ?? 6;
+    const paid = sorted.map((o) => `${offerLabel(o, true)} pays about ${pct(o, dp)}%`).join('; ');
     return [
       {
         text: mixed
@@ -7728,7 +7759,7 @@ interface OftenTilesParams {
 const expmOftenTiles: Generator<OftenTilesParams> = {
   id: 'expm-often-tiles',
   sample: (rng, difficulty) => ({
-    a: rng.pick(READ_STARTS),
+    a: rng.pick(SAVINGS),
     q: rng.pick(difficulty > 1 ? [...HALF_EASY, ...HALF_HARD] : HALF_EASY),
     months: difficulty > 1 ? rng.pick([0, 18, 30, 42]) : 12 * rng.int(2, 6),
     ctx: rng.int(0, ACCOUNTS.length - 1),
@@ -7782,7 +7813,8 @@ const expmOftenGainTree: Generator<HalfParams> = {
   sample: sampleHalf,
   render: (params): Slide => {
     const { a, q } = params;
-    const balance = halfBalance(params);
+    // The difference is worked from the balance the learner carries, to the penny.
+    const balance = Math.round(halfBalance(params) * 100) / 100;
     const yearly = (a * (100 + 2 * q)) / 100;
     const answer = [dec(yearFactor(q)), money(balance), money(yearly), money(balance - yearly)];
     return {
@@ -7812,13 +7844,15 @@ const expmOftenGainTree: Generator<HalfParams> = {
   },
   solution: (params) => {
     const { a, q } = params;
-    const balance = halfBalance(params);
+    const exact = halfBalance(params);
+    const balance = Math.round(exact * 100) / 100;
     const yearly = (a * (100 + 2 * q)) / 100;
     return [
-      { tex: chain(`${dec(1 + q / 100)}^{2} &= ${dec(yearFactor(q))}`, `${texNum(a)} \\times ${dec(yearFactor(q))} &= ${money(balance)}`) },
+      { tex: chain(`${dec(1 + q / 100)}^{2} &= ${dec(yearFactor(q))}`, `${texNum(a)} \\times ${dec(yearFactor(q))} &${toPenny(exact)}`) },
       { tex: `${texNum(a)} \\times ${dec(1 + q / 50)} = ${money(yearly)}` },
+      { tex: `${money(balance)} - ${money(yearly)} = ${money(balance - yearly)}` },
       {
-        text: `The difference, ${pounds(balance - yearly)}, is ${q}% interest on the ${pounds((a * q) / 100)} paid after six months.`,
+        text: `The difference, ${pounds(balance - yearly)}, is ${onPenny(exact) ? '' : 'about '}${q}% interest on the ${pounds((a * q) / 100)} paid after six months.`,
       },
     ];
   },
@@ -8095,9 +8129,9 @@ interface ContParams {
   ctx: number;
 }
 
-function sampleCont(rng: Rng, difficulty: number, rates = READ_PERCENTS): ContParams {
+function sampleCont(rng: Rng, difficulty: number, rates = ACCOUNT_RATES): ContParams {
   return {
-    a: rng.pick(READ_STARTS),
+    a: rng.pick(SAVINGS),
     r: rng.pick(rates),
     // Every span is a multiple of three months, so r times the years is four places at most.
     months: difficulty > 1 ? rng.pick([6, 9, 18, 30, 42]) : 12 * rng.int(2, 6),
@@ -8183,7 +8217,7 @@ const expmContExact: Generator<ContExactParams> = {
 /** From (1 + r/n)^(nt) to e^(rt), one fork at a time, then how it compares. */
 const expmContFlow: Generator<ContParams> = {
   id: 'expm-cont-flow',
-  sample: (rng, difficulty) => sampleCont(rng, difficulty, difficulty > 1 ? READ_PERCENTS.filter((p) => p <= 12) : READ_PERCENTS),
+  sample: (rng, difficulty) => sampleCont(rng, difficulty),
   render: (params): Slide => {
     const { a, r, months, ctx } = params;
     const R = dec(r / 100);
@@ -8344,7 +8378,7 @@ const expmEffective: Generator<EffectiveParams> = {
   id: 'expm-effective',
   sample: (rng, difficulty) =>
     difficulty > 1
-      ? { p: rng.pick(READ_PERCENTS), continuous: true, ctx: rng.int(0, ACCOUNTS.length - 1) }
+      ? { p: rng.pick(ACCOUNT_RATES), continuous: true, ctx: rng.int(0, ACCOUNTS.length - 1) }
       : { p: rng.pick([...HALF_EASY, ...HALF_HARD]), continuous: false, ctx: rng.int(0, ACCOUNTS.length - 1) },
   render: ({ p, continuous, ctx }): Slide => {
     if (continuous) {
@@ -8427,8 +8461,8 @@ const expmEffectiveBest: Generator<BestParams> = {
   // well behind; difficulty 2 can make continuous at the same rate the winner.
   sample: (rng, difficulty) => {
     const params: BestParams = {
-      a: rng.pick(READ_STARTS),
-      r: rng.pick([4, 6, 8, 10, 12]),
+      a: rng.pick(SAVINGS),
+      r: rng.pick([4, 6, 8]),
       winner: rng.pick(difficulty > 1 ? (['twice', 'yearly', 'continuous'] as const) : (['twice', 'yearly'] as const)),
       ctx: rng.int(0, ACCOUNTS.length - 1),
     };
@@ -8475,7 +8509,7 @@ const expmEffectiveFlow: Generator<EffectiveParams> = {
   sample: (rng, difficulty) =>
     difficulty > 1
       ? { p: rng.pick([...HALF_EASY, ...HALF_HARD]), continuous: false, ctx: rng.int(0, ACCOUNTS.length - 1) }
-      : { p: rng.pick(READ_PERCENTS), continuous: true, ctx: rng.int(0, ACCOUNTS.length - 1) },
+      : { p: rng.pick(ACCOUNT_RATES), continuous: true, ctx: rng.int(0, ACCOUNTS.length - 1) },
   render: ({ p, continuous, ctx }): Slide => {
     const key = `${p}-${continuous}-${ctx}`;
     if (continuous) {
@@ -8595,7 +8629,7 @@ const expmEffectiveTiles: Generator<MatchParams> = {
   sample: (rng, difficulty) =>
     difficulty > 1
       ? { p: rng.pick([...HALF_EASY, ...HALF_HARD]), twice: true, ctx: rng.int(0, ACCOUNTS.length - 1) }
-      : { p: rng.pick(READ_PERCENTS), twice: false, ctx: rng.int(0, ACCOUNTS.length - 1) },
+      : { p: rng.pick(ACCOUNT_RATES), twice: false, ctx: rng.int(0, ACCOUNTS.length - 1) },
   render: ({ p, twice, ctx }): Slide => {
     const m = dec(1 + p / 100);
     const quoted = twice ? `${2 * p}% a year, compounded twice a year` : `${p}% a year, paid yearly`;

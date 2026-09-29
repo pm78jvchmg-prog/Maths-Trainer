@@ -30,6 +30,7 @@ import { bankFor, bin, num, pow, type Expr } from '../expr';
 import { sumTex, termTex } from './calculus';
 import { bankOf, numberTile, offer, signedTile } from './quadratics';
 import { negatedTex } from './format';
+import { roundTo, roundedWell } from './classicalKit';
 
 /* ---------- Formatting ---------- */
 
@@ -7732,16 +7733,17 @@ const SETTINGS: Setting[] = [
     parts: ['The amount each friend pays, in pounds', 'The number of friends', 'The whole bill, in pounds', 'The tip, in pounds'],
   },
   {
-    key: 'pool',
+    // An aquarium, not a pool: the constants run 24 to 360 litres, and a pool holds tens of thousands.
+    key: 'aquarium',
     kind: 'recip',
     out: 'T',
     inp: 'r',
     count: false,
-    story: ([K]) => `A pool holding $${K}$ litres is filled at a steady $r$ litres a minute.`,
+    story: ([K]) => `An aquarium holding $${K}$ litres is filled at a steady $r$ litres a minute.`,
     at: (x) => `at $${x}$ litres a minute`,
-    inv: (y) => `the rate that fills the pool in $${y}$ minutes`,
-    pair: 'the time to fill the pool against the rate',
-    parts: ['The time to fill it, in minutes', 'The rate, in litres a minute', 'The whole volume of the pool, in litres', 'The water already in, in litres'],
+    inv: (y) => `the rate that fills the aquarium in $${y}$ minutes`,
+    pair: 'the time to fill the aquarium against the rate',
+    parts: ['The time to fill it, in minutes', 'The rate, in litres a minute', 'The whole volume of the aquarium, in litres', 'The water already in, in litres'],
   },
   {
     key: 'card',
@@ -7828,6 +7830,14 @@ interface GrowthSetting {
   r: number;
   /** Starting amounts that keep five steps whole: a multiple of this. */
   unit: number;
+  /**
+   * Round starts a textbook prints, where the story has them. A question that
+   * only asks which family fits needs no value to stay whole, so a car is worth
+   * £8000 to £25 000 rather than a multiple of 2560.
+   */
+  starts?: number[];
+  /** Decimal places a table of these values is written to, where they do not stay whole. */
+  dp?: number;
   story: (start: number) => string;
   pair: string;
   /** What the table's letters stand for. */
@@ -7863,6 +7873,8 @@ const GROWTH: GrowthSetting[] = [
     key: 'car',
     r: 0.75,
     unit: 2560,
+    starts: range(8, 25).map((k) => 1000 * k),
+    dp: 0,
     story: (p) => `A car is worth £$${p}$, and it loses a quarter of its value every year.`,
     pair: 'the value of the car against its age',
     letters: '$N$ is the value in pounds and $t$ the age in years',
@@ -7871,6 +7883,8 @@ const GROWTH: GrowthSetting[] = [
     key: 'medicine',
     r: 0.5,
     unit: 16,
+    starts: [40, 80, 100, 120, 160, 200],
+    dp: 1,
     story: (p) => `A patient has $${p}$ mg of a medicine in the blood, and the amount halves every hour.`,
     pair: 'the medicine left against the time',
     letters: '$N$ is the medicine left in mg and $t$ the time in hours',
@@ -7879,14 +7893,16 @@ const GROWTH: GrowthSetting[] = [
     key: 'interest',
     r: 1.1,
     unit: 100,
+    starts: range(5, 50).map((k) => 100 * k),
     story: (p) => `£$${p}$ is left in a savings account that adds $10$% interest every year.`,
     pair: 'the money in the account against the time',
     letters: '$N$ is the money in pounds and $t$ the time in years',
   },
 ];
 
-/** A growth story's starting amount: five steps on, every value is still whole. */
+/** A growth story's starting amount: a round one where the story has them, else one whose next steps stay whole. */
 function growthStart(rng: Rng, g: GrowthSetting): number {
+  if (g.starts) return rng.pick(g.starts);
   if (g.r === 2) return rng.int(3, 30);
   if (g.r === 3) return rng.int(2, 12);
   return g.unit * rng.int(1, g.r === 1.1 ? 30 : 8);
@@ -7924,7 +7940,7 @@ const FAMILY_WHY: Record<Family, string> = {
  *
  * Difficulty 1 gives the plainest cues — a charge per mile, a pen from a
  * fence, a bill shared, a doubling. Difficulty 2 turns them round: an amount
- * that falls at a steady rate is still linear, a pool filled faster is
+ * that falls at a steady rate is still linear, an aquarium filled faster is
  * reciprocal, and a car losing a quarter of its value is exponential even
  * though it falls.
  */
@@ -8147,6 +8163,34 @@ function nextModel({ s, nums }: FamilyNextParams): (x: number) => number {
   return (x) => modelAt({ kind, K: nums[0] }, x);
 }
 
+/** A table's value at `x`, rounded as the story writes it. */
+function nextValue(params: FamilyNextParams, x: number): number {
+  const exact = nextModel(params)(x);
+  const dp = params.s >= 100 ? GROWTH[params.s - 100].dp : undefined;
+  return dp === undefined ? exact : roundTo(exact, { dp });
+}
+
+/**
+ * A growth table the learner can fill either way: no row within a rounding
+ * edge, and each row the same worked from the rounded row above it as from
+ * the start.
+ */
+function growthRowsWell(params: FamilyNextParams): boolean {
+  const g = GROWTH[params.s - 100];
+  if (g.dp === undefined) return true;
+  const precision = { dp: g.dp };
+  const f = nextModel(params);
+  return params.xs.slice(1).every(
+    (x, i) => roundedWell(f(x), precision) && roundTo(nextValue(params, params.xs[i]) * g.r, precision) === nextValue(params, x),
+  );
+}
+
+/** Whether any row of the table had to be rounded. */
+function nextRounds(params: FamilyNextParams): boolean {
+  const f = nextModel(params);
+  return params.xs.some((x) => Math.abs(nextValue(params, x) - f(x)) > 1e-9);
+}
+
 function nextLetters({ s }: FamilyNextParams): [string, string] {
   if (s >= 100) return ['t', 'N'];
   return [SETTINGS[s].inp, SETTINGS[s].out];
@@ -8167,8 +8211,14 @@ const familyNext: Generator<FamilyNextParams> = {
     const kind = rng.pick(hard ? (['down', 'area', 'recip', 'growth'] as const) : (['up', 'growth'] as const));
     if (kind === 'growth') {
       const g = rng.pick(hard ? [2, 3, 4] : [0, 1]);
-      const start = g === 3 ? 2560 * rng.int(1, 4) : g >= 2 ? 16 * rng.int(1, 6) : growthStart(rng, GROWTH[g]);
-      return { s: 100 + g, nums: [start], xs: range(0, 4) };
+      if (g === 2) return { s: 100 + g, nums: [16 * rng.int(1, 6)], xs: range(0, 4) };
+      // A car's value goes to the nearest pound and a dose to 1 decimal place;
+      // a start is kept only when no row sits near a rounding edge and every
+      // row comes out the same worked from the row above as rounded.
+      for (;;) {
+        const params = { s: 100 + g, nums: [growthStart(rng, GROWTH[g])], xs: range(0, 4) };
+        if (growthRowsWell(params)) return params;
+      }
     }
     if (kind === 'recip') {
       const s = rng.pick(settingsOf('recip').filter((i) => SETTINGS[i].key !== 'sweets'));
@@ -8192,7 +8242,7 @@ const familyNext: Generator<FamilyNextParams> = {
       s >= 100
         ? GROWTH[s - 100].letters
         : `$${yl}$ is ${lower(SETTINGS[s].parts[0])} and $${xl}$ is ${lower(SETTINGS[s].parts[1])}`;
-    const answer = xs.slice(1).map((x) => `${f(x)}`);
+    const answer = xs.slice(1).map((x) => `${nextValue(params, x)}`);
     const slips = xs.slice(1).flatMap((x, i) => {
       if (s >= 100) return [nums[0] + nums[0] * (GROWTH[s - 100].r - 1) * x];
       const kind = SETTINGS[s].kind;
@@ -8201,13 +8251,16 @@ const familyNext: Generator<FamilyNextParams> = {
       if (kind === 'area') return [x * (nums[0] - x)];
       return [nums[0] / xs[i]];
     });
-    const last = f(xs[xs.length - 1]);
+    const last = Math.round(nextValue(params, xs[xs.length - 1]));
+    const rounding = nextRounds(params)
+      ? ` Give each value to ${GROWTH[s - 100].dp === 0 ? 'the nearest pound' : `${GROWTH[s - 100].dp} decimal place`}.`
+      : '';
     return {
       kind: 'table',
-      prompt: [{ kind: 'prose', text: `${story} In the table, ${where}. Fill in the gaps.` }],
+      prompt: [{ kind: 'prose', text: `${story} In the table, ${where}. Fill in the gaps.${rounding}` }],
       columns: [xl, yl],
       rows: xs.map((x, i) => [`${x}`, i === 0 ? `${f(x)}` : null]),
-      bank: treeBank(answer, slips.filter((v) => v > 0), last),
+      bank: treeBank(answer, slips.filter((v) => v > 0).map((v) => roundTo(v, { dp: 0 })), last),
       answer,
     };
   },
@@ -8219,7 +8272,17 @@ const familyNext: Generator<FamilyNextParams> = {
       const r = GROWTH[s - 100].r;
       return [
         { text: `Each step multiplies the amount by $${ratioTexOf(r)}$, so $N = ${nums[0]} \\times ${ratioTexOf(r)}^{t}$.` },
-        { text: `Going down the table: ${xs.map((x) => `$${f(x)}$`).join(', ')}.` },
+        nextRounds(params)
+          ? {
+              text: `Going down the table, each row is the one above times $${ratioTexOf(r)}$, rounded to the nearest pound: ${xs
+                .map((x) => {
+                  const exact = nextValue(params, x - 1) * r;
+                  const kept = nextValue(params, x);
+                  return x === 0 || Math.abs(exact - kept) < 1e-9 ? `$${kept}$` : `$${exact} \\approx ${kept}$`;
+                })
+                .join(', ')}.`,
+            }
+          : { text: `Going down the table: ${xs.map((x) => `$${f(x)}$`).join(', ')}.` },
       ];
     }
     const setting = SETTINGS[s];

@@ -20,10 +20,9 @@
  * for two, and how n and the level move the verdict. Every r and critical
  * value is quoted to four places, and no |r| is ever one.
  * Level 5 compares two samples: `\bar{X}_A - \bar{X}_B` with its variance the
- * sum `\sigma_A^2/n_A + \sigma_B^2/n_B`, each term whole and the sum a
- * square, so the two-sample z has at most two places; then paired data, the
- * difference in each pair and z for the mean difference with `\sigma_d /
- * \sqrt{n}` whole. As in level 2, no z lands within 0.05 of its critical value.
+ * sum `\sigma_A^2/n_A + \sigma_B^2/n_B`, each term exact; then paired data,
+ * the difference in each pair and z for the mean difference. As in level 2,
+ * no z lands within 0.05 of its critical value.
  *
  * Nothing here is calculus, so no slide declares `source` and the generic
  * derivative oracle does not apply; `hypothesisTesting.test.ts` is the oracle.
@@ -37,9 +36,15 @@
  *   every comparison with a level is made on the quoted value, in
  *   ten-thousandths, since that is the number the learner compares.
  *   `hypothesisTesting.test.ts` recomputes each quoted cumulative its own way.
- * - A typed number is exact. In level 2 n is a square and `\sigma` a multiple
- *   of `\sqrt{n}`, so `\sigma / \sqrt{n}` is whole, and `\bar{x}` is drawn so z
- *   has at most two places.
+ * - A typed number is exact or states its rounding. The data in levels 2, 3
+ *   and 5 are what a study would report: a standard deviation natural for the
+ *   quantity, a round sample size (a power of 2 times a power of 5, so
+ *   `\sigma^2 / n` ends) and a sample mean recorded to the quantity's places.
+ *   So `\sigma / \sqrt{n}` usually runs on and is written to three significant
+ *   figures, z is read at two decimal places as the table is, and a critical
+ *   sample mean is given to two. The prompt says so, `precision` accepts the
+ *   unrounded working, and a draw is refused near a rounding edge or where a
+ *   rounded standard deviation carried forward would change z.
  * - A hypothesis or a model is a form, so it goes through `tiles`; `expression`
  *   is only ever a number (PITFALLS 3.4).
  * - Units stay in prose. A conclusion is written in the scenario's words,
@@ -52,8 +57,10 @@ import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
 import { nCr } from './binomialExpansion';
 import { fmt } from './numericalMethods';
-import { stepBank, tokenBank, treeBank } from './parametricImplicit';
+import { stepBank, tokenBank } from './parametricImplicit';
 import { say } from './format';
+import { roundTo, type Precision } from '../../engine/equivalence';
+import { askPrecision, dots, roundedWell } from './classicalKit';
 
 /* ================================================================
  * Shared helpers
@@ -1542,39 +1549,82 @@ interface MeanContext {
   quantity: string;
   unit: string;
   mus: number[];
+  /** The standard deviations the quantity may have: a spread a textbook would print for it. */
+  sigmas: number[];
+  /** The decimal places a sample mean of it is recorded to. */
+  dp: number;
 }
 
 const range = (from: number, to: number, step = 1): number[] =>
   Array.from({ length: Math.floor((to - from) / step) + 1 }, (_, i) => from + i * step);
 
 const MEAN_CONTEXTS: MeanContext[] = [
-  { quantity: 'mass of a bag of flour', unit: 'g', mus: [500, 750, 1000, 1500] },
-  { quantity: 'time a pizza delivery takes', unit: 'minutes', mus: range(25, 45) },
-  { quantity: 'length of a bolt', unit: 'mm', mus: range(40, 80, 5) },
-  { quantity: 'lifetime of a battery', unit: 'hours', mus: range(100, 200, 10) },
-  { quantity: 'height of a seedling after four weeks', unit: 'cm', mus: range(12, 30) },
-  { quantity: 'volume of juice in a carton', unit: 'ml', mus: [250, 330, 500, 750, 1000] },
-  { quantity: 'time to run 400 m', unit: 'seconds', mus: range(55, 75) },
-  { quantity: 'reaction time of a driver', unit: 'ms', mus: range(200, 300, 10) },
+  { quantity: 'mass of a bag of flour', unit: 'g', mus: [500, 750, 1000, 1500], sigmas: [5, 8, 10, 12, 15], dp: 1 },
+  { quantity: 'time a pizza delivery takes', unit: 'minutes', mus: range(25, 45), sigmas: [3, 4, 5, 6], dp: 1 },
+  { quantity: 'length of a bolt', unit: 'mm', mus: range(40, 80, 5), sigmas: [0.4, 0.5, 0.8, 1, 1.2], dp: 2 },
+  { quantity: 'lifetime of a battery', unit: 'hours', mus: range(100, 200, 10), sigmas: [6, 8, 10, 12, 15], dp: 1 },
+  { quantity: 'height of a seedling after four weeks', unit: 'cm', mus: range(12, 30), sigmas: [1.5, 2, 2.5, 3], dp: 2 },
+  { quantity: 'volume of juice in a carton', unit: 'ml', mus: [250, 330, 500, 750, 1000], sigmas: [2, 3, 4, 5, 6, 8], dp: 1 },
+  { quantity: 'time to run 400 m', unit: 'seconds', mus: range(55, 75), sigmas: [1.5, 2, 2.5, 3, 4], dp: 2 },
+  { quantity: 'reaction time of a driver', unit: 'ms', mus: range(200, 300, 10), sigmas: [20, 25, 30, 40], dp: 1 },
 ];
 
-const NS = [4, 9, 16, 25, 36, 100];
+/**
+ * Sample sizes a study would use. Each is a power of 2 times a power of 5,
+ * so `\sigma^2 / n` always ends; `\sigma / \sqrt{n}` usually runs on and is
+ * written to three significant figures.
+ */
+const NS = [10, 16, 20, 25, 40, 50, 80, 100];
+
+/* ---------- Precision: natural values give a z that runs on ---------- */
+
+/** z is read at two places, as the table is. */
+const Z_DP: Precision = { dp: 2 };
+/** A standard deviation of a sample mean that runs on is written to three significant figures. */
+const SE_SF: Precision = { sf: 3 };
+/** A critical sample mean, or a difference of sample means, to two places. */
+const XC_DP: Precision = { dp: 2 };
+
+/** A standard error as the learner writes it: exact when it ends within four places, else to three significant figures. */
+const seValue = (se: number): number => (terminates(se, 4) ? se : roundTo(se, SE_SF));
+const seText = (se: number): string => fmt(seValue(se));
+/** A standard error in working: exact, or its digits running on, then rounded. */
+const seWorking = (se: number): string => (terminates(se, 4) ? fmt(se) : `${dots(se)} \\approx ${seText(se)}`);
+
+/** A z in working: exact when it ends at two places, else its digits running on, then rounded. */
+const zWorking = (raw: number): string => (terminates(raw, 2) ? fmt(raw) : `${dots(raw)} \\approx ${fmt(roundTo(raw, Z_DP))}`);
+
+/**
+ * Whether z = gap / se reads safely at two places: not near a rounding edge,
+ * and the same when worked from se already rounded to three figures.
+ */
+function zReadsWell(gap: number, se: number): boolean {
+  const raw = gap / se;
+  if (terminates(raw, 2)) return true;
+  return roundedWell(raw, Z_DP) && roundTo(gap / seValue(se), Z_DP) === roundTo(raw, Z_DP);
+}
+
+/** The words a question adds when z runs on. */
+const zToTwo = (raw: number): string => (terminates(raw, 2) ? '' : ' Give $z$ to 2 decimal places.');
 
 interface MeanScene {
   ctx: number;
   mu: number;
   n: number;
-  /** The standard error, sigma / sqrt(n), whole. */
-  s: number;
-  /** z in hundredths. */
-  zh: number;
+  sigma: number;
+  /** The sample mean, recorded to the context's places. */
+  xbar: number;
   tail: Tail;
   level: number;
 }
 
-const sigmaOf = ({ s, n }: Pick<MeanScene, 's' | 'n'>): number => s * Math.round(Math.sqrt(n));
-const zOf = ({ zh }: Pick<MeanScene, 'zh'>): number => zh / 100;
-const xbarOf = ({ mu, zh, s }: Pick<MeanScene, 'mu' | 'zh' | 's'>): number => mu + (zh * s) / 100;
+const seOf = ({ sigma, n }: Pick<MeanScene, 'sigma' | 'n'>): number => sigma / Math.sqrt(n);
+/** `\bar{x} - \mu`, exact. */
+const meanGap = ({ xbar, mu }: Pick<MeanScene, 'xbar' | 'mu'>): number => Number((xbar - mu).toFixed(6));
+/** z unrounded. */
+const zRaw = (sc: Pick<MeanScene, 'xbar' | 'mu' | 'sigma' | 'n'>): number => meanGap(sc) / seOf(sc);
+/** z to two places: the value the question reads and decides by. */
+const zOf = (sc: Pick<MeanScene, 'xbar' | 'mu' | 'sigma' | 'n'>): number => roundTo(zRaw(sc), Z_DP);
 
 /** The critical values the course uses, by level and number of tails. */
 const Z_ONE: Record<string, number> = { '5': 1.645, '2.5': 1.96, '1': 2.326, '0.5': 2.576 };
@@ -1608,28 +1658,40 @@ const inRegion = (sc: MeanScene): boolean => {
 
 interface MeanOptions {
   tails?: Tail[];
-  /** |z| drawn in hundredths from this range. */
+  /** |z| aimed at in hundredths from this range. */
   zLo?: number;
   zHi?: number;
-  /** Draw z to one place, for a slider. */
+  /** For a slider: z must also read safely at one place. */
   tenths?: boolean;
   ns?: number[];
 }
 
+/**
+ * A claim, a natural standard deviation for the quantity, a round sample size
+ * and a sample mean recorded to the context's places. The sample mean is
+ * aimed at a z in the range asked and then rounded as a measurement would be,
+ * so z runs on and is read at two places. A draw is refused when z sits near
+ * a rounding edge, or within 0.05 of the critical value.
+ */
 function sampleMean(rng: Rng, { tails = TAILS, zLo = 20, zHi = 320, tenths = false, ns = NS }: MeanOptions = {}): MeanScene {
   for (;;) {
     const ctx = rng.int(0, MEAN_CONTEXTS.length - 1);
-    const mu = rng.pick(MEAN_CONTEXTS[ctx].mus);
+    const c = MEAN_CONTEXTS[ctx];
+    const mu = rng.pick(c.mus);
     const n = rng.pick(ns);
-    const s = rng.int(1, 8);
-    if (sigmaOf({ s, n }) * 3 > mu) continue;
+    const sigma = rng.pick(c.sigmas);
     const tail = rng.pick(tails);
-    const size = tenths ? rng.int(Math.ceil(zLo / 10), Math.floor(zHi / 10)) * 10 : rng.int(zLo, zHi);
+    const size = rng.int(zLo, zHi) / 100;
     const sign = tail === 'up' ? 1 : tail === 'down' ? -1 : rng.sign();
     const level = tail === 'two' ? rng.pick([1, 5, 10]) : rng.pick([1, 5]);
-    const sc = { ctx, mu, n, s, zh: sign * size, tail, level };
+    const xbar = roundTo(mu + sign * size * seOf({ sigma, n }), { dp: c.dp });
+    const sc = { ctx, mu, n, sigma, xbar, tail, level };
+    const raw = zRaw(sc);
+    if (Math.abs(raw) < zLo / 100 - 0.05 || Math.abs(raw) > zHi / 100 + 0.05 || xbar === mu) continue;
+    if (!zReadsWell(meanGap(sc), seOf(sc))) continue;
+    if (tenths && !roundedWell(raw, { dp: 1 })) continue;
     // Never so close to the critical value that the decision is a rounding question.
-    if (Math.abs(Math.abs(zOf(sc)) - critical(level, tail)) < 0.03) continue;
+    if (Math.abs(Math.abs(raw) - critical(level, tail)) < 0.05 || Math.abs(Math.abs(roundTo(raw, Z_DP)) - critical(level, tail)) < 0.05 - 1e-9) continue;
     return sc;
   }
 }
@@ -1638,13 +1700,13 @@ const SUSPECT: Record<Tail, string> = { up: 'has increased', down: 'has decrease
 
 function meanClaim(sc: MeanScene): string {
   const c = MEAN_CONTEXTS[sc.ctx];
-  return `The mean ${c.quantity} is claimed to be $${sc.mu}$ ${c.unit}, standard deviation $${sigmaOf(sc)}$ ${c.unit}.`;
+  return `The mean ${c.quantity} is claimed to be $${sc.mu}$ ${c.unit}, standard deviation $${fmt(sc.sigma)}$ ${c.unit}.`;
 }
 
 const meanSuspicion = (sc: MeanScene): string => `A researcher suspects it ${SUSPECT[sc.tail]}.`;
 
 const meanSample = (sc: MeanScene): string =>
-  `A random sample of $${sc.n}$ has mean $\\bar{x} = ${fmt(xbarOf(sc))}$ ${MEAN_CONTEXTS[sc.ctx].unit}.`;
+  `A random sample of $${sc.n}$ has mean $\\bar{x} = ${fmt(sc.xbar)}$ ${MEAN_CONTEXTS[sc.ctx].unit}.`;
 
 const meanWords = (sc: MeanScene): string => `the mean ${MEAN_CONTEXTS[sc.ctx].quantity} ${SUSPECT[sc.tail]}`;
 
@@ -1652,8 +1714,9 @@ const zFormula = (sc: MeanScene): string =>
   chain(
     'z',
     '\\frac{\\bar{x} - \\mu}{\\sigma / \\sqrt{n}}',
-    `\\frac{${fmt(xbarOf(sc))} - ${sc.mu}}{${sigmaOf(sc)} / \\sqrt{${sc.n}}}`,
-    `\\frac{${fmt((sc.zh * sc.s) / 100)}}{${sc.s}} = ${fmt(zOf(sc))}`,
+    `\\frac{${fmt(sc.xbar)} - ${sc.mu}}{${fmt(sc.sigma)} / \\sqrt{${sc.n}}}`,
+    `\\frac{${fmt(meanGap(sc))}}{${seText(seOf(sc))}}`,
+    zWorking(zRaw(sc)),
   );
 
 /** The standard normal density. */
@@ -1688,36 +1751,42 @@ interface MeanModelParams extends MeanScene {
   variance: boolean;
 }
 
+/** `\sigma^2 / n`, which ends for every size in `NS`. */
+const varOfMean = ({ sigma, n }: Pick<MeanScene, 'sigma' | 'n'>): number => Number(((sigma * sigma) / n).toFixed(8));
+
+/** Written tokens, dropping any that run on or repeat. */
+const tokensOf = (values: number[]): string[] => [...new Set(values.filter((v) => Number.isFinite(v) && v > 0 && terminates(v, 4)).map(fmt))];
+
 /** `\bar{X} ~ N(\mu, \sigma^2/n)` with the numbers put in. */
 const meanModelTiles: Generator<MeanModelParams> = {
   id: 'hyp-mean-model-tiles',
   sample: (rng, difficulty) => ({ ...sampleMean(rng), variance: difficulty > 1 }),
   render: (sc): Slide => {
     const c = MEAN_CONTEXTS[sc.ctx];
-    const sigma = sigmaOf(sc);
-    const answer = [String(sc.mu), String(sc.s * sc.s)];
+    const v = sc.sigma * sc.sigma;
+    const answer = [String(sc.mu), fmt(varOfMean(sc))];
     return {
       kind: 'tiles',
       prompt: [
         say(
           sc.variance
-            ? `The ${c.quantity} is modelled as normal with mean $${sc.mu}$ ${c.unit} and variance $${sigma * sigma}$.`
-            : `The ${c.quantity} is modelled as normal with mean $${sc.mu}$ ${c.unit} and standard deviation $${sigma}$ ${c.unit}.`,
+            ? `The ${c.quantity} is modelled as normal with mean $${sc.mu}$ ${c.unit} and variance $${fmt(v)}$.`
+            : `The ${c.quantity} is modelled as normal with mean $${sc.mu}$ ${c.unit} and standard deviation $${fmt(sc.sigma)}$ ${c.unit}.`,
         ),
         say(`$\\bar{X}$ is the mean of a random sample of $${sc.n}$. Complete its distribution.`),
       ],
       template: '\\bar{X} \\sim N({0}, {1})',
-      bank: tokenBank(answer, [String(sigma * sigma), String(sc.s), String(sigma), String(sc.n), String(sc.mu / sc.n)].filter((t) => !t.includes('.')), 3),
+      bank: tokenBank(answer, tokensOf([v, sc.sigma, sc.sigma / sc.n, sc.n, v / Math.sqrt(sc.n)]).filter((t) => !answer.includes(t)), 3),
       answer,
     };
   },
   solution: (sc) => {
-    const sigma = sigmaOf(sc);
+    const v = sc.sigma * sc.sigma;
     return [
       { text: 'The sample mean keeps the population mean but its variance is divided by the sample size.' },
       { tex: `\\bar{X} \\sim N\\left(\\mu, \\frac{\\sigma^2}{n}\\right)` },
-      { tex: `\\frac{\\sigma^2}{n} = \\frac{${sigma * sigma}}{${sc.n}} = ${sc.s * sc.s}` },
-      { tex: `\\bar{X} \\sim N(${sc.mu}, ${sc.s * sc.s})` },
+      { tex: `\\frac{\\sigma^2}{n} = \\frac{${fmt(v)}}{${sc.n}} = ${fmt(varOfMean(sc))}` },
+      { tex: `\\bar{X} \\sim N(${sc.mu}, ${fmt(varOfMean(sc))})` },
     ];
   },
 };
@@ -1728,25 +1797,32 @@ const meanSe: Generator<MeanModelParams> = {
   sample: (rng, difficulty) => ({ ...sampleMean(rng), variance: difficulty > 1 }),
   render: (sc): Slide => {
     const c = MEAN_CONTEXTS[sc.ctx];
+    const se = seOf(sc);
+    const rounds = !sc.variance && !terminates(se, 4);
     return {
       kind: 'expression',
       prompt: [
-        say(`The ${c.quantity} has mean $${sc.mu}$ ${c.unit} and standard deviation $${sigmaOf(sc)}$ ${c.unit}. A random sample of $${sc.n}$ is taken.`),
-        say(sc.variance ? 'Find the variance of the sample mean, $\\bar{X}$.' : 'Find the standard deviation of the sample mean, $\\bar{X}$.'),
+        say(`The ${c.quantity} has mean $${sc.mu}$ ${c.unit} and standard deviation $${fmt(sc.sigma)}$ ${c.unit}. A random sample of $${sc.n}$ is taken.`),
+        say(
+          sc.variance
+            ? 'Find the variance of the sample mean, $\\bar{X}$.'
+            : `Find the standard deviation of the sample mean, $\\bar{X}$.${rounds ? ` ${askPrecision(SE_SF)}` : ''}`,
+        ),
       ],
       lead: sc.variance ? '\\text{Var}(\\bar{X}) =' : '\\sigma / \\sqrt{n} =',
       keypad: [],
-      answer: String(sc.variance ? sc.s * sc.s : sc.s),
+      answer: fmt(sc.variance ? varOfMean(sc) : seValue(se)),
+      ...(rounds ? { precision: SE_SF } : {}),
       domain: 'real',
       mode: 'exact',
     };
   },
   solution: (sc) => {
-    const sigma = sigmaOf(sc);
+    const v = sc.sigma * sc.sigma;
     return sc.variance
-      ? [{ tex: chain('\\text{Var}(\\bar{X})', `\\frac{\\sigma^2}{n} = \\frac{${sigma}^2}{${sc.n}}`, `\\frac{${sigma * sigma}}{${sc.n}} = ${sc.s * sc.s}`) }]
+      ? [{ tex: chain('\\text{Var}(\\bar{X})', `\\frac{\\sigma^2}{n} = \\frac{${fmt(sc.sigma)}^2}{${sc.n}}`, `\\frac{${fmt(v)}}{${sc.n}} = ${fmt(varOfMean(sc))}`) }]
       : [
-          { tex: `\\frac{\\sigma}{\\sqrt{n}} = \\frac{${sigma}}{\\sqrt{${sc.n}}} = \\frac{${sigma}}{${Math.round(Math.sqrt(sc.n))}} = ${sc.s}` },
+          { tex: chain('\\frac{\\sigma}{\\sqrt{n}}', `\\frac{${fmt(sc.sigma)}}{\\sqrt{${sc.n}}}`, seWorking(seOf(sc))) },
           { text: 'Divided by $\\sqrt{n}$, not by $n$: it is the variance that is divided by $n$.' },
         ];
   },
@@ -1758,14 +1834,17 @@ const meanSpreadTree: Generator<MeanScene> = {
   sample: (rng) => sampleMean(rng),
   render: (sc): Slide => {
     const c = MEAN_CONTEXTS[sc.ctx];
-    const sigma = sigmaOf(sc);
-    const root = Math.round(Math.sqrt(sc.n));
-    const answer = [sigma * sigma, sc.s * sc.s, sc.s];
+    const v = sc.sigma * sc.sigma;
+    const se = seOf(sc);
+    const answer = [fmt(v), fmt(varOfMean(sc)), seText(se)];
+    const slips = tokensOf([2 * sc.sigma, sc.sigma, varOfMean(sc) * Math.sqrt(sc.n), v * sc.n, sc.sigma / sc.n, v / Math.sqrt(sc.n)]);
     return {
       kind: 'tree',
       prompt: [
-        say(`The ${c.quantity} has standard deviation $${sigma}$ ${c.unit}. A random sample of $${sc.n}$ is taken.`),
-        say('Fill in $\\sigma^2$, then $\\frac{\\sigma^2}{n}$, then its square root, the standard deviation of $\\bar{X}$.'),
+        say(`The ${c.quantity} has standard deviation $${fmt(sc.sigma)}$ ${c.unit}. A random sample of $${sc.n}$ is taken.`),
+        say(
+          `Fill in $\\sigma^2$, then $\\frac{\\sigma^2}{n}$, then its square root, the standard deviation of $\\bar{X}$${terminates(se, 4) ? '' : ', to 3 significant figures'}.`,
+        ),
       ],
       expression: '\\sqrt{\\sigma^2 / n}',
       nodes: [
@@ -1773,16 +1852,16 @@ const meanSpreadTree: Generator<MeanScene> = {
         { id: 'vbar', from: ['var'] },
         { id: 'se', from: ['vbar'] },
       ],
-      bank: treeBank(answer, [2 * sigma, sigma, sc.s * sc.s * root, sigma * sigma * sc.n, sc.s * root, sc.s * sc.s * sc.s]),
-      answer: answer.map(String),
+      bank: decimalBank(answer, slips, 3),
+      answer,
     };
   },
   solution: (sc) => {
-    const sigma = sigmaOf(sc);
+    const v = sc.sigma * sc.sigma;
     return [
-      { tex: `\\sigma^2 = ${sigma}^2 = ${sigma * sigma}` },
-      { tex: `\\frac{\\sigma^2}{n} = \\frac{${sigma * sigma}}{${sc.n}} = ${sc.s * sc.s}` },
-      { tex: `\\sqrt{${sc.s * sc.s}} = ${sc.s}` },
+      { tex: `\\sigma^2 = ${fmt(sc.sigma)}^2 = ${fmt(v)}` },
+      { tex: `\\frac{\\sigma^2}{n} = \\frac{${fmt(v)}}{${sc.n}} = ${fmt(varOfMean(sc))}` },
+      { tex: chain(`\\sqrt{${fmt(varOfMean(sc))}}`, seWorking(seOf(sc))) },
     ];
   },
 };
@@ -1795,19 +1874,22 @@ interface SpreadParams {
   to: number;
 }
 
-/** Pairs of sample sizes whose standard errors are both whole for a suitable sigma. */
+/** Pairs of round sample sizes, one a whole number of times the other. */
 const PAIRS: [number, number][] = [
-  [4, 16],
-  [9, 36],
-  [4, 36],
+  [10, 40],
+  [20, 80],
   [25, 100],
-  [4, 100],
-  [16, 4],
-  [36, 9],
+  [16, 100],
+  [10, 90],
+  [40, 10],
+  [80, 20],
   [100, 25],
-  [36, 4],
-  [100, 4],
+  [16, 64],
+  [64, 16],
 ];
+
+/** A standard deviation of a sample mean, as a question writes it and as an option shows it. */
+const spreadOf = (sigma: number, n: number): number => seValue(sigma / Math.sqrt(n));
 
 /**
  * Change the sample size and say what happens to the spread of the sample
@@ -1818,35 +1900,39 @@ const meanSpreadChoice: Generator<SpreadParams> = {
   sample: (rng) => {
     for (;;) {
       const [from, to] = rng.pick(PAIRS);
-      const sigma = rng.int(2, 60);
-      const a = Math.sqrt(from);
-      const b = Math.sqrt(to);
-      if (sigma % a !== 0 || sigma % b !== 0) continue;
-      return { ctx: rng.int(0, MEAN_CONTEXTS.length - 1), sigma, from, to };
+      const ctx = rng.int(0, MEAN_CONTEXTS.length - 1);
+      const sigma = rng.pick(MEAN_CONTEXTS[ctx].sigmas);
+      const before = sigma / Math.sqrt(from);
+      const after = sigma / Math.sqrt(to);
+      if (!terminates(before, 4) && !roundedWell(before, SE_SF)) continue;
+      if (!terminates(after, 4) && !roundedWell(after, SE_SF)) continue;
+      return { ctx, sigma, from, to };
     }
   },
   render: ({ ctx, sigma, from, to }): Slide => {
     const c = MEAN_CONTEXTS[ctx];
-    const before = sigma / Math.sqrt(from);
-    const after = sigma / Math.sqrt(to);
+    const before = spreadOf(sigma, from);
+    const after = spreadOf(sigma, to);
+    const round = (v: number) => seValue(v);
     // Divided by n rather than its root, unchanged, the variance, and moved the wrong way.
-    const slips = [(before * from) / to, before, (sigma * sigma) / to, before * Math.sqrt(to / from)].filter((v) => terminates(v, 3));
+    const slips = [(before * from) / to, before, (sigma * sigma) / to, before * Math.sqrt(to / from)].map(round);
     const opts = options(
       { tex: fmt(after), answer: fmt(after) },
-      ...slips.map((v) => ({ tex: fmt(v), answer: fmt(v) })),
+      ...[...new Set(slips.filter((v) => v > 0 && v !== after))].map((v) => ({ tex: fmt(v), answer: fmt(v) })),
     ).slice(0, 4);
+    const figures = terminates(sigma / Math.sqrt(from), 4) && terminates(sigma / Math.sqrt(to), 4) ? '' : ', to 3 significant figures';
     return choiceSlide(
       [
-        say(`The ${c.quantity} has standard deviation $${sigma}$ ${c.unit}. With samples of $${from}$, $\\bar{X}$ has standard deviation $${fmt(before)}$.`),
-        say(`What is it with samples of $${to}$?`),
+        say(`The ${c.quantity} has standard deviation $${fmt(sigma)}$ ${c.unit}. With samples of $${from}$, $\\bar{X}$ has standard deviation $${fmt(before)}$${figures}.`),
+        say(`What is it with samples of $${to}$${figures}?`),
       ],
       opts,
     );
   },
   solution: ({ sigma, from, to }) => [
-    { tex: `\\frac{\\sigma}{\\sqrt{n}} = \\frac{${sigma}}{\\sqrt{${to}}} = \\frac{${sigma}}{${Math.sqrt(to)}} = ${fmt(sigma / Math.sqrt(to))}` },
+    { tex: chain('\\frac{\\sigma}{\\sqrt{n}}', `\\frac{${fmt(sigma)}}{\\sqrt{${to}}}`, seWorking(sigma / Math.sqrt(to))) },
     {
-      text: `The sample is $${fmt(to / from)}$ times the size, so the spread is divided by $\\sqrt{${fmt(to / from)}} = ${fmt(Math.sqrt(to / from))}$, not by $${fmt(to / from)}$.`,
+      text: `The sample is $${fmt(to / from)}$ times the size, so the spread is divided by $\\sqrt{${fmt(to / from)}}$, not by $${fmt(to / from)}$.`,
     },
   ],
 };
@@ -1855,24 +1941,30 @@ const meanSpreadChoice: Generator<SpreadParams> = {
  * Level 2, lesson 2: the test statistic z
  * ================================================================ */
 
-/** z from the sample: difficulty 1 above the mean only, difficulty 2 either side. */
+/** z from the sample, to two places: difficulty 1 above the mean only, difficulty 2 either side. */
 const zStat: Generator<MeanScene> = {
   id: 'hyp-z',
   sample: (rng, difficulty) => sampleMean(rng, { tails: difficulty > 1 ? TAILS : ['up'] }),
-  render: (sc): Slide => ({
-    kind: 'expression',
-    prompt: [
-      say(`${meanClaim(sc)} ${meanSample(sc)}`),
-      say('Find the test statistic $z$.'),
-    ],
-    lead: 'z =',
-    keypad: [],
-    answer: fmt(zOf(sc)),
-    domain: 'real',
-    mode: 'exact',
-  }),
+  render: (sc): Slide => {
+    const rounds = !terminates(zRaw(sc), 2);
+    return {
+      kind: 'expression',
+      prompt: [
+        say(`${meanClaim(sc)} ${meanSample(sc)}`),
+        say(
+          `Find the test statistic $z$.${terminates(seOf(sc), 4) ? '' : ' Take $\\sigma / \\sqrt{n}$ to 3 significant figures.'}${rounds ? ` ${askPrecision(Z_DP)}` : ''}`,
+        ),
+      ],
+      lead: 'z =',
+      keypad: [],
+      answer: fmt(zOf(sc)),
+      ...(rounds ? { precision: Z_DP } : {}),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
   solution: (sc) => [
-    { text: `Under $H_0$, $\\bar{X} \\sim N(${sc.mu}, ${sc.s * sc.s})$, so the standard deviation of $\\bar{X}$ is $${sc.s}$.` },
+    { text: `Under $H_0$, $\\bar{X} \\sim N(${sc.mu}, ${fmt(varOfMean(sc))})$, so the standard deviation of $\\bar{X}$ is $\\frac{${fmt(sc.sigma)}}{\\sqrt{${sc.n}}}$.` },
     { tex: zFormula(sc) },
   ],
 };
@@ -1882,29 +1974,30 @@ const standardiseSteps: Generator<MeanScene> = {
   id: 'hyp-standardise-steps',
   sample: (rng) => sampleMean(rng),
   render: (sc): Slide => {
-    const xbar = fmt(xbarOf(sc));
-    const sigma = sigmaOf(sc);
-    const root = Math.round(Math.sqrt(sc.n));
-    const d = (sc.zh * sc.s) / 100;
+    const xbar = fmt(sc.xbar);
+    const se = seOf(sc);
+    const s = seText(se);
+    const d = meanGap(sc);
     const z = zOf(sc);
+    const rounding = terminates(se, 4) ? (terminates(zRaw(sc), 2) ? '' : ' Give $z$ to 2 decimal places.') : ' Give $\\sigma \\div \\sqrt{n}$ to 3 significant figures and $z$ to 2 decimal places.';
     return {
       kind: 'steps',
       prompt: [
         say(`${meanClaim(sc)} ${meanSample(sc)}`),
-        say('Work out $z$ one step at a time.'),
+        say(`Work out $z$ one step at a time.${rounding}`),
       ],
-      start: ['(', xbar, '-', `${sc.mu}`, ')', '\\div', '(', `${sigma}`, '\\div', `\\sqrt{${sc.n}}`, ')'],
+      start: ['(', xbar, '-', `${sc.mu}`, ')', '\\div', '(', fmt(sc.sigma), '\\div', `\\sqrt{${sc.n}}`, ')'],
       reductions: [
-        { span: [1, 4], operator: 2, value: fmt(d), bank: stepBank(fmt(d), fmt(-d), fmt(d + 1), fmt(xbarOf(sc) + sc.mu)) },
-        { span: [4, 9], operator: 6, value: `${sc.s}`, bank: stepBank(`${sc.s}`, fmt(sigma / sc.n), `${sigma * root}`, `${sc.s * sc.s}`) },
-        { span: [0, 5], operator: 3, value: fmt(z), bank: stepBank(fmt(z), fmt(-z), fmt(d * sc.s), fmt(z * 10)) },
+        { span: [1, 4], operator: 2, value: fmt(d), bank: stepBank(fmt(d), fmt(-d), fmt(d + 1), fmt(sc.xbar + sc.mu)) },
+        { span: [4, 9], operator: 6, value: s, bank: stepBank(s, fmt(seValue(sc.sigma / sc.n)), fmt(seValue(sc.sigma * Math.sqrt(sc.n))), fmt(varOfMean(sc))) },
+        { span: [0, 5], operator: 3, value: fmt(z), bank: stepBank(fmt(z), fmt(-z), fmt(roundTo(d * se, Z_DP)), fmt(roundTo(z * 10, Z_DP))) },
       ],
     };
   },
   solution: (sc) => [
-    { tex: chain('\\bar{x} - \\mu', `${fmt(xbarOf(sc))} - ${sc.mu}`, fmt((sc.zh * sc.s) / 100)) },
-    { tex: `\\frac{\\sigma}{\\sqrt{n}} = \\frac{${sigmaOf(sc)}}{\\sqrt{${sc.n}}} = ${sc.s}` },
-    { tex: `z = ${fmt((sc.zh * sc.s) / 100)} \\div ${sc.s} = ${fmt(zOf(sc))}` },
+    { tex: chain('\\bar{x} - \\mu', `${fmt(sc.xbar)} - ${sc.mu}`, fmt(meanGap(sc))) },
+    { tex: chain('\\frac{\\sigma}{\\sqrt{n}}', `\\frac{${fmt(sc.sigma)}}{\\sqrt{${sc.n}}}`, seWorking(seOf(sc))) },
+    { tex: chain('z', `${fmt(meanGap(sc))} \\div ${seText(seOf(sc))}`, zWorking(zRaw(sc))) },
   ],
 };
 
@@ -1913,8 +2006,8 @@ const zTiles: Generator<MeanScene> = {
   id: 'hyp-z-tiles',
   sample: (rng) => sampleMean(rng),
   render: (sc): Slide => {
-    const xbar = fmt(xbarOf(sc));
-    const sigma = sigmaOf(sc);
+    const xbar = fmt(sc.xbar);
+    const sigma = fmt(sc.sigma);
     const answer = [xbar, `${sc.mu}`, `\\frac{${sigma}}{\\sqrt{${sc.n}}}`];
     return {
       kind: 'tiles',
@@ -1923,7 +2016,7 @@ const zTiles: Generator<MeanScene> = {
         say('Set up the test statistic.'),
       ],
       template: 'z = ({0} - {1}) \\div {2}',
-      bank: tokenBank(answer, [`\\frac{${sigma}}{${sc.n}}`, `\\frac{${sigma * sigma}}{${sc.n}}`, `${sigma}`, `${sc.n}`], 3),
+      bank: tokenBank(answer, [`\\frac{${sigma}}{${sc.n}}`, `\\frac{${fmt(sc.sigma * sc.sigma)}}{${sc.n}}`, sigma, `${sc.n}`], 3),
       answer,
     };
   },
@@ -1932,6 +2025,9 @@ const zTiles: Generator<MeanScene> = {
     { tex: zFormula(sc) },
   ],
 };
+
+/** z to the tenth the slider moves in. */
+const zTenth = (sc: MeanScene): number => roundTo(zRaw(sc), { dp: 1 });
 
 /**
  * Work out z and slide the line to it, over the standard normal curve with
@@ -1947,12 +2043,12 @@ const zSlider: Generator<MeanScene> = {
       kind: 'slider',
       prompt: [
         say(`${meanClaim(sc)} ${meanSuspicion(sc)} ${meanSample(sc)}`),
-        say(`The shaded tail is the ${sc.level}% critical region. Slide the line to $z$.`),
+        say(`The shaded tail is the ${sc.level}% critical region. Slide the line to $z$, to 1 decimal place.`),
       ],
       min: -Z_SPAN,
       max: Z_SPAN,
       step: 0.1,
-      answer: zOf(sc),
+      answer: zTenth(sc),
       readout: 'z = {v}',
       figure: {
         svg: normalSvg('The standard normal curve with one tail shaded as the critical region', {
@@ -1965,6 +2061,7 @@ const zSlider: Generator<MeanScene> = {
   },
   solution: (sc) => [
     { tex: zFormula(sc) },
+    { text: `To 1 decimal place, $z = ${fmt(zTenth(sc))}$.` },
     {
       text: inRegion(sc)
         ? `It lies in the shaded tail, beyond $${sc.tail === 'up' ? '' : '-'}${fmt(critical(sc.level, sc.tail))}$.`
@@ -2207,7 +2304,7 @@ const meanDecisionFlow: Generator<DecideParams> = {
   id: 'hyp-mean-decision-flow',
   sample: sampleDecide,
   render: (sc): Slide => {
-    const key = `${sc.ctx}|${sc.mu}|${sc.zh}|${sc.level}|${sc.tail}`;
+    const key = `${sc.ctx}|${sc.mu}|${fmt(sc.xbar)}|${sc.level}|${sc.tail}`;
     const right = zRegionTex(sc.level, sc.tail);
     const branches = [
       { label: `$${right}$`, to: 'in' },
@@ -2232,7 +2329,7 @@ const meanDecisionFlow: Generator<DecideParams> = {
         { id: 'region', ask: 'Which is the critical region?', branches: spun(branches, key) },
         {
           id: 'in',
-          ask: sc.hard ? 'Work out $z$. Is it in the critical region?' : `Is $z = ${fmt(zOf(sc))}$ in the critical region?`,
+          ask: sc.hard ? `Work out $z$.${zToTwo(zRaw(sc))} Is it in the critical region?` : `Is $z = ${fmt(zOf(sc))}$ in the critical region?`,
           branches: spun(
             [
               { label: 'Yes', outcome: verdictMean(sc, true) },
@@ -2284,13 +2381,30 @@ const conclusionChoice: Generator<DecideParams> = {
   ],
 };
 
+/** The critical sample mean, unrounded: `\mu` plus or minus the critical value's worth of standard deviations. */
+const xcRaw = (sc: MeanScene): number => sc.mu + (sc.tail === 'down' ? -1 : 1) * critical(sc.level, sc.tail) * seOf(sc);
+
+/** Whether the critical sample mean reads safely at two places, the same from a standard error already rounded. */
+function xcReadsWell(sc: MeanScene): boolean {
+  const raw = xcRaw(sc);
+  if (terminates(raw, 2)) return true;
+  const carried = sc.mu + (sc.tail === 'down' ? -1 : 1) * critical(sc.level, sc.tail) * seValue(seOf(sc));
+  return roundedWell(raw, XC_DP) && roundTo(carried, XC_DP) === roundTo(raw, XC_DP);
+}
+
 /**
  * The critical value of the sample mean itself: how far from the claimed
- * mean `\bar{x}` must be before the test rejects.
+ * mean `\bar{x}` must be before the test rejects. It runs on, so it is asked
+ * to two places.
  */
 const meanXbar: Generator<MeanScene> = {
   id: 'hyp-mean-xbar',
-  sample: (rng, difficulty) => sampleMean(rng, { tails: difficulty > 1 ? TAILS : ['up', 'down'] }),
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const sc = sampleMean(rng, { tails: difficulty > 1 ? TAILS : ['up', 'down'] });
+      if (xcReadsWell(sc)) return sc;
+    }
+  },
   render: (sc): Slide => {
     const c = MEAN_CONTEXTS[sc.ctx];
     const ask =
@@ -2299,15 +2413,17 @@ const meanXbar: Generator<MeanScene> = {
         : sc.tail === 'down'
           ? 'the largest sample mean'
           : 'the upper critical value of the sample mean';
+    const rounds = !terminates(xcRaw(sc), 2);
     return {
       kind: 'expression',
       prompt: [
         say(`${meanClaim(sc)} ${meanSuspicion(sc)} The test uses a random sample of $${sc.n}$ at the ${fmt(sc.level)}% level.`),
-        say(`Find ${ask} that would lead to rejecting $H_0$, in ${c.unit}.`),
+        say(`Find ${ask} that would lead to rejecting $H_0$, in ${c.unit}.${rounds ? ` ${askPrecision(XC_DP)}` : ''}`),
       ],
       lead: '\\bar{x} =',
       keypad: [],
-      answer: fmt(sc.mu + (sc.tail === 'down' ? -1 : 1) * critical(sc.level, sc.tail) * sc.s),
+      answer: fmt(roundTo(xcRaw(sc), XC_DP)),
+      ...(rounds ? { precision: XC_DP } : {}),
       domain: 'real',
       mode: 'exact',
     };
@@ -2315,10 +2431,17 @@ const meanXbar: Generator<MeanScene> = {
   solution: (sc) => {
     const c = critical(sc.level, sc.tail);
     const sign = sc.tail === 'down' ? '-' : '+';
+    const raw = xcRaw(sc);
     return [
-      { tex: `\\frac{\\sigma}{\\sqrt{n}} = \\frac{${sigmaOf(sc)}}{\\sqrt{${sc.n}}} = ${sc.s}` },
+      { tex: chain('\\frac{\\sigma}{\\sqrt{n}}', `\\frac{${fmt(sc.sigma)}}{\\sqrt{${sc.n}}}`, seWorking(seOf(sc))) },
       { text: `The boundary is where $z = ${sc.tail === 'down' ? '-' : ''}${fmt(c)}$, so $\\bar{x}$ sits that many standard deviations from $${sc.mu}$.` },
-      { tex: chain('\\bar{x}', `${sc.mu} ${sign} ${fmt(c)} \\times ${sc.s}`, fmt(sc.mu + (sc.tail === 'down' ? -1 : 1) * c * sc.s)) },
+      {
+        tex: chain(
+          '\\bar{x}',
+          `${sc.mu} ${sign} ${fmt(c)} \\times ${seText(seOf(sc))}`,
+          terminates(raw, 2) ? fmt(raw) : `${dots(raw)} \\approx ${fmt(roundTo(raw, XC_DP))}`,
+        ),
+      },
     ];
   },
 };
@@ -2328,15 +2451,29 @@ const zTree: Generator<MeanScene> = {
   id: 'hyp-z-tree',
   sample: (rng) => sampleMean(rng),
   render: (sc): Slide => {
-    const d = (sc.zh * sc.s) / 100;
-    const sigma = sigmaOf(sc);
+    const d = meanGap(sc);
+    const se = seOf(sc);
     const z = zOf(sc);
-    const answer = [fmt(d), `${sc.s}`, fmt(z)];
+    const answer = [fmt(d), seText(se), fmt(z)];
+    const slips = [
+      fmt(-d),
+      fmt(seValue(sc.sigma / sc.n)),
+      fmt(sc.sigma),
+      fmt(-z),
+      fmt(roundTo(d / sc.sigma, Z_DP)),
+      fmt(roundTo(d * se, Z_DP)),
+      fmt(roundTo(z + 1, Z_DP)),
+    ];
+    const rounding = terminates(se, 4)
+      ? terminates(zRaw(sc), 2)
+        ? ''
+        : ' Give $z$ to 2 decimal places.'
+      : ' Give $\\frac{\\sigma}{\\sqrt{n}}$ to 3 significant figures and $z$ to 2 decimal places.';
     return {
       kind: 'tree',
       prompt: [
         say(`${meanClaim(sc)} ${meanSample(sc)}`),
-        say('Top row: $\\bar{x} - \\mu$, then $\\frac{\\sigma}{\\sqrt{n}}$. Underneath, $z$.'),
+        say(`Top row: $\\bar{x} - \\mu$, then $\\frac{\\sigma}{\\sqrt{n}}$. Underneath, $z$.${rounding}`),
       ],
       expression: 'z = \\frac{\\bar{x} - \\mu}{\\sigma / \\sqrt{n}}',
       nodes: [
@@ -2344,14 +2481,14 @@ const zTree: Generator<MeanScene> = {
         { id: 'se', from: [] },
         { id: 'z', from: ['d', 'se'] },
       ],
-      bank: decimalBank(answer, [fmt(-d), fmt(sigma / sc.n), `${sigma}`, fmt(-z), fmt(d / sigma), fmt(d * sc.s), fmt(z + 1)], 3),
+      bank: decimalBank(answer, slips, 3),
       answer,
     };
   },
   solution: (sc) => [
-    { tex: chain('\\bar{x} - \\mu', `${fmt(xbarOf(sc))} - ${sc.mu}`, fmt((sc.zh * sc.s) / 100)) },
-    { tex: `\\frac{\\sigma}{\\sqrt{n}} = \\frac{${sigmaOf(sc)}}{\\sqrt{${sc.n}}} = ${sc.s}` },
-    { tex: `z = \\frac{${fmt((sc.zh * sc.s) / 100)}}{${sc.s}} = ${fmt(zOf(sc))}` },
+    { tex: chain('\\bar{x} - \\mu', `${fmt(sc.xbar)} - ${sc.mu}`, fmt(meanGap(sc))) },
+    { tex: chain('\\frac{\\sigma}{\\sqrt{n}}', `\\frac{${fmt(sc.sigma)}}{\\sqrt{${sc.n}}}`, seWorking(seOf(sc))) },
+    { tex: chain('z', `\\frac{${fmt(meanGap(sc))}}{${seText(seOf(sc))}}`, zWorking(zRaw(sc))) },
   ],
 };
 
@@ -2413,42 +2550,63 @@ interface GrowParams {
   sigma: number;
   from: number;
   to: number;
-  /** The gap xbar - mu, the same in both samples. */
+  /** The gap xbar - mu, the same in both samples, recorded to the context's places. */
   d: number;
 }
 
-/** The same sample mean from a sample of a different size: z moves with the square root of n. */
+/** z for a gap from a sample of n, unrounded. */
+const zFor = (d: number, sigma: number, n: number): number => d / (sigma / Math.sqrt(n));
+const z2dp = (v: number): number => roundTo(v, Z_DP);
+/** z in working: its digits, then to two places. */
+const zTex = (v: number): string => (terminates(v, 2) ? fmt(v) : `${dots(v)} \\approx ${fmt(z2dp(v))}`);
+
+/** A gap a sample mean could show: a whole number of the context's last recorded place. */
+function drawGap(rng: Rng, ctx: number, sigma: number): number {
+  const unit = 10 ** -MEAN_CONTEXTS[ctx].dp;
+  const most = Math.max(2, Math.round(sigma / 2 / unit));
+  return roundTo(rng.int(1, most) * unit, { dp: MEAN_CONTEXTS[ctx].dp });
+}
+
+/**
+ * The same sample mean from a sample of a different size: z moves with the
+ * square root of n. Both z are read at two places.
+ */
 const nChoice: Generator<GrowParams> = {
   id: 'hyp-n-choice',
   sample: (rng) => {
     for (;;) {
       const [from, to] = rng.pick(PAIRS);
-      const sigma = rng.int(2, 60);
-      if (sigma % Math.sqrt(from) !== 0 || sigma % Math.sqrt(to) !== 0) continue;
-      const d = rng.int(1, 40) / 10;
-      const z1 = d / (sigma / Math.sqrt(from));
-      const z2 = d / (sigma / Math.sqrt(to));
-      if (!terminates(z1, 2) || !terminates(z2, 2) || z1 < 0.2 || z2 < 0.2 || z1 > 6 || z2 > 6) continue;
-      return { ctx: rng.int(0, MEAN_CONTEXTS.length - 1), sigma, from, to, d };
+      const ctx = rng.int(0, MEAN_CONTEXTS.length - 1);
+      const sigma = rng.pick(MEAN_CONTEXTS[ctx].sigmas);
+      const d = drawGap(rng, ctx, sigma);
+      const z1 = zFor(d, sigma, from);
+      const z2 = zFor(d, sigma, to);
+      if (z1 < 0.2 || z2 < 0.2 || z1 > 5 || z2 > 5) continue;
+      if (!zReadsWell(d, sigma / Math.sqrt(from)) || !zReadsWell(d, sigma / Math.sqrt(to))) continue;
+      // Scaling the rounded z by the root of the ratio must give the same answer.
+      if (z2dp(z2dp(z1) * Math.sqrt(to / from)) !== z2dp(z2)) continue;
+      return { ctx, sigma, from, to, d };
     }
   },
   render: ({ ctx, sigma, from, to, d }): Slide => {
     const c = MEAN_CONTEXTS[ctx];
-    const z1 = d / (sigma / Math.sqrt(from));
-    const z2 = d / (sigma / Math.sqrt(to));
+    const z1 = z2dp(zFor(d, sigma, from));
+    const z2 = z2dp(zFor(d, sigma, to));
     const ratio = to / from;
-    const wrong = [z1 * ratio, z1, z1 / ratio, z2 * 2].filter((v) => terminates(v, 3));
+    const wrong = [z1 * ratio, z1, z1 / ratio, z2 * 2].map(z2dp).filter((v) => v > 0 && v !== z2);
     return choiceSlide(
       [
-        say(`The ${c.quantity} has standard deviation $${sigma}$ ${c.unit}. A sample of $${from}$ with mean $${fmt(d)}$ ${c.unit} above the claim gives $z = ${fmt(z1)}$.`),
-        say(`What $z$ does a sample of $${to}$ with the same mean give?`),
+        say(
+          `The ${c.quantity} has standard deviation $${fmt(sigma)}$ ${c.unit}. A sample of $${from}$ with mean $${fmt(d)}$ ${c.unit} above the claim gives $z = ${fmt(z1)}$, to 2 decimal places.`,
+        ),
+        say(`What $z$ does a sample of $${to}$ with the same mean give, to 2 decimal places?`),
       ],
-      options({ tex: fmt(z2), answer: fmt(z2) }, ...wrong.map((v) => ({ tex: fmt(v), answer: fmt(v) }))).slice(0, 4),
+      options({ tex: fmt(z2), answer: fmt(z2) }, ...[...new Set(wrong)].map((v) => ({ tex: fmt(v), answer: fmt(v) }))).slice(0, 4),
     );
   },
   solution: ({ sigma, from, to, d }) => [
-    { tex: `\\frac{\\sigma}{\\sqrt{n}} = \\frac{${sigma}}{\\sqrt{${to}}} = ${fmt(sigma / Math.sqrt(to))}` },
-    { tex: `z = \\frac{${fmt(d)}}{${fmt(sigma / Math.sqrt(to))}} = ${fmt(d / (sigma / Math.sqrt(to)))}` },
+    { tex: chain('\\frac{\\sigma}{\\sqrt{n}}', `\\frac{${fmt(sigma)}}{\\sqrt{${to}}}`, seWorking(sigma / Math.sqrt(to))) },
+    { tex: chain('z', `\\frac{${fmt(d)}}{${seText(sigma / Math.sqrt(to))}}`, zTex(zFor(d, sigma, to))) },
     {
       text: `The same gap from a sample $${fmt(to / from)}$ times ${to > from ? 'larger' : 'smaller'} gives a $z$ $\\sqrt{${fmt(to / from)}}$ times as big: ${to > from ? 'a larger sample makes the same difference more convincing' : 'a smaller sample makes it less convincing'}.`,
     },
@@ -2475,7 +2633,7 @@ const levelsFlow: Generator<DecideParams> = {
     }
   },
   render: (sc): Slide => {
-    const key = `${sc.ctx}|${sc.mu}|${sc.zh}|${sc.tail}`;
+    const key = `${sc.ctx}|${sc.mu}|${fmt(sc.xbar)}|${sc.tail}`;
     const words = meanWords(sc);
     const loose = fmt(critical(5, sc.tail));
     const strict = fmt(critical(1, sc.tail));
@@ -2485,7 +2643,7 @@ const levelsFlow: Generator<DecideParams> = {
       kind: 'flow',
       prompt: [
         say(`${meanClaim(sc)} ${meanSuspicion(sc)} ${meanSample(sc)}`),
-        say(sc.hard ? 'Work out $z$. At which levels does the test reject $H_0$?' : `$z = ${zText}$. At which levels does the test reject $H_0$?`),
+        say(sc.hard ? `Work out $z$.${zToTwo(zRaw(sc))} At which levels does the test reject $H_0$?` : `$z = ${zText}$. At which levels does the test reject $H_0$?`),
       ],
       subject: `H_1: \\mu ${OP[sc.tail]} ${sc.mu}`,
       steps: [
@@ -2535,47 +2693,54 @@ interface NTableParams {
   given: boolean;
 }
 
-/** Sigmas that make the standard error whole for at least three of the sample sizes. */
-const TABLE_SIGMAS = [12, 20, 24, 30, 36, 40, 60];
-
 /**
  * The same gap `\bar{x} - \mu` from samples of three sizes: the standard
  * error shrinks with `\sqrt{n}` and z grows, which is how a bigger sample
- * turns the same difference into a significant one.
+ * turns the same difference into a significant one. A standard error that
+ * runs on is written to three significant figures and each z to two places.
  */
 const nTable: Generator<NTableParams> = {
   id: 'hyp-n-table',
   sample: (rng, difficulty) => {
     for (;;) {
-      const sigma = rng.pick(TABLE_SIGMAS);
-      const fits = NS.filter((n) => sigma % Math.sqrt(n) === 0);
-      if (fits.length < 3) continue;
-      const ns = rng.sample(fits, 3).sort((a, b) => a - b);
-      const d = rng.int(1, 60) / 10;
-      const zs = ns.map((n) => d / (sigma / Math.sqrt(n)));
-      if (!zs.every((z) => terminates(z, 2)) || zs[0] < 0.1 || zs[2] > 8) continue;
-      return { ctx: rng.int(0, MEAN_CONTEXTS.length - 1), sigma, ns, d, given: difficulty < 2 };
+      const ctx = rng.int(0, MEAN_CONTEXTS.length - 1);
+      const sigma = rng.pick(MEAN_CONTEXTS[ctx].sigmas);
+      const ns = rng.sample(NS, 3).sort((a, b) => a - b);
+      const d = drawGap(rng, ctx, sigma);
+      const zs = ns.map((n) => zFor(d, sigma, n));
+      if (zs[0] < 0.1 || zs[2] > 8) continue;
+      if (!ns.every((n) => zReadsWell(d, sigma / Math.sqrt(n)))) continue;
+      if (!ns.every((n) => terminates(sigma / Math.sqrt(n), 4) || roundedWell(sigma / Math.sqrt(n), SE_SF))) continue;
+      // Three different z, or the table shows nothing moving.
+      if (new Set(zs.map(z2dp)).size < 3) continue;
+      return { ctx, sigma, ns, d, given: difficulty < 2 };
     }
   },
   render: ({ ctx, sigma, ns, d, given }): Slide => {
     const c = MEAN_CONTEXTS[ctx];
     const se = (n: number) => sigma / Math.sqrt(n);
-    const answer = ns.flatMap((n) => (given ? [fmt(d / se(n))] : [fmt(se(n)), fmt(d / se(n))]));
+    const zText = (n: number) => fmt(z2dp(d / seValue(se(n))));
+    const answer = ns.flatMap((n) => (given ? [zText(n)] : [seText(se(n)), zText(n)]));
     const unused = NS.filter((n) => !ns.includes(n));
     const slips = [
-      ...unused.map((n) => fmt(d / se(n))),
-      ...unused.map((n) => fmt(se(n))),
-      ...ns.map((n) => fmt(d / (sigma / n))),
-      ...ns.map((n) => fmt(d * se(n))),
+      ...unused.map(zText),
+      ...unused.map((n) => seText(se(n))),
+      ...ns.map((n) => fmt(z2dp(d / (sigma / n)))),
+      ...ns.map((n) => fmt(z2dp(d * se(n)))),
     ].filter((t) => t.length <= 6);
+    const rounding = ns.every((n) => terminates(se(n), 4)) ? '' : ' Give $\\sigma / \\sqrt{n}$ to 3 significant figures';
     return {
       kind: 'table',
       prompt: [
-        say(`The ${c.quantity} has standard deviation $${sigma}$ ${c.unit}. Three samples of different sizes each have a mean $${fmt(d)}$ ${c.unit} above the claimed mean.`),
-        say(given ? 'Fill in $z$ for each sample.' : 'Fill in the standard deviation of $\\bar{X}$ and then $z$ for each sample.'),
+        say(`The ${c.quantity} has standard deviation $${fmt(sigma)}$ ${c.unit}. Three samples of different sizes each have a mean $${fmt(d)}$ ${c.unit} above the claimed mean.`),
+        say(
+          given
+            ? 'Fill in $z$ for each sample, to 2 decimal places.'
+            : `Fill in the standard deviation of $\\bar{X}$ and then $z$ for each sample.${rounding ? `${rounding} and $z$ to 2 decimal places.` : ' Give $z$ to 2 decimal places.'}`,
+        ),
       ],
       columns: ['n', '\\sigma / \\sqrt{n}', 'z'],
-      rows: ns.map((n) => (given ? [`${n}`, fmt(se(n)), null] : [`${n}`, null, null])),
+      rows: ns.map((n) => (given ? [`${n}`, seText(se(n)), null] : [`${n}`, null, null])),
       bank: decimalBank(answer, slips, 3),
       answer,
     };
@@ -2584,8 +2749,8 @@ const nTable: Generator<NTableParams> = {
     ...ns.map((n) => ({
       tex: aligned([
         `n &= ${n}`,
-        `\\frac{\\sigma}{\\sqrt{n}} &= \\frac{${sigma}}{${Math.sqrt(n)}} = ${fmt(sigma / Math.sqrt(n))}`,
-        `z &= \\frac{${fmt(d)}}{${fmt(sigma / Math.sqrt(n))}} = ${fmt(d / (sigma / Math.sqrt(n)))}`,
+        `\\frac{\\sigma}{\\sqrt{n}} &= \\frac{${fmt(sigma)}}{\\sqrt{${n}}} = ${seWorking(sigma / Math.sqrt(n))}`,
+        `z &= \\frac{${fmt(d)}}{${seText(sigma / Math.sqrt(n))}} = ${zTex(zFor(d, sigma, n))}`,
       ]),
     })),
     { text: 'The same difference counts for more in a bigger sample, since its mean varies less.' },
@@ -3712,51 +3877,94 @@ interface MeanErrScene {
   ctx: number;
   mu: number;
   n: number;
-  /** sigma / sqrt(n), whole. */
-  s: number;
+  sigma: number;
   tail: OneTail;
   level: number;
-  /** How far the true mean sits from the claim, towards `H_1`, in hundredths of s. */
-  dh: number;
+  /** How far the true mean sits from the claim, towards `H_1`, recorded to the context's places. */
+  gap: number;
 }
 
 const mSign = (tail: OneTail): number => (tail === 'up' ? 1 : -1);
 const mCrit = (sc: Pick<MeanErrScene, 'level' | 'tail'>): number => critical(sc.level, sc.tail);
-const mXc = (sc: MeanErrScene): number => sc.mu + mSign(sc.tail) * mCrit(sc) * sc.s;
-const mTrue = (sc: MeanErrScene): number => sc.mu + (mSign(sc.tail) * sc.dh * sc.s) / 100;
-/** The boundary of the region standardised under the true mean: `(x_c - mu_1) / s`. */
-const mZ = (sc: MeanErrScene): number => (mSign(sc.tail) * Math.round(mCrit(sc) * 1000 - sc.dh * 10)) / 1000;
+const mSe = (sc: Pick<MeanErrScene, 'sigma' | 'n'>): number => sc.sigma / Math.sqrt(sc.n);
+/** The critical sample mean, unrounded. */
+const mXcRaw = (sc: MeanErrScene): number => sc.mu + mSign(sc.tail) * mCrit(sc) * mSe(sc);
+/** The critical sample mean to two places, as the learner writes it and the prompt states it. */
+const mXc = (sc: MeanErrScene): number => roundTo(mXcRaw(sc), XC_DP);
+const mTrue = (sc: Pick<MeanErrScene, 'mu' | 'tail' | 'gap' | 'ctx'>): number =>
+  roundTo(sc.mu + mSign(sc.tail) * sc.gap, { dp: MEAN_CONTEXTS[sc.ctx].dp });
+/** The boundary standardised under the true mean, unrounded: `(x_c - mu_1) / (sigma / sqrt(n))`. */
+const mZRaw = (sc: MeanErrScene): number => (mXc(sc) - mTrue(sc)) / mSe(sc);
+/** That z to two places, the value the table is read at. */
+const mZ = (sc: MeanErrScene): number => roundTo(mZRaw(sc), Z_DP);
+/** The z of the true mean itself, a tempting value to read the table at instead. */
+const mDecoy = (sc: MeanErrScene): number => roundTo(sc.gap / mSe(sc), Z_DP);
 /** P(Type II) in ten-thousandths: the sample mean falls short of the boundary. */
 const mBeta = (sc: MeanErrScene): number => (sc.tail === 'up' ? belowQ(mZ(sc)) : 10000 - belowQ(mZ(sc)));
+
+/**
+ * Whether the critical mean reads safely at two places, and z at two places
+ * after it, however the learner carries the standard error and the boundary.
+ */
+function mReadsWell(sc: MeanErrScene): boolean {
+  const se = mSe(sc);
+  const xc = mXcRaw(sc);
+  if (!terminates(xc, 2)) {
+    if (!roundedWell(xc, XC_DP)) return false;
+    if (roundTo(sc.mu + mSign(sc.tail) * mCrit(sc) * seValue(se), XC_DP) !== mXc(sc)) return false;
+  }
+  const z = mZRaw(sc);
+  if (terminates(z, 2)) return true;
+  return (
+    roundedWell(z, Z_DP) &&
+    roundTo((mXc(sc) - mTrue(sc)) / seValue(se), Z_DP) === mZ(sc) &&
+    roundTo((xc - mTrue(sc)) / se, Z_DP) === mZ(sc)
+  );
+}
+
+/** A gap a true mean could sit at: a whole number of the context's last place, about `size` standard errors. */
+const gapNear = (ctx: number, size: number, se: number): number => {
+  const unit = 10 ** -MEAN_CONTEXTS[ctx].dp;
+  return roundTo(Math.max(1, Math.round((size * se) / unit)) * unit, { dp: MEAN_CONTEXTS[ctx].dp });
+};
 
 function sampleMeanErr(rng: Rng): MeanErrScene {
   for (;;) {
     const ctx = rng.int(0, MEAN_CONTEXTS.length - 1);
-    const mu = rng.pick(MEAN_CONTEXTS[ctx].mus);
+    const c = MEAN_CONTEXTS[ctx];
+    const mu = rng.pick(c.mus);
     const n = rng.pick(NS);
-    const s = rng.int(1, 8);
-    if (sigmaOf({ s, n }) * 3 > mu) continue;
-    const sc: MeanErrScene = { ctx, mu, n, s, tail: rng.pick(ONE_TAILS), level: rng.pick([5, 1]), dh: rng.int(10, 80) * 5 };
+    const sigma = rng.pick(c.sigmas);
+    const gap = gapNear(ctx, rng.int(50, 400) / 100, sigma / Math.sqrt(n));
+    const sc: MeanErrScene = { ctx, mu, n, sigma, tail: rng.pick(ONE_TAILS), level: rng.pick([5, 1]), gap };
+    if (!mReadsWell(sc)) continue;
     const z = Math.abs(mZ(sc));
-    if (z < 0.05 || z > 2.9 || !terminates((sc.dh * s) / 100, 1)) continue;
-    if (!phiQuotable(z) || !phiQuotable(sc.dh / 100) || Math.abs(z - sc.dh / 100) < 1e-9) continue;
+    if (z < 0.05 || z > 2.9) continue;
+    if (!phiQuotable(z) || !phiQuotable(mDecoy(sc)) || z === mDecoy(sc)) continue;
     return sc;
   }
 }
 
 function meanErrText(sc: MeanErrScene): string {
   const c = MEAN_CONTEXTS[sc.ctx];
-  return `The mean ${c.quantity} is claimed to be $${sc.mu}$ ${c.unit}, standard deviation $${sigmaOf(sc)}$ ${c.unit}. A researcher suspects it ${SUSPECT[sc.tail]}, and tests a random sample of $${sc.n}$ at the ${sc.level}% level.`;
+  return `The mean ${c.quantity} is claimed to be $${sc.mu}$ ${c.unit}, standard deviation $${fmt(sc.sigma)}$ ${c.unit}. A researcher suspects it ${SUSPECT[sc.tail]}, and tests a random sample of $${sc.n}$ at the ${sc.level}% level.`;
 }
 
 const meanTruth = (sc: MeanErrScene): string => `In fact the mean is $${fmt(mTrue(sc))}$ ${MEAN_CONTEXTS[sc.ctx].unit}.`;
 
 const xcTex = (sc: MeanErrScene): string => `\\bar{x} ${sc.tail === 'up' ? '>' : '<'} ${fmt(mXc(sc))}`;
 
+/** The rounding a Type II question asks for. */
+const meanErrRounding = (given: boolean): string =>
+  given
+    ? 'Round $z$ to 2 decimal places before reading the table.'
+    : 'Give the critical value of $\\bar{x}$ to 2 decimal places, and round $z$ to 2 decimal places before reading the table.';
+
 function meanErrSolution(sc: MeanErrScene): SolutionStep[] {
   const c = fmt(mCrit(sc));
   const sign = sc.tail === 'up' ? '+' : '-';
   const z = mZ(sc);
+  const xc = mXcRaw(sc);
   const miss = sc.tail === 'up' ? `P(\\bar{X} < ${fmt(mXc(sc))})` : `P(\\bar{X} > ${fmt(mXc(sc))})`;
   const zLine =
     sc.tail === 'up'
@@ -3767,10 +3975,16 @@ function meanErrSolution(sc: MeanErrScene): SolutionStep[] {
         ? chain(`P(Z > ${fmt(z)})`, `\\Phi(${fmt(-z)})`, P4(mBeta(sc)))
         : chain(`P(Z > ${fmt(z)})`, `1 - \\Phi(${fmt(z)})`, P4(mBeta(sc)));
   return [
-    { tex: `\\frac{\\sigma}{\\sqrt{n}} = \\frac{${sigmaOf(sc)}}{\\sqrt{${sc.n}}} = ${sc.s}` },
-    { tex: chain('\\bar{x}_c', `${sc.mu} ${sign} ${c} \\times ${sc.s}`, fmt(mXc(sc))) },
+    { tex: chain('\\frac{\\sigma}{\\sqrt{n}}', `\\frac{${fmt(sc.sigma)}}{\\sqrt{${sc.n}}}`, seWorking(mSe(sc))) },
+    {
+      tex: chain(
+        '\\bar{x}_c',
+        `${sc.mu} ${sign} ${c} \\times ${seText(mSe(sc))}`,
+        terminates(xc, 2) ? fmt(xc) : `${dots(xc)} \\approx ${fmt(mXc(sc))}`,
+      ),
+    },
     { text: `A Type II error keeps $H_0$: the sample mean misses the region, $${miss}$, when the true mean is $${fmt(mTrue(sc))}$.` },
-    { tex: chain('z', `\\frac{${fmt(mXc(sc))} - ${fmt(mTrue(sc))}}{${sc.s}}`, fmt(z)) },
+    { tex: chain('z', `\\frac{${fmt(mXc(sc))} - ${fmt(mTrue(sc))}}{${seText(mSe(sc))}}`, zWorking(mZRaw(sc))) },
     { tex: zLine },
   ];
 }
@@ -3789,8 +4003,8 @@ const meanBeta: Generator<MeanBetaParams> = {
     prompt: [
       say(meanErrText(sc)),
       say(`${sc.given ? `It rejects $H_0$ when $${xcTex(sc)}$. ` : ''}${meanTruth(sc)}`),
-      ...phiQuotes([Math.abs(mZ(sc)), sc.dh / 100]),
-      say('Find the probability of a Type II error.'),
+      ...phiQuotes([Math.abs(mZ(sc)), mDecoy(sc)]),
+      say(`Find the probability of a Type II error. ${meanErrRounding(sc.given)}`),
     ],
     lead: 'P(\\text{Type II}) =',
     keypad: [],
@@ -3810,20 +4024,24 @@ const meanMissTree: Generator<MeanErrScene & { hint: boolean }> = {
     const z = mZ(sc);
     const sign = mSign(sc.tail);
     const beta = mBeta(sc);
+    const se = mSe(sc);
     const answer = [fmt(mXc(sc)), fmt(z), P4(beta)];
     const slips = [
-      fmt(sc.mu + sign * mCrit(sc) * sigmaOf(sc)),
-      fmt(mTrue(sc) + sign * mCrit(sc) * sc.s),
+      fmt(roundTo(sc.mu + sign * mCrit(sc) * sc.sigma, XC_DP)),
+      fmt(roundTo(mTrue(sc) + sign * mCrit(sc) * se, XC_DP)),
       fmt(-z),
       P4(10000 - beta),
-      P4(phiQ(sc.dh / 100)),
+      P4(phiQ(mDecoy(sc))),
     ];
+    const hint = terminates(se, 4)
+      ? ` The standard deviation of $\\bar{X}$ is $${seText(se)}$ ${MEAN_CONTEXTS[sc.ctx].unit}.`
+      : ` The standard deviation of $\\bar{X}$ is $${seText(se)}$ ${MEAN_CONTEXTS[sc.ctx].unit}, to 3 significant figures.`;
     return {
       kind: 'tree',
       prompt: [
-        say(`${meanErrText(sc)} ${meanTruth(sc)}${sc.hint ? ` The standard deviation of $\\bar{X}$ is $${sc.s}$ ${MEAN_CONTEXTS[sc.ctx].unit}.` : ''}`),
-        ...phiQuotes([Math.abs(z), sc.dh / 100]),
-        say('Top: the critical value of $\\bar{x}$. Then its $z$ under the true mean. Then P(Type II).'),
+        say(`${meanErrText(sc)} ${meanTruth(sc)}${sc.hint ? hint : ''}`),
+        ...phiQuotes([Math.abs(z), mDecoy(sc)]),
+        say(`Top: the critical value of $\\bar{x}$, to 2 decimal places. Then its $z$ under the true mean, to 2 decimal places. Then P(Type II).`),
       ],
       expression: 'P(\\text{Type II})',
       nodes: [
@@ -3843,7 +4061,7 @@ interface NBetaParams {
   mu: number;
   sigma: number;
   ns: number[];
-  /** |mu_1 - mu_0|, to one place. */
+  /** |mu_1 - mu_0|, recorded to the context's places. */
   gap: number;
   tail: OneTail;
   level: number;
@@ -3851,10 +4069,20 @@ interface NBetaParams {
   given: boolean;
 }
 
-/** The boundary standardised under the true mean, for sample size n. */
-function nZ({ sigma, gap, tail, level }: Pick<NBetaParams, 'sigma' | 'gap' | 'tail' | 'level'>, n: number): number {
-  const d = gap / (sigma / Math.sqrt(n));
-  return (mSign(tail) * Math.round(critical(level, tail) * 1000 - d * 1000)) / 1000;
+/** The boundary standardised under the true mean for sample size n, unrounded: `c - gap / (sigma / sqrt n)`, signed by the tail. */
+const nZRaw = ({ sigma, gap, tail, level }: Pick<NBetaParams, 'sigma' | 'gap' | 'tail' | 'level'>, n: number): number =>
+  mSign(tail) * (critical(level, tail) - gap / (sigma / Math.sqrt(n)));
+
+/** That z to two places. */
+const nZ = (params: Pick<NBetaParams, 'sigma' | 'gap' | 'tail' | 'level'>, n: number): number => roundTo(nZRaw(params, n), Z_DP);
+
+/** Whether that z reads safely, the same from a standard error already rounded. */
+function nZReadsWell(params: Pick<NBetaParams, 'sigma' | 'gap' | 'tail' | 'level'>, n: number): boolean {
+  const raw = nZRaw(params, n);
+  if (terminates(raw, 2)) return true;
+  const se = seValue(params.sigma / Math.sqrt(n));
+  const carried = mSign(params.tail) * (critical(params.level, params.tail) - params.gap / se);
+  return roundedWell(raw, Z_DP) && roundTo(carried, Z_DP) === roundTo(raw, Z_DP);
 }
 
 const nBeta = (params: Pick<NBetaParams, 'sigma' | 'gap' | 'tail' | 'level'>, n: number): number => {
@@ -3865,23 +4093,22 @@ const nBeta = (params: Pick<NBetaParams, 'sigma' | 'gap' | 'tail' | 'level'>, n:
 /**
  * The same test and the same true mean at three sample sizes: at a fixed
  * level, P(Type II) shrinks as n grows, because the sample mean varies less.
+ * Each z is read at two places.
  */
 const betaNTable: Generator<NBetaParams> = {
   id: 'hyp-beta-n-table',
   sample: (rng, difficulty) => {
     for (;;) {
-      const sigma = rng.pick(TABLE_SIGMAS);
       const ctx = rng.int(0, MEAN_CONTEXTS.length - 1);
-      const mu = rng.pick(MEAN_CONTEXTS[ctx].mus);
-      if (sigma * 3 > mu) continue;
-      const fits = NS.filter((n) => sigma % Math.sqrt(n) === 0);
-      if (fits.length < 3) continue;
-      const ns = rng.sample(fits, 3).sort((a, b) => a - b);
-      const gap = rng.int(1, 150) / 10;
+      const c = MEAN_CONTEXTS[ctx];
+      const sigma = rng.pick(c.sigmas);
+      const mu = rng.pick(c.mus);
+      const ns = rng.sample(NS, 3).sort((a, b) => a - b);
+      const gap = gapNear(ctx, rng.int(30, 200) / 100, sigma / Math.sqrt(ns[1]));
       const tail = rng.pick(ONE_TAILS);
       const level = rng.pick([5, 1]);
       const params = { sigma, gap, tail, level };
-      if (!ns.every((n) => terminates(gap / (sigma / Math.sqrt(n)), 2))) continue;
+      if (!ns.every((n) => nZReadsWell(params, n))) continue;
       const zs = ns.map((n) => nZ(params, n));
       if (zs.some((z) => Math.abs(z) < 0.05 || Math.abs(z) > 2.9 || !phiQuotable(Math.abs(z)))) continue;
       if (new Set(zs.map(Math.abs)).size < 3) continue;
@@ -3896,17 +4123,17 @@ const betaNTable: Generator<NBetaParams> = {
     const answer = ns.flatMap((_, i) => [...(given ? [] : [fmt(zs[i])]), P4(betas[i])]);
     const slips = [
       ...betas.map((b) => P4(10000 - b)),
-      ...(given ? [] : [...zs.map((z) => fmt(-z)), ...ns.map((n) => fmt(critical(level, tail) - (gap * n) / sigma))]),
+      ...(given ? [] : [...zs.map((z) => fmt(-z)), ...ns.map((n) => fmt(roundTo(critical(level, tail) - (gap * n) / sigma, Z_DP)))]),
     ].filter((t) => t.length <= 7);
-    const truth = mu + mSign(tail) * gap;
+    const truth = mTrue({ mu, tail, gap, ctx });
     return {
       kind: 'table',
       prompt: [
         say(
-          `The mean ${c.quantity} is claimed to be $${mu}$ ${c.unit}, standard deviation $${sigma}$ ${c.unit}. A researcher suspects it ${SUSPECT[tail]} and plans a test at the ${level}% level. In fact the mean is $${fmt(truth)}$ ${c.unit}.`,
+          `The mean ${c.quantity} is claimed to be $${mu}$ ${c.unit}, standard deviation $${fmt(sigma)}$ ${c.unit}. A researcher suspects it ${SUSPECT[tail]} and plans a test at the ${level}% level. In fact the mean is $${fmt(truth)}$ ${c.unit}.`,
         ),
         say(
-          `$z$ is the critical boundary standardised under the true mean. ${given ? 'Fill in' : 'Fill in $z$ and'} $\\beta = P(\\text{Type II})$.`,
+          `$z$ is the critical boundary standardised under the true mean, to 2 decimal places. ${given ? 'Fill in' : 'Fill in $z$ and'} $\\beta = P(\\text{Type II})$.`,
         ),
         ...phiQuotes(zs.map(Math.abs)),
       ],
@@ -3921,17 +4148,17 @@ const betaNTable: Generator<NBetaParams> = {
     const c = critical(level, tail);
     const up = tail === 'up';
     const unit = MEAN_CONTEXTS[ctx].unit;
-    const tailTex = (z: number): string =>
-      up ? `P(Z < ${fmt(z)})` : `P(Z > ${fmt(z)})`;
+    const tailTex = (z: number): string => (up ? `P(Z < ${fmt(z)})` : `P(Z > ${fmt(z)})`);
     return [
       {
-        text: `The boundary is $\\bar{x}_c = ${mu} ${up ? '+' : '-'} ${fmt(c)} \\times \\frac{${sigma}}{\\sqrt{n}}$, and the true mean is $${fmt(gap)}$ ${unit} ${up ? 'above' : 'below'} the claim. Measured from the true mean in standard deviations of $\\bar{X}$, the boundary sits at $z = ${up ? '' : '-'}\\left(${fmt(c)} - \\frac{${fmt(gap)}}{${sigma} / \\sqrt{n}}\\right)$.`,
+        text: `The boundary is $\\bar{x}_c = ${mu} ${up ? '+' : '-'} ${fmt(c)} \\times \\frac{${fmt(sigma)}}{\\sqrt{n}}$, and the true mean is $${fmt(gap)}$ ${unit} ${up ? 'above' : 'below'} the claim. Measured from the true mean in standard deviations of $\\bar{X}$, the boundary sits at $z = ${up ? '' : '-'}\\left(${fmt(c)} - \\frac{${fmt(gap)}}{${fmt(sigma)} / \\sqrt{n}}\\right)$.`,
       },
       ...ns.map((n) => ({
         tex: aligned([
           `n &= ${n}`,
-          `z &= ${up ? '' : '-('}${fmt(c)} - \\frac{${fmt(gap)}}{${fmt(sigma / Math.sqrt(n))}}${up ? '' : ')'}`,
-          `&= ${fmt(nZ(params, n))}`,
+          `\\frac{\\sigma}{\\sqrt{n}} &= ${seWorking(sigma / Math.sqrt(n))}`,
+          `z &= ${up ? '' : '-('}${fmt(c)} - \\frac{${fmt(gap)}}{${seText(sigma / Math.sqrt(n))}}${up ? '' : ')'}`,
+          `&= ${zWorking(nZRaw(params, n))}`,
           `\\beta &= ${tailTex(nZ(params, n))}`,
           `&= ${P4(nBeta(params, n))}`,
         ]),
@@ -3945,10 +4172,10 @@ type MeanChange = 'bigger' | 'smaller' | 'stricter' | 'looser' | 'further' | 'cl
 
 interface MeanChangeParams extends MeanErrScene {
   change: MeanChange;
-  /** The new sample size, level or true mean's shift, as the change needs. */
+  /** The new sample size, level or true mean's gap, as the change needs. */
   n2: number;
   level2: number;
-  dh2: number;
+  gap2: number;
 }
 
 const MEAN_CHANGE_ANSWER: Record<'same-down' | 'same-up' | 'down-up' | 'up-down', string> = {
@@ -3980,14 +4207,15 @@ const meanErrorChoice: Generator<MeanChangeParams> = {
       const n2 = rng.pick(pool);
       const level = change === 'stricter' ? 5 : change === 'looser' ? 1 : sc.level;
       const level2 = change === 'stricter' ? 1 : change === 'looser' ? 5 : level;
-      const dh2 = change === 'further' ? sc.dh + rng.int(1, 10) * 10 : change === 'closer' ? sc.dh - rng.int(1, 5) * 5 : sc.dh;
-      if (dh2 <= 0 || !terminates((dh2 * sc.s) / 100, 1)) continue;
-      return { ...sc, level, change, n2, level2, dh2 };
+      const dp = { dp: MEAN_CONTEXTS[sc.ctx].dp };
+      const gap2 = change === 'further' ? roundTo(sc.gap * rng.pick([1.5, 2]), dp) : change === 'closer' ? roundTo(sc.gap / 2, dp) : sc.gap;
+      if (gap2 <= 0 || (change !== 'further' && change !== 'closer') !== (gap2 === sc.gap)) continue;
+      return { ...sc, level, change, n2, level2, gap2 };
     }
   },
   render: (sc): Slide => {
     const c = MEAN_CONTEXTS[sc.ctx];
-    const shifted = { ...sc, dh: sc.dh2 };
+    const shifted = { ...sc, gap: sc.gap2 };
     const setup =
       sc.change === 'bigger' || sc.change === 'smaller'
         ? `The sample size is changed from $${sc.n}$ to $${sc.n2}$, still at the ${sc.level}% level.`
@@ -3998,7 +4226,7 @@ const meanErrorChoice: Generator<MeanChangeParams> = {
     return keyedChoice(
       [say(`${meanErrText(sc)} ${meanTruth(sc)}`), say(setup), say('What happens to the probabilities of the two errors?')],
       options({ tex: right }, ...Object.values(MEAN_CHANGE_ANSWER).filter((t) => t !== right).map((tex) => ({ tex }))),
-      `${sc.ctx}|${sc.mu}|${sc.n}|${sc.n2}|${sc.s}|${sc.dh}|${sc.dh2}|${sc.level}`,
+      `${sc.ctx}|${sc.mu}|${sc.n}|${sc.n2}|${sc.sigma}|${sc.gap}|${sc.gap2}|${sc.level}`,
       false,
     );
   },
@@ -4008,7 +4236,7 @@ const meanErrorChoice: Generator<MeanChangeParams> = {
       return [
         { text: `The level is still ${sc.level}%, so P(Type I) is still $${asProb(sc.level)}$: $\\bar{X}$ is continuous, so the region is drawn to hold exactly the level under $H_0$.` },
         {
-          text: `With $n = ${sc.n2}$ the standard deviation of $\\bar{X}$ is $\\frac{${sigmaOf(sc)}}{\\sqrt{${sc.n2}}}$, ${sc.change === 'bigger' ? 'smaller, so the sample mean is less likely to fall short of the boundary when the mean really has moved: P(Type II) falls' : 'larger, so the sample mean is more likely to fall short of the boundary: P(Type II) rises'}.`,
+          text: `With $n = ${sc.n2}$ the standard deviation of $\\bar{X}$ is $\\frac{${fmt(sc.sigma)}}{\\sqrt{${sc.n2}}}$, ${sc.change === 'bigger' ? 'smaller, so the sample mean is less likely to fall short of the boundary when the mean really has moved: P(Type II) falls' : 'larger, so the sample mean is more likely to fall short of the boundary: P(Type II) rises'}.`,
         },
       ];
     }
@@ -4023,7 +4251,7 @@ const meanErrorChoice: Generator<MeanChangeParams> = {
     return [
       { text: 'The test itself has not changed, so P(Type I) is the same.' },
       {
-        text: `A true mean of $${fmt(mTrue({ ...sc, dh: sc.dh2 }))}$ ${c.unit} is ${sc.change === 'further' ? 'further from' : 'closer to'} the claim, so the sample mean is ${sc.change === 'further' ? 'less' : 'more'} likely to fall short of the boundary: P(Type II) ${sc.change === 'further' ? 'falls' : 'rises'}.`,
+        text: `A true mean of $${fmt(mTrue({ ...sc, gap: sc.gap2 }))}$ ${c.unit} is ${sc.change === 'further' ? 'further from' : 'closer to'} the claim, so the sample mean is ${sc.change === 'further' ? 'less' : 'more'} likely to fall short of the boundary: P(Type II) ${sc.change === 'further' ? 'falls' : 'rises'}.`,
       },
     ];
   },
@@ -5486,89 +5714,124 @@ interface DiffContext {
   /** Names a group after the quantity: "from machine", as in "from machine A". */
   of: string;
   mus: number[];
+  /** Standard deviations a textbook would print for it. */
+  sigmas: number[];
+  /** The decimal places a sample mean of it is recorded to. */
+  dp: number;
 }
 
 const DIFF_CONTEXTS: DiffContext[] = [
-  { quantity: 'mass of a bag of flour', unit: 'grams', group: 'machine', of: 'from machine', mus: [500, 750, 1000] },
-  { quantity: 'time a pizza delivery takes', unit: 'minutes', group: 'branch', of: 'from branch', mus: range(25, 45) },
-  { quantity: 'length of a bolt', unit: 'millimetres', group: 'factory', of: 'from factory', mus: range(40, 80, 5) },
-  { quantity: 'lifetime of a battery', unit: 'hours', group: 'brand', of: 'for brand', mus: range(100, 200, 10) },
-  { quantity: 'height of a seedling', unit: 'centimetres', group: 'compost', of: 'in compost', mus: range(12, 30) },
-  { quantity: 'mark on a test', unit: 'marks', group: 'school', of: 'at school', mus: range(40, 80) },
-  { quantity: 'time to run 400 m', unit: 'seconds', group: 'club', of: 'at club', mus: range(55, 75) },
+  { quantity: 'mass of a bag of flour', unit: 'grams', group: 'machine', of: 'from machine', mus: [500, 750, 1000], sigmas: [5, 8, 10, 12, 15], dp: 1 },
+  { quantity: 'time a pizza delivery takes', unit: 'minutes', group: 'branch', of: 'from branch', mus: range(25, 45), sigmas: [3, 4, 5, 6], dp: 1 },
+  { quantity: 'length of a bolt', unit: 'millimetres', group: 'factory', of: 'from factory', mus: range(40, 80, 5), sigmas: [0.4, 0.5, 0.8, 1, 1.2], dp: 2 },
+  { quantity: 'lifetime of a battery', unit: 'hours', group: 'brand', of: 'for brand', mus: range(100, 200, 10), sigmas: [6, 8, 10, 12, 15], dp: 1 },
+  { quantity: 'height of a seedling', unit: 'centimetres', group: 'compost', of: 'in compost', mus: range(12, 30), sigmas: [1.5, 2, 2.5, 3], dp: 2 },
+  { quantity: 'mark on a test', unit: 'marks', group: 'school', of: 'at school', mus: range(40, 80), sigmas: [8, 10, 12, 15], dp: 1 },
+  { quantity: 'time to run 400 m', unit: 'seconds', group: 'club', of: 'at club', mus: range(55, 75), sigmas: [1.5, 2, 2.5, 3, 4], dp: 2 },
 ];
 
-/** For each v, the sample sizes from 8 to 100 with `\sigma^2 / n = v` for a whole `\sigma`: v n is a square. */
-const SIZES_FOR: number[][] = range(0, 99).map((v) => range(8, 100).filter((n) => Number.isInteger(Math.sqrt(v * n))));
+/** Sample sizes a study would use: each a power of 2 times a power of 5, so every `\sigma^2 / n` ends. */
+const DIFF_NS = [10, 16, 20, 25, 32, 40, 50, 64, 80, 100];
 
 /**
- * Two independent samples. Each `\sigma^2 / n` is whole and the two add to a
- * square, so the standard deviation of `\bar{X}_A - \bar{X}_B` is whole, and
- * `\bar{x}_A - \bar{x}_B` is drawn to one place so that z has at most two.
+ * Two independent samples, each with a natural standard deviation and a
+ * round size, and each sample mean recorded to the context's places. Each
+ * `\sigma^2 / n` ends, so the variance of `\bar{X}_A - \bar{X}_B` is exact;
+ * its square root usually runs on and is written to three significant
+ * figures, and z is read at two places.
  */
 interface DiffScene {
   ctx: number;
   /** The population mean the samples sit near. */
   mu: number;
-  /** `\sigma_A^2 / n_A`, whole. */
-  vA: number;
+  sA: number;
   nA: number;
-  /** `\sigma_B^2 / n_B`, whole. */
-  vB: number;
+  sB: number;
   nB: number;
-  /** `\bar{x}_B` in tenths. */
+  /** `\bar{x}_A`, to the context's places. */
+  xA: number;
+  /** `\bar{x}_B`, to the context's places. */
   xB: number;
-  /** z in hundredths. */
-  zh: number;
   tail: Tail;
   level: number;
   /** Which group the suspicion names first: 0 for A, 1 for B. */
   phr: number;
 }
 
-const diffSe = ({ vA, vB }: Pick<DiffScene, 'vA' | 'vB'>): number => Math.round(Math.sqrt(vA + vB));
-const sdA = ({ vA, nA }: Pick<DiffScene, 'vA' | 'nA'>): number => Math.round(Math.sqrt(vA * nA));
-const sdB = ({ vB, nB }: Pick<DiffScene, 'vB' | 'nB'>): number => Math.round(Math.sqrt(vB * nB));
-const diffZ = ({ zh }: Pick<DiffScene, 'zh'>): number => zh / 100;
-/** `\bar{x}_A - \bar{x}_B`, to one place. */
-const gapOf = (sc: DiffScene): number => Math.round((sc.zh * diffSe(sc)) / 10) / 10;
-const xbarB = (sc: DiffScene): number => sc.xB / 10;
-const xbarA = (sc: DiffScene): number => (sc.xB + Math.round((sc.zh * diffSe(sc)) / 10)) / 10;
+const exact = (v: number): number => Number(v.toFixed(8));
+const sdA = ({ sA }: Pick<DiffScene, 'sA'>): number => sA;
+const sdB = ({ sB }: Pick<DiffScene, 'sB'>): number => sB;
+/** `\sigma_A^2`, `\sigma_B^2`. */
+const sqA = (sc: Pick<DiffScene, 'sA'>): number => exact(sc.sA * sc.sA);
+const sqB = (sc: Pick<DiffScene, 'sB'>): number => exact(sc.sB * sc.sB);
+/** `\sigma_A^2 / n_A`, exact. */
+const varA = (sc: Pick<DiffScene, 'sA' | 'nA'>): number => exact((sc.sA * sc.sA) / sc.nA);
+const varB = (sc: Pick<DiffScene, 'sB' | 'nB'>): number => exact((sc.sB * sc.sB) / sc.nB);
+/** The variance of the difference, exact. */
+const diffVarOf = (sc: Pick<DiffScene, 'sA' | 'nA' | 'sB' | 'nB'>): number => exact(varA(sc) + varB(sc));
+/** Its standard deviation, unrounded. */
+const diffSeRaw = (sc: Pick<DiffScene, 'sA' | 'nA' | 'sB' | 'nB'>): number => Math.sqrt(diffVarOf(sc));
+/** Its standard deviation as written: exact, or to three significant figures. */
+const diffSeText = (sc: Pick<DiffScene, 'sA' | 'nA' | 'sB' | 'nB'>): string => seText(diffSeRaw(sc));
+/** `\bar{x}_A - \bar{x}_B`, exact. */
+const gapOf = (sc: Pick<DiffScene, 'xA' | 'xB'>): number => exact(sc.xA - sc.xB);
+const xbarA = (sc: DiffScene): number => sc.xA;
+const xbarB = (sc: DiffScene): number => sc.xB;
+const diffZRaw = (sc: DiffScene): number => gapOf(sc) / diffSeRaw(sc);
+/** z to two places, the value the question reads and decides by. */
+const diffZ = (sc: DiffScene): number => roundTo(diffZRaw(sc), Z_DP);
 const diffIn = (sc: DiffScene): boolean => zInRegion(diffZ(sc), sc.level, sc.tail);
+
+/** Whether the standard deviation of the difference, if it runs on, reads safely at three figures. */
+const diffSeWell = (sc: Pick<DiffScene, 'sA' | 'nA' | 'sB' | 'nB'>): boolean =>
+  terminates(diffSeRaw(sc), 4) || roundedWell(diffSeRaw(sc), SE_SF);
+
+/** The words a question adds for the rounding it needs: the standard deviation of the difference, then z. */
+function diffRounding(sc: DiffScene, withSd: boolean): string {
+  const sd = withSd && !terminates(diffSeRaw(sc), 4);
+  const z = !terminates(diffZRaw(sc), 2);
+  if (sd && z) return ' Give the standard deviation to 3 significant figures and $z$ to 2 decimal places.';
+  if (sd) return ' Give the standard deviation to 3 significant figures.';
+  if (z) return ' Give $z$ to 2 decimal places.';
+  return '';
+}
 
 interface DiffOptions {
   tails?: Tail[];
-  /** |z| drawn in hundredths from this range. */
+  /** |z| aimed at in hundredths from this range. */
   zLo?: number;
   zHi?: number;
-  /** Draw z to one place, for a slider. */
+  /** For a slider: z must also read safely at one place. */
   tenths?: boolean;
-  /** The largest standard deviation of the difference. */
-  seHi?: number;
+  /** Both samples the same size: the gentler arithmetic of difficulty 1. */
+  same?: boolean;
 }
 
-function sampleDiff(rng: Rng, { tails = TAILS, zLo = 30, zHi = 320, tenths = false, seHi = 8 }: DiffOptions = {}): DiffScene {
+function sampleDiff(rng: Rng, { tails = TAILS, zLo = 30, zHi = 320, tenths = false, same = false }: DiffOptions = {}): DiffScene {
   for (;;) {
     const ctx = rng.int(0, DIFF_CONTEXTS.length - 1);
-    const mu = rng.pick(DIFF_CONTEXTS[ctx].mus);
-    const se = rng.int(2, seHi);
-    const vA = rng.int(1, se * se - 1);
-    const vB = se * se - vA;
-    if (SIZES_FOR[vA].length === 0 || SIZES_FOR[vB].length === 0) continue;
-    const nA = rng.pick(SIZES_FOR[vA]);
-    const nB = rng.pick(SIZES_FOR[vB]);
-    if (Math.max(Math.sqrt(vA * nA), Math.sqrt(vB * nB)) * 3 > mu) continue;
-    // A standard deviation equal to its sample size reads as a misprint.
-    if (Math.sqrt(vA * nA) === nA || Math.sqrt(vB * nB) === nB) continue;
+    const c = DIFF_CONTEXTS[ctx];
+    const mu = rng.pick(c.mus);
+    const sA = rng.pick(c.sigmas);
+    const sB = rng.pick(c.sigmas);
+    const nA = rng.pick(DIFF_NS);
+    const nB = same ? nA : rng.pick(DIFF_NS);
+    const spread = { sA, nA, sB, nB };
+    if (!terminates(varA(spread), 4) || !terminates(varB(spread), 4) || !diffSeWell(spread)) continue;
     const tail = rng.pick(tails);
-    const size = tenths ? rng.int(Math.ceil(zLo / 10), Math.floor(zHi / 10)) * 10 : rng.int(zLo, zHi);
-    // The difference of the sample means to one place.
-    if ((size * se) % 10 !== 0) continue;
+    const size = rng.int(zLo, zHi) / 100;
     const sign = tail === 'up' ? 1 : tail === 'down' ? -1 : rng.sign();
     const level = tail === 'two' ? rng.pick([1, 5, 10]) : rng.pick([1, 5]);
-    const sc: DiffScene = { ctx, mu, vA, nA, vB, nB, xB: mu * 10 + rng.int(-30, 30), zh: sign * size, tail, level, phr: rng.int(0, 1) };
+    const unit = 10 ** -c.dp;
+    const xB = roundTo(mu + rng.int(-30, 30) * unit * (c.dp === 2 ? 5 : 1), { dp: c.dp });
+    const xA = roundTo(xB + sign * size * diffSeRaw(spread), { dp: c.dp });
+    const sc: DiffScene = { ctx, mu, ...spread, xA, xB, tail, level, phr: rng.int(0, 1) };
+    const raw = diffZRaw(sc);
+    if (xA === xB || Math.abs(raw) < zLo / 100 - 0.05 || Math.abs(raw) > zHi / 100 + 0.05) continue;
+    if (!zReadsWell(gapOf(sc), diffSeRaw(sc))) continue;
+    if (tenths && !roundedWell(raw, { dp: 1 })) continue;
     // Never so close to the critical value that the decision is a rounding question.
-    if (Math.abs(Math.abs(diffZ(sc)) - critical(level, tail)) < 0.05) continue;
+    if (Math.abs(Math.abs(raw) - critical(level, tail)) < 0.05 || Math.abs(Math.abs(roundTo(raw, Z_DP)) - critical(level, tail)) < 0.05 - 1e-9) continue;
     return sc;
   }
 }
@@ -5607,7 +5870,7 @@ function diffTable(sc: DiffScene, columns: DiffColumn[], mus: [number, number] =
   const cell = (group: 'A' | 'B', column: DiffColumn): string => {
     const a = group === 'A';
     if (column === 'mu') return fmt(a ? mus[0] : mus[1]);
-    if (column === 'sigma') return String(a ? sdA(sc) : sdB(sc));
+    if (column === 'sigma') return fmt(a ? sdA(sc) : sdB(sc));
     if (column === 'n') return String(a ? sc.nA : sc.nB);
     return fmt(a ? xbarA(sc) : xbarB(sc));
   };
@@ -5621,20 +5884,36 @@ function diffTable(sc: DiffScene, columns: DiffColumn[], mus: [number, number] =
 const diffVarLine = (sc: DiffScene): string =>
   chain(
     '\\text{Var}',
-    `\\frac{${sdA(sc) ** 2}}{${sc.nA}} + \\frac{${sdB(sc) ** 2}}{${sc.nB}}`,
-    `${sc.vA} + ${sc.vB} = ${sc.vA + sc.vB}`,
+    `\\frac{${fmt(sqA(sc))}}{${sc.nA}} + \\frac{${fmt(sqB(sc))}}{${sc.nB}}`,
+    `${fmt(varA(sc))} + ${fmt(varB(sc))} = ${fmt(diffVarOf(sc))}`,
   );
+
+/** The standard deviation of the difference, worked from the variance. */
+const diffSdLine = (sc: DiffScene): string => chain('\\text{sd}', `\\sqrt{${fmt(diffVarOf(sc))}}`, seWorking(diffSeRaw(sc)));
 
 /** z worked from the two samples: the gap, the standard deviation of the difference, the division. */
 const diffZLines = (sc: DiffScene): SolutionStep[] => [
   { tex: chain('\\bar{x}_A - \\bar{x}_B', `${fmt(xbarA(sc))} - ${fmt(xbarB(sc))}`, fmt(gapOf(sc))) },
-  { tex: chain('\\text{sd}', `\\sqrt{\\frac{${sdA(sc) ** 2}}{${sc.nA}} + \\frac{${sdB(sc) ** 2}}{${sc.nB}}}`, `\\sqrt{${sc.vA + sc.vB}} = ${diffSe(sc)}`) },
-  { tex: `z = \\frac{${fmt(gapOf(sc))}}{${diffSe(sc)}} = ${fmt(diffZ(sc))}` },
+  {
+    tex: chain(
+      '\\text{sd}',
+      `\\sqrt{\\frac{${fmt(sqA(sc))}}{${sc.nA}} + \\frac{${fmt(sqB(sc))}}{${sc.nB}}}`,
+      `\\sqrt{${fmt(diffVarOf(sc))}}`,
+      seWorking(diffSeRaw(sc)),
+    ),
+  },
+  { tex: chain('z', `\\frac{${fmt(gapOf(sc))}}{${diffSeText(sc)}}`, zWorking(diffZRaw(sc))) },
 ];
 
 /** Options for a number: the right one, then the slips that are exact and differ from it. */
 function numberOptions(right: number, slips: number[]): ChoiceOption[] {
   const wrong = slips.filter((v) => Number.isFinite(v) && terminates(v, 3) && Math.abs(v - right) > 1e-9);
+  return options({ tex: fmt(right), answer: fmt(right) }, ...wrong.map((v) => ({ tex: fmt(v), answer: fmt(v) }))).slice(0, 4);
+}
+
+/** Options for a rounded number: every slip rounded the same way as the answer, and none equal to it or each other. */
+function roundedOptions(right: number, slips: number[], round: (v: number) => number): ChoiceOption[] {
+  const wrong = [...new Set(slips.filter((v) => Number.isFinite(v) && v !== 0).map(round))].filter((v) => v !== right && v !== 0);
   return options({ tex: fmt(right), answer: fmt(right) }, ...wrong.map((v) => ({ tex: fmt(v), answer: fmt(v) }))).slice(0, 4);
 }
 
@@ -5646,7 +5925,7 @@ interface DiffModelParams extends DiffScene {
 }
 
 function sampleDiffModel(rng: Rng, difficulty: number): DiffModelParams {
-  const sc = sampleDiff(rng, { seHi: difficulty > 1 ? 8 : 6 });
+  const sc = sampleDiff(rng, { same: difficulty < 2 });
   const size = rng.int(1, Math.max(2, Math.min(12, Math.floor(sc.mu / 4))));
   return { ...sc, dm: difficulty > 1 && rng.chance(0.5) ? -size : size };
 }
@@ -5660,7 +5939,7 @@ const diffModelSolution = (p: DiffModelParams): SolutionStep[] => {
     { text: 'The mean of the difference is the difference of the means, and the variances add.' },
     { tex: `\\mu_A - \\mu_B = ${muA} - ${muB} = ${fmt(p.dm)}` },
     { tex: diffVarLine(p) },
-    { tex: `\\bar{X}_A - \\bar{X}_B \\sim N(${fmt(p.dm)}, ${p.vA + p.vB})` },
+    { tex: `\\bar{X}_A - \\bar{X}_B \\sim N(${fmt(p.dm)}, ${fmt(diffVarOf(p))})` },
   ];
 };
 
@@ -5670,7 +5949,7 @@ const diffModelTiles: Generator<DiffModelParams> = {
   sample: sampleDiffModel,
   render: (p): Slide => {
     const [muA, muB] = musOf(p);
-    const answer = [fmt(p.dm), String(p.vA + p.vB)];
+    const answer = [fmt(p.dm), fmt(diffVarOf(p))];
     return {
       kind: 'tiles',
       prompt: [
@@ -5681,7 +5960,7 @@ const diffModelTiles: Generator<DiffModelParams> = {
       template: '\\bar{X}_A - \\bar{X}_B \\sim N({0}, {1})',
       bank: tokenBank(
         answer,
-        [fmt(-p.dm), String(muA + muB), String(Math.abs(p.vA - p.vB)), String(sdA(p) ** 2 + sdB(p) ** 2), String(diffSe(p))],
+        [fmt(-p.dm), String(muA + muB), fmt(Math.abs(varA(p) - varB(p))), fmt(exact(sqA(p) + sqB(p))), diffSeText(p)],
         3,
       ),
       answer,
@@ -5698,37 +5977,42 @@ interface DiffVarParams extends DiffScene {
 /** The variance of the difference at difficulty 1, its standard deviation at difficulty 2. */
 const diffVar: Generator<DiffVarParams> = {
   id: 'hyp-diff-var',
-  sample: (rng, difficulty) => ({ ...sampleDiff(rng, { seHi: difficulty > 1 ? 8 : 6 }), sd: difficulty > 1 }),
-  render: (p): Slide => ({
-    kind: 'expression',
-    prompt: [
-      say(diffIntro(p)),
-      diffTable(p, ['sigma', 'n']),
-      say(p.sd ? 'Find the standard deviation of the difference of the sample means.' : 'Find the variance of the difference of the sample means.'),
-    ],
-    lead: p.sd ? '\\text{sd}(\\bar{X}_A - \\bar{X}_B) =' : '\\text{Var}(\\bar{X}_A - \\bar{X}_B) =',
-    keypad: [],
-    answer: String(p.sd ? diffSe(p) : p.vA + p.vB),
-    domain: 'real',
-    mode: 'exact',
-  }),
+  sample: (rng, difficulty) => ({ ...sampleDiff(rng, { same: difficulty < 2 }), sd: difficulty > 1 }),
+  render: (p): Slide => {
+    const rounds = p.sd && !terminates(diffSeRaw(p), 4);
+    return {
+      kind: 'expression',
+      prompt: [
+        say(diffIntro(p)),
+        diffTable(p, ['sigma', 'n']),
+        say(
+          p.sd
+            ? `Find the standard deviation of the difference of the sample means.${rounds ? ` ${askPrecision(SE_SF)}` : ''}`
+            : 'Find the variance of the difference of the sample means.',
+        ),
+      ],
+      lead: p.sd ? '\\text{sd}(\\bar{X}_A - \\bar{X}_B) =' : '\\text{Var}(\\bar{X}_A - \\bar{X}_B) =',
+      keypad: [],
+      answer: p.sd ? diffSeText(p) : fmt(diffVarOf(p)),
+      ...(rounds ? { precision: SE_SF } : {}),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
   choices: (p) => {
     const a = sdA(p);
     const b = sdB(p);
-    const variance = p.vA + p.vB;
+    const variance = diffVarOf(p);
     // Adding the standard deviations, the variance itself, subtracting, and
     // leaving out the sample sizes.
     return p.sd
-      ? numberOptions(diffSe(p), [Math.sqrt(p.vA) + Math.sqrt(p.vB), variance, Math.sqrt(Math.abs(p.vA - p.vB)), a + b])
-      : numberOptions(variance, [Math.abs(p.vA - p.vB), a * a + b * b, diffSe(p), a / p.nA + b / p.nB]);
+      ? roundedOptions(seValue(diffSeRaw(p)), [Math.sqrt(varA(p)) + Math.sqrt(varB(p)), variance, Math.sqrt(Math.abs(varA(p) - varB(p))), a + b], seValue)
+      : numberOptions(variance, [Math.abs(varA(p) - varB(p)), sqA(p) + sqB(p), a / p.nA + b / p.nB, variance * 2]);
   },
   solution: (p) => [
     { tex: diffVarLine(p) },
     ...(p.sd
-      ? [
-          { tex: `\\text{sd} = \\sqrt{${p.vA + p.vB}} = ${diffSe(p)}` },
-          { text: 'Square root the variance after adding: standard deviations never add.' },
-        ]
+      ? [{ tex: diffSdLine(p) }, { text: 'Square root the variance after adding: standard deviations never add.' }]
       : [{ text: 'The variances add, even though the means subtract.' }]),
   ],
 };
@@ -5739,11 +6023,11 @@ const diffRuleFlow: Generator<DiffModelParams> = {
   sample: sampleDiffModel,
   render: (p): Slide => {
     const [muA, muB] = musOf(p);
-    const a2 = sdA(p) ** 2;
-    const b2 = sdB(p) ** 2;
-    const key = `${p.ctx}|${muA}|${muB}|${p.vA}|${p.nA}|${p.vB}|${p.nB}`;
+    const a2 = fmt(sqA(p));
+    const b2 = fmt(sqB(p));
+    const key = `${p.ctx}|${muA}|${muB}|${p.sA}|${p.nA}|${p.sB}|${p.nB}`;
     const meanRight = `$${muA} - ${muB} = ${fmt(p.dm)}$`;
-    const varRight = `$\\frac{${a2}}{${p.nA}} + \\frac{${b2}}{${p.nB}} = ${p.vA + p.vB}$`;
+    const varRight = `$\\frac{${a2}}{${p.nA}} + \\frac{${b2}}{${p.nB}} = ${fmt(diffVarOf(p))}$`;
     return {
       kind: 'flow',
       prompt: [
@@ -5769,12 +6053,12 @@ const diffRuleFlow: Generator<DiffModelParams> = {
           ask: 'And its variance?',
           branches: spun(
             [
-              { label: varRight, outcome: `Right: $\\bar{X}_A - \\bar{X}_B \\sim N(${fmt(p.dm)}, ${p.vA + p.vB})$.` },
+              { label: varRight, outcome: `Right: $\\bar{X}_A - \\bar{X}_B \\sim N(${fmt(p.dm)}, ${fmt(diffVarOf(p))})$.` },
               {
-                label: `$\\frac{${a2}}{${p.nA}} - \\frac{${b2}}{${p.nB}} = ${fmt(p.vA - p.vB)}$`,
+                label: `$\\frac{${a2}}{${p.nA}} - \\frac{${b2}}{${p.nB}} = ${fmt(exact(varA(p) - varB(p)))}$`,
                 outcome: 'Not this: the variances add, even though the means subtract.',
               },
-              { label: `$${a2} + ${b2} = ${a2 + b2}$`, outcome: 'Not this: each variance is divided by its own sample size first.' },
+              { label: `$${a2} + ${b2} = ${fmt(exact(sqA(p) + sqB(p)))}$`, outcome: 'Not this: each variance is divided by its own sample size first.' },
             ],
             `${key}|v`,
           ),
@@ -5786,20 +6070,30 @@ const diffRuleFlow: Generator<DiffModelParams> = {
   solution: diffModelSolution,
 };
 
-/** Each `\sigma^2 / n`, their sum, then its square root. */
+/** Each `\\sigma^2 / n`, their sum, then its square root. */
 const diffSpreadTree: Generator<DiffScene> = {
   id: 'hyp-diff-spread-tree',
-  sample: (rng, difficulty) => sampleDiff(rng, { seHi: difficulty > 1 ? 8 : 5 }),
+  sample: (rng, difficulty) => sampleDiff(rng, { same: difficulty < 2 }),
   render: (sc): Slide => {
     const a = sdA(sc);
     const b = sdB(sc);
-    const answer = [sc.vA, sc.vB, sc.vA + sc.vB, diffSe(sc)];
+    const answer = [fmt(varA(sc)), fmt(varB(sc)), fmt(diffVarOf(sc)), diffSeText(sc)];
+    const slips = [
+      fmt(Math.abs(varA(sc) - varB(sc))),
+      fmt(exact(a + b)),
+      fmt(seValue(Math.sqrt(varA(sc)) + Math.sqrt(varB(sc)))),
+      fmt(sqA(sc)),
+      fmt(sqB(sc)),
+      fmt(a),
+      fmt(b),
+    ];
+    const figures = terminates(diffSeRaw(sc), 4) ? '' : ', to 3 significant figures';
     return {
       kind: 'tree',
       prompt: [
         say(diffIntro(sc)),
         diffTable(sc, ['sigma', 'n']),
-        say('Fill in each $\\sigma^2 / n$, then their sum, the variance of ${\\bar{X}_A - \\bar{X}_B}$, then its square root.'),
+        say(`Fill in each $\\sigma^2 / n$, then their sum, the variance of \${\\bar{X}_A - \\bar{X}_B}$, then its square root${figures}.`),
       ],
       expression: '\\sqrt{\\frac{\\sigma_A^2}{n_A} + \\frac{\\sigma_B^2}{n_B}}',
       nodes: [
@@ -5808,14 +6102,14 @@ const diffSpreadTree: Generator<DiffScene> = {
         { id: 'v', from: ['a', 'b'] },
         { id: 's', from: ['v'] },
       ],
-      bank: treeBank(answer, [Math.abs(sc.vA - sc.vB), a + b, Math.sqrt(sc.vA) + Math.sqrt(sc.vB), a * a, b * b, a, b]),
-      answer: answer.map(String),
+      bank: decimalBank(answer, slips, 3),
+      answer,
     };
   },
   solution: (sc) => [
-    { tex: `\\frac{${sdA(sc) ** 2}}{${sc.nA}} = ${sc.vA} \\qquad \\frac{${sdB(sc) ** 2}}{${sc.nB}} = ${sc.vB}` },
-    { tex: `${sc.vA} + ${sc.vB} = ${sc.vA + sc.vB}` },
-    { tex: `\\sqrt{${sc.vA + sc.vB}} = ${diffSe(sc)}` },
+    { tex: `\\frac{${fmt(sqA(sc))}}{${sc.nA}} = ${fmt(varA(sc))} \\qquad \\frac{${fmt(sqB(sc))}}{${sc.nB}} = ${fmt(varB(sc))}` },
+    { tex: `${fmt(varA(sc))} + ${fmt(varB(sc))} = ${fmt(diffVarOf(sc))}` },
+    { tex: diffSdLine(sc) },
   ],
 };
 
@@ -5825,24 +6119,33 @@ const diffSpreadTree: Generator<DiffScene> = {
 const diffZStat: Generator<DiffScene> = {
   id: 'hyp-diff-z',
   sample: (rng, difficulty) => sampleDiff(rng, { tails: difficulty > 1 ? TAILS : ['up'] }),
-  render: (sc): Slide => ({
-    kind: 'expression',
-    prompt: [say(diffIntro(sc)), diffTable(sc, ['sigma', 'n', 'xbar']), say('Find the test statistic $z$ for ${H_0: \\mu_A = \\mu_B}$.')],
-    lead: 'z =',
-    keypad: [],
-    answer: fmt(diffZ(sc)),
-    domain: 'real',
-    mode: 'exact',
-  }),
+  render: (sc): Slide => {
+    const rounds = !terminates(diffZRaw(sc), 2);
+    return {
+      kind: 'expression',
+      prompt: [
+        say(diffIntro(sc)),
+        diffTable(sc, ['sigma', 'n', 'xbar']),
+        say(
+          `Find the test statistic $z$ for \${H_0: \\mu_A = \\mu_B}$.${terminates(diffSeRaw(sc), 4) ? '' : ' Take the standard deviation of the difference to 3 significant figures.'}${rounds ? ` ${askPrecision(Z_DP)}` : ''}`,
+        ),
+      ],
+      lead: 'z =',
+      keypad: [],
+      answer: fmt(diffZ(sc)),
+      ...(rounds ? { precision: Z_DP } : {}),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
   choices: (sc) => {
     const g = gapOf(sc);
     // The wrong way round, over the variance, over the standard deviations added.
-    return numberOptions(diffZ(sc), [
-      -diffZ(sc),
-      g / (sc.vA + sc.vB),
-      g / (Math.sqrt(sc.vA) + Math.sqrt(sc.vB)),
-      g / (sdA(sc) + sdB(sc)),
-    ]);
+    return roundedOptions(
+      diffZ(sc),
+      [-diffZ(sc), g / diffVarOf(sc), g / (Math.sqrt(varA(sc)) + Math.sqrt(varB(sc))), g / (sdA(sc) + sdB(sc))],
+      (v) => roundTo(v, Z_DP),
+    );
   },
   solution: (sc) => [{ text: 'If $H_0$ is true, ${\\bar{X}_A - \\bar{X}_B}$ has mean $0$.' }, ...diffZLines(sc)],
 };
@@ -5854,7 +6157,7 @@ const diffZTiles: Generator<DiffScene> = {
   render: (sc): Slide => {
     const a = sdA(sc);
     const b = sdB(sc);
-    const root = (op: string, power: number) => `\\sqrt{\\frac{${a ** power}}{${sc.nA}} ${op} \\frac{${b ** power}}{${sc.nB}}}`;
+    const root = (op: string, power: number) => `\\sqrt{\\frac{${fmt(exact(a ** power))}}{${sc.nA}} ${op} \\frac{${fmt(exact(b ** power))}}{${sc.nB}}}`;
     const answer = [fmt(xbarA(sc)), fmt(xbarB(sc)), root('+', 2)];
     return {
       kind: 'tiles',
@@ -5866,7 +6169,7 @@ const diffZTiles: Generator<DiffScene> = {
       template: 'z = ({0} - {1}) \\div {2}',
       bank: tokenBank(
         answer,
-        [root('-', 2), `\\frac{${a * a}}{${sc.nA}} + \\frac{${b * b}}{${sc.nB}}`, root('+', 1), `\\frac{${a}}{\\sqrt{${sc.nA}}} + \\frac{${b}}{\\sqrt{${sc.nB}}}`],
+        [root('-', 2), `\\frac{${fmt(sqA(sc))}}{${sc.nA}} + \\frac{${fmt(sqB(sc))}}{${sc.nB}}`, root('+', 1), `\\frac{${fmt(a)}}{\\sqrt{${sc.nA}}} + \\frac{${fmt(b)}}{\\sqrt{${sc.nB}}}`],
         3,
       ),
       answer,
@@ -5884,16 +6187,24 @@ const diffStatTree: Generator<DiffScene> = {
   sample: (rng, difficulty) => sampleDiff(rng, { tails: difficulty > 1 ? TAILS : ['up'] }),
   render: (sc): Slide => {
     const g = gapOf(sc);
-    const variance = sc.vA + sc.vB;
+    const variance = diffVarOf(sc);
     const z = diffZ(sc);
-    const answer = [fmt(g), String(variance), String(diffSe(sc)), fmt(z)];
-    const slips = [-g, Math.abs(sc.vA - sc.vB), sdA(sc) + sdB(sc), -z, g / variance, xbarA(sc) + xbarB(sc), z * 2].filter((v) => terminates(v, 3));
+    const answer = [fmt(g), fmt(variance), diffSeText(sc), fmt(z)];
+    const slips = [
+      fmt(-g),
+      fmt(exact(Math.abs(varA(sc) - varB(sc)))),
+      fmt(exact(sdA(sc) + sdB(sc))),
+      fmt(-z),
+      fmt(roundTo(g / variance, Z_DP)),
+      fmt(exact(xbarA(sc) + xbarB(sc))),
+      fmt(roundTo(z * 2, Z_DP)),
+    ];
     return {
       kind: 'tree',
       prompt: [
         say(diffIntro(sc)),
         diffTable(sc, ['sigma', 'n', 'xbar']),
-        say('Top row: ${\\bar{x}_A - \\bar{x}_B}$, then the variance of the difference. Below them, its square root, then $z$.'),
+        say(`Top row: \${\\bar{x}_A - \\bar{x}_B}$, then the variance of the difference. Below them, its square root, then $z$.${diffRounding(sc, true)}`),
       ],
       expression: 'z = \\frac{\\bar{x}_A - \\bar{x}_B}{\\sqrt{\\dfrac{\\sigma_A^2}{n_A} + \\dfrac{\\sigma_B^2}{n_B}}}',
       nodes: [
@@ -5902,7 +6213,7 @@ const diffStatTree: Generator<DiffScene> = {
         { id: 's', from: ['v'] },
         { id: 'z', from: ['d', 's'] },
       ],
-      bank: decimalBank(answer, slips.map(fmt), 3),
+      bank: decimalBank(answer, slips, 3),
       answer,
     };
   },
@@ -5921,12 +6232,12 @@ const diffZSlider: Generator<DiffScene> = {
       prompt: [
         say(`${diffIntro(sc)} ${diffSuspicion(sc)}`),
         diffTable(sc, ['sigma', 'n', 'xbar']),
-        say(`The shaded tail is the ${sc.level}% critical region. Slide the line to $z$.`),
+        say(`The shaded tail is the ${sc.level}% critical region. Slide the line to $z$, to 1 decimal place.`),
       ],
       min: -Z_SPAN,
       max: Z_SPAN,
       step: 0.1,
-      answer: diffZ(sc),
+      answer: roundTo(diffZRaw(sc), { dp: 1 }),
       readout: 'z = {v}',
       figure: {
         svg: normalSvg('The standard normal curve with one tail shaded as the critical region', { edge: tail === 'up' ? c : -c, tail }),
@@ -5936,6 +6247,7 @@ const diffZSlider: Generator<DiffScene> = {
   },
   solution: (sc) => [
     ...diffZLines(sc),
+    { text: `To 1 decimal place, $z = ${fmt(roundTo(diffZRaw(sc), { dp: 1 }))}$.` },
     {
       text: diffIn(sc)
         ? `It lies in the shaded tail, beyond $${sc.tail === 'up' ? '' : '-'}${fmt(critical(sc.level, sc.tail))}$.`
@@ -6012,7 +6324,7 @@ const diffDecisionFlow: Generator<DiffDecideParams> = {
   id: 'hyp-diff-decision-flow',
   sample: sampleDiffDecide,
   render: (sc): Slide => {
-    const key = `${sc.ctx}|${sc.mu}|${sc.zh}|${sc.level}|${sc.tail}|${sc.phr}`;
+    const key = `${sc.ctx}|${sc.mu}|${fmt(sc.xA)}|${sc.level}|${sc.tail}|${sc.phr}`;
     const right = zRegionTex(sc.level, sc.tail);
     const branches = [
       { label: `$${right}$`, to: 'in' },
@@ -6037,7 +6349,7 @@ const diffDecisionFlow: Generator<DiffDecideParams> = {
         { id: 'region', ask: 'Which is the critical region?', branches: spun(branches, key) },
         {
           id: 'in',
-          ask: sc.hard ? 'Work out $z$. Is it in the critical region?' : `Is $z = ${fmt(diffZ(sc))}$ in the critical region?`,
+          ask: sc.hard ? `Work out $z$.${diffRounding(sc, false)} Is it in the critical region?` : `Is $z = ${fmt(diffZ(sc))}$ in the critical region?`,
           branches: spun(
             [
               { label: 'Yes', outcome: diffVerdict(sc, true) },
@@ -6088,22 +6400,42 @@ const diffConclusionChoice: Generator<DiffDecideParams> = {
   ],
 };
 
-/** The critical value of `\bar{x}_A - \bar{x}_B` itself: how far apart the sample means must be to reject. */
+/** The critical difference of the sample means, unrounded. */
+const diffCritRaw = (sc: DiffScene): number => (sc.tail === 'down' ? -1 : 1) * critical(sc.level, sc.tail) * diffSeRaw(sc);
+
+/** Whether it reads safely at two places, the same from a standard deviation already rounded. */
+function diffCritWell(sc: DiffScene): boolean {
+  const raw = diffCritRaw(sc);
+  if (terminates(raw, 2)) return true;
+  const carried = (sc.tail === 'down' ? -1 : 1) * critical(sc.level, sc.tail) * seValue(diffSeRaw(sc));
+  return roundedWell(raw, XC_DP) && roundTo(carried, XC_DP) === roundTo(raw, XC_DP);
+}
+
+/** The critical value of `\\bar{x}_A - \\bar{x}_B` itself: how far apart the sample means must be to reject. */
 const diffCrit: Generator<DiffScene> = {
   id: 'hyp-diff-crit',
-  sample: (rng, difficulty) => sampleDiff(rng, { tails: difficulty > 1 ? TAILS : ['up', 'down'] }),
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const sc = sampleDiff(rng, { tails: difficulty > 1 ? TAILS : ['up', 'down'] });
+      if (diffCritWell(sc)) return sc;
+    }
+  },
   render: (sc): Slide => {
     const ask = sc.tail === 'up' ? 'the smallest value' : sc.tail === 'down' ? 'the largest value' : 'the upper critical value';
+    const rounds = !terminates(diffCritRaw(sc), 2);
     return {
       kind: 'expression',
       prompt: [
         say(`${diffIntro(sc)} ${diffSuspicion(sc)} The test is at the ${sc.level}% level.`),
         diffTable(sc, ['sigma', 'n']),
-        say(`Find ${ask} of $${whole('\\bar{x}_A - \\bar{x}_B')}$ that would lead to rejecting $H_0$, in ${DIFF_CONTEXTS[sc.ctx].unit}.`),
+        say(
+          `Find ${ask} of $${whole('\\bar{x}_A - \\bar{x}_B')}$ that would lead to rejecting $H_0$, in ${DIFF_CONTEXTS[sc.ctx].unit}.${rounds ? ` ${askPrecision(XC_DP)}` : ''}`,
+        ),
       ],
       lead: '\\bar{x}_A - \\bar{x}_B =',
       keypad: [],
-      answer: fmt((sc.tail === 'down' ? -1 : 1) * critical(sc.level, sc.tail) * diffSe(sc)),
+      answer: fmt(roundTo(diffCritRaw(sc), XC_DP)),
+      ...(rounds ? { precision: XC_DP } : {}),
       domain: 'real',
       mode: 'exact',
     };
@@ -6111,11 +6443,18 @@ const diffCrit: Generator<DiffScene> = {
   solution: (sc) => {
     const c = critical(sc.level, sc.tail);
     const sign = sc.tail === 'down' ? '-' : '';
+    const raw = diffCritRaw(sc);
     return [
       { tex: diffVarLine(sc) },
-      { tex: `\\text{sd} = \\sqrt{${sc.vA + sc.vB}} = ${diffSe(sc)}` },
+      { tex: diffSdLine(sc) },
       { text: `The boundary is where $z = ${sign}${fmt(c)}$.` },
-      { tex: chain('\\bar{x}_A - \\bar{x}_B', `${sign}${fmt(c)} \\times ${diffSe(sc)}`, fmt((sc.tail === 'down' ? -1 : 1) * c * diffSe(sc))) },
+      {
+        tex: chain(
+          '\\bar{x}_A - \\bar{x}_B',
+          `${sign}${fmt(c)} \\times ${diffSeText(sc)}`,
+          terminates(raw, 2) ? fmt(raw) : `${dots(raw)} \\approx ${fmt(roundTo(raw, XC_DP))}`,
+        ),
+      },
     ];
   },
 };
@@ -6132,16 +6471,18 @@ interface PairContext {
   hi: number;
   /** The largest change in one pair. */
   dMax: number;
+  /** Standard deviations of the differences a textbook would print for it. */
+  sds: number[];
 }
 
 const PAIR_CONTEXTS: PairContext[] = [
-  { who: 'runners', measure: 'time to run 400 m', unit: 'seconds', cause: 'the training programme', lo: 55, hi: 75, dMax: 6 },
-  { who: 'pupils', measure: 'mark on a test', unit: 'marks', cause: 'the revision course', lo: 35, hi: 80, dMax: 10 },
-  { who: 'patients', measure: 'blood pressure', unit: 'mmHg', cause: 'the new drug', lo: 120, hi: 165, dMax: 15 },
-  { who: 'workers', measure: 'number of items made in an hour', unit: 'items', cause: 'the new layout', lo: 30, hi: 60, dMax: 8 },
-  { who: 'drivers', measure: 'reaction time', unit: 'milliseconds', cause: 'coffee', lo: 200, hi: 300, dMax: 30 },
-  { who: 'swimmers', measure: 'time to swim 100 m', unit: 'seconds', cause: 'the new technique', lo: 60, hi: 90, dMax: 6 },
-  { who: 'adults', measure: 'resting heart rate', unit: 'beats per minute', cause: 'the exercise plan', lo: 60, hi: 90, dMax: 10 },
+  { who: 'runners', measure: 'time to run 400 m', unit: 'seconds', cause: 'the training programme', lo: 55, hi: 75, dMax: 6, sds: [1.5, 2, 2.5, 3] },
+  { who: 'pupils', measure: 'mark on a test', unit: 'marks', cause: 'the revision course', lo: 35, hi: 80, dMax: 10, sds: [4, 5, 6, 8] },
+  { who: 'patients', measure: 'blood pressure', unit: 'mmHg', cause: 'the new drug', lo: 120, hi: 165, dMax: 15, sds: [6, 8, 10, 12] },
+  { who: 'workers', measure: 'number of items made in an hour', unit: 'items', cause: 'the new layout', lo: 30, hi: 60, dMax: 8, sds: [3, 4, 5] },
+  { who: 'drivers', measure: 'reaction time', unit: 'milliseconds', cause: 'coffee', lo: 200, hi: 300, dMax: 30, sds: [10, 12, 15, 20] },
+  { who: 'swimmers', measure: 'time to swim 100 m', unit: 'seconds', cause: 'the new technique', lo: 60, hi: 90, dMax: 6, sds: [1.5, 2, 2.5, 3] },
+  { who: 'adults', measure: 'resting heart rate', unit: 'beats per minute', cause: 'the exercise plan', lo: 60, hi: 90, dMax: 10, sds: [4, 5, 6, 8] },
 ];
 
 const capital = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
@@ -6167,17 +6508,19 @@ const pairWho = ({ ctx }: { ctx: number }): string => {
 };
 
 /**
- * A test on paired differences: `\sigma_d / \sqrt{n}` is whole and `\bar{d}`
- * is drawn to one place, so z has at most two.
+ * A test on paired differences: a natural `\\sigma_d`, a round number of
+ * pairs, and the differences adding to a whole number, so `\\bar{d}` ends.
+ * `\\sigma_d / \\sqrt{n}` usually runs on and is written to three significant
+ * figures, and z is read at two places.
  */
 interface PairScene {
   ctx: number;
-  /** The number of pairs, a square. */
+  /** The number of pairs. */
   n: number;
-  /** `\sigma_d / \sqrt{n}`, whole. */
-  se: number;
-  /** z in hundredths. */
-  zh: number;
+  /** `\\sigma_d`. */
+  sd: number;
+  /** `\\sum d`, whole. */
+  total: number;
   /** What the suspicion says the cause does: raise, lower or change. */
   effect: Tail;
   /** d is before minus after, rather than after minus before. */
@@ -6185,12 +6528,26 @@ interface PairScene {
   level: number;
 }
 
-const PAIR_NS = [9, 16, 25, 36, 49, 64, 100];
+/** Each a power of 2 times a power of 5, so `\\bar{d}` ends. */
+const PAIR_NS = [10, 16, 20, 25, 40, 50];
 
-const sigmaD = ({ se, n }: Pick<PairScene, 'se' | 'n'>): number => se * Math.round(Math.sqrt(n));
-const pairZ = ({ zh }: Pick<PairScene, 'zh'>): number => zh / 100;
-const dbarOf = (p: PairScene): number => Math.round((p.zh * p.se) / 10) / 10;
+const sigmaD = ({ sd }: Pick<PairScene, 'sd'>): number => sd;
+const pairSe = ({ sd, n }: Pick<PairScene, 'sd' | 'n'>): number => sd / Math.sqrt(n);
+const dbarOf = (p: Pick<PairScene, 'total' | 'n'>): number => exact(p.total / p.n);
+const pairZRaw = (p: PairScene): number => dbarOf(p) / pairSe(p);
+/** z to two places, the value the question reads and decides by. */
+const pairZ = (p: PairScene): number => roundTo(pairZRaw(p), Z_DP);
 const pairIn = (p: PairScene): boolean => zInRegion(pairZ(p), p.level, pairTail(p));
+
+/** The words a question adds for the rounding it needs. */
+function pairRounding(p: PairScene, withSe: boolean): string {
+  const se = withSe && !terminates(pairSe(p), 4);
+  const z = !terminates(pairZRaw(p), 2);
+  if (se && z) return ' Give $\\sigma_d / \\sqrt{n}$ to 3 significant figures and $z$ to 2 decimal places.';
+  if (se) return ' Give $\\sigma_d / \\sqrt{n}$ to 3 significant figures.';
+  if (z) return ' Give $z$ to 2 decimal places.';
+  return '';
+}
 
 interface PairOptions {
   effects?: Tail[];
@@ -6203,18 +6560,20 @@ function samplePair(rng: Rng, { effects = TAILS, flips = [false], zLo = 30, zHi 
   for (;;) {
     const ctx = rng.int(0, PAIR_CONTEXTS.length - 1);
     const n = rng.pick(PAIR_NS);
-    const se = rng.int(1, 6);
-    // A spread of the differences the scenario could have.
-    if (se * Math.sqrt(n) > PAIR_CONTEXTS[ctx].dMax * 3) continue;
+    const sd = rng.pick(PAIR_CONTEXTS[ctx].sds);
     const effect = rng.pick(effects);
     const flip = rng.pick(flips);
     const tail = pairTail({ effect, flip });
-    const size = rng.int(zLo, zHi);
-    if ((size * se) % 10 !== 0) continue;
+    const size = rng.int(zLo, zHi) / 100;
     const sign = tail === 'up' ? 1 : tail === 'down' ? -1 : rng.sign();
     const level = tail === 'two' ? rng.pick([1, 5, 10]) : rng.pick([1, 5]);
-    const p: PairScene = { ctx, n, se, zh: sign * size, effect, flip, level };
-    if (Math.abs(Math.abs(pairZ(p)) - critical(level, tail)) < 0.05) continue;
+    const total = Math.round(sign * size * (sd / Math.sqrt(n)) * n);
+    const p: PairScene = { ctx, n, sd, total, effect, flip, level };
+    const raw = pairZRaw(p);
+    if (total === 0 || Math.abs(raw) < zLo / 100 - 0.05 || Math.abs(raw) > zHi / 100 + 0.05) continue;
+    if (!zReadsWell(dbarOf(p), pairSe(p))) continue;
+    if (!terminates(pairSe(p), 4) && !roundedWell(pairSe(p), SE_SF)) continue;
+    if (Math.abs(Math.abs(raw) - critical(level, tail)) < 0.05 || Math.abs(Math.abs(roundTo(raw, Z_DP)) - critical(level, tail)) < 0.05 - 1e-9) continue;
     return p;
   }
 }
@@ -6225,11 +6584,11 @@ const pairIntro = (p: PairScene): string => {
 };
 
 /** The definition of d and the summary of the differences, stacked as separate results. */
-const pairData = (p: PairScene): Block => show(`${pairDef(p.flip)} \\qquad \\bar{d} = ${fmt(dbarOf(p))} \\qquad \\sigma_d = ${sigmaD(p)}`);
+const pairData = (p: PairScene): Block => show(`${pairDef(p.flip)} \\qquad \\bar{d} = ${fmt(dbarOf(p))} \\qquad \\sigma_d = ${fmt(sigmaD(p))}`);
 
 const pairZLines = (p: PairScene): SolutionStep[] => [
-  { tex: `\\frac{\\sigma_d}{\\sqrt{n}} = \\frac{${sigmaD(p)}}{\\sqrt{${p.n}}} = ${p.se}` },
-  { tex: `z = \\frac{${fmt(dbarOf(p))}}{${p.se}} = ${fmt(pairZ(p))}` },
+  { tex: chain('\\frac{\\sigma_d}{\\sqrt{n}}', `\\frac{${fmt(sigmaD(p))}}{\\sqrt{${p.n}}}`, seWorking(pairSe(p))) },
+  { tex: chain('z', `\\frac{${fmt(dbarOf(p))}}{${seText(pairSe(p))}}`, zWorking(pairZRaw(p))) },
 ];
 
 interface PairTableParams {
@@ -6466,19 +6825,33 @@ const pairedZ: Generator<PairScene> = {
   id: 'hyp-paired-z',
   sample: (rng, difficulty) =>
     samplePair(rng, difficulty > 1 ? { flips: [false, true] } : { effects: ['up', 'down'] }),
-  render: (p): Slide => ({
-    kind: 'expression',
-    prompt: [say(pairIntro(p)), pairData(p), say('Find the test statistic $z$ for ${H_0: \\mu_d = 0}$.')],
-    lead: 'z =',
-    keypad: [],
-    answer: fmt(pairZ(p)),
-    domain: 'real',
-    mode: 'exact',
-  }),
+  render: (p): Slide => {
+    const rounds = !terminates(pairZRaw(p), 2);
+    return {
+      kind: 'expression',
+      prompt: [
+        say(pairIntro(p)),
+        pairData(p),
+        say(
+          `Find the test statistic $z$ for \${H_0: \\mu_d = 0}$.${terminates(pairSe(p), 4) ? '' : ' Take $\\sigma_d / \\sqrt{n}$ to 3 significant figures.'}${rounds ? ` ${askPrecision(Z_DP)}` : ''}`,
+        ),
+      ],
+      lead: 'z =',
+      keypad: [],
+      answer: fmt(pairZ(p)),
+      ...(rounds ? { precision: Z_DP } : {}),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
   choices: (p) => {
     const dbar = dbarOf(p);
     // The wrong way round, over sigma_d without the root of n, over the variance, and over sigma_d / n.
-    return numberOptions(pairZ(p), [-pairZ(p), dbar / sigmaD(p), dbar / (p.se * p.se), (dbar * p.n) / sigmaD(p)]);
+    return roundedOptions(
+      pairZ(p),
+      [-pairZ(p), dbar / sigmaD(p), dbar / (pairSe(p) * pairSe(p)), (dbar * p.n) / sigmaD(p)],
+      (v) => roundTo(v, Z_DP),
+    );
   },
   solution: (p) => [{ text: `A test of one mean: $\\bar{d}$ over its standard deviation, with $n = ${p.n}$ pairs.` }, ...pairZLines(p)],
 };
@@ -6490,16 +6863,24 @@ const pairedStatTree: Generator<PairScene> = {
     samplePair(rng, difficulty > 1 ? { flips: [false, true] } : { effects: ['up', 'down'] }),
   render: (p): Slide => {
     const dbar = dbarOf(p);
-    const total = Math.round(dbar * p.n * 10) / 10;
+    const total = p.total;
     const z = pairZ(p);
-    const answer = [fmt(dbar), String(p.se), fmt(z)];
-    const slips = [-dbar, total / (p.n - 1), sigmaD(p) / p.n, sigmaD(p), -z, dbar / sigmaD(p), z * 2].filter((v) => terminates(v, 3));
+    const answer = [fmt(dbar), seText(pairSe(p)), fmt(z)];
+    const slips = [
+      fmt(-dbar),
+      fmt(roundTo(total / (p.n - 1), { dp: 4 })),
+      fmt(seValue(sigmaD(p) / p.n)),
+      fmt(sigmaD(p)),
+      fmt(-z),
+      fmt(roundTo(dbar / sigmaD(p), Z_DP)),
+      fmt(roundTo(z * 2, Z_DP)),
+    ];
     return {
       kind: 'tree',
       prompt: [
         say(pairIntro(p)),
-        show(`${pairDef(p.flip)} \\qquad \\textstyle\\sum d = ${fmt(total)} \\qquad \\sigma_d = ${sigmaD(p)}`),
-        say('Top row: $\\bar{d}$, then $\\sigma_d / \\sqrt{n}$. Underneath, $z$.'),
+        show(`${pairDef(p.flip)} \\qquad \\textstyle\\sum d = ${fmt(total)} \\qquad \\sigma_d = ${fmt(sigmaD(p))}`),
+        say(`Top row: $\\bar{d}$, then $\\sigma_d / \\sqrt{n}$. Underneath, $z$.${pairRounding(p, true)}`),
       ],
       expression: 'z = \\frac{\\bar{d}}{\\sigma_d / \\sqrt{n}}',
       nodes: [
@@ -6507,11 +6888,11 @@ const pairedStatTree: Generator<PairScene> = {
         { id: 's', from: [] },
         { id: 'z', from: ['d', 's'] },
       ],
-      bank: decimalBank(answer, slips.map(fmt), 3),
+      bank: decimalBank(answer, slips, 3),
       answer,
     };
   },
-  solution: (p) => [{ tex: `\\bar{d} = \\frac{${fmt(Math.round(dbarOf(p) * p.n * 10) / 10)}}{${p.n}} = ${fmt(dbarOf(p))}` }, ...pairZLines(p)],
+  solution: (p) => [{ tex: `\\bar{d} = \\frac{${fmt(p.total)}}{${p.n}} = ${fmt(dbarOf(p))}` }, ...pairZLines(p)],
 };
 
 interface PairHypParams {
@@ -6582,7 +6963,7 @@ const pairedDecisionFlow: Generator<PairDecideParams> = {
   },
   render: (p): Slide => {
     const tail = pairTail(p);
-    const key = `${p.ctx}|${p.n}|${p.zh}|${p.level}|${p.effect}|${p.flip}`;
+    const key = `${p.ctx}|${p.n}|${p.total}|${p.sd}|${p.level}|${p.effect}|${p.flip}`;
     const right = zRegionTex(p.level, tail);
     const branches = [
       { label: `$${right}$`, to: 'in' },
@@ -6607,7 +6988,7 @@ const pairedDecisionFlow: Generator<PairDecideParams> = {
         { id: 'region', ask: 'Which is the critical region?', branches: spun(branches, key) },
         {
           id: 'in',
-          ask: p.hard ? 'Work out $z$. Is it in the critical region?' : `Is $z = ${fmt(pairZ(p))}$ in the critical region?`,
+          ask: p.hard ? `Work out $z$.${pairRounding(p, false)} Is it in the critical region?` : `Is $z = ${fmt(pairZ(p))}$ in the critical region?`,
           branches: spun(
             [
               { label: 'Yes', outcome: pairVerdict(p, true) },

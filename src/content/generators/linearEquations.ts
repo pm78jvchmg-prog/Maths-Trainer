@@ -3401,13 +3401,15 @@ const sumDiff: Generator<SumDiffParams> = {
     return ask === 'larger' ? numberChoices(big, small, s + d, s / 2) : numberChoices(small, big, s - d, s / 2);
   },
   sample: (rng, difficulty) => {
+    const story = rng.pick(['numbers', 'ages', 'parcels'] as const);
+    const ask = rng.pick(['larger', 'smaller'] as const);
+    // A mother is 20 to 40 years older than a son of 5 to 30, not 12 years older than a boy of 10.
+    if (story === 'ages') {
+      const small = rng.int(5, difficulty > 1 ? 30 : 18);
+      return { story, big: small + rng.int(20, 40), small, ask };
+    }
     const small = rng.int(difficulty > 1 ? 5 : 1, difficulty > 1 ? 60 : 30);
-    return {
-      story: rng.pick(['numbers', 'ages', 'parcels'] as const),
-      big: small + rng.int(1, difficulty > 1 ? 30 : 15),
-      small,
-      ask: rng.pick(['larger', 'smaller'] as const),
-    };
+    return { story, big: small + rng.int(1, difficulty > 1 ? 30 : 15), small, ask };
   },
   render: ({ story, big, small, ask }): Slide => {
     const s = big + small;
@@ -10810,8 +10812,8 @@ const EVEN_STORIES: readonly EvenStory[] = [
 
 interface EvenParams {
   story: number;
-  /** The break-even count. */
-  n: number;
+  /** The fixed cost: a round amount, never worked back from the count. */
+  F: number;
   /** Cost to make one. */
   c: number;
   /** What each one sold makes over its cost, so the price is `c + g`. */
@@ -10820,8 +10822,25 @@ interface EvenParams {
   order: boolean;
 }
 
-const evenFixed = (p: EvenParams): number => p.n * p.g;
+const evenFixed = (p: EvenParams): number => p.F;
 const evenPrice = (p: EvenParams): number => p.c + p.g;
+
+/** The fewest sales that cover the costs: the break-even count, rounded up when it is not whole. */
+const breakEven = (F: number, g: number): number => Math.ceil(F / g);
+const evenN = (p: EvenParams): number => breakEven(p.F, p.g);
+
+/** `F ÷ g`, worked: exact when it terminates within 2 decimal places, else to 2 decimal places. */
+function divideTex(F: number, g: number, lead = `${F} \\div ${g}`): string {
+  const q = F / g;
+  const shown = Math.round(q * 100) / 100;
+  return `${lead} ${Math.abs(q - shown) < 1e-9 ? '=' : '\\approx'} ${shown}`;
+}
+
+/** Why a count that is not whole goes up, not down. */
+function roundUpText(F: number, g: number, noun: string): string {
+  const n = breakEven(F, g);
+  return `Selling $${n - 1}$ makes ${pounds(g * (n - 1))} over the costs of making them, short of the ${pounds(F)}; the fewest ${noun} that cover it is the next whole number up, $${n}$.`;
+}
 
 /** The story's three numbers in words. Each has its own phrase, so the order can change. */
 function evenSentence(story: number, fixed: number, cost: number, price: number, order: boolean): string {
@@ -10836,32 +10855,53 @@ function evenSentence(story: number, fixed: number, cost: number, price: number,
 const evenText = (p: EvenParams): string => evenSentence(p.story, evenFixed(p), p.c, evenPrice(p), p.order);
 
 /**
- * A break-even story, built from the count: the fixed cost is the count
- * times what each sale makes over its cost. Difficulty 2 has larger numbers
- * and may give the price first.
+ * A break-even story with a round fixed cost, a hire or a machine priced as
+ * one would be: £10s at difficulty 1, £50s at difficulty 2. The count it
+ * gives is whatever it comes to, and a question asks for the fewest sales
+ * that cover the costs, rounded up.
+ *
+ * `exact` is for the slider and the table, which draw the crossing itself
+ * and so need it on a whole number: the fixed cost is still round, and only
+ * a draw whose margin happens to divide it is kept.
  */
-function sampleEven(rng: Rng, difficulty: number, most?: number): EvenParams {
+function sampleEven(rng: Rng, difficulty: number, most?: number, exact = false): EvenParams {
   const hard = difficulty > 1;
+  const step = hard && !exact ? 50 : 10;
   return drawUntil(
     () => ({
       story: rng.int(0, EVEN_STORIES.length - 1),
-      n: rng.int(hard ? 8 : 4, most ?? (hard ? 40 : 20)),
+      F: step * rng.int(2, hard ? (exact ? 40 : 16) : 20),
       c: rng.int(2, hard ? 15 : 6),
       g: rng.int(hard ? 2 : 1, hard ? 12 : 6),
       order: hard && rng.chance(0.5),
     }),
-    (p) => evenFixed(p) !== evenPrice(p) && evenFixed(p) !== p.c && p.g !== p.c,
-    { story: 0, n: 6, c: 2, g: 3, order: false },
+    (p) =>
+      evenN(p) >= (hard ? 8 : 4) &&
+      evenN(p) <= (most ?? (hard ? 60 : 30)) &&
+      (!exact || p.F % p.g === 0) &&
+      evenFixed(p) !== evenPrice(p) &&
+      evenFixed(p) !== p.c &&
+      p.g !== p.c,
+    { story: 0, F: 60, c: 2, g: 3, order: false },
   );
 }
 
 function evenWorking(p: EvenParams): SolutionStep[] {
   const F = evenFixed(p);
   const price = evenPrice(p);
+  const n = evenN(p);
+  const whole = F % p.g === 0;
   return [
     { text: `With $n$ sold, the income is $${price}n$ and the costs are $${F} + ${p.c}n$. At break-even they are equal.` },
     { tex: `${price}n = ${F} + ${p.c}n` },
-    { tex: stackTex(p.g === 1 ? [`n = ${p.n}`] : [`${p.g}n = ${F}`, `n = ${p.n}`]) },
+    {
+      tex: stackTex(
+        whole
+          ? p.g === 1 ? [`n = ${n}`] : [`${p.g}n = ${F}`, `n = ${n}`]
+          : [`${p.g}n = ${F}`, divideTex(F, p.g, `n = \\frac{${F}}{${p.g}}`)],
+      ),
+    },
+    ...(whole ? [] : [{ text: roundUpText(F, p.g, EVEN_STORIES[p.story].items) }]),
   ];
 }
 
@@ -10870,24 +10910,27 @@ const evenCount: Generator<EvenParams> = {
   id: 'lin-even-count',
   choices: (p) => {
     const F = evenFixed(p);
-    return numberChoices(p.n, F / evenPrice(p), F / p.c, p.n + 1);
+    const n = evenN(p);
+    return numberChoices(n, Math.floor(F / p.g), breakEven(F, evenPrice(p)), breakEven(F, p.c), n + 1);
   },
   sample: (rng, difficulty) => sampleEven(rng, difficulty),
   render: (p): Slide => {
     const { items } = EVEN_STORIES[p.story];
     return {
       kind: 'expression',
-      prompt: [{ kind: 'prose', text: `${evenText(p)} How many ${items} must it sell to break even?` }],
+      prompt: [{ kind: 'prose', text: `${evenText(p)} What is the fewest ${items} it must sell to break even?` }],
       lead: `\\text{${items}} =`,
       keypad: [],
-      answer: `${p.n}`,
+      answer: `${evenN(p)}`,
       domain: 'real',
       mode: 'exact',
     };
   },
   solution: (p) => [
     ...evenWorking(p),
-    { text: `Each ${EVEN_STORIES[p.story].item} sold covers its own cost and ${pounds(p.g)} more, and $${p.n}$ lots of ${pounds(p.g)} is the ${pounds(evenFixed(p))}.` },
+    ...(p.F % p.g === 0
+      ? [{ text: `Each ${EVEN_STORIES[p.story].item} sold covers its own cost and ${pounds(p.g)} more, and $${evenN(p)}$ lots of ${pounds(p.g)} is the ${pounds(evenFixed(p))}.` }]
+      : []),
   ],
 };
 
@@ -10911,7 +10954,7 @@ const evenTiles: Generator<EvenParams> = {
         },
       ],
       template: '{0}n = {1} + {2}n',
-      bank: bankOf(answer, [`${p.g}`, `${p.n}`, `${F + p.c}`]),
+      bank: bankOf(answer, [`${p.g}`, `${evenN(p)}`, `${F + p.c}`]),
       answer,
     };
   },
@@ -10924,9 +10967,9 @@ const evenTiles: Generator<EvenParams> = {
  */
 const evenSlider: Generator<EvenParams> = {
   id: 'lin-even-slider',
-  sample: (rng, difficulty) => sampleEven(rng, difficulty, difficulty > 1 ? 18 : 10),
+  sample: (rng, difficulty) => sampleEven(rng, difficulty, difficulty > 1 ? 18 : 10, true),
   render: (p): Slide => {
-    const width = p.n > 10 ? 20 : 12;
+    const width = evenN(p) > 10 ? 20 : 12;
     const F = evenFixed(p);
     const price = evenPrice(p);
     const { items } = EVEN_STORIES[p.story];
@@ -10941,7 +10984,7 @@ const evenSlider: Generator<EvenParams> = {
       min: 0,
       max: width,
       step: 1,
-      answer: p.n,
+      answer: evenN(p),
       readout: `\\text{${items}} = {v}`,
       figure: {
         svg: plotSvg({
@@ -10971,7 +11014,7 @@ interface EvenTableParams extends EvenParams {
   given: boolean;
 }
 
-const evenRows = (p: EvenTableParams): number[] => [0, 1, 2].map((i) => p.n + (i - p.at) * p.gap);
+const evenRows = (p: EvenTableParams): number[] => [0, 1, 2].map((i) => evenN(p) + (i - p.at) * p.gap);
 
 /**
  * Costs and income for three numbers sold, one of them the break-even
@@ -10984,13 +11027,13 @@ const evenTable: Generator<EvenTableParams> = {
     const hard = difficulty > 1;
     return drawUntil(
       () => ({
-        ...sampleEven(rng, difficulty),
+        ...sampleEven(rng, difficulty, undefined, true),
         gap: rng.int(hard ? 2 : 1, hard ? 6 : 3),
         at: rng.int(hard ? 0 : 1, 2),
         given: !hard,
       }),
       (p) => evenRows(p)[0] >= 0,
-      { story: 0, n: 6, c: 2, g: 3, order: false, gap: 2, at: 1, given: true },
+      { story: 0, F: 60, c: 2, g: 3, order: false, gap: 2, at: 1, given: true },
     );
   },
   render: (p): Slide => {
@@ -11012,7 +11055,7 @@ const evenTable: Generator<EvenTableParams> = {
       ],
       columns: ['n', '\\text{costs}', '\\text{income}'],
       rows,
-      bank: treeBank(answer, [p.c * middle, F + price * middle, p.g * middle], F + p.c * p.n),
+      bank: treeBank(answer, [p.c * middle, F + price * middle, p.g * middle], F + p.c * evenN(p)),
       answer,
     };
   },
@@ -11024,7 +11067,7 @@ const evenTable: Generator<EvenTableParams> = {
       ...evenRows(p).map((k) => ({
         text: `Selling $${k}$: the costs are $${F} + ${p.c} \\times ${k} = ${F + p.c * k}$ and the income $${price} \\times ${k} = ${price * k}$.`,
       })),
-      { text: `They are equal at $n = ${p.n}$, the break-even point.` },
+      { text: `They are equal at $n = ${evenN(p)}$, the break-even point.` },
     ];
   },
 };
@@ -11040,7 +11083,7 @@ const EVEN_MORE = 'Yes, more';
 const EVEN_LESS = 'No, less';
 const EVEN_SAME = 'Exactly the same';
 
-const evenProfit = (p: EvenFlowParams): number => p.g * (p.k - p.n);
+const evenProfit = (p: EvenFlowParams): number => p.g * p.k - p.F;
 
 /** The three amounts on offer, the profit or loss among them. */
 function evenAmounts(p: EvenFlowParams): number[] {
@@ -11062,7 +11105,7 @@ const evenFlow: Generator<EvenFlowParams> = {
     const hard = difficulty > 1;
     const base = sampleEven(rng, difficulty);
     const offset = rng.pick(nonZeroRange(hard ? -15 : -5, hard ? 15 : 5));
-    const k = !hard && rng.chance(0.15) ? base.n : Math.max(1, base.n + offset);
+    const k = !hard && rng.chance(0.15) ? evenN(base) : Math.max(1, evenN(base) + offset);
     return { ...base, k, shown: !hard };
   },
   render: (p): Slide => {
@@ -11112,10 +11155,10 @@ const evenFlow: Generator<EvenFlowParams> = {
       {
         text:
           profit > 0
-            ? `The income is more by ${pounds(profit)}: a profit. It sold more than the $${p.n}$ needed to break even.`
+            ? `The income is more by ${pounds(profit)}: a profit. It sold at least the $${evenN(p)}$ needed to break even.`
             : profit < 0
-              ? `The costs are more by ${pounds(-profit)}: a loss. It sold fewer than the $${p.n}$ needed to break even.`
-              : `They are equal: $${p.n}$ is exactly the break-even number.`,
+              ? `The costs are more by ${pounds(-profit)}: a loss. It sold fewer than the $${evenN(p)}$ needed to break even.`
+              : `They are equal: $${evenN(p)}$ is exactly the break-even number.`,
       },
     ];
   },
@@ -12069,7 +12112,7 @@ const backWhich: Generator<BackWhichParams> = {
     const wrong = rng.sample([0, 1, 2, 3], 3);
     if (kind === 'charge') return { kind, charge: sampleCharge(rng, difficulty), wrong };
     if (kind === 'meet') return { kind, meet: sampleMeet(rng, difficulty, false, 2), wrong };
-    if (kind === 'even') return { kind, even: sampleEven(rng, difficulty), wrong };
+    if (kind === 'even') return { kind, even: sampleEven(rng, difficulty, undefined, true), wrong };
     return {
       kind,
       mix: drawUntil(() => sampleMix(rng, difficulty), (m) => m.x !== m.y, { kind: 'price', story: 0, a: 9, b: 4, x: 6, y: 4 }),
@@ -12155,9 +12198,9 @@ const backSenseFlow: Generator<SenseParams> = {
     const kind = rng.pick(hard ? (['even', 'catch', 'mix'] as const) : (['even', 'catch'] as const));
     const fine = rng.chance(0.35);
     if (kind === 'even') {
-      const base = sampleEven(rng, difficulty);
+      const base = sampleEven(rng, difficulty, undefined, true);
       const g = fine ? base.g : 2 * rng.int(1, hard ? 6 : 3);
-      return { kind, story: base.story, c: base.c, g, n: base.n, half: !fine };
+      return { kind, story: base.story, c: base.c, g, n: evenN(base), half: !fine };
     }
     if (kind === 'catch') return { kind, catch: sampleCatch(rng, difficulty, false), slower: !fine };
     if (fine) return { kind, mix: sampleMix(rng, difficulty) };
@@ -12220,7 +12263,7 @@ interface ChangeParams {
   c: number;
   g: number;
   change: ChangeKind;
-  /** How much the price or cost moves, or how many more sales the new fixed cost takes. */
+  /** How much the price or cost moves, or, for `fixed`, how many pounds the fixed cost rises by. */
   j: number;
   /** The old break-even count is stated. */
   told: boolean;
@@ -12228,7 +12271,7 @@ interface ChangeParams {
 
 /** The margin after the change, and the new fixed cost. */
 function changed(p: ChangeParams): { F: number; g: number } {
-  if (p.change === 'fixed') return { F: p.F + p.g * p.j, g: p.g };
+  if (p.change === 'fixed') return { F: p.F + p.j, g: p.g };
   return { F: p.F, g: p.change === 'cheaper' ? p.g - p.j : p.g + p.j };
 }
 
@@ -12244,41 +12287,47 @@ function changeSentence(p: ChangeParams): string {
 /**
  * The effect of changing one number on the break-even count. A dearer
  * price or a cheaper cost widens what each sale makes, so fewer are needed;
- * a bigger fixed cost needs more. Built so both counts are whole: the fixed
- * cost is a multiple of both margins. Difficulty 1 states the old count;
- * difficulty 2 does not, and may lower the price.
+ * a bigger fixed cost needs more. The fixed cost and any rise in it are
+ * round amounts (£10s, or £50s at difficulty 2), so a count need not be
+ * whole: it is the fewest sales that cover the costs, rounded up, and a
+ * change is kept only when that count moves. Difficulty 1 states the old
+ * count; difficulty 2 does not, and may lower the price.
  */
 const backChange: Generator<ChangeParams> = {
   id: 'lin-back-change',
   choices: (p) => {
-    const n = p.F / p.g;
+    const n = breakEven(p.F, p.g);
     const after = changed(p);
-    const n2 = after.F / after.g;
-    return numberChoices(n2, n, n + (n - n2), n2 + 1);
+    const n2 = breakEven(after.F, after.g);
+    return numberChoices(n2, n, Math.floor(after.F / after.g), n + (n - n2), n2 + 1);
   },
   sample: (rng, difficulty) => {
     const hard = difficulty > 1;
+    const step = hard ? 50 : 10;
     return drawUntil(
       () => {
         const g = rng.int(2, hard ? 12 : 8);
         const change = rng.pick(hard ? (['price', 'cost', 'fixed', 'cheaper'] as const) : (['price', 'cost', 'fixed'] as const));
-        const j = rng.int(1, hard ? 6 : 4);
-        const g2 = change === 'fixed' ? g : change === 'cheaper' ? g - j : g + j;
-        const L = g2 >= 1 ? lcm(g, g2) : g;
         return {
           story: rng.int(0, EVEN_STORIES.length - 1),
-          F: L * rng.int(1, 12),
+          F: step * rng.int(hard ? 2 : 3, hard ? 16 : 20),
           c: rng.int(2, hard ? 15 : 8),
           g,
           change,
-          j,
+          j: change === 'fixed' ? step * rng.int(1, hard ? 4 : 6) : rng.int(1, hard ? 6 : 4),
           told: !hard,
         };
       },
       (p) => {
         const after = changed(p);
-        const n = p.F / p.g;
-        return after.g >= 1 && n >= 3 && n <= (hard ? 60 : 30) && after.F % after.g === 0 && p.c - (p.change === 'cost' ? p.j : 0) >= 1;
+        const n = breakEven(p.F, p.g);
+        return (
+          after.g >= 1 &&
+          n >= 3 &&
+          n <= (hard ? 60 : 30) &&
+          breakEven(after.F, after.g) !== n &&
+          p.c - (p.change === 'cost' ? p.j : 0) >= 1
+        );
       },
       { story: 0, F: 60, c: 3, g: 4, change: 'price', j: 1, told: true },
     );
@@ -12286,33 +12335,39 @@ const backChange: Generator<ChangeParams> = {
   render: (p): Slide => {
     const { items } = EVEN_STORIES[p.story];
     const after = changed(p);
-    const n = p.F / p.g;
+    const n = breakEven(p.F, p.g);
+    const told = p.F % p.g === 0 ? ` It breaks even at $${n}$ ${items}.` : ` It must sell at least $${n}$ ${items} to break even.`;
     return {
       kind: 'expression',
       prompt: [
         {
           kind: 'prose',
-          text: `${evenSentence(p.story, p.F, p.c, p.c + p.g, false)}${p.told ? ` It breaks even at $${n}$ ${items}.` : ''} ${changeSentence(p)} How many must it sell now to break even?`,
+          text: `${evenSentence(p.story, p.F, p.c, p.c + p.g, false)}${p.told ? told : ''} ${changeSentence(p)} What is the fewest ${items} it must sell now to break even?`,
         },
       ],
       lead: `\\text{${items}} =`,
       keypad: [],
-      answer: `${after.F / after.g}`,
+      answer: `${breakEven(after.F, after.g)}`,
       domain: 'real',
       mode: 'exact',
     };
   },
   solution: (p) => {
     const after = changed(p);
+    const { items } = EVEN_STORIES[p.story];
+    const n = breakEven(p.F, p.g);
     return [
-      { text: `Before, each sale makes ${pounds(p.g)} over its cost, and $${p.F} \\div ${p.g} = ${p.F / p.g}$ sales cover the ${pounds(p.F)}.` },
+      {
+        text: `Before, each sale makes ${pounds(p.g)} over its cost, and $${divideTex(p.F, p.g)}$, so $${n}$ sales ${p.F % p.g === 0 ? 'cover' : 'are the fewest that cover'} the ${pounds(p.F)}.`,
+      },
       {
         text:
           p.change === 'fixed'
             ? `Now there is ${pounds(after.F)} to cover at ${pounds(p.g)} a sale.`
             : `Now each sale makes ${pounds(after.g)} over its cost, and there is still ${pounds(p.F)} to cover.`,
       },
-      { tex: `n = ${after.F} \\div ${after.g} = ${after.F / after.g}` },
+      { tex: divideTex(after.F, after.g, `n = ${after.F} \\div ${after.g}`) },
+      ...(after.F % after.g === 0 ? [] : [{ text: roundUpText(after.F, after.g, items) }]),
     ];
   },
 };

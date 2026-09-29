@@ -259,6 +259,8 @@ const cycleCount: Generator<CyclesParams> = {
 interface MidlineParams {
   max: number;
   min: number;
+  /** Which story the extremes are told in; `trig-amplitude` has only the one. */
+  story?: 'harbour' | 'temperature';
 }
 
 /** The midline, halfway between the highest and lowest values. */
@@ -272,17 +274,30 @@ const midline: Generator<MidlineParams> = {
       { tex: `${(max + min) / 2 + 1}`, answer: `${(max + min) / 2 + 1}` },
     ),
   sample: (rng, difficulty) => {
-    // Both bounds share a parity so their mean is a whole number.
-    const half = rng.int(1, difficulty > 1 ? 9 : 5);
-    const centre = rng.int(difficulty > 1 ? -6 : 1, difficulty > 1 ? 9 : 8);
-    return { max: centre + half, min: centre - half };
+    // Both bounds share a parity so their mean is a whole number. A harbour's
+    // depth stays above the sea bed: 1 to 6 m at low tide, 7 to 16 m at high.
+    // Values that go below nought are told as a temperature, which can.
+    for (;;) {
+      if (difficulty > 1 && rng.chance(0.5)) {
+        const half = rng.int(2, 9);
+        const centre = rng.int(-6, 9);
+        return { max: centre + half, min: centre - half, story: 'temperature' };
+      }
+      const min = rng.int(1, 6);
+      const max = rng.int(7, 16);
+      if ((max - min) % 2 !== 0) continue;
+      return { max, min, story: 'harbour' };
+    }
   },
-  render: ({ max, min }) => ({
+  render: ({ max, min, story }) => ({
     kind: 'expression',
     prompt: [
       {
         kind: 'prose',
-        text: `The water at a harbour wall rises to a maximum depth of $${max}$ m and falls to a minimum of $${min}$ m. What is the midline of the depth?`,
+        text:
+          story === 'temperature'
+            ? `Over a day, the temperature outside rises to a maximum of $${max}$ °C and falls to a minimum of $${min}$ °C. What is the midline of the temperature, in °C?`
+            : `The water at a harbour wall rises to a maximum depth of $${max}$ m and falls to a minimum of $${min}$ m. What is the midline of the depth, in metres?`,
       },
     ],
     lead: '\\text{midline} =',
@@ -291,13 +306,13 @@ const midline: Generator<MidlineParams> = {
     domain: 'real',
     mode: 'exact',
   }),
-  solution: ({ max, min }) => [
+  solution: ({ max, min, story }) => [
     {
       text: 'The midline sits halfway between the highest and lowest values, so take their mean.',
     },
     { tex: `\\frac{${max} + (${min})}{2} = \\frac{${max + min}}{2} = ${(max + min) / 2}` },
     {
-      text: `The depth oscillates about $${(max + min) / 2}$ m. Note this is an average of the two extremes, not of the depth over time — those agree for a sine wave but not for every periodic shape.`,
+      text: `The ${story === 'temperature' ? 'temperature' : 'depth'} oscillates about $${(max + min) / 2}$ ${story === 'temperature' ? '°C' : 'm'}. Note this is an average of the two extremes, not of the ${story === 'temperature' ? 'temperature' : 'depth'} over time — those agree for a sine wave but not for every periodic shape.`,
     },
   ],
 };
@@ -514,7 +529,7 @@ const periodFromSpeed: Generator<SpeedParams> = {
     prompt: [
       {
         kind: 'prose',
-        text: `A wheel makes $${turns}$ complete turns in $${seconds}$ seconds. How long does one turn take, in seconds?`,
+        text: `A wheel makes $${turns}$ complete turns in $${seconds}$ seconds. How long does one turn take, in seconds? Give your answer as a fraction if it is not a whole number.`,
       },
     ],
     lead: '\\text{period} =',
@@ -1512,17 +1527,17 @@ function bankAround(answer: string[], preferred: number[], extra = 3): string[] 
 }
 
 /** Everyday events that recur, for questions about *when* rather than *how often*. */
-const REPEATING_EVENTS: { repeats: string; occurrence: string; unit: string }[] = [
-  { repeats: 'A lighthouse flashes', occurrence: 'flash', unit: 'seconds' },
-  { repeats: 'A bus leaves the stop', occurrence: 'departure', unit: 'minutes' },
-  { repeats: 'The tide reaches its highest', occurrence: 'high tide', unit: 'hours' },
-  { repeats: 'A piston returns to the top of its stroke', occurrence: 'return', unit: 'seconds' },
-  { repeats: 'A seat on a Ferris wheel reaches the top', occurrence: 'arrival at the top', unit: 'seconds' },
-  { repeats: 'A valve on a bicycle wheel touches the road', occurrence: 'touch', unit: 'seconds' },
-  { repeats: 'A pendulum reaches the far side of its swing', occurrence: 'arrival', unit: 'seconds' },
-  { repeats: 'A wave crest reaches the harbour wall', occurrence: 'crest', unit: 'seconds' },
-  { repeats: 'A garden sprinkler passes the same flower bed', occurrence: 'pass', unit: 'seconds' },
-  { repeats: 'A metronome clicks', occurrence: 'click', unit: 'seconds' },
+const REPEATING_EVENTS: { repeats: string; occurrence: string; unit: string; lo: number; hi: number }[] = [
+  { repeats: 'A lighthouse flashes', occurrence: 'flash', unit: 'seconds', lo: 5, hi: 20 },
+  { repeats: 'A bus leaves the stop', occurrence: 'departure', unit: 'minutes', lo: 8, hi: 30 },
+  { repeats: 'The tide reaches its highest', occurrence: 'high tide', unit: 'hours', lo: 12, hi: 12 },
+  { repeats: 'A child on a swing reaches the top of the swing', occurrence: 'arrival at the top', unit: 'seconds', lo: 2, hi: 4 },
+  { repeats: 'A seat on a Ferris wheel reaches the top', occurrence: 'arrival at the top', unit: 'minutes', lo: 10, hi: 30 },
+  { repeats: "A paddle on a mill's water wheel dips into the stream", occurrence: 'dip', unit: 'seconds', lo: 8, hi: 20 },
+  { repeats: 'A pendulum reaches the far side of its swing', occurrence: 'arrival', unit: 'seconds', lo: 2, hi: 4 },
+  { repeats: 'A wave crest reaches the harbour wall', occurrence: 'crest', unit: 'seconds', lo: 5, hi: 12 },
+  { repeats: 'A garden sprinkler passes the same flower bed', occurrence: 'pass', unit: 'seconds', lo: 10, hi: 30 },
+  { repeats: 'A leaking tap drips', occurrence: 'drip', unit: 'seconds', lo: 2, hi: 8 },
 ];
 
 interface RepeatTimesParams {
@@ -1542,11 +1557,12 @@ interface RepeatTimesParams {
  */
 const repeatTimes: Generator<RepeatTimesParams> = {
   id: 'trig-repeat-times',
-  sample: (rng, difficulty) => ({
-    index: rng.int(0, REPEATING_EVENTS.length - 1),
-    first: rng.int(1, difficulty > 1 ? 9 : 6),
-    period: rng.int(2, difficulty > 1 ? 11 : 8),
-  }),
+  // Each event repeats at the pace it really does: a tide twice a day, a Ferris wheel in minutes.
+  sample: (rng, difficulty) => {
+    const index = rng.int(0, REPEATING_EVENTS.length - 1);
+    const { lo, hi } = REPEATING_EVENTS[index];
+    return { index, first: rng.int(1, difficulty > 1 ? 9 : 6), period: rng.int(lo, hi) };
+  },
   render: ({ index, first, period }): Slide => {
     const event = REPEATING_EVENTS[index];
     const answer = [first + period, first + 2 * period, first + 3 * period].map(String);
@@ -1811,13 +1827,19 @@ const waveSwing: Generator<SwingParams> = {
 };
 
 /** Quantities with a natural high and low, for reading a swing backwards. */
-const SWING_CONTEXTS: { subject: string; unit: string }[] = [
-  { subject: 'The depth of water at a harbour wall', unit: 'metres' },
-  { subject: 'The height of a seat on a Ferris wheel', unit: 'metres' },
-  { subject: 'The temperature in a greenhouse over a day', unit: 'degrees' },
-  { subject: 'The height of a piston in an engine', unit: 'centimetres' },
-  { subject: 'The number of hours of daylight through the year', unit: 'hours' },
-  { subject: 'The reading on a swinging pressure gauge', unit: 'units' },
+/**
+ * Each with the midlines and amplitudes it can really have. A depth or a
+ * height never dips below nought, so its least value is at least 1; the
+ * temperature outside and a gauge reading may go negative, and only at
+ * difficulty 2.
+ */
+const SWING_CONTEXTS: { subject: string; unit: string; mid: [number, number]; amp: [number, number]; negative?: boolean; hard?: boolean }[] = [
+  { subject: 'The depth of water at a harbour wall', unit: 'metres', mid: [4, 10], amp: [1, 5] },
+  { subject: 'The height of a seat on a Ferris wheel', unit: 'metres', mid: [10, 40], amp: [8, 38], hard: true },
+  { subject: 'The temperature outside over a day', unit: 'degrees Celsius', mid: [-4, 20], amp: [2, 8], negative: true },
+  { subject: 'The height of a piston in an engine', unit: 'centimetres', mid: [5, 15], amp: [2, 6] },
+  { subject: 'The number of hours of daylight through the year', unit: 'hours', mid: [12, 12], amp: [1, 7] },
+  { subject: 'The reading on a swinging pressure gauge', unit: 'units', mid: [-4, 14], amp: [1, 7], negative: true },
 ];
 
 interface DescribeWaveParams {
@@ -1837,11 +1859,20 @@ interface DescribeWaveParams {
  */
 const describeWave: Generator<DescribeWaveParams> = {
   id: 'trig-describe-wave',
-  sample: (rng, difficulty) => ({
-    index: rng.int(0, SWING_CONTEXTS.length - 1),
-    midline: rng.int(difficulty > 1 ? -4 : 2, difficulty > 1 ? 14 : 10),
-    amplitude: rng.int(1, difficulty > 1 ? 7 : 5),
-  }),
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const index = rng.int(0, SWING_CONTEXTS.length - 1);
+      const { mid, amp, negative, hard } = SWING_CONTEXTS[index];
+      if (hard && difficulty === 1) continue;
+      const midline = rng.int(mid[0], mid[1]);
+      const amplitude = rng.int(amp[0], amp[1]);
+      const low = midline - amplitude;
+      // Heights and depths stay above nought; below nought only at difficulty 2, and only where it can go.
+      if (low < 1 && !(negative && difficulty > 1)) continue;
+      if (low > 3 && hard) continue;
+      return { index, midline, amplitude };
+    }
+  },
   render: ({ index, midline, amplitude }): Slide => {
     const context = SWING_CONTEXTS[index];
     const high = midline + amplitude;
@@ -2494,75 +2525,103 @@ const radPlace: Generator<PlaceParams> = {
   ],
 };
 
-/** Circles in the wild, each with its question about the angle. */
-const ARC_CONTEXTS: { setup: (s: number, r: number) => string; ask: string }[] = [
+/**
+ * Circles in the wild, each with its question about the angle, and the sizes
+ * the thing really comes in: a pendulum tens of centimetres long swinging
+ * through less than 1.5 radians, a running-track bend of radius 30 to 40 m.
+ * Lengths are what a tape measure reads, so the angle is asked to 2 d.p.
+ */
+const ARC_CONTEXTS: { setup: (s: string, r: number) => string; ask: string; r: [number, number]; turn: [number, number] }[] = [
   {
     setup: (s, r) => `An arc of length $${s}$ cm is marked on a circle of radius $${r}$ cm.`,
     ask: 'What angle does it make at the centre, in radians?',
+    r: [3, 15],
+    turn: [0.3, 6],
   },
   {
     setup: (s, r) => `A wheel of radius $${r}$ cm rolls $${s}$ cm along the ground without slipping.`,
     ask: 'Through what angle has it turned, in radians?',
+    r: [20, 40],
+    turn: [1, 12],
   },
   {
     setup: (s, r) => `A pendulum $${r}$ cm long swings its bob along an arc $${s}$ cm long.`,
     ask: 'Through what angle does it swing, in radians?',
+    r: [20, 80],
+    turn: [0.2, 1.5],
   },
   {
     setup: (s, r) => `A bend on a running track is part of a circle of radius $${r}$ m, and the bend is $${s}$ m long.`,
     ask: 'What angle does the bend turn through, in radians?',
+    r: [30, 40],
+    turn: [0.5, 3.1],
   },
 ];
 
+const ARC_PRECISION = { dp: 2 };
+
 interface ArcAngleParams {
   r: number;
-  /** Twice the angle, so half-radian angles stay whole in the parameters. */
-  twice: number;
+  /** The arc in tenths: whole at difficulty 1, to 1 d.p. at difficulty 2. */
+  tenths: number;
   context: number;
 }
+
+const arcOf = ({ tenths }: ArcAngleParams): number => tenths / 10;
+/** The angle to 2 d.p., rounded the way the answer is. */
+const arcAngle = (p: ArcAngleParams): number => Math.round((arcOf(p) / p.r) * 100 + 1e-9) / 100;
+const twoDp = (value: number): string => String(Number(value.toFixed(2)));
 
 /** The definition of a radian, used directly: angle = arc / radius. */
 const radArcAngle: Generator<ArcAngleParams> = {
   id: 'trig-rad-arc-angle',
   sample: (rng, difficulty) => {
-    let r = rng.int(2, difficulty > 1 ? 12 : 9);
-    const twice = rng.int(1, difficulty > 1 ? 12 : 8);
-    // An odd radius with a half-radian angle would leave the arc a half; an
-    // even one keeps every length on screen whole.
-    if ((r * twice) % 2 !== 0) r += 1;
-    return { r, twice, context: rng.int(0, ARC_CONTEXTS.length - 1) };
+    for (;;) {
+      const context = rng.int(0, ARC_CONTEXTS.length - 1);
+      const { r: [lo, hi], turn } = ARC_CONTEXTS[context];
+      const r = rng.int(lo, hi);
+      const min = Math.ceil(turn[0] * r * 10);
+      const max = Math.floor(turn[1] * r * 10);
+      const tenths = difficulty > 1 ? rng.int(min, max) : 10 * rng.int(Math.ceil(min / 10), Math.floor(max / 10));
+      if (tenths < min || tenths > max || (difficulty > 1 && tenths % 10 === 0)) continue;
+      const exact = tenths / 10 / r;
+      // Clear of a rounding edge, so a learner who rounds 2.345 either way is not marked on a coin toss.
+      const scaled = exact * 100;
+      if (Math.abs(scaled - Math.floor(scaled) - 0.5) < 0.15) continue;
+      return { r, tenths, context };
+    }
   },
-  render: ({ r, twice, context }): Slide => {
-    const s = (r * twice) / 2;
-    const { setup, ask } = ARC_CONTEXTS[context];
+  render: (p): Slide => {
+    const { setup, ask } = ARC_CONTEXTS[p.context];
     return {
       kind: 'expression',
-      prompt: [{ kind: 'prose', text: `${setup(s, r)} ${ask}` }],
+      prompt: [{ kind: 'prose', text: `${setup(twoDp(arcOf(p)), p.r)} ${ask} Give your answer to 2 decimal places.` }],
       lead: '\\text{angle} =',
-      keypad: NUMBER_KEYS,
-      answer: `${s}/${r}`,
+      keypad: [],
+      answer: twoDp(arcAngle(p)),
+      precision: ARC_PRECISION,
       domain: 'real',
       mode: 'exact',
     };
   },
-  choices: ({ r, twice }) => {
-    const s = (r * twice) / 2;
-    return measureOptions(
-      { n: s, d: r, withPi: false },
-      // Upside down, multiplied instead of divided, and the diameter used.
-      { n: r, d: s, withPi: false },
-      { n: s * r, d: 1, withPi: false },
-      { n: s, d: 2 * r, withPi: false },
-      { n: s + r, d: 1, withPi: false },
-    );
+  choices: (p) => {
+    const s = arcOf(p);
+    const right = twoDp(arcAngle(p));
+    // Upside down, multiplied instead of divided, the diameter used, and added.
+    const wrong = [p.r / s, s * p.r, s / (2 * p.r), s + p.r].map((v) => twoDp(Math.round(v * 100 + 1e-9) / 100)).filter((v) => Number(v) !== Number(right));
+    return options({ tex: right, answer: right }, ...wrong.map((w) => ({ tex: w, answer: w }))).slice(0, 4);
   },
-  solution: ({ r, twice }) => {
-    const s = (r * twice) / 2;
+  solution: (p) => {
+    const s = twoDp(arcOf(p));
+    const exact = arcOf(p) / p.r;
     return [
       {
         text: 'An angle in radians counts how many radii fit along the arc. So divide the arc by the radius.',
       },
-      { tex: `\\theta = \\frac{s}{r} = \\frac{${s}}{${r}} = ${ratioTex(s, r)}` },
+      {
+        tex: `\\theta = \\frac{s}{r} = \\frac{${s}}{${p.r}} ${Math.abs(exact * 1e4 - Math.round(exact * 1e4)) < 1e-6 ? `= ${Number(exact.toFixed(4))}` : `= ${exact.toFixed(4)}\\ldots`}`,
+      },
+      { tex: `\\theta \\approx ${twoDp(arcAngle(p))} \\text{ rad (2 d.p.)}` },
       {
         text: 'The units cancel, which is why a radian has no unit to write: the answer is the same whether the lengths are in centimetres or in miles.',
       },
@@ -3187,14 +3246,34 @@ interface SectorParams {
 const sectorAngleTex = (p: SectorParams): string =>
   p.inDegrees ? `${(180 * p.n) / p.d}^{\\circ}` : p.withPi ? piTex(p.n, p.d) : `${p.n}\\text{ rad}`;
 
-/** Radius and angle for a sector question: whole radians, or a tidy multiple of pi. */
-function sampleSector(rng: Rng, difficulty: number, contexts: number): SectorParams {
-  const r = rng.int(2, difficulty > 1 ? 12 : 9);
-  const context = rng.int(0, contexts - 1);
-  if (rng.chance(0.35)) return { r, n: rng.int(1, 4), d: 1, withPi: false, inDegrees: false, context };
-  const d = rng.pick([2, 3, 4, 6]);
-  const n = rng.pick(coprimeTo(d, 1, 2 * d - 1));
-  return { r, n, d, withPi: true, inDegrees: difficulty > 1 && rng.chance(0.5), context };
+/** What a story allows: its radius range, and an angle kept strictly under `below` radians. */
+interface SectorFit {
+  r?: [number, number];
+  below?: number;
+}
+
+/**
+ * Radius and angle for a sector question: whole radians, or a tidy multiple of
+ * pi. A story with a `fit` keeps to it, so a pendulum is tens of centimetres
+ * long and swings through less than a right angle, and a slice of cake is less
+ * than a sixth of it.
+ */
+function sampleSector(rng: Rng, difficulty: number, contexts: number, fits: SectorFit[] = []): SectorParams {
+  for (;;) {
+    const context = rng.int(0, contexts - 1);
+    const fit = fits[context] ?? {};
+    const r = fit.r ? rng.int(fit.r[0], fit.r[1]) : rng.int(2, difficulty > 1 ? 12 : 9);
+    const params: SectorParams = rng.chance(0.35)
+      ? { r, n: rng.int(1, 4), d: 1, withPi: false, inDegrees: false, context }
+      : (() => {
+          const d = rng.pick([2, 3, 4, 6]);
+          const n = rng.pick(coprimeTo(d, 1, 2 * d - 1));
+          return { r, n, d, withPi: true, inDegrees: difficulty > 1 && rng.chance(0.5), context };
+        })();
+    const angle = (params.n / params.d) * (params.withPi ? Math.PI : 1);
+    if (fit.below !== undefined && angle >= fit.below - 1e-9) continue;
+    return params;
+  }
 }
 
 const ARC_LENGTH_CONTEXTS: ((r: number, angle: string) => string)[] = [
@@ -3203,10 +3282,13 @@ const ARC_LENGTH_CONTEXTS: ((r: number, angle: string) => string)[] = [
   (r, angle) => `A wheel of radius $${r}$ cm turns through $${angle}$. How far does a point on its rim travel?`,
 ];
 
+/** A pendulum 20 to 80 cm long, swinging through less than a right angle. */
+const ARC_LENGTH_FITS: SectorFit[] = [{}, { r: [20, 80], below: Math.PI / 2 }, {}];
+
 /** s = r theta, with theta in radians — or converted to radians first. */
 const radArcLength: Generator<SectorParams> = {
   id: 'trig-rad-arc-length',
-  sample: (rng, difficulty) => sampleSector(rng, difficulty, ARC_LENGTH_CONTEXTS.length),
+  sample: (rng, difficulty) => sampleSector(rng, difficulty, ARC_LENGTH_CONTEXTS.length, ARC_LENGTH_FITS),
   render: (p): Slide => ({
     kind: 'expression',
     prompt: [
@@ -3246,22 +3328,28 @@ const radArcLength: Generator<SectorParams> = {
   },
 };
 
-const SECTOR_AREA_CONTEXTS: ((r: number, angle: string) => string)[] = [
-  (r, angle) => `A sector of a circle of radius $${r}$ cm has angle $${angle}$ at the centre. What is its area?`,
-  (r, angle) => `A slice is cut from a round cake of radius $${r}$ cm, with angle $${angle}$ at the centre. What area of the top does it take?`,
-  (r, angle) => `A lawn sprinkler reaches $${r}$ m and sweeps through $${angle}$. What area does it water?`,
+const SECTOR_AREA_CONTEXTS: { ask: (r: number, angle: string) => string; unit: string }[] = [
+  { ask: (r, angle) => `A sector of a circle of radius $${r}$ cm has angle $${angle}$ at the centre. What is its area?`, unit: 'cm²' },
+  {
+    ask: (r, angle) => `A slice is cut from a round cake of radius $${r}$ cm, with angle $${angle}$ at the centre. What area of the top does it take?`,
+    unit: 'cm²',
+  },
+  { ask: (r, angle) => `A lawn sprinkler reaches $${r}$ m and sweeps through $${angle}$. What area does it water?`, unit: 'm²' },
 ];
+
+/** A cake 10 to 15 cm in radius, cut in a slice of less than a sixth of it. */
+const SECTOR_AREA_FITS: SectorFit[] = [{}, { r: [10, 15], below: Math.PI / 3 }, {}];
 
 /** A = r squared theta over 2: the sector's share of the circle. */
 const radSectorArea: Generator<SectorParams> = {
   id: 'trig-rad-sector-area',
-  sample: (rng, difficulty) => sampleSector(rng, difficulty, SECTOR_AREA_CONTEXTS.length),
+  sample: (rng, difficulty) => sampleSector(rng, difficulty, SECTOR_AREA_CONTEXTS.length, SECTOR_AREA_FITS),
   render: (p): Slide => ({
     kind: 'expression',
     prompt: [
       {
         kind: 'prose',
-        text: `${SECTOR_AREA_CONTEXTS[p.context](p.r, sectorAngleTex(p))}${p.withPi ? ' Give it in terms of $\\pi$.' : ''}`,
+        text: `${SECTOR_AREA_CONTEXTS[p.context].ask(p.r, sectorAngleTex(p))} Give it in ${SECTOR_AREA_CONTEXTS[p.context].unit}${p.withPi ? ', in terms of $\\pi$' : ''}.`,
       },
     ],
     lead: 'A =',

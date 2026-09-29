@@ -35,6 +35,8 @@ import {
   withAxisNumbers,
   type Poly,
 } from './numericalKit';
+import { askPrecision, roundedWell } from './classicalKit';
+import { roundTo, type Precision } from '../../engine/equivalence';
 
 /* ================================================================
  * Digits held as whole numbers
@@ -415,25 +417,28 @@ interface ReportParams {
   mode: 'dp' | 'sf';
 }
 
+/** Each story keeps to sizes it could really have: a box a hand can hold, a ball in the air for seconds. */
 const REPORT_STORIES = [
-  { name: 'x', what: 'The side of a box', unit: 'cm' },
-  { name: 't', what: 'The time a ball lands', unit: 's' },
-  { name: 'L', what: 'The length of a fence', unit: 'm' },
-  { name: '\\alpha', what: 'A root', unit: '' },
+  { name: 'x', what: 'The side of a box', unit: 'cm', lo: 2, hi: 50 },
+  { name: 't', what: 'The time a ball lands', unit: 's', lo: 1, hi: 10 },
+  { name: 'L', what: 'The length of a fence', unit: 'm', lo: 10, hi: 500 },
+  { name: '\\alpha', what: 'A root', unit: '', lo: 0.1, hi: 100 },
 ];
 
 function sampleReport(rng: Rng, difficulty: number): ReportParams {
   for (;;) {
     const story = rng.int(0, REPORT_STORIES.length - 1);
+    const { lo, hi } = REPORT_STORIES[story];
     if (difficulty === 1) {
       const exp = rng.pick([-1, -2]);
-      const units = rng.int(11, exp === -1 ? 99 : 999);
-      if (units % 10 === 0) continue;
+      const units = rng.int(Math.ceil(lo * 10 ** -exp), Math.floor(hi * 10 ** -exp));
+      if (units % 10 === 0 || units < 11) continue;
       return { story, units, exp, mode: 'dp' };
     }
     const units = rng.int(11, 999);
     const exp = rng.pick([-2, -1, 0, 1]);
-    if (units % 10 === 0 || (units < 100 && exp === -2)) continue;
+    const value = units * 10 ** exp;
+    if (units % 10 === 0 || (units < 100 && exp === -2) || value < lo || value > hi) continue;
     return { story, units, exp, mode: 'sf' };
   }
 }
@@ -770,39 +775,66 @@ const senseFlow: Generator<SenseParams> = {
 
 interface PctParams {
   story: number;
+  /** The exact value and the estimate, as whole numbers of the story's last digit. */
   exact: number;
-  /** How far off the estimate is, signed: positive when it is too big. */
-  off: number;
+  estimate: number;
+  /** Decimal places both are written to. */
+  dp: number;
 }
 
+/**
+ * Each story with its own sizes: an area of tens of square metres, a length
+ * of a few tens of centimetres, a tank of a few hundred litres. The estimate
+ * is 1% to 10% off, written to the same place as the exact value, so the
+ * percentage error comes out however it comes out and is asked to 1 d.p.
+ */
 const PCT_STORIES = [
-  { text: (e: string, a: string) => `The trapezium rule estimates an area as $${e}$ m². The exact area is $${a}$ m².` },
-  { text: (e: string, a: string) => `A decimal search gives a length of $${e}$ cm. The exact length is $${a}$ cm.` },
-  { text: (e: string, a: string) => `A model predicts a tank holds $${e}$ litres. It actually holds $${a}$ litres.` },
+  { text: (e: string, a: string) => `The trapezium rule estimates an area as $${e}$ m². The exact area is $${a}$ m².`, lo: 20, hi: 200 },
+  { text: (e: string, a: string) => `A decimal search gives a length of $${e}$ cm. The exact length is $${a}$ cm.`, lo: 20, hi: 80 },
+  { text: (e: string, a: string) => `A model predicts a tank holds $${e}$ litres. It actually holds $${a}$ litres.`, lo: 60, hi: 500 },
 ];
 
-const EXACTS = [20, 25, 40, 50, 80, 100, 125, 200, 250, 400, 500];
+const PCT_PRECISION: Precision = { dp: 1 };
+/** The error over the exact value, as the tree carries it. */
+const RATIO_PRECISION: Precision = { dp: 4 };
 
-const pctOf = ({ exact, off }: PctParams): number => clean((100 * Math.abs(off)) / exact);
-const estimateOf = ({ exact, off }: PctParams): number => clean(exact + off);
+const exactOf = ({ exact, dp }: PctParams): number => clean(exact / 10 ** dp);
+const estimateOf = ({ estimate, dp }: PctParams): number => clean(estimate / 10 ** dp);
+const errorOf = (params: PctParams): number => clean(Math.abs(params.estimate - params.exact) / 10 ** params.dp);
+/** The percentage error unrounded, and as the answer gives it. */
+const pctRaw = ({ exact, estimate }: PctParams): number => (100 * Math.abs(estimate - exact)) / exact;
+const pctOf = (params: PctParams): number => roundTo(pctRaw(params), PCT_PRECISION);
+const ratioOf = ({ exact, estimate }: PctParams): number => roundTo(Math.abs(estimate - exact) / exact, RATIO_PRECISION);
 
 function samplePct(rng: Rng, difficulty: number): PctParams {
   for (;;) {
-    const exact = rng.pick(EXACTS);
-    const size = difficulty > 1 ? rng.int(1, Math.floor((2 * exact) / 5)) / 2 : rng.int(1, Math.floor(exact / 5));
-    const params = { story: rng.int(0, PCT_STORIES.length - 1), exact, off: size * rng.sign() };
-    if (!terminates(pctOf(params), 2) || !terminates(Math.abs(params.off) / exact, 4)) continue;
+    const story = rng.int(0, PCT_STORIES.length - 1);
+    const dp = difficulty > 1 ? 1 : 0;
+    const { lo, hi } = PCT_STORIES[story];
+    const exact = rng.int(lo * 10 ** dp, hi * 10 ** dp);
+    const estimate = exact + rng.sign() * rng.int(1, Math.ceil(exact / 10));
+    const params = { story, exact, estimate, dp };
+    const raw = pctRaw(params);
+    // 1% to 10% off, away from a rounding edge, and the same to 1 d.p. worked from the ratio the tree carries.
+    if (raw < 1 || raw > 10 || !roundedWell(raw, PCT_PRECISION) || !roundedWell(raw / 100, RATIO_PRECISION)) continue;
+    if (roundTo(100 * ratioOf(params), PCT_PRECISION) !== pctOf(params)) continue;
     return params;
   }
 }
 
-const pctPrompt = (params: PctParams): string => PCT_STORIES[params.story].text(fmt(estimateOf(params)), fmt(params.exact));
+const pctPrompt = (params: PctParams): string => PCT_STORIES[params.story].text(fmt(estimateOf(params)), fmt(exactOf(params)));
 
 function pctSolution(params: PctParams): SolutionStep[] {
-  const d = fmt(Math.abs(params.off));
+  const d = fmt(errorOf(params));
   return [
     { text: 'The error is how far the estimate is from the exact value. Divide by the exact value and multiply by $100$:' },
-    { tex: aligned(`\\text{error} &= ${fmt(Math.abs(params.off))}`, `\\frac{${d}}{${fmt(params.exact)}} \\times 100 &= ${fmt(pctOf(params))}\\%`) },
+    {
+      tex: aligned(
+        `\\text{error} &= |${fmt(estimateOf(params))} - ${fmt(exactOf(params))}| = ${d}`,
+        `\\frac{${d}}{${fmt(exactOf(params))}} \\times 100 &${terminates(pctRaw(params), 3) ? '=' : '\\approx'} ${fmt(roundTo(pctRaw(params), { dp: 3 }))}\\%`,
+      ),
+    },
+    { text: `To 1 decimal place the percentage error is $${fmt(pctOf(params))}\\%$.` },
   ];
 }
 
@@ -810,17 +842,19 @@ const pctError: Generator<PctParams> = {
   id: 'numer-pct-error',
   sample: (rng, difficulty) => samplePct(rng, difficulty),
   choices: (params) => {
-    const d = Math.abs(params.off);
-    const overEstimate = clean((100 * d) / estimateOf(params));
-    const wrong = [...(terminates(overEstimate, 2) ? [overEstimate] : []), d, clean(d / params.exact), clean(2 * pctOf(params)), clean(pctOf(params) + 1)];
-    return options({ tex: fmt(pctOf(params)), answer: fmt(pctOf(params)) }, ...wrong.map((w) => ({ tex: fmt(w), answer: fmt(w) }))).slice(0, 4);
+    const d = errorOf(params);
+    const right = pctOf(params);
+    const overEstimate = roundTo((100 * d) / estimateOf(params), PCT_PRECISION);
+    const wrong = [overEstimate, d, ratioOf(params), clean(2 * right), clean(right + 1)].filter((w) => w !== right);
+    return options({ tex: fmt(right), answer: fmt(right) }, ...wrong.map((w) => ({ tex: fmt(w), answer: fmt(w) }))).slice(0, 4);
   },
   render: (params): Slide => ({
     kind: 'expression',
-    prompt: [say(pctPrompt(params)), say('Work out the percentage error.')],
+    prompt: [say(pctPrompt(params)), say(`Work out the percentage error. ${askPrecision(PCT_PRECISION)}`)],
     lead: '\\text{percentage error} =',
     keypad: [],
     answer: fmt(pctOf(params)),
+    precision: PCT_PRECISION,
     domain: 'real',
     mode: 'exact',
   }),
@@ -831,23 +865,40 @@ const pctTree: Generator<PctParams> = {
   id: 'numer-pct-parts-tree',
   sample: (rng, difficulty) => samplePct(rng, difficulty),
   render: (params): Slide => {
-    const d = Math.abs(params.off);
-    const ratio = clean(d / params.exact);
-    const answer = [fmt(d), fmt(ratio), fmt(pctOf(params))];
+    const d = errorOf(params);
+    const ratio = ratioOf(params);
+    const pct = pctOf(params);
+    const answer = [fmt(d), fmt(ratio), fmt(pct)];
     return {
       kind: 'tree',
-      prompt: [say(pctPrompt(params)), say('The error first, then the error over the exact value, then as a percentage.')],
+      prompt: [
+        say(pctPrompt(params)),
+        say('The error first, then the error over the exact value to 4 decimal places, then as a percentage to 1 decimal place.'),
+      ],
       expression: '\\frac{\\text{error}}{\\text{exact}} \\times 100',
       nodes: [
         { id: 'error', from: [] },
         { id: 'ratio', from: ['error'] },
         { id: 'pct', from: ['ratio'] },
       ],
-      bank: numberBank(answer, [fmt(clean(params.exact + estimateOf(params))), fmt(clean(ratio * 10)), fmt(clean(pctOf(params) / 10))], around([d, pctOf(params)], 1)),
+      bank: numberBank(
+        answer,
+        [fmt(clean(exactOf(params) + estimateOf(params))), fmt(roundTo(ratio * 10, RATIO_PRECISION)), fmt(roundTo(pct / 10, { dp: 2 }))],
+        around([d, pct], 1),
+      ),
       answer,
     };
   },
-  solution: pctSolution,
+  solution: (params) => [
+    ...pctSolution(params).slice(0, 1),
+    {
+      tex: aligned(
+        `\\text{error} &= ${fmt(errorOf(params))}`,
+        `\\frac{${fmt(errorOf(params))}}{${fmt(exactOf(params))}} &= ${fmt(ratioOf(params))} \\text{ (4 d.p.)}`,
+        `${fmt(ratioOf(params))} \\times 100 &= ${fmt(clean(100 * ratioOf(params)))} = ${fmt(pctOf(params))}\\% \\text{ (1 d.p.)}`,
+      ),
+    },
+  ],
 };
 
 interface AcceptParams extends PctParams {
@@ -858,15 +909,16 @@ const pctAccept: Generator<AcceptParams> = {
   id: 'numer-pct-accept-flow',
   sample: (rng, difficulty) => {
     for (;;) {
-      const params = { ...samplePct(rng, difficulty), within: rng.pick([1, 2, 5, 10]) };
-      if (pctOf(params) === params.within) continue;
+      const params = { ...samplePct(rng, difficulty), within: rng.pick([2, 5, 10]) };
+      // Clear of the line either way, so the rounded percentage and the true one give the same verdict.
+      if (Math.abs(pctRaw(params) - params.within) < 0.2) continue;
       return params;
     }
   },
   render: (params): Slide => {
     const p = pctOf(params);
-    const ratio = clean(Math.abs(params.off) / params.exact);
-    const key = `${params.exact}${params.off}${params.within}`;
+    const ratio = ratioOf(params);
+    const key = `${params.exact}${params.estimate}${params.dp}${params.within}`;
     return {
       kind: 'flow',
       prompt: [say(pctPrompt(params)), say(`The estimate is good enough if it is within $${params.within}\\%$.`)],
@@ -879,7 +931,7 @@ const pctAccept: Generator<AcceptParams> = {
         },
         {
           id: 'pct',
-          ask: 'What is the percentage error?',
+          ask: 'What is the percentage error, to 1 decimal place?',
           branches: turned([{ label: `$${fmt(p)}\\%$`, to: 'ok' }, { label: `$${fmt(ratio)}\\%$`, to: 'ok' }], `${key}p`),
         },
         {
@@ -891,11 +943,11 @@ const pctAccept: Generator<AcceptParams> = {
           ],
         },
       ],
-      answer: [params.off > 0 ? 'Too big' : 'Too small', `$${fmt(p)}\\%$`, p <= params.within ? 'Yes' : 'No'],
+      answer: [params.estimate > params.exact ? 'Too big' : 'Too small', `$${fmt(p)}\\%$`, p <= params.within ? 'Yes' : 'No'],
     };
   },
   solution: (params) => [
-    { text: `The estimate $${fmt(estimateOf(params))}$ is ${params.off > 0 ? 'more' : 'less'} than $${fmt(params.exact)}$: too ${params.off > 0 ? 'big' : 'small'}.` },
+    { text: `The estimate $${fmt(estimateOf(params))}$ is ${params.estimate > params.exact ? 'more' : 'less'} than $${fmt(exactOf(params))}$: too ${params.estimate > params.exact ? 'big' : 'small'}.` },
     ...pctSolution(params).slice(1),
     { text: pctOf(params) <= params.within ? `Within $${params.within}\\%$: accept it.` : `More than $${params.within}\\%$: not good enough.` },
   ],

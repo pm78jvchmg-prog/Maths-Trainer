@@ -19,6 +19,7 @@ import { markerWindow, plotSvg } from '../figures';
 import { defaultSliderValue } from '../../ui/sliderValue';
 import type { Rng } from '../../engine/rng';
 import { aOrAn } from './format';
+import { dots, fixed, numChoices, precisionWords, roundTo, roundedWell, type Precision } from './classicalKit';
 
 /* ---------- shared helpers ---------- */
 
@@ -97,13 +98,6 @@ function decPow(c: number, n: number): string {
   const whole = digits.slice(0, -places);
   const fraction = digits.slice(-places).replace(/0+$/, '');
   return fraction ? `${whole}.${fraction}` : whole;
-}
-
-/** a × (c / 100)^n when that is a whole number, else undefined. Exact. */
-function wholeAfter(a: number, c: number, n: number): number | undefined {
-  const top = a * c ** n;
-  const bottom = 100 ** n;
-  return top % bottom === 0 ? top / bottom : undefined;
 }
 
 function rootName(n: number): string {
@@ -473,50 +467,95 @@ interface PctContext {
   /** Asks for the value after `time`. */
   question: (time: string) => string;
   noun: string;
+  /**
+   * What a value after some years is rounded to: the nearest pound for a house
+   * or a car, the nearest whole one for a count. Left out, money is to the penny.
+   */
+  nearest?: string;
+  /** Starting values a story like this prints. */
+  starts: number[];
+  /** Yearly percentages it changes by: round ones for easier draws, any for harder. */
+  easy: number[];
+  hard: number[];
 }
 
+/** Whole steps from lo to hi, both included. */
+const range = (lo: number, hi: number, step: number): number[] =>
+  Array.from({ length: Math.floor((hi - lo) / step) + 1 }, (_, i) => lo + i * step);
+
+/*
+ * Each story has its own starts and rates, the kind a textbook prints for it:
+ * a house of £150,000 to £400,000 rising 2% to 10% a year, a town of
+ * thousands growing a few percent, savings at 2% to 6%, a car losing 10% to
+ * 25%, a phone 10% to 40%. A value after some years is asked to the
+ * nearest pound for a house or a car, to the penny for savings or a phone,
+ * and to the nearest whole number for a count, never picked so it comes out
+ * whole.
+ */
 const PCT_CONTEXTS: PctContext[] = [
   {
     up: true,
     money: true,
     noun: 'value',
+    nearest: 'pound',
     opening: (a, p) => `A house worth £${a} rises in value by ${p}% a year.`,
-    question: (time) => `What is it worth after ${time}?`,
+    question: (time) => `What is it worth, in pounds, after ${time}?`,
+    starts: range(150000, 400000, 25000),
+    easy: [5, 10],
+    hard: [2, 3, 4, 6, 8],
   },
   {
     up: true,
     money: false,
     noun: 'people',
+    nearest: 'whole number',
     opening: (a, p) => `A town of ${a} people grows by ${p}% a year.`,
     question: (time) => `How many people live there after ${time}?`,
+    starts: [2000, 4000, 5000, 6000, 8000, 10000, 12000, 15000, 20000, 25000, 40000, 50000],
+    easy: [5, 10],
+    hard: [2, 3, 4, 6, 8, 12, 15],
   },
   {
     up: true,
     money: true,
     noun: 'balance',
     opening: (a, p) => `Savings of £${a} earn ${p}% interest a year, which is added to the pot.`,
-    question: (time) => `How much is in the pot after ${time}?`,
+    question: (time) => `How much, in pounds, is in the pot after ${time}?`,
+    starts: [500, 800, 1000, 1200, 1500, 2000, 2500, 3000, 4000, 5000, 8000, 10000],
+    easy: [2, 5],
+    hard: [3, 4, 6],
   },
   {
     up: false,
     money: true,
     noun: 'value',
+    nearest: 'pound',
     opening: (a, p) => `A car worth £${a} loses ${p}% of its value each year.`,
-    question: (time) => `What is it worth after ${time}?`,
+    question: (time) => `What is it worth, in pounds, after ${time}?`,
+    starts: [8000, 10000, 12000, 15000, 18000, 20000, 22000, 24000, 25000, 28000, 30000],
+    easy: [10, 20, 25],
+    hard: [12, 15, 18],
   },
   {
     up: false,
     money: false,
     noun: 'fish',
+    nearest: 'whole number',
     opening: (a, p) => `A lake holds ${a} fish, and ${p}% of them are lost each year.`,
     question: (time) => `How many fish are left after ${time}?`,
+    starts: [500, 800, 1000, 1200, 1500, 2000, 2500, 3000, 4000, 5000],
+    easy: [5, 10, 20],
+    hard: [4, 6, 8, 12, 15],
   },
   {
     up: false,
     money: true,
     noun: 'price',
     opening: (a, p) => `A phone costing £${a} drops in price by ${p}% a year.`,
-    question: (time) => `What does it cost after ${time}?`,
+    question: (time) => `What does it cost, in pounds, after ${time}?`,
+    starts: range(200, 1200, 100),
+    easy: [10, 20, 25, 40],
+    hard: [15, 30, 35],
   },
 ];
 
@@ -543,8 +582,6 @@ interface PctFlowParams {
   n: number;
 }
 
-const FLOW_PERCENTS = [2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50];
-const ROUND_STARTS = [200, 400, 500, 800, 1000, 1500, 2000, 2500, 4000, 5000, 8000];
 
 /** Candidate multipliers for a p% change one way: the right one and the usual slips. */
 function candidateMultipliers(p: number, up: boolean): number[] {
@@ -561,12 +598,11 @@ function candidateMultipliers(p: number, up: boolean): number[] {
  */
 const growPctFlow: Generator<PctFlowParams> = {
   id: 'grow-pct-flow',
-  sample: (rng, difficulty) => ({
-    p: rng.pick(FLOW_PERCENTS),
-    ctx: rng.int(0, PCT_CONTEXTS.length - 1),
-    a: rng.pick(ROUND_STARTS),
-    n: difficulty > 1 ? rng.int(2, 4) : 1,
-  }),
+  sample: (rng, difficulty) => {
+    const ctx = rng.int(0, PCT_CONTEXTS.length - 1);
+    const { easy, hard, starts } = PCT_CONTEXTS[ctx];
+    return { p: rng.pick([...easy, ...hard]), ctx, a: rng.pick(starts), n: difficulty > 1 ? rng.int(2, 4) : 1 };
+  },
   render: ({ p, ctx, a, n }): Slide => {
     const context = PCT_CONTEXTS[ctx];
     const right = yearly(p, context.up);
@@ -656,22 +692,19 @@ interface PctCalcParams {
   n: number;
 }
 
-const TILE_PERCENTS = { easy: [5, 10, 20, 25, 50], hard: [2, 3, 4, 5, 6, 8, 12, 15, 30, 40] };
-const TILE_STARTS = [300, 400, 600, 800, 1200, 1500, 2000, 2400, 3000, 5000, 6000];
 
 /** Build start × multiplier^years from the story. */
 const growPctTiles: Generator<PctCalcParams> = {
   id: 'grow-pct-tiles',
-  sample: (rng, difficulty) => ({
-    a: rng.pick(TILE_STARTS),
-    p: rng.pick(difficulty > 1 ? TILE_PERCENTS.hard : TILE_PERCENTS.easy),
-    ctx: rng.int(0, PCT_CONTEXTS.length - 1),
-    n: rng.int(2, difficulty > 1 ? 6 : 4),
-  }),
+  sample: (rng, difficulty) => {
+    const ctx = rng.int(0, PCT_CONTEXTS.length - 1);
+    const context = PCT_CONTEXTS[ctx];
+    return { a: rng.pick(context.starts), p: rng.pick(difficulty > 1 ? context.hard : context.easy), ctx, n: rng.int(2, difficulty > 1 ? 6 : 4) };
+  },
   render: ({ a, p, ctx, n }): Slide => {
     const context = PCT_CONTEXTS[ctx];
     const c = yearly(p, context.up);
-    const answer = [`${a}`, `${dec(c)}^{${n}}`];
+    const answer = [texNum(a), `${dec(c)}^{${n}}`];
     const change = (a * p) / 100;
     return {
       kind: 'tiles',
@@ -683,7 +716,7 @@ const growPctTiles: Generator<PctCalcParams> = {
       ],
       template: `\\text{${context.noun}} = {0} \\times {1}`,
       bank: fillBank(answer, [
-        ...(Number.isInteger(change) ? [`${change}`] : []),
+        ...(Number.isInteger(change) ? [texNum(change)] : []),
         `${dec(p)}^{${n}}`,
         `${dec(yearly(p, !context.up))}^{${n}}`,
         `${dec(c)} \\times ${n}`,
@@ -699,73 +732,105 @@ const growPctTiles: Generator<PctCalcParams> = {
       {
         text: `${aOrAn(p, true)} ${p}% ${up ? 'rise' : 'fall'} leaves ${c}% of the amount, so each year multiplies by $${dec(c)}$.`,
       },
-      { tex: `${a} \\times ${dec(c)}^{${n}}` },
+      { tex: `${texNum(a)} \\times ${dec(c)}^{${n}}` },
       { text: `The start is multiplied once by the whole power: the index ${n} counts the years.` },
     ];
   },
 };
 
-/** Starts and rates for which the value after n years is a whole number. */
-function pctValuePool(percents: number[], counts: number[]): PctCalcParams[] {
-  const starts = [
-    100, 200, 300, 400, 500, 600, 800, 1000, 1200, 1500, 1600, 2000, 2400, 2500, 3000, 4000, 5000, 6000,
-    8000, 10000, 12000, 16000, 20000, 25000, 40000, 50000,
-  ];
-  return PCT_CONTEXTS.flatMap((context, ctx) =>
-    percents.flatMap((p) =>
-      counts.flatMap((n) =>
-        starts
-          .filter((a) => wholeAfter(a, yearly(p, context.up), n) !== undefined)
-          .map((a) => ({ a, p, ctx, n })),
-      ),
-    ),
-  );
+/** To the nearest pound or whole number where the story says so, else to the penny. */
+function pctPrecision(ctx: number): Precision {
+  return PCT_CONTEXTS[ctx].nearest ? { dp: 0 } : { dp: 2 };
 }
 
-const PCT_VALUE_EASY = pctValuePool([5, 10, 20, 25, 50], [1, 2]);
-const PCT_VALUE_HARD = pctValuePool([2, 4, 5, 10, 15, 20, 25, 30, 40, 50], [2, 3]);
+/** The precision in words: "to the nearest pound (0 decimal places)", or "to 2 decimal places". */
+function pctWords(ctx: number): string {
+  const { nearest } = PCT_CONTEXTS[ctx];
+  return nearest ? `to the nearest ${nearest} (0 decimal places)` : precisionWords(pctPrecision(ctx));
+}
+
+/** The value worked a year at a time, rounded each year as the question rounds its answer. */
+function pctCarried({ a, p, ctx, n }: PctCalcParams): number {
+  const precision = pctPrecision(ctx);
+  let value = a;
+  for (let year = 0; year < n; year += 1) value = roundTo((value * yearly(p, PCT_CONTEXTS[ctx].up)) / 100, precision);
+  return value;
+}
+
+/** The value after n years, unrounded. */
+function pctAfter({ a, p, ctx, n }: PctCalcParams): number {
+  return a * (yearly(p, PCT_CONTEXTS[ctx].up) / 100) ** n;
+}
+
+/** A start, a rate and a number of years whose value does not sit near a rounding edge. */
+function samplePctValue(rng: Rng, difficulty: number): PctCalcParams {
+  for (;;) {
+    const ctx = rng.int(0, PCT_CONTEXTS.length - 1);
+    const context = PCT_CONTEXTS[ctx];
+    const params = {
+      a: rng.pick(context.starts),
+      p: rng.pick(difficulty > 1 ? context.hard : context.easy),
+      ctx,
+      n: difficulty > 1 ? rng.int(2, 3) : rng.int(1, 2),
+    };
+    // A learner who rounds each year's value must land on the same answer.
+    const precision = pctPrecision(ctx);
+    if (roundedWell(pctAfter(params), precision) && pctCarried(params) === roundTo(pctAfter(params), precision)) return params;
+  }
+}
+
+/** A value with no float noise: 159135.0000001 reads 159135. */
+const clean = (x: number): string => String(Number(x.toFixed(6)));
 
 /** The value after n years of the same percentage change, typed. */
 const growPctValue: Generator<PctCalcParams> = {
   id: 'grow-pct-value',
-  sample: (rng, difficulty) => rng.pick(difficulty > 1 ? PCT_VALUE_HARD : PCT_VALUE_EASY),
-  choices: ({ a, p, ctx, n }) => {
+  sample: samplePctValue,
+  choices: (params) => {
+    const { a, p, ctx, n } = params;
     const { up } = PCT_CONTEXTS[ctx];
-    const c = yearly(p, up);
-    const value = wholeAfter(a, c, n) ?? 0;
     const simple = (a * (100 + (up ? 1 : -1) * n * p)) / 100;
-    return numberOptions(value, [
-      simple,
-      wholeAfter(a, c, 1) ?? 0,
-      wholeAfter(a, yearly(p, !up), n) ?? 0,
-      wholeAfter(a, c, n + 1) ?? 0,
-    ]);
+    return numChoices(
+      pctAfter(params),
+      [simple, pctAfter({ ...params, n: 1 }), pctAfter({ ...params, p: -p }), pctAfter({ ...params, n: n + 1 })],
+      a + p * 7 + n * 131 + ctx,
+      pctPrecision(ctx),
+    );
   },
-  render: ({ a, p, ctx, n }): Slide => {
+  render: (params): Slide => {
+    const { a, p, ctx, n } = params;
     const context = PCT_CONTEXTS[ctx];
+    const precision = pctPrecision(ctx);
     return {
       kind: 'expression',
-      prompt: [{ kind: 'prose', text: `${context.opening(proseNum(a), p)} ${context.question(years(n))}` }],
+      prompt: [{ kind: 'prose', text: `${context.opening(proseNum(a), p)} ${context.question(years(n))} Give your answer ${pctWords(ctx)}.` }],
       lead: `\\text{${context.noun}} =`,
       keypad: [],
-      answer: String(wholeAfter(a, yearly(p, context.up), n)),
+      answer: String(roundTo(pctAfter(params), precision)),
+      precision,
       domain: 'real',
       mode: 'exact',
     };
   },
-  solution: ({ a, p, ctx, n }) => {
+  solution: (params) => {
+    const { a, p, ctx, n } = params;
     const { up } = PCT_CONTEXTS[ctx];
     const c = yearly(p, up);
-    const value = wholeAfter(a, c, n) ?? 0;
+    const value = pctAfter(params);
+    const precision = pctPrecision(ctx);
+    const rounded = roundTo(value, precision);
+    const exact = Math.abs(rounded - value) < 1e-9;
     const steps: SolutionStep[] = [
       { text: `${aOrAn(p, true)} ${p}% ${up ? 'rise' : 'fall'} multiplies by $${dec(c)}$ each year.` },
       {
         tex: chain(
           `& ${texNum(a)} \\times ${dec(c)}^{${n}}`,
           `&= ${texNum(a)} \\times ${decPow(c, n)}`,
-          `&= ${texNum(value)}`,
+          `&= ${clean(value)}`,
+          ...(exact ? [] : [`&\\approx ${fixed(value, precision)}`]),
         ),
       },
+      ...(exact ? [] : [{ text: `That is ${fixed(value, precision)} ${pctWords(ctx)}.` }]),
     ];
     if (n > 1) {
       steps.push({
@@ -878,10 +943,11 @@ const growPctSlider: Generator<PassParams> = {
 
 /* ---------- Lesson 3: decay and negative indices ---------- */
 
+/** Each with the round starting amounts a textbook prints for it. */
 const HALF_CONTEXTS = [
-  { what: 'A dose of medicine', unit: 'mg', time: 'hour', left: 'in the blood' },
-  { what: 'A radioactive sample', unit: 'g', time: 'day', left: 'in the sample' },
-  { what: 'The caffeine from a strong coffee', unit: 'mg', time: 'hour', left: 'in the body' },
+  { what: 'A dose of medicine', unit: 'mg', time: 'hour', left: 'in the blood', starts: [100, 150, 200, 250, 300, 400, 500, 600, 800] },
+  { what: 'A radioactive sample', unit: 'g', time: 'day', left: 'in the sample', starts: [20, 40, 50, 60, 80, 100, 120, 150, 200, 250, 300, 400, 500] },
+  { what: 'The caffeine from a strong coffee', unit: 'mg', time: 'hour', left: 'in the body', starts: [80, 100, 120, 150, 160, 200] },
 ];
 
 interface HalfParams {
@@ -896,20 +962,26 @@ interface HalfParams {
   below: number;
 }
 
+/**
+ * A round starting amount, never one picked so the halvings stay whole: what
+ * is left may be a decimal such as 12.5 mg. A draw whose amount would run past
+ * 2 decimal places (9.375 mg) is redrawn rather than rounded, since halving
+ * always ends such an amount on a 5, exactly on a rounding edge.
+ */
 function sampleHalf(rng: Rng, difficulty: number): HalfParams {
   for (;;) {
     const k = rng.int(difficulty > 1 ? 2 : 1, difficulty > 1 ? 5 : 4);
-    const odd = rng.pick([1, 3, 5, 7, 9, 15, 25]);
-    const a = odd * 2 ** rng.int(k, k + 2);
-    if (a > 2000 || a < 16) continue;
+    const ctx = rng.int(0, HALF_CONTEXTS.length - 1);
+    const a = rng.pick(HALF_CONTEXTS[ctx].starts);
     const h = rng.pick([2, 3, 4, 5, 6, 8, 12]);
     const ask = difficulty > 1 && rng.chance(0.5) ? 'time' : 'amount';
+    if (((a * 100) % 2 ** k) !== 0) continue;
     // A round number in (a / 2^k, a / 2^(k - 1)]: first gone below after k halvings.
     const low = a / 2 ** k;
     const high = a / 2 ** (k - 1);
     const rounds = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500].filter((t) => t > low && t <= high);
     if (ask === 'time' && rounds.length === 0) continue;
-    return { a, h, k, ctx: rng.int(0, HALF_CONTEXTS.length - 1), ask, below: ask === 'time' ? rng.pick(rounds) : 0 };
+    return { a, h, k, ctx, ask, below: ask === 'time' ? rng.pick(rounds) : 0 };
   }
 }
 
@@ -919,7 +991,7 @@ const growHalfLife: Generator<HalfParams> = {
   sample: sampleHalf,
   choices: ({ a, h, k, ask }) =>
     ask === 'amount'
-      ? numberOptions(a / 2 ** k, [a / (2 * k), a / 2 ** (k - 1), a / 2 ** (k + 1), a - (k * a) / 2])
+      ? numChoices(a / 2 ** k, [a / (2 * k), a / 2 ** (k - 1), a / 2 ** (k + 1), a - (k * a) / 2], a * 7 + k * 31 + h)
       : numberOptions(k * h, [(k - 1) * h, (k + 1) * h, k, h]),
   render: ({ a, h, k, ctx, ask, below }): Slide => {
     const context = HALF_CONTEXTS[ctx];
@@ -1646,16 +1718,40 @@ interface StartParams {
   ctx: number;
 }
 
+/** Things that can double or triple in a step, each with what it counts. */
 const START_CONTEXTS = [
-  { whole: 'A colony of bacteria', unit: 'hour' },
-  { whole: 'A savings pot', unit: 'year' },
-  { whole: 'A pile of coins in a game', unit: 'round' },
+  { whole: 'A colony of bacteria', unit: 'hour', noun: 'bacteria' },
+  { whole: 'The number of followers of a new account', unit: 'week', noun: 'followers' },
+  { whole: 'A pile of coins in a game', unit: 'round', noun: 'coins' },
 ];
 
+/** Values that change by a percentage a year, with the starts and rates a textbook prints for each. */
+const FIND_CONTEXTS = [
+  { what: "A painting's value", up: true, starts: range(2000, 20000, 1000), percents: [3, 4, 5, 6, 8, 10, 12, 15] },
+  { what: "A car's value", up: false, starts: [8000, 10000, 12000, 15000, 18000, 20000, 24000, 25000, 30000], percents: [10, 12, 15, 20, 25] },
+  { what: "A house's value", up: true, starts: range(150000, 400000, 25000), percents: [2, 3, 4, 5, 6, 8] },
+];
+
+/** The value after n steps. A percentage change is money, stated to the penny. */
 function startValue({ a, kind, r, n }: StartParams): number {
   if (kind === 'halving') return a / 2 ** n;
-  if (kind === 'percent') return wholeAfter(a, r, n) ?? 0;
+  if (kind === 'percent') return Math.round(a * (r / 100) ** n * 100) / 100;
   return a * r ** n;
+}
+
+/** A start found from a value stated to the penny is asked to the nearest pound. */
+const START_POUND: Precision = { dp: 0 };
+
+/** Undoing the steps from the value as stated: what the learner's calculator shows. */
+function startBack(params: StartParams): number {
+  const { kind, r, n } = params;
+  return startValue(params) / (kind === 'halving' ? 0.5 ** n : kind === 'percent' ? (r / 100) ** n : r ** n);
+}
+
+/** Pounds in prose: £1,587, or £1,587.34 when there are pence. */
+function poundsText(x: number): string {
+  const [whole, part] = (Number.isInteger(x) ? String(x) : x.toFixed(2)).split('.');
+  return `£${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${part ? `.${part}` : ''}`;
 }
 
 function sampleStart(rng: Rng, difficulty: number): StartParams {
@@ -1663,8 +1759,16 @@ function sampleStart(rng: Rng, difficulty: number): StartParams {
     const ctx = rng.int(0, START_CONTEXTS.length - 1);
     const roll = rng.next();
     if (difficulty > 1 && roll < 0.35) {
-      const pick = rng.pick(PCT_VALUE_HARD);
-      return { a: pick.a, kind: 'percent', r: yearly(pick.p, PCT_CONTEXTS[pick.ctx].up), n: pick.n, ctx };
+      const story = FIND_CONTEXTS[ctx];
+      // The start is a round value and the value after is stated to the penny.
+      // Dividing by the multiplier magnifies that half-penny (a car's 0.75^3
+      // more than doubles it), so the start is asked to the nearest pound, and
+      // a draw is kept only when undoing the stated value rounds back to it
+      // with room to spare.
+      const params: StartParams = { a: rng.pick(story.starts), kind: 'percent', r: yearly(rng.pick(story.percents), story.up), n: rng.int(2, 3), ctx };
+      const back = startBack(params);
+      if (roundedWell(back, START_POUND) && roundTo(back, START_POUND) === params.a) return params;
+      continue;
     }
     if (difficulty > 1 && roll < 0.65) {
       const n = rng.int(2, 5);
@@ -1688,10 +1792,10 @@ function startStory(params: StartParams): string {
   }
   if (kind === 'percent') {
     const up = r > 100;
-    return `A value ${up ? 'rises' : 'falls'} by ${Math.abs(r - 100)}% every year. After ${years(n)} it is $${value}$. What was it at the start?`;
+    return `${FIND_CONTEXTS[ctx].what} ${up ? 'rises' : 'falls'} by ${Math.abs(r - 100)}% every year. After ${years(n)} it is worth ${poundsText(startValue(params))}. What was it worth at the start, in pounds? Give your answer to the nearest pound (0 decimal places).`;
   }
-  const { whole, unit } = START_CONTEXTS[ctx];
-  return `${whole} ${MULTIPLY_VERB[r]} every ${unit}. After ${n} ${unit}s it is $${value}$. What was it at the start?`;
+  const { whole, unit, noun } = START_CONTEXTS[ctx];
+  return `${whole} ${MULTIPLY_VERB[r]} every ${unit}. After ${n} ${unit}s there are $${value}$ ${noun}. How many ${noun} were there at the start?`;
 }
 
 /** The start from the value after n steps: divide by the multiplier to the power n. */
@@ -1704,9 +1808,9 @@ const growFindStart: Generator<StartParams> = {
     if (kind === 'halving') return numberOptions(a, [value * 2 * n, value * 2 ** (n - 1), value / 2 ** n]);
     if (kind === 'percent') {
       return numberOptions(a, [
-        wholeAfter(value, 200 - r, n) ?? 0,
-        (value * 100) / (100 + (r - 100) * n),
-        wholeAfter(a, r, 1) ?? 0,
+        Math.round(value * ((200 - r) / 100) ** n),
+        Math.round((value * 100) / (100 + (r - 100) * n)),
+        Math.round((a * r) / 100),
       ]);
     }
     return numberOptions(a, [value / (r * n), a * r, value * r ** n, a * r ** (n - 1)]);
@@ -1717,6 +1821,7 @@ const growFindStart: Generator<StartParams> = {
     lead: '\\text{start} =',
     keypad: [],
     answer: String(params.a),
+    ...(params.kind === 'percent' ? { precision: START_POUND } : {}),
     domain: 'real',
     mode: 'exact',
   }),
@@ -1731,9 +1836,20 @@ const growFindStart: Generator<StartParams> = {
     }
     const m = kind === 'percent' ? dec(r) : `${r}`;
     const mn = kind === 'percent' ? decPow(r, n) : texNum(r ** n);
+    // The value after was stated to the penny, so undoing it lands near the
+    // start but seldom on it; the sample keeps only draws that round back to it.
+    const back = startBack(params);
+    const exact = Math.abs(back - a) < 1e-9;
     return [
       { text: `Going forwards multiplies by $${m}^{${n}}$, so going back divides by it.` },
-      { tex: chain(`\\text{start} &= ${value} \\div ${m}^{${n}}`, `&= ${value} \\div ${mn}`, `&= ${texNum(a)}`) },
+      {
+        tex: chain(
+          `\\text{start} &= ${value} \\div ${m}^{${n}}`,
+          `&= ${value} \\div ${mn}`,
+          ...(exact ? [`&= ${texNum(a)}`] : [`&= ${dots(back)}`, `&\\approx ${texNum(a)}`]),
+        ),
+      },
+      ...(exact ? [] : [{ text: `That is ${poundsText(a)}, to the nearest pound.` }]),
       ...(kind === 'percent'
         ? [{ text: `Taking the percentage off the end value instead does not undo it, because the change was worked on the start.` }]
         : []),

@@ -235,7 +235,9 @@ describe('forming an equation', () => {
       const { form, top, bottom, sign, value } = params;
       const f = { self: value, root: Math.sqrt(value), square: value * value, inverse: 1 / value }[form];
       const c = form === 'root' || form === 'inverse' ? top : top / bottom;
-      expect(close(Number(typed(slide)), sign * c * f)).toBe(true);
+      // A root or a quotient is asked to 2 decimal places.
+      if (slide.kind === 'expression' && slide.precision) expect(Math.abs(Number(typed(slide)) - sign * c * f)).toBeLessThanOrEqual(0.005 + 1e-9);
+      else expect(close(Number(typed(slide)), sign * c * f)).toBe(true);
     }
   });
 });
@@ -479,7 +481,8 @@ describe("Newton's law of cooling", () => {
       const solution = `${params.room} + (${params.start - params.room}) * e^(${lnAnswer(params.k)} * t)`;
       expect(satisfies(solution, `${lnAnswer(params.k)} * (y - (${params.room}))`)).toBe(true);
       expect(close(evalAt(solution, { t: 0 }), params.start)).toBe(true);
-      expect(close(evalAt(solution, { t: params.m * params.k.h }), Number(typed(slide)))).toBe(true);
+      // Asked to 1 decimal place.
+      expect(Math.abs(evalAt(solution, { t: params.m * params.k.h }) - Number(typed(slide)))).toBeLessThanOrEqual(0.05 + 1e-9);
     }
   });
 });

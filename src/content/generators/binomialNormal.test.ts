@@ -20,6 +20,7 @@ import { describe, it, expect } from 'vitest';
 import { makeRng } from '../../engine/rng';
 import { registry } from '../registry';
 import type { Block, Generator, Slide } from '../types';
+import { roundTo } from '../../engine/equivalence';
 
 const SEEDS = 150;
 const DIFFICULTIES = [1, 2];
@@ -53,6 +54,23 @@ function distribution(n: number, p: number): number[] {
 }
 
 const close = (a: number, b: number, tolerance = 1e-9) => Math.abs(a - b) < tolerance;
+
+/** z as the table is read at: two decimal places. A z that already ends there is unchanged. */
+const zAt = (z: number): number => roundTo(z, { dp: 2 });
+
+/** sigma as a question writes one that runs on: two decimal places. */
+const sdAt = (sd: number): number => roundTo(sd, { dp: 2 });
+
+/**
+ * A typed answer against the value the prompt's own numbers give: exact, or,
+ * when the slide sets a precision, that value rounded to it, with the prompt
+ * saying so.
+ */
+function answers(slide: Slide, value: number): boolean {
+  if (slide.kind !== 'expression') return false;
+  if (!slide.precision) return close(Number(slide.answer), value, 1e-6);
+  return close(Number(slide.answer), roundTo(value, slide.precision)) && /Give your answer to \d+ decimal place/.test(promptText(slide));
+}
 
 /** Phi by Simpson's rule on the density from 0, which knows nothing of erf. */
 function simpsonPhi(z: number): number {
@@ -493,7 +511,7 @@ describe('dist-both-solve, dist-both-symmetric and dist-both-proportion: mu or s
       for (const { slide, seed } of draws<unknown>(id)) {
         if (slide.kind !== 'expression') throw new Error('not an expression slide');
         const { mu, sigma } = solvedFrom(promptText(slide));
-        expect(close(Number(slide.answer), slide.lead!.includes('mu') ? mu : sigma, 1e-6), `${id} seed ${seed}`).toBe(true);
+        expect(answers(slide, slide.lead!.includes('mu') ? mu : sigma), `${id} seed ${seed}`).toBe(true);
       }
     }
   });
@@ -519,7 +537,7 @@ describe('dist-both-solve, dist-both-symmetric and dist-both-proportion: mu or s
         return { x: Number(m[3]), z: zFromTable(below, table) };
       });
       const { mu, sigma } = solvePair(points);
-      expect(close(Number(slide.answer), slide.lead!.includes('mu') ? mu : sigma, 1e-6), `seed ${seed}: ${text}`).toBe(true);
+      expect(answers(slide, slide.lead!.includes('mu') ? mu : sigma), `seed ${seed}: ${text}`).toBe(true);
     }
   });
 });
@@ -843,21 +861,20 @@ describe('when the approximation is allowed, from the mean successes and failure
 });
 
 describe('the matching normal, from sums over the distribution', () => {
-  /** Mean, variance and sigma, checking the variance is a whole square. */
+  /** Mean, variance and sigma, sigma to two places as the questions write it, checking the variance ends. */
   const matching = (n: number, p: number, seed: number) => {
     const { mean, variance } = momentsOf(n, p);
-    const sigma = Math.round(Math.sqrt(variance));
-    expect(close(sigma * sigma, variance, 1e-6), `seed ${seed}: B(${n}, ${p}) has variance ${variance}`).toBe(true);
-    return { mean, variance, sigma };
+    expect(close(Number(variance.toFixed(4)), variance, 1e-6), `seed ${seed}: B(${n}, ${p}) has variance ${variance}`).toBe(true);
+    return { mean: Number(mean.toFixed(6)), variance: Number(variance.toFixed(6)), sigma: sdAt(Math.sqrt(variance)) };
   };
 
   it('finds the mean, variance or sigma dist-approx-param asks for', () => {
     for (const { slide, seed } of draws<unknown>('dist-approx-param')) {
       if (slide.kind !== 'expression') throw new Error('not an expression slide');
       const { n, p } = binomialFrom(promptText(slide));
-      const { mean, variance, sigma } = matching(n, p, seed);
-      const want = slide.lead === '\\mu =' ? mean : slide.lead === '\\sigma^2 =' ? variance : sigma;
-      expect(close(Number(slide.answer), want, 1e-6), `seed ${seed}: ${slide.lead}`).toBe(true);
+      const { mean, variance } = matching(n, p, seed);
+      const want = slide.lead === '\\mu =' ? mean : slide.lead === '\\sigma^2 =' ? variance : Math.sqrt(variance);
+      expect(answers(slide, want), `seed ${seed}: ${slide.lead}`).toBe(true);
     }
   });
 
@@ -959,7 +976,8 @@ describe('the whole route, against the exact binomial sum', () => {
     const hi = ks[ks.length - 1] < n ? ks[ks.length - 1] + 0.5 : Infinity;
     const table = quotedPhis(text);
     for (const [z, value] of table) expect(value, `seed ${seed}: Phi(${z})`).toBe(Number(simpsonPhi(z).toFixed(4)));
-    const zOf = (b: number) => (b - mean) / sigma;
+    // z is read at two places, as the question says whenever it runs on.
+    const zOf = (b: number) => zAt((b - mean) / sigma);
     const upTo = (b: number) => (Number.isFinite(b) ? belowFromTable(zOf(b), table) : 1);
     // Only a question that asks for the probability quotes Phi.
     const fromTable = table.length === 0 ? NaN : upTo(hi) - (Number.isFinite(lo) ? upTo(lo) : 0);
@@ -1139,7 +1157,7 @@ describe('level 5 lesson 2: X + Y and X - Y, from the prompt alone', () => {
       const moments = momentsFromPrompt(promptText(slide));
       expect([moments.a, Math.abs(moments.b), moments.c], `seed ${seed}`).toEqual([1, 1, 0]);
       const want = { mean: moments.mean, var: moments.variance, sd: moments.sd }[askedFrom(slide.lead!)];
-      expect(Number(slide.answer), `seed ${seed}`).toBe(want);
+      expect(answers(slide, want), `seed ${seed}`).toBe(true);
     }
   });
 
@@ -1155,8 +1173,8 @@ describe('level 5 lesson 2: X + Y and X - Y, from the prompt alone', () => {
     for (const { slide, seed } of draws<unknown>('dist-sum-var-tiles')) {
       if (slide.kind !== 'tiles') throw new Error('not a tiles slide');
       const { x, y, variance, sd } = momentsFromPrompt(promptText(slide));
-      expect(slide.answer, `seed ${seed}`).toEqual([String(x.variance), '+', String(y.variance), String(variance), String(sd)]);
-      expect(Number.isInteger(sd), `seed ${seed}`).toBe(true);
+      expect(slide.answer, `seed ${seed}`).toEqual([String(x.variance), '+', String(y.variance), String(variance), String(sdAt(sd))]);
+      if (!Number.isInteger(sd)) expect(promptText(slide), `seed ${seed}`).toContain('to 2 decimal places');
     }
   });
 
@@ -1311,11 +1329,12 @@ describe('level 5 lesson 5: a probability from the combination', () => {
     for (const { slide, seed } of draws<unknown>('dist-bigger-prob')) {
       if (slide.kind !== 'expression') throw new Error('not an expression slide');
       const text = promptText(slide);
-      const { sd, op, z } = difference(`${text} ${slide.lead}`);
-      expect(Number.isInteger(sd), `seed ${seed}`).toBe(true);
-      const { fromTable, truth } = fromQuotes(text, z, op, seed);
+      const { op, z } = difference(`${text} ${slide.lead}`);
+      if (zAt(z) !== z) expect(text, `seed ${seed}`).toContain('to 2 decimal places');
+      const { fromTable, truth } = fromQuotes(text, zAt(z), op, seed);
       expect(close(Number(slide.answer), fromTable), `seed ${seed}`).toBe(true);
-      expect(Math.abs(Number(slide.answer) - truth), `seed ${seed}`).toBeLessThan(0.001);
+      // Reading the table at z to two places moves the answer by at most 0.002.
+      expect(Math.abs(Number(slide.answer) - truth), `seed ${seed}`).toBeLessThan(0.0025);
     }
   });
 
@@ -1324,9 +1343,9 @@ describe('level 5 lesson 5: a probability from the combination', () => {
       if (slide.kind !== 'tree') throw new Error('not a tree slide');
       const text = promptText(slide);
       const { mean, sd, op, z } = difference(text);
-      const { fromTable, truth } = fromQuotes(text, z, op, seed);
-      expect(slide.answer.map(Number), `seed ${seed}`).toEqual([mean, sd, Number(z.toFixed(6)), Number(fromTable.toFixed(6))]);
-      expect(Math.abs(fromTable - truth), `seed ${seed}`).toBeLessThan(0.001);
+      const { fromTable, truth } = fromQuotes(text, zAt(z), op, seed);
+      expect(slide.answer.map(Number), `seed ${seed}`).toEqual([mean, sdAt(sd), zAt(z), Number(fromTable.toFixed(6))]);
+      expect(Math.abs(fromTable - truth), `seed ${seed}`).toBeLessThan(0.0025);
     }
   });
 

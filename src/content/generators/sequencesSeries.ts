@@ -29,6 +29,7 @@ import { bin, num, pow, valueOf, type Expr } from '../expr';
 import { markerWindow, plotSvg, plotFigure } from '../figures';
 import { sumTex, termTex } from './calculus';
 import { coeffTex, fracTex, gcdOrOne } from './format';
+import { dots, roundTo, roundedWell } from './classicalKit';
 import { lin, orderSlide, orderSolution, pickDistractors, polyTex as kPoly, type Distractor, type Proof } from './numberProof';
 
 /* ---------- shared ---------- */
@@ -2717,14 +2718,21 @@ const contextGp: Generator<ContextParams> = {
   sample: (rng, difficulty) => {
     const hard = difficulty > 1;
     const story: GpStory = rng.pick(hard ? ['bounceTotal', 'grains', 'bounce'] : ['bounce', 'spread']);
+    // A ball is dropped from a height a person could drop it from, and the
+    // answer is asked to 2 decimal places, redrawn when it sits near a rounding edge.
     if (story === 'bounce') {
-      const [p, q] = rng.pick([[1, 2], [2, 3], [3, 4], [3, 5]] as [number, number][]);
-      const n = rng.int(2, q === 2 ? 4 : 3);
-      return { story, h: q ** n * rng.int(1, q === 2 ? 5 : 2), p, q, n };
+      for (;;) {
+        const [p, q] = rng.pick([[1, 2], [2, 3], [3, 4], [3, 5]] as [number, number][]);
+        const params = { story, h: rng.pick(DROP_HEIGHTS), p, q, n: rng.int(2, q === 2 ? 4 : 3) };
+        if (roundedWell(contextValue(params), BOUNCE_DP)) return params;
+      }
     }
     if (story === 'bounceTotal') {
-      const [p, q] = rng.pick([[1, 2], [2, 3], [3, 4], [1, 3], [2, 5]] as [number, number][]);
-      return { story, h: (q - p) * q * rng.int(1, 4), p, q, n: 0 };
+      for (;;) {
+        const [p, q] = rng.pick([[1, 2], [2, 3], [3, 4], [1, 3], [2, 5]] as [number, number][]);
+        const params = { story, h: rng.pick(DROP_HEIGHTS), p, q, n: 0 };
+        if (roundedWell(contextValue(params), BOUNCE_DP)) return params;
+      }
     }
     if (story === 'spread') return { story, h: rng.pick([2, 3]), p: 0, q: 0, n: rng.int(4, 7) };
     return { story, h: rng.int(1, 5), p: rng.pick([2, 3]), q: 1, n: rng.int(5, 8) };
@@ -2737,22 +2745,34 @@ const contextGp: Generator<ContextParams> = {
       spread: `On day 1, one person tells $${h}$ people a secret. Each day after, each of the previous day's hearers tells $${h}$ new people. How many have heard it by the end of day $${n}$?`,
       grains: `One square of a board gets $${h}$ grain${h === 1 ? '' : 's'} of rice, and each square after it gets $${p}$ times as many as the one before. How many grains are on the first $${n}$ squares?`,
     };
-    return typed([{ kind: 'prose', text: words[story] }], story === 'bounce' ? '\\text{height} =' : '\\text{total} =', contextValue(params));
+    if (story === 'bounce' || story === 'bounceTotal') {
+      return {
+        kind: 'expression',
+        prompt: [{ kind: 'prose', text: `${words[story]} Give your answer to 2 decimal places.` }],
+        lead: story === 'bounce' ? '\\text{height} =' : '\\text{total} =',
+        keypad: ARITHMETIC_KEYS,
+        answer: String(roundTo(contextValue(params), BOUNCE_DP)),
+        precision: BOUNCE_DP,
+        domain: 'real',
+        mode: 'exact',
+      };
+    }
+    return typed([{ kind: 'prose', text: words[story] }], '\\text{total} =', contextValue(params));
   },
   solution: (params) => {
     const { story, h, p, q, n } = params;
     if (story === 'bounce') {
       return [
         { text: `Each bounce multiplies the height by $${fracTex(p, q)}$, so after bounce $${n}$ the height is $${h} \\times \\left(${fracTex(p, q)}\\right)^{${n}}$.` },
-        { tex: `${h} \\times ${fracTex(p ** n, q ** n)} = ${contextValue(params)}` },
+        { tex: `${h} \\times ${fracTex(p ** n, q ** n)} ${near(contextValue(params))}` },
       ];
     }
     if (story === 'bounceTotal') {
       const up = (h * p) / (q - p);
       return [
         { text: `It falls $${h}$ m first. Every rise after that is also fallen again, so the rises count twice.` },
-        { tex: chain(`\\text{rises} &= ${fracTex(h * p, q)} + \\dots`, `&= \\frac{${fracTex(h * p, q)}}{1 - ${fracTex(p, q)}} = ${up}`) },
-        { tex: `${h} + 2 \\times ${up} = ${contextValue(params)}` },
+        { tex: chain(`\\text{rises} &= ${fracTex(h * p, q)} + \\dots`, `&= \\frac{${fracTex(h * p, q)}}{1 - ${fracTex(p, q)}} = ${dots(up)}`) },
+        { tex: `${h} + 2 \\times ${dots(up)} ${near(contextValue(params))}` },
       ];
     }
     const a = h;
@@ -2763,6 +2783,16 @@ const contextGp: Generator<ContextParams> = {
     ];
   },
 };
+
+/** Drop heights in metres. */
+const DROP_HEIGHTS = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20];
+const BOUNCE_DP = { dp: 2 } as const;
+
+/** `= 1.25` when a value ends there, `\approx 1.19` when it is rounded to 2 decimal places. */
+function near(value: number): string {
+  const r = roundTo(value, BOUNCE_DP);
+  return `${Math.abs(r - value) < 1e-9 ? '=' : '\\approx'} ${r.toFixed(2)}`;
+}
 
 function contextValue({ story, h, p, q, n }: ContextParams): number {
   if (story === 'bounce') return (h * p ** n) / q ** n;
@@ -7743,92 +7773,157 @@ const startBase: Generator<StartParams> = {
  * reaches one, whether a story adds the same amount or multiplies by the same
  * factor, and two pay plans, a fixed rise against a percentage one.
  *
- * Every balance is whole. A rate is 10%, 20%, 25%, 50% or 100%, a multiplier
- * p/q of 1.1, 1.2, 1.25, 1.5 or 2, and a payment, debt or starting value is a
- * multiple of q to the power of the years it grows for, so each year's
- * interest divides exactly; totals stay under 6000. The multiplier is the one
- * decimal a learner places. A typed answer is one whole number (a balance, a
- * year, a payment), and a model goes through tiles, a flow or a choice, since
- * the checker compares values. Nothing here is calculus, so no slide declares
- * `source`.
+ * Rates are the kind a bank or an employer prints: savings 2% to 6% a year,
+ * loans 3% to 12%, a rise in pay, rent or numbers 2% to 10%. Sums paid in or
+ * borrowed are round. Interest is added to the nearest penny, as a bank adds
+ * it, and each later year works from that rounded balance; so money is held
+ * here in whole pence, where a year's interest is exact whole-number
+ * arithmetic, and written to the penny. A count (members, jars) is rounded to
+ * the nearest whole number the same way. A draw is redrawn when a year's
+ * unrounded value sits within 0.15 of a unit of a half, or when the sum
+ * formula worked unrounded lands on a different penny from the year-by-year
+ * run, so the two routes a learner may take always agree. A typed amount of
+ * money is asked to 2 decimal places. Nothing here is calculus, so no slide
+ * declares `source`.
  */
 
 interface Rate {
   pct: number;
-  p: number;
-  q: number;
-  /** The multiplier as the learner reads it. */
+  /** The multiplier as the learner reads it: 1.03. */
   tex: string;
 }
 
-const RATES: Rate[] = [
-  { pct: 10, p: 11, q: 10, tex: '1.1' },
-  { pct: 20, p: 6, q: 5, tex: '1.2' },
-  { pct: 25, p: 5, q: 4, tex: '1.25' },
-  { pct: 50, p: 3, q: 2, tex: '1.5' },
-  { pct: 100, p: 2, q: 1, tex: '2' },
-];
-
 function rateOf(pct: number): Rate {
-  const rate = RATES.find((r) => r.pct === pct);
-  if (!rate) throw new Error(`no rate of ${pct}%`);
-  return rate;
+  return { pct, tex: String(Number((1 + pct / 100).toFixed(4))) };
 }
 
-/** x after a year's interest, or NaN when that would not be whole. */
+/** The multiplier as a number. */
+const multiplier = (pct: number) => 1 + pct / 100;
+
+/** Whether an unrounded value sits safely inside its rounding interval, 0.15 of a unit clear of a half. */
+function settles(value: number): boolean {
+  return Number.isFinite(value) && Math.abs(value - Math.floor(value) - 0.5) >= 0.15;
+}
+
+/** An unrounded value rounded to a whole unit (a penny, or one of a count), or NaN when it sits near a half. */
+function settled(value: number): number {
+  return settles(value) ? Math.round(value) : NaN;
+}
+
+/** Whether an unrounded value rounds, safely, to the whole unit a run carried. */
+function agrees(value: number, carried: number): boolean {
+  return settles(value) && Math.round(value) === carried;
+}
+
+/** x after a year's rise of pct%, to the nearest whole unit, or NaN when that sits near a half. */
 function grown(x: number, pct: number): number {
-  const { p, q } = rateOf(pct);
-  return (x * p) % q === 0 ? (x * p) / q : NaN;
+  if (!Number.isInteger(x)) return NaN;
+  const scaled = x * (100 + pct);
+  const rest = ((scaled % 100) + 100) % 100;
+  if (Math.abs(rest - 50) < 15) return NaN;
+  return (scaled - rest) / 100 + (rest > 50 ? 1 : 0);
 }
 
 /** The rate written as a decimal, the slip of using it as the multiplier. */
 const rateDecimal = (pct: number) => `${pct / 100}`;
 
-/** A power of the multiplier as written by hand: `1.1`, `1.1^3`. */
+/** A power of the multiplier as written by hand: `1.03`, `1.03^3`. */
 function rPow(pct: number, k: number): string {
   const { tex } = rateOf(pct);
   return k === 1 ? tex : `${tex}^${k}`;
 }
 
-/** `$10\%$ interest`, with doubling said too where it is 100%. */
-function interest(pct: number): string {
-  return pct === 100 ? '$100\\%$ interest, doubling it' : `$${pct}\\%$ interest`;
+/** Whole steps from lo to hi, both included. */
+const range = (lo: number, hi: number, step: number) => Array.from({ length: Math.floor((hi - lo) / step) + 1 }, (_, i) => lo + i * step);
+
+/** Pence as pounds to the penny, the way every amount of money is written in a bank, table or tree: 1060.90. */
+const gbp = (p: number) => (p / 100).toFixed(2);
+
+/** Pence in a line of working: whole pounds bare, otherwise to the penny. */
+const amt = (p: number) => (p % 100 === 0 ? String(p / 100) : gbp(p));
+
+/** Pence in prose, with the pound sign: £500, £1,060.90. */
+function money(p: number): string {
+  return `£${amt(p).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 }
 
-/** Whole numbers that fall strictly between two values, the roundest kind first. */
+/** A whole number in TeX, 24{,}000 from five digits up. */
+function tn(n: number): string {
+  return Math.abs(n) >= 10000 ? String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '{,}') : String(n);
+}
+
+/** `=` when a line of working lands exactly on its value, `\approx` when it was rounded. */
+const eq = (exactly: boolean) => (exactly ? '=' : '\\approx');
+
+/** Whether x times the rate lands on a whole unit with nothing to round. */
+const exactGrowth = (x: number, pct: number) => (x * (100 + pct)) % 100 === 0;
+
+/** Round amounts, the roundest first, that fall strictly between two values. */
 function roundBetween(lo: number, hi: number): number[] {
-  for (const step of [100, 50, 10, 5, 1]) {
+  for (const step of [1000, 500, 100, 50, 10, 5, 1]) {
     const out: number[] = [];
     for (let v = Math.floor(lo / step) * step + step; v < hi; v += step) out.push(v);
     if (out.length > 0) return out;
   }
-  return [lo];
+  return [Math.ceil(lo)];
 }
 
 const NAMES = ['Ali', 'Beth', 'Chen', 'Dara', 'Esme', 'Femi', 'Gus', 'Hana'];
 
 /**
- * A bank for amounts of money or people: the slips that are positive and no
- * bigger than a total can be, since a £10300 tile beside a £6000 cap is no
+ * A bank for amounts, in whole units: the slips that are positive and no
+ * more than twice the largest answer, since a tile far past any balance is no
  * temptation. Only a gap from a target may be negative, and only when an
- * answer is.
+ * answer is. `show` writes each value: to the penny for money.
  */
-function moneyBank(answer: number[], slips: number[]): string[] {
+function amountBank(answer: number[], slips: number[], show: (v: number) => string = gbp): string[] {
   const floor = Math.min(0, ...answer);
-  return numberBank(answer, slips.filter((v) => (floor < 0 ? Math.abs(v) : v) <= SAVE_CAP && (floor < 0 || v > 0)));
+  const cap = 2 * Math.max(...answer.map(Math.abs));
+  const kept = slips.filter((v) => Number.isFinite(v) && (floor < 0 ? Math.abs(v) : v) <= cap && (floor < 0 || v > 0));
+  return numberBank(answer, kept).map((v) => show(Number(v)));
+}
+
+/** Four options for an amount of money in pence, written to the penny. */
+function moneyOptions(correct: number, slips: number[]): ChoiceOption[] {
+  return numberOptions(correct, slips.filter(Number.isFinite)).map((option) => ({ ...option, tex: gbp(Number(option.answer)), answer: gbp(Number(option.answer)) }));
+}
+
+/** A steps bank of amounts in pence, written to the penny. */
+function penceBank(correct: number, ...slips: number[]): string[] {
+  return valueBank(correct, ...slips.filter(Number.isFinite)).map((v) => gbp(Number(v)));
+}
+
+/** Money is asked to the penny. */
+const PENNY = { dp: 2 } as const;
+
+/** A typed amount of money, asked to 2 decimal places. */
+function typedMoney(prompt: string, lead: string, p: number): Slide {
+  return {
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: `${prompt} Give your answer to 2 decimal places.` }],
+    lead,
+    keypad: ARITHMETIC_KEYS,
+    answer: gbp(p),
+    precision: PENNY,
+    domain: 'real',
+    mode: 'exact',
+  };
 }
 
 /* Level 6, lesson 1: regular savings */
 
 interface Plan {
+  /** The payment, in pence. */
   P: number;
   pct: number;
   n: number;
 }
 
-const SAVE_CAP = 6000;
+const SAVE_RATES = [2, 3, 4, 5, 6];
+/** Yearly payments, in pounds. */
+const SAVE_PAYMENTS = [100, 150, 200, 250, 300, 400, 500, 600, 750, 800, 1000, 1200, 1500, 2000];
 
-/** End-of-year balances B_1 … B_n: pay P in, then add the year's interest. */
+/** End-of-year balances B_1 … B_n, in pence: pay P in, then add the year's interest to the penny. */
 function savingsRun(P: number, pct: number, n: number): number[] {
   const out: number[] = [];
   let balance = 0;
@@ -7839,34 +7934,56 @@ function savingsRun(P: number, pct: number, n: number): number[] {
   return out;
 }
 
-/** The smallest payment that keeps n years of balances whole: q^n, rounded up to a multiple of 10 when that is small. */
-function unitFor(pct: number, n: number): number {
-  const qn = rateOf(pct).q ** n;
-  return qn >= 16 ? qn : (qn * 10) / gcdOrOne(qn, 10);
+/** The balance at the end of year k by the sum formula, unrounded: P(r + r^2 + … + r^k). */
+function savingsExact(P: number, pct: number, k: number): number {
+  const r = multiplier(pct);
+  return (P * r * (r ** k - 1)) / (r - 1);
 }
 
-/** Every payment of at most £1000 whose n years of balances are whole and under the cap. */
+/** One payment of P after k years of interest, P r^k, to the penny; NaN near a half penny. */
+function savingsTerm(P: number, pct: number, k: number): number {
+  return settled(P * multiplier(pct) ** k);
+}
+
+/**
+ * Whether a plan's routes agree: the year-by-year run, each balance by the
+ * sum formula, and the terms of its series each to the penny then added, all
+ * land on the same pennies.
+ */
+function steadyPlan({ P, pct, n }: Plan): boolean {
+  const run = savingsRun(P, pct, n);
+  if (!run.every((B, k) => agrees(savingsExact(P, pct, k + 1), B))) return false;
+  const terms = Array.from({ length: n }, (_, i) => savingsTerm(P, pct, i + 1));
+  return terms.every(Number.isFinite) && terms.reduce((s, t) => s + t, 0) === run[n - 1];
+}
+
+let planGroups: Map<string, Plan[]> | undefined;
+
+/** Every steady plan at a rate and a length. Built once, on first use. */
 function plansFor(pct: number, n: number): Plan[] {
-  const unit = unitFor(pct, n);
-  const out: Plan[] = [];
-  for (let P = unit; P <= 1000; P += unit) {
-    if (savingsRun(P, pct, n)[n - 1] > SAVE_CAP) break;
-    out.push({ P, pct, n });
+  if (!planGroups) {
+    planGroups = new Map();
+    for (const rate of SAVE_RATES) {
+      for (let years = 2; years <= 6; years += 1) {
+        planGroups.set(
+          `${rate}/${years}`,
+          SAVE_PAYMENTS.map((P) => ({ P: 100 * P, pct: rate, n: years })).filter(steadyPlan),
+        );
+      }
+    }
   }
-  return out;
+  return planGroups.get(`${pct}/${n}`) ?? [];
 }
 
 /**
  * A savings plan. Easier draws run two or three years; harder ones four or
- * more, or three at 10%, whose thousandths make it the hardest arithmetic.
- * A rate and a length are picked first, so doubling's many small payments do
- * not crowd out the rest.
+ * more. A rate and a length are picked first, so no one rate crowds out the
+ * rest.
  */
 function samplePlan(rng: Rng, hard: boolean, most = 6): Plan {
   const groups: Plan[][] = [];
-  for (const { pct } of RATES) {
-    for (let n = 2; n <= most; n += 1) {
-      if ((n >= 4 || (pct === 10 && n === 3)) !== hard) continue;
+  for (const pct of SAVE_RATES) {
+    for (let n = hard ? 4 : 2; n <= (hard ? most : 3); n += 1) {
       const plans = plansFor(pct, n);
       if (plans.length > 0) groups.push(plans);
     }
@@ -7875,21 +7992,26 @@ function samplePlan(rng: Rng, hard: boolean, most = 6): Plan {
 }
 
 function saveStory(name: string, P: number, pct: number): string {
-  return `${name} pays £${P} into a savings account at the start of each year; at each year's end it earns ${interest(pct)}.`;
+  return `${name} pays ${money(P)} into a savings account at the start of each year; at each year's end it earns $${pct}\\%$ interest, added to the nearest penny.`;
 }
 
-/** The balance after n years as a series: `1000 \times 1.1 + 1000 \times 1.1^2 + …`. */
+/** The balance after n years as a series: `1000 \times 1.03 + 1000 \times 1.03^2 + …`. */
 function saveSeriesTex({ P, pct, n }: Plan): string {
-  const terms = Array.from({ length: n }, (_, i) => `${P} \\times ${rPow(pct, i + 1)}`);
+  const terms = Array.from({ length: n }, (_, i) => `${amt(P)} \\times ${rPow(pct, i + 1)}`);
   return n <= 3 ? terms.join(' + ') : `${terms[0]} + ${terms[1]} + \\dots + ${terms[n - 1]}`;
 }
 
-/** The year-by-year working: each start is last year's end plus P, each end that times r. */
+/** The year-by-year working: each start is last year's end plus P, each end that times r, to the penny. */
 function saveWorking({ P, pct, n }: Plan): SolutionStep {
   const run = savingsRun(P, pct, n);
   return {
     // Prose rather than a display, so a long year wraps instead of running off a phone.
-    text: run.map((B, k) => `Year $${k + 1}$: $(${k === 0 ? 0 : run[k - 1]} + ${P}) \\times ${rateOf(pct).tex} = ${B}$.`).join(' '),
+    text: run
+      .map((B, k) => {
+        const before = k === 0 ? 0 : run[k - 1];
+        return `Year $${k + 1}$: $(${amt(before)} + ${amt(P)}) \\times ${rateOf(pct).tex} ${eq(exactGrowth(before + P, pct))} ${gbp(B)}$.`;
+      })
+      .join(' '),
   };
 }
 
@@ -7920,7 +8042,7 @@ const saveTable: Generator<SaveTableParams> = {
         if (blanks.includes(2 * k + j)) {
           row.push(null);
           answer.push(value);
-        } else row.push(`${value}`);
+        } else row.push(gbp(value));
       });
       rows.push(row);
       slips.push(before + grown(P, pct), run[k] + P, grown(before, pct), P * (k + 1));
@@ -7930,17 +8052,17 @@ const saveTable: Generator<SaveTableParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${saveStory(NAMES[name], P, pct)} Fill in each year's balance after the payment, then after the interest.`,
+          text: `${saveStory(NAMES[name], P, pct)} Fill in each year's balance after the payment, then after the interest, in pounds.`,
         },
       ],
       columns: ['n', '\\text{start}', '\\text{end}'],
       rows,
-      bank: moneyBank(answer, slips),
-      answer: answer.map(String),
+      bank: amountBank(answer, slips),
+      answer: answer.map(gbp),
     };
   },
   solution: (params) => [
-    { text: `Each year: add the £${params.P} payment, then multiply by $${rateOf(params.pct).tex}$ for the interest.` },
+    { text: `Each year: add the ${money(params.P)} payment, then multiply by $${rateOf(params.pct).tex}$ for the interest and round to the nearest penny.` },
     saveWorking(params),
   ],
 };
@@ -7957,51 +8079,51 @@ const saveSeriesTiles: Generator<SavePlanParams> = {
     const run = savingsRun(P, pct, n);
     const total = run[n - 1];
     const powers = n === 2 ? [1, 2] : n === 3 ? [1, 2, 3] : [1, 2, n];
-    const answer = [...powers.map((k) => rPow(pct, k)), `${total}`];
+    const answer = [...powers.map((k) => rPow(pct, k)), gbp(total)];
     const blanks = powers.map((_, i) => `{${i}}`);
     const bracket = n <= 3 ? blanks.join(' + ') : `${blanks[0]} + ${blanks[1]} + \\dots + ${blanks[2]}`;
-    const { p, q } = rateOf(pct);
-    const slips = ['1', rPow(pct, n + 1), rateDecimal(pct), `${(total * q) / p}`, `${run[n - 2]}`, `${total + P}`];
+    const slips = ['1', rPow(pct, n + 1), rateDecimal(pct), ...[settled(total / multiplier(pct)), run[n - 2], total + P].filter(Number.isFinite).map(gbp)];
     return {
       kind: 'tiles',
       prompt: [
         {
           kind: 'prose',
-          text: `${saveStory(NAMES[name], P, pct)} Each payment grows for the years left after it. Write the balance at the end of year $${n}$ as a series, then work it out.`,
+          text: `${saveStory(NAMES[name], P, pct)} Each payment grows for the years left after it. Write the balance at the end of year $${n}$ as a series, then work it out in pounds.`,
         },
       ],
-      template: `B_${n} = ${P}(${bracket}) = {${powers.length}}`,
+      template: `B_${n} = ${amt(P)}(${bracket}) = {${powers.length}}`,
       bank: tileBank(answer, slips, 5),
       answer,
     };
   },
   solution: ({ P, pct, n }) => {
     const total = savingsRun(P, pct, n)[n - 1];
+    const terms = Array.from({ length: n }, (_, i) => savingsTerm(P, pct, i + 1));
     return [
-      { text: `The last payment grows for one year, so it becomes $${P} \\times ${rPow(pct, 1)}$. The first grows for all $${n}$, so it becomes $${P} \\times ${rPow(pct, n)}$.` },
+      { text: `The last payment grows for one year, so it becomes $${amt(P)} \\times ${rPow(pct, 1)}$. The first grows for all $${n}$, so it becomes $${amt(P)} \\times ${rPow(pct, n)}$.` },
       { text: `So $B_{${n}} = ${saveSeriesTex({ P, pct, n })}$.` },
-      { text: `Adding the terms, or running the balance year by year, gives $${total}$.` },
+      { text: `Each term to the penny is $${terms.map(gbp).join(', ')}$. Adding them, or running the balance year by year, gives $${gbp(total)}$.` },
     ];
   },
 };
 
-/** The same series worked out one term at a time, then added. */
+/** The same series worked out one term at a time, each to the penny, then added. */
 const saveSumSteps: Generator<SavePlanParams> = {
   id: 'seq-save-sum-steps',
   sample: (rng, difficulty) => ({ ...samplePlan(rng, difficulty > 1, 4), name: rng.int(0, NAMES.length - 1) }),
   render: ({ P, pct, n, name }): Slide => {
     const terms = Array.from({ length: n }, (_, i) => savingsTerm(P, pct, i + 1));
-    const start = terms.flatMap((_, i) => [...(i > 0 ? ['+'] : []), `${P}`, '\\times', rPow(pct, i + 1)]);
+    const start = terms.flatMap((_, i) => [...(i > 0 ? ['+'] : []), amt(P), '\\times', rPow(pct, i + 1)]);
     const reductions: Extract<Slide, { kind: 'steps' }>['reductions'] = terms.map((value, i) => ({
       span: [2 * i, 2 * i + 3] as [number, number],
       operator: 2 * i + 1,
-      value: `${value}`,
-      bank: valueBank(value, value + P, value - P, P * (i + 1)),
+      value: gbp(value),
+      bank: penceBank(value, value + P, value - P, P * (i + 1)),
     }));
     let running = terms[0];
     for (let i = 1; i < n; i += 1) {
       const next = running + terms[i];
-      reductions.push({ span: [0, 3], operator: 1, value: `${next}`, bank: valueBank(next, next + P, running + P) });
+      reductions.push({ span: [0, 3], operator: 1, value: gbp(next), bank: penceBank(next, next + P, running + P) });
       running = next;
     }
     return {
@@ -8009,7 +8131,7 @@ const saveSumSteps: Generator<SavePlanParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${saveStory(NAMES[name], P, pct)} Below is the balance at the end of year $${n}$, a term per payment. Work it out a step at a time.`,
+          text: `${saveStory(NAMES[name], P, pct)} Below is the balance at the end of year $${n}$, a term per payment. Work it out a step at a time, each term to the nearest penny.`,
         },
       ],
       start,
@@ -8019,18 +8141,11 @@ const saveSumSteps: Generator<SavePlanParams> = {
   solution: ({ P, pct, n }) => {
     const terms = Array.from({ length: n }, (_, i) => savingsTerm(P, pct, i + 1));
     return [
-      { text: 'Each payment has grown by its own number of years. Work out each term, then add.' },
-      { text: `$${terms.join(' + ')} = ${savingsRun(P, pct, n)[n - 1]}$.` },
+      { text: 'Each payment has grown by its own number of years. Work out each term to the penny, then add.' },
+      { text: `$${terms.map(gbp).join(' + ')} = ${gbp(savingsRun(P, pct, n)[n - 1])}$.` },
     ];
   },
 };
-
-/** One payment of P after k years of interest, P r^k. */
-function savingsTerm(P: number, pct: number, k: number): number {
-  let value = P;
-  for (let i = 0; i < k; i += 1) value = grown(value, pct);
-  return value;
-}
 
 /** The balance at the end of year n, typed. */
 const saveBalance: Generator<SavePlanParams> = {
@@ -8038,17 +8153,12 @@ const saveBalance: Generator<SavePlanParams> = {
   sample: (rng, difficulty) => ({ ...samplePlan(rng, difficulty > 1), name: rng.int(0, NAMES.length - 1) }),
   choices: ({ P, pct, n }) => {
     const run = savingsRun(P, pct, n);
-    const { p, q } = rateOf(pct);
-    return numberOptions(run[n - 1], [(run[n - 1] * q) / p, run[n - 2], run[n - 1] + P, P * n]);
+    return moneyOptions(run[n - 1], [settled(run[n - 1] / multiplier(pct)), run[n - 2], run[n - 1] + P, P * n]);
   },
   render: ({ P, pct, n, name }): Slide =>
-    typed(
-      [{ kind: 'prose', text: `${saveStory(NAMES[name], P, pct)} How much is in the account at the end of year $${n}$?` }],
-      `B_{${n}} =`,
-      savingsRun(P, pct, n)[n - 1],
-    ),
+    typedMoney(`${saveStory(NAMES[name], P, pct)} How much, in pounds, is in the account at the end of year $${n}$?`, `B_{${n}} =`, savingsRun(P, pct, n)[n - 1]),
   solution: (params) => [
-    { text: `The balance is the geometric series $${saveSeriesTex(params)}$. Year by year:` },
+    { text: `The balance is the geometric series $${saveSeriesTex(params)}$. Year by year, to the penny:` },
     saveWorking(params),
   ],
 };
@@ -8056,8 +8166,10 @@ const saveBalance: Generator<SavePlanParams> = {
 /* Level 6, lesson 2: a loan repaid */
 
 interface Loan {
+  /** The amount borrowed, in pence. */
   D: number;
   pct: number;
+  /** The yearly repayment, in pence. */
   R: number;
 }
 
@@ -8071,14 +8183,18 @@ interface LoanRun {
   last: number;
 }
 
-/** A loan year by year: interest on what is owed, then R repaid, or the rest when that is less. */
+const LOAN_RATES = [3, 4, 5, 6, 8, 10, 12];
+/** Amounts borrowed, in pounds. */
+const LOAN_SUMS = [500, 600, 800, 1000, 1200, 1500, 2000, 2500, 3000, 4000, 5000];
+
+/** A loan year by year: interest on what is owed, to the penny, then R repaid, or the rest when that is less. */
 function loanRun({ D, pct, R }: Loan, most = 6): LoanRun | undefined {
   const owed: number[] = [];
   const after: number[] = [];
   let u = D;
   for (let k = 0; k < most; k += 1) {
     const o = grown(u, pct);
-    if (!Number.isInteger(o) || o > SAVE_CAP) return undefined;
+    if (!Number.isFinite(o)) return undefined;
     owed.push(o);
     if (o <= R) {
       after.push(0);
@@ -8095,19 +8211,19 @@ type LoanDraw = Loan & LoanRun;
 let loanGroups: Map<string, LoanDraw[]> | undefined;
 
 /**
- * Every loan of £100 to £5000 in hundreds, repaid in tens but never more
- * than 60% of it a year, whose balances stay whole, which clears in two to
- * five years and whose repayments total under the cap, grouped by rate and
- * length. Built once, on first use.
+ * Every loan of a round sum, repaid in fifties but never more than 60% of it
+ * a year, which clears in two to five years with no year near a half penny,
+ * grouped by rate and length. Built once, on first use.
  */
 function loansBy(pct: number, years: number): LoanDraw[] {
   if (!loanGroups) {
     loanGroups = new Map();
-    for (const rate of [10, 20, 25, 50]) {
-      for (let D = 100; D <= 5000; D += 100) {
-        for (let R = 50; R <= 0.6 * D; R += 10) {
+    for (const rate of LOAN_RATES) {
+      for (const pounds of LOAN_SUMS) {
+        const D = 100 * pounds;
+        for (let R = 5000; R <= 0.6 * D; R += 5000) {
           const run = loanRun({ D, pct: rate, R });
-          if (!run || run.years < 2 || run.years > 5 || (run.years - 1) * R + run.last > SAVE_CAP) continue;
+          if (!run || run.years < 2 || run.years > 5) continue;
           const key = `${rate}/${run.years}`;
           if (!loanGroups.has(key)) loanGroups.set(key, []);
           loanGroups.get(key)!.push({ D, pct: rate, R, ...run });
@@ -8119,21 +8235,22 @@ function loansBy(pct: number, years: number): LoanDraw[] {
 }
 
 function sampleLoan(rng: Rng, years: number[]): LoanDraw {
-  const groups = [10, 20, 25, 50].flatMap((pct) => years.map((n) => loansBy(pct, n))).filter((group) => group.length > 0);
+  const groups = LOAN_RATES.flatMap((pct) => years.map((n) => loansBy(pct, n))).filter((group) => group.length > 0);
   return rng.pick(rng.pick(groups));
 }
 
 function loanStory(name: string, { D, pct, R }: Loan): string {
-  return `${name} borrows £${D}. Each year ends with $${pct}\\%$ interest added, then £${R} is repaid (or the rest, if less).`;
+  return `${name} borrows ${money(D)}. Each year ends with $${pct}\\%$ interest added, to the nearest penny, then ${money(R)} is repaid (or the rest, if less).`;
 }
 
 function loanWorking({ D, pct, R }: Loan): SolutionStep {
   const run = loanRun({ D, pct, R })!;
   const lines = run.owed.map((o, k) => {
     const before = k === 0 ? D : run.after[k - 1];
+    const same = eq(exactGrowth(before, pct));
     return k === run.years - 1
-      ? `Year $${k + 1}$: $${before} \\times ${rateOf(pct).tex} = ${o}$, all repaid.`
-      : `Year $${k + 1}$: $${before} \\times ${rateOf(pct).tex} - ${R} = ${run.after[k]}$.`;
+      ? `Year $${k + 1}$: $${amt(before)} \\times ${rateOf(pct).tex} ${same} ${gbp(o)}$, all repaid.`
+      : `Year $${k + 1}$: $${amt(before)} \\times ${rateOf(pct).tex} ${same} ${gbp(o)}$, and $${gbp(o)} - ${amt(R)} = ${gbp(run.after[k])}$.`;
   });
   return { text: lines.join(' ') };
 }
@@ -8172,7 +8289,7 @@ const loanTable: Generator<LoanTableParams> = {
         if (blanks.includes(2 * k + j)) {
           row.push(null);
           answer.push(value);
-        } else row.push(`${value}`);
+        } else row.push(gbp(value));
       });
       rows.push(row);
       const before = k === 0 ? D : run.after[k - 1];
@@ -8180,15 +8297,17 @@ const loanTable: Generator<LoanTableParams> = {
     }
     return {
       kind: 'table',
-      prompt: [{ kind: 'prose', text: `${loanStory(NAMES[name], { D, pct, R })} Fill in what is owed each year after the interest, then after paying.` }],
+      prompt: [{ kind: 'prose', text: `${loanStory(NAMES[name], { D, pct, R })} Fill in what is owed each year after the interest, then after paying, in pounds.` }],
       columns: ['n', '\\text{owed}', '\\text{after paying}'],
       rows,
-      bank: moneyBank(answer, slips),
-      answer: answer.map(String),
+      bank: amountBank(answer, slips),
+      answer: answer.map(gbp),
     };
   },
   solution: (params) => [
-    { text: `Each year: multiply what is owed by $${rateOf(params.pct).tex}$, then take off £${params.R}. The year the debt is £${params.R} or less, the last payment clears it.` },
+    {
+      text: `Each year: multiply what is owed by $${rateOf(params.pct).tex}$ and round to the nearest penny, then take off ${money(params.R)}. The year the debt is ${money(params.R)} or less, the last payment clears it.`,
+    },
     loanWorking(params),
   ],
 };
@@ -8200,14 +8319,14 @@ const loanRuleTiles: Generator<LoanParams> = {
   render: (params): Slide => {
     const { D, pct, R, name } = params;
     const run = loanRun(params)!;
-    const answer = [rateOf(pct).tex, `${R}`, `${D}`, `${run.after[1]}`];
-    const slips = [rateDecimal(pct), `${run.after[0]}`, `${run.owed[1]}`, `${D - R}`, `${D + R}`, `${pct}`];
+    const answer = [rateOf(pct).tex, amt(R), amt(D), gbp(run.after[1])];
+    const slips = [rateDecimal(pct), gbp(run.after[0]), gbp(run.owed[1]), amt(D - R), amt(D + R), `${pct}`];
     return {
       kind: 'tiles',
       prompt: [
         {
           kind: 'prose',
-          text: `${loanStory(NAMES[name], params)} $u_n$ is owed after the $n$th payment; $u_0$ is the loan. Write the recurrence, then find $u_2$.`,
+          text: `${loanStory(NAMES[name], params)} $u_n$ is owed, in pounds, after the $n$th payment; $u_0$ is the loan. Write the recurrence, then find $u_2$ to the penny.`,
         },
       ],
       template: 'u_{n+1} = {0}u_n - {1} \\quad u_0 = {2} \\quad u_2 = {3}',
@@ -8220,9 +8339,11 @@ const loanRuleTiles: Generator<LoanParams> = {
     const run = loanRun(params)!;
     const r = rateOf(pct).tex;
     return [
-      { text: `Adding $${pct}\\%$ multiplies by $${r}$; the payment then takes off $${R}$.` },
-      { tex: `\\begin{gathered} u_{n+1} = ${r}u_n - ${R} \\\\ u_0 = ${D} \\end{gathered}` },
-      { text: `So $u_1 = ${r} \\times ${D} - ${R} = ${run.after[0]}$ and $u_2 = ${r} \\times ${run.after[0]} - ${R} = ${run.after[1]}$.` },
+      { text: `Adding $${pct}\\%$ multiplies by $${r}$; the payment then takes off $${amt(R)}$.` },
+      { tex: `\\begin{gathered} u_{n+1} = ${r}u_n - ${amt(R)} \\\\ u_0 = ${amt(D)} \\end{gathered}` },
+      {
+        text: `So $u_1 = ${r} \\times ${amt(D)} - ${amt(R)} ${eq(exactGrowth(D, pct))} ${gbp(run.after[0])}$ and $u_2 = ${r} \\times ${gbp(run.after[0])} - ${amt(R)} ${eq(exactGrowth(run.after[0], pct))} ${gbp(run.after[1])}$, each to the penny.`,
+      },
     ];
   },
 };
@@ -8267,18 +8388,18 @@ const loanInterestTree: Generator<LoanParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${loanStory(NAMES[name], params)} After year $${run.years - 1}$, £${run.after[run.years - 2]} is still owed, and year $${run.years}$ clears it. Fill the tree: the last payment, the full payments before it, the total repaid, then the interest.`,
+          text: `${loanStory(NAMES[name], params)} After year $${run.years - 1}$, ${money(run.after[run.years - 2])} is still owed, and year $${run.years}$ clears it. Fill the tree in pounds: the last payment, the full payments before it, the total repaid, then the interest.`,
         },
       ],
-      expression: `\\text{interest} = \\text{repaid} - ${D}`,
+      expression: `\\text{interest} = \\text{repaid} - ${amt(D)}`,
       nodes: [
         { id: 'last', from: [] },
         { id: 'full', from: [] },
         { id: 'total', from: ['last', 'full'] },
         { id: 'interest', from: ['total'] },
       ],
-      bank: moneyBank(answer, slips),
-      answer: answer.map(String),
+      bank: amountBank(answer, slips),
+      answer: answer.map(gbp),
     };
   },
   solution: (params) => {
@@ -8287,8 +8408,10 @@ const loanInterestTree: Generator<LoanParams> = {
     const left = run.after[run.years - 2];
     const full = (run.years - 1) * R;
     return [
-      { text: `The last payment is $${left} \\times ${rateOf(pct).tex} = ${run.last}$, and the full ones before it come to $${run.years - 1} \\times ${R} = ${full}$.` },
-      { text: `The total repaid is $${full} + ${run.last} = ${full + run.last}$, so the interest is $${full + run.last} - ${D} = ${full + run.last - D}$.` },
+      {
+        text: `The last payment is $${gbp(left)} \\times ${rateOf(pct).tex} ${eq(exactGrowth(left, pct))} ${gbp(run.last)}$ to the penny, and the full ones before it come to $${run.years - 1} \\times ${amt(R)} = ${gbp(full)}$.`,
+      },
+      { text: `The total repaid is $${gbp(full)} + ${gbp(run.last)} = ${gbp(full + run.last)}$, so the interest is $${gbp(full + run.last)} - ${amt(D)} = ${gbp(full + run.last - D)}$.` },
     ];
   },
 };
@@ -8297,7 +8420,7 @@ const loanInterestTree: Generator<LoanParams> = {
 
 interface TargetParams extends Plan {
   name: number;
-  /** The first year the balance is more than T is n. */
+  /** The target, in pence; the first year the balance is more than T is n. */
   T: number;
 }
 
@@ -8307,7 +8430,8 @@ function sampleTarget(rng: Rng, hard: boolean, years: number[]): TargetParams {
     const plan = samplePlan(rng, hard);
     if (!years.includes(plan.n)) continue;
     const run = savingsRun(plan.P, plan.pct, plan.n);
-    return { ...plan, name: rng.int(0, NAMES.length - 1), T: rng.pick(roundBetween(run[plan.n - 2], run[plan.n - 1])) };
+    const T = 100 * rng.pick(roundBetween(run[plan.n - 2] / 100, run[plan.n - 1] / 100));
+    return { ...plan, name: rng.int(0, NAMES.length - 1), T };
   }
 }
 
@@ -8317,20 +8441,20 @@ const targetYear: Generator<TargetParams> = {
   sample: (rng, difficulty) => (difficulty > 1 ? sampleTarget(rng, true, [4, 5]) : sampleTarget(rng, false, [2, 3])),
   render: ({ P, pct, n, name, T }): Slide => {
     const span = n + 2;
-    // Past year n the balances only draw dots, so they need not be whole.
+    // Past year n the balances only draw dots, so they need not be to the penny.
     const heights: number[] = [];
     let balance = 0;
     for (let k = 0; k < span; k += 1) {
-      balance = ((balance + P) * rateOf(pct).p) / rateOf(pct).q;
+      balance = (balance + P / 100) * multiplier(pct);
       heights.push(balance);
     }
-    const top = Math.max(T * 1.6, heights[n - 1] * 1.15);
+    const top = Math.max((T / 100) * 1.6, heights[n - 1] * 1.15);
     return {
       kind: 'slider',
       prompt: [
         {
           kind: 'prose',
-          text: `${saveStory(NAMES[name], P, pct)} Dots: year-end balances; the dashed line is £${T}. Slide to the first year above it.`,
+          text: `${saveStory(NAMES[name], P, pct)} Dots: year-end balances; the dashed line is ${money(T)}. Slide to the first year above it.`,
         },
       ],
       min: 0,
@@ -8346,8 +8470,8 @@ const targetYear: Generator<TargetParams> = {
           yMax: top,
           curves: [],
           marks: heights.map((y, i) => ({ x: i + 1, y })).filter((mark) => mark.y <= top),
-          horizontals: [T],
-          label: `Savings balances rising past a dashed line at ${T}`,
+          horizontals: [T / 100],
+          label: `Savings balances rising past a dashed line at ${T / 100}`,
         }),
         ...markerWindow(0, span),
       },
@@ -8357,46 +8481,75 @@ const targetYear: Generator<TargetParams> = {
     const run = savingsRun(P, pct, n);
     return [
       { text: 'Run the balance a year at a time: add the payment, then the interest.' },
-      { tex: chain(`B_{${n - 1}} &= ${run[n - 2]}`, `B_{${n}} &= ${run[n - 1]}`) },
-      { text: `So the balance first passes £${T} in year $${n}$.` },
+      { tex: chain(`B_{${n - 1}} &= ${gbp(run[n - 2])}`, `B_{${n}} &= ${gbp(run[n - 1])}`) },
+      { text: `So the balance first passes ${money(T)} in year $${n}$.` },
     ];
   },
 };
 
-interface PaymentParams extends Plan {
+interface PaymentParams {
+  /** The target, in pence. */
+  T: number;
+  pct: number;
+  n: number;
   name: number;
 }
 
-/** The yearly payment that grows to a target in n years, typed. */
+/** Round targets, in pounds. */
+const SAVE_TARGETS = [1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 8000, 10000];
+
+/** What £1 paid in at the start of each year is worth at the end of year n: r + r^2 + … + r^n. */
+function perPound(pct: number, n: number): number {
+  const r = multiplier(pct);
+  return (r * (r ** n - 1)) / (r - 1);
+}
+
+/** The payment reaching T, to the penny. */
+const paymentFor = ({ T, pct, n }: { T: number; pct: number; n: number }) => settled(T / perPound(pct, n));
+
+/**
+ * A target and a length whose payment comes to between £100 and £3000, kept
+ * only when the taught method lands on it: run a £100 trial with interest to
+ * the nearest penny, scale it to the target (to 4 decimal places) and times
+ * £100. The payment must also reach the target when it is paid in, interest
+ * rounded to the penny each year, or the saver would end a few pence short.
+ */
+function samplePayment(rng: Rng, hard: boolean): PaymentParams {
+  for (;;) {
+    const params = { T: 100 * rng.pick(SAVE_TARGETS), pct: rng.pick(SAVE_RATES), n: hard ? rng.int(4, 5) : rng.int(2, 3), name: rng.int(0, NAMES.length - 1) };
+    const P = paymentFor(params);
+    if (!Number.isFinite(P) || P < 10000 || P > 300000) continue;
+    if (!savingsRun(TRIAL, params.pct, params.n).every(Number.isFinite) || scaleTimes(params) !== P) continue;
+    const paid = savingsRun(P, params.pct, params.n);
+    if (paid.every(Number.isFinite) && paid[params.n - 1] >= params.T) return params;
+  }
+}
+
+/** The yearly payment that grows to a target in n years, typed to the penny. */
 const targetPayment: Generator<PaymentParams> = {
   id: 'seq-target-payment',
-  sample: (rng, difficulty) => ({ ...samplePlan(rng, difficulty > 1, 5), name: rng.int(0, NAMES.length - 1) }),
-  choices: ({ P, pct, n }) => {
-    const T = savingsRun(P, pct, n)[n - 1];
-    const unit = unitFor(pct, n);
-    return numberOptions(P, [T / n, (T * rateOf(pct).q) / (n * rateOf(pct).p), P + unit, P > unit ? P - unit : P + 2 * unit]);
+  sample: (rng, difficulty) => samplePayment(rng, difficulty > 1),
+  choices: (params) => {
+    const { T, pct, n } = params;
+    const r = multiplier(pct);
+    return moneyOptions(paymentFor(params), [settled(T / n), settled(T / (n * r)), settled(T / r ** n), settled(T / perPound(pct, n - 1))]);
   },
-  render: ({ P, pct, n, name }): Slide => {
-    const T = savingsRun(P, pct, n)[n - 1];
-    return typed(
-      [
-        {
-          kind: 'prose',
-          text: `${NAMES[name]} wants £${T} in savings at the end of year $${n}$, earning ${interest(pct)} at each year's end. How much must go in at the start of each year?`,
-        },
-      ],
+  render: (params): Slide =>
+    typedMoney(
+      `${NAMES[params.name]} wants ${money(params.T)} in savings at the end of year $${params.n}$, earning $${params.pct}\\%$ interest at each year's end, added to the nearest penny. How much, in pounds, must go in at the start of each year?`,
       '\\text{payment} =',
-      P,
-    );
-  },
-  solution: ({ P, pct, n }) => {
-    const T = savingsRun(P, pct, n)[n - 1];
-    const unit = unitFor(pct, n);
-    const trial = savingsRun(unit, pct, n)[n - 1];
+      paymentFor(params),
+    ),
+  solution: (params) => {
+    const { T, pct, n } = params;
+    const trial = savingsRun(TRIAL, pct, n);
+    const times = scaleTimes(params);
     return [
-      { text: `The balance is a multiple of the payment. Try £${unit} a year: after $${n}$ years it grows to £${trial}.` },
-      { text: `The target is $${T} \\div ${trial} = ${T / trial}$ times that, so the payment is $${unit} \\times ${T / trial} = ${P}$.` },
-      { text: `So £${P} a year reaches £${T}.` },
+      { text: 'Every balance is in proportion to the payment, so try £100 a year first and scale it up.' },
+      saveWorking({ P: TRIAL, pct, n }),
+      {
+        text: `The target is $${amt(T)} \\div ${gbp(trial[n - 1])} \\approx ${(times / 10000).toFixed(4)}$ times that, so the payment is $100 \\times ${(times / 10000).toFixed(4)} = ${gbp(times)}$, to the nearest penny.`,
+      },
     ];
   },
 };
@@ -8404,8 +8557,19 @@ const targetPayment: Generator<PaymentParams> = {
 interface ScaleParams {
   pct: number;
   n: number;
-  /** The target is this many times the trial's balance. */
-  k: number;
+  /** The target, in pence. */
+  T: number;
+}
+
+/** Targets for the scale tree, in pounds: every round £500 up to £12,000. */
+const SCALE_TARGETS = range(1000, 12000, 500);
+
+/** The trial payment the scale tree runs: £100 a year. */
+const TRIAL = 10000;
+
+/** How many times the trial's balance the target is, to 4 decimal places, held in ten-thousandths. */
+function scaleTimes({ pct, n, T }: ScaleParams): number {
+  return settled((T / savingsRun(TRIAL, pct, n)[n - 1]) * 10000);
 }
 
 /** A trial payment run year by year, then scaled up to the target. */
@@ -8414,44 +8578,57 @@ const targetScaleTree: Generator<ScaleParams> = {
   sample: (rng, difficulty) => {
     const hard = difficulty > 1;
     for (;;) {
-      const pct = rng.pick(RATES).pct;
-      const n = hard ? rng.int(3, 4) : 2;
-      const unit = unitFor(pct, n);
-      const k = rng.int(2, 9);
-      if (k * unit > 1000 || k * savingsRun(unit, pct, n)[n - 1] > SAVE_CAP) continue;
-      return { pct, n, k };
+      const params = { pct: rng.pick(SAVE_RATES), n: hard ? rng.int(3, 5) : 2, T: 100 * rng.pick(SCALE_TARGETS) };
+      const trial = savingsRun(TRIAL, params.pct, params.n);
+      const times = scaleTimes(params);
+      // The scaled trial must land on the same penny as the payment worked straight from the target.
+      if (!trial.every(Number.isFinite) || !Number.isFinite(times) || times !== paymentFor(params)) continue;
+      if (times < 10000 || times > 300000) continue;
+      return params;
     }
   },
-  render: ({ pct, n, k }): Slide => {
-    const unit = unitFor(pct, n);
-    const trial = savingsRun(unit, pct, n);
-    const T = k * trial[n - 1];
-    const answer = [...trial, k, k * unit];
-    const slips = [...trial.map((b) => b + unit), k + 1, (k + 1) * unit, (k - 1) * unit, T - trial[n - 1], trial[n - 1] * unit];
+  render: (params): Slide => {
+    const { pct, n, T } = params;
+    const trial = savingsRun(TRIAL, pct, n);
+    const times = scaleTimes(params);
+    const four = (v: number) => (v / 10000).toFixed(4);
+    const answer = [...trial.map(gbp), four(times), gbp(times)];
+    const before = settled((T / trial[n - 2]) * 10000);
+    const slipValues = [
+      ...trial.map((b) => gbp(b + TRIAL)),
+      four(times + 10000),
+      gbp(times + TRIAL),
+      ...(Number.isFinite(before) ? [four(before), gbp(before)] : []),
+      gbp(T - trial[n - 1]),
+    ];
+    const extras = [...new Set(slipValues)].filter((token) => !answer.includes(token)).slice(0, 4);
     return {
       kind: 'tree',
       prompt: [
         {
           kind: 'prose',
-          text: `Savings earn ${interest(pct)} at each year's end, with a fixed payment at each start. The aim is £${T} at the end of year $${n}$. Try £${unit} a year: fill its year-end balances, how many times that the target is, then the payment needed.`,
+          text: `Savings earn $${pct}\\%$ interest at each year's end, added to the nearest penny, with a fixed payment at each start. The aim is ${money(T)} at the end of year $${n}$. Try £100 a year: fill its year-end balances, how many times that the target is (to 4 decimal places), then the payment needed, to the penny.`,
         },
       ],
-      expression: `\\text{payment} = ${unit} \\times ${T} \\div B_{${n}}`,
+      expression: `\\text{payment} = 100 \\times ${amt(T)} \\div B_{${n}}`,
       nodes: [
         ...trial.map((_, i) => ({ id: `b${i + 1}`, from: i === 0 ? [] : [`b${i}`] })),
         { id: 'times', from: [`b${n}`] },
         { id: 'payment', from: ['times'] },
       ],
-      bank: moneyBank(answer, slips),
-      answer: answer.map(String),
+      bank: [...answer, ...extras].sort((x, y) => Number(x) - Number(y)),
+      answer,
     };
   },
-  solution: ({ pct, n, k }) => {
-    const unit = unitFor(pct, n);
-    const trial = savingsRun(unit, pct, n);
+  solution: (params) => {
+    const { pct, n, T } = params;
+    const trial = savingsRun(TRIAL, pct, n);
+    const times = scaleTimes(params);
     return [
-      saveWorking({ P: unit, pct, n }),
-      { text: `The target is $${k * trial[n - 1]} \\div ${trial[n - 1]} = ${k}$ times that. Every balance is in proportion to the payment, so the payment is $${k}$ times as much too: £${k * unit}.` },
+      saveWorking({ P: TRIAL, pct, n }),
+      {
+        text: `The target is $${amt(T)} \\div ${gbp(trial[n - 1])} \\approx ${(times / 10000).toFixed(4)}$ times that. Every balance is in proportion to the payment, so the payment is that many times £100: $${gbp(times)}$.`,
+      },
     ];
   },
 };
@@ -8480,7 +8657,7 @@ const targetTable: Generator<TargetTableParams> = {
         if (blanks.includes(2 * k + j)) {
           row.push(null);
           answer.push(value);
-        } else row.push(`${value}`);
+        } else row.push(gbp(value));
       });
       rows.push(row);
       slips.push(B + P, T - B, P * (k + 1) - T);
@@ -8490,18 +8667,18 @@ const targetTable: Generator<TargetTableParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${saveStory(NAMES[name], P, pct)} The target is £${T}. Fill in each year-end balance and how far it is above the target, stopping at the first year over it.`,
+          text: `${saveStory(NAMES[name], P, pct)} The target is ${money(T)}. Fill in each year-end balance and how far it is above the target, in pounds, stopping at the first year over it.`,
         },
       ],
-      columns: ['n', 'B_n', `B_n - ${T}`],
+      columns: ['n', 'B_n', `B_n - ${amt(T)}`],
       rows,
-      bank: moneyBank(answer, slips),
-      answer: answer.map(String),
+      bank: amountBank(answer, slips),
+      answer: answer.map(gbp),
     };
   },
   solution: ({ P, pct, n, T }) => [
     saveWorking({ P, pct, n }),
-    { text: `The gap $B_n - ${T}$ is negative while the target is still ahead, and first turns positive in year $${n}$.` },
+    { text: `The gap $B_n - ${amt(T)}$ is negative while the target is still ahead, and first turns positive in year $${n}$.` },
   ],
 };
 
@@ -8509,24 +8686,29 @@ const targetTable: Generator<TargetTableParams> = {
 
 interface ModelStory {
   /** The story with its first value and the rise filled in. */
-  text: (a: number, rise: string) => string;
+  text: (a: string, rise: string) => string;
   period: 'year' | 'month';
   noun: string;
-  /** Whether the value is money, so a fixed rise is written in pounds. */
+  /** Whether the value is money, held in pence and written to the penny; otherwise a whole count. */
   money: boolean;
+  /** First values a story like this starts from. */
+  starts: number[];
 }
 
 const MODEL_STORIES: ModelStory[] = [
-  { text: (a, rise) => `A job pays £${a} in its first year, and the pay rises by ${rise} every year.`, period: 'year', noun: 'pay', money: true },
-  { text: (a, rise) => `A flat's rent is £${a} in its first year, and the rent goes up by ${rise} every year.`, period: 'year', noun: 'rent', money: true },
-  { text: (a, rise) => `A shop sells $${a}$ jars of honey in its first month, and its sales go up by ${rise} every month.`, period: 'month', noun: 'sales', money: false },
-  { text: (a, rise) => `A club has $${a}$ members in its first year, and the number goes up by ${rise} every year.`, period: 'year', noun: 'number', money: false },
+  { text: (a, rise) => `A job pays ${a} in its first year, and the pay rises by ${rise} every year.`, period: 'year', noun: 'pay', money: true, starts: range(18000, 32000, 1000) },
+  { text: (a, rise) => `A flat's rent is ${a} in its first year, and the rent goes up by ${rise} every year.`, period: 'year', noun: 'rent', money: true, starts: range(6000, 12000, 500) },
+  { text: (a, rise) => `A shop sells ${a} jars of honey in its first month, and its sales go up by ${rise} every month.`, period: 'month', noun: 'sales', money: false, starts: range(150, 400, 50) },
+  { text: (a, rise) => `A club has ${a} members in its first year, and the number goes up by ${rise} every year.`, period: 'year', noun: 'number', money: false, starts: range(100, 300, 20) },
 ];
+
+const MODEL_RATES = [2, 3, 4, 5, 6, 8, 10];
 
 interface ModelParams {
   story: number;
   /** A percentage rise on the value before, rather than a fixed one. */
   geo: boolean;
+  /** The first value: pounds, or a count. */
   a: number;
   pct: number;
   /** The year (or month) asked about, or the number of them totalled. */
@@ -8535,18 +8717,37 @@ interface ModelParams {
   hard: boolean;
 }
 
-/** The fixed rise: the percentage of the first value, so both readings start the same way. */
-const riseOf = ({ a, pct }: { a: number; pct: number }) => (a * pct) / 100;
+/** Pence for money, 1 for a count: the whole unit values are held in. */
+const scaleOf = ({ story }: { story: number }) => (MODEL_STORIES[story].money ? 100 : 1);
 
-/** The values the story gives, u_1 … u_count. */
-function modelTerms({ geo, a, pct }: ModelParams, count: number): number[] {
-  const out = [a];
-  while (out.length < count) out.push(geo ? grown(out[out.length - 1], pct) : out[out.length - 1] + riseOf({ a, pct }));
+/** A value held in whole units, written as the story writes it: to the penny, or whole. */
+function showOf(params: { story: number }): (v: number) => string {
+  return MODEL_STORIES[params.story].money ? gbp : String;
+}
+
+/** The fixed rise, in whole units: the percentage of the first value, so both readings start the same way. */
+const riseOf = ({ a, pct, story }: { a: number; pct: number; story: number }) => (a * scaleOf({ story }) * pct) / 100;
+
+/** The values the story gives, u_1 … u_count, in whole units, each year's percentage rise rounded. */
+function modelTerms({ geo, a, pct, story }: ModelParams, count: number): number[] {
+  const out = [a * scaleOf({ story })];
+  const rise = riseOf({ a, pct, story });
+  while (out.length < count) out.push(geo ? grown(out[out.length - 1], pct) : out[out.length - 1] + rise);
   return out;
 }
 
+/** The first value in prose: £24,000, or 150. */
+function startText(params: ModelParams): string {
+  return MODEL_STORIES[params.story].money ? money(100 * params.a) : `$${params.a}$`;
+}
+
+/** The rounding a story's values are given to, said once, where values are worked out. */
+function roundingText({ story }: ModelParams): string {
+  return MODEL_STORIES[story].money ? ' Give amounts to the nearest penny.' : ' Round each value to the nearest whole number.';
+}
+
 function modelText(params: ModelParams): string {
-  const { story, geo, a, pct, hard } = params;
+  const { story, geo, pct, hard } = params;
   const s = MODEL_STORIES[story];
   const rise = geo
     ? hard
@@ -8555,28 +8756,49 @@ function modelText(params: ModelParams): string {
     : hard
       ? `$${pct}\\%$ of the first ${s.period}'s ${s.noun}`
       : s.money
-        ? `£${riseOf(params)}`
+        ? money(riseOf(params))
         : `$${riseOf(params)}$`;
-  return s.text(a, rise);
+  return s.text(startText(params), rise);
 }
 
 /** u_n for either reading, written as a model. */
-function modelTex(geo: boolean, { a, pct }: { a: number; pct: number }): string {
-  return geo ? `${a} \\times ${rateOf(pct).tex}^{n-1}` : `${a} + ${riseOf({ a, pct })}(n - 1)`;
+function modelTex(geo: boolean, params: ModelParams): string {
+  const rise = riseOf(params) / scaleOf(params);
+  return geo ? `${tn(params.a)} \\times ${rateOf(params.pct).tex}^{n-1}` : `${tn(params.a)} + ${tn(rise)}(n - 1)`;
 }
 
-/** A story drawn so that k of its values are whole whichever way it is read. */
+/** The total of the first k values by the sum formula, unrounded, in whole units. */
+function modelSumExact(params: ModelParams, k: number): number {
+  const a = params.a * scaleOf(params);
+  if (!params.geo) return (k * (2 * a + (k - 1) * riseOf(params))) / 2;
+  const r = multiplier(params.pct);
+  return (a * (r ** k - 1)) / (r - 1);
+}
+
+/** Whether a reading's values each land where the formula puts them, and its totals too. */
+function steadyModel(params: ModelParams, count: number): boolean {
+  const terms = modelTerms(params, count);
+  const a = params.a * scaleOf(params);
+  if (!terms.every((u, i) => agrees(params.geo ? a * multiplier(params.pct) ** i : u, u))) return false;
+  let total = 0;
+  return terms.every((u, i) => {
+    total += u;
+    return agrees(modelSumExact(params, i + 1), total);
+  });
+}
+
+/** A story drawn so that k of its values, and their totals, come out the same whichever route is worked. */
 function sampleModel(rng: Rng, difficulty: number, ks: number[]): ModelParams {
   const hard = difficulty > 1;
   for (;;) {
-    const pct = rng.pick([10, 20, 25, 50]);
-    const k = rng.pick(ks);
-    const unit = unitFor(pct, k - 1);
-    const a = unit * rng.int(1, 12);
-    if (a < 20 || a > 3000) continue;
-    const params = { story: rng.int(0, MODEL_STORIES.length - 1), geo: rng.chance(0.5), a, pct, k, hard };
-    const both = [modelTerms({ ...params, geo: true }, k), modelTerms({ ...params, geo: false }, k)];
-    if (both.some((terms) => terms.reduce((s, t) => s + t, 0) > SAVE_CAP)) continue;
+    const story = rng.int(0, MODEL_STORIES.length - 1);
+    const params = { story, geo: rng.chance(0.5), a: rng.pick(MODEL_STORIES[story].starts), pct: rng.pick(MODEL_RATES), k: rng.pick(ks), hard };
+    // A fixed rise of a count is whole: no shop sells half a jar more.
+    if (!Number.isInteger(riseOf(params))) continue;
+    if (!steadyModel({ ...params, geo: true }, params.k) || !steadyModel({ ...params, geo: false }, params.k)) continue;
+    // Rounded to whole members, a small rise can give the same values either way; the readings must part from the third value on.
+    const [up, add] = [modelTerms({ ...params, geo: true }, Math.max(params.k, 4)), modelTerms({ ...params, geo: false }, Math.max(params.k, 4))];
+    if (up.some((u, i) => i >= 2 && u === add[i])) continue;
     return params;
   }
 }
@@ -8638,13 +8860,14 @@ const modelCheck: Generator<CheckParams> = {
   },
   solution: (params) => {
     const { geo, wrong } = params;
-    const terms = modelTerms(params, 4);
-    const other = modelTerms({ ...params, geo: !geo }, 4);
+    const show = showOf(params);
+    const terms = modelTerms(params, 4).map(show);
+    const other = modelTerms({ ...params, geo: !geo }, 4).map(show);
     return [
       {
         text: geo
           ? `A rise of a percentage of the value before multiplies by $${rateOf(params.pct).tex}$ each time: $${terms.join(', ')}, \\dots$ is geometric.`
-          : `A rise of the same amount each time adds $${riseOf(params)}$: $${terms.join(', ')}, \\dots$ is arithmetic.`,
+          : `A rise of the same amount each time adds $${riseOf(params) / scaleOf(params)}$: $${terms.join(', ')}, \\dots$ is arithmetic.`,
       },
       {
         text: wrong
@@ -8663,10 +8886,10 @@ const modelPick: Generator<ModelParams> = {
     const { geo, a, pct, story } = params;
     const s = MODEL_STORIES[story];
     const r = rateOf(pct).tex;
-    const d = riseOf(params);
+    const d = tn(riseOf(params) / scaleOf(params));
     const labels = geo
-      ? [modelTex(true, params), modelTex(false, params), `${a} \\times ${r}^n`, `${a} \\times ${rateDecimal(pct)}^{n-1}`]
-      : [modelTex(false, params), modelTex(true, params), `${a} + ${d}n`, `${d} + ${a}(n - 1)`];
+      ? [modelTex(true, params), modelTex(false, params), `${tn(a)} \\times ${r}^n`, `${tn(a)} \\times ${rateDecimal(pct)}^{n-1}`]
+      : [modelTex(false, params), modelTex(true, params), `${tn(a)} + ${d}n`, `${d} + ${tn(a)}(n - 1)`];
     return {
       kind: 'choice',
       prompt: [{ kind: 'prose', text: `${modelText(params)} Which gives the ${s.noun} in ${s.period} $n$?` }],
@@ -8678,12 +8901,12 @@ const modelPick: Generator<ModelParams> = {
   },
   solution: (params) => {
     const { geo } = params;
-    const terms = modelTerms(params, 4);
+    const terms = modelTerms(params, 4).map(showOf(params));
     return [
       {
         text: geo
-          ? `Each ${MODEL_STORIES[params.story].period} multiplies by $${rateOf(params.pct).tex}$, so the model is geometric with $a = ${params.a}$: at $n = 1$ the power is $0$.`
-          : `Each ${MODEL_STORIES[params.story].period} adds $${riseOf(params)}$, so the model is arithmetic with $a = ${params.a}$: at $n = 1$ no rise has happened yet.`,
+          ? `Each ${MODEL_STORIES[params.story].period} multiplies by $${rateOf(params.pct).tex}$, so the model is geometric with $a = ${tn(params.a)}$: at $n = 1$ the power is $0$.`
+          : `Each ${MODEL_STORIES[params.story].period} adds $${riseOf(params) / scaleOf(params)}$, so the model is arithmetic with $a = ${tn(params.a)}$: at $n = 1$ no rise has happened yet.`,
       },
       { text: `Check: $${terms.join(', ')}, \\dots$` },
     ];
@@ -8697,23 +8920,24 @@ const modelTotalTiles: Generator<ModelParams> = {
   render: (params): Slide => {
     const { geo, a, pct, k, story } = params;
     const s = MODEL_STORIES[story];
+    const show = showOf(params);
     const r = rateOf(pct).tex;
-    const d = riseOf(params);
-    const apSumTex = (count: number, gap: number) => `\\frac{${count}}{2}(${2 * a} + ${gap} \\times ${d})`;
-    const gpSumTex = (power: number) => `\\frac{${a}(${r}^${power} - 1)}{${r} - 1}`;
+    const d = tn(riseOf(params) / scaleOf(params));
+    const apSumTex = (count: number, gap: number) => `\\frac{${count}}{2}(${tn(2 * a)} + ${gap} \\times ${d})`;
+    const gpSumTex = (power: number) => `\\frac{${tn(a)}(${r}^${power} - 1)}{${r} - 1}`;
     const total = (reading: boolean) => modelTerms({ ...params, geo: reading }, k).reduce((sum, t) => sum + t, 0);
-    const answer = [geo ? gpSumTex(k) : apSumTex(k, k - 1), `${total(geo)}`];
+    const answer = [geo ? gpSumTex(k) : apSumTex(k, k - 1), show(total(geo))];
     const terms = modelTerms(params, k);
     const slips = [
       geo ? apSumTex(k, k - 1) : gpSumTex(k),
       geo ? gpSumTex(k - 1) : apSumTex(k, k),
-      `${total(!geo)}`,
-      `${terms[k - 1]}`,
-      `${total(geo) - terms[k - 1]}`,
+      show(total(!geo)),
+      show(terms[k - 1]),
+      show(total(geo) - terms[k - 1]),
     ];
     return {
       kind: 'tiles',
-      prompt: [{ kind: 'prose', text: `${modelText(params)} Pick the sum for the total ${s.noun} over the first $${k}$ ${s.period}s, then work it out.` }],
+      prompt: [{ kind: 'prose', text: `${modelText(params)} Pick the sum for the total ${s.noun} over the first $${k}$ ${s.period}s, then work it out.${roundingText(params)}` }],
       template: `S_${k} = {0} = {1}`,
       bank: tileBank(answer, slips, 5),
       answer,
@@ -8721,14 +8945,15 @@ const modelTotalTiles: Generator<ModelParams> = {
   },
   solution: (params) => {
     const { geo, a, pct, k } = params;
+    const show = showOf(params);
     const terms = modelTerms(params, k);
     return [
       {
         text: geo
-          ? `The story multiplies by $r = ${rateOf(pct).tex}$, so the total is a geometric series with $a = ${a}$.`
-          : `The story adds $d = ${riseOf(params)}$, so the total is an arithmetic series with $a = ${a}$.`,
+          ? `The story multiplies by $r = ${rateOf(pct).tex}$, so the total is a geometric series with $a = ${tn(a)}$.`
+          : `The story adds $d = ${riseOf(params) / scaleOf(params)}$, so the total is an arithmetic series with $a = ${tn(a)}$.`,
       },
-      { text: `$${terms.join(' + ')} = ${terms.reduce((s, t) => s + t, 0)}$.` },
+      { text: `$${terms.map(show).join(' + ')} = ${show(terms.reduce((s, t) => s + t, 0))}$.` },
     ];
   },
 };
@@ -8750,6 +8975,7 @@ const modelTable: Generator<ModelTableParams> = {
   render: (params): Slide => {
     const { geo, k, story, blanks } = params;
     const s = MODEL_STORIES[story];
+    const show = showOf(params);
     const terms = modelTerms(params, k);
     const other = modelTerms({ ...params, geo: !geo }, k);
     const rows: (string | null)[][] = [];
@@ -8765,30 +8991,33 @@ const modelTable: Generator<ModelTableParams> = {
         if (blanks.includes(2 * i + j)) {
           row.push(null);
           answer.push(value);
-        } else row.push(`${value}`);
+        } else row.push(show(value));
       });
       rows.push(row);
       slips.push(other[i], otherTotal);
     });
     return {
       kind: 'table',
-      prompt: [{ kind: 'prose', text: `${modelText(params)} Fill in the ${s.noun} each ${s.period}, $u_n$, and the running total, $S_n$.` }],
+      prompt: [{ kind: 'prose', text: `${modelText(params)} Fill in the ${s.noun} each ${s.period}, $u_n$, and the running total, $S_n$.${roundingText(params)}` }],
       columns: ['n', 'u_n', 'S_n'],
       rows,
-      bank: moneyBank(answer, slips),
-      answer: answer.map(String),
+      bank: amountBank(answer, slips, show),
+      answer: answer.map(show),
     };
   },
   solution: (params) => {
     const { geo, k } = params;
+    const show = showOf(params);
     const terms = modelTerms(params, k);
     return [
       {
         text: geo
-          ? `Each value is the one before times $${rateOf(params.pct).tex}$: geometric.`
-          : `Each value is the one before plus $${riseOf(params)}$: arithmetic.`,
+          ? `Each value is the one before times $${rateOf(params.pct).tex}$, rounded: geometric.`
+          : `Each value is the one before plus $${riseOf(params) / scaleOf(params)}$: arithmetic.`,
       },
-      { text: `Values: $${terms.join(', ')}$. Running totals: $${terms.map((_, i) => terms.slice(0, i + 1).reduce((s, t) => s + t, 0)).join(', ')}$.` },
+      {
+        text: `Values: $${terms.map(show).join(', ')}$. Running totals: $${terms.map((_, i) => show(terms.slice(0, i + 1).reduce((s, t) => s + t, 0))).join(', ')}$.`,
+      },
     ];
   },
 };
@@ -8796,15 +9025,17 @@ const modelTable: Generator<ModelTableParams> = {
 /* Level 6, lesson 5: two plans compared */
 
 interface PlansParams {
-  /** Plan A: a in year 1, rising by d a year. */
+  /** Plan A: a pence in year 1, rising by d pence a year. */
   a: number;
   d: number;
-  /** Plan B: b in year 1, rising by pct% a year. */
+  /** Plan B: b pence in year 1, rising by pct% a year, to the penny. */
   b: number;
   pct: number;
   /** Years compared. */
   N: number;
 }
+
+const PLAN_RATES = [3, 4, 5, 6, 8, 10];
 
 const planA = ({ a, d }: PlansParams, count: number) => Array.from({ length: count }, (_, i) => a + i * d);
 
@@ -8816,6 +9047,12 @@ function planB({ b, pct }: PlansParams, count: number): number[] {
 
 const sumOf = (values: number[]) => values.reduce((sum, v) => sum + v, 0);
 
+/** Plan B's total over N years by the sum formula, unrounded. */
+function planBSumExact({ b, pct }: PlansParams, N: number): number {
+  const r = multiplier(pct);
+  return (b * (r ** N - 1)) / (r - 1);
+}
+
 /** The first year Plan B pays more than Plan A. */
 function overtakes(params: PlansParams): number {
   const [A, B] = [planA(params, params.N), planB(params, params.N)];
@@ -8823,32 +9060,35 @@ function overtakes(params: PlansParams): number {
 }
 
 /**
- * Two plans in which B starts lower and overtakes A in year 3 or later but
- * by year N, never tying in any year or in total. Every value is whole.
+ * Two yearly pay plans in which B starts lower and overtakes A in year 3 or
+ * later but by year N, never tying in any year or in total. Plan A's figures
+ * are round; B's run to the penny, and its total by the sum formula lands on
+ * the same penny as its years added.
  */
 function samplePlans(rng: Rng, hard: boolean): PlansParams {
   for (;;) {
-    const pct = rng.pick([20, 25, 50, 100]);
+    const pct = rng.pick(PLAN_RATES);
     const N = hard ? rng.int(5, 6) : 4;
-    const unit = unitFor(pct, N - 1);
-    if (unit > 1000) continue;
-    const b = unit * rng.int(1, Math.max(1, Math.floor(1000 / unit)));
-    const params = { a: b + 10 * rng.int(1, 40), d: 10 * rng.int(1, 30), b, pct, N };
+    const b = 100 * rng.pick(range(15000, 30000, 1000));
+    const params = { a: b + 100 * rng.pick(range(200, 3000, 100)), d: 100 * rng.pick(range(200, 1500, 100)), b, pct, N };
     const [A, B] = [planA(params, N), planB(params, N)];
+    if (!B.every(Number.isFinite)) continue;
+    if (!B.every((v, i) => agrees(b * multiplier(pct) ** i, v))) continue;
+    if (!B.every((_, i) => agrees(planBSumExact(params, i + 1), sumOf(B.slice(0, i + 1))))) continue;
     const m = overtakes(params);
-    if (m < 3 || sumOf(A) > SAVE_CAP || sumOf(B) > SAVE_CAP || sumOf(A) === sumOf(B)) continue;
+    if (m < 3 || sumOf(A) === sumOf(B)) continue;
     if (B.some((value, i) => value === A[i])) continue;
     return params;
   }
 }
 
 function plansStory({ a, d, b, pct }: PlansParams): string {
-  return `Plan A pays £${a} in year 1, then £${d} more each year. Plan B pays £${b} in year 1, then $${pct}\\%$ more each year.`;
+  return `Plan A pays ${money(a)} in year 1, then ${money(d)} more each year. Plan B pays ${money(b)} in year 1, then $${pct}\\%$ more each year, to the nearest penny.`;
 }
 
 function plansWorking(params: PlansParams): SolutionStep {
   const [A, B] = [planA(params, params.N), planB(params, params.N)];
-  return { text: `Plan A pays $${A.join(', ')}$. Plan B pays $${B.join(', ')}$.` };
+  return { text: `Plan A pays $${A.map(gbp).join(', ')}$. Plan B pays $${B.map(gbp).join(', ')}$.` };
 }
 
 interface PlansTableParams extends PlansParams {
@@ -8876,22 +9116,22 @@ const plansTable: Generator<PlansTableParams> = {
         if (blanks.includes(2 * i + j)) {
           row.push(null);
           answer.push(value);
-        } else row.push(`${value}`);
+        } else row.push(gbp(value));
       });
       rows.push(row);
       slips.push(A[i] + d, B[i] + (B[0] * pct) / 100);
     }
     return {
       kind: 'table',
-      prompt: [{ kind: 'prose', text: `${plansStory(params)} Fill in what each plan pays in each year.` }],
+      prompt: [{ kind: 'prose', text: `${plansStory(params)} Fill in what each plan pays in each year, in pounds.` }],
       columns: ['n', 'A_n', 'B_n'],
       rows,
-      bank: moneyBank(answer, slips),
-      answer: answer.map(String),
+      bank: amountBank(answer, slips),
+      answer: answer.map(gbp),
     };
   },
   solution: (params) => [
-    { text: `Plan A adds £${params.d} each year: arithmetic. Plan B multiplies by $${rateOf(params.pct).tex}$ each year: geometric.` },
+    { text: `Plan A adds ${money(params.d)} each year: arithmetic. Plan B multiplies by $${rateOf(params.pct).tex}$ each year, to the penny: geometric.` },
     plansWorking(params),
   ],
 };
@@ -8902,7 +9142,7 @@ const plansOvertake: Generator<PlansParams> = {
   sample: (rng, difficulty) => samplePlans(rng, difficulty > 1),
   render: (params): Slide => {
     const { N } = params;
-    const [A, B] = [planA(params, N), planB(params, N)];
+    const [A, B] = [planA(params, N), planB(params, N)].map((plan) => plan.map((v) => v / 100));
     const top = Math.max(...A, ...B) * 1.15;
     return {
       kind: 'slider',
@@ -8936,7 +9176,7 @@ const plansOvertake: Generator<PlansParams> = {
     const [A, B] = [planA(params, m), planB(params, m)];
     return [
       plansWorking({ ...params, N: m }),
-      { text: `In year $${m - 1}$ Plan A still pays more ($${A[m - 2]}$ against $${B[m - 2]}$); in year $${m}$ Plan B pays $${B[m - 1]}$ against $${A[m - 1]}$.` },
+      { text: `In year $${m - 1}$ Plan A still pays more ($${gbp(A[m - 2])}$ against $${gbp(B[m - 2])}$); in year $${m}$ Plan B pays $${gbp(B[m - 1])}$ against $${gbp(A[m - 1])}$.` },
     ];
   },
 };
@@ -8962,7 +9202,7 @@ const plansWhich: Generator<PlansWhichParams> = {
     const other = year === 0 ? gap(A[N - 1], B[N - 1]) : gap(sumOf(A), sumOf(B));
     const slip = other.by === asked.by || other.by === 0 ? asked.by + params.d : other.by;
     const loser = asked.winner === 'A' ? 'B' : 'A';
-    const labels = [`Plan ${asked.winner}, by £${asked.by}`, `Plan ${loser}, by £${asked.by}`, `Plan ${asked.winner}, by £${slip}`, `Plan ${loser}, by £${slip}`];
+    const labels = [`Plan ${asked.winner}, by ${money(asked.by)}`, `Plan ${loser}, by ${money(asked.by)}`, `Plan ${asked.winner}, by ${money(slip)}`, `Plan ${loser}, by ${money(slip)}`];
     const question = year === 0 ? `Over the first $${N}$ years, which plan pays more in total, and by how much?` : `In year $${year}$, which plan pays more, and by how much?`;
     return {
       kind: 'choice',
@@ -8974,9 +9214,12 @@ const plansWhich: Generator<PlansWhichParams> = {
     const { N, year } = params;
     const [A, B] = [planA(params, N), planB(params, N)];
     if (year === 0) {
-      return [plansWorking(params), { text: `In total A pays $${sumOf(A)}$ and B pays $${sumOf(B)}$: a difference of $${Math.abs(sumOf(A) - sumOf(B))}$.` }];
+      return [plansWorking(params), { text: `In total A pays $${gbp(sumOf(A))}$ and B pays $${gbp(sumOf(B))}$: a difference of $${gbp(Math.abs(sumOf(A) - sumOf(B)))}$.` }];
     }
-    return [plansWorking(params), { text: `In year $${year}$: A pays $${A[year - 1]}$ and B pays $${B[year - 1]}$, a difference of $${Math.abs(A[year - 1] - B[year - 1])}$.` }];
+    return [
+      plansWorking(params),
+      { text: `In year $${year}$: A pays $${gbp(A[year - 1])}$ and B pays $${gbp(B[year - 1])}$, a difference of $${gbp(Math.abs(A[year - 1] - B[year - 1]))}$.` },
+    ];
   },
 };
 
@@ -8995,7 +9238,7 @@ const plansTotalTree: Generator<PlansParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${plansStory(params)} Fill the tree: Plan A's total over the first $${N}$ years, $S_A = \\frac{${N}}{2}(2 \\times ${a} + ${N - 1} \\times ${d})$, Plan B's, $S_B = \\frac{${b}(${rateOf(pct).tex}^{${N}} - 1)}{${rateOf(pct).tex} - 1}$, then how much more the better plan pays.`,
+          text: `${plansStory(params)} Fill the tree in pounds, to the penny: Plan A's total over the first $${N}$ years, $S_A = \\frac{${N}}{2}(2 \\times ${tn(a / 100)} + ${N - 1} \\times ${tn(d / 100)})$, Plan B's, $S_B = \\frac{${tn(b / 100)}(${rateOf(pct).tex}^{${N}} - 1)}{${rateOf(pct).tex} - 1}$, then how much more the better plan pays.`,
         },
       ],
       expression: SA > SB ? 'S_A - S_B' : 'S_B - S_A',
@@ -9004,8 +9247,8 @@ const plansTotalTree: Generator<PlansParams> = {
         { id: 'B', from: [] },
         { id: 'gap', from: ['A', 'B'] },
       ],
-      bank: moneyBank(answer, slips),
-      answer: answer.map(String),
+      bank: amountBank(answer, slips),
+      answer: answer.map(gbp),
     };
   },
   solution: (params) => {
@@ -9013,8 +9256,8 @@ const plansTotalTree: Generator<PlansParams> = {
     const [A, B] = [planA(params, N), planB(params, N)];
     return [
       plansWorking(params),
-      { text: `$S_A = ${A.join(' + ')} = ${sumOf(A)}$ and $S_B = ${B.join(' + ')} = ${sumOf(B)}$.` },
-      { text: `The difference is $${Math.abs(sumOf(A) - sumOf(B))}$.` },
+      { text: `$S_A = ${A.map(gbp).join(' + ')} = ${gbp(sumOf(A))}$ and $S_B = ${B.map(gbp).join(' + ')} = ${gbp(sumOf(B))}$.` },
+      { text: `The difference is $${gbp(Math.abs(sumOf(A) - sumOf(B)))}$.` },
     ];
   },
 };

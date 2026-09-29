@@ -48,6 +48,7 @@ import { markerWindow, plotSvg } from '../figures';
 import { ALGEBRA_KEYS, ROOT_KEYS, sumTex, termTex } from './calculus';
 import { ITERATES, bracketTex, fixedScheme, written, type FixedFamily } from './iterationTable';
 import { gcd, say } from './format';
+import { roundTo } from '../../engine/equivalence';
 
 /* ================================================================
  * Shared helpers
@@ -59,6 +60,56 @@ const show = (tex: string): Block => ({ kind: 'display', tex });
 export function fmt(value: number): string {
   const text = String(Number(value.toFixed(6)));
   return text === '-0' ? '0' : text;
+}
+
+/** What a set of readings may do: its range, the places it is read to, and how far one reading moves from the last. */
+export interface ReadingRange {
+  lo: number;
+  hi: number;
+  /** Decimal places a reading is taken to. */
+  dp: number;
+  /** The most one reading moves from the one before it. */
+  step: number;
+  /** Nought at both ends, as at a river's banks. */
+  zeroEnds?: boolean;
+}
+
+/**
+ * One smooth run of readings, never each point drawn on its own: a river
+ * reading 0, 8, 1, 8, 0 m across a few metres is no river. A run with zero
+ * ends (bank to bank) is one hump, rising to a deepest point somewhere near
+ * the middle and falling again, with a little unevenness, its deepest point
+ * between `lo` and `hi`. Any other run walks from a start value, each reading
+ * at most `step` from the one before and all within [lo, hi].
+ */
+export function smoothReadings(rng: Rng, r: ReadingRange, count: number): number[] {
+  const unit = 10 ** -r.dp;
+  const units = (v: number) => Math.round(v / unit);
+  const at = (k: number) => Number((k * unit).toFixed(6));
+  if (r.zeroEnds) {
+    for (;;) {
+      const peak = rng.int(units(r.lo), units(r.hi));
+      const skew = rng.pick([0.75, 0.9, 1, 1.15, 1.35]);
+      const wobble = r.dp > 0 ? 2 : 0;
+      const ys = Array.from({ length: count }, (_, i) => {
+        if (i === 0 || i === count - 1) return 0;
+        const shape = Math.sin(Math.PI * (i / (count - 1)) ** skew);
+        return at(Math.round(peak * shape) + rng.int(-wobble, wobble));
+      });
+      const inner = ys.slice(1, -1);
+      const jumps = ys.slice(1).map((y, i) => Math.abs(y - ys[i]));
+      if (inner.some((y) => y < 0.2 * r.hi || y > r.hi) || jumps.some((j) => j > r.step + 1e-9)) continue;
+      return ys;
+    }
+  }
+  const most = units(r.step);
+  const ys = [at(rng.int(units(r.lo), units(r.hi)))];
+  while (ys.length < count) {
+    const next = at(units(ys[ys.length - 1]) + rng.int(-most, most));
+    if (next < r.lo || next > r.hi) continue;
+    ys.push(next);
+  }
+  return ys;
 }
 
 /** `+ 3` or `+ (-3)`: a number added in a substitution line, bracketed when negative. */
@@ -3927,32 +3978,86 @@ function sampleRel(rng: Rng, difficulty: number): Pick<RelParams, 'exact' | 'rel
   }
 }
 
-function relStory({ exact, rel, context }: RelParams): string {
-  const estimate = fmt(relEstimate({ exact, rel }));
-  switch (context) {
-    case 0:
-      return `A length of exactly $${fmt(exact)}$ cm is measured as $${estimate}$ cm.`;
-    case 1:
-      return `The trapezium rule gives $${estimate}$ for an integral whose exact value is $${fmt(exact)}$.`;
-    case 2:
-      return `A value of exactly $${fmt(exact)}$ is stored as $${estimate}$.`;
+const relAnswer = ({ rel, percent }: Pick<RelParams, 'rel' | 'percent'>) => fmt(percent ? rel * 100 : rel);
+
+/* The typed relative error, told in values read off an instrument. */
+
+interface MeasuredParams {
+  /** The true value and the reading, as whole numbers of the story's last place. */
+  exact: number;
+  estimate: number;
+  context: 0 | 1 | 2;
+  percent: boolean;
+}
+
+/**
+ * Each story at the precision its instrument reads to: a rod in cm to 1 d.p.
+ * read up to 2 cm out, an integral and its trapezium estimate to 2 d.p., a
+ * tank in whole litres. Nothing is chosen so the error comes out tidy, so the
+ * answer is asked to 3 significant figures.
+ */
+const MEASURED = [
+  { dp: 1, lo: 20, hi: 120, off: 20 },
+  { dp: 2, lo: 2, hi: 40, off: 0 },
+  { dp: 0, lo: 100, hi: 800, off: 0 },
+] as const;
+
+const REL_PRECISION = { sf: 3 } as const;
+
+const measuredValue = (units: number, context: number) => Number((units / 10 ** MEASURED[context].dp).toFixed(6));
+const measuredError = ({ exact, estimate, context }: MeasuredParams) => measuredValue(estimate - exact, context);
+/** The relative error unrounded, then as a fraction or a percentage to 3 s.f. */
+const measuredRel = ({ exact, estimate }: MeasuredParams) => (estimate - exact) / exact;
+const measuredAnswer = (params: MeasuredParams) => roundTo((params.percent ? 100 : 1) * measuredRel(params), REL_PRECISION);
+
+/** Whether a value sits well clear of the edge where rounding to 3 s.f. would flip. */
+function clearOfEdge(value: number): boolean {
+  const places = 2 - Math.floor(Math.log10(Math.abs(value)));
+  const scaled = Math.abs(value) * 10 ** places;
+  return Math.abs(scaled - Math.floor(scaled) - 0.5) >= 0.15;
+}
+
+function sampleMeasured(rng: Rng, difficulty: number): MeasuredParams {
+  for (;;) {
+    const context = rng.pick([0, 1, 2] as const);
+    const { dp, lo, hi, off } = MEASURED[context];
+    const exact = rng.int(lo * 10 ** dp, hi * 10 ** dp);
+    // Out by up to 2 cm on the rod; by 0.5% to 8% on the integral and the tank.
+    const most = off > 0 ? off : Math.floor(0.08 * exact);
+    const least = off > 0 ? 1 : Math.ceil(0.005 * exact);
+    if (most < least) continue;
+    const estimate = exact + rng.sign() * rng.int(least, most);
+    const params = { exact, estimate, context, percent: difficulty > 1 };
+    if (!clearOfEdge(measuredRel(params))) continue;
+    return params;
   }
 }
 
-const relAnswer = ({ rel, percent }: Pick<RelParams, 'rel' | 'percent'>) => fmt(percent ? rel * 100 : rel);
+function measuredStory(params: MeasuredParams): string {
+  const exact = fmt(measuredValue(params.exact, params.context));
+  const estimate = fmt(measuredValue(params.estimate, params.context));
+  switch (params.context) {
+    case 0:
+      return `A rod $${exact}$ cm long is measured as $${estimate}$ cm.`;
+    case 1:
+      return `The trapezium rule gives $${estimate}$ for an integral whose exact value is $${exact}$.`;
+    case 2:
+      return `A model predicts a tank holds $${estimate}$ litres. It actually holds $${exact}$ litres.`;
+  }
+}
 
 /**
  * The relative error, error over exact value, typed; as a percentage at
  * difficulty 2. Its multiple-choice form offers the sign slip, the error not
  * divided, and the percentage for the fraction or the other way round.
  */
-const relError: Generator<RelParams> = {
+const relError: Generator<MeasuredParams> = {
   id: 'numer-rel-error',
-  sample: (rng, difficulty) => ({ ...sampleRel(rng, difficulty), context: rng.pick([0, 1, 2] as const), percent: difficulty > 1 }),
+  sample: (rng, difficulty) => sampleMeasured(rng, difficulty),
   choices: (params) => {
-    const right = relAnswer(params);
-    const error = fmt(relEstimate(params) - params.exact);
-    const other = fmt(params.percent ? params.rel : params.rel * 100);
+    const right = fmt(measuredAnswer(params));
+    const error = fmt(measuredError(params));
+    const other = fmt(roundTo((params.percent ? 1 : 100) * measuredRel(params), REL_PRECISION));
     return options(
       { tex: right, answer: right },
       { tex: flipped(right), answer: flipped(right) },
@@ -3964,23 +4069,27 @@ const relError: Generator<RelParams> = {
     kind: 'expression',
     prompt: [
       say(
-        `${relStory(params)} Find the ${params.percent ? 'percentage error, as a number of per cent' : 'relative error'}: the error divided by the exact value${params.percent ? ', times 100' : ''}.`,
+        `${measuredStory(params)} Find the ${params.percent ? 'percentage error, as a number of per cent' : 'relative error'}: the error divided by the exact value${params.percent ? ', times 100' : ''}. Give your answer to 3 significant figures.`,
       ),
     ],
     lead: params.percent ? '\\text{percentage error (\\%)} =' : '\\text{relative error} =',
     keypad: [],
-    answer: relAnswer(params),
+    answer: fmt(measuredAnswer(params)),
+    precision: REL_PRECISION,
     domain: 'real',
     mode: 'exact',
   }),
   solution: (params) => {
-    const estimate = relEstimate(params);
-    const error = estimate - params.exact;
+    const exact = fmt(measuredValue(params.exact, params.context));
+    const estimate = fmt(measuredValue(params.estimate, params.context));
+    const error = measuredError(params);
+    const rel = measuredRel(params);
     return [
-      { tex: aligned(`\\text{error} &= ${fmt(estimate)} - ${fmt(params.exact)}`, `&= ${fmt(error)}`) },
-      { tex: aligned(`\\text{relative} &= \\frac{${fmt(error)}}{${fmt(params.exact)}}`, `&= ${fmt(params.rel)}`) },
-      ...(params.percent ? [{ tex: `${fmt(params.rel)} \\times 100 = ${fmt(params.rel * 100)}\\%` }] : []),
-      { text: `Divide by the exact value, never the estimate. ${params.rel > 0 ? 'Positive: an overestimate.' : 'Negative: an underestimate.'}` },
+      { tex: aligned(`\\text{error} &= ${estimate} - ${exact}`, `&= ${fmt(error)}`) },
+      { tex: aligned(`\\text{relative} &= \\frac{${fmt(error)}}{${exact}}`, `&= ${rel.toPrecision(5)}\\ldots`) },
+      ...(params.percent ? [{ tex: `${rel.toPrecision(5)}\\ldots \\times 100 = ${(100 * rel).toPrecision(5)}\\ldots\\%` }] : []),
+      { tex: `\\approx ${fmt(measuredAnswer(params))}${params.percent ? '\\%' : ''} \\text{ (3 s.f.)}` },
+      { text: `Divide by the exact value, never the estimate. ${rel > 0 ? 'Positive: an overestimate.' : 'Negative: an underestimate.'}` },
     ];
   },
 };
@@ -6424,10 +6533,8 @@ interface Story {
   lead: string;
   /** Spacings whose third is an exact decimal. */
   hs: number[];
-  lo: number;
-  hi: number;
-  /** Readings at the two ends are nought, as at a river's banks. */
-  zeroEnds?: boolean;
+  /** The readings' range and how smoothly they run. */
+  range: ReadingRange;
 }
 
 const STORIES: Story[] = [
@@ -6438,9 +6545,7 @@ const STORIES: Story[] = [
     ask: 'Estimate the area of its cross-section, in square metres.',
     lead: 'A \\approx',
     hs: [0.6, 1.5, 3],
-    lo: 1,
-    hi: 9,
-    zeroEnds: true,
+    range: { lo: 1, hi: 3, dp: 1, step: 2, zeroEnds: true },
   },
   {
     setup: (h) => `A car's speed $v$, in metres per second, is read every $${h}$ seconds.`,
@@ -6449,8 +6554,7 @@ const STORIES: Story[] = [
     ask: 'Estimate how far it travels, in metres.',
     lead: '\\text{distance} \\approx',
     hs: [1.5, 3, 6],
-    lo: 4,
-    hi: 30,
+    range: { lo: 4, hi: 30, dp: 0, step: 3 },
   },
   {
     setup: (h) => `A pond's width $w$, in metres, is measured every $${h}$ m along its length.`,
@@ -6459,8 +6563,7 @@ const STORIES: Story[] = [
     ask: "Estimate the pond's area, in square metres.",
     lead: 'A \\approx',
     hs: [0.75, 1.5, 3, 6],
-    lo: 2,
-    hi: 20,
+    range: { lo: 2, hi: 20, dp: 0, step: 3 },
   },
   {
     setup: (h) => `Water runs into a tank at $r$ litres a minute, read every $${h}$ minutes.`,
@@ -6469,8 +6572,7 @@ const STORIES: Story[] = [
     ask: 'Estimate how much runs in, in litres.',
     lead: 'V \\approx',
     hs: [1.5, 3, 6],
-    lo: 5,
-    hi: 40,
+    range: { lo: 5, hi: 40, dp: 0, step: 4 },
   },
 ];
 
@@ -6483,8 +6585,7 @@ interface ReadingsParams {
 function sampleReadings(rng: Rng, count: number): ReadingsParams {
   const story = rng.int(0, STORIES.length - 1);
   const s = STORIES[story];
-  const ys = Array.from({ length: count }, (_, i) => (s.zeroEnds && (i === 0 || i === count - 1) ? 0 : rng.int(s.lo, s.hi)));
-  return { story, h: rng.pick(s.hs), ys };
+  return { story, h: rng.pick(s.hs), ys: smoothReadings(rng, s.range, count) };
 }
 
 const readingsXs = ({ h, ys }: ReadingsParams) => ys.map((_, i) => i * h);

@@ -1303,20 +1303,37 @@ describe('level 5: every number in a slide', () => {
  * states. The generators build their questions from their own helpers; none of
  * those is used here, so a balance, a year or a payment that does not follow
  * from what the learner reads fails.
+ *
+ * Money is added to the nearest penny each year, as the prose says, so it is
+ * run here in whole pence; a count is run in whole units the same way.
  */
 
-/** x after a year's interest at pct%, which must come out whole. */
+/** x (whole pence, or a whole count) after a year's rise of pct%, rounded to the nearest whole unit. */
 function withInterest(x: number, pct: number, where: string): number {
-  const value = (x * (100 + pct)) / 100;
-  expect(Number.isInteger(value), `${where}: ${x} at ${pct}% is not whole`).toBe(true);
-  return value;
+  expect(Number.isInteger(x), `${where}: ${x} is not a whole number of units`).toBe(true);
+  const scaled = x * (100 + pct);
+  expect(scaled % 100, `${where}: ${x} at ${pct}% sits on a half`).not.toBe(50);
+  return Math.round(scaled / 100);
 }
 
 const percentIn = (text: string) => stated(text, /\$(\d+)\\%\$/);
 
-/** Savings: P paid in at the start of each year, interest at the end. The balances at the ends of years 1 … n. */
+/** A sum of money the prose states, `£1,060.90` or `£500`, in pence. */
+function pence(text: string, pattern: RegExp): number {
+  const match = text.match(pattern);
+  if (!match) throw new Error(`nothing matching ${pattern} in ${text}`);
+  return Math.round(Number(match[1].replace(/,/g, '')) * 100);
+}
+
+/** A written amount of money, `1060.90`, in pence. */
+const toPence = (value: string) => Math.round(Number(value) * 100);
+
+const MONEY = '£([\\d,]+(?:\\.\\d\\d)?)';
+const money = (before: string, after = '') => new RegExp(`${before}${MONEY}${after}`);
+
+/** Savings: P paid in at the start of each year, interest at the end. The balances at the ends of years 1 … n, in pence. */
 function savingsBalances(text: string, n: number, where: string): number[] {
-  const P = stated(text, /pays £(\d+) into a savings account/);
+  const P = pence(text, money('pays ', ' into a savings account'));
   const pct = percentIn(text);
   const out: number[] = [];
   for (let k = 0; k < n; k += 1) out.push(withInterest((out[k - 1] ?? 0) + P, pct, where));
@@ -1325,9 +1342,9 @@ function savingsBalances(text: string, n: number, where: string): number[] {
 
 /** A loan as the prose tells it: interest on, then the repayment, or the rest when that is less. */
 function loanYears(text: string, where: string): { owed: number[]; after: number[]; paid: number[] } {
-  const D = stated(text, /borrows £(\d+)/);
+  const D = pence(text, money('borrows '));
   const pct = percentIn(text);
-  const R = stated(text, /then £(\d+) is repaid/);
+  const R = pence(text, money('then ', ' is repaid'));
   const owed: number[] = [];
   const after: number[] = [];
   const paid: number[] = [];
@@ -1343,22 +1360,27 @@ function loanYears(text: string, where: string): { owed: number[]; after: number
   return { owed, after, paid };
 }
 
-/** The values a model story gives: a fixed rise in pounds or units, a percentage of the first value (fixed too), or of the one before. */
-function storyValues(text: string, count: number, where: string): { geo: boolean; values: number[] } {
-  const a = Number(text.match(/(?:pays|is) £(\d+)|(?:sells|has) \$(\d+)\$/)!.slice(1).find(Boolean));
+/**
+ * The values a model story gives, in whole units (pence for money): a fixed
+ * rise in pounds or units, a percentage of the first value (fixed too), or of
+ * the one before.
+ */
+function storyValues(text: string, count: number, where: string): { geo: boolean; values: number[]; isMoney: boolean } {
+  const isMoney = /(?:pays|is) £/.test(text);
+  const a = isMoney ? pence(text, money('(?:pays|is) ')) : stated(text, /(?:sells|has) \$(\d+)\$/);
   const pct = text.match(/by \$(\d+)\\%\$/) ? percentIn(text) : 0;
   const geo = pct > 0 && !/of the first/.test(text);
-  const d = pct > 0 ? (a * pct) / 100 : Number(text.match(/by (?:£(\d+)|\$(\d+)\$) every/)!.slice(1).find(Boolean));
+  const d = pct > 0 ? (a * pct) / 100 : isMoney ? pence(text, money('by ', ' every')) : stated(text, /by \$(\d+)\$ every/);
   const values = [a];
   while (values.length < count) values.push(geo ? withInterest(values[values.length - 1], pct, where) : values[values.length - 1] + d);
-  return { geo, values };
+  return { geo, values, isMoney };
 }
 
-/** Plan A and Plan B, years 1 … N. */
+/** Plan A and Plan B, years 1 … N, in pence. */
 function plansFrom(text: string, N: number, where: string): { A: number[]; B: number[] } {
-  const a = stated(text, /Plan A pays £(\d+)/);
-  const d = stated(text, /then £(\d+) more each year/);
-  const b = stated(text, /Plan B pays £(\d+)/);
+  const a = pence(text, money('Plan A pays '));
+  const d = pence(text, money('then ', ' more each year'));
+  const b = pence(text, money('Plan B pays '));
   const pct = percentIn(text);
   const A = Array.from({ length: N }, (_, i) => a + i * d);
   const B = [b];
@@ -1368,22 +1390,24 @@ function plansFrom(text: string, N: number, where: string): { A: number[]; B: nu
 
 const added = (values: number[]) => values.reduce((sum, v) => sum + v, 0);
 
-/** A power of a multiplier as a tile writes it, `1.1^3`, as a number. */
+/** A power of a multiplier as a tile writes it, `1.03^3`, as a number. */
 function powerValue(token: string): number {
   const [base, power = '1'] = token.split('^');
   return Number(base) ** Number(power);
 }
+
+/** A table's cells as numbers of whole units: pence, apart from the year column. */
+const penceRows = (slide: Table) => merged(slide).map((row) => row.map((cell, j) => (j === 0 ? Number(cell) : toPence(cell))));
 
 describe('level 6, lesson 1: regular savings', () => {
   it('seq-save-table: each start is last year plus the payment, each end that with interest', () => {
     for (const { slide, seed, difficulty } of draws('seq-save-table')) {
       if (slide.kind !== 'table') throw new Error('not a table');
       const where = `seed ${seed}, difficulty ${difficulty}`;
-      const rows = merged(slide).map((row) => row.map(Number));
+      const rows = penceRows(slide);
       const B = savingsBalances(prose(slide.prompt), rows.length, where);
-      const P = stated(prose(slide.prompt), /pays £(\d+)/);
+      const P = pence(prose(slide.prompt), money('pays '));
       rows.forEach(([n, start, end], k) => expect([n, start, end], where).toEqual([k + 1, (B[k - 1] ?? 0) + P, B[k]]));
-      expect(B[B.length - 1], where).toBeLessThanOrEqual(6000);
     }
   });
 
@@ -1394,12 +1418,16 @@ describe('level 6, lesson 1: regular savings', () => {
       const text = prose(slide.prompt);
       const n = stated(slide.template, /^B_(\d) =/);
       expect(stated(text, /end of year \$(\d+)\$/), where).toBe(n);
-      expect(stated(slide.template, /= (\d+)\(/), where).toBe(stated(text, /pays £(\d+)/));
+      expect(100 * stated(slide.template, /= (\d+)\(/), where).toBe(pence(text, money('pays ')));
       const r = 1 + percentIn(text) / 100;
       const powers = n === 2 ? [1, 2] : n === 3 ? [1, 2, 3] : [1, 2, n];
       const tokens = slide.answer.slice(0, -1);
       tokens.forEach((token, i) => expect(powerValue(token), `${where}: ${token}`).toBeCloseTo(r ** powers[i], 10));
-      expect(Number(slide.answer[slide.answer.length - 1]), where).toBe(savingsBalances(text, n, where)[n - 1]);
+      const B = savingsBalances(text, n, where)[n - 1];
+      expect(toPence(slide.answer[slide.answer.length - 1]), where).toBe(B);
+      // The series worked unrounded lands on the same penny as the year-by-year run.
+      const P = pence(text, money('pays '));
+      expect(Math.round(added(Array.from({ length: n }, (_, i) => P * r ** (i + 1)))), where).toBe(B);
     }
   });
 
@@ -1409,11 +1437,10 @@ describe('level 6, lesson 1: regular savings', () => {
       const where = `seed ${seed}, difficulty ${difficulty}`;
       const text = prose(slide.prompt);
       const n = stated(text, /end of year \$(\d+)\$/);
-      const P = stated(text, /pays £(\d+)/);
-      const pct = percentIn(text);
-      const grownFor = (k: number) => Array.from({ length: k }).reduce<number>((x) => withInterest(x, pct, where), P);
-      const values = slide.reductions.map((step) => Number(step.value));
-      expect(values.slice(0, n), where).toEqual(Array.from({ length: n }, (_, i) => grownFor(i + 1)));
+      const P = pence(text, money('pays '));
+      const r = 1 + percentIn(text) / 100;
+      const values = slide.reductions.map((step) => toPence(step.value));
+      expect(values.slice(0, n), where).toEqual(Array.from({ length: n }, (_, i) => Math.round(P * r ** (i + 1))));
       expect(values[values.length - 1], where).toBe(savingsBalances(text, n, where)[n - 1]);
       for (const step of slide.reductions) expect(step.bank, where).toContain(step.value);
     }
@@ -1425,7 +1452,8 @@ describe('level 6, lesson 1: regular savings', () => {
       const where = `seed ${seed}, difficulty ${difficulty}`;
       const text = prose(slide.prompt);
       const n = stated(text, /end of year \$(\d+)\$/);
-      expect(Number(slide.answer), where).toBe(savingsBalances(text, n, where)[n - 1]);
+      expect(toPence(slide.answer), where).toBe(savingsBalances(text, n, where)[n - 1]);
+      expect(slide.precision, where).toEqual({ dp: 2 });
     }
   });
 });
@@ -1436,7 +1464,7 @@ describe('level 6, lesson 2: paying off a loan', () => {
       if (slide.kind !== 'table') throw new Error('not a table');
       const where = `seed ${seed}, difficulty ${difficulty}`;
       const { owed, after } = loanYears(prose(slide.prompt), where);
-      expect(merged(slide).map((row) => row.map(Number)), where).toEqual(owed.map((o, k) => [k + 1, o, after[k]]));
+      expect(penceRows(slide), where).toEqual(owed.map((o, k) => [k + 1, o, after[k]]));
     }
   });
 
@@ -1447,10 +1475,11 @@ describe('level 6, lesson 2: paying off a loan', () => {
       const text = prose(slide.prompt);
       const { after } = loanYears(text, where);
       expect(after.length, `${where}: u_2 would be past the end`).toBeGreaterThanOrEqual(3);
-      expect(slide.answer.map(Number), where).toEqual([
+      const [r, R, D, u2] = slide.answer;
+      expect([Number(r), toPence(R), toPence(D), toPence(u2)], where).toEqual([
         1 + percentIn(text) / 100,
-        stated(text, /then £(\d+) is repaid/),
-        stated(text, /borrows £(\d+)/),
+        pence(text, money('then ', ' is repaid')),
+        pence(text, money('borrows ')),
         after[1],
       ]);
     }
@@ -1471,10 +1500,10 @@ describe('level 6, lesson 2: paying off a loan', () => {
       const text = prose(slide.prompt);
       const { after, paid } = loanYears(text, where);
       const years = paid.length;
-      expect(stated(text, /£(\d+) is still owed/), where).toBe(after[years - 2]);
+      expect(pence(text, money('', ' is still owed')), where).toBe(after[years - 2]);
       expect(stated(text, /year \$(\d+)\$ clears it/), where).toBe(years);
-      const D = stated(text, /borrows £(\d+)/);
-      expect(slide.answer.map(Number), where).toEqual([paid[years - 1], added(paid.slice(0, -1)), added(paid), added(paid) - D]);
+      const D = pence(text, money('borrows '));
+      expect(slide.answer.map(toPence), where).toEqual([paid[years - 1], added(paid.slice(0, -1)), added(paid), added(paid) - D]);
     }
   });
 });
@@ -1485,7 +1514,7 @@ describe('level 6, lesson 3: years to a target', () => {
       if (slide.kind !== 'slider') throw new Error('not a slider');
       const where = `seed ${seed}, difficulty ${difficulty}`;
       const text = prose(slide.prompt);
-      const T = stated(text, /dashed line is £(\d+)/);
+      const T = pence(text, money('dashed line is '));
       const B = savingsBalances(text, slide.answer, where);
       expect(B[slide.answer - 1], where).toBeGreaterThan(T);
       expect(B.slice(0, -1).every((b) => b <= T), where).toBe(true);
@@ -1493,15 +1522,26 @@ describe('level 6, lesson 3: years to a target', () => {
     }
   });
 
-  it('seq-target-payment: paying the typed amount each year lands exactly on the target', () => {
+  it('seq-target-payment: paying the typed amount reaches the target, and the taught trial-and-scale lands on it', () => {
     for (const { slide, seed, difficulty } of draws('seq-target-payment')) {
       if (slide.kind !== 'expression') throw new Error('not typed');
       const where = `seed ${seed}, difficulty ${difficulty}`;
       const text = prose(slide.prompt);
+      expect(text, where).toContain('nearest penny');
       const n = stated(text, /end of year \$(\d+)\$/);
-      const T = stated(text, /wants £(\d+)/);
-      const asStory = `pays £${slide.answer} into a savings account ${text}`;
-      expect(savingsBalances(asStory, n, where)[n - 1], where).toBe(T);
+      const T = pence(text, money('wants '));
+      const pct = percentIn(text);
+      const P = toPence(slide.answer);
+      // Paid in at each start, interest added to the penny at each end: the saver gets there.
+      let balance = 0;
+      for (let k = 0; k < n; k += 1) balance = withInterest(balance + P, pct, where);
+      expect(balance, `${where}: paying ${P}p ends on ${balance}p`).toBeGreaterThanOrEqual(T);
+      // The lesson's method: £100 a year run to the penny, scaled to the target to 4 decimal places.
+      let trial = 0;
+      for (let k = 0; k < n; k += 1) trial = withInterest(trial + 10000, pct, where);
+      const times = Math.round((T / trial) * 10000) / 10000;
+      expect(P, where).toBe(Math.round(10000 * times));
+      expect(slide.precision, where).toEqual({ dp: 2 });
     }
   });
 
@@ -1510,15 +1550,15 @@ describe('level 6, lesson 3: years to a target', () => {
       if (slide.kind !== 'tree') throw new Error('not a tree');
       const where = `seed ${seed}, difficulty ${difficulty}`;
       const text = prose(slide.prompt);
-      const trial = stated(text, /Try £(\d+)/);
-      const T = stated(text, /aim is £(\d+)/);
+      const trial = pence(text, money('Try ', ' a year'));
+      const T = pence(text, money('aim is '));
       const n = stated(text, /end of year \$(\d+)\$/);
-      const trialRun = savingsBalances(`pays £${trial} into a savings account ${text}`, n, where);
-      const values = slide.answer.map(Number);
-      expect(values.slice(0, n), where).toEqual(trialRun);
-      expect(values[n], where).toBe(T / trialRun[n - 1]);
-      expect(values[n + 1], where).toBe(trial * values[n]);
-      expect(savingsBalances(`pays £${values[n + 1]} into a savings account ${text}`, n, where)[n - 1], where).toBe(T);
+      const trialRun = savingsBalances(`pays ${`£${trial / 100}`} into a savings account ${text}`, n, where);
+      expect(slide.answer.slice(0, n).map(toPence), where).toEqual(trialRun);
+      const times = Number(slide.answer[n]);
+      expect(slide.answer[n], where).toMatch(/^\d+\.\d{4}$/);
+      expect(times, where).toBeCloseTo(T / trialRun[n - 1], 4);
+      expect(toPence(slide.answer[n + 1]), where).toBe(Math.round((trial * times)));
     }
   });
 
@@ -1527,8 +1567,8 @@ describe('level 6, lesson 3: years to a target', () => {
       if (slide.kind !== 'table') throw new Error('not a table');
       const where = `seed ${seed}, difficulty ${difficulty}`;
       const text = prose(slide.prompt);
-      const T = stated(text, /target is £(\d+)/);
-      const rows = merged(slide).map((row) => row.map(Number));
+      const T = pence(text, money('target is '));
+      const rows = penceRows(slide);
       const B = savingsBalances(text, rows.length, where);
       expect(rows, where).toEqual(B.map((b, k) => [k + 1, b, b - T]));
       expect(rows.map((row) => row[2] > 0), where).toEqual(rows.map((_, k) => k === rows.length - 1));
@@ -1538,9 +1578,11 @@ describe('level 6, lesson 3: years to a target', () => {
 
 describe('level 6, lesson 4: arithmetic or geometric', () => {
   const modelFn = (tex: string) => {
-    const f = fn(tex.replace(/^u_n = /, ''));
+    const f = fn(tex.replace(/^u_n = /, '').replace(/\{,\}/g, ''));
     return (n: number) => f({ n });
   };
+  /** A story's value in pounds (or units), as a model gives it. */
+  const unitsOf = (isMoney: boolean) => (v: number) => (isMoney ? v / 100 : v);
 
   it('seq-model-check: the path names how the story grows and how the model does, and a matching model matches every value', () => {
     for (const difficulty of DIFFICULTIES) {
@@ -1549,14 +1591,17 @@ describe('level 6, lesson 4: arithmetic or geometric', () => {
         const slide = draw('seq-model-check', seed, difficulty);
         if (slide.kind !== 'flow') throw new Error('not a flow');
         const where = `seed ${seed}, difficulty ${difficulty}`;
-        const { geo, values } = storyValues(prose(slide.prompt), 4, where);
+        const { geo, values: raw, isMoney } = storyValues(prose(slide.prompt), 4, where);
+        const values = raw.map(unitsOf(isMoney));
         const model = modelFn(slide.subject);
         const modelGeo = slide.subject.includes('\\times');
         const [adds, multiplies] = ['Adds the same amount', 'Multiplies by the same factor'];
         expect(slide.answer, where).toEqual([geo ? multiplies : adds, modelGeo ? multiplies : adds]);
-        const fits = values.every((value, i) => Math.abs(model(i + 1) - value) < 1e-6);
+        // The story rounds each value; the model is the unrounded rule.
+        const tolerance = isMoney ? 0.006 : 0.6;
+        const fits = values.every((value, i) => Math.abs(model(i + 1) - value) < tolerance);
         expect(fits, where).toBe(geo === modelGeo);
-        expect([model(1), model(2)], `${where}: a wrong model still starts right`).toEqual([values[0], values[1]].map((v) => expect.closeTo(v, 6)));
+        expect([model(1), model(2)], `${where}: a wrong model still starts right`).toEqual([values[0], values[1]].map((v) => expect.closeTo(v, 1)));
         seen.add(`${geo} ${modelGeo}`);
       }
       expect(seen.size, `difficulty ${difficulty}`).toBe(4);
@@ -1567,10 +1612,12 @@ describe('level 6, lesson 4: arithmetic or geometric', () => {
     for (const { slide, seed, difficulty } of draws('seq-model-pick')) {
       if (slide.kind !== 'choice') throw new Error('not a choice');
       const where = `seed ${seed}, difficulty ${difficulty}`;
-      const { values } = storyValues(prose(slide.prompt), 4, where);
+      const { values: raw, isMoney } = storyValues(prose(slide.prompt), 4, where);
+      const values = raw.map(unitsOf(isMoney));
+      const tolerance = isMoney ? 0.006 : 0.6;
       for (const option of slide.options) {
         const model = modelFn(option.label);
-        const fits = values.every((value, i) => Math.abs(model(i + 1) - value) < 1e-6);
+        const fits = values.every((value, i) => Math.abs(model(i + 1) - value) < tolerance);
         expect(fits, `${where}: ${option.label}`).toBe(option.id === slide.correctId);
       }
     }
@@ -1581,10 +1628,12 @@ describe('level 6, lesson 4: arithmetic or geometric', () => {
       if (slide.kind !== 'tiles') throw new Error('not tiles');
       const where = `seed ${seed}, difficulty ${difficulty}`;
       const k = stated(slide.template, /^S_(\d) =/);
-      const { values } = storyValues(prose(slide.prompt), k, where);
-      expect(fn(slide.answer[0])({}), `${where}: ${slide.answer[0]}`).toBeCloseTo(added(values), 6);
-      expect(Number(slide.answer[1]), where).toBe(added(values));
-      expect(added(values), where).toBeLessThanOrEqual(6000);
+      const { values, isMoney } = storyValues(prose(slide.prompt), k, where);
+      const total = unitsOf(isMoney)(added(values));
+      // The sum formula, worked unrounded, rounds to the total of the rounded values.
+      const formula = fn(slide.answer[0].replace(/\{,\}/g, ''))({});
+      expect(Math.round(formula * (isMoney ? 100 : 1)), `${where}: ${slide.answer[0]}`).toBe(added(values));
+      expect(Number(slide.answer[1]), where).toBeCloseTo(total, 6);
     }
   });
 
@@ -1592,8 +1641,10 @@ describe('level 6, lesson 4: arithmetic or geometric', () => {
     for (const { slide, seed, difficulty } of draws('seq-model-table')) {
       if (slide.kind !== 'table') throw new Error('not a table');
       const where = `seed ${seed}, difficulty ${difficulty}`;
-      const rows = merged(slide).map((row) => row.map(Number));
-      const { values } = storyValues(prose(slide.prompt), rows.length, where);
+      const text = prose(slide.prompt);
+      const isMoney = /(?:pays|is) £/.test(text);
+      const rows = merged(slide).map((row) => row.map((cell, j) => (j === 0 || !isMoney ? Number(cell) : toPence(cell))));
+      const { values } = storyValues(text, rows.length, where);
       expect(rows, where).toEqual(values.map((u, i) => [i + 1, u, added(values.slice(0, i + 1))]));
     }
   });
@@ -1604,7 +1655,7 @@ describe('level 6, lesson 5: two plans compared', () => {
     for (const { slide, seed, difficulty } of draws('seq-plans-table')) {
       if (slide.kind !== 'table') throw new Error('not a table');
       const where = `seed ${seed}, difficulty ${difficulty}`;
-      const rows = merged(slide).map((row) => row.map(Number));
+      const rows = penceRows(slide);
       const { A, B } = plansFrom(prose(slide.prompt), rows.length, where);
       expect(rows, where).toEqual(A.map((x, i) => [i + 1, x, B[i]]));
     }
@@ -1629,7 +1680,9 @@ describe('level 6, lesson 5: two plans compared', () => {
       const N = year ? Number(year[1]) : stated(text, /first \$(\d+)\$ years/);
       const { A, B } = plansFrom(text, N, where);
       const [x, y] = year ? [A[N - 1], B[N - 1]] : [added(A), added(B)];
-      expect(choiceAnswer(slide), where).toBe(`Plan ${x > y ? 'A' : 'B'}, by £${Math.abs(x - y)}`);
+      const label = choiceAnswer(slide);
+      expect(label.startsWith(`Plan ${x > y ? 'A' : 'B'}, by £`), `${where}: ${label}`).toBe(true);
+      expect(pence(label, money('by ')), where).toBe(Math.abs(x - y));
     }
   });
 
@@ -1639,25 +1692,40 @@ describe('level 6, lesson 5: two plans compared', () => {
       const where = `seed ${seed}, difficulty ${difficulty}`;
       const text = prose(slide.prompt);
       const { A, B } = plansFrom(text, stated(text, /first \$(\d+)\$ years/), where);
-      expect(slide.answer.map(Number), where).toEqual([added(A), added(B), Math.abs(added(A) - added(B))]);
-      expect(Math.max(added(A), added(B)), where).toBeLessThanOrEqual(6000);
+      expect(slide.answer.map(toPence), where).toEqual([added(A), added(B), Math.abs(added(A) - added(B))]);
     }
   });
 });
 
 describe('level 6: every number in a slide', () => {
-  it('is whole, apart from a multiplier or a rate written as a decimal', () => {
+  it('is whole, a multiplier or a rate written as a decimal, or money to the penny', () => {
     const ids = Object.keys(registry).filter((id) => /^seq-(save|loan|target|model|plans)-/.test(id) && !id.includes('+'));
     expect(ids).toHaveLength(20);
-    const decimals = new Set(['1.1', '1.2', '1.25', '1.5', '0.1', '0.2', '0.25', '0.5']);
+    // The rates a bank or an employer prints: 2% to 12% a year.
+    const decimals = new Set(Array.from({ length: 11 }, (_, i) => [`${1 + (i + 2) / 100}`, `${(i + 2) / 100}`]).flat());
     for (const id of ids) {
       for (const { slide, seed, difficulty } of draws(id)) {
         // A figure's coordinates are drawing, not numbers the learner reads.
         const { solution: _, figure: __, ...question } = slide as Slide & { solution?: unknown; figure?: unknown };
         const numbers = JSON.stringify(question).match(/\d+(\.\d+)?/g) ?? [];
         for (const number of numbers) {
-          expect(Number(number), `${id}, seed ${seed}, difficulty ${difficulty}: ${number}`).toBeLessThan(10000);
-          if (number.includes('.')) expect(decimals.has(number), `${id}, seed ${seed}, difficulty ${difficulty}: ${number}`).toBe(true);
+          const where = `${id}, seed ${seed}, difficulty ${difficulty}: ${number}`;
+          expect(Number(number), where).toBeLessThan(1_000_000);
+          if (!number.includes('.')) continue;
+          const money = /^\d+\.\d\d$/.test(number);
+          const times = id === 'seq-target-scale-tree' && /^\d+\.\d{4}$/.test(number);
+          expect(decimals.has(number) || money || times, where).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('asks rates a bank or an employer would print', () => {
+    const ids = Object.keys(registry).filter((id) => /^seq-(save|loan|target|model|plans)-/.test(id) && !id.includes('+'));
+    for (const id of ids) {
+      for (const { slide, seed, difficulty } of draws(id)) {
+        for (const match of prose('prompt' in slide ? slide.prompt : []).matchAll(/\$(\d+)\\%\$/g)) {
+          expect(Number(match[1]), `${id}, seed ${seed}, difficulty ${difficulty}`).toBeLessThanOrEqual(12);
         }
       }
     }

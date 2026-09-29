@@ -60,6 +60,7 @@ import {
   treeBank,
   turned,
 } from './parametricImplicit';
+import { askPrecision, dots, numChoices, roundTo, roundedWell } from './classicalKit';
 
 /* ---------- Shared helpers ---------- */
 
@@ -150,18 +151,22 @@ interface Story {
   sym: string;
   subject: string;
   unit: string;
+  /** What the quantity is measured in: a unit (`cm`), or what is counted (`bacteria`). */
+  measure: string;
+  /** Whether `measure` counts things rather than being a unit written after the letter. */
+  counted?: boolean;
 }
 
 const STORIES: Story[] = [
-  { sym: 'N', subject: 'The number of bacteria in a dish', unit: 'hour' },
-  { sym: 'P', subject: 'The population of a town', unit: 'year' },
-  { sym: 'M', subject: 'The mass of a chemical in a reaction', unit: 'minute' },
-  { sym: 'V', subject: 'The volume of water in a tank', unit: 'minute' },
-  { sym: 'h', subject: 'The height of a pile of sand', unit: 'minute' },
-  { sym: 'Q', subject: 'The charge on a capacitor', unit: 'second' },
-  { sym: 'F', subject: 'The number of fish in a lake', unit: 'month' },
-  { sym: 'R', subject: 'The radius of an oil slick', unit: 'hour' },
-  { sym: 'x', subject: 'The length of a crack in a beam', unit: 'day' },
+  { sym: 'N', subject: 'The number of bacteria in a dish', unit: 'hour', measure: 'bacteria', counted: true },
+  { sym: 'B', subject: 'The number of birds on an island', unit: 'year', measure: 'birds', counted: true },
+  { sym: 'M', subject: 'The mass of a chemical in a reaction', unit: 'minute', measure: 'g' },
+  { sym: 'V', subject: 'The volume of water in a tank', unit: 'minute', measure: 'litres' },
+  { sym: 'h', subject: 'The height of a pile of sand', unit: 'minute', measure: 'cm' },
+  { sym: 'Q', subject: 'The charge on a capacitor', unit: 'second', measure: 'microcoulombs' },
+  { sym: 'F', subject: 'The number of fish in a lake', unit: 'month', measure: 'fish', counted: true },
+  { sym: 'R', subject: 'The radius of an oil slick', unit: 'hour', measure: 'm' },
+  { sym: 'x', subject: 'The length of a crack in a beam', unit: 'day', measure: 'mm' },
 ];
 
 type FormKey = 'self' | 'square' | 'root' | 'inverse' | 'time' | 'inverseSquare' | 'product';
@@ -427,7 +432,8 @@ export interface RateParams {
   value: number;
 }
 
-export function rateValue({ form, top, bottom, sign, value }: RateParams): number {
+/** The rate itself, unrounded. */
+function rateExact({ form, top, bottom, sign, value }: RateParams): number {
   const size =
     form === 'self'
       ? (top * value) / bottom
@@ -436,7 +442,17 @@ export function rateValue({ form, top, bottom, sign, value }: RateParams): numbe
         : form === 'square'
           ? (top * value * value) / bottom
           : top / value;
-  return sign * Math.round(size);
+  return sign * size;
+}
+
+/** A root or a quotient rarely ends, so those rates are asked to 2 decimal places. */
+const RATE_DP = { dp: 2 } as const;
+const rateRounded = ({ form }: RateParams): boolean => form === 'root' || form === 'inverse';
+
+/** The rate as the answer gives it: exact for a product, which ends, and to 2 decimal places otherwise. */
+export function rateValue(params: RateParams): number {
+  const exact = rateExact(params);
+  return rateRounded(params) ? roundTo(exact, RATE_DP) : Number(exact.toFixed(6));
 }
 
 export function rateTex(params: RateParams): string {
@@ -450,6 +466,16 @@ export function rateTex(params: RateParams): string {
 
 const RATE_SELF: [number, number][] = [[1, 10], [2, 10], [3, 10], [4, 10], [5, 10], [1, 20], [1, 4], [3, 4], [2, 100], [6, 100]];
 const RATE_SQUARE: [number, number][] = [[1, 100], [2, 100], [1, 50], [1, 10], [1, 20]];
+/** Amounts a question states, the kind a textbook prints, never picked so the rate comes out whole. */
+const RATE_AMOUNTS = [20, 30, 40, 50, 60, 75, 80, 100, 120, 150, 200, 250, 300, 400, 500, 600];
+const ROOT_AMOUNTS = [10, 12, 15, 18, 20, 24, 25, 30, 40, 45, 50, 60, 75, 80];
+const INVERSE_TOPS = [10, 12, 15, 20, 24, 30, 40, 50, 60, 100];
+const INVERSE_AMOUNTS = [3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40];
+
+/** `h` with its unit, as the story names it: `$h$ cm`, or `$N$` for a count. */
+function measured(story: Story): string {
+  return story.counted ? `$${story.sym}$` : `$${story.sym}$ ${story.measure}`;
+}
 
 const deFormRate: Generator<RateParams> = {
   id: 'de-form-rate',
@@ -459,43 +485,59 @@ const deFormRate: Generator<RateParams> = {
     const ctx = rng.int(0, STORIES.length - 1);
     if (form === 'self') {
       const [top, bottom] = rng.pick(RATE_SELF);
-      return { ctx, form, top, bottom, sign, value: bottom * rng.int(2, Math.floor(600 / bottom)) };
-    }
-    if (form === 'root') {
-      return { ctx, form, top: rng.int(2, 9), bottom: 1, sign, value: rng.int(2, 15) ** 2 };
+      return { ctx, form, top, bottom, sign, value: rng.pick(RATE_AMOUNTS) };
     }
     if (form === 'square') {
       const [top, bottom] = rng.pick(RATE_SQUARE);
       return { ctx, form, top, bottom, sign, value: 10 * rng.int(1, 6) };
     }
-    const value = rng.int(2, 20);
-    return { ctx, form, top: value * rng.int(2, 12), bottom: 1, sign, value };
+    // A rounded rate is redrawn when it sits near a rounding edge.
+    for (;;) {
+      const params: RateParams =
+        form === 'root'
+          ? { ctx, form, top: rng.int(2, 9), bottom: 1, sign, value: rng.pick(ROOT_AMOUNTS) }
+          : { ctx, form, top: rng.pick(INVERSE_TOPS), bottom: 1, sign, value: rng.pick(INVERSE_AMOUNTS) };
+      if (roundedWell(rateExact(params), RATE_DP)) return params;
+    }
   },
   choices: (params) => {
     const answer = rateValue(params);
     const { form, top, bottom, value } = params;
+    // A rounded rate draws on enough slips of its own that no near miss a
+    // hundredth off the answer is needed: the choice asks for the rate, not
+    // for the order the rounding was done in.
     const slips =
       form === 'root'
-        ? [top * value, answer * 2]
+        ? [top * value, answer * 2, Math.sqrt(value), answer / 2, top * value * value]
         : form === 'square'
           ? [Math.round((top * value) / bottom), answer * 2]
           : form === 'inverse'
-            ? [top * value, value]
+            ? [top * value, value, top, answer * 2, value / top]
             : [value, answer * 2];
-    return numberChoices(answer, [-answer, ...slips.map((slip) => Math.sign(answer) * slip)], mix(top, bottom, value));
+    return numChoices(
+      answer,
+      [-answer, ...slips.map((slip) => Math.sign(answer) * slip)],
+      mix(top, bottom, value),
+      rateRounded(params) ? RATE_DP : undefined,
+      !rateRounded(params),
+    );
   },
   render: (params): Slide => {
     const story = STORIES[params.ctx];
+    const rounded = rateRounded(params);
     return {
       kind: 'expression',
       prompt: [
-        prose(`${story.subject}, $${story.sym}$, is modelled by`),
+        prose(`${story.subject}, ${measured(story)}, is modelled by`),
         display(rateTex(params)),
-        prose(`with $t$ in ${story.unit}s. How fast is $${story.sym}$ changing when $${story.sym} = ${params.value}$?`),
+        prose(
+          `with $t$ in ${story.unit}s. How fast is $${story.sym}$ changing, in ${story.measure} per ${story.unit}, when $${story.sym} = ${params.value}$?${rounded ? ` ${askPrecision(RATE_DP)}` : ''}`,
+        ),
       ],
       lead: `${rate(story.sym)} =`,
       keypad: [],
       answer: `${rateValue(params)}`,
+      ...(rounded ? { precision: RATE_DP } : {}),
       domain: 'real',
       mode: 'exact',
     };
@@ -504,6 +546,7 @@ const deFormRate: Generator<RateParams> = {
     const { ctx, form, top, bottom, value } = params;
     const s = STORIES[ctx].sym;
     const answer = rateValue(params);
+    const rounded = Math.abs(answer - rateExact(params)) > 1e-9;
     const sign = answer < 0 ? '-' : '';
     const working =
       form === 'root'
@@ -518,10 +561,16 @@ const deFormRate: Generator<RateParams> = {
       {
         tex:
           form === 'root'
-            ? chain(`&${sign}${working}`, `&= ${sign}${top} \\times ${Math.sqrt(value)}`, `&= ${answer}`)
-            : `${sign}${working} = ${answer}`,
+            ? chain(`&${sign}${working}`, `&= ${sign}${top} \\times ${dots(Math.sqrt(value))}`, `&${rounded ? '\\approx' : '='} ${answer}`)
+            : `${sign}${working} ${rounded ? '\\approx' : '='} ${answer}`,
       },
-      { text: answer < 0 ? `It is negative: $${s}$ is falling by $${-answer}$ per ${STORIES[ctx].unit} at that moment.` : `$${s}$ is rising by $${answer}$ per ${STORIES[ctx].unit} at that moment.` },
+      ...(rounded ? [{ text: `That is $${answer}$ to 2 decimal places.` }] : []),
+      {
+        text:
+          answer < 0
+            ? `It is negative: $${s}$ is falling by $${-answer}$ ${STORIES[ctx].measure} per ${STORIES[ctx].unit} at that moment.`
+            : `$${s}$ is rising by $${answer}$ ${STORIES[ctx].measure} per ${STORIES[ctx].unit} at that moment.`,
+      },
     ];
   },
 };
@@ -1645,15 +1694,19 @@ interface GrowthStory {
   what: string;
   unit: string;
   up: boolean;
+  /** Rates and starts this story takes, where the shared ones would not fit it. */
+  percents?: number[];
+  starts?: number[];
 }
 
 const GROWTH_STORIES: GrowthStory[] = [
   { sym: 'P', what: 'A population of bacteria', unit: 'hour', up: true },
-  { sym: 'V', what: 'The value of an investment', unit: 'year', up: true },
+  // Money grows a few percent a year, from a sum someone would invest.
+  { sym: 'V', what: 'The value of an investment in pounds', unit: 'year', up: true, percents: [2, 3, 4, 5, 6, 8], starts: [500, 800, 1000, 1200, 1500, 2000, 2500, 3000, 5000] },
   { sym: 'F', what: 'The number of fish in a new lake', unit: 'month', up: true },
-  { sym: 'M', what: 'The mass of a radioactive sample', unit: 'year', up: false },
-  { sym: 'D', what: 'The amount of a drug in the blood', unit: 'hour', up: false },
-  { sym: 'W', what: 'The number of wolves in a shrinking pack', unit: 'year', up: false },
+  { sym: 'M', what: 'The mass of a radioactive sample in grams', unit: 'year', up: false },
+  { sym: 'D', what: 'The amount of a drug in the blood in mg', unit: 'hour', up: false },
+  { sym: 'W', what: 'The number of wolves in a national park', unit: 'year', up: false },
 ];
 
 export interface GrowthParams {
@@ -1680,10 +1733,12 @@ const PERCENTS = [2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30];
 const STARTS = [40, 50, 60, 80, 100, 120, 150, 200, 250, 300, 400, 500, 600, 750, 800, 1000, 1200];
 
 function sampleGrowth(rng: Rng, difficulty: number): GrowthParams {
+  const ctx = rng.int(0, GROWTH_STORIES.length - 1);
+  const story = GROWTH_STORIES[ctx];
   return {
-    ctx: rng.int(0, GROWTH_STORIES.length - 1),
-    percent: rng.pick(difficulty >= 2 ? PERCENTS : PERCENTS.slice(0, 9)),
-    A: rng.pick(STARTS),
+    ctx,
+    percent: rng.pick(story.percents ?? (difficulty >= 2 ? PERCENTS : PERCENTS.slice(0, 9))),
+    A: rng.pick(story.starts ?? STARTS),
   };
 }
 
@@ -2043,8 +2098,31 @@ export interface CoolValueParams extends CoolParams {
   m: number;
 }
 
-export function coolValue({ room, start, k, m }: CoolValueParams): number {
+/** The temperature itself, unrounded. */
+function coolExact({ room, start, k, m }: CoolValueParams): number {
   return room + (start - room) / k.b ** m;
+}
+
+/** Temperatures are asked to 1 decimal place. */
+const COOL_DP = { dp: 1 } as const;
+
+/** The temperature as the answer gives it, to 1 decimal place. */
+export function coolValue(params: CoolValueParams): number {
+  return roundTo(coolExact(params), COOL_DP);
+}
+
+/**
+ * Where something starts, the kind of temperature a textbook prints for it:
+ * a hot drink or soup put down at 60 to 95°C, a cake or a bar out of the
+ * oven, a bath run warm, a drink out of the fridge at 3 to 8°C.
+ */
+function coolStart(rng: Rng, story: CoolStory, warming: boolean): number {
+  if (warming) return rng.int(3, 8);
+  if (story.what.includes('metal bar')) return rng.pick([200, 250, 300, 350, 400, 450, 500]);
+  if (story.what.includes('cake')) return rng.pick([150, 160, 170, 180]);
+  if (story.what.includes('bath')) return rng.int(38, 45);
+  if (story.what.includes('soup')) return rng.pick([60, 65, 70, 75, 80, 85, 90]);
+  return rng.pick([70, 75, 80, 85, 90, 95]);
 }
 
 const deCoolValue: Generator<CoolValueParams> = {
@@ -2057,18 +2135,17 @@ const deCoolValue: Generator<CoolValueParams> = {
       const k: LnRate = { b, h: rng.pick([2, 4, 5, 10, 15]), sign: -1 };
       const warming = hard && rng.chance(0.3);
       const room = rng.int(15, 24);
-      const gap = b ** m * rng.int(1, warming ? 2 : 10);
-      const start = warming ? room - gap : room + gap;
-      if (start > 100 || start < 2) continue;
       const story = warming ? COLD_STORIES[rng.int(0, 1)] : rng.pick(HOT_STORIES);
-      return { story, room, start, k, m };
+      const params = { story, room, start: coolStart(rng, story, warming), k, m };
+      // The answer is rounded, so a draw near a rounding edge is redrawn.
+      if (roundedWell(coolExact(params), COOL_DP)) return params;
     }
   },
   choices: (params) => {
     const { room, start, k, m } = params;
     const answer = coolValue(params);
     const gap = start - room;
-    return numberChoices(answer, [gap / k.b ** m, start / k.b ** m, room + gap / k.b ** (m + 1), room + gap / k.b], mix(answer, room, start, m));
+    return numChoices(answer, [gap / k.b ** m, start / k.b ** m, room + gap / k.b ** (m + 1), room + gap / k.b], mix(answer, room, start, m), COOL_DP);
   },
   render: (params): Slide => {
     const { story, room, start, k, m } = params;
@@ -2078,11 +2155,12 @@ const deCoolValue: Generator<CoolValueParams> = {
       prompt: [
         prose(`${story.what} at ${start}°C is put in ${surroundings(params)}. Its temperature follows`),
         display(`${rate(s)} = ${lnFactor(k)}(${gapTex(s, room)})`),
-        prose(`with $t$ in minutes. What is its temperature after ${m * k.h} minutes?`),
+        prose(`with $t$ in minutes. What is its temperature, in °C, after ${m * k.h} minutes? ${askPrecision(COOL_DP)}`),
       ],
       lead: `${s}(${m * k.h}) =`,
       keypad: [],
       answer: `${coolValue(params)}`,
+      precision: COOL_DP,
       domain: 'real',
       mode: 'exact',
     };
@@ -2094,7 +2172,10 @@ const deCoolValue: Generator<CoolValueParams> = {
     return [
       { text: 'The solution is the room temperature plus a gap that decays.', tex: `${s} = ${room} ${signed(gap)}e^{${lnTex(k)}t}` },
       { text: `With $k = ${lnTex({ ...k, sign: 1 })}$ the gap ${k.b === 2 ? 'halves' : `divides by $${k.b}$`} every ${k.h} minutes, and ${m * k.h} minutes is ${m} of those.` },
-      { tex: `${s} = ${room} ${signed(gap)} \\div ${k.b}^{${m}} = ${coolValue(params)}` },
+      {
+        tex: `${s} = ${room} ${signed(gap)} \\div ${k.b}^{${m}} ${Math.abs(coolExact(params) - coolValue(params)) < 1e-9 ? '=' : `= ${dots(coolExact(params))} \\approx`} ${coolValue(params).toFixed(1)}`,
+      },
+      { text: `That is ${coolValue(params).toFixed(1)}°C to 1 decimal place.` },
     ];
   },
 };
@@ -2497,10 +2578,18 @@ export interface TankNowParams extends TankParams {
 const deMixTree: Generator<TankNowParams> = {
   id: 'de-mix-tree',
   sample: (rng, difficulty) => {
+    // The salt runs from the start towards c V and never past it, so the
+    // moment shown sits strictly between the two. A tank that starts saltier
+    // than what flows in is losing salt; one that starts fresher is gaining it.
     for (;;) {
-      const base = sampleTank(rng, difficulty);
-      const q = rng.int(0, base.c + 3);
-      if (q !== base.c) return { ...base, fresh: 0, q };
+      const base = { ...sampleTank(rng, difficulty), fresh: 0 };
+      if (rng.chance(0.35)) {
+        const top = base.c + rng.int(2, 4);
+        return { ...base, S0: top * base.V, q: rng.int(base.c + 1, top - 1) };
+      }
+      if (base.c < 2) continue;
+      const q = rng.int(1, base.c - 1);
+      if (q * base.V > base.S0) return { ...base, q };
     }
   },
   render: (params): Slide => {

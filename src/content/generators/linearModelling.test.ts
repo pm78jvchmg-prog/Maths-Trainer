@@ -296,11 +296,12 @@ function evenStory(text: string, where: string) {
 }
 
 describe('break-even', () => {
-  it('lin-even-count is the fixed cost over what each sale makes, typed and chosen', () => {
+  it('lin-even-count is the fixed cost over what each sale makes, rounded up, typed and chosen', () => {
     for (const id of ['lin-even-count', choiceId('lin-even-count')]) {
       for (const { slide, where } of draws(id)) {
-        const { n } = evenStory(proseOf(slide), where);
-        expect(isWhole(n), `${where}: break-even at ${n}`).toBe(true);
+        // The fixed cost is round rather than worked back from the count, so
+        // the count is the fewest whole sales that cover it.
+        const n = Math.ceil(evenStory(proseOf(slide), where).n);
         if (slide.kind === 'expression') {
           expect(verdict(slide, `${n}`), where).toBe('correct');
           expect(verdict(slide, `${n + 1}`), where).toBe('incorrect');
@@ -718,16 +719,18 @@ describe('reading the model back', () => {
       for (const { slide, where } of draws(id)) {
         const text = proseOf(slide) + displayOf(slide);
         const [before, after] = text.split('Next time');
-        const old = evenStory(before, where);
-        expect(isWhole(old.n), where).toBe(true);
-        const told = /It breaks even at \$(\d+)\$/.exec(before);
+        // A round fixed cost need not divide by the margin: every count is the
+        // fewest whole sales that cover the costs.
+        const story = evenStory(before, where);
+        const old = { ...story, n: Math.ceil(story.n) };
+        const told = /(?:It breaks even at|It must sell at least) \$(\d+)\$/.exec(before);
         if (told) expect(Number(told[1]), where).toBe(old.n);
         const F = /pays £\$(\d+)\$/.exec(after);
         const c = /costs £\$(\d+)\$ to make/.exec(after);
         const p = /sells for £\$(\d+)\$/.exec(after);
         expect([F, c, p].filter(Boolean).length, `${where}: one number changes`).toBe(1);
-        const next = (F ? Number(F[1]) : old.F) / ((p ? Number(p[1]) : old.p) - (c ? Number(c[1]) : old.c));
-        expect(isWhole(next) && next >= 1 && next !== old.n, `${where}: now ${next}`).toBe(true);
+        const next = Math.ceil((F ? Number(F[1]) : old.F) / ((p ? Number(p[1]) : old.p) - (c ? Number(c[1]) : old.c)));
+        expect(next >= 1 && next !== old.n, `${where}: now ${next}`).toBe(true);
         if (slide.kind === 'expression') {
           expect(verdict(slide, `${next}`), where).toBe('correct');
           expect(verdict(slide, `${old.n}`), where).toBe('incorrect');

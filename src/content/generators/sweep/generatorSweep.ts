@@ -31,6 +31,7 @@ import katex from 'katex';
 import { makeRng } from '../../../engine/rng';
 import { checkAnswer, roundTo } from '../../../engine/equivalence';
 import { parseExpression, math } from '../../../engine/expression';
+import { formProblem } from '../../../engine/answerForm';
 import { registeredGenerators } from '../../registry';
 import {
   isPairPath,
@@ -1068,6 +1069,16 @@ function sweepGenerator(_id: string, generator: RegisteredGenerator): void {
         seed,
       });
       expect(verdict.status, `seed ${seed}: ${slide.answer}`).toBe('correct');
+    }
+  });
+
+  it('writes its answer in the notation it holds the learner to', () => {
+    // A slide declaring `form` refuses any answer in another notation, so its
+    // own answer has to pass, or the right answer could never be given.
+    for (const { params, seed } of cases()) {
+      const slide = (generator as Generator<unknown>).render(params);
+      if (slide.kind !== 'expression' || !slide.form) continue;
+      expect(formProblem(slide.answer, slide.form), `seed ${seed}: ${slide.answer}`).toBeUndefined();
     }
   });
 

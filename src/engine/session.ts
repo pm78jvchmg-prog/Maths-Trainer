@@ -16,6 +16,8 @@
  */
 import { makeRng, hashSeed } from './rng';
 import { checkAnswer } from './equivalence';
+import { formProblem } from './answerForm';
+import { rampOrder } from './ramp';
 import { isSolved, valueOf, type Move } from '../content/expr';
 import { parseTransform, sameCurve } from '../content/transform';
 import { draftMatches } from '../content/numberLine';
@@ -218,8 +220,9 @@ export function startSession(
   // Guided and skill check are deduplicated separately: a skill-check question
   // matching one from the lesson is the assessment doing its job, where two
   // identical guided slides are just a wasted slide.
-  const guided = resolveDeck(lesson.slides, lesson.id, 'g', seed, registry);
-  const skillCheck = resolveDeck(lesson.skillCheck, lesson.id, 's', seed, registry);
+  // Each deck climbs in difficulty, whatever order its questions were written in.
+  const guided = resolveDeck(rampOrder(lesson.slides), lesson.id, 'g', seed, registry);
+  const skillCheck = resolveDeck(rampOrder(lesson.skillCheck), lesson.id, 's', seed, registry);
 
   const states: Record<string, SlideState> = {};
   for (const resolved of [...guided, ...skillCheck]) {
@@ -382,6 +385,10 @@ function grade(slide: Slide, answer: Answer, seed: number): Feedback {
 
     case 'expression': {
       if (typeof answer !== 'string') return { kind: 'incorrect' };
+      // The notation is checked before the value, so being told to rewrite an
+      // answer says nothing about whether it was right.
+      const problem = slide.form ? formProblem(answer, slide.form) : undefined;
+      if (problem) return { kind: 'invalid', message: problem };
       const verdict = checkAnswer(answer, slide.answer, {
         domain: slide.domain,
         mode: slide.mode,

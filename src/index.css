@@ -1082,6 +1082,10 @@ body:has(.band-maths) #root {
   font-size: 19px;
   display: grid;
   place-items: center;
+  /* KaTeX draws a root's bar from a strut about three ems tall, which reached
+     up over the row above: a tap on + landed on the √ key. Clipping to the
+     key keeps each tap on the key it hits. */
+  overflow: hidden;
   /* The dark lip along the bottom is what makes a flat rectangle read as a
      physical key; it is taken away on press so the key travels. */
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 2px 0 rgb(0 0 0 / 0.35);

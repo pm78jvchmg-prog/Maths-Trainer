@@ -3020,10 +3020,11 @@ function sumSolution(params: SumParams) {
 }
 
 /**
- * Adding or subtracting, typed as an ordinary number.
+ * Adding or subtracting, typed as an ordinary number or in standard form.
  *
- * Digits and a point only on the keypad, for the same reason as reading
- * standard form: without `\times` and `^` the question cannot be typed back.
+ * The keypad had digits and a point only, so the question could not be typed
+ * back; the owner wanted to answer in the question's own notation, so it has
+ * the `× 10ⁿ` key now and `form` refuses anything but one number.
  * The multiple-choice form offers the answer in standard form beside the
  * three slips — the front numbers combined without matching the powers, the
  * powers added as if it were a product, and the power left one out after
@@ -3045,12 +3046,13 @@ const sfAdd: Generator<SumParams> = {
   sample: (rng, difficulty) => drawSum(rng, difficulty, rng.int(0, difficulty > 1 ? 2 : 1)),
   render: (params): Slide => ({
     kind: 'expression',
-    prompt: [{ kind: 'prose', text: 'Work this out.' }],
+    prompt: [{ kind: 'prose', text: 'Work this out. Standard form or the number written out are both fine.' }],
     lead: `${sumTex(params)} =`,
-    keypad: [],
+    keypad: SF_KEYS,
     answer: plainOf(params.result),
     domain: 'real',
     mode: 'exact',
+    form: { kind: 'standardForm' },
   }),
   solution: sumSolution,
 };
@@ -3320,10 +3322,11 @@ const sfTimesBigger: Generator<TimesParams> = {
       },
     ],
     lead: `\\frac{${sfTex(big)}}{${sfTex(small)}} =`,
-    keypad: [],
+    keypad: SF_KEYS,
     answer: `${k}${'0'.repeat(gap)}`,
     domain: 'real',
     mode: 'exact',
+    form: { kind: 'standardForm' },
   }),
   solution: ({ small, big, k, gap }) => [
     { text: 'How many times larger means divide one by the other. Front numbers and powers divide separately.' },
@@ -3444,6 +3447,20 @@ const FREE_HARD: number[] = SURD_FREE.slice(0, 12);
 
 /** Whole-number answers need digits and a minus sign, and nothing to type a root with. */
 const WHOLE_KEYS: KeypadKey[] = [];
+
+/**
+ * An answer in the form p + q√d, typed whole: the root key and nothing else.
+ * No brackets and no times, and `form` refuses anything that is not one whole
+ * number and one multiple of the surd, so the question cannot be typed back.
+ */
+const FORM_KEYS: KeypadKey[] = [{ insert: 'sqrt(', label: '√' }];
+
+/**
+ * A standard-form answer typed as the question writes it: one key for `× 10`
+ * with the caret in its power. `form` then takes the number written out or in
+ * standard form and nothing else, so the sum cannot be typed back.
+ */
+const SF_KEYS: KeypadKey[] = [{ insert: '*10^', label: '×10ⁿ' }];
 
 /** k√m as it is written by hand: √5, 3√5. */
 function kSurd(k: number, m: number): string {
@@ -3865,7 +3882,6 @@ interface CollectParams {
   g: number;
   s2: number;
   d: number;
-  ask: 'p' | 'q';
 }
 
 function collected({ a, b, c, s1, op, e, f, g, s2 }: CollectParams): { p: number; q: number } {
@@ -3877,11 +3893,12 @@ function collectTex({ a, b, c, s1, op, e, f, g, s2, d }: CollectParams): string 
 }
 
 /**
- * Two brackets expanded and collected, then one part read off.
+ * Two brackets expanded and collected, typed as the whole result p + q√d.
  *
- * A typed whole number rather than the whole form, because the form typed back
- * as the question would be accepted — see the note at the top of this level.
- * Asking for one part still needs the whole expansion done.
+ * It used to ask for one part, typed as a whole number, because the form
+ * typed back as the question would be accepted — see the note at the top of
+ * this level. The owner wanted to write the whole result, `20 + 14√7`, so it
+ * takes the root key now and `form` holds the answer to p + q√d instead.
  */
 const collectBrackets: Generator<CollectParams> = {
   id: 'rad-collect',
@@ -3899,33 +3916,32 @@ const collectBrackets: Generator<CollectParams> = {
         g: rng.int(1, hard ? 4 : 3),
         s2: rng.sign(),
         d: rng.pick(hard ? FREE_HARD : FREE_EASY),
-        ask: rng.pick(['p', 'q'] as const),
       };
       const { p, q } = collected(params);
       if (p !== 0 && q !== 0) return params;
     }
   },
   render: (params): Slide => {
-    const { d, ask } = params;
+    const { d } = params;
     const { p, q } = collected(params);
     return {
       kind: 'expression',
       prompt: [
         {
           kind: 'prose',
-          text: `Expand both brackets and collect like terms, writing the result as $p + q\\sqrt{${d}}$. What is $${ask}$?`,
+          text: `Expand both brackets and collect like terms. Give the result as $p + q\\sqrt{${d}}$.`,
         },
         { kind: 'display', tex: collectTex(params) },
       ],
-      lead: `${ask} =`,
-      keypad: WHOLE_KEYS,
-      answer: `${ask === 'p' ? p : q}`,
+      keypad: FORM_KEYS,
+      answer: formAnswer(p, q, d),
       domain: 'real',
       mode: 'exact',
+      form: { kind: 'surd', radicand: d },
     };
   },
   solution: (params) => {
-    const { a, b, c, s1, op, e, f, g, s2, d, ask } = params;
+    const { a, b, c, s1, op, e, f, g, s2, d } = params;
     const { p, q } = collected(params);
     return [
       { text: 'Expand each bracket on its own first.' },
@@ -3937,7 +3953,6 @@ const collectBrackets: Generator<CollectParams> = {
       {
         text: `Whole numbers collect with whole numbers and multiples of $\\sqrt{${d}}$ with each other: $${formTex(p, q, d)}$.`,
       },
-      { text: `So $${ask} = ${ask === 'p' ? p : q}$.` },
     ];
   },
 };
@@ -4653,7 +4668,6 @@ const divideSurdSteps: Generator<DivideSurdParams> = {
 
 interface ReadOffParams {
   shape: 'collect' | 'square' | 'fraction';
-  ask: 'a' | 'b';
   p: number;
   q: number;
   s: number;
@@ -4698,7 +4712,6 @@ const readOff: Generator<ReadOffParams> = {
       const d = shape === 'fraction' ? frac.d : rng.pick(hard ? FREE_HARD.slice(0, 8) : FREE_EASY);
       const params: ReadOffParams = {
         shape,
-        ask: shape === 'collect' ? 'b' : rng.pick(['a', 'b'] as const),
         p: rng.int(1, hard ? 8 : 6),
         q: rng.int(1, hard ? 3 : 2),
         s: rng.int(2, hard ? 5 : 4),
@@ -4710,28 +4723,28 @@ const readOff: Generator<ReadOffParams> = {
     }
   },
   render: (params): Slide => {
-    const { ask, d } = params;
+    const { d } = params;
     const parts = readOffParts(params);
     return {
       kind: 'expression',
       prompt: [
         {
           kind: 'prose',
-          text: `Write this in the form $a + b\\sqrt{${d}}$, where $a$ and $b$ are whole numbers. What is $${ask}$?`,
+          text: `Write this in the form $a + b\\sqrt{${d}}$, where $a$ and $b$ are whole numbers.`,
         },
         { kind: 'display', tex: readOffTex(params) },
       ],
-      lead: `${ask} =`,
-      keypad: WHOLE_KEYS,
-      answer: `${parts[ask]}`,
+      keypad: FORM_KEYS,
+      answer: formAnswer(parts.a, parts.b, d),
       domain: 'real',
       mode: 'exact',
+      form: { kind: 'surd', radicand: d },
     };
   },
   solution: (params) => {
-    const { shape, ask, p, q, s, t, d, frac } = params;
+    const { shape, p, q, s, t, d, frac } = params;
     const { a, b } = readOffParts(params);
-    const close = { text: `So $a = ${a}$ and $b = ${b}$, and the question asked for $${ask} = ${ask === 'a' ? a : b}$.` };
+    const close = { text: `So the answer is $${formTex(a, b, d)}$, with $a = ${a}$ and $b = ${b}$.` };
     if (shape === 'collect') {
       return [
         { text: `Simplify the root first: $\\sqrt{${s * s * d}} = ${kSurd(s, d)}$.` },

@@ -32,6 +32,7 @@ import { makeRng } from '../../../engine/rng';
 import { checkAnswer, roundTo } from '../../../engine/equivalence';
 import { parseExpression, math } from '../../../engine/expression';
 import { formProblem } from '../../../engine/answerForm';
+import { missingKeys } from './keypadNeeds';
 import { registeredGenerators } from '../../registry';
 import {
   isPairPath,
@@ -1069,6 +1070,17 @@ function sweepGenerator(_id: string, generator: RegisteredGenerator): void {
         seed,
       });
       expect(verdict.status, `seed ${seed}: ${slide.answer}`).toBe('correct');
+    }
+  });
+
+  it('offers a key for everything its typed answer needs', () => {
+    // A gradient of 1/3 on a keypad with no fraction key cannot be given at
+    // all; nor can a time that needs a root, on a keypad with no root.
+    for (const { params, seed } of cases()) {
+      const slide = (generator as Generator<unknown>).render(params);
+      if (slide.kind !== 'expression') continue;
+      const keys = [...slide.keypad, ...(slide.prefill ?? [])];
+      expect(missingKeys(slide.answer, keys, slide.precision !== undefined), `seed ${seed}: ${slide.answer}`).toEqual([]);
     }
   });
 

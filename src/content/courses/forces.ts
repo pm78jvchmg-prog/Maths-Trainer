@@ -974,7 +974,7 @@ export const forces: Course = {
               prose(
                 'Positions are often measured from the end $A$ of the rod. Take $A$\'s distance to the pivot away first, so every $d$ is measured from $P$. With $P$ $2.5\\text{ m}$ from $A$: $6\\text{ N}$ up, $4\\text{ m}$ from $A$, and $4\\text{ N}$ down, $1\\text{ m}$ from $A$:',
               ),
-              stacked('6\\text{ N}: \\; d = 4 - 2.5 = 1.5 \\text{ right of } P', '6 \\times 1.5 = 9\\text{ N m anticlockwise}', '4\\text{ N}: \\; d = 2.5 - 1 = 1.5 \\text{ left of } P', '4 \\times 1.5 = 6\\text{ N m anticlockwise}'),
+              stacked('6\\text{ N}: \\; d = 4 - 2.5 = 1.5 \\text{ beyond } P', '6 \\times 1.5 = 9\\text{ N m anticlockwise}', '4\\text{ N}: \\; d = 2.5 - 1 = 1.5 \\text{ between } A \\text{ and } P', '4 \\times 1.5 = 6\\text{ N m anticlockwise}'),
             ),
             ask('force-moment-sense'),
             ask('force-moment-table'),
@@ -1260,7 +1260,7 @@ export const forces: Course = {
               diagram(collisionSvg([{ title: '', bodies: [{ name: 'A', mass: 3, v: -4 }] }], 'A 3 kg trolley moving left at 4 metres per second')),
               display('p = 3 \\times (-4) = -12\\text{ kg m s}^{-1}'),
               prose('Run it backwards by dividing the momentum by whichever of $m$ and $v$ you know. A $4\\text{ kg}$ particle with momentum $-12$, and a particle at $5\\text{ m s}^{-1}$ with momentum $15$:'),
-              stacked('v = -12 \\div 4 = -3, \\text{ so left at } 3\\text{ m s}^{-1}', 'm = 15 \\div 5 = 3\\text{ kg}'),
+              stacked('v = -12 \\div 4 = -3, \\text{ so } 3\\text{ m s}^{-1} \\text{ the negative way}', 'm = 15 \\div 5 = 3\\text{ kg}'),
             ),
             ask('force-momentum'),
             ask('force-momentum-table'),

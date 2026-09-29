@@ -1387,7 +1387,7 @@ export const inequalitiesModulus: Course = {
               prose('The left arms, $y = -x - 2$ and $y = x + 4$, meet at $(-3, 1)$. The other two corners are the vertices, $(1, -3)$ and $(-1, 3)$.'),
               prose('Each arm drops the bars: on the right the inside is positive and stays; on the left it is negative, so it changes sign:'),
               maths(
-                '\\begin{aligned} \\text{right: } \\lvert x - 1 \\rvert - 3 &= (x - 1) - 3 = x - 4 \\\\ \\text{left: } \\lvert x - 1 \\rvert - 3 &= (1 - x) - 3 = -x - 2 \\end{aligned}',
+                '\\begin{aligned} x \\ge 1\\text{: } \\lvert x - 1 \\rvert - 3 &= (x - 1) - 3 = x - 4 \\\\ x < 1\\text{: } \\lvert x - 1 \\rvert - 3 &= (1 - x) - 3 = -x - 2 \\end{aligned}',
               ),
             ),
             ask('mod-between-corners-tiles'),

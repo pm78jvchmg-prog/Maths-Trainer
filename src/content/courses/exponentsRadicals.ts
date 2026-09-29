@@ -120,7 +120,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-powers-tree'),
-            ask('idx-fill-multiply'),
+            ask('idx-evaluate-multiply'),
             teach(
               prose('Three or more powers work the same way — add all the exponents at once.'),
               maths('x^{2} \\times x^{3} \\times x^{4} = x^{9}'),

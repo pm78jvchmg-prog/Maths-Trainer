@@ -2286,7 +2286,9 @@ function chainTermOptions({ kind, k, n }: ChainTermParams): string[] {
   if (kind === 'sin') return [`${coef(k)}\\cos y${DYDX}`, `${coef(k)}\\cos y`, `${coef(-k)}\\cos y${DYDX}`, `${coef(k)}\\cos x`];
   if (kind === 'cos') return [`${coef(-k)}\\sin y${DYDX}`, `${coef(k)}\\sin y${DYDX}`, `${coef(-k)}\\sin y`, `${coef(-k)}\\sin x`];
   if (kind === 'exp') return [`${coef(k)}e^{y}${DYDX}`, `${coef(k)}e^{y}`, `${coef(k)}ye^{y - 1}${DYDX}`, `${coef(k)}e^{x}`];
-  return [`\\frac{${k}}{y}${DYDX}`, `\\frac{${k}}{y}`, `\\frac{${k}}{x}`, `${coef(k)}\\ln y${DYDX}`];
+  // The sign goes in front of the fraction: -3/y is written -\frac{3}{y}, never \frac{-3}{y}.
+  const over = (v: string) => `${k < 0 ? '-' : ''}\\frac{${Math.abs(k)}}{${v}}`;
+  return [`${over('y')}${DYDX}`, over('y'), over('x'), `${coef(k)}\\ln y${DYDX}`];
 }
 
 /**

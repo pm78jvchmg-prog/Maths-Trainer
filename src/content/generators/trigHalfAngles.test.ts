@@ -402,6 +402,16 @@ describe('every equation in x/2 or 3x is answered by its own solutions', () => {
     }
   });
 
+  it('tid-multi-eq-slider never asks an equation its lesson works in full', () => {
+    // Equations in x/2 and 3x works these on its teach slides; asking one hands back an answer just read.
+    const worked = ['\\cos \\tfrac{x}2 = \\frac{1}{2}', '\\cos \\tfrac{x}2 = -\\frac{\\sqrt{2}}{2}', '\\tan 3x = 1'];
+    for (const { slide } of slides('tid-multi-eq-slider')) {
+      if (slide.kind !== 'slider') throw new Error('not slider');
+      const tex = (slide.prompt[1] as { tex: string }).tex;
+      expect(worked, tex).not.toContain(tex);
+    }
+  });
+
   it('tid-multi-eq-slider slides to one', () => {
     for (const { slide } of slides('tid-multi-eq-slider')) {
       if (slide.kind !== 'slider') throw new Error('not slider');

@@ -377,7 +377,7 @@ export const probability: Course = {
               prose('From the diagram: $\\frac{8}{20} + \\frac{10}{20} - \\frac{3}{20} = \\frac{15}{20}$, the same as counting the three regions.'),
             ),
             ask('prob-venn-rule-tiles'),
-            ask('prob-venn-region', 2),
+            ask('venn-probabilities'),
             ask('prob-venn-union+choice', 2),
             teach(
               prose(
@@ -518,7 +518,7 @@ export const probability: Course = {
               ),
               working('P(\\text{both yellow}) &= \\frac{5}{7} \\times \\frac{4}{6}', '&= \\frac{20}{42} = \\frac{10}{21}'),
             ),
-            ask('prob-norepl-tiles'),
+            ask('ptree-fill'),
             ask('prob-norepl-tree'),
             ask('prob-cond-which', 2),
             teach(
@@ -716,7 +716,7 @@ export const probability: Course = {
               ),
             ),
             ask('prob-venn-match'),
-            ask('prob-venn-regions-table', 2),
+            ask('venn-counts', 2),
             ask('prob-venn-count+choice', 2),
             teach(
               prose('Two checks catch most slips. The four regions add up to the total, and each circle adds up to its own count:'),

@@ -1369,6 +1369,8 @@ const scatterSlider: Generator<ScatterSliderParams> = {
         if (a < -3 || a > 13) continue;
         const f = lineAt(a, b);
         const xs = ordered(rng.sample([1, 2, 3, 4, 5, 6, 7, 8, 9].filter((x) => x !== target), 7));
+        // Inside the data: the lesson teaches that a reading beyond it is not to be trusted.
+        if (target < xs[0] || target > xs[xs.length - 1]) continue;
         const points: Point[] = xs.map((x) => [x, Math.round(f(x)) + rng.int(-1, 1)]);
         if (points.some(([, py]) => py < 0 || py > 10)) continue;
         if (Math.abs(correlation(points)) < 0.8) continue;
@@ -2497,6 +2499,7 @@ function compareSolution(params: CompareParams): SolutionStep[] {
   if (squared) steps.push({ text: `${b}'s spread is a variance: its standard deviation is $\\sqrt{${sB * sB}} = ${sB}$.` });
   steps.push(
     { text: `${mA > mB ? a : b} has the higher mean, $${Math.max(mA, mB)}$ against $${Math.min(mA, mB)}$.` },
+    ...(COMPARE_CONTEXTS[context].higher ? [] : [{ text: `Lower is better here, so ${mA < mB ? a : b} did better on average.` }]),
     { text: `${sA < sB ? a : b} has the smaller standard deviation, $${Math.min(sA, sB)}$ against $${Math.max(sA, sB)}$, so its values are more consistent.` },
   );
   return steps;
@@ -2604,7 +2607,7 @@ const STEM_CONTEXTS: Record<StemKey, string[]> = {
   tens: [
     'Marks in a test out of 100',
     'Ages of the people on a coach trip',
-    'Pulse rates of some runners',
+    'Numbers of emails some people received in a week',
     'Minutes some pupils spent on homework',
     'Scores in a quiz',
   ],
@@ -3757,9 +3760,14 @@ function sampleHist(rng: Rng, k: number, rule: HistRule, accept: (p: HistParams)
 }
 
 /** The vertical scale for a histogram under a rule: its lines, its numbers and its top. */
-function histScale(p: HistParams, rule: HistRule) {
+/**
+ * The vertical scale. `headroom` adds one labelled division above the tallest
+ * bar, for a slider whose top must not be where the hidden bar reaches.
+ */
+function histScale(p: HistParams, rule: HistRule, headroom = false) {
   const top = Math.max(...densities(p));
-  return { yMax: Math.ceil(top / rule.every - 1e-9) * rule.every, yStep: rule.step, yEvery: rule.every };
+  const yMax = headroom ? (Math.floor(top / rule.every + 1e-9) + 1) * rule.every : Math.ceil(top / rule.every - 1e-9) * rule.every;
+  return { yMax, yStep: rule.step, yEvery: rule.every };
 }
 
 const histLabel = (p: HistParams): string =>
@@ -3769,7 +3777,7 @@ function histFigure(p: HistParams, rule: HistRule, hide?: number): string {
   return histogramSvg({
     bounds: p.bounds,
     heights: densities(p).map((d, i) => (i === hide ? null : d)),
-    ...histScale(p, rule),
+    ...histScale(p, rule, hide !== undefined),
     label: histLabel(p),
   });
 }
@@ -3870,7 +3878,7 @@ const fdSlider: Generator<HistClassParams> = {
     for (;;) {
       const params = sampleHist(rng, difficulty > 1 ? 4 : 3, rule);
       const at = rng.int(0, params.freqs.length - 1);
-      const { yMax } = histScale(params, rule);
+      const { yMax } = histScale(params, rule, true);
       // The handle starts in the middle, where an untouched answer must not score.
       if (Math.abs(densities(params)[at] - Math.round(yMax / 2 / rule.step) * rule.step) < 1e-9) continue;
       return { ...params, at };
@@ -3878,7 +3886,8 @@ const fdSlider: Generator<HistClassParams> = {
   },
   render: (params): Slide => {
     const rule = ruleOf(params);
-    const { yMax } = histScale(params, rule);
+    // Headroom above the tallest bar, or a hidden tallest bar is the top of the slider.
+    const { yMax } = histScale(params, rule, true);
     return {
       kind: 'slider',
       prompt: [

@@ -65,7 +65,8 @@ function ellipseLine(c: Pt, R: number, ry: number, from = 0, to = 2 * Math.PI): 
  * is only offset from its own edge lands on the next one.
  */
 class Labels {
-  private lines: [Pt, Pt][] = [];
+  /** Points every 4 or so along each line drawn, sampled once rather than on every spot tried. */
+  private points: Pt[] = [];
   private boxes: [Pt, Pt][] = [];
   private height: number;
 
@@ -74,11 +75,12 @@ class Labels {
   }
 
   line(a: Pt, b: Pt) {
-    this.lines.push([a, b]);
+    const n = Math.max(2, Math.ceil(dist(a, b) / 4));
+    for (let i = 0; i <= n; i += 1) this.points.push(lerp(a, b, i / n));
   }
 
   curve(segs: [Pt, Pt][]) {
-    this.lines.push(...segs);
+    for (const [a, b] of segs) this.line(a, b);
   }
 
   /** Whether a label box centred at `c` fits here, and inside `within` if given. */
@@ -95,12 +97,8 @@ class Labels {
       ];
       if (!corners.every((p) => inside(p, within))) return false;
     }
-    for (const [a, b] of this.lines) {
-      const n = Math.max(2, Math.ceil(dist(a, b) / 4));
-      for (let i = 0; i <= n; i += 1) {
-        const [x, y] = lerp(a, b, i / n);
-        if (Math.abs(x - c[0]) < hx + LABEL_PAD && Math.abs(y - c[1]) < hy + LABEL_PAD) return false;
-      }
+    for (const [x, y] of this.points) {
+      if (Math.abs(x - c[0]) < hx + LABEL_PAD && Math.abs(y - c[1]) < hy + LABEL_PAD) return false;
     }
     for (const [bc, bh] of this.boxes) {
       if (Math.abs(bc[0] - c[0]) < hx + bh[0] + LABEL_PAD && Math.abs(bc[1] - c[1]) < hy + bh[1] + LABEL_PAD) return false;
@@ -132,11 +130,12 @@ class Labels {
   within(value: string, region: Pt[], target: Pt): string {
     const xs = region.map((p) => p[0]);
     const ys = region.map((p) => p[1]);
-    const spots: Pt[] = [];
+    const near: [number, Pt][] = [];
     for (let x = Math.min(...xs); x <= Math.max(...xs); x += 2) {
-      for (let y = Math.min(...ys); y <= Math.max(...ys); y += 2) spots.push([x, y]);
+      for (let y = Math.min(...ys); y <= Math.max(...ys); y += 2) near.push([dist([x, y], target), [x, y]]);
     }
-    spots.sort((p, q) => dist(p, target) - dist(q, target));
+    // Each distance worked out once, not once per comparison.
+    const spots = near.sort((p, q) => p[0] - q[0]).map(([, spot]) => spot);
     // A little wider than the estimate first: squeezed between two lines, a label that only just fits reads as touching them.
     const half = labelHalf(value);
     const roomy: Pt = [half[0] + 3, half[1] + 1];

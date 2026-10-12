@@ -444,29 +444,32 @@ describe('course integrity', () => {
     return [...offenders.entries()].sort((a, b) => b[1] - a[1]);
   };
 
-  it('never asks the same question twice in one sitting', () => {
-    // A lesson leaning on one generator is fine — that is what practice is.
-    // Drawing the *same question* twice is not: it reads as a bug, and it
-    // wastes one of the ten slides a lesson gets. Reported across every
-    // lesson at once, because fixing these one failure at a time is slow.
-    const offenders = duplicatesIn(lessons);
-    expect(
-      offenders.map(([id, n]) => `${id}: ${n} duplicate(s) across 40 seeds`).join('\n'),
-    ).toBe('');
-    // Every lesson resolved 40 times over: the sweep grows with the library and
-    // outgrew vitest's 5s default once the Phase C courses landed. A budget
-    // rather than fewer seeds, as for the oracle tests in the generator sweep.
-  }, 60_000);
+  // A lesson leaning on one generator is fine — that is what practice is.
+  // Drawing the *same question* twice is not: it reads as a bug, and it
+  // wastes one of the ten slides a lesson gets. Every lesson is resolved 40
+  // times over, so the sweep grows with the library; one test per course
+  // keeps each within the default budget however many courses there are
+  // (as one test it crossed a 60s budget on a loaded machine, at 1,290
+  // lessons). Reported across a whole course at once, because fixing these
+  // one failure at a time is slow.
+  describe('never asks the same question twice in one sitting', () => {
+    it.each(courses.map((course) => [course.id, course] as const))('%s', (_, course) => {
+      const offenders = duplicatesIn(course.levels.flatMap((level) => level.lessons));
+      expect(
+        offenders.map(([id, n]) => `${id}: ${n} duplicate(s) across 40 seeds`).join('\n'),
+      ).toBe('');
+    });
+  });
 
-  it('never repeats a question inside a level check', () => {
-    const checks = courses.flatMap((course) =>
-      course.levels.map(levelCheckLesson).filter((l) => l !== undefined),
-    );
-    const offenders = duplicatesIn(checks);
-    expect(
-      offenders.map(([id, n]) => `${id}: ${n} duplicate(s) across 40 seeds`).join('\n'),
-    ).toBe('');
-  }, 60_000);
+  describe('never repeats a question inside a level check', () => {
+    it.each(courses.map((course) => [course.id, course] as const))('%s', (_, course) => {
+      const checks = course.levels.map(levelCheckLesson).filter((l) => l !== undefined);
+      const offenders = duplicatesIn(checks);
+      expect(
+        offenders.map(([id, n]) => `${id}: ${n} duplicate(s) across 40 seeds`).join('\n'),
+      ).toBe('');
+    });
+  });
 
   it('varies the shape of the questions inside a lesson', () => {
     // Seven questions through one widget reads as the same question seven

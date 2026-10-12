@@ -35,7 +35,10 @@ describe('reduction formulae', () => {
         const p = reductionByName.gammaTyped.sample(makeRng(seed), difficulty) as GammaParams;
         const parsed = parseExpression(gammaIntegrand(p));
         if (!parsed.ok) throw new Error(gammaIntegrand(p));
-        const f = (x: number) => parsed.node.evaluate({ x }) as number;
+        // Compiled once: `node.evaluate` compiles afresh on every call, and this
+        // is called 20,001 times a draw.
+        const compiled = parsed.node.compile();
+        const f = (x: number) => compiled.evaluate({ x }) as number;
         const end = p.form === 'times' ? 80 / p.k : 80 * p.k;
         const numeric = simpson(f, 0, end, 20000);
         expect(Math.abs(numeric - fval(gammaValue(p))), JSON.stringify(p)).toBeLessThan(1e-6 * Math.max(1, numeric));

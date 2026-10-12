@@ -379,6 +379,32 @@ function labelPoints(label: string): [number, number][] {
 const nearestGap = (p: [number, number], to: [number, number][]) =>
   Math.min(...to.map(([u, v]) => Math.hypot(p[0] - u, p[1] - v)));
 
+/**
+ * The furthest any point of `from` lies from its nearest point of `to`: the
+ * same number as the largest `nearestGap`, without trying every pair. A
+ * point's search stops as soon as it is nearer than the furthest found so
+ * far, since it can no longer raise the answer. A curve with a point off to
+ * infinity takes the plain route, so a NaN still fails the check as before.
+ */
+function furthestGap(from: [number, number][], to: [number, number][]): number {
+  if (![...from, ...to].every(([x, y]) => Number.isFinite(x) && Number.isFinite(y))) {
+    return Math.max(...from.map((p) => nearestGap(p, to)));
+  }
+  let worst = 0;
+  for (const [x, y] of from) {
+    let best = Infinity;
+    for (const [u, v] of to) {
+      const d = (x - u) ** 2 + (y - v) ** 2;
+      if (d < best) {
+        best = d;
+        if (best <= worst) break;
+      }
+    }
+    worst = Math.max(worst, best);
+  }
+  return Math.sqrt(worst);
+}
+
 describe('psk-match', () => {
   it('has the right pair draw the figure, and every other pair draw something else', () => {
     const SPAN = 6;
@@ -460,7 +486,7 @@ describe('psk-reflect', () => {
         for (const b of slide.bank) {
           if (a === b || (a === slide.answer[0] && b === slide.answer[1])) continue;
           const other = toPoints(a, b, 10);
-          const gap = Math.max(...target.map((p) => nearestGap(p, other)));
+          const gap = furthestGap(target, other);
           expect(gap, `x = ${a}, y = ${b} traces the answer's curve`).toBeGreaterThan(0.5);
         }
       }

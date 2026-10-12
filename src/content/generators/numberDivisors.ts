@@ -923,11 +923,27 @@ const kindOf = (n: number): Kind => {
 
 /** n composite (or perfect) in [lo, hi] of the given kind, sigma(n) under 1000. */
 function sampleKind(rng: Rng, lo: number, hi: number): NParams {
-  const pool = range(lo, hi).filter((n) => !isPrime(n) && sigmaOf(n) <= 999);
-  const kind = rng.pick(['Perfect', 'Abundant', 'Deficient'].filter((k) => pool.some((n) => kindOf(n) === k)) as Kind[]);
+  const byKind = kindPool(lo, hi);
+  const kind = rng.pick((['Perfect', 'Abundant', 'Deficient'] as Kind[]).filter((k) => byKind[k].length > 0));
   // Perfect numbers are rare, so they come up a third as often as the others.
   const chosen = kind === 'Perfect' && rng.chance(0.67) ? rng.pick(['Abundant', 'Deficient'] as Kind[]) : kind;
-  return { n: rng.pick(pool.filter((n) => kindOf(n) === chosen)) };
+  return { n: rng.pick(byKind[chosen]) };
+}
+
+/**
+ * The pool `sampleKind` draws from, split by kind. Worked out once per range:
+ * classifying every number up to 500 costs a divisor sweep each, and redoing
+ * it on every draw made these the slowest questions in the library.
+ */
+const kindPools = new Map<string, Record<Kind, number[]>>();
+function kindPool(lo: number, hi: number): Record<Kind, number[]> {
+  const key = `${lo}-${hi}`;
+  const known = kindPools.get(key);
+  if (known) return known;
+  const byKind: Record<Kind, number[]> = { Perfect: [], Abundant: [], Deficient: [] };
+  for (const n of range(lo, hi)) if (!isPrime(n) && sigmaOf(n) <= 999) byKind[kindOf(n)].push(n);
+  kindPools.set(key, byKind);
+  return byKind;
 }
 
 const properSolution = (n: number): SolutionStep[] => {
